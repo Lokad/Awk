@@ -1,0 +1,93 @@
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Lokad.Awk;
+
+internal sealed class AwkRecordDescriptorReader
+{
+    private readonly IAwkHost _host;
+    private readonly CancellationToken _cancellationToken;
+    private readonly AwkRuntimeCounters _counters;
+    private readonly AwkRuntimeResourceMonitor _resources;
+
+    public AwkRecordDescriptorReader(IAwkHost host, CancellationToken cancellationToken)
+        : this(host, cancellationToken, AwkRuntimeCounters.Disabled)
+    {
+    }
+
+    public AwkRecordDescriptorReader(
+        IAwkHost host,
+        CancellationToken cancellationToken,
+        AwkRuntimeCounters counters)
+        : this(
+            host,
+            cancellationToken,
+            counters,
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters))
+    {
+    }
+
+    public AwkRecordDescriptorReader(
+        IAwkHost host,
+        CancellationToken cancellationToken,
+        AwkRuntimeCounters counters,
+        AwkRuntimeResourceMonitor resources)
+    {
+        _host = host;
+        _cancellationToken = cancellationToken;
+        _counters = counters;
+        _resources = resources;
+    }
+
+    public AsyncLineReader CreateLineReader(AwkFileDescriptor descriptor) =>
+        new(_host, descriptor, _cancellationToken, AwkIo.InputReadBatchLineCount, _counters, _resources);
+
+    public async Task<AwkRecordReadBatch> ReadNextBatchAsync(AwkFileDescriptor descriptor)
+    {
+        _resources.RecordHostCall();
+        var result = await _host.ReadLinesAsync(descriptor, AwkIo.InputReadBatchLineCount, _cancellationToken).ConfigureAwait(false);
+        if (result.ExitCode.Failed)
+            return AwkRecordReadBatch.Failed;
+
+        _resources.RecordBytesRead(result.Content.Length);
+        return AwkRecordReadBatch.Success(result.Content, result.ReachedEof);
+    }
+
+    public async Task<AwkText> ReadToEndTextAsync(
+        AwkFileDescriptor descriptor,
+        AwkRuntimeLimits limits,
+        AwkMemoryGovernor governor)
+    {
+        using var builder = new AwkUtf8Builder(limits, governor, AwkIo.InputReadBatchLineCount);
+        while (true)
+        {
+            _counters.RecordCancellationCheck();
+            _cancellationToken.ThrowIfCancellationRequested();
+            _resources.RecordHostCall();
+            var result = await _host.ReadLinesAsync(descriptor, AwkIo.InputReadBatchLineCount, _cancellationToken)
+                .ConfigureAwait(false);
+            if (result.ExitCode.Failed)
+                return builder.CopyToAwkText(_counters);
+
+            _resources.RecordBytesRead(result.Content.Length);
+            builder.Append(result.Content);
+            if (result.ReachedEof)
+                return builder.CopyToAwkText(_counters);
+        }
+    }
+}
+
+internal readonly struct AwkRecordReadBatch(ReadOnlyMemory<byte> content, bool reachedEof, bool failed)
+{
+    public static AwkRecordReadBatch Failed { get; } =
+        new(ReadOnlyMemory<byte>.Empty, reachedEof: true, failed: true);
+
+    public static AwkRecordReadBatch Success(ReadOnlyMemory<byte> content, bool reachedEof) =>
+        new(content, reachedEof, failed: false);
+
+    public ReadOnlyMemory<byte> Content { get; } = content;
+
+    public bool ReachedEof { get; } = reachedEof;
+
+    public bool IsFailed { get; } = failed;
+}

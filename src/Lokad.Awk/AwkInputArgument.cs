@@ -1,0 +1,50 @@
+
+namespace Lokad.Awk;
+
+internal abstract record AwkInputArgument
+{
+    private AwkInputArgument(AwkArgvIndex argvIndex)
+    {
+        ArgvIndex = argvIndex;
+    }
+
+    public abstract AwkInputArgumentKind Kind { get; }
+
+    public AwkArgvIndex ArgvIndex { get; }
+
+    public static AwkInputArgument File(AwkResolvedPath path, int argvIndex) =>
+        new FileArgument(path, new AwkArgvIndex(argvIndex));
+
+    public static AwkInputArgument StandardInput(int argvIndex) =>
+        new StandardInputArgument(new AwkArgvIndex(argvIndex));
+
+    public static AwkInputArgument Assignment(AwkVariableAssignment assignment, int argvIndex) =>
+        new VariableAssignmentArgument(assignment, new AwkArgvIndex(argvIndex));
+
+    internal sealed record FileArgument(
+        AwkResolvedPath Path,
+        AwkArgvIndex FileArgvIndex) : AwkInputArgument(FileArgvIndex)
+    {
+        public override AwkInputArgumentKind Kind => AwkInputArgumentKind.File;
+    }
+
+    internal sealed record StandardInputArgument(
+        AwkArgvIndex StandardInputArgvIndex) : AwkInputArgument(StandardInputArgvIndex)
+    {
+        public override AwkInputArgumentKind Kind => AwkInputArgumentKind.StandardInput;
+    }
+
+    internal sealed record VariableAssignmentArgument(
+        AwkVariableAssignment VariableAssignment,
+        AwkArgvIndex VariableAssignmentArgvIndex) : AwkInputArgument(VariableAssignmentArgvIndex)
+    {
+        public override AwkInputArgumentKind Kind => AwkInputArgumentKind.VariableAssignment;
+    }
+}
+
+internal enum AwkInputArgumentKind
+{
+    File,
+    StandardInput,
+    VariableAssignment
+}

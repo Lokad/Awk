@@ -1,0 +1,704 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+
+namespace Lokad.Awk;
+
+internal static class AwkStatementLowerer
+{
+    public static AwkLoweringOutcome<IReadOnlyList<AwkStatement>> LowerList(
+        IReadOnlyList<AwkStatementSyntax> syntaxStatements)
+    {
+        return LowerList(syntaxStatements, AwkLoweringScope.Global);
+    }
+
+    public static AwkLoweringOutcome<IReadOnlyList<AwkStatement>> LowerList(
+        IReadOnlyList<AwkStatementSyntax> syntaxStatements,
+        AwkLoweringScope scope)
+    {
+        return TryLowerListCore(syntaxStatements, scope, out var statements, out var diagnostic)
+            ? AwkLoweringOutcome<IReadOnlyList<AwkStatement>>.Success(statements)
+            : AwkLoweringOutcome<IReadOnlyList<AwkStatement>>.Failure(diagnostic);
+    }
+
+    private static bool TryLowerList(
+        IReadOnlyList<AwkStatementSyntax> syntaxStatements,
+        AwkLoweringScope scope,
+        out IReadOnlyList<AwkStatement> statements) =>
+        TryLowerListCore(syntaxStatements, scope, out statements, out _);
+
+    private static bool TryLowerListCore(
+        IReadOnlyList<AwkStatementSyntax> syntaxStatements,
+        AwkLoweringScope scope,
+        out IReadOnlyList<AwkStatement> statements,
+        out AwkDiagnostic diagnostic)
+    {
+        if (syntaxStatements.Count == 0)
+        {
+            statements = [];
+            diagnostic = default;
+            return true;
+        }
+
+        var loweredStatements = new List<AwkStatement>(syntaxStatements.Count);
+        for (var index = 0; index < syntaxStatements.Count; index++)
+        {
+            if (!TryLower(syntaxStatements[index], scope, out var statement))
+            {
+                statements = [];
+                diagnostic = CreateFailureDiagnostic(syntaxStatements[index]);
+                return false;
+            }
+
+            loweredStatements.Add(statement);
+        }
+
+        statements = loweredStatements;
+        diagnostic = default;
+        return true;
+    }
+
+    private static AwkDiagnostic CreateFailureDiagnostic(AwkStatementSyntax syntax)
+    {
+        if (syntax.Kind == AwkStatementKind.Getline)
+            return AwkGetlineLowerer.CreateFailureDiagnostic(syntax);
+
+        if (syntax.Kind == AwkStatementKind.Delete &&
+            AwkFrontendClassifier.SingleExpression(syntax).TryGetValue(out var deleteTarget))
+        {
+            return new AwkDiagnostic(
+                deleteTarget.Span,
+                "Invalid delete target.",
+                AwkDiagnosticId.BindInvalidProgram);
+        }
+
+        if ((AwkStatementLoweringFacts.IsExpressionBackedStatement(syntax.Kind) ||
+                syntax.Kind is AwkStatementKind.Close or AwkStatementKind.Fflush) &&
+            AwkFrontendClassifier.SingleExpression(syntax).TryGetValue(out var expression))
+        {
+            return AwkExpressionLowerer.CreateFailureDiagnostic(expression);
+        }
+
+        if ((syntax.Kind is AwkStatementKind.Print or AwkStatementKind.Printf) &&
+            AwkFrontendClassifier.Output(syntax).TryGetValue(out var output) &&
+            AwkFrontendClassifier.RequiredExpression(output.Output).TryGetValue(out var outputExpression))
+        {
+            return AwkExpressionLowerer.CreateFailureDiagnostic(outputExpression);
+        }
+
+        return new AwkDiagnostic(syntax.Span, FormatFailureDiagnostic(syntax), AwkDiagnosticId.BindInvalidProgram);
+    }
+
+    private static string FormatFailureDiagnostic(AwkStatementSyntax syntax)
+    {
+        if (AwkStatementNames.TryGetKeyword(syntax.Kind, out var keyword))
+            return "Invalid `" + keyword + "' statement.";
+
+        return "Invalid statement.";
+    }
+
+    private static bool TryLower(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (AwkStatementLoweringFacts.TryCreateArgumentlessStatement(syntax.Kind, out var argumentlessStatement))
+            return TryLowerArgumentlessStatement(syntax, argumentlessStatement, out statement);
+
+        if (AwkStatementLoweringFacts.IsOptionalValue(syntax.Kind))
+            return TryLowerOptionalValueStatement(syntax, scope, out statement);
+
+        if (AwkStatementLoweringFacts.IsExpressionBackedStatement(syntax.Kind))
+            return TryLowerExpressionStatement(syntax, scope, out statement);
+
+        return syntax.Kind switch
+        {
+            AwkStatementKind.If => TryLowerIfStatement(syntax, scope, out statement),
+            AwkStatementKind.While => TryLowerWhileStatement(syntax, scope, out statement),
+            AwkStatementKind.DoWhile => TryLowerDoWhileStatement(syntax, scope, out statement),
+            AwkStatementKind.For => TryLowerForStatement(syntax, scope, out statement),
+            AwkStatementKind.Switch => TryLowerSwitchStatement(syntax, scope, out statement),
+            AwkStatementKind.Print => TryLowerPrintStatement(syntax, scope, out statement),
+            AwkStatementKind.Printf => TryLowerPrintfStatement(syntax, scope, out statement),
+            AwkStatementKind.Delete => TryLowerDeleteStatement(syntax, scope, out statement),
+            AwkStatementKind.Getline => TryLowerGetlineStatement(syntax, scope, out statement),
+            AwkStatementKind.Close => TryLowerCloseStatement(syntax, scope, out statement),
+            AwkStatementKind.Fflush => TryLowerFflushStatement(syntax, scope, out statement),
+            _ => false
+        };
+    }
+
+    private static bool TryLowerExpressionStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (syntax.Payload is AwkInputPipeExpressionStatementSyntaxPayload inputPipePayload)
+        {
+            return TryLowerInputPipeGetlineStatement(inputPipePayload.InputPipeGetline, scope, out statement);
+        }
+
+        if (!AwkFrontendClassifier.SingleExpression(syntax).TryGetValue(out var expressionSyntax) ||
+            !AwkExpressionLowerer.TryLower(expressionSyntax, scope, out var expression))
+        {
+            return false;
+        }
+
+        statement = AwkStatement.Expression(expression);
+        return true;
+    }
+
+    private static bool TryLowerInputPipeGetlineStatement(
+        AwkInputPipeGetlineSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (syntax.IsCoprocess)
+        {
+            statement = AwkStatement.UnsupportedCoprocess();
+            return true;
+        }
+
+        if (!AwkFrontendClassifier.RequiredExpression(syntax.Command).TryGetValue(out var commandSyntax) ||
+            !AwkExpressionLowerer.TryLower(commandSyntax, scope, out var command))
+        {
+            return false;
+        }
+
+        var target = AwkGetlineTarget.CurrentRecord;
+        if (!syntax.Target.IsEmpty)
+        {
+            if (!AwkFrontendClassifier.RequiredExpression(syntax.Target).TryGetValue(out var targetSyntax))
+                return false;
+
+            var targetResult = AwkLValueLowerer.Lower(targetSyntax, scope);
+            if (!targetResult.Succeeded)
+                return false;
+
+            target = AwkGetlineTarget.ReferenceTarget(targetResult.Reference);
+        }
+
+        statement = AwkStatement.Getline(target, AwkGetlineSource.InputPipe(command));
+        return true;
+    }
+
+    private static bool TryLowerPrintStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.Output(syntax).TryGetValue(out var output) ||
+            !TryLowerOutputRedirection(output.Redirection, scope, out var redirection))
+        {
+            return false;
+        }
+
+        if (output.Output.IsEmpty)
+        {
+            var defaultParts = new AwkExpressionPart[] { new(AwkExpression.FieldZero(), false) };
+            statement = AwkStatement.Print(defaultParts, redirection);
+            return true;
+        }
+
+        if (!AwkFrontendClassifier.RequiredExpression(output.Output).TryGetValue(out var outputExpression) ||
+            !TryLowerExpressionList(outputExpression, scope, out var expressions))
+        {
+            return false;
+        }
+
+        var parts = new AwkExpressionPart[expressions.Count];
+        for (var index = 0; index < expressions.Count; index++)
+            parts[index] = new AwkExpressionPart(expressions[index], index > 0);
+
+        statement = AwkStatement.Print(parts, redirection);
+        return true;
+    }
+
+    private static bool TryLowerPrintfStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.Output(syntax).TryGetValue(out var output) ||
+            !TryLowerOutputRedirection(output.Redirection, scope, out var redirection) ||
+            !AwkFrontendClassifier.RequiredExpression(output.Output).TryGetValue(out var outputExpression) ||
+            !TryLowerExpressionList(outputExpression, scope, out var expressions) ||
+            expressions.Count == 0)
+        {
+            return false;
+        }
+
+        var arguments = new AwkExpression[Math.Max(0, expressions.Count - 1)];
+        for (var index = 1; index < expressions.Count; index++)
+            arguments[index - 1] = expressions[index];
+
+        statement = AwkStatement.Printf(expressions[0], arguments, redirection);
+        return true;
+    }
+
+    private static bool TryLowerDeleteStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.SingleExpression(syntax).TryGetValue(out var target))
+        {
+            return false;
+        }
+
+        if (AwkFrontendClassifier.TryGetAssignableIdentifier(target, out var arrayName))
+        {
+            statement = AwkStatement.DeleteArray(new AwkArrayName(arrayName.Identifier));
+            return true;
+        }
+
+        if (target.Kind != AwkExpressionKind.ArrayElement ||
+            target.Children.Count < 2 ||
+            !AwkFrontendClassifier.TryGetAssignableArrayElementTarget(target, out var targetArrayName) ||
+            !AwkExpressionLowerer.TryLowerArrayIndex(target.Children, scope, out var index))
+        {
+            return false;
+        }
+
+        statement = AwkStatement.DeleteArrayElement(new AwkArrayName(targetArrayName.Identifier), index);
+        return true;
+    }
+
+    private static bool TryLowerGetlineStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.Getline(syntax).TryGetValue(out var getline))
+            return false;
+
+        if (!AwkGetlineLowerer.TryResolveStatementParts(getline, out var parts) ||
+            !AwkGetlineLowerer.TryLower(parts, scope, out var target, out var source))
+        {
+            return false;
+        }
+
+        statement = AwkStatement.Getline(target, source);
+        return true;
+    }
+
+    private static bool TryLowerCloseStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.TryGetWholeStatementCall(syntax, AwkBuiltinId.Close, out var call) ||
+            call.ArgumentCount < 1 ||
+            !call.GetArgument(0).TryGetValue(out var targetSyntax) ||
+            !AwkExpressionLowerer.TryLower(targetSyntax, scope, out var target))
+        {
+            return false;
+        }
+
+        statement = AwkStatement.Close(target);
+        return true;
+    }
+
+    private static bool TryLowerFflushStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.TryGetWholeStatementCall(syntax, AwkBuiltinId.Fflush, out var call))
+        {
+            return false;
+        }
+
+        var target = AwkFflushTarget.All;
+        if (call.ArgumentCount == 1)
+        {
+            if (!call.GetArgument(0).TryGetValue(out var targetSyntax) ||
+                !AwkExpressionLowerer.TryLower(targetSyntax, scope, out var targetExpression))
+            {
+                return false;
+            }
+
+            target = AwkFflushTarget.ExpressionTarget(targetExpression);
+        }
+
+        statement = AwkStatement.Fflush(target);
+        return true;
+    }
+
+    private static bool TryLowerArgumentlessStatement(
+        AwkStatementSyntax syntax,
+        AwkStatement loweredStatement,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (syntax.Expressions.Count != 0 ||
+            syntax.BodyStatements.Count != 0 ||
+            syntax.ElseStatements.Count != 0 ||
+            syntax.SwitchCases.Count != 0)
+        {
+            return false;
+        }
+
+        statement = loweredStatement;
+        return true;
+    }
+
+    private static bool TryLowerOptionalValueStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (syntax.Expressions.Count == 0)
+        {
+            if (AwkTokenNavigation.FindNextSignificant(syntax.Tokens, 1) != null)
+                return false;
+
+            return AwkStatementLoweringFacts.TryCreateOptionalValueStatement(
+                syntax.Kind,
+                AwkOptionalExpression.None,
+                out statement);
+        }
+
+        if (!AwkFrontendClassifier.SingleExpression(syntax).TryGetValue(out var valueSyntax) ||
+            !AwkExpressionLowerer.TryLower(valueSyntax, scope, out var value))
+        {
+            return false;
+        }
+
+        return AwkStatementLoweringFacts.TryCreateOptionalValueStatement(
+            syntax.Kind,
+            AwkOptionalExpression.Some(value),
+            out statement);
+    }
+
+    private static bool TryLowerIfStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.Control(syntax).TryGetValue(out var control))
+            return false;
+
+        if (control.HasDanglingElseBody)
+            return TryLowerDanglingElseStatement(syntax, scope, out statement);
+
+        if (!TryLowerConditionSlot(control.Header, scope, out var condition) ||
+            !TryLowerList(control.BodyStatements, scope, out var body) ||
+            !TryLowerList(control.ElseStatements, scope, out var elseBody))
+        {
+            return false;
+        }
+
+        statement = AwkStatement.If(condition, body, elseBody);
+        return true;
+    }
+
+    private static bool TryLowerDanglingElseStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.Control(syntax).TryGetValue(out var outer) ||
+            syntax.BodyStatements.Count != 1 ||
+            !AwkFrontendClassifier.Control(syntax.BodyStatements[0]).TryGetValue(out var inner))
+        {
+            return false;
+        }
+
+        if (syntax.BodyStatements.Count != 1 ||
+            syntax.BodyStatements[0].Kind != AwkStatementKind.If ||
+            syntax.BodyStatements[0].ElseStatements.Count != 0 ||
+            !TryLowerConditionSlot(outer.Header, scope, out var outerCondition) ||
+            !TryLowerConditionSlot(inner.Header, scope, out var innerCondition) ||
+            !TryLowerList(syntax.BodyStatements[0].BodyStatements, scope, out var innerBody) ||
+            !TryLowerList(syntax.ElseStatements, scope, out var nearestElseBody))
+        {
+            return false;
+        }
+
+        var innerStatement = AwkStatement.If(innerCondition, innerBody, nearestElseBody);
+        statement = AwkStatement.If(outerCondition, [innerStatement]);
+        return true;
+    }
+
+    private static bool TryLowerWhileStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.Control(syntax).TryGetValue(out var control) ||
+            !TryLowerConditionSlot(control.Header, scope, out var condition) ||
+            !TryLowerList(control.BodyStatements, scope, out var body))
+        {
+            return false;
+        }
+
+        statement = AwkStatement.While(condition, body);
+        return true;
+    }
+
+    private static bool TryLowerDoWhileStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.Control(syntax).TryGetValue(out var control) ||
+            !TryLowerConditionSlot(control.Header, scope, out var condition) ||
+            !TryLowerList(control.BodyStatements, scope, out var body))
+        {
+            return false;
+        }
+
+        statement = AwkStatement.DoWhile(body, condition);
+        return true;
+    }
+
+    private static bool TryLowerForStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.For(syntax).TryGetValue(out var forShape) ||
+            !TryLowerList(forShape.BodyStatements, scope, out var body))
+        {
+            return false;
+        }
+
+        if (forShape.Header.IsForIn)
+            return TryLowerForInStatement(forShape.Header, body, out statement);
+
+        return TryLowerClassicForStatement(forShape.Header, scope, body, out statement);
+    }
+
+    private static bool TryLowerSwitchStatement(
+        AwkStatementSyntax syntax,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (!AwkFrontendClassifier.Switch(syntax).TryGetValue(out var switchShape) ||
+            !AwkFrontendClassifier.RequiredExpression(switchShape.Header).TryGetValue(out var switchExpression) ||
+            !AwkExpressionLowerer.TryLower(switchExpression, scope, out var value))
+        {
+            return false;
+        }
+
+        var cases = new List<AwkSwitchCase>();
+        IReadOnlyList<AwkStatement> defaultBody = [];
+        for (var index = 0; index < switchShape.SwitchCases.Count; index++)
+        {
+            var switchCase = switchShape.SwitchCases[index];
+            if (!TryLowerList(switchCase.BodyStatements, scope, out var body))
+                return false;
+
+            if (switchCase.IsDefault)
+            {
+                defaultBody = body;
+                continue;
+            }
+
+            if (!switchCase.Expression.TryGetValue(out var caseExpression))
+                return false;
+
+            if (AwkExpressionLowerer.TryLowerRegexLiteralPattern(caseExpression, out var regex))
+            {
+                cases.Add(new AwkSwitchCase(AwkSwitchCasePattern.FromRegex(regex), body));
+                continue;
+            }
+
+            if (!AwkExpressionLowerer.TryLower(caseExpression, scope, out var expression))
+                return false;
+
+            cases.Add(new AwkSwitchCase(AwkSwitchCasePattern.FromExpression(expression), body));
+        }
+
+        statement = AwkStatement.Switch(value, cases, defaultBody);
+        return true;
+    }
+
+    private static bool TryLowerForInStatement(
+        AwkForHeaderSyntax header,
+        IReadOnlyList<AwkStatement> body,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (header.Parts.Count != 2 ||
+            !TryGetIdentifierExpression(header.Parts[0], out var loopVariable) ||
+            !TryGetIdentifierExpression(header.Parts[1], out var arrayVariable) ||
+            AwkIdentifiers.IsReservedName(loopVariable.Text) ||
+            AwkIdentifiers.IsReservedName(arrayVariable.Text))
+        {
+            return false;
+        }
+
+        statement = AwkStatement.ForIn(new AwkVariableName(loopVariable), new AwkArrayName(arrayVariable), body);
+        return true;
+    }
+
+    private static bool TryLowerClassicForStatement(
+        AwkForHeaderSyntax header,
+        AwkLoweringScope scope,
+        IReadOnlyList<AwkStatement> body,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (header.Parts.Count != 3 ||
+            !TryLowerForComponent(header.Parts[0], scope, out var initializer) ||
+            !TryLowerForCondition(header.Parts[1], scope, out var condition) ||
+            !TryLowerForComponent(header.Parts[2], scope, out var increment))
+        {
+            return false;
+        }
+
+        statement = AwkStatement.For(initializer, condition, increment, body);
+        return true;
+    }
+
+    private static bool TryLowerForComponent(
+        AwkExpressionSlotSyntax slot,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkStatement? statement)
+    {
+        statement = null;
+        if (slot.IsEmpty)
+        {
+            statement = AwkStatement.NoOp();
+            return true;
+        }
+
+        if (!TryLowerExpressionSlot(slot, scope, out var expression))
+            return false;
+
+        statement = AwkStatement.Expression(expression);
+        return true;
+    }
+
+    private static bool TryLowerForCondition(
+        AwkExpressionSlotSyntax slot,
+        AwkLoweringScope scope,
+        out AwkCondition condition)
+    {
+        condition = default;
+        if (slot.IsEmpty)
+        {
+            condition = TrueCondition();
+            return true;
+        }
+
+        if (!TryLowerExpressionSlot(slot, scope, out var expression))
+            return false;
+
+        condition = new AwkCondition([[AwkConditionClause.Truthy(expression)]]);
+        return true;
+    }
+
+    private static bool TryLowerConditionSlot(
+        AwkExpressionSlotSyntax slot,
+        AwkLoweringScope scope,
+        out AwkCondition condition)
+    {
+        condition = default;
+        if (!AwkFrontendClassifier.RequiredExpression(slot).TryGetValue(out var expression) ||
+            !AwkExpressionLowerer.TryLower(expression, scope, out var lowered))
+        {
+            return false;
+        }
+
+        condition = new AwkCondition([[AwkConditionClause.Truthy(lowered)]]);
+        return true;
+    }
+
+    private static AwkCondition TrueCondition() =>
+        new([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+
+    private static bool TryLowerOutputRedirection(
+        AwkSyntaxOptional<AwkOutputRedirectionSyntax> syntax,
+        AwkLoweringScope scope,
+        out AwkOutputTarget target)
+    {
+        target = AwkOutputTarget.Standard;
+        if (!syntax.TryGetValue(out var redirectionSyntax))
+            return true;
+
+        if (!AwkFrontendClassifier.RequiredExpression(redirectionSyntax.Target).TryGetValue(out var targetSyntax) ||
+            !AwkExpressionLowerer.TryLower(targetSyntax, scope, out var targetExpression))
+        {
+            return false;
+        }
+
+        target = AwkOutputTarget.Redirected(new AwkOutputRedirection(targetExpression, redirectionSyntax.Kind));
+        return true;
+    }
+
+    private static bool TryLowerExpressionList(
+        AwkExpressionSyntax syntax,
+        AwkLoweringScope scope,
+        out IReadOnlyList<AwkExpression> expressions)
+    {
+        if (syntax.Kind != AwkExpressionKind.ExpressionList)
+        {
+            if (AwkExpressionLowerer.TryLower(syntax, scope, out var expression))
+            {
+                expressions = [expression];
+                return true;
+            }
+
+            expressions = [];
+            return false;
+        }
+
+        var lowered = new List<AwkExpression>(syntax.Children.Count);
+        for (var index = 0; index < syntax.Children.Count; index++)
+        {
+            if (!AwkExpressionLowerer.TryLower(syntax.Children[index], scope, out var expression))
+            {
+                expressions = [];
+                return false;
+            }
+
+            lowered.Add(expression);
+        }
+
+        expressions = lowered;
+        return true;
+    }
+
+    private static bool TryLowerExpressionSlot(
+        AwkExpressionSlotSyntax slot,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkExpression? expression)
+    {
+        expression = null;
+        return AwkFrontendClassifier.RequiredExpression(slot).TryGetValue(out var syntax) &&
+            AwkExpressionLowerer.TryLower(syntax, scope, out expression);
+    }
+
+    private static bool TryGetIdentifierExpression(AwkExpressionSlotSyntax slot, out AwkIdentifier identifier)
+    {
+        identifier = default;
+        if (!AwkFrontendClassifier.RequiredExpression(slot).TryGetValue(out var expression) ||
+            !AwkFrontendClassifier.TryGetIdentifier(expression, out var token))
+        {
+            return false;
+        }
+
+        identifier = token.Identifier;
+        return true;
+    }
+
+}

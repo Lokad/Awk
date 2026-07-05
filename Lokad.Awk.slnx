@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Lokad.Awk/Lokad.Awk.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Lokad.Awk.Tests/Lokad.Awk.Tests.csproj" />
+  </Folder>
+</Solution>

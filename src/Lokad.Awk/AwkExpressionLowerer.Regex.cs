@@ -1,0 +1,61 @@
+using System;
+using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
+
+namespace Lokad.Awk;
+
+internal static partial class AwkExpressionLowerer
+{
+    public static bool TryLowerRegexLiteral(
+        AwkExpressionSyntax? expression,
+        [NotNullWhen(true)] out AwkExpression? lowered)
+    {
+        lowered = null;
+        if (!TryReadRegexLiteralPattern(expression, out var pattern))
+            return false;
+
+        lowered = AwkExpression.Literal(pattern);
+        return true;
+    }
+
+    public static bool TryLowerRegexLiteralPattern(
+        AwkExpressionSyntax? expression,
+        [NotNullWhen(true)] out Regex? regex)
+    {
+        regex = null;
+        if (!TryReadRegexLiteralPattern(expression, out var pattern))
+            return false;
+
+        try
+        {
+            regex = AwkRegex.Create(new AwkRegexPattern(pattern), ignoreCase: false);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryReadRegexLiteralPattern(
+        AwkExpressionSyntax? expression,
+        [NotNullWhen(true)] out string? pattern)
+    {
+        pattern = null;
+        if (expression?.Kind != AwkExpressionKind.Regex ||
+            expression.Tokens.Count != 1 ||
+            expression.Tokens[0].Kind != AwkTokenKind.Regex)
+        {
+            return false;
+        }
+
+        var token = expression.Tokens[0];
+        if (!AwkRegexLiteral.TryReadPattern(token.Text, out var literalPattern))
+        {
+            return false;
+        }
+
+        pattern = literalPattern;
+        return true;
+    }
+}

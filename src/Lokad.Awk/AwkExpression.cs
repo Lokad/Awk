@@ -1,0 +1,244 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+
+namespace Lokad.Awk;
+
+internal readonly struct AwkExpressionPart(AwkExpression expression, bool leadingSpace)
+{
+    public AwkExpression Expression { get; } = expression;
+
+    public bool LeadingSpace { get; } = leadingSpace;
+}
+
+internal abstract partial class AwkExpression
+{
+    public static AwkExpression FieldIndex(int index) => new FieldIndexExpression(index);
+
+    public static AwkExpression FieldIndex(AwkExpression indexExpression) => new DynamicFieldIndexExpression(indexExpression);
+
+    public static AwkExpression FieldCount() => FieldCountExpression.Instance;
+
+    public static AwkExpression FieldNf() => FieldNfExpression.Instance;
+
+    public static AwkExpression FieldZero() => FieldZeroExpression.Instance;
+
+    public static AwkExpression RecordNumber() => RecordNumberExpression.Instance;
+
+    public static AwkExpression FileRecordNumber() => FileRecordNumberExpression.Instance;
+
+    public static AwkExpression FileName() => FileNameExpression.Instance;
+
+    public static AwkExpression Literal(string literal) => new LiteralExpression(literal);
+
+    public static AwkExpression Variable(string name) => Variable(AwkVariableName.FromText(name));
+
+    public static AwkExpression Variable(AwkVariableName name) => new VariableExpression(name);
+
+    public static AwkExpression LocalVariable(AwkVariableName name, AwkFunctionLocalSlotId slotId) =>
+        new LocalVariableExpression(name, slotId);
+
+    public static AwkExpression ArrayElement(string name, AwkArrayIndex index) =>
+        ArrayElement(AwkArrayName.FromText(name), index);
+
+    public static AwkExpression ArrayElement(AwkArrayName name, AwkArrayIndex index) =>
+        new ArrayElementExpression(name, index);
+
+    public static AwkExpression Number(string text, double value) => new NumberExpression(text, value);
+
+    public static AwkExpression Concat(AwkExpression left, AwkExpression right) => new ConcatExpression(left, right);
+
+    public static AwkExpression Add(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Add);
+
+    public static AwkExpression Subtract(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Subtract);
+
+    public static AwkExpression Multiply(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Multiply);
+
+    public static AwkExpression Divide(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Divide);
+
+    public static AwkExpression Modulo(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Modulo);
+
+    public static AwkExpression Power(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Power);
+
+    public static AwkExpression Negate(AwkExpression expression) => new NegateExpression(expression);
+
+    public static AwkExpression Not(AwkExpression expression) => new NotExpression(expression);
+
+    public static AwkExpression Compare(AwkExpression left, AwkExpression right, AwkComparison comparison) =>
+        new ComparisonExpression(left, right, comparison);
+
+    public static AwkExpression RegexMatch(AwkExpression left, AwkExpression pattern, bool negate) =>
+        new RegexMatchExpression(left, pattern, negate);
+
+    public static AwkExpression RegexMatch(AwkExpression left, Regex regex, bool negate) =>
+        new PrecompiledRegexMatchExpression(left, regex, negate);
+
+    public static AwkExpression ArrayMembership(AwkArrayIndex index, string arrayName) =>
+        ArrayMembership(index, AwkArrayName.FromText(arrayName));
+
+    public static AwkExpression ArrayMembership(AwkArrayIndex index, AwkArrayName arrayName) =>
+        new ArrayMembershipExpression(index, arrayName);
+
+    public static AwkExpression LogicalAnd(AwkExpression left, AwkExpression right) =>
+        new LogicalExpression(left, right, LogicalOperation.And);
+
+    public static AwkExpression LogicalOr(AwkExpression left, AwkExpression right) =>
+        new LogicalExpression(left, right, LogicalOperation.Or);
+
+    public static AwkExpression Ternary(
+        AwkExpression condition,
+        AwkExpression whenTrue,
+        AwkExpression whenFalse) =>
+        new TernaryExpression(condition, whenTrue, whenFalse);
+
+    public static AwkExpression FunctionCall(string name, IReadOnlyList<AwkExpression> arguments) =>
+        AwkBuiltins.TryGetCallable(name, out var definition) &&
+            definition.Kind == AwkCallableKind.Function
+            ? BuiltinCall(definition, arguments)
+            : FunctionCall(AwkFunctionName.FromText(name), arguments);
+
+    public static AwkExpression FunctionCall(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments) =>
+        new FunctionCallExpression(name, AwkExecutableCollections.Copy(arguments));
+
+    public static AwkExpression BuiltinCall(AwkBuiltinDefinition definition, IReadOnlyList<AwkExpression> arguments) =>
+        new BuiltinCallExpression(definition, AwkExecutableCollections.Copy(arguments));
+
+    public static AwkExpression Gsub(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) =>
+        new GsubExpression(pattern, replacement, target);
+
+    public static AwkExpression Sub(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) =>
+        new SubExpression(pattern, replacement, target);
+
+    public static AwkExpression Getline(AwkGetlineTarget target, AwkGetlineSource source) =>
+        new GetlineExpression(target, source);
+
+    public static AwkExpression Length(AwkExpression value, AwkOptionalIdentifier arrayName) =>
+        new LengthExpression(value, arrayName);
+
+    public static AwkExpression IsArray(string variableName) => IsArray(AwkArrayName.FromText(variableName));
+
+    public static AwkExpression IsArray(AwkArrayName variableName) => new IsArrayExpression(variableName);
+
+    public static AwkExpression TypeOf(AwkExpression value, AwkOptionalIdentifier variableName) =>
+        new TypeOfExpression(value, variableName);
+
+    public static AwkExpression TypeOfArrayElement(string variableName, AwkArrayIndex index) =>
+        TypeOfArrayElement(AwkArrayName.FromText(variableName), index);
+
+    public static AwkExpression TypeOfArrayElement(AwkArrayName variableName, AwkArrayIndex index) =>
+        new TypeOfArrayElementExpression(variableName, index);
+
+    public static AwkExpression Match(AwkExpression value, AwkExpression pattern, AwkOptionalIdentifier captureArrayName) =>
+        new MatchExpression(value, pattern, captureArrayName);
+
+    public static AwkExpression Split(AwkExpression value, string arrayName, AwkExpression separator) =>
+        Split(value, AwkArrayName.FromText(arrayName), separator);
+
+    public static AwkExpression Split(AwkExpression value, AwkArrayName arrayName, AwkExpression separator) =>
+        new SplitExpression(value, arrayName, separator, AwkOptionalIdentifier.None);
+
+    public static AwkExpression Split(
+        AwkExpression value,
+        string arrayName,
+        AwkExpression separator,
+        AwkOptionalIdentifier separatorArrayName) =>
+        Split(value, AwkArrayName.FromText(arrayName), separator, separatorArrayName);
+
+    public static AwkExpression Split(
+        AwkExpression value,
+        AwkArrayName arrayName,
+        AwkExpression separator,
+        AwkOptionalIdentifier separatorArrayName) =>
+        new SplitExpression(value, arrayName, separator, separatorArrayName);
+
+    public static AwkExpression Patsplit(AwkExpression value, string arrayName, AwkExpression pattern) =>
+        Patsplit(value, AwkArrayName.FromText(arrayName), pattern);
+
+    public static AwkExpression Patsplit(AwkExpression value, AwkArrayName arrayName, AwkExpression pattern) =>
+        new PatsplitExpression(value, arrayName, pattern, AwkOptionalIdentifier.None);
+
+    public static AwkExpression Patsplit(
+        AwkExpression value,
+        string arrayName,
+        AwkExpression pattern,
+        AwkOptionalIdentifier separatorArrayName) =>
+        Patsplit(value, AwkArrayName.FromText(arrayName), pattern, separatorArrayName);
+
+    public static AwkExpression Patsplit(
+        AwkExpression value,
+        AwkArrayName arrayName,
+        AwkExpression pattern,
+        AwkOptionalIdentifier separatorArrayName) =>
+        new PatsplitExpression(value, arrayName, pattern, separatorArrayName);
+
+    public static AwkExpression Asort(string sourceArrayName, string destinationArrayName, AwkExpression order) =>
+        Asort(AwkArrayName.FromText(sourceArrayName), AwkArrayName.FromText(destinationArrayName), order);
+
+    public static AwkExpression Asort(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkExpression order) =>
+        new AsortExpression(sourceArrayName, destinationArrayName, order);
+
+    public static AwkExpression Asorti(string sourceArrayName, string destinationArrayName, AwkExpression order) =>
+        Asorti(AwkArrayName.FromText(sourceArrayName), AwkArrayName.FromText(destinationArrayName), order);
+
+    public static AwkExpression Asorti(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkExpression order) =>
+        new AsortiExpression(sourceArrayName, destinationArrayName, order);
+
+    public static AwkExpression Assignment(AwkReference target, AwkExpression value) =>
+        new AssignmentExpression(target, value);
+
+    public static AwkExpression CompoundAssignment(
+        AwkReference target,
+        AwkExpression value,
+        AwkCompoundAssignmentOperation operation) =>
+        new CompoundAssignmentExpression(target, value, operation);
+
+    public static AwkExpression PreIncrement(AwkReference target) => new PreIncrementExpression(target);
+
+    public static AwkExpression PreDecrement(AwkReference target) => new PreDecrementExpression(target);
+
+    public static AwkExpression PostIncrement(AwkReference target) => new PostIncrementExpression(target);
+
+    public static AwkExpression PostDecrement(AwkReference target) => new PostDecrementExpression(target);
+
+    public async ValueTask<string> ResolveStringAsync(AwkEvaluationContext context) =>
+        (await EvaluateAsync(context).ConfigureAwait(false)).AsString(context.State.Counters);
+
+    public async ValueTask<AwkText> ResolveByteTextAsync(AwkEvaluationContext context) =>
+        (await EvaluateAsync(context).ConfigureAwait(false)).ByteText;
+
+    public async ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context) =>
+        (await EvaluateAsync(context).ConfigureAwait(false)).AsNumber();
+
+    public ValueTask<AwkValue> EvaluateAsync(AwkEvaluationContext context)
+    {
+        context.State.RecordExecutionStep();
+        context.State.ThrowIfCancellationRequested();
+        return EvaluateCoreAsync(context);
+    }
+
+    protected abstract ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context);
+
+    internal virtual bool TryEmitExecutableValue(AwkExecutableCompiler compiler) => false;
+
+    internal virtual bool TryGetExecutableIntegerConstant(out int value)
+    {
+        value = 0;
+        return false;
+    }
+
+    internal virtual bool TryEmitExecutableStatement(AwkExecutableCompiler compiler)
+    {
+        compiler.EmitExpressionOrFallback(this);
+        compiler.Emit(AwkOpcode.Pop);
+        compiler.Pop();
+        return true;
+    }
+
+    public virtual bool TryGetVariableName(out AwkVariableName name)
+    {
+        name = default;
+        return false;
+    }
+}

@@ -1,0 +1,238 @@
+using System;
+using System.Collections.Generic;
+
+namespace Lokad.Awk;
+
+internal static class AwkSymbolCollector
+{
+    public static IReadOnlyList<AwkSymbolReference> Collect(AwkSyntaxProgram syntax)
+    {
+        var functionNames = new HashSet<AwkIdentifier>();
+        for (var index = 0; index < syntax.Functions.Count; index++)
+        {
+            var function = syntax.Functions[index];
+            if (function.Identifier.HasValue)
+                functionNames.Add(function.Identifier.Value);
+        }
+
+        var symbols = new List<AwkSymbolReference>();
+        for (var index = 0; index < syntax.Functions.Count; index++)
+        {
+            var function = syntax.Functions[index];
+            if (function.Identifier.HasValue)
+            {
+                symbols.Add(new AwkNamedSymbolReference(
+                    function.Identifier.Value,
+                    AwkSymbolReferenceKind.FunctionDefinition,
+                    function.Span));
+            }
+
+            CollectFunctionParameters(function, symbols);
+            CollectStatements(function.BodyStatements, symbols, functionNames);
+        }
+
+        for (var index = 0; index < syntax.Rules.Count; index++)
+        {
+            var rule = syntax.Rules[index];
+            foreach (var expression in rule.PatternSyntax.EnumerateChildExpressions())
+                CollectExpression(expression, symbols, functionNames);
+
+            CollectStatements(rule.ActionStatements, symbols, functionNames);
+        }
+
+        return symbols;
+    }
+
+    private static void CollectFunctionParameters(
+        AwkFunctionSyntax function,
+        List<AwkSymbolReference> symbols)
+    {
+        for (var index = 0; index < function.ParameterTokens.Count; index++)
+        {
+            var token = function.ParameterTokens[index];
+            if (token.Kind != AwkTokenKind.Identifier ||
+                !AwkIdentifier.TryParse(token.Text, out var identifier))
+                continue;
+
+            symbols.Add(new AwkNamedSymbolReference(
+                identifier,
+                AwkSymbolReferenceKind.FunctionParameter,
+                token.Span));
+        }
+    }
+
+    private static void CollectStatements(
+        IReadOnlyList<AwkStatementSyntax> statements,
+        List<AwkSymbolReference> symbols,
+        ISet<AwkIdentifier> functionNames)
+    {
+        for (var index = 0; index < statements.Count; index++)
+        {
+            var statement = statements[index];
+            foreach (var expression in statement.EnumerateChildExpressions())
+                CollectExpression(expression, symbols, functionNames);
+
+            CollectStatements(statement.BodyStatements, symbols, functionNames);
+            CollectStatements(statement.ElseStatements, symbols, functionNames);
+            for (var switchCaseIndex = 0; switchCaseIndex < statement.SwitchCases.Count; switchCaseIndex++)
+            {
+                CollectExpression(statement.SwitchCases[switchCaseIndex].Expression, symbols, functionNames);
+                CollectStatements(statement.SwitchCases[switchCaseIndex].BodyStatements, symbols, functionNames);
+            }
+        }
+    }
+
+    private static void CollectExpression(
+        AwkExpressionSyntax? expression,
+        List<AwkSymbolReference> symbols,
+        ISet<AwkIdentifier> functionNames)
+    {
+        if (expression == null)
+            return;
+
+        CollectExpressionCore(expression, symbols, functionNames);
+    }
+
+    private static void CollectExpression(
+        AwkSyntaxOptional<AwkExpressionSyntax> expression,
+        List<AwkSymbolReference> symbols,
+        ISet<AwkIdentifier> functionNames)
+    {
+        if (expression.TryGetValue(out var syntax))
+            CollectExpressionCore(syntax, symbols, functionNames);
+    }
+
+    private static void CollectExpressionCore(
+        AwkExpressionSyntax expression,
+        List<AwkSymbolReference> symbols,
+        ISet<AwkIdentifier> functionNames)
+    {
+        if (expression.Kind == AwkExpressionKind.Variable)
+        {
+            if (AwkFrontendClassifier.TryGetIdentifier(expression, out var identifier))
+                AddVariableReference(identifier, symbols, AwkSymbolReferenceKind.Variable);
+
+            return;
+        }
+
+        if (expression.Kind == AwkExpressionKind.ArrayElement)
+        {
+            CollectArrayElement(expression, symbols, functionNames);
+            return;
+        }
+
+        if (expression.Kind == AwkExpressionKind.Field)
+        {
+            symbols.Add(new AwkFieldSymbolReference(expression.Span));
+            CollectChildren(expression, symbols, functionNames, 0);
+            return;
+        }
+
+        if (expression.Kind == AwkExpressionKind.FunctionCall)
+        {
+            CollectFunctionCall(expression, symbols, functionNames);
+            return;
+        }
+
+        CollectChildren(expression, symbols, functionNames, 0);
+    }
+
+    private static void CollectArrayElement(
+        AwkExpressionSyntax expression,
+        List<AwkSymbolReference> symbols,
+        ISet<AwkIdentifier> functionNames)
+    {
+        if (AwkFrontendClassifier.TryGetArrayElementTarget(expression, out var target))
+        {
+            AddVariableReference(target, symbols, AwkSymbolReferenceKind.Array);
+            CollectChildren(expression, symbols, functionNames, 1);
+            return;
+        }
+
+        CollectChildren(expression, symbols, functionNames, 0);
+    }
+
+    private static void CollectFunctionCall(
+        AwkExpressionSyntax expression,
+        List<AwkSymbolReference> symbols,
+        ISet<AwkIdentifier> functionNames)
+    {
+        if (AwkFrontendClassifier.TryGetCallableTarget(expression, out var target))
+        {
+            if (target.IsSpecialSyntax)
+            {
+                CollectChildren(expression, symbols, functionNames, 1);
+                return;
+            }
+
+            var kind = AwkFrontendClassifier.ClassifyCallableReference(target, functionNames);
+            symbols.Add(new AwkNamedSymbolReference(target.Identifier, kind, target.Span));
+            CollectChildren(expression, symbols, functionNames, 1);
+            return;
+        }
+
+        CollectChildren(expression, symbols, functionNames, 0);
+    }
+
+    private static void CollectChildren(
+        AwkExpressionSyntax expression,
+        List<AwkSymbolReference> symbols,
+        ISet<AwkIdentifier> functionNames,
+        int startIndex)
+    {
+        for (var index = startIndex; index < expression.Children.Count; index++)
+        {
+            CollectExpression(expression.Children[index], symbols, functionNames);
+        }
+    }
+
+    private static void AddVariableReference(
+        AwkIdentifierSyntax identifier,
+        List<AwkSymbolReference> symbols,
+        AwkSymbolReferenceKind ordinaryKind)
+    {
+        symbols.Add(new AwkNamedSymbolReference(
+            identifier.Identifier,
+            AwkFrontendClassifier.ClassifyVariableReference(identifier, ordinaryKind),
+            identifier.Span));
+    }
+}
+
+internal abstract class AwkSymbolReference(
+    AwkSymbolReferenceKind kind,
+    AwkTextSpan span)
+{
+    public AwkSymbolReferenceKind Kind { get; } = kind;
+
+    public AwkTextSpan Span { get; } = span;
+}
+
+internal sealed class AwkNamedSymbolReference(
+    AwkIdentifier identifier,
+    AwkSymbolReferenceKind kind,
+    AwkTextSpan span)
+    : AwkSymbolReference(kind, span)
+{
+    public AwkIdentifier Identifier { get; } = identifier;
+
+    public string Name => Identifier.Text;
+}
+
+internal sealed class AwkFieldSymbolReference(AwkTextSpan span)
+    : AwkSymbolReference(AwkSymbolReferenceKind.Field, span)
+{
+}
+
+internal enum AwkSymbolReferenceKind
+{
+    Variable,
+    SpecialVariable,
+    Array,
+    SpecialArray,
+    Field,
+    BuiltinFunction,
+    UserFunction,
+    UnknownFunction,
+    FunctionDefinition,
+    FunctionParameter
+}

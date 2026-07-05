@@ -1,0 +1,128 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Lokad.Awk;
+
+internal sealed class AwkIoHostAdapter(
+    IAwkHost host,
+    AwkPath currentDirectory,
+    AwkFileDescriptor stdIn,
+    AwkFileDescriptor stdOut,
+    AwkFileDescriptor stdErr,
+    CancellationToken cancellationToken,
+    AwkRuntimeCounters counters,
+    AwkRuntimeResourceMonitor resources)
+{
+    public AwkResolvedPath ResolvePath(string path)
+    {
+        try
+        {
+            return AwkPathResolution.ResolveArgument(path, currentDirectory);
+        }
+        catch (FormatException)
+        {
+            throw new AwkRuntimeException(
+                AwkMessages.FormatPathError(AwkUtf8Codec.Encode(path), "Invalid path"),
+                AwkDiagnosticId.HostIoFailure);
+        }
+    }
+
+    public async Task WriteStandardOutputAsync(string content)
+    {
+        if (content.Length == 0)
+            return;
+
+        await WriteStandardOutputAsync(AwkUtf8Codec.Encode(content, counters)).ConfigureAwait(false);
+    }
+
+    public async Task WriteStandardOutputAsync(ReadOnlyMemory<byte> content)
+    {
+        if (content.Length == 0)
+            return;
+
+        resources.RecordHostCall();
+        resources.RecordOutputBytes(content.Length);
+        var status = await host.AppendAsync(stdOut, content, cancellationToken).ConfigureAwait(false);
+        ThrowIfAppendFailed(stdOut, status);
+    }
+
+    public async Task WriteStandardErrorAsync(ReadOnlyMemory<byte> content)
+    {
+        if (content.Length == 0)
+            return;
+
+        resources.RecordHostCall();
+        resources.RecordOutputBytes(content.Length);
+        var status = await host.AppendAsync(stdErr, content, cancellationToken).ConfigureAwait(false);
+        ThrowIfAppendFailed(stdErr, status);
+    }
+
+    public async Task AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content)
+    {
+        if (content.Length == 0)
+            return;
+
+        resources.RecordHostCall();
+        resources.RecordOutputBytes(content.Length);
+        var status = await host.AppendAsync(descriptor, content, cancellationToken).ConfigureAwait(false);
+        ThrowIfAppendFailed(descriptor, status);
+    }
+
+    public async Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode)
+    {
+        resources.RecordHostCall();
+        return await host.CreatePipeAsync(mode, cancellationToken).ConfigureAwait(false);
+    }
+
+    public AwkCommandInvocation CreateOutputPipeCommand(string commandName, AwkFileDescriptor stdIn) =>
+        new(
+            commandName,
+            Array.Empty<string>(),
+            Array.Empty<AwkEnvironmentVariable>(),
+            stdIn,
+            stdOut,
+            stdErr);
+
+    public AwkCommandInvocation CreateInputPipeCommand(string commandName, AwkFileDescriptor stdOut) =>
+        new(
+            commandName,
+            Array.Empty<string>(),
+            Array.Empty<AwkEnvironmentVariable>(),
+            stdIn,
+            stdOut,
+            stdErr);
+
+    public async Task<int> RunCommandAsync(AwkCommandInvocation command)
+    {
+        resources.RecordHostCall();
+        var exitCodes = await host.RunCommandsAsync([command], cancellationToken).ConfigureAwait(false);
+        return exitCodes.Count == 0 ? 0 : exitCodes[0];
+    }
+
+    public async Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode)
+    {
+        resources.RecordHostCall();
+        return await host.OpenFileAsync(path, mode, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task CloseDescriptorAsync(AwkFileDescriptor descriptor)
+    {
+        resources.RecordHostCall();
+        _ = await host.CloseDescriptorAsync(descriptor, cancellationToken).ConfigureAwait(false);
+    }
+
+    public AsyncLineReader CreateLineReader(AwkFileDescriptor descriptor, int maxLineCount) =>
+        new(host, descriptor, cancellationToken, maxLineCount, counters, resources);
+
+    private static void ThrowIfAppendFailed(AwkFileDescriptor descriptor, int status)
+    {
+        if (status == 0)
+            return;
+
+        throw new AwkRuntimeException(
+            AwkMessages.FormatAppendError(descriptor, status),
+            AwkDiagnosticId.HostIoFailure);
+    }
+}

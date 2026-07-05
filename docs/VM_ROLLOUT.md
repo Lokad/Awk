@@ -1,0 +1,82 @@
+# AWK Executable Runtime Rollout Contract
+
+The executable runtime starts as a second compiled form beside the existing interpreter. It
+is compiled from the bound `AwkProgram`, not syntax. Executable mode now dispatches
+fallback actions and fallback user functions through the executable representation; non-fallback
+opcode coverage remains disabled until golden tests, counters, and benchmarks prove parity.
+Fallback dispatch is counted through VM counters and charges an executable fallback frame against
+the VM stack byte limit and memory governor. The default execution engine remains the interpreter.
+`AwkExecutor.CompileAsync` owns both the interpreter program and the executable artifact; runtime
+execution selects between those artifacts and does not compile executable form on demand.
+Current non-fallback expression coverage includes constants, fields, current record, scalars,
+scalar assignment, arithmetic, concatenation, comparisons, logical short-circuit, and ternary
+selection. Unsupported expression children lower to explicit fallback expressions inside those
+control shapes rather than forcing the whole action to fallback.
+
+There is no production shadow-compare mode. Interpreter-versus-executable parity checks remain
+test harness scenarios with isolated runs and explicit output/error comparison.
+The golden corpus has an executable-mode pass for current runtime cases. That pass runs with VM
+counters enabled, verifies stdout/stderr/exit/files against the canonical expectations, and keeps
+known no-dispatch cases explicit when execution fails before any action reaches the VM.
+
+## Default Engine Policy
+
+Executable mode is opt-in. The interpreter remains the default until a release-readiness record
+shows all of the following for the same commit: full golden-corpus parity in executable mode,
+counter evidence that fallback dispatch is cold or intentionally accepted for benchmarked hot
+paths, resource-limit and cancellation parity, no unclassified VM fallbacks, benchmark deltas for
+the executable scenarios, and a documented rollback path. Focused parity tests and benchmark
+experiments are not enough to change the default.
+
+## Fallback Synchronization
+
+Mixed execution must preserve one shared `AwkRuntimeState`. Fallback nodes and future opcode
+handlers must observe the same `$0`, field cache, `NF`, globals, locals, special variables,
+arrays, `SYMTAB`, `PROCINFO`, range-pattern state, output sink, exit status, and statement
+flow signals. Any opcode that cannot keep that state coherent must lower to an explicit
+fallback node. Executable actions can now mix opcodes with `FallbackStatement` and
+`FallbackExpression` nodes, so an unsupported statement or value expression does not force the
+entire action to run as a fallback action.
+`AwkRuntimeActionExecutor` owns action iteration and phase-specific flow policy for both
+interpreter and executable mode; interpreter actions and executable actions only provide pattern
+matching and single-action execution.
+
+## Async Boundary
+
+Executable evaluation stays async-only. Host-facing operations such as `getline`, redirected
+output open/write/close, `fflush`, `close`, command and pipeline work, and user-function
+fallbacks must use `ValueTask`/`Task` paths or explicit fallback nodes. There is no synchronous
+executable-expression API.
+
+## Budget And Limits
+
+The VM must check execution budget at instruction dispatch or at least at basic-block entry
+and loop backedges. Current fallback dispatch records VM budget checks before entering fallback
+actions/functions. Host calls remain separately counted by the host-call governor. VM stacks and
+temporary buffers use the same memory governor contract as arrays and UTF-8 builders: reserve
+before mutation, commit after success, release when shrinking. Opcode frames charge the estimated
+`AwkValue[]` operand-stack buffer before allocating it, and the same byte estimate feeds
+`MaxVmStackBytes` and memory counters.
+
+Counters are opt-in through `AwkRuntimeCounters` and currently cover VM instructions, basic-block
+entries, fallback calls, pattern-evaluation fallbacks, distinct opcode kinds executed, VM budget
+checks, and max stack depth.
+`AwkOpcode` intentionally contains only opcodes that the dispatcher executes today, plus explicit
+action/function/statement/expression fallback opcodes.
+
+## Storage Policy
+
+Function parameters and locals can use local slots once opcode lowering owns their lifetimes.
+Globals and dynamic awk facilities remain dictionary-backed where required by `SYMTAB`,
+special-variable hooks, array aliases, `PROCINFO`, and late-bound variable behavior.
+User functions are part of the executable artifact today, but their body kind is an explicit
+fallback body and their storage kind is the shared runtime function frame. That means typed
+parameter binding, scalar locals, array aliases, potential array aliases, return flow, function
+recursion limits, and fallback counters are governed by the same `AwkFunctionRuntime` path as the
+interpreter until user-function opcodes own their own local-frame layout.
+
+## Inline Cache Policy
+
+Inline caches are optional and benchmark-driven. Candidate caches are special-variable lookup,
+builtin dispatch, regex literal lookup, field access, and array key construction. A cache must
+have a fallback invalidation rule before it can become default behavior.
