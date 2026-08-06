@@ -19,8 +19,8 @@ internal sealed class AwkExpressionSyntax(
     IReadOnlyList<AwkToken> separatorTokens,
     IReadOnlyList<AwkExpressionSyntax> children,
     AwkTextSpan span,
-    AwkToken? firstToken = null,
-    AwkToken? lastToken = null)
+    AwkToken? firstToken,
+    AwkToken? lastToken)
 {
     private IReadOnlyList<AwkToken>? _tokens = tokens;
 
@@ -29,7 +29,19 @@ internal sealed class AwkExpressionSyntax(
         IReadOnlyList<AwkToken> tokens,
         IReadOnlyList<AwkExpressionSyntax> children,
         AwkTextSpan span)
-        : this(kind, tokens, [], [], [], children, span)
+        : this(kind, tokens, [], [], [], children, span, null, null)
+    {
+    }
+
+    public AwkExpressionSyntax(
+        AwkExpressionKind kind,
+        IReadOnlyList<AwkToken>? tokens,
+        IReadOnlyList<AwkToken> operatorTokens,
+        IReadOnlyList<AwkToken> delimiterTokens,
+        IReadOnlyList<AwkToken> separatorTokens,
+        IReadOnlyList<AwkExpressionSyntax> children,
+        AwkTextSpan span)
+        : this(kind, tokens, operatorTokens, delimiterTokens, separatorTokens, children, span, null, null)
     {
     }
 

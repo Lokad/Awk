@@ -134,10 +134,15 @@ internal abstract class AwkRecordSeparatorStrategy
         AwkText content,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync);
 
+    protected Task<AwkText> ReadBufferedTextToEndAsync(
+        AwkUtf8Builder buffer,
+        AwkFileDescriptor descriptor) =>
+        ReadBufferedTextToEndAsync(buffer, descriptor, reachedEof: false);
+
     protected async Task<AwkText> ReadBufferedTextToEndAsync(
         AwkUtf8Builder buffer,
         AwkFileDescriptor descriptor,
-        bool reachedEof = false)
+        bool reachedEof)
     {
         var buffered = buffer.CopyToAwkText(Context.State.Counters);
         if (reachedEof)

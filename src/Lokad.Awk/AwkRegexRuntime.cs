@@ -32,8 +32,22 @@ internal sealed class AwkRegexRuntime
         Func<bool> isIgnoreCaseEnabled,
         Func<bool> charactersAsBytes,
         Action throwIfCancellationRequested,
+        AwkRuntimeCounters counters)
+        : this(
+            isIgnoreCaseEnabled,
+            charactersAsBytes,
+            throwIfCancellationRequested,
+            counters,
+            AwkRegexEngineKind.DotNetCompatibility)
+    {
+    }
+
+    public AwkRegexRuntime(
+        Func<bool> isIgnoreCaseEnabled,
+        Func<bool> charactersAsBytes,
+        Action throwIfCancellationRequested,
         AwkRuntimeCounters counters,
-        AwkRegexEngineKind engineKind = AwkRegexEngineKind.DotNetCompatibility)
+        AwkRegexEngineKind engineKind)
     {
         _isIgnoreCaseEnabled = isIgnoreCaseEnabled;
         _charactersAsBytes = charactersAsBytes;
@@ -209,8 +223,14 @@ internal sealed class AwkRegexRuntime
     public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateMatchValues(
         Regex regex,
         AwkText input,
+        AwkMemoryGovernor governor) =>
+        EnumerateMatchValues(regex, input, governor, includeGroups: true);
+
+    public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateMatchValues(
+        Regex regex,
+        AwkText input,
         AwkMemoryGovernor governor,
-        bool includeGroups = true)
+        bool includeGroups)
     {
         _throwIfCancellationRequested();
         var policy = ResolveExecutionPolicy(regex, input);

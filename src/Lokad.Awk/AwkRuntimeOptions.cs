@@ -9,8 +9,16 @@ internal sealed class AwkRuntimeOptions
     public AwkRuntimeOptions(
         Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
         TimeZoneInfo timeZone,
+        AwkRandomGenerator randomGenerator)
+        : this(currentUnixTimeSeconds, timeZone, randomGenerator, DefaultMaxExecutionSteps)
+    {
+    }
+
+    public AwkRuntimeOptions(
+        Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
+        TimeZoneInfo timeZone,
         AwkRandomGenerator randomGenerator,
-        int maxExecutionSteps = DefaultMaxExecutionSteps)
+        int maxExecutionSteps)
         : this(
             currentUnixTimeSeconds,
             timeZone,
@@ -24,8 +32,17 @@ internal sealed class AwkRuntimeOptions
         Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
         TimeZoneInfo timeZone,
         AwkRandomGenerator randomGenerator,
+        AwkRuntimeCounters counters)
+        : this(currentUnixTimeSeconds, timeZone, randomGenerator, counters, DefaultMaxExecutionSteps)
+    {
+    }
+
+    public AwkRuntimeOptions(
+        Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
+        TimeZoneInfo timeZone,
+        AwkRandomGenerator randomGenerator,
         AwkRuntimeCounters counters,
-        int maxExecutionSteps = DefaultMaxExecutionSteps)
+        int maxExecutionSteps)
         : this(
             currentUnixTimeSeconds,
             timeZone,
@@ -40,9 +57,62 @@ internal sealed class AwkRuntimeOptions
         TimeZoneInfo timeZone,
         AwkRandomGenerator randomGenerator,
         AwkRuntimeCounters counters,
+        AwkRuntimeLimits limits)
+        : this(
+            currentUnixTimeSeconds,
+            timeZone,
+            randomGenerator,
+            counters,
+            limits,
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter)
+    {
+    }
+
+    public AwkRuntimeOptions(
+        Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
+        TimeZoneInfo timeZone,
+        AwkRandomGenerator randomGenerator,
+        AwkRuntimeCounters counters,
         AwkRuntimeLimits limits,
-        AwkRegexEngineKind regexEngineKind = AwkRegexEngineKind.DotNetCompatibility,
-        AwkExecutionEngineKind executionEngineKind = AwkExecutionEngineKind.Interpreter)
+        AwkRegexEngineKind regexEngineKind)
+        : this(
+            currentUnixTimeSeconds,
+            timeZone,
+            randomGenerator,
+            counters,
+            limits,
+            regexEngineKind,
+            AwkExecutionEngineKind.Interpreter)
+    {
+    }
+
+    public AwkRuntimeOptions(
+        Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
+        TimeZoneInfo timeZone,
+        AwkRandomGenerator randomGenerator,
+        AwkRuntimeCounters counters,
+        AwkRuntimeLimits limits,
+        AwkExecutionEngineKind executionEngineKind)
+        : this(
+            currentUnixTimeSeconds,
+            timeZone,
+            randomGenerator,
+            counters,
+            limits,
+            AwkRegexEngineKind.DotNetCompatibility,
+            executionEngineKind)
+    {
+    }
+
+    public AwkRuntimeOptions(
+        Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
+        TimeZoneInfo timeZone,
+        AwkRandomGenerator randomGenerator,
+        AwkRuntimeCounters counters,
+        AwkRuntimeLimits limits,
+        AwkRegexEngineKind regexEngineKind,
+        AwkExecutionEngineKind executionEngineKind)
     {
         CurrentUnixTimeSeconds = currentUnixTimeSeconds ?? throw new ArgumentNullException(nameof(currentUnixTimeSeconds));
         TimeZone = timeZone ?? throw new ArgumentNullException(nameof(timeZone));

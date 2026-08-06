@@ -967,9 +967,15 @@ internal sealed class AwkExecutableRuntimeBindings
 
 internal readonly record struct AwkInstruction(
     AwkOpcode Opcode,
-    int Operand0 = 0,
-    int Operand1 = 0,
-    int Operand2 = 0);
+    int Operand0,
+    int Operand1,
+    int Operand2)
+{
+    public AwkInstruction(AwkOpcode opcode, int operand0)
+        : this(opcode, operand0, 0, 0)
+    {
+    }
+}
 
 internal enum AwkOpcode
 {

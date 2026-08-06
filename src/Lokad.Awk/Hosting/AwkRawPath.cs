@@ -20,7 +20,9 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
     public static bool IsValid(string? s) =>
         !string.IsNullOrEmpty(s) && s.All(c => !AwkPath.IsForbiddenChar(c) && c is not ('*' or '\\' or ':'));
 
-    public static AwkRawPath Parse(string s, IFormatProvider? provider = null)
+    public static AwkRawPath Parse(string s) => Parse(s, null);
+
+    public static AwkRawPath Parse(string s, IFormatProvider? provider)
     {
         ArgumentNullException.ThrowIfNull(s);
         if (!TryParse(s, provider, out var result))

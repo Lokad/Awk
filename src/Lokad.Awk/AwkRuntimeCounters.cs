@@ -272,7 +272,9 @@ internal sealed class AwkRuntimeCounters
         FormattingFallbacks++;
     }
 
-    public void RecordFormattingStringInteropInput(int count = 1)
+    public void RecordFormattingStringInteropInput() => RecordFormattingStringInteropInput(1);
+
+    public void RecordFormattingStringInteropInput(int count)
     {
         if (!_enabled || count <= 0)
             return;

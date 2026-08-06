@@ -9,14 +9,19 @@ internal static class PrintfEvaluation
 {
     public static ReadOnlyMemory<byte> Format(
         string format,
+        IReadOnlyList<string> arguments) =>
+        Format(format, arguments, strictMissingArguments: false);
+
+    public static ReadOnlyMemory<byte> Format(
+        string format,
         IReadOnlyList<string> arguments,
-        bool strictMissingArguments = false) =>
+        bool strictMissingArguments) =>
         Format(format, new PrintfStringListArguments(arguments, AwkRuntimeCounters.Disabled), strictMissingArguments);
 
     public static ReadOnlyMemory<byte> Format<TArguments>(
         string format,
         TArguments arguments,
-        bool strictMissingArguments = false)
+        bool strictMissingArguments)
         where TArguments : IPrintfArguments
     {
         if (string.IsNullOrEmpty(format))

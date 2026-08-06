@@ -45,14 +45,23 @@ internal sealed class AwkStatementSyntax
         AwkStatementKind kind,
         IReadOnlyList<AwkToken> tokens,
         AwkStatementSyntaxPayload payload,
+        AwkTextSpan span)
+        : this(kind, tokens, payload, span, [])
+    {
+    }
+
+    public AwkStatementSyntax(
+        AwkStatementKind kind,
+        IReadOnlyList<AwkToken> tokens,
+        AwkStatementSyntaxPayload payload,
         AwkTextSpan span,
-        IReadOnlyList<AwkDiagnostic>? diagnostics = null)
+        IReadOnlyList<AwkDiagnostic> diagnostics)
     {
         Kind = kind;
         Tokens = tokens;
         Payload = payload;
         Span = span;
-        Diagnostics = diagnostics ?? [];
+        Diagnostics = diagnostics;
     }
 
     public AwkStatementKind Kind { get; }

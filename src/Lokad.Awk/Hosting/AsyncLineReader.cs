@@ -21,8 +21,16 @@ internal sealed class AsyncLineReader
     public AsyncLineReader(
         IAwkHost host,
         AwkFileDescriptor descriptor,
+        CancellationToken cancellationToken)
+        : this(host, descriptor, cancellationToken, int.MaxValue)
+    {
+    }
+
+    public AsyncLineReader(
+        IAwkHost host,
+        AwkFileDescriptor descriptor,
         CancellationToken cancellationToken,
-        int maxLineCount = int.MaxValue)
+        int maxLineCount)
         : this(host, descriptor, cancellationToken, maxLineCount, AwkRuntimeCounters.Disabled)
     {
     }

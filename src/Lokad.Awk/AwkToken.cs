@@ -5,7 +5,12 @@ namespace Lokad.Awk;
 
 internal sealed class AwkTokenFromAttribute : FromAttribute
 {
-    public AwkTokenFromAttribute(AwkTokenKind parent, bool isPrivate = false)
+    public AwkTokenFromAttribute(AwkTokenKind parent)
+        : this(parent, isPrivate: false)
+    {
+    }
+
+    public AwkTokenFromAttribute(AwkTokenKind parent, bool isPrivate)
         : base((int)parent, isPrivate)
     {
     }

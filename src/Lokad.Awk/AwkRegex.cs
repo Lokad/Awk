@@ -11,8 +11,13 @@ internal static class AwkRegex
 
     public static Regex Create(
         AwkRegexPattern pattern,
+        bool ignoreCase) =>
+        Create(pattern, ignoreCase, RegexOptions.None);
+
+    public static Regex Create(
+        AwkRegexPattern pattern,
         bool ignoreCase,
-        RegexOptions extraOptions = RegexOptions.None) =>
+        RegexOptions extraOptions) =>
         new(
             TranslatePattern(pattern),
             RegexOptions.CultureInvariant |

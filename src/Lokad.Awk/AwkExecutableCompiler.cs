@@ -45,7 +45,13 @@ internal sealed class AwkExecutableCompiler
         }
     }
 
-    public int Emit(AwkOpcode opcode, int operand0 = 0, int operand1 = 0, int operand2 = 0)
+    public int Emit(AwkOpcode opcode) => Emit(opcode, 0, 0, 0);
+
+    public int Emit(AwkOpcode opcode, int operand0) => Emit(opcode, operand0, 0, 0);
+
+    public int Emit(AwkOpcode opcode, int operand0, int operand1) => Emit(opcode, operand0, operand1, 0);
+
+    public int Emit(AwkOpcode opcode, int operand0, int operand1, int operand2)
     {
         _instructions.Add(new AwkInstruction(opcode, operand0, operand1, operand2));
         return _instructions.Count - 1;
@@ -59,7 +65,9 @@ internal sealed class AwkExecutableCompiler
 
     public int CurrentOffset => _instructions.Count;
 
-    public void Push(int count = 1)
+    public void Push() => Push(1);
+
+    public void Push(int count)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         _stackDepth = checked(_stackDepth + count);
@@ -67,7 +75,9 @@ internal sealed class AwkExecutableCompiler
             MaxStackDepth = _stackDepth;
     }
 
-    public void Pop(int count = 1)
+    public void Pop() => Pop(1);
+
+    public void Pop(int count)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         if (count > _stackDepth)

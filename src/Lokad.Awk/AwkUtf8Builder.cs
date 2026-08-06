@@ -12,8 +12,15 @@ internal sealed class AwkUtf8Builder : IDisposable
 
     public AwkUtf8Builder(
         AwkRuntimeLimits limits,
+        AwkMemoryGovernor governor)
+        : this(limits, governor, AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity)
+    {
+    }
+
+    public AwkUtf8Builder(
+        AwkRuntimeLimits limits,
         AwkMemoryGovernor governor,
-        int capacity = AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity)
+        int capacity)
     {
         ArgumentNullException.ThrowIfNull(limits);
         ArgumentNullException.ThrowIfNull(governor);

@@ -14,7 +14,12 @@ internal sealed class AwkHostByteBuffer
     private int _length;
     private readonly int _maxBuilderBytes;
 
-    public AwkHostByteBuffer(int capacity = 256)
+    public AwkHostByteBuffer()
+        : this(256)
+    {
+    }
+
+    public AwkHostByteBuffer(int capacity)
         : this(capacity, MaxBufferBytes)
     {
     }

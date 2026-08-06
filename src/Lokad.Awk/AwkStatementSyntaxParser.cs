@@ -159,8 +159,11 @@ internal sealed class AwkStatementSyntaxParser
             body.Statements,
             [],
             [],
-            header: headerSlot,
-            hasDanglingElseBody: BodyStartsWithBareIf(body));
+            new AwkStatementSyntaxOptions
+            {
+                Header = headerSlot,
+                HasDanglingElseBody = BodyStartsWithBareIf(body)
+            });
     }
 
     [Rule]
@@ -188,8 +191,11 @@ internal sealed class AwkStatementSyntaxParser
             body.Statements,
             elseBody.Statements,
             [],
-            header: headerSlot,
-            hasDanglingElseBody: BodyStartsWithBareIf(body));
+            new AwkStatementSyntaxOptions
+            {
+                Header = headerSlot,
+                HasDanglingElseBody = BodyStartsWithBareIf(body)
+            });
     }
 
     [Rule]
@@ -244,7 +250,7 @@ internal sealed class AwkStatementSyntaxParser
             body.Statements,
             [],
             [],
-            header: headerSlot);
+            new AwkStatementSyntaxOptions { Header = headerSlot });
     }
 
     [Rule]
@@ -273,7 +279,7 @@ internal sealed class AwkStatementSyntaxParser
             body.Statements,
             [],
             [],
-            header: headerSlot);
+            new AwkStatementSyntaxOptions { Header = headerSlot });
     }
 
     [Rule]
@@ -319,7 +325,7 @@ internal sealed class AwkStatementSyntaxParser
             body.Statements,
             [],
             [],
-            forHeader: forHeader);
+            new AwkStatementSyntaxOptions { ForHeader = forHeader });
     }
 
     [Rule]
@@ -338,7 +344,7 @@ internal sealed class AwkStatementSyntaxParser
             [],
             [],
             body.Cases,
-            header: headerSlot);
+            new AwkStatementSyntaxOptions { Header = headerSlot });
     }
 
     [Rule]
@@ -652,11 +658,14 @@ internal sealed class AwkStatementSyntaxParser
             [],
             [],
             [],
-            outputPayload: outputParts.Payload,
-            outputRedirection: outputParts.Redirection,
-            getline: getline,
-            inputPipeGetline: inputPipeGetline,
-            diagnostics: ResolveStatementDiagnostics(kind, tokens, expressions, getline));
+            new AwkStatementSyntaxOptions
+            {
+                OutputPayload = outputParts.Payload,
+                OutputRedirection = outputParts.Redirection,
+                Getline = getline,
+                InputPipeGetline = inputPipeGetline,
+                Diagnostics = ResolveStatementDiagnostics(kind, tokens, expressions, getline)
+            });
     }
 
     private static AwkStatementSyntax CreateStatement(
@@ -665,15 +674,24 @@ internal sealed class AwkStatementSyntaxParser
         IReadOnlyList<AwkExpressionSyntax> expressions,
         IReadOnlyList<AwkStatementSyntax> bodyStatements,
         IReadOnlyList<AwkStatementSyntax> elseStatements,
+        IReadOnlyList<AwkSwitchCaseSyntax> switchCases) =>
+        CreateStatement(
+            kind,
+            tokens,
+            expressions,
+            bodyStatements,
+            elseStatements,
+            switchCases,
+            AwkStatementSyntaxOptions.Empty);
+
+    private static AwkStatementSyntax CreateStatement(
+        AwkStatementKind kind,
+        IReadOnlyList<AwkToken> tokens,
+        IReadOnlyList<AwkExpressionSyntax> expressions,
+        IReadOnlyList<AwkStatementSyntax> bodyStatements,
+        IReadOnlyList<AwkStatementSyntax> elseStatements,
         IReadOnlyList<AwkSwitchCaseSyntax> switchCases,
-        AwkSyntaxOptional<AwkForHeaderSyntax> forHeader = default,
-        AwkSyntaxOptional<AwkExpressionSlotSyntax> header = default,
-        AwkSyntaxOptional<AwkExpressionSlotSyntax> outputPayload = default,
-        AwkSyntaxOptional<AwkOutputRedirectionSyntax> outputRedirection = default,
-        AwkSyntaxOptional<AwkGetlineSyntax> getline = default,
-        AwkSyntaxOptional<AwkInputPipeGetlineSyntax> inputPipeGetline = default,
-        bool hasDanglingElseBody = false,
-        IReadOnlyList<AwkDiagnostic>? diagnostics = null)
+        AwkStatementSyntaxOptions options)
     {
         var first = FindFirstSignificant(tokens);
         var last = FindLastSignificant(tokens);
@@ -686,13 +704,13 @@ internal sealed class AwkStatementSyntaxParser
             bodyStatements,
             elseStatements,
             switchCases,
-            forHeader,
-            header,
-            outputPayload,
-            outputRedirection,
-            getline,
-            inputPipeGetline,
-            hasDanglingElseBody);
+            options.ForHeader,
+            options.Header,
+            options.OutputPayload,
+            options.OutputRedirection,
+            options.Getline,
+            options.InputPipeGetline,
+            options.HasDanglingElseBody);
         if (first == null || last == null)
         {
             return new AwkStatementSyntax(
@@ -700,7 +718,7 @@ internal sealed class AwkStatementSyntaxParser
                 tokens,
                 payload,
                 new AwkTextSpan(0, 0),
-                diagnostics: diagnostics);
+                diagnostics: options.Diagnostics);
         }
 
         return new AwkStatementSyntax(
@@ -708,7 +726,28 @@ internal sealed class AwkStatementSyntaxParser
             tokens,
             payload,
             new AwkTextSpan(first.Value.Span.Start, last.Value.Span.End - first.Value.Span.Start),
-            diagnostics: diagnostics);
+            diagnostics: options.Diagnostics);
+    }
+
+    private sealed class AwkStatementSyntaxOptions
+    {
+        public static AwkStatementSyntaxOptions Empty { get; } = new();
+
+        public AwkSyntaxOptional<AwkForHeaderSyntax> ForHeader { get; init; }
+
+        public AwkSyntaxOptional<AwkExpressionSlotSyntax> Header { get; init; }
+
+        public AwkSyntaxOptional<AwkExpressionSlotSyntax> OutputPayload { get; init; }
+
+        public AwkSyntaxOptional<AwkOutputRedirectionSyntax> OutputRedirection { get; init; }
+
+        public AwkSyntaxOptional<AwkGetlineSyntax> Getline { get; init; }
+
+        public AwkSyntaxOptional<AwkInputPipeGetlineSyntax> InputPipeGetline { get; init; }
+
+        public bool HasDanglingElseBody { get; init; }
+
+        public IReadOnlyList<AwkDiagnostic> Diagnostics { get; init; } = [];
     }
 
     private static AwkStatementSyntaxPayload CreatePayload(
@@ -778,7 +817,7 @@ internal sealed class AwkStatementSyntaxParser
     private IReadOnlyList<AwkExpressionSyntax> ResolveStatementExpressions(
         IReadOnlyList<AwkToken> tokens,
         AwkStatementKind kind,
-        OutputStatementParts outputParts = default)
+        OutputStatementParts outputParts)
     {
         if (kind == AwkStatementKind.Expression)
             return ExpressionListFromParsed(ParseExpression(tokens));

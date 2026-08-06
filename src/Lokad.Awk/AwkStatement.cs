@@ -136,12 +136,17 @@ internal abstract partial class AwkStatement
 
     public static AwkStatement If(
         AwkCondition condition,
+        IReadOnlyList<AwkStatement> body) =>
+        If(condition, body, []);
+
+    public static AwkStatement If(
+        AwkCondition condition,
         IReadOnlyList<AwkStatement> body,
-        IReadOnlyList<AwkStatement>? elseBody = null) =>
+        IReadOnlyList<AwkStatement> elseBody) =>
         new IfStatement(
             condition,
             AwkExecutableCollections.Copy(body),
-            AwkExecutableCollections.Copy(elseBody ?? []));
+            AwkExecutableCollections.Copy(elseBody));
 
     public static AwkStatement ForIn(string loopVariable, string arrayVariable, IReadOnlyList<AwkStatement> body) =>
         ForIn(AwkVariableName.FromText(loopVariable), AwkArrayName.FromText(arrayVariable), body);

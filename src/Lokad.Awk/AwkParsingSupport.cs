@@ -324,7 +324,12 @@ internal sealed class AwkOAttribute : TerminalAttribute
 
 internal sealed class AwkLAttribute : ListAttribute
 {
-    public AwkLAttribute(int maxRank = -1)
+    public AwkLAttribute()
+        : this(-1)
+    {
+    }
+
+    public AwkLAttribute(int maxRank)
         : base(maxRank)
     {
     }
