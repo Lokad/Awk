@@ -28,9 +28,23 @@ internal static class AwkOracleCapture
             if (Matches(testCase, result))
                 continue;
 
-            mismatches.Add(testCase.Name +
-                " expected exit " + testCase.ExpectedExitCode.ToString(CultureInfo.InvariantCulture) +
-                " but oracle exit was " + result.ExitCode.ToString(CultureInfo.InvariantCulture));
+            var details = new StringBuilder();
+            details.Append(testCase.Name);
+            details.Append(" [");
+            details.Append(FormatDifferenceClassification(ClassifyDifference(testCase)));
+            details.Append(']');
+            if (result.ExitCode != testCase.ExpectedExitCode)
+            {
+                details.AppendLine();
+                details.Append("    exit: expected ");
+                details.Append(testCase.ExpectedExitCode.ToString(CultureInfo.InvariantCulture));
+                details.Append(", oracle ");
+                details.Append(result.ExitCode.ToString(CultureInfo.InvariantCulture));
+            }
+
+            AppendTextDifference(details, "stdout", testCase.ExpectedStdOut, result.StdOut);
+            AppendTextDifference(details, "stderr", testCase.ExpectedStdErr, result.StdErr);
+            mismatches.Add(details.ToString());
         }
 
         if (mismatches.Count == 0)
@@ -93,7 +107,7 @@ internal static class AwkOracleCapture
             builder.AppendLine("- Tags: `" + string.Join(", ", testCase.Tags) + "`");
             builder.AppendLine("- Environment: `" + FormatEnvironment(testCase.Environment) + "`");
             builder.AppendLine("- Oracle assumptions: `LC_ALL=" + Locale + "; TZ=" + TimeZone + "; stdin empty; path mapping none`");
-            builder.AppendLine("- Accepted divergence: " + FormatDifferenceClassification(ClassifyDifference(testCase)));
+            builder.AppendLine("- Difference class: " + FormatDifferenceClassification(ClassifyDifference(testCase)));
             builder.AppendLine("- Exit: expected `" + testCase.ExpectedExitCode.ToString(CultureInfo.InvariantCulture) +
                 "`, actual `" + result.ExitCode.ToString(CultureInfo.InvariantCulture) + "`");
 
@@ -163,6 +177,52 @@ internal static class AwkOracleCapture
             AwkOracleDifferenceClassification.IntentionallyUnsupported => "intentionally unsupported",
             _ => throw new InvalidOperationException("Unknown awk oracle difference classification.")
         };
+    }
+
+    private static void AppendTextDifference(
+        StringBuilder builder,
+        string streamName,
+        string expected,
+        string actual)
+    {
+        if (string.Equals(expected, actual, StringComparison.Ordinal))
+            return;
+
+        var commonLength = Math.Min(expected.Length, actual.Length);
+        var differenceIndex = 0;
+        while (differenceIndex < commonLength && expected[differenceIndex] == actual[differenceIndex])
+            differenceIndex++;
+
+        builder.AppendLine();
+        builder.Append("    ");
+        builder.Append(streamName);
+        builder.Append(" differs at character ");
+        builder.Append(differenceIndex.ToString(CultureInfo.InvariantCulture));
+        builder.Append(" (expected length ");
+        builder.Append(expected.Length.ToString(CultureInfo.InvariantCulture));
+        builder.Append(", oracle length ");
+        builder.Append(actual.Length.ToString(CultureInfo.InvariantCulture));
+        builder.AppendLine("):");
+        builder.Append("      expected: ");
+        builder.AppendLine(FormatTextWindow(expected, differenceIndex));
+        builder.Append("      oracle:   ");
+        builder.Append(FormatTextWindow(actual, differenceIndex));
+    }
+
+    private static string FormatTextWindow(string value, int differenceIndex)
+    {
+        const int ContextCharacters = 48;
+        var start = Math.Max(0, differenceIndex - ContextCharacters);
+        var length = Math.Min(value.Length - start, ContextCharacters * 2);
+        var escaped = value.AsSpan(start, length)
+            .ToString()
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal)
+            .Replace("\t", "\\t", StringComparison.Ordinal)
+            .Replace("\"", "\\\"", StringComparison.Ordinal);
+        return (start > 0 ? "…" : string.Empty) + '"' + escaped + '"' +
+            (start + length < value.Length ? "…" : string.Empty);
     }
 
     private static void AppendTextBlock(StringBuilder builder, string title, string value)
