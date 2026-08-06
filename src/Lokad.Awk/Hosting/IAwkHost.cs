@@ -10,7 +10,13 @@ namespace Lokad.Awk;
 /// </summary>
 public interface IAwkHost
 {
-    Task<IReadOnlyList<int>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken cancellationToken);
+    /// <summary>
+    /// Runs commands and returns one exit code in the same position as each submitted command.
+    /// Pipe commands remain active until their corresponding task completes.
+    /// </summary>
+    Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
+        IReadOnlyList<AwkCommandInvocation> commands,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Appends bytes to a descriptor. Lokad.Awk uses this for normal stdout/stderr flushes,
@@ -18,19 +24,17 @@ public interface IAwkHost
     /// returned task incomplete to apply backpressure, for example when the descriptor is backed by
     /// a bounded pipe. The supplied memory is valid until the returned task completes;
     /// implementations that retain content beyond completion must copy it.
+    /// A nonzero result reports that the append was not accepted.
     /// </summary>
-    Task<int> AppendAsync(AwkFileDescriptor fileDescriptor, ReadOnlyMemory<byte> content, CancellationToken cancellationToken);
+    Task<AwkExitCode> AppendAsync(
+        AwkFileDescriptor fileDescriptor,
+        ReadOnlyMemory<byte> content,
+        CancellationToken cancellationToken);
 
     Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken cancellationToken);
 
-    Task<AwkDuplicateDescriptorResult> DuplicateDescriptorAsync(
-        AwkFileDescriptor sourceDescriptor,
-        AwkFileDescriptor targetDescriptor,
-        CancellationToken cancellationToken);
-
+    /// <summary>Closes a descriptor and returns false when the descriptor could not be closed.</summary>
     Task<bool> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken cancellationToken);
-
-    Task<IReadOnlyList<AwkDirectoryEntry>> ListDirectoryAsync(AwkPath path, CancellationToken cancellationToken);
 
     /// <summary>
     /// Reads up to <paramref name="maxLineCount"/> lines. Successful results carry a byte buffer
@@ -43,20 +47,5 @@ public interface IAwkHost
         int maxLineCount,
         CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<bool>> FileTestsAsync(IReadOnlyList<AwkFileTestRequest> tests, CancellationToken cancellationToken);
-
     Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken);
-
-    Task<AwkFileMetadata> GetFileMetadataAsync(AwkPath path, CancellationToken cancellationToken);
-
-    Task<AwkOperationResult> CreateDirectoryAsync(AwkPath path, CancellationToken cancellationToken);
-
-    Task<AwkOperationResult> DeleteDirectoryAsync(AwkPath path, CancellationToken cancellationToken);
-
-    Task<AwkOperationResult> DeleteFileAsync(AwkPath path, CancellationToken cancellationToken);
-
-    Task<AwkOperationResult> CopyFileAsync(
-        AwkPath sourcePath,
-        AwkPath destinationPath,
-        CancellationToken cancellationToken);
 }

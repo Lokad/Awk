@@ -10,14 +10,26 @@ internal static class AwkExecutor
     {
         if (invocation.TerminalResult.IsHelp)
         {
-            await host.AppendAsync(invocation.Stdio.StdOut, AwkMessages.HelpMessage, cancellationToken).ConfigureAwait(false);
-            return AwkDiagnostics.SuccessExitCode.Value;
+            var status = await host.AppendAsync(
+                    invocation.Stdio.StdOut,
+                    AwkMessages.HelpMessage,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return status.Succeeded
+                ? AwkDiagnostics.SuccessExitCode.Value
+                : AwkDiagnostics.FatalExitCode.Value;
         }
 
         if (invocation.TerminalResult.IsVersion)
         {
-            await host.AppendAsync(invocation.Stdio.StdOut, AwkMessages.VersionMessage, cancellationToken).ConfigureAwait(false);
-            return AwkDiagnostics.SuccessExitCode.Value;
+            var status = await host.AppendAsync(
+                    invocation.Stdio.StdOut,
+                    AwkMessages.VersionMessage,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return status.Succeeded
+                ? AwkDiagnostics.SuccessExitCode.Value
+                : AwkDiagnostics.FatalExitCode.Value;
         }
 
         if (invocation.TerminalResult.IsError)
@@ -25,22 +37,38 @@ internal static class AwkExecutor
             var failure = AwkDiagnostics.Invocation(
                 invocation.TerminalResult.ErrorMessage,
                 invocation.TerminalResult.ErrorId);
-            await host.AppendAsync(invocation.Stdio.StdErr, failure.Message, cancellationToken).ConfigureAwait(false);
-            return failure.ExitCode.Value;
+            var status = await host.AppendAsync(
+                    invocation.Stdio.StdErr,
+                    failure.Message,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return status.Succeeded
+                ? failure.ExitCode.Value
+                : AwkDiagnostics.FatalExitCode.Value;
         }
 
         var resolved = await ResolveProgramAsync(host, invocation, cancellationToken).ConfigureAwait(false);
         for (var index = 0; index < resolved.Warnings.Count; index++)
         {
-            await host.AppendAsync(invocation.Stdio.StdErr, AwkDiagnostics.Warning(resolved.Warnings[index]), cancellationToken)
+            var status = await host.AppendAsync(
+                    invocation.Stdio.StdErr,
+                    AwkDiagnostics.Warning(resolved.Warnings[index]),
+                    cancellationToken)
                 .ConfigureAwait(false);
+            if (status.Failed)
+                return AwkDiagnostics.FatalExitCode.Value;
         }
 
         if (resolved is AwkProgramResolution.Failed failed)
         {
-            await host.AppendAsync(invocation.Stdio.StdErr, failed.Diagnostic.Message, cancellationToken)
+            var status = await host.AppendAsync(
+                    invocation.Stdio.StdErr,
+                    failed.Diagnostic.Message,
+                    cancellationToken)
                 .ConfigureAwait(false);
-            return failed.Diagnostic.ExitCode.Value;
+            return status.Succeeded
+                ? failed.Diagnostic.ExitCode.Value
+                : AwkDiagnostics.FatalExitCode.Value;
         }
 
         if (resolved is not AwkProgramResolution.ResolvedProgram resolvedProgram)

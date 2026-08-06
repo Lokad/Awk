@@ -264,7 +264,13 @@ internal sealed class AwkInputScheduler(
         try
         {
             state.Resources.RecordHostCall();
-            _ = await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
+            var closed = await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
+            if (!closed)
+            {
+                throw new AwkRuntimeException(
+                    AwkMessages.FormatDescriptorCloseError(descriptor),
+                    AwkDiagnosticId.HostIoFailure);
+            }
         }
         catch
         {

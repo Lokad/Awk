@@ -111,9 +111,11 @@ internal static class AwkRuntime
             var failure = AwkDiagnostics.Runtime(exception);
             runtimeOptions.Counters.RecordHostCall();
             runtimeOptions.Counters.RecordOutputBytes(failure.Message.Length);
-            _ = await host.AppendAsync(stdio.StdErr, failure.Message, cancellationToken)
+            var appendStatus = await host.AppendAsync(stdio.StdErr, failure.Message, cancellationToken)
                 .ConfigureAwait(false);
-            return failure.ExitCode.Value;
+            return appendStatus.Succeeded
+                ? failure.ExitCode.Value
+                : AwkDiagnostics.FatalExitCode.Value;
         }
         catch
         {

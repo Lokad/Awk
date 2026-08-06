@@ -162,11 +162,11 @@ internal sealed class AwkPipeRuntime(
 
     private sealed class AwkOutputPipe(
         AwkFileDescriptor writeDescriptor,
-        Task<int> commandCompletion)
+        Task<AwkExitCode> commandCompletion)
     {
         public AwkFileDescriptor WriteDescriptor { get; } = writeDescriptor;
 
-        public async Task<int> CloseAsync(AwkIoHostAdapter host)
+        public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host)
         {
             await host.CloseDescriptorAsync(WriteDescriptor).ConfigureAwait(false);
             return await commandCompletion.ConfigureAwait(false);
@@ -198,11 +198,11 @@ internal sealed class AwkPipeRuntime(
         AwkFileDescriptor readDescriptor,
         AwkFileDescriptor writeDescriptor,
         AsyncLineReader reader,
-        Task<int> commandCompletion)
+        Task<AwkExitCode> commandCompletion)
     {
         public AsyncLineReader Reader { get; } = reader;
 
-        public async Task<int> CloseAsync(AwkIoHostAdapter host)
+        public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host)
         {
             await host.CloseDescriptorAsync(readDescriptor).ConfigureAwait(false);
             await host.CloseDescriptorAsync(writeDescriptor).ConfigureAwait(false);
@@ -243,7 +243,7 @@ internal sealed class AwkPipeRuntime(
 
 internal readonly struct AwkPipeCloseResult
 {
-    private AwkPipeCloseResult(bool closed, int exitCode)
+    private AwkPipeCloseResult(bool closed, AwkExitCode exitCode)
     {
         ClosedPipe = closed;
         ExitCode = exitCode;
@@ -251,9 +251,9 @@ internal readonly struct AwkPipeCloseResult
 
     public static AwkPipeCloseResult NotOpened => default;
 
-    public static AwkPipeCloseResult Closed(int exitCode) => new(true, exitCode);
+    public static AwkPipeCloseResult Closed(AwkExitCode exitCode) => new(true, exitCode);
 
     public bool ClosedPipe { get; }
 
-    public int ExitCode { get; }
+    public AwkExitCode ExitCode { get; }
 }

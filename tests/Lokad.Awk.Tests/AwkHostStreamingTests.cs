@@ -45,7 +45,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
 
     private sealed class BoundedPipeHost(int capacityBytes) : IAwkHost
     {
-        private readonly TaskCompletionSource<IReadOnlyList<int>> _commandCompletion = new();
+        private readonly TaskCompletionSource<IReadOnlyList<AwkExitCode>> _commandCompletion = new();
         private int _bufferedBytes;
 
         public AwkFileDescriptor PipeReadDescriptor { get; } = new(100);
@@ -60,7 +60,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
 
         public int MaxBufferedBytes { get; private set; }
 
-        public Task<IReadOnlyList<int>> RunCommandsAsync(
+        public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
             IReadOnlyList<AwkCommandInvocation> commands,
             CancellationToken cancellationToken)
         {
@@ -69,23 +69,23 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             return _commandCompletion.Task;
         }
 
-        public Task<int> AppendAsync(
+        public Task<AwkExitCode> AppendAsync(
             AwkFileDescriptor fileDescriptor,
             ReadOnlyMemory<byte> content,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (fileDescriptor != PipeWriteDescriptor)
-                return Task.FromResult(0);
+                return Task.FromResult(AwkExitCode.Success);
 
             CommandWasRunningDuringAppend |= !_commandCompletion.Task.IsCompleted;
             if (WriteDescriptorClosed || content.Length > capacityBytes)
-                return Task.FromResult(1);
+                return Task.FromResult(new AwkExitCode(1));
 
             _bufferedBytes += content.Length;
             MaxBufferedBytes = Math.Max(MaxBufferedBytes, _bufferedBytes);
             _bufferedBytes = 0;
-            return Task.FromResult(0);
+            return Task.FromResult(AwkExitCode.Success);
         }
 
         public Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
@@ -101,7 +101,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             if (descriptor == PipeWriteDescriptor)
             {
                 WriteDescriptorClosed = true;
-                _commandCompletion.TrySetResult([0]);
+                _commandCompletion.TrySetResult([AwkExitCode.Success]);
             }
 
             return Task.FromResult(true);
@@ -122,38 +122,5 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<AwkDuplicateDescriptorResult> DuplicateDescriptorAsync(
-            AwkFileDescriptor sourceDescriptor,
-            AwkFileDescriptor targetDescriptor,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<AwkDirectoryEntry>> ListDirectoryAsync(
-            AwkPath path,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<bool>> FileTestsAsync(
-            IReadOnlyList<AwkFileTestRequest> tests,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<AwkFileMetadata> GetFileMetadataAsync(AwkPath path, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<AwkOperationResult> CreateDirectoryAsync(AwkPath path, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<AwkOperationResult> DeleteDirectoryAsync(AwkPath path, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<AwkOperationResult> DeleteFileAsync(AwkPath path, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<AwkOperationResult> CopyFileAsync(
-            AwkPath sourcePath,
-            AwkPath destinationPath,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 }

@@ -7,38 +7,41 @@ using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
+public enum AwkFileTreePermission
+{
+    ReadOnly,
+    ReadWrite
+}
+
 internal sealed class MockFileTree
 {
-    private readonly DirectoryNode _root = new(DateTimeOffset.UtcNow, AwkFileTreePermission.ReadWrite);
+    private readonly DirectoryNode _root = new(AwkFileTreePermission.ReadWrite);
     private readonly Dictionary<AwkPath, AwkOperationError> _readOpenErrors = [];
 
     public void AddDirectory(
         string path,
-        DateTimeOffset? modifiedAt = null,
         AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite)
     {
-        EnsureDirectory(ParsePath(path), modifiedAt, permission);
+        EnsureDirectory(ParsePath(path), permission);
     }
 
     public void AddFile(
         string path,
         string content,
-        DateTimeOffset? modifiedAt = null,
         AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite) =>
-        AddFile(path, Encoding.UTF8.GetBytes(content), modifiedAt, permission);
+        AddFile(path, Encoding.UTF8.GetBytes(content), permission);
 
     public void AddFile(
         string path,
         byte[] content,
-        DateTimeOffset? modifiedAt = null,
         AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite)
     {
         var filePath = ParsePath(path);
         if (!TryGetParentAndName(filePath, out var parent, out var name))
             throw new InvalidOperationException("MockFileSystem requires a file path.");
 
-        var directory = EnsureDirectory(parent, modifiedAt);
-        directory.Children[name] = new FileNode(content, modifiedAt ?? DateTimeOffset.UtcNow, permission);
+        var directory = EnsureDirectory(parent);
+        directory.Children[name] = new FileNode(content, permission);
     }
 
     public void AddReadOpenError(string path, string message)
@@ -100,129 +103,12 @@ internal sealed class MockFileTree
 
         return new MockWriteOpenResult.Opened(initialContent, content =>
         {
-            parent.Children[name] = new FileNode(content, DateTimeOffset.UtcNow, AwkFileTreePermission.ReadWrite);
+            parent.Children[name] = new FileNode(content, AwkFileTreePermission.ReadWrite);
         });
-    }
-
-    public IReadOnlyList<AwkDirectoryEntry> ListDirectory(AwkPath path)
-    {
-        if (!TryResolveNode(path, out var node) || node is not DirectoryNode directory)
-            return [];
-
-        var entries = new List<AwkDirectoryEntry>(directory.Children.Count);
-        foreach (var entry in directory.Children)
-        {
-            entries.Add(new AwkDirectoryEntry(entry.Key.Name, entry.Value is DirectoryNode));
-        }
-
-        return entries;
-    }
-
-    public AwkFileMetadata GetMetadata(AwkPath path)
-    {
-        if (!TryResolveNode(path, out var node))
-            return new AwkFileMetadata(0, DateTimeOffset.MinValue);
-
-        return node switch
-        {
-            FileNode file => new AwkFileMetadata(
-                file.Content.Length,
-                file.ModifiedAt,
-                file.Permission,
-                file.ModifiedAt,
-                file.ModifiedAt),
-            DirectoryNode directory => new AwkFileMetadata(
-                0,
-                directory.ModifiedAt,
-                directory.Permission,
-                directory.ModifiedAt,
-                directory.ModifiedAt),
-            _ => new AwkFileMetadata(0, DateTimeOffset.MinValue)
-        };
-    }
-
-    public AwkOperationResult CreateDirectory(AwkPath path)
-    {
-        if (!TryGetParentAndName(path, out var parentPath, out var name))
-            return OperationFailed();
-
-        if (!TryResolveNode(parentPath, out var parentNode) || parentNode is not DirectoryNode parent)
-            return OperationFailed();
-
-        if (parent.Children.ContainsKey(name))
-            return OperationFailed();
-
-        parent.Children[name] = new DirectoryNode(DateTimeOffset.UtcNow, AwkFileTreePermission.ReadWrite);
-        return AwkOperationResult.Ok;
-    }
-
-    public AwkOperationResult DeleteDirectory(AwkPath path)
-    {
-        if (!TryGetParentAndName(path, out var parentPath, out var name))
-            return OperationFailed();
-
-        if (!TryResolveNode(parentPath, out var parentNode) || parentNode is not DirectoryNode parent)
-            return OperationFailed();
-
-        if (!parent.Children.TryGetValue(name, out var node) || node is not DirectoryNode directory)
-            return OperationFailed();
-
-        if (directory.Children.Count > 0)
-            return OperationFailed();
-
-        parent.Children.Remove(name);
-        return AwkOperationResult.Ok;
-    }
-
-    public AwkOperationResult DeleteFile(AwkPath path)
-    {
-        if (!TryGetParentAndName(path, out var parentPath, out var name))
-            return OperationFailed();
-
-        if (!TryResolveNode(parentPath, out var parentNode) || parentNode is not DirectoryNode parent)
-            return OperationFailed();
-
-        if (!parent.Children.TryGetValue(name, out var node) || node is not FileNode)
-            return OperationFailed();
-
-        parent.Children.Remove(name);
-        return AwkOperationResult.Ok;
-    }
-
-    public AwkOperationResult CopyFile(AwkPath sourcePath, AwkPath destinationPath)
-    {
-        if (!TryResolveNode(sourcePath, out var sourceNode) || sourceNode is not FileNode file)
-            return OperationFailed();
-
-        if (!TryGetParentAndName(destinationPath, out var parentPath, out var name))
-            return OperationFailed();
-
-        if (!TryResolveNode(parentPath, out var parentNode) || parentNode is not DirectoryNode parent)
-            return OperationFailed();
-
-        parent.Children[name] = new FileNode(file.Content.ToArray(), DateTimeOffset.UtcNow, AwkFileTreePermission.ReadWrite);
-        return AwkOperationResult.Ok;
-    }
-
-    public bool EvaluateTest(AwkFileTestRequest request)
-    {
-        if (!TryParsePath(request.Path, out var path))
-            return false;
-
-        return request.Kind switch
-        {
-            AwkFileTestKind.DirectoryExists =>
-                TryResolveNode(path, out var directory) && directory is DirectoryNode,
-            AwkFileTestKind.RegularFileExists =>
-                TryResolveNode(path, out var file) && file is FileNode,
-            AwkFileTestKind.PathExists => TryResolveNode(path, out _),
-            _ => false
-        };
     }
 
     private DirectoryNode EnsureDirectory(
         AwkPath path,
-        DateTimeOffset? modifiedAt = null,
         AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite)
     {
         var current = _root;
@@ -230,7 +116,7 @@ internal sealed class MockFileTree
         {
             if (!current.Children.TryGetValue(segment, out var child))
             {
-                var directory = new DirectoryNode(modifiedAt ?? DateTimeOffset.UtcNow, permission);
+                var directory = new DirectoryNode(permission);
                 current.Children.Add(segment, directory);
                 current = directory;
                 continue;
@@ -321,25 +207,18 @@ internal sealed class MockFileTree
     private static MockWriteOpenResult OperationFailedWrite() =>
         new MockWriteOpenResult.Failure(new AwkOperationError("Operation failed."));
 
-    private static AwkOperationResult OperationFailed() =>
-        AwkOperationResult.Failure(new AwkOperationError("Operation failed."));
-
     private abstract class Node;
 
-    private sealed class DirectoryNode(DateTimeOffset modifiedAt, AwkFileTreePermission permission) : Node
+    private sealed class DirectoryNode(AwkFileTreePermission permission) : Node
     {
         public SortedDictionary<AwkPathSegment, Node> Children { get; } = new(AwkPathSegmentComparer.Instance);
-
-        public DateTimeOffset ModifiedAt { get; } = modifiedAt;
 
         public AwkFileTreePermission Permission { get; } = permission;
     }
 
-    private sealed class FileNode(byte[] content, DateTimeOffset modifiedAt, AwkFileTreePermission permission) : Node
+    private sealed class FileNode(byte[] content, AwkFileTreePermission permission) : Node
     {
         public byte[] Content { get; } = content ?? [];
-
-        public DateTimeOffset ModifiedAt { get; } = modifiedAt;
 
         public AwkFileTreePermission Permission { get; } = permission;
     }

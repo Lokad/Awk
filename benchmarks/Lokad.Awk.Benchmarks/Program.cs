@@ -1299,7 +1299,7 @@ internal sealed class BenchmarkHost : IAwkHost
     public BenchmarkRunResult Result =>
         new(_standardOutputBytes, _standardOutputHash, _standardErrorBytes, _standardErrorHash);
 
-    public Task<int> AppendAsync(
+    public Task<AwkExitCode> AppendAsync(
         AwkFileDescriptor fileDescriptor,
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken)
@@ -1316,7 +1316,7 @@ internal sealed class BenchmarkHost : IAwkHost
             _standardErrorHash = Hash(_standardErrorHash, content.Span);
         }
 
-        return Task.FromResult(0);
+        return Task.FromResult(AwkExitCode.Success);
     }
 
     public Task<AwkOpenedFile> OpenFileAsync(
@@ -1351,47 +1351,13 @@ internal sealed class BenchmarkHost : IAwkHost
         return Task.FromResult(_openFiles.Remove(descriptor));
     }
 
-    public Task<IReadOnlyList<int>> RunCommandsAsync(
+    public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
         IReadOnlyList<AwkCommandInvocation> commands,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Benchmark host does not run external commands.");
 
-    public Task<AwkDuplicateDescriptorResult> DuplicateDescriptorAsync(
-        AwkFileDescriptor sourceDescriptor,
-        AwkFileDescriptor targetDescriptor,
-        CancellationToken cancellationToken) =>
-        throw new NotSupportedException("Benchmark host does not duplicate descriptors.");
-
-    public Task<IReadOnlyList<AwkDirectoryEntry>> ListDirectoryAsync(
-        AwkPath path,
-        CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<AwkDirectoryEntry>>([]);
-
-    public Task<IReadOnlyList<bool>> FileTestsAsync(
-        IReadOnlyList<AwkFileTestRequest> tests,
-        CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<bool>>(new bool[tests.Count]);
-
     public Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken) =>
         throw new NotSupportedException("Benchmark host does not create pipes.");
-
-    public Task<AwkFileMetadata> GetFileMetadataAsync(AwkPath path, CancellationToken cancellationToken) =>
-        Task.FromResult(new AwkFileMetadata(0, DateTimeOffset.MinValue));
-
-    public Task<AwkOperationResult> CreateDirectoryAsync(AwkPath path, CancellationToken cancellationToken) =>
-        Task.FromResult(AwkOperationResult.Failure(new AwkOperationError("Operation failed.")));
-
-    public Task<AwkOperationResult> DeleteDirectoryAsync(AwkPath path, CancellationToken cancellationToken) =>
-        Task.FromResult(AwkOperationResult.Failure(new AwkOperationError("Operation failed.")));
-
-    public Task<AwkOperationResult> DeleteFileAsync(AwkPath path, CancellationToken cancellationToken) =>
-        Task.FromResult(AwkOperationResult.Failure(new AwkOperationError("Operation failed.")));
-
-    public Task<AwkOperationResult> CopyFileAsync(
-        AwkPath sourcePath,
-        AwkPath destinationPath,
-        CancellationToken cancellationToken) =>
-        Task.FromResult(AwkOperationResult.Failure(new AwkOperationError("Operation failed.")));
 
     private static ulong Hash(ulong current, ReadOnlySpan<byte> content)
     {

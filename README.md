@@ -33,6 +33,9 @@ For an in-memory host implementation pattern, see
 Host reads report EOF and failure as separate outcomes: successful batches use
 `AwkReadResult.FromContent` (or `EndOfFile`), while failed reads use `AwkReadResult.Failure` with a
 structured `AwkOperationError`. The runtime maps those failures to awk diagnostics and `ERRNO`.
+`IAwkHost` contains only the effects used by the runtime: command execution, append, open, close,
+read, and pipe creation. Append and command outcomes use `AwkExitCode`; a batch command response
+must contain exactly one result per submitted command.
 
 Release notes are tracked in [CHANGELOG.md](CHANGELOG.md).
 

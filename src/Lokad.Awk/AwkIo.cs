@@ -333,7 +333,7 @@ internal sealed class AwkIo
     {
         var pipeClosed = await _pipes.CloseAnyAsync(path).ConfigureAwait(false);
         if (pipeClosed.ClosedPipe)
-            return AwkIoOperationResult.SuccessWithStatusCode(pipeClosed.ExitCode);
+            return AwkIoOperationResult.SuccessWithStatusCode(pipeClosed.ExitCode.Value);
 
         AwkSpecialPathPolicy.ThrowIfUnsupported(path);
 
@@ -352,7 +352,7 @@ internal sealed class AwkIo
         {
             var pipeClosed = await _pipes.CloseOutputAsync(path).ConfigureAwait(false);
             if (pipeClosed.ClosedPipe)
-                return AwkIoOperationResult.SuccessWithStatusCode(pipeClosed.ExitCode);
+                return AwkIoOperationResult.SuccessWithStatusCode(pipeClosed.ExitCode.Value);
 
             if (_pipes.HasInputPipe(path))
                 return AwkIoOperationResult.Failure(AwkIoError.RedirectionNeverOpened);
@@ -361,7 +361,7 @@ internal sealed class AwkIo
         {
             var pipeClosed = await _pipes.CloseInputAsync(path).ConfigureAwait(false);
             if (pipeClosed.ClosedPipe)
-                return AwkIoOperationResult.SuccessWithStatusCode(pipeClosed.ExitCode);
+                return AwkIoOperationResult.SuccessWithStatusCode(pipeClosed.ExitCode.Value);
 
             if (_pipes.HasOutputPipe(path))
                 return AwkIoOperationResult.Failure(AwkIoError.RedirectionNeverOpened);

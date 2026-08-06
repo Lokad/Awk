@@ -81,11 +81,66 @@ internal static class AwkScriptFileReader
         if (!opened.Success)
             return AwkScriptTextReadResult.MissingText;
 
-        var readCompleted = false;
+        AwkScriptTextReadResult readResult;
+        try
+        {
+            readResult = await ReadOpenedSourceAsync(
+                    host,
+                    opened.FileDescriptor,
+                    path,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            try
+            {
+                _ = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // A cleanup failure must not replace a read failure or cancellation.
+            }
+
+            throw;
+        }
+
+        try
+        {
+            var closed = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
+                .ConfigureAwait(false);
+            if (!closed && readResult.Status != AwkScriptTextReadStatus.Failed)
+            {
+                return AwkScriptTextReadResult.Failure(
+                    AwkMessages.FormatPathError(path.Display, "Close failed."),
+                    AwkDiagnosticId.SourceLoadFailure);
+            }
+        }
+        catch (Exception) when (readResult.Status == AwkScriptTextReadStatus.Failed)
+        {
+            return readResult;
+        }
+        catch (Exception)
+        {
+            return AwkScriptTextReadResult.Failure(
+                AwkMessages.FormatPathError(path.Display, "Close failed."),
+                AwkDiagnosticId.SourceLoadFailure);
+        }
+
+        return readResult;
+    }
+
+    private static async Task<AwkScriptTextReadResult> ReadOpenedSourceAsync(
+        IAwkHost host,
+        AwkFileDescriptor descriptor,
+        AwkResolvedPath path,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var builder = new StringBuilder();
-            var reader = new AsyncLineReader(host, opened.FileDescriptor, cancellationToken);
+            var reader = new AsyncLineReader(host, descriptor, cancellationToken);
             while (!await reader.ReachedEof().ConfigureAwait(false))
             {
                 var line = reader.ReadLine();
@@ -104,26 +159,13 @@ internal static class AwkScriptFileReader
                 }
             }
 
-            var result = AwkScriptTextReadResult.FoundText(builder.ToString());
-            readCompleted = true;
-            return result;
+            return AwkScriptTextReadResult.FoundText(builder.ToString());
         }
         catch (AwkHostReadException exception)
         {
             return AwkScriptTextReadResult.Failure(
                 AwkMessages.FormatPathError(path.Display, exception.Error.Message),
                 AwkDiagnosticId.SourceLoadFailure);
-        }
-        finally
-        {
-            try
-            {
-                await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception) when (!readCompleted)
-            {
-                // A cleanup failure must not replace a read failure or cancellation.
-            }
         }
     }
 }

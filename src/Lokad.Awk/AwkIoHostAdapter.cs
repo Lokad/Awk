@@ -97,11 +97,18 @@ internal sealed class AwkIoHostAdapter(
             stdOut,
             stdErr);
 
-    public async Task<int> RunCommandAsync(AwkCommandInvocation command)
+    public async Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command)
     {
         resources.RecordHostCall();
         var exitCodes = await host.RunCommandsAsync([command], cancellationToken).ConfigureAwait(false);
-        return exitCodes.Count == 0 ? 0 : exitCodes[0];
+        if (exitCodes.Count != 1)
+        {
+            throw new AwkRuntimeException(
+                AwkMessages.FormatInvalidCommandResultCount(exitCodes.Count),
+                AwkDiagnosticId.HostIoFailure);
+        }
+
+        return exitCodes[0];
     }
 
     public async Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode)
@@ -113,7 +120,8 @@ internal sealed class AwkIoHostAdapter(
     public async Task CloseDescriptorAsync(AwkFileDescriptor descriptor)
     {
         resources.RecordHostCall();
-        _ = await host.CloseDescriptorAsync(descriptor, cancellationToken).ConfigureAwait(false);
+        var closed = await host.CloseDescriptorAsync(descriptor, cancellationToken).ConfigureAwait(false);
+        ThrowIfCloseFailed(descriptor, closed);
     }
 
     public async Task CloseDescriptorForCleanupAsync(AwkFileDescriptor descriptor)
@@ -125,13 +133,23 @@ internal sealed class AwkIoHostAdapter(
     public AsyncLineReader CreateLineReader(AwkFileDescriptor descriptor, int maxLineCount) =>
         new(host, descriptor, cancellationToken, maxLineCount, counters, resources);
 
-    private static void ThrowIfAppendFailed(AwkFileDescriptor descriptor, int status)
+    private static void ThrowIfAppendFailed(AwkFileDescriptor descriptor, AwkExitCode status)
     {
-        if (status == 0)
+        if (status.Succeeded)
             return;
 
         throw new AwkRuntimeException(
-            AwkMessages.FormatAppendError(descriptor, status),
+            AwkMessages.FormatAppendError(descriptor, status.Value),
+            AwkDiagnosticId.HostIoFailure);
+    }
+
+    private static void ThrowIfCloseFailed(AwkFileDescriptor descriptor, bool closed)
+    {
+        if (closed)
+            return;
+
+        throw new AwkRuntimeException(
+            AwkMessages.FormatDescriptorCloseError(descriptor),
             AwkDiagnosticId.HostIoFailure);
     }
 }

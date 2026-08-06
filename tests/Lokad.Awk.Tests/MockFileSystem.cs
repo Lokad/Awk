@@ -20,29 +20,28 @@ public sealed class MockFileSystem : IAwkHost
 
     public Action? AfterCloseDescriptor { get; set; }
 
+    public Func<AwkFileDescriptor, bool, bool>? CloseDescriptorResultOverride { get; set; }
+
     public Func<AwkFileDescriptor, int, AwkReadResult>? ReadLinesOverride { get; set; }
 
     public int OpenFileCount => _descriptors.OpenFileCount;
 
     public void AddDirectory(
         string path,
-        DateTimeOffset? modifiedAt = null,
         AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite) =>
-        _files.AddDirectory(path, modifiedAt, permission);
+        _files.AddDirectory(path, permission);
 
     public void AddFile(
         string path,
         string content,
-        DateTimeOffset? modifiedAt = null,
         AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite) =>
-        _files.AddFile(path, content, modifiedAt, permission);
+        _files.AddFile(path, content, permission);
 
     public void AddFile(
         string path,
         byte[] content,
-        DateTimeOffset? modifiedAt = null,
         AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite) =>
-        _files.AddFile(path, content, modifiedAt, permission);
+        _files.AddFile(path, content, permission);
 
     public void AddReadOpenError(string path, string message) =>
         _files.AddReadOpenError(path, message);
@@ -68,7 +67,7 @@ public sealed class MockFileSystem : IAwkHost
     public string ReadFile(string path) =>
         _files.ReadFile(path);
 
-    public Task<IReadOnlyList<int>> RunCommandsAsync(
+    public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
         IReadOnlyList<AwkCommandInvocation> commands,
         CancellationToken cancellationToken)
     {
@@ -76,10 +75,10 @@ public sealed class MockFileSystem : IAwkHost
         cancellationToken.ThrowIfCancellationRequested();
 
         AwkCommandInvocations.AddRange(commands);
-        return Task.FromResult<IReadOnlyList<int>>([0]);
+        return Task.FromResult<IReadOnlyList<AwkExitCode>>([AwkExitCode.Success]);
     }
 
-    public Task<int> AppendAsync(
+    public Task<AwkExitCode> AppendAsync(
         AwkFileDescriptor fileDescriptor,
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken)
@@ -88,12 +87,12 @@ public sealed class MockFileSystem : IAwkHost
         if (fileDescriptor.IsDevNull)
         {
             AfterAppend?.Invoke();
-            return Task.FromResult(0);
+            return Task.FromResult(AwkExitCode.Success);
         }
 
         var result = _descriptors.Append(fileDescriptor, content);
         AfterAppend?.Invoke();
-        return Task.FromResult(result);
+        return Task.FromResult(new AwkExitCode(result));
     }
 
     public Task<AwkOpenedFile> OpenFileAsync(
@@ -114,17 +113,6 @@ public sealed class MockFileSystem : IAwkHost
         return Task.FromResult(AwkOpenedFile.MissingFile());
     }
 
-    public Task<AwkDuplicateDescriptorResult> DuplicateDescriptorAsync(
-        AwkFileDescriptor sourceDescriptor,
-        AwkFileDescriptor targetDescriptor,
-        CancellationToken cancellationToken)
-    {
-        if (sourceDescriptor.IsDevNull)
-            return Task.FromResult(AwkDuplicateDescriptorResult.Duplicated(AwkFileDescriptor.DevNull));
-
-        throw new NotSupportedException("MockFileSystem does not duplicate descriptors.");
-    }
-
     public Task<bool> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -133,15 +121,10 @@ public sealed class MockFileSystem : IAwkHost
 
         var closed = _descriptors.Close(descriptor);
         AfterCloseDescriptor?.Invoke();
-        return Task.FromResult(closed);
-    }
-
-    public Task<IReadOnlyList<AwkDirectoryEntry>> ListDirectoryAsync(
-        AwkPath path,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(_files.ListDirectory(path));
+        var closeDescriptorResultOverride = CloseDescriptorResultOverride;
+        return Task.FromResult(closeDescriptorResultOverride == null
+            ? closed
+            : closeDescriptorResultOverride(descriptor, closed));
     }
 
     public Task<AwkReadResult> ReadLinesAsync(
@@ -163,58 +146,9 @@ public sealed class MockFileSystem : IAwkHost
         return Task.FromResult(result.Result);
     }
 
-    public Task<IReadOnlyList<bool>> FileTestsAsync(
-        IReadOnlyList<AwkFileTestRequest> tests,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        ArgumentNullException.ThrowIfNull(tests);
-
-        var results = new bool[tests.Count];
-        for (var index = 0; index < tests.Count; index++)
-        {
-            results[index] = _files.EvaluateTest(tests[index]);
-        }
-
-        return Task.FromResult<IReadOnlyList<bool>>(results);
-    }
-
     public Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
     {
         throw new NotSupportedException("MockFileSystem does not create pipes.");
-    }
-
-    public Task<AwkFileMetadata> GetFileMetadataAsync(AwkPath path, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(_files.GetMetadata(path));
-    }
-
-    public Task<AwkOperationResult> CreateDirectoryAsync(AwkPath path, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(_files.CreateDirectory(path));
-    }
-
-    public Task<AwkOperationResult> DeleteDirectoryAsync(AwkPath path, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(_files.DeleteDirectory(path));
-    }
-
-    public Task<AwkOperationResult> DeleteFileAsync(AwkPath path, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(_files.DeleteFile(path));
-    }
-
-    public Task<AwkOperationResult> CopyFileAsync(
-        AwkPath sourcePath,
-        AwkPath destinationPath,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(_files.CopyFile(sourcePath, destinationPath));
     }
 
     private AwkOpenedFile OpenForRead(AwkPath path)

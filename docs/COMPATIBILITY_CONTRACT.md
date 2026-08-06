@@ -59,3 +59,8 @@ used as a user-visible diagnostic.
 The executable runtime, regex adapter choice, and resource governors remain internal rollout
 mechanisms behind `AwkRuntimeOptions`. They are not public API and should stay that way unless an
 embedding scenario has a concrete need and tests that pin the host contract.
+
+`IAwkHost` exposes only command execution, descriptor append/open/close/read, and pipe creation.
+Append and command completion use `AwkExitCode`; command result lists are positional and must match
+the submitted command count. Directory mutation, metadata, file-test, copy, and descriptor-duplicate
+operations are outside the runtime contract until an implemented awk feature requires them.
