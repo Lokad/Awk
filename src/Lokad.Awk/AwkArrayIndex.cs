@@ -15,8 +15,11 @@ internal abstract record AwkArrayIndex
             ? Simple(expressions[0])
             : new AwkCompositeArrayIndex(AwkExecutableCollections.Copy(expressions));
 
+    /// <summary>Evaluates every component and returns the byte-native key used by an awk array.</summary>
     public abstract ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context);
 
+    /// <summary>Emits the key when the executable engine supports this index shape.</summary>
+    /// <returns><see langword="true"/> only when the complete key was emitted.</returns>
     internal virtual bool TryEmitExecutableKey(AwkExecutableCompiler compiler) => false;
 }
 

@@ -15,13 +15,17 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
         Raw = raw;
     }
 
+    /// <summary>Gets the validated path text before canonicalization.</summary>
     public string Raw { get; }
 
+    /// <summary>Returns whether <paramref name="s"/> is a well-formed raw awk path.</summary>
     public static bool IsValid(string? s) =>
         !string.IsNullOrEmpty(s) && s.All(c => !AwkPath.IsForbiddenChar(c) && c is not ('*' or '\\' or ':'));
 
+    /// <summary>Parses a well-formed raw awk path.</summary>
     public static AwkRawPath Parse(string s) => Parse(s, null);
 
+    /// <summary>Parses a well-formed raw awk path; the format provider is ignored.</summary>
     public static AwkRawPath Parse(string s, IFormatProvider? provider)
     {
         ArgumentNullException.ThrowIfNull(s);
@@ -33,6 +37,7 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
         return result;
     }
 
+    /// <summary>Attempts to parse a well-formed raw awk path; the format provider is ignored.</summary>
     public static bool TryParse(string? s, IFormatProvider? provider, [NotNullWhen(true)] out AwkRawPath? result)
     {
         if (s is not null && IsValid(s))
@@ -45,12 +50,17 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
         return false;
     }
 
+    /// <summary>Attempts to parse a well-formed raw awk path.</summary>
     public static bool TryParse(string? s, [NotNullWhen(true)] out AwkRawPath? result) =>
         TryParse(s, null, out result);
 
+    /// <summary>Resolves this path against <paramref name="current"/> without a confinement boundary.</summary>
     public AwkPath ToAbsolute(AwkPath current) =>
         ResolveAbsolute(current, confineToCurrent: false);
 
+    /// <summary>
+    /// Resolves this path against <paramref name="current"/> and rejects results outside that directory.
+    /// </summary>
     public AwkPath ToAbsoluteWithin(AwkPath current) =>
         ResolveAbsolute(current, confineToCurrent: true);
 
@@ -150,5 +160,6 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
         return result;
     }
 
+    /// <inheritdoc />
     public override string ToString() => Raw;
 }

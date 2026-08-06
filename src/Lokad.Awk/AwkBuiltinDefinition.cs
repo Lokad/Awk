@@ -69,12 +69,16 @@ internal readonly struct AwkBuiltinContext
 
 internal abstract class AwkBuiltinArguments
 {
+    /// <summary>Gets the number of supplied arguments.</summary>
     public abstract int Count { get; }
 
+    /// <summary>Gets whether every argument is already evaluated and safe to retrieve synchronously.</summary>
     public abstract bool IsEvaluated { get; }
 
+    /// <summary>Returns an already evaluated argument; unevaluated implementations must reject this call.</summary>
     public abstract AwkValue GetValue(int index, AwkEvaluationContext context);
 
+    /// <summary>Evaluates if necessary and returns the requested argument.</summary>
     public abstract ValueTask<AwkValue> GetValueAsync(int index, AwkEvaluationContext context);
 }
 
@@ -131,8 +135,10 @@ internal abstract class AwkArity
         return new AtLeastArity(minimumArgumentCount);
     }
 
+    /// <summary>Gets the smallest accepted argument count.</summary>
     public abstract int MinimumArgumentCount { get; }
 
+    /// <summary>Returns whether this arity accepts <paramref name="argumentCount"/> arguments.</summary>
     public abstract bool Accepts(int argumentCount);
 
     private static void ThrowIfNegative(int value, string parameterName)
@@ -221,6 +227,7 @@ internal abstract class AwkBuiltinImplementation
 
     public static AwkBuiltinImplementation MetadataOnly { get; } = new MetadataBuiltinImplementation();
 
+    /// <summary>Evaluates the built-in while preserving lazy argument semantics required by its implementation.</summary>
     public abstract ValueTask<AwkValue> EvaluateAsync(AwkBuiltinContext context);
 
     private sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator) : AwkBuiltinImplementation

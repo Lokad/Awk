@@ -104,8 +104,10 @@ internal sealed class AwkStatementSyntax
 
 internal abstract class AwkStatementSyntaxPayload
 {
+    /// <summary>Gets the statement target when this payload shape carries one.</summary>
     public virtual AwkSyntaxOptional<AwkLValueSyntax> LValue => AwkSyntaxOptional<AwkLValueSyntax>.None;
 
+    /// <summary>Gets the ordered direct expressions carried by this statement shape.</summary>
     public virtual IReadOnlyList<AwkExpressionSyntax> Expressions => [];
 
     public AwkSyntaxOptional<AwkExpressionSyntax> Expression =>
@@ -113,12 +115,16 @@ internal abstract class AwkStatementSyntaxPayload
             ? AwkSyntaxOptional<AwkExpressionSyntax>.None
             : AwkSyntaxOptional<AwkExpressionSyntax>.Some(Expressions[0]);
 
+    /// <summary>Gets the primary body statements when this payload shape carries a body.</summary>
     public virtual IReadOnlyList<AwkStatementSyntax> BodyStatements => [];
 
+    /// <summary>Gets the alternate body statements when this payload shape carries one.</summary>
     public virtual IReadOnlyList<AwkStatementSyntax> ElseStatements => [];
 
+    /// <summary>Gets switch cases when this payload represents a switch statement.</summary>
     public virtual IReadOnlyList<AwkSwitchCaseSyntax> SwitchCases => [];
 
+    /// <summary>Enumerates every direct child expression exactly once in source order.</summary>
     public virtual IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions()
     {
         for (var index = 0; index < Expressions.Count; index++)
@@ -320,8 +326,10 @@ internal abstract class AwkSwitchCaseLabelSyntax
     public static AwkSwitchCaseLabelSyntax FromExpression(AwkExpressionSyntax expression) =>
         new ExpressionSwitchCaseLabelSyntax(expression);
 
+    /// <summary>Gets whether this label is the switch default rather than an expression or missing label.</summary>
     public abstract bool IsDefault { get; }
 
+    /// <summary>Gets the case expression only when this is an expression label.</summary>
     public virtual AwkSyntaxOptional<AwkExpressionSyntax> Expression =>
         AwkSyntaxOptional<AwkExpressionSyntax>.None;
 

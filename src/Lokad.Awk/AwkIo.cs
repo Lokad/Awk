@@ -450,6 +450,7 @@ internal sealed class AwkIo
 
         public static MainInputReadHook Once(Func<Task> callback) => new Callback(callback);
 
+        /// <summary>Executes the one-shot pre-read action; empty implementations complete without effects.</summary>
         public abstract Task ExecuteAsync();
 
         public sealed class Empty : MainInputReadHook

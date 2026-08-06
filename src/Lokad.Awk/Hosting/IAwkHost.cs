@@ -31,6 +31,10 @@ public interface IAwkHost
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Opens <paramref name="path"/> using the requested mode. Unsupported access and host
+    /// failures must be returned as an <see cref="AwkOpenedFile"/> result, not thrown as host exceptions.
+    /// </summary>
     Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken cancellationToken);
 
     /// <summary>Closes a descriptor and returns false when the descriptor could not be closed.</summary>
@@ -47,5 +51,9 @@ public interface IAwkHost
         int maxLineCount,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Creates the descriptors used by an awk pipe. A pipeline connects to a running command;
+    /// an accumulator captures bytes for a later command invocation.
+    /// </summary>
     Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken);
 }

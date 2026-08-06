@@ -8,6 +8,7 @@ internal abstract record AwkInputArgument
         ArgvIndex = argvIndex;
     }
 
+    /// <summary>Gets the input-scheduler action represented by this argument.</summary>
     public abstract AwkInputArgumentKind Kind { get; }
 
     public AwkArgvIndex ArgvIndex { get; }

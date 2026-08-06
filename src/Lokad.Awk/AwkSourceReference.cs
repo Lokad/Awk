@@ -7,6 +7,7 @@ internal abstract record AwkSourceReference
     {
     }
 
+    /// <summary>Gets how the source must be loaded and diagnosed.</summary>
     public abstract AwkSourceReferenceKind Kind { get; }
 
     public static AwkSourceReference Inline(string script) =>

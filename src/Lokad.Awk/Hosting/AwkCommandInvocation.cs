@@ -9,6 +9,7 @@ public readonly record struct AwkEnvironmentVariable
     private readonly string? _name;
     private readonly string? _value;
 
+    /// <summary>Initializes an exported environment variable.</summary>
     public AwkEnvironmentVariable(string Name, string Value)
     {
         ArgumentException.ThrowIfNullOrEmpty(Name);
@@ -17,10 +18,13 @@ public readonly record struct AwkEnvironmentVariable
         _value = Value;
     }
 
+    /// <summary>Gets the variable name.</summary>
     public string Name => _name ?? string.Empty;
 
+    /// <summary>Gets the variable value.</summary>
     public string Value => _value ?? string.Empty;
 
+    /// <summary>Deconstructs the variable into its name and value.</summary>
     public void Deconstruct(out string Name, out string Value)
     {
         Name = this.Name;
@@ -33,6 +37,9 @@ public readonly record struct AwkEnvironmentVariable
 /// </summary>
 public sealed class AwkCommandInvocation
 {
+    /// <summary>
+    /// Initializes an invocation with standard descriptors and a current directory derived from <c>PWD</c>.
+    /// </summary>
     public AwkCommandInvocation(
         string commandName,
         IReadOnlyList<string> arguments,
@@ -47,6 +54,7 @@ public sealed class AwkCommandInvocation
     {
     }
 
+    /// <summary>Initializes an invocation with explicit descriptors and a current directory derived from <c>PWD</c>.</summary>
     public AwkCommandInvocation(
         string commandName,
         IReadOnlyList<string> arguments,
@@ -65,6 +73,7 @@ public sealed class AwkCommandInvocation
     {
     }
 
+    /// <summary>Initializes an invocation with an explicit current directory and descriptors.</summary>
     public AwkCommandInvocation(
         string commandName,
         IReadOnlyList<string> arguments,
@@ -87,18 +96,25 @@ public sealed class AwkCommandInvocation
         StdErr = stdErr;
     }
 
+    /// <summary>Gets the executable name supplied by the caller.</summary>
     public string CommandName { get; }
 
+    /// <summary>Gets an immutable snapshot of command arguments, excluding the executable name.</summary>
     public IReadOnlyList<string> Arguments { get; }
 
+    /// <summary>Gets an immutable snapshot of exported environment variables.</summary>
     public IReadOnlyList<AwkEnvironmentVariable> Environment { get; }
 
+    /// <summary>Gets the canonical absolute current directory for the command.</summary>
     public AwkPath CurrentDirectory { get; }
 
+    /// <summary>Gets the descriptor used for standard input.</summary>
     public AwkFileDescriptor StdIn { get; }
 
+    /// <summary>Gets the descriptor used for standard output.</summary>
     public AwkFileDescriptor StdOut { get; }
 
+    /// <summary>Gets the descriptor used for standard error.</summary>
     public AwkFileDescriptor StdErr { get; }
 
     private static IReadOnlyList<AwkEnvironmentVariable> RequireEnvironment(

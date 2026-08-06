@@ -203,10 +203,14 @@ internal abstract partial class AwkStatement
             AwkIo io) =>
         ExecuteAsync(new AwkEvaluationContext(state.RecordNumber, state, output, io));
 
+    /// <summary>Emits this complete statement when supported by the executable engine.</summary>
+    /// <returns><see langword="true"/> only when control flow and compiler stack state were fully emitted.</returns>
     internal virtual bool TryEmitExecutable(AwkExecutableCompiler compiler) => false;
 
+    /// <summary>Executes this statement and returns the control-flow request visible to its enclosing block.</summary>
     public abstract ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context);
 
+    /// <summary>Gets whether executable fallback must flush pending VM state before interpreting this statement.</summary>
     internal virtual bool RequiresExecutableFallbackFlush => false;
 
     private static AwkExecutionContext RequireExecutionContext(AwkEvaluationContext context) =>

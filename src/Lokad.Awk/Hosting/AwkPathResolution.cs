@@ -12,8 +12,10 @@ internal readonly struct AwkResolvedPath(ReadOnlyMemory<byte> display, AwkPath a
     public override string ToString() => Absolute.Path;
 }
 
+/// <summary>Provides canonical path resolution at the awk host boundary.</summary>
 public static class AwkPathResolution
 {
+    /// <summary>Resolves the current directory from the first valid exported <c>PWD</c>, or returns root.</summary>
     public static AwkPath ResolveCurrentDirectory(IReadOnlyList<AwkEnvironmentVariable> environment)
     {
         ArgumentNullException.ThrowIfNull(environment);
@@ -44,6 +46,9 @@ public static class AwkPathResolution
     internal static AwkResolvedPath FromAbsolute(AwkPath absolute) =>
         new(AwkUtf8Codec.Encode(absolute.Path), absolute);
 
+    /// <summary>
+    /// Resolves <paramref name="path"/> against an absolute current directory and returns canonical path text.
+    /// </summary>
     public static string ResolveAbsolute(string path, string currentDirectory)
     {
         ArgumentNullException.ThrowIfNull(path);

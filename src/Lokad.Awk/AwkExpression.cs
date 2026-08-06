@@ -218,16 +218,22 @@ internal abstract partial class AwkExpression
         return EvaluateCoreAsync(context);
     }
 
+    /// <summary>Evaluates this expression after the shared execution-step and cancellation checks have run.</summary>
     protected abstract ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context);
 
+    /// <summary>Emits a value when the executable engine supports this complete expression shape.</summary>
+    /// <returns><see langword="true"/> only when the value was emitted and compiler stack state was updated.</returns>
     internal virtual bool TryEmitExecutableValue(AwkExecutableCompiler compiler) => false;
 
+    /// <summary>Returns a compile-time integer only when evaluating this expression has no observable effects.</summary>
     internal virtual bool TryGetExecutableIntegerConstant(out int value)
     {
         value = 0;
         return false;
     }
 
+    /// <summary>Emits this expression as a statement, including discarding its resulting value.</summary>
+    /// <returns><see langword="true"/> only when the complete statement behavior was emitted.</returns>
     internal virtual bool TryEmitExecutableStatement(AwkExecutableCompiler compiler)
     {
         compiler.EmitExpressionOrFallback(this);
@@ -236,6 +242,7 @@ internal abstract partial class AwkExpression
         return true;
     }
 
+    /// <summary>Returns the scalar variable name only when this expression is exactly a variable reference.</summary>
     public virtual bool TryGetVariableName(out AwkVariableName name)
     {
         name = default;

@@ -71,6 +71,7 @@ internal abstract class AwkPatternSyntax(IReadOnlyList<AwkToken> tokens)
 
     public bool IsRange => this is AwkRangePatternSyntax;
 
+    /// <summary>Enumerates every direct pattern expression exactly once in source order.</summary>
     public abstract IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions();
 }
 

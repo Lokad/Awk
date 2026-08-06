@@ -32,10 +32,13 @@ internal abstract record AwkSubstitutionTarget
     public static AwkSubstitutionTarget ReferenceTarget(AwkReference reference) =>
         new AwkReferenceSubstitutionTarget(reference);
 
+    /// <summary>Resolves the target's current value at the compatibility string boundary.</summary>
     public abstract ValueTask<string> ResolveInputAsync(AwkEvaluationContext context);
 
+    /// <summary>Resolves the target's current value as strict UTF-8 bytes.</summary>
     public abstract ValueTask<AwkText> ResolveInputTextAsync(AwkEvaluationContext context);
 
+    /// <summary>Assigns the substituted byte-native value to the target.</summary>
     public abstract ValueTask AssignTextAsync(AwkEvaluationContext context, AwkText value);
 }
 
@@ -73,6 +76,7 @@ internal abstract record AwkGetlineTarget
     public static AwkGetlineTarget ReferenceTarget(AwkReference reference) =>
         new AwkReferenceGetlineTarget(reference);
 
+    /// <summary>Assigns one byte-native input line while applying the target's record or scalar semantics.</summary>
     public abstract ValueTask AssignLineAsync(AwkEvaluationContext context, AwkText line);
 }
 
@@ -101,8 +105,10 @@ internal abstract record AwkGetlineSource
     public static AwkGetlineSource InputPipe(AwkExpression expression) =>
         new AwkInputPipeGetlineSource(expression);
 
+    /// <summary>Gets whether a read advances the scheduler's main-input stream and record counters.</summary>
     public abstract bool ReadsMainInput { get; }
 
+    /// <summary>Reads one line from this source and returns an awk-shaped getline result.</summary>
     public abstract ValueTask<AwkGetlineResult> ReadAsync(
         AwkEvaluationContext context,
         AwkExecutionContext execution);
@@ -149,6 +155,7 @@ internal abstract record AwkFflushTarget
     public static AwkFflushTarget ExpressionTarget(AwkExpression expression) =>
         new AwkExpressionFflushTarget(expression);
 
+    /// <summary>Resolves the redirection name, using an empty name to represent all open outputs.</summary>
     public abstract ValueTask<string> ResolveAsync(AwkEvaluationContext context);
 }
 
@@ -172,6 +179,7 @@ internal abstract record AwkSwitchCasePattern
     public static AwkSwitchCasePattern FromRegex(Regex regex) =>
         new AwkRegexSwitchCasePattern(regex);
 
+    /// <summary>Evaluates whether <paramref name="value"/> matches this switch case under awk comparison rules.</summary>
     public abstract ValueTask<bool> MatchesAsync(AwkValue value, AwkEvaluationContext context);
 }
 

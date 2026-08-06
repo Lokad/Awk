@@ -12,6 +12,7 @@ internal abstract class AwkSpecialVariableDefinition(
 
     public AwkSpecialVariableName SpecialName => new(Id);
 
+    /// <summary>Gets whether this special variable occupies scalar or array storage.</summary>
     public abstract AwkSpecialVariableKind Kind { get; }
 }
 

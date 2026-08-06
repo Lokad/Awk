@@ -61,14 +61,17 @@ internal abstract record AwkReference
     public ValueTask<AwkValue> ApplyPostDecrementAsync(AwkEvaluationContext context) =>
         ApplyNumericUpdateAsync(context, AwkNumericOperations.Decrement, returnPrevious: true);
 
+    /// <summary>Resolves the concrete mutable location after evaluating any field or array index.</summary>
     protected abstract ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context);
 
+    /// <summary>Returns the scalar name only when this reference directly addresses a scalar.</summary>
     internal virtual bool TryGetScalarName(out AwkVariableName variable)
     {
         variable = default;
         return false;
     }
 
+    /// <summary>Returns the array and unevaluated index only when this reference addresses an array element.</summary>
     internal virtual bool TryGetArrayElement(out AwkArrayName array, out AwkArrayIndex index)
     {
         array = default;

@@ -44,6 +44,9 @@ internal readonly record struct AwkRuntimeStatePlan(
         int maxArrayElements)
     {
         ArgumentNullException.ThrowIfNull(runtimeOptions);
+        if (maxArrayElements <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxArrayElements));
+
         return new AwkRuntimeStatePlan(
             fieldSeparator,
             cancellationToken,
@@ -194,9 +197,6 @@ internal sealed class AwkRuntimeState
     internal AwkRuntimeState(
         AwkRuntimeStatePlan plan)
     {
-        if (plan.MaxArrayElements <= 0)
-            throw new ArgumentOutOfRangeException(nameof(plan.MaxArrayElements));
-
         Counters = plan.RuntimeOptions.Counters;
         Limits = plan.RuntimeOptions.Limits.WithMaxArrayElements(plan.MaxArrayElements);
         Resources = new AwkRuntimeResourceMonitor(Limits, Counters);

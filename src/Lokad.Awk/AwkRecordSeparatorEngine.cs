@@ -126,10 +126,12 @@ internal abstract class AwkRecordSeparatorStrategy
         return new AwkRegexRecordSeparatorStrategy(separatorText, context);
     }
 
+    /// <summary>Splits descriptor input using the captured separator and invokes the record callback in order.</summary>
     public abstract ValueTask<AwkStatementFlow> ProcessDescriptorAsync(
         AwkFileDescriptor descriptor,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync);
 
+    /// <summary>Splits an in-memory input using the captured separator and invokes the record callback in order.</summary>
     public abstract ValueTask<AwkStatementFlow> ProcessTextContentAsync(
         AwkText content,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync);
@@ -440,11 +442,14 @@ internal abstract class AwkByteRecordSeparatorStrategy(
         return false;
     }
 
+    /// <summary>Finds the first complete separator in a bounded byte window.</summary>
+    /// <returns><see langword="true"/> only when both output values identify a separator in the window.</returns>
     protected abstract bool TryFindNextSeparatorCore(
         ReadOnlySpan<byte> content,
         out int separatorIndex,
         out byte separatorByte);
 
+    /// <summary>Returns the byte-native <c>RT</c> value for a separator accepted by this strategy.</summary>
     protected abstract AwkRecordTerminator CreateTerminator(byte separatorByte);
 }
 
