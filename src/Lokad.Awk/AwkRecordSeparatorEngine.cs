@@ -448,7 +448,8 @@ internal sealed class AwkSingleByteRecordSeparatorStrategy(
     byte separatorByte,
     AwkRecordSeparatorContext context) : AwkByteRecordSeparatorStrategy(separatorText, context)
 {
-    private readonly AwkRecordTerminator _terminator = AwkRecordTerminator.FromText(separatorText);
+    private readonly AwkRecordTerminator _terminator = AwkRecordTerminator.FromText(
+        AwkText.FromString(separatorText, context.State.Counters));
 
     protected override bool TryFindNextSeparatorCore(
         ReadOnlySpan<byte> content,
@@ -463,11 +464,29 @@ internal sealed class AwkSingleByteRecordSeparatorStrategy(
     protected override AwkRecordTerminator CreateTerminator(byte matchedSeparatorByte) => _terminator;
 }
 
-internal sealed class AwkByteSetRecordSeparatorStrategy(
-    string separatorText,
-    bool[] separatorBytes,
-    AwkRecordSeparatorContext context) : AwkByteRecordSeparatorStrategy(separatorText, context)
+internal sealed class AwkByteSetRecordSeparatorStrategy : AwkByteRecordSeparatorStrategy
 {
+    private readonly bool[] _separatorBytes;
+    private readonly AwkRecordTerminator[] _terminators;
+
+    public AwkByteSetRecordSeparatorStrategy(
+        string separatorText,
+        bool[] separatorBytes,
+        AwkRecordSeparatorContext context)
+        : base(separatorText, context)
+    {
+        _separatorBytes = separatorBytes;
+        _terminators = new AwkRecordTerminator[separatorBytes.Length];
+        for (var index = 0; index < separatorBytes.Length; index++)
+        {
+            if (separatorBytes[index])
+            {
+                _terminators[index] = AwkRecordTerminator.FromText(
+                    AwkText.FromTrustedOwnedBytes([(byte)index], context.State.Counters));
+            }
+        }
+    }
+
     protected override bool TryFindNextSeparatorCore(
         ReadOnlySpan<byte> content,
         out int separatorIndex,
@@ -476,7 +495,7 @@ internal sealed class AwkByteSetRecordSeparatorStrategy(
         for (var index = 0; index < content.Length; index++)
         {
             var candidate = content[index];
-            if (separatorBytes[candidate])
+            if (_separatorBytes[candidate])
             {
                 separatorIndex = index;
                 separatorByte = candidate;
@@ -490,14 +509,14 @@ internal sealed class AwkByteSetRecordSeparatorStrategy(
     }
 
     protected override AwkRecordTerminator CreateTerminator(byte separatorByte) =>
-        AwkRecordTerminator.FromText(((char)separatorByte).ToString());
+        _terminators[separatorByte];
 }
 
 internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
     string separatorText,
     AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(separatorText, context)
 {
-    private readonly byte[] _separatorBytes = AwkUtf8Codec.Encode(separatorText, context.State.Counters).ToArray();
+    private readonly AwkText _separator = AwkText.FromString(separatorText, context.State.Counters);
 
     public override async ValueTask<AwkStatementFlow> ProcessDescriptorAsync(
         AwkFileDescriptor descriptor,
@@ -526,10 +545,10 @@ internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
                     buffer.AsSpan()[..separatorIndex].ToArray(),
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
-                buffer.RemovePrefix(separatorIndex + _separatorBytes.Length);
+                buffer.RemovePrefix(separatorIndex + _separator.ByteLength);
                 var flow = await Context.RecordProcessor.ProcessAsync(
                         record,
-                        AwkRecordTerminator.FromText(SeparatorText),
+                        AwkRecordTerminator.FromText(_separator),
                         processRecordAsync)
                     .ConfigureAwait(false);
                 if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
@@ -577,18 +596,18 @@ internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
             }
 
             var remaining = content.AsSpan()[start..];
-            var next = remaining.IndexOf(_separatorBytes);
+            var next = remaining.IndexOf(_separator.AsSpan());
             var recordLength = next < 0 ? remaining.Length : next;
             var record = content.CopyByteSlice(
                 start,
                 recordLength,
                 Context.State.Counters,
                 Context.State.MemoryGovernor);
-            start = next < 0 ? byteLength : start + next + _separatorBytes.Length;
+            start = next < 0 ? byteLength : start + next + _separator.ByteLength;
 
             var terminator = next < 0
                 ? AwkRecordTerminator.Empty
-                : AwkRecordTerminator.FromText(SeparatorText);
+                : AwkRecordTerminator.FromText(_separator);
             var flow = await Context.RecordProcessor.ProcessAsync(record, terminator, processRecordAsync)
                 .ConfigureAwait(false);
             if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
@@ -600,7 +619,7 @@ internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
 
     private bool TryFindSeparator(ReadOnlySpan<byte> content, out int index)
     {
-        index = content.IndexOf(_separatorBytes);
+        index = content.IndexOf(_separator.AsSpan());
         return index >= 0;
     }
 
@@ -717,10 +736,11 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
         if (match.ByteLength == 0)
             return AwkRecordTerminator.Empty;
 
-        var text = AwkUtf8Codec.DecodeRuntimeText(
-            content.AsSpan().Slice(match.ByteIndex, match.ByteLength),
-            Context.State.Counters);
-        return AwkRecordTerminator.FromText(text);
+        return AwkRecordTerminator.FromText(content.CopyByteSlice(
+            match.ByteIndex,
+            match.ByteLength,
+            Context.State.Counters,
+            Context.State.MemoryGovernor));
     }
 
     private static int AdvanceAfterRegexSeparator(AwkText content, int byteIndex, int byteLength)
@@ -771,7 +791,12 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
                     separatorIndex,
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
-                var terminator = CreateParagraphTerminator(buffer, separatorIndex, separatorLength, Context.State.Counters);
+                var terminator = CreateParagraphTerminator(
+                    buffer,
+                    separatorIndex,
+                    separatorLength,
+                    Context.State.Counters,
+                    Context.State.MemoryGovernor);
                 buffer.RemovePrefix(separatorIndex + separatorLength);
                 var flow = await Context.RecordProcessor.ProcessAsync(
                         record,
@@ -840,7 +865,12 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
                     separatorIndex,
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
-                var terminator = CreateParagraphTerminator(buffer, separatorIndex, separatorLength, Context.State.Counters);
+                var terminator = CreateParagraphTerminator(
+                    buffer,
+                    separatorIndex,
+                    separatorLength,
+                    Context.State.Counters,
+                    Context.State.MemoryGovernor);
                 buffer.RemovePrefix(separatorIndex + separatorLength);
                 var flow = await Context.RecordProcessor.ProcessAsync(record, terminator, processRecordAsync)
                     .ConfigureAwait(false);
@@ -890,8 +920,8 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
                 continue;
 
             position += secondNewlineLength;
-            while (position < content.Length && content[position] == (byte)'\n')
-                position++;
+            while (TryReadNewline(content, position, out var trailingNewlineLength))
+                position += trailingNewlineLength;
 
             separatorIndex = index;
             separatorLength = position - index;
@@ -961,12 +991,13 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
         AwkUtf8Builder buffer,
         int separatorIndex,
         int separatorLength,
-        AwkRuntimeCounters counters)
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor)
     {
-        var text = AwkUtf8Codec.DecodeRuntimeText(
+        return AwkRecordTerminator.FromText(AwkText.FromOwnedBytes(
             buffer.AsSpan().Slice(separatorIndex, separatorLength).ToArray(),
-            counters);
-        return AwkRecordTerminator.FromText(text);
+            counters,
+            governor));
     }
 
 }

@@ -2,17 +2,20 @@ namespace Lokad.Awk;
 
 internal readonly record struct AwkRecordTerminator
 {
-    public AwkRecordTerminator(string text)
+    private readonly AwkText? _text;
+
+    public AwkRecordTerminator(AwkText text)
     {
-        Text = text;
+        _text = text;
     }
 
-    public static AwkRecordTerminator Empty { get; } = new(string.Empty);
+    public static AwkRecordTerminator Empty => default;
 
-    public static AwkRecordTerminator NewLine { get; } = new("\n");
+    public static AwkRecordTerminator NewLine { get; } =
+        new(AwkText.FromTrustedOwnedBytes([(byte)'\n']));
 
-    public static AwkRecordTerminator FromText(string text) =>
-        text.Length == 0 ? Empty : new AwkRecordTerminator(text);
+    public static AwkRecordTerminator FromText(AwkText text) =>
+        text.ByteLength == 0 ? Empty : new AwkRecordTerminator(text);
 
-    public string Text { get; }
+    public AwkText ByteText => _text ?? AwkText.Empty;
 }

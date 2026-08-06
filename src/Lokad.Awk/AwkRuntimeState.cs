@@ -711,7 +711,7 @@ internal sealed class AwkRuntimeState
     public long RecordSeparatorVersion => _recordSeparatorVersion;
 
     public void SetRecordTerminator(AwkRecordTerminator terminator) =>
-        AssignVariable(RecordTerminatorVariableName, terminator.Text);
+        AssignVariableValue(RecordTerminatorVariableName, CreateByteTextValue(terminator.ByteText));
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
     {

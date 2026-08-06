@@ -75,6 +75,13 @@ internal static partial class AwkGoldenCorpus
             "a1\na2\n\nb1 b2\n\n\nc1\n"),
 
         Passing(
+            "paragraph-record-separator-crlf-run-preserves-entire-rt",
+            ["BEGIN{RS=\"\"} {t=RT; gsub(/\\r/,\"R\",t); gsub(/\\n/,\"N\",t); print NR \":\" $0 \":\" t}"],
+            [],
+            "1:a:RNRNRN\n2:b:\n",
+            "a\r\n\r\n\r\nb"),
+
+        Passing(
             "default-rs-crlf-trims-cr-and-sets-rt",
             ["{t=RT; if(t==\"\\n\") t=\"<LF>\"; print NR \":\" length($0) \":\" index($0,\"\\r\") \":[\" t \"]\"}", "/file.txt"],
             [File("/file.txt", "a\r\nb\n")],

@@ -17,7 +17,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var line = AwkRecordLine.ReadUtf8DefaultNewline("caf\u00e9\n"u8.ToArray());
 
         Assert.Equal("caf\u00e9", line.Record.AsString());
-        Assert.Equal("\n", line.Terminator.Text);
+        Assert.Equal("\n", line.Terminator.ByteText.AsString());
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var line = AwkRecordLine.ReadUtf8DefaultNewline("alpha\r\n"u8.ToArray());
 
         Assert.Equal("alpha", line.Record.AsString());
-        Assert.Equal("\n", line.Terminator.Text);
+        Assert.Equal("\n", line.Terminator.ByteText.AsString());
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var line = AwkRecordLine.ReadUtf8DefaultNewline("caf\u00e9"u8.ToArray());
 
         Assert.Equal("caf\u00e9", line.Record.AsString());
-        Assert.Equal(string.Empty, line.Terminator.Text);
+        Assert.Equal(string.Empty, line.Terminator.ByteText.AsString());
     }
 
     [Fact]
@@ -729,7 +729,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     [Theory]
     [InlineData("BEGIN{RS=\"|\"} {print $0; RS=\",\"}", "first|second,third,", "first\nsecond\nthird\n", 0)]
     [InlineData("BEGIN{RS=\"é\"} {print $0; RS=\",\"}", "firstésecond,third,", "first\nsecond\nthird\n", 0)]
-    [InlineData("BEGIN{RS=\"\"} {print $0; RS=\"|\"}", "first\n\nsecond|third|", "first\nsecond\nthird\n", 1)]
+    [InlineData("BEGIN{RS=\"\"} {print $0; RS=\"|\"}", "first\n\nsecond|third|", "first\nsecond\nthird\n", 0)]
     public async Task Awk_ByteNativeRecordSeparatorsKeepRemainderAsAwkTextWhenSeparatorChanges(
         string program,
         string input,
