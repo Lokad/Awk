@@ -227,7 +227,7 @@ internal sealed class AwkStatementSyntaxParser
         var keywordToken = ToToken(AwkTokenKind.If, keyword);
         return CreateStatement(
             AwkStatementKind.If,
-            [keywordToken, ..Flatten(parts.Select(part => part.Tokens))],
+            [keywordToken, .. Flatten(parts.Select(part => part.Tokens))],
             [],
             [],
             [],
@@ -357,7 +357,7 @@ internal sealed class AwkStatementSyntaxParser
         var closeToken = ToToken(AwkTokenKind.RightBrace, close);
         var innerTokens = Flatten(items.Select(item => item.Tokens));
         return new StatementBody(
-            [openToken, ..innerTokens, closeToken],
+            [openToken, .. innerTokens, closeToken],
             StatementsFrom(items));
     }
 
@@ -381,7 +381,7 @@ internal sealed class AwkStatementSyntaxParser
         }
 
         return new SwitchBlock(
-            [openToken, ..Flatten(items.Select(item => item.Tokens)), closeToken],
+            [openToken, .. Flatten(items.Select(item => item.Tokens)), closeToken],
             cases);
     }
 
@@ -415,7 +415,7 @@ internal sealed class AwkStatementSyntaxParser
             new AwkTextSpan(keywordToken.Span.Start, last.Span.End - keywordToken.Span.Start));
         return new SwitchCasePart(
             syntax,
-            [keywordToken, ..labelTokens, colonToken, ..bodyTokens]);
+            [keywordToken, .. labelTokens, colonToken, .. bodyTokens]);
     }
 
     [Rule]
@@ -434,7 +434,7 @@ internal sealed class AwkStatementSyntaxParser
             new AwkTextSpan(keywordToken.Span.Start, last.Span.End - keywordToken.Span.Start));
         return new SwitchCasePart(
             syntax,
-            [keywordToken, colonToken, ..bodyTokens]);
+            [keywordToken, colonToken, .. bodyTokens]);
     }
 
     [Rule]
@@ -581,7 +581,7 @@ internal sealed class AwkStatementSyntaxParser
             AwkTokenKind.PipePipe)] Pos<string> continuation,
         [AwkL(Min = 1)] ContinuationSeparator[] separators,
         [NT] SimpleElement element) =>
-        new([AwkParsingSupport.ToToken(continuation), ..Flatten(separators), ..element.Tokens]);
+        new([AwkParsingSupport.ToToken(continuation), .. Flatten(separators), .. element.Tokens]);
 
     [Rule]
     public SimpleElement SimpleParenthesized([NT] ParenthesizedGroup group) =>
@@ -1319,7 +1319,7 @@ internal sealed class AwkStatementSyntaxParser
     }
 
     private static AwkStatementSyntax AddDiagnostic(AwkStatementSyntax statement, AwkDiagnostic diagnostic) =>
-        statement.WithDiagnostics([..statement.Diagnostics, diagnostic]);
+        statement.WithDiagnostics([.. statement.Diagnostics, diagnostic]);
 
     private static IReadOnlyList<AwkDiagnostic> CollectParseDiagnostics(
         IReadOnlyList<AwkStatementSyntax> statements,

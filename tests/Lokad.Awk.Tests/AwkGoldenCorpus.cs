@@ -330,7 +330,7 @@ internal static partial class AwkGoldenCorpus
             .WithStdOut(expectedStdOut)
             .WithStdErr(expectedStdErr)
             .WithSupportLevel(AwkGoldenSupportLevel.ExpectedFailing)
-            .WithTags([..tags, AwkGoldenTag.ExpectedFailing])
+            .WithTags([.. tags, AwkGoldenTag.ExpectedFailing])
             .WithNondeterminismNote(nondeterminismNote)
             .Build();
     }
@@ -384,7 +384,7 @@ internal static partial class AwkGoldenCorpus
             .WithExpectedFiles(testCase.ExpectedFiles)
             .WithStdOutComparison(testCase.StdOutComparison)
             .WithSupportLevel(testCase.SupportLevel)
-            .WithTags([..testCase.Tags, AwkGoldenTag.Posix])
+            .WithTags([.. testCase.Tags, AwkGoldenTag.Posix])
             .WithNondeterminismNote(testCase.NondeterminismNote)
             .Build();
 

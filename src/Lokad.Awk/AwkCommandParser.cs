@@ -37,37 +37,37 @@ internal static class AwkCommandParser
                 switch (item)
                 {
                     case CommandLineOptionItem.ShortOption shortOption:
-                    {
-                        var result = ParseShortOption(parser, shortOption.Name);
-                        if (result.Status == AwkCommandParseStatus.Proceed)
                         {
-                            parsingInputArguments = result.ParseInputArguments;
-                            continue;
+                            var result = ParseShortOption(parser, shortOption.Name);
+                            if (result.Status == AwkCommandParseStatus.Proceed)
+                            {
+                                parsingInputArguments = result.ParseInputArguments;
+                                continue;
+                            }
+
+                            if (result.Status == AwkCommandParseStatus.Terminal)
+                                return BuildTerminalInvocation(result.Terminal);
+
+                            return BuildErrorInvocation(result.Message, result.Id);
                         }
-
-                        if (result.Status == AwkCommandParseStatus.Terminal)
-                            return BuildTerminalInvocation(result.Terminal);
-
-                        return BuildErrorInvocation(result.Message, result.Id);
-                    }
                     case CommandLineOptionItem.Argument argument:
                         AddScriptOrInputArgument(argument.Value);
                         parsingInputArguments = true;
                         continue;
                     case CommandLineOptionItem.LongOption longOption:
-                    {
-                        var result = ParseLongOption(parser, longOption);
-                        if (result.Status == AwkCommandParseStatus.Proceed)
                         {
-                            parsingInputArguments = result.ParseInputArguments;
-                            continue;
+                            var result = ParseLongOption(parser, longOption);
+                            if (result.Status == AwkCommandParseStatus.Proceed)
+                            {
+                                parsingInputArguments = result.ParseInputArguments;
+                                continue;
+                            }
+
+                            if (result.Status == AwkCommandParseStatus.Terminal)
+                                return BuildTerminalInvocation(result.Terminal);
+
+                            return BuildErrorInvocation(result.Message, result.Id);
                         }
-
-                        if (result.Status == AwkCommandParseStatus.Terminal)
-                            return BuildTerminalInvocation(result.Terminal);
-
-                        return BuildErrorInvocation(result.Message, result.Id);
-                    }
                 }
             }
 
