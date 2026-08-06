@@ -205,11 +205,57 @@ internal sealed class AwkNewlineRecordSeparatorStrategy(
         AwkText content,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
     {
-        if (content.ByteLength == 0)
+        if (!IsCurrentSeparatorVersion)
+            return await Context.ProcessCustomTextContentAsync(content, processRecordAsync).ConfigureAwait(false);
+
+        var start = 0;
+        var byteLength = content.ByteLength;
+        for (var index = 0; index < byteLength; index++)
+        {
+            Context.State.ThrowIfCancellationRequested();
+            if (content.AsSpan()[index] != (byte)'\n')
+                continue;
+
+            var recordLength = index - start;
+            if (recordLength > 0 && content.AsSpan()[index - 1] == (byte)'\r')
+                recordLength--;
+
+            var record = content.CopyByteSlice(
+                start,
+                recordLength,
+                Context.State.Counters,
+                Context.State.MemoryGovernor);
+            var flow = await Context.RecordProcessor.ProcessAsync(
+                    record,
+                    AwkRecordTerminator.NewLine,
+                    processRecordAsync)
+                .ConfigureAwait(false);
+            if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
+                return flow;
+
+            start = index + 1;
+            if (!IsCurrentSeparatorVersion)
+            {
+                var remaining = content.CopyByteSlice(
+                    start,
+                    byteLength - start,
+                    Context.State.Counters,
+                    Context.State.MemoryGovernor);
+                return await Context.ProcessCustomTextContentAsync(remaining, processRecordAsync)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        if (start == byteLength)
             return AwkStatementFlow.Continue;
 
+        var finalRecord = content.CopyByteSlice(
+            start,
+            byteLength - start,
+            Context.State.Counters,
+            Context.State.MemoryGovernor);
         return await Context.RecordProcessor.ProcessAsync(
-                content,
+                finalRecord,
                 AwkRecordTerminator.Empty,
                 processRecordAsync)
             .ConfigureAwait(false);

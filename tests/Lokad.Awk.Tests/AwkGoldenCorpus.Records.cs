@@ -32,6 +32,20 @@ internal static partial class AwkGoldenCorpus
             "a,b,c"),
 
         Passing(
+            "dynamic-record-separator-custom-to-newline",
+            ["BEGIN{RS=\",\"} {print NR \":\" $0 \"[\" RT \"]\"; if(NR==1) RS=\"\\n\"}"],
+            [],
+            "1:a[,]\n2:b[\n]\n3:c[\n]\n",
+            "a,b\nc\n"),
+
+        Passing(
+            "dynamic-record-separator-redirects-only-unread-tail",
+            ["BEGIN{RS=\",\"} {print NR \":\" $0; if(NR==1) RS=\"\\n\"; else if(NR==2) RS=\"|\"}"],
+            [],
+            "1:a\n2:b\n3:c\n4:d\n",
+            "a,b\nc|d|"),
+
+        Passing(
             "regex-record-separator",
             ["BEGIN{RS=\"[,;]\"} {print NR \":\" $0 \"[\" RT \"]\"}"],
             [],
