@@ -124,6 +124,19 @@ internal sealed class AwkInputScheduler(
 
     public async Task ProcessDefaultInputAsync(MainInputPreparation preparation)
     {
+        void ApplyInputAssignments()
+        {
+            for (var index = 0; index < invocation.InputPlan.InputArguments.Count; index++)
+            {
+                var inputArgument = invocation.InputPlan.InputArguments[index];
+                if (IsDeletedRuntimeArgument(inputArgument))
+                    continue;
+
+                if (inputArgument is AwkInputArgument.VariableAssignmentArgument assignmentArgument)
+                    ApplyVariableAssignment(assignmentArgument.VariableAssignment);
+            }
+        }
+
         ApplyInputAssignments();
         if (preparation is MainInputPreparation.Prepared prepared &&
             state.ResolveRecordSeparator() == "\n")
@@ -276,21 +289,6 @@ internal sealed class AwkInputScheduler(
         {
             _ownedDescriptors.Add(descriptor);
             throw;
-        }
-    }
-
-    private void ApplyInputAssignments()
-    {
-        for (var index = 0; index < invocation.InputPlan.InputArguments.Count; index++)
-        {
-            var inputArgument = invocation.InputPlan.InputArguments[index];
-            if (IsDeletedRuntimeArgument(inputArgument))
-                continue;
-
-            if (inputArgument is AwkInputArgument.VariableAssignmentArgument assignmentArgument)
-            {
-                ApplyVariableAssignment(assignmentArgument.VariableAssignment);
-            }
         }
     }
 

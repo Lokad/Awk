@@ -8,6 +8,18 @@ internal static class AwkSourceDiagnosticMap
         AwkSourceUnit source,
         IReadOnlyList<AwkDiagnostic> diagnostics)
     {
+        static AwkDiagnostic MapDiagnostic(AwkSourceUnit source, AwkDiagnostic diagnostic)
+        {
+            if (diagnostic.SourceLocation.HasValue ||
+                !TryFindSegment(source.Segments, diagnostic.Span.Start, out var segment) ||
+                !ShouldAnnotateSource(source, segment))
+            {
+                return diagnostic;
+            }
+
+            return diagnostic.WithSourceLocation(CreateLocation(source, segment, diagnostic.Span.Start));
+        }
+
         if (diagnostics.Count == 0)
             return diagnostics;
 
@@ -18,18 +30,6 @@ internal static class AwkSourceDiagnosticMap
         }
 
         return mapped;
-    }
-
-    private static AwkDiagnostic MapDiagnostic(AwkSourceUnit source, AwkDiagnostic diagnostic)
-    {
-        if (diagnostic.SourceLocation.HasValue ||
-            !TryFindSegment(source.Segments, diagnostic.Span.Start, out var segment) ||
-            !ShouldAnnotateSource(source, segment))
-        {
-            return diagnostic;
-        }
-
-        return diagnostic.WithSourceLocation(CreateLocation(source, segment, diagnostic.Span.Start));
     }
 
     private static bool ShouldAnnotateSource(AwkSourceUnit source, AwkSourceSegment segment) =>

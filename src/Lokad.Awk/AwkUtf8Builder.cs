@@ -171,6 +171,26 @@ internal sealed class AwkUtf8Builder : IDisposable
 
     private void EnsureCapacity(int capacity)
     {
+        void ResizeAndCommit(int newSize)
+        {
+            _governor.Reserve(newSize);
+            try
+            {
+                Array.Resize(ref _buffer, newSize);
+            }
+            catch
+            {
+                _governor.ReleaseReserved(newSize);
+                throw;
+            }
+
+            if (_committedCapacity > 0)
+                _governor.ReleaseCommitted(_committedCapacity);
+
+            _governor.CommitReserved(newSize);
+            _committedCapacity = newSize;
+        }
+
         if (capacity <= _buffer.Length)
             return;
 
@@ -192,27 +212,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         if (newSize > _maxBuilderBytes)
             newSize = _maxBuilderBytes;
 
-        ReserveResizeCommit(newSize);
-    }
-
-    private void ReserveResizeCommit(int newSize)
-    {
-        _governor.Reserve(newSize);
-        try
-        {
-            Array.Resize(ref _buffer, newSize);
-        }
-        catch
-        {
-            _governor.ReleaseReserved(newSize);
-            throw;
-        }
-
-        if (_committedCapacity > 0)
-            _governor.ReleaseCommitted(_committedCapacity);
-
-        _governor.CommitReserved(newSize);
-        _committedCapacity = newSize;
+        ResizeAndCommit(newSize);
     }
 
     private void ThrowIfDisposed()

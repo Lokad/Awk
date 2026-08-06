@@ -57,10 +57,21 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
             ? _ordinal.ToString(CultureInfo.InvariantCulture)
             : ByteText.AsString();
 
-    public int ByteLength =>
-        IsOrdinal
-            ? CountOrdinalBytes(_ordinal)
-            : ByteText.ByteLength;
+    public int ByteLength
+    {
+        get
+        {
+            static int CountOrdinalBytes(int ordinal)
+            {
+                Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
+                return FormatOrdinalBytes(ordinal, buffer).Length;
+            }
+
+            return IsOrdinal
+                ? CountOrdinalBytes(_ordinal)
+                : ByteText.ByteLength;
+        }
+    }
 
     public int RetainedTextByteLength =>
         IsOrdinal ? 0 : ByteText.ByteLength;
@@ -142,12 +153,6 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     {
         Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
         return text.AsSpan().SequenceEqual(FormatOrdinalBytes(ordinal, buffer));
-    }
-
-    private static int CountOrdinalBytes(int ordinal)
-    {
-        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        return FormatOrdinalBytes(ordinal, buffer).Length;
     }
 
     private static ReadOnlySpan<byte> FormatOrdinalBytes(int ordinal, Span<byte> buffer)

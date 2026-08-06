@@ -61,6 +61,19 @@ internal abstract partial class AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
+            static long EstimateCaptureBytes(AwkRegexMatch match)
+            {
+                var bytes = 0L;
+                for (var index = 0; index < match.Groups.Count; index++)
+                {
+                    var group = match.Groups[index];
+                    if (group.Success)
+                        bytes += group.Value.ByteLength;
+                }
+
+                return bytes;
+            }
+
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
             var regex = context.State.CreateRegex(new AwkRegexPattern(
                 await patternExpression.ResolveStringAsync(context).ConfigureAwait(false)));
@@ -106,19 +119,6 @@ internal abstract partial class AwkExpression
             }
 
             return AwkValue.FromNumber(match.Success ? match.Index + 1 : 0);
-        }
-
-        private static long EstimateCaptureBytes(AwkRegexMatch match)
-        {
-            var bytes = 0L;
-            for (var index = 0; index < match.Groups.Count; index++)
-            {
-                var group = match.Groups[index];
-                if (group.Success)
-                    bytes += group.Value.ByteLength;
-            }
-
-            return bytes;
         }
     }
 }
