@@ -9,6 +9,7 @@ public sealed class AwkPath
 {
     public AwkPath(string path)
     {
+        ArgumentNullException.ThrowIfNull(path);
         if (!IsValid(path))
         {
             throw new ArgumentException($"'{path}' is not a valid absolute awk path.", nameof(path));
@@ -46,11 +47,15 @@ public sealed class AwkPath
 
     public static AwkPath Tmp { get; } = new("/tmp");
 
-    public bool HasExtension(string ext) => Path.EndsWith(ext, StringComparison.Ordinal);
-
-    public static bool IsValid(string path)
+    public bool HasExtension(string ext)
     {
-        if (path.Length == 0 || path[0] != '/')
+        ArgumentNullException.ThrowIfNull(ext);
+        return Path.EndsWith(ext, StringComparison.Ordinal);
+    }
+
+    public static bool IsValid(string? path)
+    {
+        if (string.IsNullOrEmpty(path) || path[0] != '/')
         {
             return false;
         }
@@ -86,30 +91,42 @@ public sealed class AwkPath
 
     internal static bool IsForbiddenChar(char c) => c is <= '\x1f' or '\x7f';
 
-    public bool IsParentOf(AwkPath other) =>
-        Path.Length == 1
+    public bool IsParentOf(AwkPath other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return Path.Length == 1
             ? other.Path.Length > 1
             : other.Path.Length > Path.Length &&
               other.Path[Path.Length] == '/' &&
               other.Path.StartsWith(Path, StringComparison.Ordinal);
+    }
 
-    public bool IsEqualToOrParentOf(AwkPath other) =>
-        Path == other.Path || IsParentOf(other);
+    public bool IsEqualToOrParentOf(AwkPath other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return Path == other.Path || IsParentOf(other);
+    }
 
     public AwkPath? TryChild(AwkPathSegment segment)
     {
+        if (!AwkPathSegment.IsValid(segment.Name))
+            return null;
+
         var combined = IsRoot ? "/" + segment.Name : Path + "/" + segment.Name;
         return IsValid(combined) ? new AwkPath(combined) : null;
     }
 
-    public AwkPath? TryChild(string name) =>
+    public AwkPath? TryChild(string? name) =>
         AwkPathSegment.TryCreate(name, out var segment) ? TryChild(segment) : null;
 
     public AwkPath Child(AwkPathSegment segment) =>
         TryChild(segment) ?? throw new ArgumentException($"'{segment.Name}' is not a valid child path segment.", nameof(segment));
 
-    public AwkPath Child(string name) =>
-        TryChild(name) ?? throw new ArgumentException($"'{name}' is not a valid child path segment.", nameof(name));
+    public AwkPath Child(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return TryChild(name) ?? throw new ArgumentException($"'{name}' is not a valid child path segment.", nameof(name));
+    }
 
     public override string ToString() => Path;
 
@@ -120,19 +137,22 @@ public sealed class AwkPath
 
 public readonly record struct AwkPathSegment
 {
+    private readonly string? _name;
+
     public AwkPathSegment(string name)
     {
+        ArgumentNullException.ThrowIfNull(name);
         if (!IsValid(name))
             throw new ArgumentException($"'{name}' is not a valid awk path segment.", nameof(name));
 
-        Name = name;
+        _name = name;
     }
 
-    public string Name { get; }
+    public string Name => _name ?? string.Empty;
 
-    public static bool TryCreate(string name, out AwkPathSegment segment)
+    public static bool TryCreate(string? name, out AwkPathSegment segment)
     {
-        if (IsValid(name))
+        if (name is not null && IsValid(name))
         {
             segment = new AwkPathSegment(name);
             return true;
@@ -142,9 +162,9 @@ public readonly record struct AwkPathSegment
         return false;
     }
 
-    public static bool IsValid(string name)
+    public static bool IsValid(string? name)
     {
-        if (name.Length == 0 || name is "." or "..")
+        if (string.IsNullOrEmpty(name) || name is "." or "..")
             return false;
 
         for (var index = 0; index < name.Length; index++)
@@ -159,4 +179,5 @@ public readonly record struct AwkPathSegment
     public override string ToString() => Name;
 }
 
-public sealed class AwkPathException(string message) : InvalidOperationException(message);
+public sealed class AwkPathException(string message) :
+    InvalidOperationException(message ?? throw new ArgumentNullException(nameof(message)));

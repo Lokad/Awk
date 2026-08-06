@@ -1,9 +1,32 @@
+using System;
 using System.Collections.Generic;
 
 namespace Lokad.Awk;
 
 /// <summary> An exported environment variable for an awk command invocation. </summary>
-public readonly record struct AwkEnvironmentVariable(string Name, string Value);
+public readonly record struct AwkEnvironmentVariable
+{
+    private readonly string? _name;
+    private readonly string? _value;
+
+    public AwkEnvironmentVariable(string Name, string Value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(Name);
+        ArgumentNullException.ThrowIfNull(Value);
+        _name = Name;
+        _value = Value;
+    }
+
+    public string Name => _name ?? string.Empty;
+
+    public string Value => _value ?? string.Empty;
+
+    public void Deconstruct(out string Name, out string Value)
+    {
+        Name = this.Name;
+        Value = this.Value;
+    }
+}
 
 /// <summary>
 /// Represents a single awk command invocation with resolved arguments and descriptors.
@@ -35,7 +58,7 @@ public sealed class AwkCommandInvocation
             commandName,
             arguments,
             environment,
-            AwkPathResolution.ResolveCurrentDirectory(environment),
+            AwkPathResolution.ResolveCurrentDirectory(RequireEnvironment(environment)),
             stdIn,
             stdOut,
             stdErr)
@@ -51,9 +74,13 @@ public sealed class AwkCommandInvocation
         AwkFileDescriptor stdOut,
         AwkFileDescriptor stdErr)
     {
+        ArgumentNullException.ThrowIfNull(commandName);
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(currentDirectory);
         CommandName = commandName;
-        Arguments = arguments;
-        Environment = environment;
+        Arguments = CopyArguments(arguments);
+        Environment = CopyEnvironment(environment);
         CurrentDirectory = currentDirectory;
         StdIn = stdIn;
         StdOut = stdOut;
@@ -73,4 +100,38 @@ public sealed class AwkCommandInvocation
     public AwkFileDescriptor StdOut { get; }
 
     public AwkFileDescriptor StdErr { get; }
+
+    private static IReadOnlyList<AwkEnvironmentVariable> RequireEnvironment(
+        IReadOnlyList<AwkEnvironmentVariable>? environment)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        return environment;
+    }
+
+    private static IReadOnlyList<string> CopyArguments(IReadOnlyList<string> arguments)
+    {
+        var copy = new string[arguments.Count];
+        for (var index = 0; index < copy.Length; index++)
+        {
+            var argument = arguments[index];
+            ArgumentNullException.ThrowIfNull(argument, nameof(arguments));
+            copy[index] = argument;
+        }
+
+        return Array.AsReadOnly(copy);
+    }
+
+    private static IReadOnlyList<AwkEnvironmentVariable> CopyEnvironment(
+        IReadOnlyList<AwkEnvironmentVariable> environment)
+    {
+        var copy = new AwkEnvironmentVariable[environment.Count];
+        for (var index = 0; index < copy.Length; index++)
+        {
+            var variable = environment[index];
+            ArgumentException.ThrowIfNullOrEmpty(variable.Name, nameof(environment));
+            copy[index] = variable;
+        }
+
+        return Array.AsReadOnly(copy);
+    }
 }

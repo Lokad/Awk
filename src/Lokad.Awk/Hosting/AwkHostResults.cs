@@ -2,9 +2,17 @@ using System;
 
 namespace Lokad.Awk;
 
-public readonly struct AwkOperationError(string message)
+public readonly struct AwkOperationError
 {
-    public string Message { get; } = message ?? string.Empty;
+    private readonly string? _message;
+
+    public AwkOperationError(string message)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(message);
+        _message = message;
+    }
+
+    public string Message => _message ?? "Operation failed.";
 }
 
 public enum AwkOperationStatus

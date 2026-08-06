@@ -15,14 +15,18 @@ public sealed class Awk
 
     public static Awk? TryParse(AwkCommandInvocation invocation)
     {
+        ArgumentNullException.ThrowIfNull(invocation);
         if (!IsAwkName(invocation.CommandName))
             return null;
 
         return new Awk(AwkCommandParser.Parse(invocation));
     }
 
-    public Task<int> ExecuteAsync(IAwkHost host, CancellationToken cancellationToken) =>
-        AwkExecutor.ExecuteAsync(host, _invocation, cancellationToken);
+    public Task<int> ExecuteAsync(IAwkHost host, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        return AwkExecutor.ExecuteAsync(host, _invocation, cancellationToken);
+    }
 
     private static bool IsAwkName(string name) =>
         AwkNameFacts.GetCommandBaseName(name).SequenceEqual("awk".AsSpan());

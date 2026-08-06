@@ -22,6 +22,7 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
 
     public static AwkRawPath Parse(string s, IFormatProvider? provider = null)
     {
+        ArgumentNullException.ThrowIfNull(s);
         if (!TryParse(s, provider, out var result))
         {
             throw new FormatException($"'{s}' is not a valid awk path.");
@@ -47,6 +48,7 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
 
     public AwkPath ToAbsolute(AwkPath current, bool jail = false)
     {
+        ArgumentNullException.ThrowIfNull(current);
         var combined = Raw.StartsWith('/')
             ? Raw
             : current.Path.Length == 1

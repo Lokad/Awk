@@ -22,6 +22,10 @@
   array, record, formatting, and regex operations have one resource-checked state boundary.
 - Replace boxed source-loading and lowering outcomes with typed success, missing, and failure cases
   that cannot pair a status with the wrong payload.
+- Simplify runtime-limit variants with validated record copies, use execution-step terminology
+  consistently, and reject compiler stack underflow instead of silently clamping it.
+- Validate public API inputs, snapshot caller-owned invocation collections, and make default host
+  error/path-segment values safe to inspect.
 - Accept parenthesized argument lists for `print` and `printf` statements.
 - Evaluate regex constants against the current record in scalar expression contexts.
 - Document and test that strict UTF-8 ingress is unchanged by C locale settings.

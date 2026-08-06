@@ -16,6 +16,7 @@ public static class AwkPathResolution
 {
     public static AwkPath ResolveCurrentDirectory(IReadOnlyList<AwkEnvironmentVariable> environment)
     {
+        ArgumentNullException.ThrowIfNull(environment);
         foreach (var entry in environment)
         {
             if (!string.Equals(entry.Name, "PWD", StringComparison.Ordinal))
@@ -45,6 +46,8 @@ public static class AwkPathResolution
 
     public static string ResolveAbsolute(string path, string currentDirectory)
     {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(currentDirectory);
         var baseDirectory = string.IsNullOrEmpty(currentDirectory) || currentDirectory[0] != '/'
             ? "/"
             : currentDirectory;
