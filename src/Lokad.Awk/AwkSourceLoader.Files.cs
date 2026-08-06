@@ -19,7 +19,7 @@ internal static partial class AwkSourceLoader
                 resolved,
                 cancellationToken)
             .ConfigureAwait(false);
-        if (script.Status == AwkScriptFileReadStatus.Missing && !includePath.EndsWith(".awk", StringComparison.Ordinal))
+        if (script is AwkScriptFileReadResult.Missing && !includePath.EndsWith(".awk", StringComparison.Ordinal))
         {
             resolved = plan.ResolvePath(includePath + ".awk");
             script = await AwkScriptFileReader.TryReadAsync(
@@ -30,72 +30,43 @@ internal static partial class AwkSourceLoader
                 .ConfigureAwait(false);
         }
 
-        if (script.Status != AwkScriptFileReadStatus.Found)
+        if (script is AwkScriptFileReadResult.Failed failed)
         {
-            if (script.Status == AwkScriptFileReadStatus.Failed)
-                return SourceExpansionResult.Failure(script.ErrorMessage, script.Id);
+            return SourceExpansionResult.Failure(failed.ErrorMessage, failed.Id);
+        }
 
+        if (script is not AwkScriptFileReadResult.Found found)
+        {
             return SourceExpansionResult.Failure(
                 AwkMessages.FormatPathError(resolved.Display),
                 AwkDiagnosticId.SourceLoadFailure);
         }
 
-        if (!plan.TryMarkIncluded(script.Script))
+        if (!plan.TryMarkIncluded(found.Script))
             return SourceExpansionResult.FromSource(AwkExpandedSource.Empty);
 
         return await ExpandIncludesAsync(
                 host,
                 plan,
-                script.Script.Text,
-                script.Script.SourceName,
+                found.Script.Text,
+                found.Script.SourceName,
                 AwkSourceSegmentKind.Include,
             cancellationToken)
             .ConfigureAwait(false);
     }
 
-    private readonly struct SourceExpansionResult
+    private abstract record SourceExpansionResult
     {
-        private SourceExpansionResult(
-            SourceExpansionStatus status,
-            object payload,
-            ReadOnlyMemory<byte> errorMessage,
-            AwkDiagnosticId id)
-        {
-            ArgumentNullException.ThrowIfNull(payload);
-            Status = status;
-            _payload = payload;
-            ErrorMessage = errorMessage;
-            Id = id;
-        }
-
-        private readonly object _payload;
-
-        public SourceExpansionStatus Status { get; }
-
-        public AwkExpandedSource Source =>
-            Status == SourceExpansionStatus.Loaded
-                ? (AwkExpandedSource)_payload
-                : throw new InvalidOperationException("No expanded source is present.");
-
-        public ReadOnlyMemory<byte> ErrorMessage { get; }
-
-        public AwkDiagnosticId Id { get; }
-
         public static SourceExpansionResult FromSource(AwkExpandedSource source) =>
-            new(SourceExpansionStatus.Loaded, source, default, default);
+            new Loaded(source);
 
         public static SourceExpansionResult Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
-            new(SourceExpansionStatus.Failed, NoPayload.Instance, errorMessage, id);
+            new Failed(errorMessage, id);
 
-        private sealed class NoPayload
-        {
-            public static readonly NoPayload Instance = new();
-        }
-    }
+        internal sealed record Loaded(AwkExpandedSource Source) : SourceExpansionResult;
 
-    private enum SourceExpansionStatus
-    {
-        Loaded,
-        Failed
+        internal sealed record Failed(
+            ReadOnlyMemory<byte> ErrorMessage,
+            AwkDiagnosticId Id) : SourceExpansionResult;
     }
 }

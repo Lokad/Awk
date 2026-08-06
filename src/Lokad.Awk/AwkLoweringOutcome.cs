@@ -3,44 +3,44 @@ using System.Collections.Generic;
 
 namespace Lokad.Awk;
 
-internal readonly struct AwkLoweringOutcome<T>
+internal abstract class AwkLoweringOutcome<T>
 {
-    private AwkLoweringOutcome(
-        bool success,
-        object value,
-        IReadOnlyList<AwkDiagnostic> diagnostics)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        Succeeded = success;
-        _value = value;
-        Diagnostics = diagnostics;
-    }
+    public abstract bool Succeeded { get; }
 
-    private readonly object _value;
+    public abstract T Value { get; }
 
-    public bool Succeeded { get; }
-
-    public T Value =>
-        Succeeded
-            ? (T)_value
-            : throw new InvalidOperationException("No lowered value is present.");
-
-    public IReadOnlyList<AwkDiagnostic> Diagnostics { get; }
+    public abstract IReadOnlyList<AwkDiagnostic> Diagnostics { get; }
 
     public static AwkLoweringOutcome<T> Success(T value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        return new AwkLoweringOutcome<T>(true, value, []);
+        return new Successful(value);
     }
 
-    public static AwkLoweringOutcome<T> Failure(IReadOnlyList<AwkDiagnostic> diagnostics) =>
-        new(false, NoLoweredValue.Instance, diagnostics);
+    public static AwkLoweringOutcome<T> Failure(IReadOnlyList<AwkDiagnostic> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        return new Failed(diagnostics);
+    }
 
     public static AwkLoweringOutcome<T> Failure(AwkDiagnostic diagnostic) =>
         Failure([diagnostic]);
 
-    private sealed class NoLoweredValue
+    private sealed class Successful(T value) : AwkLoweringOutcome<T>
     {
-        public static readonly NoLoweredValue Instance = new();
+        public override bool Succeeded => true;
+
+        public override T Value { get; } = value;
+
+        public override IReadOnlyList<AwkDiagnostic> Diagnostics { get; } = [];
+    }
+
+    private sealed class Failed(IReadOnlyList<AwkDiagnostic> diagnostics) : AwkLoweringOutcome<T>
+    {
+        public override bool Succeeded => false;
+
+        public override T Value => throw new InvalidOperationException("No lowered value is present.");
+
+        public override IReadOnlyList<AwkDiagnostic> Diagnostics { get; } = diagnostics;
     }
 }

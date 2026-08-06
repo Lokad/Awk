@@ -152,11 +152,11 @@ public sealed class AwkGoldenCorpusTests
         }
 
         var sourceLoad = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
-        if (sourceLoad.Status != AwkSourceLoadStatus.Loaded)
+        if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)
             return;
 
         var expectParserFailure = IsParserDiagnosticCase(testCase);
-        var sources = sourceLoad.Sources;
+        var sources = loaded.Sources;
         for (var index = 0; index < sources.Count; index++)
         {
             var binding = AwkBinder.Bind(
@@ -186,11 +186,11 @@ public sealed class AwkGoldenCorpusTests
         }
 
         var sourceLoad = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
-        if (sourceLoad.Status != AwkSourceLoadStatus.Loaded)
+        if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)
             return;
 
         var expectParserFailure = IsParserDiagnosticCase(testCase);
-        var sources = sourceLoad.Sources;
+        var sources = loaded.Sources;
         for (var index = 0; index < sources.Count; index++)
         {
             var parse = AwkParser.Parse(sources[index].Text);

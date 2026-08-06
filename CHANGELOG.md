@@ -20,6 +20,8 @@
   retaining bounded cancellation checks and separator-specific matching.
 - Remove the duplicate runtime-facade layer and dead string-based replacement helpers so variable,
   array, record, formatting, and regex operations have one resource-checked state boundary.
+- Replace boxed source-loading and lowering outcomes with typed success, missing, and failure cases
+  that cannot pair a status with the wrong payload.
 - Accept parenthesized argument lists for `print` and `printf` statements.
 - Evaluate regex constants against the current record in scalar expression contexts.
 - Document and test that strict UTF-8 ingress is unchanged by C locale settings.

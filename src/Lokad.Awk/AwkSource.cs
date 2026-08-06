@@ -206,48 +206,17 @@ internal readonly record struct AwkSourceIdentity(string Text)
     public override string ToString() => Text;
 }
 
-internal readonly struct AwkSourceLoadResult
+internal abstract record AwkSourceLoadResult
 {
-    private AwkSourceLoadResult(
-        AwkSourceLoadStatus status,
-        object payload,
-        ReadOnlyMemory<byte> errorMessage,
-        AwkDiagnosticId id)
-    {
-        ArgumentNullException.ThrowIfNull(payload);
-        Status = status;
-        _payload = payload;
-        ErrorMessage = errorMessage;
-        Id = id;
-    }
-
-    private readonly object _payload;
-
-    public AwkSourceLoadStatus Status { get; }
-
-    public IReadOnlyList<AwkSourceUnit> Sources =>
-        Status == AwkSourceLoadStatus.Loaded
-            ? (IReadOnlyList<AwkSourceUnit>)_payload
-            : throw new InvalidOperationException("No source units are loaded.");
-
-    public ReadOnlyMemory<byte> ErrorMessage { get; }
-
-    public AwkDiagnosticId Id { get; }
-
     public static AwkSourceLoadResult FromSources(IReadOnlyList<AwkSourceUnit> sources) =>
-        new(AwkSourceLoadStatus.Loaded, sources, default, default);
+        new Loaded(sources);
 
     public static AwkSourceLoadResult Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
-        new(AwkSourceLoadStatus.Failed, NoPayload.Instance, errorMessage, id);
+        new Failed(errorMessage, id);
 
-    private sealed class NoPayload
-    {
-        public static readonly NoPayload Instance = new();
-    }
-}
+    internal sealed record Loaded(IReadOnlyList<AwkSourceUnit> Sources) : AwkSourceLoadResult;
 
-internal enum AwkSourceLoadStatus
-{
-    Loaded,
-    Failed
+    internal sealed record Failed(
+        ReadOnlyMemory<byte> ErrorMessage,
+        AwkDiagnosticId Id) : AwkSourceLoadResult;
 }

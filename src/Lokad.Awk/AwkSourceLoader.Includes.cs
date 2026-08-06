@@ -57,15 +57,18 @@ internal static partial class AwkSourceLoader
 
             var include = await TryReadIncludeAsync(host, plan, includePath, cancellationToken)
                 .ConfigureAwait(false);
-            if (include.Status == SourceExpansionStatus.Failed)
+            if (include is SourceExpansionResult.Failed)
                 return include;
 
-            AppendExpandedSource(builder, segments, include.Source);
-            if (include.Source.Text.Length > 0 && include.Source.Text[^1] != '\n')
+            if (include is not SourceExpansionResult.Loaded loadedInclude)
+                throw new InvalidOperationException("Unexpected source expansion result.");
+
+            AppendExpandedSource(builder, segments, loadedInclude.Source);
+            if (loadedInclude.Source.Text.Length > 0 && loadedInclude.Source.Text[^1] != '\n')
             {
-                AwkSourceSegment? last = include.Source.Segments.Count == 0
+                AwkSourceSegment? last = loadedInclude.Source.Segments.Count == 0
                     ? null
-                    : include.Source.Segments[^1];
+                    : loadedInclude.Source.Segments[^1];
                 AppendSyntheticNewLine(builder, segments, last);
             }
 

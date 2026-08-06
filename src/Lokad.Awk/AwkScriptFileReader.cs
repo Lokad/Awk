@@ -14,23 +14,23 @@ internal static class AwkScriptFileReader
         CancellationToken cancellationToken)
     {
         var direct = await TryReadResolvedAsync(host, path, cancellationToken).ConfigureAwait(false);
-        if (direct.Status == AwkScriptTextReadStatus.Found)
+        if (direct is AwkScriptTextReadResult.Found found)
         {
             return AwkScriptFileReadResult.FoundScript(new AwkScriptFile(
-                direct.Text,
+                found.Text,
                 new AwkSourceName(AwkUtf8Codec.Decode(path.Display)),
                 new AwkSourceIdentity(path.Absolute.Path)));
         }
 
-        if (direct.Status == AwkScriptTextReadStatus.Failed)
-            return AwkScriptFileReadResult.Failure(direct.ErrorMessage, direct.Id);
+        if (direct is AwkScriptTextReadResult.Failed failed)
+            return AwkScriptFileReadResult.Failure(failed.ErrorMessage, failed.Id);
 
         var rawPath = AwkUtf8Codec.Decode(path.Display);
         if (!rawPath.StartsWith("/", StringComparison.Ordinal))
         {
             var fromAwkPath = await TryReadFromAwkPathAsync(host, plan, rawPath, cancellationToken)
                 .ConfigureAwait(false);
-            if (fromAwkPath.Status is AwkScriptFileReadStatus.Found or AwkScriptFileReadStatus.Failed)
+            if (fromAwkPath is not AwkScriptFileReadResult.Missing)
                 return fromAwkPath;
         }
 
@@ -56,16 +56,16 @@ internal static class AwkScriptFileReader
             var resolved = plan.ResolvePath(candidate);
             var script = await TryReadResolvedAsync(host, resolved, cancellationToken)
                 .ConfigureAwait(false);
-            if (script.Status == AwkScriptTextReadStatus.Found)
+            if (script is AwkScriptTextReadResult.Found found)
             {
                 return AwkScriptFileReadResult.FoundScript(new AwkScriptFile(
-                    script.Text,
+                    found.Text,
                     new AwkSourceName(AwkUtf8Codec.Decode(resolved.Display)),
                     new AwkSourceIdentity(resolved.Absolute.Path)));
             }
 
-            if (script.Status == AwkScriptTextReadStatus.Failed)
-                return AwkScriptFileReadResult.Failure(script.ErrorMessage, script.Id);
+            if (script is AwkScriptTextReadResult.Failed failed)
+                return AwkScriptFileReadResult.Failure(failed.ErrorMessage, failed.Id);
         }
 
         return AwkScriptFileReadResult.MissingFile;
@@ -110,14 +110,14 @@ internal static class AwkScriptFileReader
         {
             var closed = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
                 .ConfigureAwait(false);
-            if (!closed && readResult.Status != AwkScriptTextReadStatus.Failed)
+            if (!closed && readResult is not AwkScriptTextReadResult.Failed)
             {
                 return AwkScriptTextReadResult.Failure(
                     AwkMessages.FormatPathError(path.Display, "Close failed."),
                     AwkDiagnosticId.SourceLoadFailure);
             }
         }
-        catch (Exception) when (readResult.Status == AwkScriptTextReadStatus.Failed)
+        catch (Exception) when (readResult is AwkScriptTextReadResult.Failed)
         {
             return readResult;
         }
@@ -170,102 +170,42 @@ internal static class AwkScriptFileReader
     }
 }
 
-internal readonly struct AwkScriptFileReadResult
+internal abstract record AwkScriptFileReadResult
 {
-    private AwkScriptFileReadResult(
-        AwkScriptFileReadStatus status,
-        object payload,
-        ReadOnlyMemory<byte> errorMessage,
-        AwkDiagnosticId id)
-    {
-        ArgumentNullException.ThrowIfNull(payload);
-        Status = status;
-        _payload = payload;
-        ErrorMessage = errorMessage;
-        Id = id;
-    }
-
-    private readonly object _payload;
-
-    public AwkScriptFileReadStatus Status { get; }
-
-    public AwkScriptFile Script =>
-        Status == AwkScriptFileReadStatus.Found
-            ? (AwkScriptFile)_payload
-            : throw new InvalidOperationException("No script file is present.");
-
-    public ReadOnlyMemory<byte> ErrorMessage { get; }
-
-    public AwkDiagnosticId Id { get; }
-
     public static AwkScriptFileReadResult MissingFile { get; } =
-        new(AwkScriptFileReadStatus.Missing, NoPayload.Instance, default, default);
+        new Missing();
 
     public static AwkScriptFileReadResult FoundScript(AwkScriptFile script) =>
-        new(AwkScriptFileReadStatus.Found, script, default, default);
+        new Found(script);
 
     public static AwkScriptFileReadResult Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
-        new(AwkScriptFileReadStatus.Failed, NoPayload.Instance, errorMessage, id);
+        new Failed(errorMessage, id);
 
-    private sealed class NoPayload
-    {
-        public static readonly NoPayload Instance = new();
-    }
+    internal sealed record Missing : AwkScriptFileReadResult;
+
+    internal sealed record Found(AwkScriptFile Script) : AwkScriptFileReadResult;
+
+    internal sealed record Failed(
+        ReadOnlyMemory<byte> ErrorMessage,
+        AwkDiagnosticId Id) : AwkScriptFileReadResult;
 }
 
-internal enum AwkScriptFileReadStatus
+internal abstract record AwkScriptTextReadResult
 {
-    Missing,
-    Found,
-    Failed
-}
-
-internal readonly struct AwkScriptTextReadResult
-{
-    private AwkScriptTextReadResult(
-        AwkScriptTextReadStatus status,
-        object payload,
-        ReadOnlyMemory<byte> errorMessage,
-        AwkDiagnosticId id)
-    {
-        ArgumentNullException.ThrowIfNull(payload);
-        Status = status;
-        _payload = payload;
-        ErrorMessage = errorMessage;
-        Id = id;
-    }
-
-    private readonly object _payload;
-
-    public AwkScriptTextReadStatus Status { get; }
-
-    public string Text =>
-        Status == AwkScriptTextReadStatus.Found
-            ? (string)_payload
-            : throw new InvalidOperationException("No script text is present.");
-
-    public ReadOnlyMemory<byte> ErrorMessage { get; }
-
-    public AwkDiagnosticId Id { get; }
-
     public static AwkScriptTextReadResult MissingText { get; } =
-        new(AwkScriptTextReadStatus.Missing, NoPayload.Instance, default, default);
+        new Missing();
 
     public static AwkScriptTextReadResult FoundText(string text) =>
-        new(AwkScriptTextReadStatus.Found, text, default, default);
+        new Found(text);
 
     public static AwkScriptTextReadResult Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
-        new(AwkScriptTextReadStatus.Failed, NoPayload.Instance, errorMessage, id);
+        new Failed(errorMessage, id);
 
-    private sealed class NoPayload
-    {
-        public static readonly NoPayload Instance = new();
-    }
-}
+    internal sealed record Missing : AwkScriptTextReadResult;
 
-internal enum AwkScriptTextReadStatus
-{
-    Missing,
-    Found,
-    Failed
+    internal sealed record Found(string Text) : AwkScriptTextReadResult;
+
+    internal sealed record Failed(
+        ReadOnlyMemory<byte> ErrorMessage,
+        AwkDiagnosticId Id) : AwkScriptTextReadResult;
 }

@@ -115,15 +115,15 @@ internal static class AwkExecutor
         CancellationToken cancellationToken)
     {
         var sourceLoad = await AwkSourceLoader.LoadAsync(host, invocation, cancellationToken).ConfigureAwait(false);
-        if (sourceLoad.Status == AwkSourceLoadStatus.Failed)
+        if (sourceLoad is AwkSourceLoadResult.Failed failed)
         {
-            return AwkProgramResolution.Fail(AwkDiagnostics.SourceLoad(sourceLoad.ErrorMessage, sourceLoad.Id));
+            return AwkProgramResolution.Fail(AwkDiagnostics.SourceLoad(failed.ErrorMessage, failed.Id));
         }
 
-        if (sourceLoad.Status != AwkSourceLoadStatus.Loaded)
+        if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)
             throw new System.InvalidOperationException("Unexpected awk source load result.");
 
-        var sources = sourceLoad.Sources;
+        var sources = loaded.Sources;
         var programs = new List<AwkProgram>(sources.Count);
         var warnings = new List<AwkDiagnostic>();
         for (var index = 0; index < sources.Count; index++)

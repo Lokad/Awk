@@ -63,11 +63,11 @@ public sealed class AwkSourceLoaderTests
 
         var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
 
-        Assert.Equal(AwkSourceLoadStatus.Failed, result.Status);
-        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, result.Id);
+        var failure = Assert.IsType<AwkSourceLoadResult.Failed>(result);
+        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Id);
         Assert.Equal(
             "awk: /lib/bad.awk: invalid UTF-8 source\n",
-            AwkUtf8Codec.Decode(result.ErrorMessage));
+            AwkUtf8Codec.Decode(failure.ErrorMessage));
     }
 
     [Fact]
@@ -230,11 +230,11 @@ public sealed class AwkSourceLoaderTests
 
         var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
 
-        Assert.Equal(AwkSourceLoadStatus.Failed, result.Status);
-        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, result.Id);
+        var failure = Assert.IsType<AwkSourceLoadResult.Failed>(result);
+        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Id);
         Assert.Equal(
             "awk: /missing.awk: No such file or directory\n",
-            AwkUtf8Codec.Decode(result.ErrorMessage));
+            AwkUtf8Codec.Decode(failure.ErrorMessage));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
@@ -314,10 +314,10 @@ public sealed class AwkSourceLoaderTests
             invocation.RuntimeArgumentsPlan.Environment,
             variable => variable.Name == "AWKPATH" && variable.Value == "/lib");
         var sourceLoad = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
-        Assert.Equal(AwkSourceLoadStatus.Failed, sourceLoad.Status);
+        var failure = Assert.IsType<AwkSourceLoadResult.Failed>(sourceLoad);
         Assert.Equal(
             "awk: /lib/bad.awk: invalid UTF-8 source\n",
-            AwkUtf8Codec.Decode(sourceLoad.ErrorMessage));
+            AwkUtf8Codec.Decode(failure.ErrorMessage));
 
         fileSystem = new MockFileSystem();
         fileSystem.AddFile("/lib/bad.awk", [0x42, 0x45, 0x47, 0x49, 0x4e, 0x80]);
@@ -408,8 +408,8 @@ public sealed class AwkSourceLoaderTests
     }
 
     private static IReadOnlyList<AwkSourceUnit> LoadedSources(AwkSourceLoadResult result) =>
-        result.Status == AwkSourceLoadStatus.Loaded
-            ? result.Sources
+        result is AwkSourceLoadResult.Loaded loaded
+            ? loaded.Sources
             : throw new InvalidOperationException("Expected loaded awk sources.");
 
     private static async Task<AwkTestRunResult> ExecuteAsync(
