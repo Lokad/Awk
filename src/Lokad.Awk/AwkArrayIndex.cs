@@ -49,7 +49,7 @@ internal sealed record AwkCompositeArrayIndex(IReadOnlyList<AwkExpression> Expre
             if (index > 0)
                 builder.Append(separator);
 
-            var part = context.State.Formatting.FormatStringByteText(
+            var part = context.State.FormatStringByteText(
                 await Expressions[index].EvaluateAsync(context).ConfigureAwait(false));
             builder.Append(part);
         }

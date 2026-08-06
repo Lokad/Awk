@@ -173,7 +173,7 @@ internal abstract partial class AwkExpression
     private sealed class VariableExpression(AwkVariableName name) : AwkExpression
     {
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.Variables.ResolveValue(name));
+            ValueTask.FromResult(context.State.ResolveVariableValue(name));
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
@@ -208,7 +208,7 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var key = await indexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
-            return context.State.Arrays.GetValue(name, key);
+            return context.State.GetArrayAwkValue(name, key);
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)

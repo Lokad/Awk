@@ -413,7 +413,7 @@ internal static class AwkExecutableDispatcher
                             {
                                 var key = state.ToArrayKey(stack[--stackCount]);
                                 stack[stackCount++] = AwkValue.FromNumber(
-                                    state.Arrays.Contains(tables.ArrayNames[instruction.Operand0], key) ? 1 : 0);
+                                    state.ContainsArrayValue(tables.ArrayNames[instruction.Operand0], key) ? 1 : 0);
                                 pc++;
                                 break;
                             }

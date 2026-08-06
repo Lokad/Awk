@@ -197,52 +197,6 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-
-    public Match MatchAt(Regex regex, string input, int startAt)
-    {
-        _throwIfCancellationRequested();
-        try
-        {
-            _counters.RecordRegexStringAdapterFallback();
-            _counters.RecordRegexMatch();
-            return regex.Match(input, startAt);
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
-        }
-    }
-
-    public string Replace(Regex regex, string input, MatchEvaluator evaluator)
-    {
-        _throwIfCancellationRequested();
-        try
-        {
-            _counters.RecordRegexStringAdapterFallback();
-            _counters.RecordRegexMatch();
-            return regex.Replace(input, evaluator);
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
-        }
-    }
-
-    public string Replace(Regex regex, string input, MatchEvaluator evaluator, int count)
-    {
-        _throwIfCancellationRequested();
-        try
-        {
-            _counters.RecordRegexStringAdapterFallback();
-            _counters.RecordRegexMatch();
-            return regex.Replace(input, evaluator, count);
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
-        }
-    }
-
     public IEnumerable<Match> EnumerateMatches(Regex regex, string input)
     {
         for (var match = Match(regex, input); match.Success; match = NextMatch(match))

@@ -18,6 +18,8 @@
   reject access after the reservation has been released.
 - Share buffered-tail handling and byte-oriented scanning across record-separator strategies while
   retaining bounded cancellation checks and separator-specific matching.
+- Remove the duplicate runtime-facade layer and dead string-based replacement helpers so variable,
+  array, record, formatting, and regex operations have one resource-checked state boundary.
 - Accept parenthesized argument lists for `print` and `printf` statements.
 - Evaluate regex constants against the current record in scalar expression contexts.
 - Document and test that strict UTF-8 ingress is unchanged by C locale settings.

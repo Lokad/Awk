@@ -15,9 +15,9 @@ internal abstract partial class AwkExpression
             var leftValue = await left.EvaluateAsync(context).ConfigureAwait(false);
             var rightValue = await right.EvaluateAsync(context).ConfigureAwait(false);
             return context.State.CreateByteTextValue(context.State
-                .Formatting.FormatStringByteText(leftValue)
+                .FormatStringByteText(leftValue)
                 .Concat(
-                    context.State.Formatting.FormatStringByteText(rightValue),
+                    context.State.FormatStringByteText(rightValue),
                     context.State.Counters,
                     context.State.MemoryGovernor));
         }
@@ -230,8 +230,8 @@ internal abstract partial class AwkExpression
             var input = (await valueExpression.EvaluateAsync(context).ConfigureAwait(false)).ByteText;
             var pattern = (await patternExpression.EvaluateAsync(context).ConfigureAwait(false))
                 .AsString(context.State.Counters);
-            var matched = context.State.Regex.IsMatch(
-                context.State.Regex.Create(new AwkRegexPattern(pattern)),
+            var matched = context.State.IsRegexMatch(
+                context.State.CreateRegex(new AwkRegexPattern(pattern)),
                 input);
             return AwkValue.FromNumber(matched ^ negate ? 1 : 0);
         }
@@ -245,7 +245,7 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
-            var matched = context.State.Regex.IsMatch(regex, input);
+            var matched = context.State.IsRegexMatch(regex, input);
             return AwkValue.FromNumber(matched ^ negate ? 1 : 0);
         }
     }
@@ -255,7 +255,7 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var key = await indexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
-            return AwkValue.FromNumber(context.State.Arrays.Contains(arrayName, key) ? 1 : 0);
+            return AwkValue.FromNumber(context.State.ContainsArrayValue(arrayName, key) ? 1 : 0);
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)

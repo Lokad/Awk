@@ -103,6 +103,7 @@ internal sealed class AwkRuntimeState
     private readonly AwkSpecialVariableDispatcher _specialVariables;
     private readonly AwkVariableRuntime _variableRuntime;
     private readonly AwkFunctionRuntime _functions;
+    private readonly AwkInputMetadata _input = new();
     private readonly AwkExecutionContextStack _executionContexts = new();
     private readonly AwkRangePatternRuntime _rangePatterns = new();
     private readonly AwkExecutionControlRuntime _executionControl = new();
@@ -256,41 +257,35 @@ internal sealed class AwkRuntimeState
             RecordSpecialVariableAssignment);
         _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables);
         _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
-        Variables = new AwkVariableFacade(_variableRuntime, Resources, CreateNumericStringValue);
-        Arrays = new AwkArrayFacade(_arrayRuntime, Resources);
-        Input = new AwkInputProgress();
-        Records = new AwkRecordFacade(_recordFields, Resources);
-        Formatting = new AwkFormattingFacade(_formattingRuntime);
-        Regex = new AwkRegexFacade(_regexRuntime, MemoryGovernor);
         _specialVariables.InitializeScalars(plan.FieldSeparator);
         _variables.CaptureScalarMemoryBaseline();
     }
 
     public int RecordNumber
     {
-        get => Input.RecordNumber;
-        set => Input.RecordNumber = value;
+        get => _input.RecordNumber;
+        set => _input.RecordNumber = value;
     }
 
-    public AwkRecordNumber RecordNumberValue => Input.RecordNumberValue;
+    public AwkRecordNumber RecordNumberValue => _input.RecordNumberValue;
 
     public int FileRecordNumber
     {
-        get => Input.FileRecordNumber;
-        set => Input.FileRecordNumber = value;
+        get => _input.FileRecordNumber;
+        set => _input.FileRecordNumber = value;
     }
 
-    public AwkRecordNumber FileRecordNumberValue => Input.FileRecordNumberValue;
+    public AwkRecordNumber FileRecordNumberValue => _input.FileRecordNumberValue;
 
-    public string FileName => Input.FileName;
+    public string FileName => _input.FileName;
 
-    public string CurrentRecordString => Records.CurrentRecordString;
+    public string CurrentRecordString => _recordFields.CurrentRecordString;
 
-    public AwkText CurrentRecordByteText => Records.CurrentRecordByteText;
+    public AwkText CurrentRecordByteText => _recordFields.CurrentRecordByteText;
 
-    public IReadOnlyList<string> CurrentFieldStrings => Records.CurrentFieldStrings;
+    public IReadOnlyList<string> CurrentFieldStrings => _recordFields.CurrentFieldStrings;
 
-    public int FieldCount => Records.FieldCount;
+    public int FieldCount => _recordFields.FieldCount;
 
     public bool ExitRequested => _executionControl.ExitRequested;
 
@@ -311,18 +306,6 @@ internal sealed class AwkRuntimeState
     public AwkRuntimeResourceMonitor Resources { get; }
 
     public AwkMemoryGovernor MemoryGovernor { get; }
-
-    internal AwkVariableFacade Variables { get; }
-
-    internal AwkArrayFacade Arrays { get; }
-
-    internal AwkInputProgress Input { get; }
-
-    internal AwkRecordFacade Records { get; }
-
-    internal AwkFormattingFacade Formatting { get; }
-
-    internal AwkRegexFacade Regex { get; }
 
     public TimeZoneInfo TimeZone => _timeRuntime.TimeZone;
 
@@ -555,83 +538,92 @@ internal sealed class AwkRuntimeState
         _executionControl.TryGetExitCode(out exitCode);
 
     public bool HasScalar(string name) =>
-        Variables.HasScalar(name);
+        _variableRuntime.HasScalar(name);
 
     public bool HasScalar(AwkIdentifier identifier) =>
-        Variables.HasScalar(identifier);
+        _variableRuntime.HasScalar(identifier);
 
     public bool HasScalar(AwkVariableName name) =>
-        Variables.HasScalar(name);
+        _variableRuntime.HasScalar(name);
 
     public bool IsArray(string name) =>
-        Variables.IsArray(name);
+        _variableRuntime.IsArray(name);
 
     public bool IsArray(AwkIdentifier identifier) =>
-        Variables.IsArray(identifier);
+        _variableRuntime.IsArray(identifier);
 
     public bool IsArray(AwkArrayName name) =>
-        Variables.IsArray(name);
+        _variableRuntime.IsArray(name);
 
     public bool TryGetExistingArrayCount(string name, out int count) =>
-        Variables.TryGetExistingArrayCount(name, out count);
+        _variableRuntime.TryGetExistingArrayCount(name, out count);
 
     public bool TryGetExistingArrayCount(AwkArrayName name, out int count) =>
-        Variables.TryGetExistingArrayCount(name, out count);
+        _variableRuntime.TryGetExistingArrayCount(name, out count);
 
     public string ResolveVariable(string name) =>
-        Variables.ResolveString(name);
+        _variableRuntime.ResolveVariable(name);
 
     public string ResolveVariable(AwkVariableName name) =>
-        Variables.ResolveString(name);
+        _variableRuntime.ResolveVariable(name);
 
     public AwkValue ResolveVariableValue(string name) =>
-        Variables.ResolveValue(name);
+        _variableRuntime.ResolveVariableValue(name);
 
     public AwkValue ResolveVariableValue(AwkVariableName name) =>
-        Variables.ResolveValue(name);
+        _variableRuntime.ResolveVariableValue(name);
 
     public AwkValue ResolveVariableValue(AwkSpecialVariableName name) =>
         ResolveSpecialVariableValue(name.Id);
 
     public AwkValue GetGlobalScalarValue(AwkGlobalSlotId id) =>
-        Variables.GetGlobalScalarValue(id);
+        _variableRuntime.GetGlobalScalarValue(id);
 
     public string ResolveFunctionLocal(
         AwkFunctionLocalSlotId slotId,
         AwkVariableName name) =>
-        Variables.ResolveFunctionLocal(slotId, name);
+        _variableRuntime.ResolveFunctionLocal(slotId, name);
 
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
         AwkVariableName name) =>
-        Variables.ResolveFunctionLocalValue(slotId, name);
+        _variableRuntime.ResolveFunctionLocalValue(slotId, name);
 
     public string ResolveVariable(string name, string fallback) =>
-        Variables.ResolveString(name, fallback);
+        _variableRuntime.ResolveVariable(name, fallback);
 
     public string ResolveVariable(AwkVariableName name, string fallback) =>
-        Variables.ResolveString(name, fallback);
+        _variableRuntime.ResolveVariable(name, fallback);
 
     private AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable) =>
         new(ResolveSpecialVariableText(AwkFormattingVariableFacts.SpecialVariableId(variable)));
 
-    public void AssignVariable(string name, string value) =>
-        Variables.AssignText(name, value);
+    public void AssignVariable(string name, string value)
+    {
+        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
+        _variableRuntime.AssignVariable(name, value);
+    }
 
-    public void AssignVariable(AwkIdentifier identifier, string value) =>
-        Variables.AssignText(identifier, value);
+    public void AssignVariable(AwkIdentifier identifier, string value)
+    {
+        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
+        _variableRuntime.AssignVariable(identifier, value);
+    }
 
-    public void AssignVariable(AwkVariableName name, string value) =>
-        Variables.AssignText(name, value);
+    public void AssignVariable(AwkVariableName name, string value)
+    {
+        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
+        _variableRuntime.AssignVariable(name, value);
+    }
 
     public void AssignVariableFromExternalText(string name, string value)
     {
-        Variables.AssignExternalText(name, value);
+        AssignVariableValue(name, CreateNumericStringValue(value));
     }
 
     public void AssignVariableFromExternalText(AwkIdentifier identifier, string value)
     {
-        Variables.AssignExternalText(identifier, value);
+        AssignVariableValue(identifier, CreateNumericStringValue(value));
     }
 
     public void AssignVariableFromExternalText(AwkVariableAssignment assignment)
@@ -640,31 +632,34 @@ internal sealed class AwkRuntimeState
     }
 
     public void AssignVariableValue(string name, AwkValue value) =>
-        Variables.AssignValue(name, value);
+        _variableRuntime.AssignVariableValue(name, value);
 
     public void AssignVariableValue(AwkIdentifier identifier, AwkValue value) =>
-        Variables.AssignValue(identifier, value);
+        _variableRuntime.AssignVariableValue(identifier, value);
 
     public void AssignVariableValue(AwkVariableName name, AwkValue value) =>
-        Variables.AssignValue(name, value);
+        _variableRuntime.AssignVariableValue(name, value);
 
     public void AssignVariableValue(AwkSpecialVariableName name, AwkValue value) =>
         AssignSpecialVariableValue(name.Id, value);
 
     public void AssignVariableValue(AwkGlobalSlotId id, AwkValue value) =>
-        Variables.AssignValue(id, value);
+        _variableRuntime.AssignGlobalScalarValue(id, value);
 
     public void AssignFunctionLocal(
         AwkFunctionLocalSlotId slotId,
         AwkVariableName name,
-        string value) =>
-        Variables.AssignFunctionLocal(slotId, name, value);
+        string value)
+    {
+        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
+        _variableRuntime.AssignFunctionLocal(slotId, name, value);
+    }
 
     public void AssignFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
         AwkVariableName name,
         AwkValue value) =>
-        Variables.AssignFunctionLocalValue(slotId, name, value);
+        _variableRuntime.AssignFunctionLocalValue(slotId, name, value);
 
     private void ApplySpecialVariableAssignment(string name, AwkValue value) =>
         _specialVariables.ApplyAssignment(name, value);
@@ -678,7 +673,7 @@ internal sealed class AwkRuntimeState
     public AwkValue ResolveSpecialVariableValue(AwkSpecialVariableId id) =>
         id == AwkSpecialVariableId.FieldCount
             ? CreateNumberValue(FieldCount)
-            : Variables.ResolveValue(AwkSpecialVariables.VariableName(id));
+            : _variableRuntime.ResolveVariableValue(AwkSpecialVariables.VariableName(id));
 
     public AwkText ResolveSpecialVariableText(AwkSpecialVariableId id) =>
         ResolveSpecialVariableValue(id).ByteText;
@@ -691,7 +686,7 @@ internal sealed class AwkRuntimeState
             return;
         }
 
-        Variables.AssignValue(AwkSpecialVariables.VariableName(id), value);
+        _variableRuntime.AssignVariableValue(AwkSpecialVariables.VariableName(id), value);
     }
 
     public AwkExecutableRuntimeBindings GetExecutableBindings(AwkExecutableTables tables)
@@ -705,7 +700,7 @@ internal sealed class AwkRuntimeState
     }
 
     public AwkGlobalSlotId GetOrCreateGlobalScalarSlot(AwkVariableName name) =>
-        Variables.GetOrCreateGlobalScalarSlot(name);
+        _variableRuntime.GetOrCreateGlobalScalarSlot(name);
 
     public string ResolveRecordSeparator() =>
         ResolveRecordSeparatorCore();
@@ -723,7 +718,8 @@ internal sealed class AwkRuntimeState
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
     {
-        Input.AdvanceMainRecord();
+        _input.RecordNumberValue = _input.RecordNumberValue.Next();
+        _input.FileRecordNumberValue = _input.FileRecordNumberValue.Next();
         SetRecordTerminator(terminator);
     }
 
@@ -755,40 +751,49 @@ internal sealed class AwkRuntimeState
 
     public void BeginInputFile(string fileName, AwkArgvIndex argvIndex)
     {
-        Input.BeginFile(fileName);
+        _input.BeginFile(fileName);
         SetErrno(AwkErrno.None);
         SetArgvIndex(argvIndex);
     }
 
-    public void SetCurrentRecord(string line) =>
-        Records.SetCurrentRecord(line);
+    public void SetCurrentRecord(string line)
+    {
+        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(line));
+        _recordFields.SetCurrentRecord(line);
+    }
 
-    public void SetCurrentRecord(AwkText line) =>
-        Records.SetCurrentRecord(line);
+    public void SetCurrentRecord(AwkText line)
+    {
+        Resources.ThrowIfValueBytesExceeded(line.ByteLength);
+        _recordFields.SetCurrentRecord(line);
+    }
 
-    public AwkValue GetCurrentRecordValue() => Records.CurrentRecordValue;
+    public AwkValue GetCurrentRecordValue() => _recordFields.CurrentRecordValue;
 
-    public AwkValue GetFieldValue(int index) => Records.GetFieldValue(index);
+    public AwkValue GetFieldValue(int index) => _recordFields.GetFieldValue(index);
 
-    public AwkValue GetFieldValue(AwkFieldIndex index) => Records.GetFieldValue(index);
+    public AwkValue GetFieldValue(AwkFieldIndex index) => _recordFields.GetFieldValue(index);
 
     public void SetCurrentRecordValue(AwkValue value) =>
-        Records.SetCurrentRecordValue(value);
+        _recordFields.SetCurrentRecordValue(value);
 
-    public void AssignField(int index, string value) =>
-        Records.AssignField(index, value);
+    public void AssignField(int index, string value)
+    {
+        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
+        _recordFields.AssignField(index, value);
+    }
 
     public void AssignFieldValue(int index, AwkValue value) =>
-        Records.AssignFieldValue(index, value);
+        _recordFields.AssignFieldValue(index, value);
 
     public void AssignFieldValue(AwkFieldIndex index, AwkValue value) =>
-        Records.AssignFieldValue(index, value);
+        _recordFields.AssignFieldValue(index, value);
 
     public void AssignFieldCount(int count) =>
-        Records.AssignFieldCount(count);
+        _recordFields.AssignFieldCount(count);
 
     public void AssignFieldCount(AwkFieldCount count) =>
-        Records.AssignFieldCount(count);
+        _recordFields.AssignFieldCount(count);
 
     private string ResolveOutputFieldSeparator() =>
         ResolveVariable(OutputFieldSeparatorVariableName, " ");
@@ -810,52 +815,37 @@ internal sealed class AwkRuntimeState
         ResolveSpecialVariableText(AwkSpecialVariableId.SubscriptSeparator);
 
     public AwkText FormatPrintByteText(AwkValue value) =>
-        Formatting.FormatPrintByteText(value);
+        _formattingRuntime.FormatPrintByteText(value);
 
     public string FormatStringValue(AwkValue value) =>
-        Formatting.FormatStringValue(value);
+        _formattingRuntime.FormatStringValue(value);
 
     public AwkText FormatStringByteText(AwkValue value) =>
-        Formatting.FormatStringByteText(value);
+        _formattingRuntime.FormatStringByteText(value);
 
     public bool IsRegexMatch(Regex regex, string input) =>
-        Regex.IsMatch(regex, input);
+        _regexRuntime.IsMatch(regex, input);
 
     public bool IsRegexMatch(Regex regex, AwkText input) =>
-        Regex.IsMatch(regex, input);
-
-    public Match MatchRegex(Regex regex, string input) =>
-        Regex.Match(regex, input);
+        _regexRuntime.IsMatch(regex, input);
 
     public AwkRegexMatch MatchRegexValue(Regex regex, AwkText input) =>
-        Regex.MatchValue(regex, input);
+        _regexRuntime.MatchValue(regex, input, MemoryGovernor);
 
     public AwkRegexMatchSpan MatchRegexSpan(Regex regex, AwkText input) =>
-        Regex.MatchSpan(regex, input);
-
-    public Match MatchRegexAt(Regex regex, string input, int startAt) =>
-        Regex.MatchAt(regex, input, startAt);
+        _regexRuntime.MatchSpan(regex, input);
 
     public Regex CreateRegex(AwkRegexPattern pattern) =>
-        Regex.Create(pattern);
-
-    public string ReplaceRegex(Regex regex, string input, MatchEvaluator evaluator) =>
-        Regex.Replace(regex, input, evaluator);
-
-    public string ReplaceRegex(Regex regex, string input, MatchEvaluator evaluator, int count) =>
-        Regex.Replace(regex, input, evaluator, count);
-
-    public IEnumerable<Match> EnumerateRegexMatches(Regex regex, string input) =>
-        Regex.EnumerateMatches(regex, input);
+        _regexRuntime.Create(pattern);
 
     public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateRegexMatches(Regex regex, AwkText input) =>
-        Regex.EnumerateMatches(regex, input);
+        _regexRuntime.EnumerateMatchValues(regex, input, MemoryGovernor, includeGroups: true);
 
     public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateRegexValueMatches(Regex regex, AwkText input) =>
-        Regex.EnumerateValueMatches(regex, input);
+        _regexRuntime.EnumerateMatchValues(regex, input, MemoryGovernor, includeGroups: false);
 
     public AwkLeasedReadOnlyList<AwkRegexMatchSpan> EnumerateRegexMatchSpans(Regex regex, AwkText input) =>
-        Regex.EnumerateMatchSpans(regex, input);
+        _regexRuntime.EnumerateMatchSpans(regex, input, MemoryGovernor);
 
     private bool IsIgnoreCaseEnabled()
     {
@@ -869,7 +859,7 @@ internal sealed class AwkRuntimeState
         GetArrayString(AwkArrayName.FromText(name), index);
 
     public string GetArrayString(AwkArrayName name, AwkArrayKey index) =>
-        Arrays.GetString(name, index);
+        _arrayRuntime.GetString(name, index);
 
     public AwkText GetArrayByteText(string name, string index) =>
         GetArrayByteText(AwkArrayName.FromText(name), new AwkArrayKey(index));
@@ -878,7 +868,7 @@ internal sealed class AwkRuntimeState
         GetArrayByteText(AwkArrayName.FromText(name), index);
 
     public AwkText GetArrayByteText(AwkArrayName name, AwkArrayKey index) =>
-        Arrays.GetByteText(name, index);
+        _arrayRuntime.GetByteText(name, index);
 
     public AwkValue GetArrayAwkValue(string name, string index) =>
         GetArrayAwkValue(AwkArrayName.FromText(name), new AwkArrayKey(index));
@@ -887,7 +877,7 @@ internal sealed class AwkRuntimeState
         GetArrayAwkValue(AwkArrayName.FromText(name), index);
 
     public AwkValue GetArrayAwkValue(AwkArrayName name, AwkArrayKey index) =>
-        Arrays.GetValue(name, index);
+        _arrayRuntime.GetAwkValue(name, index);
 
     public bool TryPeekArrayAwkValue(string name, string index, out AwkValue value) =>
         TryPeekArrayAwkValue(AwkArrayName.FromText(name), new AwkArrayKey(index), out value);
@@ -896,7 +886,7 @@ internal sealed class AwkRuntimeState
         TryPeekArrayAwkValue(AwkArrayName.FromText(name), index, out value);
 
     public bool TryPeekArrayAwkValue(AwkArrayName name, AwkArrayKey index, out AwkValue value) =>
-        Arrays.TryPeekValue(name, index, out value);
+        _arrayRuntime.TryPeekAwkValue(name, index, out value);
 
     public bool ContainsArrayValue(string name, string index) =>
         ContainsArrayValue(AwkArrayName.FromText(name), new AwkArrayKey(index));
@@ -905,7 +895,7 @@ internal sealed class AwkRuntimeState
         ContainsArrayValue(AwkArrayName.FromText(name), index);
 
     public bool ContainsArrayValue(AwkArrayName name, AwkArrayKey index) =>
-        Arrays.Contains(name, index);
+        _arrayRuntime.ContainsValue(name, index);
 
     public AwkText GetArgumentVectorByteText(AwkArgvIndex index) =>
         GetArrayByteText(ArgumentVectorArrayName, AwkArrayKey.FromArgvIndex(index));
@@ -919,8 +909,11 @@ internal sealed class AwkRuntimeState
     public void SetArrayString(string name, AwkArrayKey index, string value) =>
         SetArrayString(AwkArrayName.FromText(name), index, value);
 
-    public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value) =>
-        Arrays.SetString(name, index, value);
+    public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value)
+    {
+        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
+        _arrayRuntime.SetString(name, index, value);
+    }
 
     public void SetArrayAwkValue(string name, string index, AwkValue value) =>
         SetArrayAwkValue(AwkArrayName.FromText(name), new AwkArrayKey(index), value);
@@ -929,7 +922,7 @@ internal sealed class AwkRuntimeState
         SetArrayAwkValue(AwkArrayName.FromText(name), index, value);
 
     public void SetArrayAwkValue(AwkArrayName name, AwkArrayKey index, AwkValue value) =>
-        Arrays.SetValue(name, index, value);
+        _arrayRuntime.SetAwkValue(name, index, value);
 
     public void DeleteArrayValue(string name, string index) =>
         DeleteArrayValue(AwkArrayName.FromText(name), new AwkArrayKey(index));
@@ -938,41 +931,69 @@ internal sealed class AwkRuntimeState
         DeleteArrayValue(AwkArrayName.FromText(name), index);
 
     public void DeleteArrayValue(AwkArrayName name, AwkArrayKey index) =>
-        Arrays.Delete(name, index);
+        _arrayRuntime.DeleteValue(name, index);
 
     public void SetArrayValues(string name, IReadOnlyList<string> values) =>
-        Arrays.SetValues(AwkArrayName.FromText(name), values);
+        _arrayRuntime.SetValues(AwkArrayName.FromText(name), values);
 
     public int SplitIntoArray(string input, string arrayName, string separator, string separatorArrayName)
-        => Arrays.Split(
+        => SplitIntoArray(
             input,
             AwkArrayName.FromText(arrayName),
             separator,
             AwkOptionalIdentifier.FromText(separatorArrayName));
 
     public int SplitIntoArray(AwkText input, string arrayName, string separator, string separatorArrayName)
-        => Arrays.Split(
+        => SplitIntoArray(
             input,
             AwkArrayName.FromText(arrayName),
             separator,
             AwkOptionalIdentifier.FromText(separatorArrayName));
 
+    public int SplitIntoArray(
+        string input,
+        AwkArrayName arrayName,
+        string separator,
+        AwkOptionalIdentifier separatorArrayName) =>
+        _arrayRuntime.SplitIntoArray(input, arrayName, separator, separatorArrayName);
+
+    public int SplitIntoArray(
+        AwkText input,
+        AwkArrayName arrayName,
+        string separator,
+        AwkOptionalIdentifier separatorArrayName) =>
+        _arrayRuntime.SplitIntoArray(input, arrayName, separator, separatorArrayName);
+
     public int PatsplitIntoArray(string input, string arrayName, string pattern, string separatorArrayName)
-        => Arrays.Patsplit(
+        => PatsplitIntoArray(
             input,
             AwkArrayName.FromText(arrayName),
             pattern,
             AwkOptionalIdentifier.FromText(separatorArrayName));
 
     public int PatsplitIntoArray(AwkText input, string arrayName, string pattern, string separatorArrayName)
-        => Arrays.Patsplit(
+        => PatsplitIntoArray(
             input,
             AwkArrayName.FromText(arrayName),
             pattern,
             AwkOptionalIdentifier.FromText(separatorArrayName));
 
+    public int PatsplitIntoArray(
+        string input,
+        AwkArrayName arrayName,
+        string pattern,
+        AwkOptionalIdentifier separatorArrayName) =>
+        _arrayRuntime.PatsplitIntoArray(input, arrayName, pattern, separatorArrayName);
+
+    public int PatsplitIntoArray(
+        AwkText input,
+        AwkArrayName arrayName,
+        string pattern,
+        AwkOptionalIdentifier separatorArrayName) =>
+        _arrayRuntime.PatsplitIntoArray(input, arrayName, pattern, separatorArrayName);
+
     public int SortArrayValues(string sourceArrayName, string destinationArrayName, AwkArraySortOrder order)
-        => Arrays.SortValues(
+        => _arrayRuntime.SortArrayValues(
             AwkArrayName.FromText(sourceArrayName),
             AwkArrayName.FromText(destinationArrayName),
             order);
@@ -982,16 +1003,24 @@ internal sealed class AwkRuntimeState
         string destinationArrayName,
         AwkArraySortOrder order,
         AwkEvaluationContext context) =>
-        await Arrays
-            .SortValuesAsync(
+        await _arrayRuntime
+            .SortArrayValuesAsync(
                 AwkArrayName.FromText(sourceArrayName),
                 AwkArrayName.FromText(destinationArrayName),
                 order,
                 context)
             .ConfigureAwait(false);
 
+    public async ValueTask<int> SortArrayValuesAsync(
+        AwkArrayName sourceArrayName,
+        AwkArrayName destinationArrayName,
+        AwkArraySortOrder order,
+        AwkEvaluationContext context) =>
+        await _arrayRuntime.SortArrayValuesAsync(sourceArrayName, destinationArrayName, order, context)
+            .ConfigureAwait(false);
+
     public int SortArrayKeys(string sourceArrayName, string destinationArrayName, AwkArraySortOrder order)
-        => Arrays.SortKeys(
+        => _arrayRuntime.SortArrayKeys(
             AwkArrayName.FromText(sourceArrayName),
             AwkArrayName.FromText(destinationArrayName),
             order);
@@ -1001,31 +1030,39 @@ internal sealed class AwkRuntimeState
         string destinationArrayName,
         AwkArraySortOrder order,
         AwkEvaluationContext context) =>
-        await Arrays
-            .SortKeysAsync(
+        await _arrayRuntime
+            .SortArrayKeysAsync(
                 AwkArrayName.FromText(sourceArrayName),
                 AwkArrayName.FromText(destinationArrayName),
                 order,
                 context)
             .ConfigureAwait(false);
 
+    public async ValueTask<int> SortArrayKeysAsync(
+        AwkArrayName sourceArrayName,
+        AwkArrayName destinationArrayName,
+        AwkArraySortOrder order,
+        AwkEvaluationContext context) =>
+        await _arrayRuntime.SortArrayKeysAsync(sourceArrayName, destinationArrayName, order, context)
+            .ConfigureAwait(false);
+
     public void ClearArray(string name) =>
         ClearArray(AwkArrayName.FromText(name));
 
     public void ClearArray(AwkArrayName name) =>
-        Arrays.Clear(name);
+        _arrayRuntime.Clear(name);
 
     public AwkLeasedReadOnlyList<AwkText> SnapshotArrayKeys(string name) =>
-        Arrays.SnapshotKeys(AwkArrayName.FromText(name));
+        _arrayRuntime.SnapshotKeys(AwkArrayName.FromText(name));
 
     public async ValueTask<AwkLeasedReadOnlyList<AwkText>> SnapshotArrayKeysAsync(
         AwkArrayName name,
         AwkEvaluationContext context) =>
-        await Arrays.SnapshotKeysAsync(name, context).ConfigureAwait(false);
+        await _arrayRuntime.SnapshotKeysAsync(name, context).ConfigureAwait(false);
 
     public async ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(
         AwkArrayName name,
         AwkEvaluationContext context) =>
-        await Arrays.SnapshotKeyValuesAsync(name, context).ConfigureAwait(false);
+        await _arrayRuntime.SnapshotKeyValuesAsync(name, context).ConfigureAwait(false);
 
 }

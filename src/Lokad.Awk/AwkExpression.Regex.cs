@@ -16,7 +16,7 @@ internal abstract partial class AwkExpression
         {
             var patternText = await pattern.ResolveStringAsync(context).ConfigureAwait(false);
             var replacementText = await replacement.ResolveStringAsync(context).ConfigureAwait(false);
-            var regex = context.State.Regex.Create(new AwkRegexPattern(patternText));
+            var regex = context.State.CreateRegex(new AwkRegexPattern(patternText));
             var input = await target.ResolveInputTextAsync(context).ConfigureAwait(false);
             var replaced = AwkRegexSubstitution.ReplaceAll(
                 context.State,
@@ -38,7 +38,7 @@ internal abstract partial class AwkExpression
         {
             var patternText = await pattern.ResolveStringAsync(context).ConfigureAwait(false);
             var replacementText = await replacement.ResolveStringAsync(context).ConfigureAwait(false);
-            var regex = context.State.Regex.Create(new AwkRegexPattern(patternText));
+            var regex = context.State.CreateRegex(new AwkRegexPattern(patternText));
             var input = await target.ResolveInputTextAsync(context).ConfigureAwait(false);
             var replaced = AwkRegexSubstitution.ReplaceAll(
                 context.State,
@@ -62,13 +62,13 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
-            var regex = context.State.Regex.Create(new AwkRegexPattern(
+            var regex = context.State.CreateRegex(new AwkRegexPattern(
                 await patternExpression.ResolveStringAsync(context).ConfigureAwait(false)));
-            var match = context.State.Regex.MatchValue(regex, input);
-            context.State.Variables.AssignValue(
+            var match = context.State.MatchRegexValue(regex, input);
+            context.State.AssignVariableValue(
                 new AwkSpecialVariableName(AwkSpecialVariableId.RegexStart),
                 AwkValue.FromNumber(match.Success ? match.Index + 1 : 0));
-            context.State.Variables.AssignValue(
+            context.State.AssignVariableValue(
                 new AwkSpecialVariableName(AwkSpecialVariableId.RegexLength),
                 AwkValue.FromNumber(match.Success ? match.Length : -1));
 
@@ -78,25 +78,25 @@ internal abstract partial class AwkExpression
                 if (match.Success)
                     context.State.ThrowIfRegexCaptureBytesExceeded(EstimateCaptureBytes(match));
 
-                context.State.Arrays.Clear(arrayName);
+                context.State.ClearArray(arrayName);
                 if (match.Success)
                 {
                     for (var index = 0; index < match.Groups.Count; index++)
                     {
                         var ordinalKey = AwkArrayKey.FromOrdinal(index);
                         var group = match.Groups[index];
-                        context.State.Arrays.SetValue(
+                        context.State.SetArrayAwkValue(
                             arrayName,
                             ordinalKey,
                             context.State.CreateByteTextValue(group.Value));
 
                         if (group.Success)
                         {
-                            context.State.Arrays.SetValue(
+                            context.State.SetArrayAwkValue(
                                 arrayName,
                                 context.State.ComposeArrayKey(ordinalKey, MatchStartCaptureKeyPart),
                                 AwkValue.FromNumber(group.Index + 1));
-                            context.State.Arrays.SetValue(
+                            context.State.SetArrayAwkValue(
                                 arrayName,
                                 context.State.ComposeArrayKey(ordinalKey, MatchLengthCaptureKeyPart),
                                 AwkValue.FromNumber(group.Length));

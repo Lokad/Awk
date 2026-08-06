@@ -18,7 +18,7 @@ internal abstract partial class AwkExpression
         {
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
             var separator = await separatorExpression.ResolveStringAsync(context).ConfigureAwait(false);
-            return AwkValue.FromNumber(context.State.Arrays.Split(
+            return AwkValue.FromNumber(context.State.SplitIntoArray(
                 input,
                 arrayName,
                 separator,
@@ -39,7 +39,7 @@ internal abstract partial class AwkExpression
 
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
             var pattern = await patternExpression.ResolveStringAsync(context).ConfigureAwait(false);
-            return AwkValue.FromNumber(context.State.Arrays.Patsplit(
+            return AwkValue.FromNumber(context.State.PatsplitIntoArray(
                 input,
                 arrayName,
                 pattern,
@@ -55,8 +55,8 @@ internal abstract partial class AwkExpression
                 throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(AwkBuiltins.Name(AwkBuiltinId.Asort)));
 
             var order = await orderExpression.ResolveStringAsync(context).ConfigureAwait(false);
-            return AwkValue.FromNumber(await context.State.Arrays
-                .SortValuesAsync(sourceArrayName, destinationArrayName, AwkArraySortOrder.Parse(order), context)
+            return AwkValue.FromNumber(await context.State
+                .SortArrayValuesAsync(sourceArrayName, destinationArrayName, AwkArraySortOrder.Parse(order), context)
                 .ConfigureAwait(false));
         }
     }
@@ -69,8 +69,8 @@ internal abstract partial class AwkExpression
                 throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(AwkBuiltins.Name(AwkBuiltinId.Asorti)));
 
             var order = await orderExpression.ResolveStringAsync(context).ConfigureAwait(false);
-            return AwkValue.FromNumber(await context.State.Arrays
-                .SortKeysAsync(sourceArrayName, destinationArrayName, AwkArraySortOrder.Parse(order), context)
+            return AwkValue.FromNumber(await context.State
+                .SortArrayKeysAsync(sourceArrayName, destinationArrayName, AwkArraySortOrder.Parse(order), context)
                 .ConfigureAwait(false));
         }
     }
