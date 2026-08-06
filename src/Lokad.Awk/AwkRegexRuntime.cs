@@ -425,14 +425,7 @@ internal sealed class AwkRegexRuntime
     }
 
     private Regex CreateRegex(AwkRegexPattern pattern, bool ignoreCase) =>
-        _engineKind switch
-        {
-            AwkRegexEngineKind.Utf8Adapter => AwkRegex.Create(
-                pattern,
-                ignoreCase,
-                RegexOptions.CultureInvariant),
-            _ => AwkRegex.Create(pattern, ignoreCase)
-        };
+        AwkRegex.Create(pattern, ignoreCase);
 
     private Utf8RegexEngine ResolveUtf8Regex(Regex regex)
     {
@@ -466,11 +459,8 @@ internal sealed class AwkRegexRuntime
 
     private RegexOptions ResolveOptions(bool ignoreCase)
     {
-        var options = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
-        if (_engineKind == AwkRegexEngineKind.Utf8Adapter)
-            options |= RegexOptions.CultureInvariant;
-
-        return options;
+        return RegexOptions.CultureInvariant |
+            (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
     }
 
     private AwkRegexExecutionPolicy ResolveExecutionPolicy(Regex regex, AwkText input)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -178,6 +179,45 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.Equal(0, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Awk_IgnoreCaseRegexIsIndependentOfCurrentCulture(bool useUtf8Adapter)
+    {
+        var previousCulture = CultureInfo.CurrentCulture;
+        var previousUiCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("tr-TR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("tr-TR");
+            var options = new AwkRuntimeOptions(
+                () => new AwkUnixTimestampSeconds(0),
+                TimeZoneInfo.Utc,
+                new AwkRandomGenerator(),
+                AwkRuntimeCounters.Disabled,
+                AwkRuntimeLimits.CreateDefault(),
+                useUtf8Adapter
+                    ? AwkRegexEngineKind.Utf8Adapter
+                    : AwkRegexEngineKind.DotNetCompatibility);
+            var fileSystem = new MockFileSystem();
+            var compiled = await AwkExecutor.CompileAsync(
+                fileSystem,
+                BuildInvocation("awk", "BEGIN{IGNORECASE=1; print (\"I\" ~ /i/), (\"i\" ~ /I/)}"),
+                CancellationToken.None);
+
+            var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+
+            Assert.Equal(0, exitCode);
+            Assert.Equal("1 1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+            CultureInfo.CurrentUICulture = previousUiCulture;
+        }
     }
 
     [Fact]

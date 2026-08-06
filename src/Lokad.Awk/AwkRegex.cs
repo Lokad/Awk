@@ -15,7 +15,9 @@ internal static class AwkRegex
         RegexOptions extraOptions = RegexOptions.None) =>
         new(
             TranslatePattern(pattern),
-            (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None) | extraOptions,
+            RegexOptions.CultureInvariant |
+                (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None) |
+                extraOptions,
             MatchTimeout);
 
     public static string TranslatePattern(AwkRegexPattern pattern) =>

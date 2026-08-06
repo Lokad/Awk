@@ -2,6 +2,8 @@
 
 ## 0.1.0
 
+- Make case-insensitive regex matching independent of the ambient .NET culture, consistently with
+  the runtime's C-locale-oriented compatibility policy.
 - Accept parenthesized argument lists for `print` and `printf` statements.
 - Evaluate regex constants against the current record in scalar expression contexts.
 - Document and test that strict UTF-8 ingress is unchanged by C locale settings.
