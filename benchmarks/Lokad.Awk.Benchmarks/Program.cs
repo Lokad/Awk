@@ -745,8 +745,8 @@ internal static class BenchmarkCounterReport
         Console.WriteLine("OS: " + Environment.OSVersion);
         Console.WriteLine(".NET: " + Environment.Version);
         Console.WriteLine();
-        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Formatting fallbacks | String interop | Byte comparisons | VM instructions | VM fallbacks | Memory peak |");
-        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Formatting fallbacks | String interop | Byte comparisons | VM instructions | VM fallbacks | Memory peak |");
+        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
 
         for (var index = 0; index < Scenarios.Length; index++)
         {
@@ -796,6 +796,7 @@ internal static class BenchmarkCounterReport
                 scenario.Metrics.RecordCount.ToString(CultureInfo.InvariantCulture),
                 scenario.Metrics.InputBytes.ToString(CultureInfo.InvariantCulture),
                 result.Run.StandardOutputBytes.ToString(CultureInfo.InvariantCulture),
+                counters.ExecutionSteps.ToString(CultureInfo.InvariantCulture),
                 counters.StringDecodes.ToString(CultureInfo.InvariantCulture),
                 counters.AwkTextAsStringCalls.ToString(CultureInfo.InvariantCulture),
                 counters.AwkTextAsStringDecodeMisses.ToString(CultureInfo.InvariantCulture),
@@ -825,6 +826,33 @@ internal static class BenchmarkCounterReport
             ["{print $2}", "/data.tsv"],
             [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n")],
             recordCount: 3),
+        new(
+            "counter streaming projection calibration",
+            "{print $2}",
+            ["{print $2}", "/stream.tsv"],
+            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
+            recordCount: CounterStreamingRecordCount),
+        new(
+            "counter three-key filter calibration",
+            "$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}",
+            ["$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}", "/stream.tsv"],
+            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
+            recordCount: CounterStreamingRecordCount),
+        new(
+            "counter associative aggregation calibration",
+            "{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}",
+            ["{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}", "/stream.tsv"],
+            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
+            recordCount: CounterStreamingRecordCount),
+        new(
+            "counter two-file comparison calibration",
+            "NR==FNR{left[$1]=$2; next} ($1 in left) && left[$1]!=$2{differences++} END{print differences+0}",
+            ["NR==FNR{left[$1]=$2; next} ($1 in left) && left[$1]!=$2{differences++} END{print differences+0}", "/left.tsv", "/right.tsv"],
+            [
+                new BenchmarkFile("/left.tsv", BuildCounterComparisonRows(changed: false)),
+                new BenchmarkFile("/right.tsv", BuildCounterComparisonRows(changed: true))
+            ],
+            recordCount: CounterComparisonRecordCount * 2),
         new(
             "counter arithmetic loop",
             "BEGIN{for(i=1;i<=100;i++) total += i * 2; print total}",
@@ -942,6 +970,44 @@ internal static class BenchmarkCounterReport
             recordCount: 2,
             counterExecutionEngineKind: AwkExecutionEngineKind.Executable)
     ];
+
+    private const int CounterStreamingRecordCount = 10_000;
+    private const int CounterComparisonRecordCount = 5_000;
+
+    private static string BuildCounterStreamingRows()
+    {
+        var builder = new StringBuilder();
+        for (var index = 0; index < CounterStreamingRecordCount; index++)
+        {
+            builder.Append("sku");
+            builder.Append(index % 101);
+            builder.Append('\t');
+            builder.Append("region");
+            builder.Append(index % 11);
+            builder.Append('\t');
+            builder.Append(index % 4 == 0 ? "open" : "closed");
+            builder.Append('\t');
+            builder.Append(index % 97);
+            builder.AppendLine();
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildCounterComparisonRows(bool changed)
+    {
+        var builder = new StringBuilder();
+        for (var index = 0; index < CounterComparisonRecordCount; index++)
+        {
+            builder.Append("key");
+            builder.Append(index);
+            builder.Append('\t');
+            builder.Append(changed && index % 10 == 0 ? index + 1 : index);
+            builder.AppendLine();
+        }
+
+        return builder.ToString();
+    }
 
     private static string BuildCounterSeparatedRows()
     {

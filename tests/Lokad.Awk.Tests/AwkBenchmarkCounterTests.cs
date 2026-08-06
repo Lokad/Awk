@@ -9,6 +9,10 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     private const string InvalidUtf8Diagnostic = "awk: invalid UTF-8 input\n";
+    private const string StepCalibrationInput =
+        "sku1 region1 open 10\n" +
+        "sku2 region2 closed 20\n" +
+        "sku1 region2 open 30\n";
 
     [Fact]
     public async Task Awk_BenchmarkCountersCoverDynamicRecordSeparators()
@@ -194,6 +198,39 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.FormattingStringInteropInputs);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
+    }
+
+    public static TheoryData<string, string, long> StreamingStepCalibrationCases => new()
+    {
+        {
+            "{print $2}",
+            "region1\nregion2\nregion2\n",
+            9
+        },
+        {
+            "$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}",
+            "2\n",
+            53
+        },
+        {
+            "{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}",
+            "3 2\n",
+            39
+        }
+    };
+
+    [Theory]
+    [MemberData(nameof(StreamingStepCalibrationCases))]
+    public async Task Awk_RuntimeCounterEvidencePinsStreamingStepCalibration(
+        string program,
+        string expectedOutput,
+        long expectedExecutionSteps)
+    {
+        var (exitCode, fileSystem, counters) = await RunAsync([program], StepCalibrationInput);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(expectedExecutionSteps, counters.ExecutionSteps);
     }
 
     [Fact]

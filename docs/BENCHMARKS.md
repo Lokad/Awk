@@ -16,9 +16,13 @@ Generate the repeatable runtime-counter evidence table without running Benchmark
 dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benchmarks.csproj -- --counter-report
 ```
 
-The counter report prints runtime, date, command, output size, and the key decode,
-regex, formatting, VM, byte-comparison, and memory counters for curated scenarios. Use it in
-handoffs when a change affects fallback accounting but does not require a full timing baseline.
+The counter report prints runtime, date, command, record and byte counts, execution steps, output
+size, and the key decode, regex, formatting, VM, byte-comparison, and memory counters for curated
+scenarios. Its streaming projection, three-key filter, associative aggregation, and two-file
+comparison rows are deterministic calibration shapes for execution-budget decisions. Divide their
+execution steps by records to compare per-record costs; use the raw counts, rather than elapsed
+time, when estimating how much input a step ceiling permits. Use the report in handoffs when a
+change affects resource or fallback accounting but does not require a full timing baseline.
 
 Refresh a checked-in benchmark snapshot only when the commit intentionally changes runtime,
 allocation, regex, VM, record/field splitting, or counter behavior. A snapshot refresh must record:
