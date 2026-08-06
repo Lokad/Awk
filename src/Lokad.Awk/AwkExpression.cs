@@ -50,17 +50,17 @@ internal abstract partial class AwkExpression
 
     public static AwkExpression Concat(AwkExpression left, AwkExpression right) => new ConcatExpression(left, right);
 
-    public static AwkExpression Add(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Add);
+    public static AwkExpression Add(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Add);
 
-    public static AwkExpression Subtract(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Subtract);
+    public static AwkExpression Subtract(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Subtract);
 
-    public static AwkExpression Multiply(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Multiply);
+    public static AwkExpression Multiply(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Multiply);
 
-    public static AwkExpression Divide(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Divide);
+    public static AwkExpression Divide(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Divide);
 
-    public static AwkExpression Modulo(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Modulo);
+    public static AwkExpression Modulo(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Modulo);
 
-    public static AwkExpression Power(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, BinaryOperation.Power);
+    public static AwkExpression Power(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Power);
 
     public static AwkExpression Negate(AwkExpression expression) => new NegateExpression(expression);
 

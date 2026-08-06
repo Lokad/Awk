@@ -33,25 +33,14 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class BinaryExpression(AwkExpression left, AwkExpression right, BinaryOperation operation) : AwkExpression
+    private sealed class BinaryExpression(AwkExpression left, AwkExpression right, AwkNumericOperation operation) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var leftValue = (await left.EvaluateAsync(context).ConfigureAwait(false)).AsNumber();
             var rightValue = (await right.EvaluateAsync(context).ConfigureAwait(false)).AsNumber();
 
-            return operation switch
-            {
-                BinaryOperation.Add => AwkValue.FromNumber(leftValue + rightValue),
-                BinaryOperation.Subtract => AwkValue.FromNumber(leftValue - rightValue),
-                BinaryOperation.Multiply => AwkValue.FromNumber(leftValue * rightValue),
-                BinaryOperation.Divide => AwkValue.FromNumber(
-                    AwkNumericOperations.Divide(leftValue, rightValue, AwkMessages.ErrorDivisionByZero)),
-                BinaryOperation.Modulo => AwkValue.FromNumber(
-                    AwkNumericOperations.Modulo(leftValue, rightValue, AwkMessages.ErrorDivisionByZeroInModulo)),
-                BinaryOperation.Power => AwkValue.FromNumber(Math.Pow(leftValue, rightValue)),
-                _ => AwkValue.FromText(string.Empty)
-            };
+            return AwkValue.FromNumber(AwkNumericOperations.Apply(leftValue, rightValue, operation));
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
@@ -64,16 +53,16 @@ internal abstract partial class AwkExpression
             return true;
         }
 
-        private static AwkOpcode ToOpcode(BinaryOperation operation) =>
+        private static AwkOpcode ToOpcode(AwkNumericOperation operation) =>
             operation switch
             {
-                BinaryOperation.Add => AwkOpcode.Add,
-                BinaryOperation.Subtract => AwkOpcode.Subtract,
-                BinaryOperation.Multiply => AwkOpcode.Multiply,
-                BinaryOperation.Divide => AwkOpcode.Divide,
-                BinaryOperation.Modulo => AwkOpcode.Modulo,
-                BinaryOperation.Power => AwkOpcode.Power,
-                _ => AwkOpcode.NoOp
+                AwkNumericOperation.Add => AwkOpcode.Add,
+                AwkNumericOperation.Subtract => AwkOpcode.Subtract,
+                AwkNumericOperation.Multiply => AwkOpcode.Multiply,
+                AwkNumericOperation.Divide => AwkOpcode.Divide,
+                AwkNumericOperation.Modulo => AwkOpcode.Modulo,
+                AwkNumericOperation.Power => AwkOpcode.Power,
+                _ => throw new ArgumentOutOfRangeException(nameof(operation))
             };
     }
 
@@ -116,7 +105,11 @@ internal abstract partial class AwkExpression
         {
             var leftValue = await left.EvaluateAsync(context).ConfigureAwait(false);
             var rightValue = await right.EvaluateAsync(context).ConfigureAwait(false);
-            var result = CompareValues(leftValue, rightValue, comparison, context.State.Counters);
+            var result = AwkComparisonOperations.Evaluate(
+                leftValue,
+                rightValue,
+                comparison,
+                context.State.Counters);
             return AwkValue.FromNumber(result ? 1 : 0);
         }
 
@@ -130,26 +123,6 @@ internal abstract partial class AwkExpression
             return true;
         }
 
-        private static bool CompareValues(
-            AwkValue leftValue,
-            AwkValue rightValue,
-            AwkComparison comparison,
-            AwkRuntimeCounters counters)
-        {
-            int result;
-            result = AwkValue.Compare(leftValue, rightValue, counters);
-
-            return comparison switch
-            {
-                AwkComparison.GreaterOrEqual => result >= 0,
-                AwkComparison.GreaterThan => result > 0,
-                AwkComparison.LessOrEqual => result <= 0,
-                AwkComparison.LessThan => result < 0,
-                AwkComparison.Equal => result == 0,
-                AwkComparison.NotEqual => result != 0,
-                _ => false
-            };
-        }
     }
 
     private sealed class LogicalExpression(
@@ -303,16 +276,6 @@ internal abstract partial class AwkExpression
     {
         compiler.Emit(AwkOpcode.LoadConstant, compiler.Tables.InternConstant(AwkValue.FromNumber(value ? 1 : 0)));
         compiler.Push();
-    }
-
-    private enum BinaryOperation
-    {
-        Add,
-        Subtract,
-        Multiply,
-        Divide,
-        Modulo,
-        Power
     }
 
     private enum LogicalOperation

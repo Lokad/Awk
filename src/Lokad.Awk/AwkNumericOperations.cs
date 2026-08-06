@@ -4,6 +4,18 @@ namespace Lokad.Awk;
 
 internal static class AwkNumericOperations
 {
+    public static double Apply(double leftValue, double rightValue, AwkNumericOperation operation) =>
+        operation switch
+        {
+            AwkNumericOperation.Add => leftValue + rightValue,
+            AwkNumericOperation.Subtract => leftValue - rightValue,
+            AwkNumericOperation.Multiply => leftValue * rightValue,
+            AwkNumericOperation.Divide => Divide(leftValue, rightValue, AwkMessages.ErrorDivisionByZero),
+            AwkNumericOperation.Modulo => Modulo(leftValue, rightValue, AwkMessages.ErrorDivisionByZeroInModulo),
+            AwkNumericOperation.Power => Math.Pow(leftValue, rightValue),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation))
+        };
+
     public static double Divide(
         double leftValue,
         double rightValue,
@@ -52,4 +64,14 @@ internal static class AwkNumericOperations
     public static double Decrement(double value) => value - 1;
 
     public static bool IsZero(double value) => Math.Abs(value) < double.Epsilon;
+}
+
+internal enum AwkNumericOperation
+{
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Modulo,
+    Power
 }

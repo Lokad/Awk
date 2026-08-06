@@ -451,8 +451,12 @@ internal static class AwkExecutableDispatcher
                             {
                                 var right = stack[--stackCount];
                                 var left = stack[--stackCount];
-                                stack[stackCount++] = AwkValue.FromNumber(
-                                    CompareValues(left, right, (AwkComparison)instruction.Operand0, state.Counters) ? 1 : 0);
+                                var isMatch = AwkComparisonOperations.Evaluate(
+                                    left,
+                                    right,
+                                    (AwkComparison)instruction.Operand0,
+                                    state.Counters);
+                                stack[stackCount++] = AwkValue.FromNumber(isMatch ? 1 : 0);
                                 pc++;
                                 break;
                             }
@@ -653,36 +657,17 @@ internal static class AwkExecutableDispatcher
     {
         var right = stack[--stackCount].AsNumber();
         var left = stack[--stackCount].AsNumber();
-        var result = opcode switch
+        var operation = opcode switch
         {
-            AwkOpcode.Add => left + right,
-            AwkOpcode.Subtract => left - right,
-            AwkOpcode.Multiply => left * right,
-            AwkOpcode.Divide => AwkNumericOperations.Divide(left, right, AwkMessages.ErrorDivisionByZero),
-            AwkOpcode.Modulo => AwkNumericOperations.Modulo(left, right, AwkMessages.ErrorDivisionByZeroInModulo),
-            AwkOpcode.Power => Math.Pow(left, right),
-            _ => 0
+            AwkOpcode.Add => AwkNumericOperation.Add,
+            AwkOpcode.Subtract => AwkNumericOperation.Subtract,
+            AwkOpcode.Multiply => AwkNumericOperation.Multiply,
+            AwkOpcode.Divide => AwkNumericOperation.Divide,
+            AwkOpcode.Modulo => AwkNumericOperation.Modulo,
+            AwkOpcode.Power => AwkNumericOperation.Power,
+            _ => throw new ArgumentOutOfRangeException(nameof(opcode))
         };
-        stack[stackCount++] = AwkValue.FromNumber(result);
-    }
-
-    private static bool CompareValues(
-        AwkValue leftValue,
-        AwkValue rightValue,
-        AwkComparison comparison,
-        AwkRuntimeCounters counters)
-    {
-        var result = AwkValue.Compare(leftValue, rightValue, counters);
-        return comparison switch
-        {
-            AwkComparison.GreaterOrEqual => result >= 0,
-            AwkComparison.GreaterThan => result > 0,
-            AwkComparison.LessOrEqual => result <= 0,
-            AwkComparison.LessThan => result < 0,
-            AwkComparison.Equal => result == 0,
-            AwkComparison.NotEqual => result != 0,
-            _ => false
-        };
+        stack[stackCount++] = AwkValue.FromNumber(AwkNumericOperations.Apply(left, right, operation));
     }
 }
 
