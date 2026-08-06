@@ -134,6 +134,30 @@ internal abstract class AwkRecordSeparatorStrategy
         AwkText content,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync);
 
+    protected async Task<AwkText> ReadBufferedTextToEndAsync(
+        AwkUtf8Builder buffer,
+        AwkFileDescriptor descriptor,
+        bool reachedEof = false)
+    {
+        var buffered = buffer.CopyToAwkText(Context.State.Counters);
+        if (reachedEof)
+            return buffered;
+
+        var tail = await Context.DescriptorReader
+            .ReadToEndTextAsync(descriptor, Context.State.Limits, Context.State.MemoryGovernor)
+            .ConfigureAwait(false);
+        return buffered.Concat(tail, Context.State.Counters, Context.State.MemoryGovernor);
+    }
+
+    protected async Task<bool> AppendNextByteBatchAsync(
+        AwkFileDescriptor descriptor,
+        AwkUtf8Builder buffer)
+    {
+        var batch = await Context.DescriptorReader.ReadNextBatchAsync(descriptor).ConfigureAwait(false);
+        buffer.Append(batch.Content);
+        return batch.ReachedEof;
+    }
+
     protected static bool TryGetSingleByteSeparator(string separatorText, out byte separator)
     {
         if (separatorText.Length == 1 && separatorText[0] <= 0x7F && separatorText[0] != '\n')
@@ -262,12 +286,11 @@ internal sealed class AwkNewlineRecordSeparatorStrategy(
     }
 }
 
-internal sealed class AwkSingleByteRecordSeparatorStrategy(
+internal abstract class AwkByteRecordSeparatorStrategy(
     string separatorText,
-    byte separatorByte,
     AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(separatorText, context)
 {
-    public override async ValueTask<AwkStatementFlow> ProcessDescriptorAsync(
+    public sealed override async ValueTask<AwkStatementFlow> ProcessDescriptorAsync(
         AwkFileDescriptor descriptor,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
     {
@@ -288,152 +311,15 @@ internal sealed class AwkSingleByteRecordSeparatorStrategy(
             var batch = await Context.DescriptorReader.ReadNextBatchAsync(descriptor).ConfigureAwait(false);
             var batchContent = batch.Content;
             var segmentStart = 0;
-            for (var index = 0; index < batchContent.Length; index++)
+            while (TryFindNextSeparator(batchContent.Span[segmentStart..], out var relativeIndex, out var separatorByte))
             {
                 Context.State.ThrowIfCancellationRequested();
-                if (batchContent.Span[index] != separatorByte)
-                    continue;
+                var separatorIndex = segmentStart + relativeIndex;
 
-                buffer.Append(batchContent.Slice(segmentStart, index - segmentStart));
+                buffer.Append(batchContent.Slice(segmentStart, separatorIndex - segmentStart));
                 var record = buffer.CopyToAwkText(Context.State.Counters);
                 buffer.Clear();
-                segmentStart = index + 1;
-                var flow = await Context.RecordProcessor.ProcessAsync(
-                        record,
-                        AwkRecordTerminator.FromText(SeparatorText),
-                        processRecordAsync)
-                    .ConfigureAwait(false);
-                if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
-                    return flow;
-
-                if (!IsCurrentSeparatorVersion)
-                {
-                    buffer.Append(batchContent.Slice(segmentStart));
-                    var remaining = await ReadBufferedTextToEndAsync(buffer, descriptor).ConfigureAwait(false);
-                    return await Context.ProcessCustomTextContentAsync(remaining, processRecordAsync)
-                        .ConfigureAwait(false);
-                }
-            }
-
-            buffer.Append(batchContent.Slice(segmentStart));
-
-            if (batch.ReachedEof)
-            {
-                if (buffer.Length == 0)
-                    return AwkStatementFlow.Continue;
-
-                return await Context.RecordProcessor.ProcessAsync(
-                        buffer.CopyToAwkText(Context.State.Counters),
-                        AwkRecordTerminator.Empty,
-                        processRecordAsync)
-                    .ConfigureAwait(false);
-            }
-        }
-    }
-
-    public override async ValueTask<AwkStatementFlow> ProcessTextContentAsync(
-        AwkText content,
-        Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
-    {
-        if (!IsCurrentSeparatorVersion)
-            return await Context.ProcessCustomTextContentAsync(content, processRecordAsync).ConfigureAwait(false);
-
-        var byteLength = content.ByteLength;
-        var start = 0;
-        for (var index = 0; index < byteLength; index++)
-        {
-            Context.State.ThrowIfCancellationRequested();
-            if (content.AsSpan()[index] != separatorByte)
-                continue;
-
-            var record = content.CopyByteSlice(
-                start,
-                index - start,
-                Context.State.Counters,
-                Context.State.MemoryGovernor);
-            var flow = await Context.RecordProcessor.ProcessAsync(
-                    record,
-                    AwkRecordTerminator.FromText(SeparatorText),
-                    processRecordAsync)
-                .ConfigureAwait(false);
-            if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
-                return flow;
-
-            start = index + 1;
-            if (!IsCurrentSeparatorVersion)
-            {
-                var tail = content.CopyByteSlice(
-                    start,
-                    byteLength - start,
-                    Context.State.Counters,
-                    Context.State.MemoryGovernor);
-                return await Context.ProcessCustomTextContentAsync(tail, processRecordAsync).ConfigureAwait(false);
-            }
-        }
-
-        if (start >= byteLength)
-            return AwkStatementFlow.Continue;
-
-        return await Context.RecordProcessor.ProcessAsync(
-                content.CopyByteSlice(
-                    start,
-                    byteLength - start,
-                    Context.State.Counters,
-                    Context.State.MemoryGovernor),
-                AwkRecordTerminator.Empty,
-                processRecordAsync)
-            .ConfigureAwait(false);
-    }
-
-    private async Task<AwkText> ReadBufferedTextToEndAsync(
-        AwkUtf8Builder buffer,
-        AwkFileDescriptor descriptor)
-    {
-        var buffered = buffer.CopyToAwkText(Context.State.Counters);
-        var tail = await Context.DescriptorReader
-            .ReadToEndTextAsync(descriptor, Context.State.Limits, Context.State.MemoryGovernor)
-            .ConfigureAwait(false);
-        return buffered.Concat(tail, Context.State.Counters, Context.State.MemoryGovernor);
-    }
-}
-
-internal sealed class AwkByteSetRecordSeparatorStrategy(
-    string separatorText,
-    bool[] separatorBytes,
-    AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(separatorText, context)
-{
-    public override async ValueTask<AwkStatementFlow> ProcessDescriptorAsync(
-        AwkFileDescriptor descriptor,
-        Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
-    {
-        using var buffer = new AwkUtf8Builder(
-            Context.State.Limits,
-            Context.State.MemoryGovernor,
-            capacity: AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity);
-        while (true)
-        {
-            Context.State.ThrowIfCancellationRequested();
-            if (!IsCurrentSeparatorVersion)
-            {
-                var content = await ReadBufferedTextToEndAsync(buffer, descriptor).ConfigureAwait(false);
-                return await Context.ProcessCustomTextContentAsync(content, processRecordAsync)
-                    .ConfigureAwait(false);
-            }
-
-            var batch = await Context.DescriptorReader.ReadNextBatchAsync(descriptor).ConfigureAwait(false);
-            var batchContent = batch.Content;
-            var segmentStart = 0;
-            for (var index = 0; index < batchContent.Length; index++)
-            {
-                Context.State.ThrowIfCancellationRequested();
-                var separatorByte = batchContent.Span[index];
-                if (!separatorBytes[separatorByte])
-                    continue;
-
-                buffer.Append(batchContent.Slice(segmentStart, index - segmentStart));
-                var record = buffer.CopyToAwkText(Context.State.Counters);
-                buffer.Clear();
-                segmentStart = index + 1;
+                segmentStart = separatorIndex + 1;
                 var flow = await Context.RecordProcessor.ProcessAsync(
                         record,
                         CreateTerminator(separatorByte),
@@ -467,13 +353,13 @@ internal sealed class AwkByteSetRecordSeparatorStrategy(
         }
     }
 
-    public override async ValueTask<AwkStatementFlow> ProcessTextContentAsync(
+    public sealed override async ValueTask<AwkStatementFlow> ProcessTextContentAsync(
         AwkText content,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
     {
         var byteLength = content.ByteLength;
         var start = 0;
-        for (var index = 0; index < byteLength; index++)
+        while (start < byteLength)
         {
             Context.State.ThrowIfCancellationRequested();
             if (!IsCurrentSeparatorVersion)
@@ -486,13 +372,14 @@ internal sealed class AwkByteSetRecordSeparatorStrategy(
                 return await Context.ProcessCustomTextContentAsync(tail, processRecordAsync).ConfigureAwait(false);
             }
 
-            var separatorByte = content.AsSpan()[index];
-            if (!separatorBytes[separatorByte])
-                continue;
+            if (!TryFindNextSeparator(content.AsSpan()[start..], out var relativeIndex, out var separatorByte))
+                break;
+
+            var separatorIndex = start + relativeIndex;
 
             var record = content.CopyByteSlice(
                 start,
-                index - start,
+                separatorIndex - start,
                 Context.State.Counters,
                 Context.State.MemoryGovernor);
             var flow = await Context.RecordProcessor.ProcessAsync(
@@ -503,7 +390,7 @@ internal sealed class AwkByteSetRecordSeparatorStrategy(
             if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
                 return flow;
 
-            start = index + 1;
+            start = separatorIndex + 1;
         }
 
         if (start >= byteLength)
@@ -520,19 +407,90 @@ internal sealed class AwkByteSetRecordSeparatorStrategy(
             .ConfigureAwait(false);
     }
 
-    private static AwkRecordTerminator CreateTerminator(byte separatorByte) =>
-        AwkRecordTerminator.FromText(((char)separatorByte).ToString());
-
-    private async Task<AwkText> ReadBufferedTextToEndAsync(
-        AwkUtf8Builder buffer,
-        AwkFileDescriptor descriptor)
+    private bool TryFindNextSeparator(
+        ReadOnlySpan<byte> content,
+        out int separatorIndex,
+        out byte separatorByte)
     {
-        var buffered = buffer.CopyToAwkText(Context.State.Counters);
-        var tail = await Context.DescriptorReader
-            .ReadToEndTextAsync(descriptor, Context.State.Limits, Context.State.MemoryGovernor)
-            .ConfigureAwait(false);
-        return buffered.Concat(tail, Context.State.Counters, Context.State.MemoryGovernor);
+        const int searchWindowLength = 4 * 1024;
+        var windowStart = 0;
+        while (windowStart < content.Length)
+        {
+            Context.State.ThrowIfCancellationRequested();
+            var windowLength = Math.Min(searchWindowLength, content.Length - windowStart);
+            if (TryFindNextSeparatorCore(
+                    content.Slice(windowStart, windowLength),
+                    out var relativeIndex,
+                    out separatorByte))
+            {
+                separatorIndex = windowStart + relativeIndex;
+                return true;
+            }
+
+            windowStart += windowLength;
+        }
+
+        separatorIndex = -1;
+        separatorByte = 0;
+        return false;
     }
+
+    protected abstract bool TryFindNextSeparatorCore(
+        ReadOnlySpan<byte> content,
+        out int separatorIndex,
+        out byte separatorByte);
+
+    protected abstract AwkRecordTerminator CreateTerminator(byte separatorByte);
+}
+
+internal sealed class AwkSingleByteRecordSeparatorStrategy(
+    string separatorText,
+    byte separatorByte,
+    AwkRecordSeparatorContext context) : AwkByteRecordSeparatorStrategy(separatorText, context)
+{
+    private readonly AwkRecordTerminator _terminator = AwkRecordTerminator.FromText(separatorText);
+
+    protected override bool TryFindNextSeparatorCore(
+        ReadOnlySpan<byte> content,
+        out int separatorIndex,
+        out byte matchedSeparatorByte)
+    {
+        separatorIndex = content.IndexOf(separatorByte);
+        matchedSeparatorByte = separatorByte;
+        return separatorIndex >= 0;
+    }
+
+    protected override AwkRecordTerminator CreateTerminator(byte matchedSeparatorByte) => _terminator;
+}
+
+internal sealed class AwkByteSetRecordSeparatorStrategy(
+    string separatorText,
+    bool[] separatorBytes,
+    AwkRecordSeparatorContext context) : AwkByteRecordSeparatorStrategy(separatorText, context)
+{
+    protected override bool TryFindNextSeparatorCore(
+        ReadOnlySpan<byte> content,
+        out int separatorIndex,
+        out byte separatorByte)
+    {
+        for (var index = 0; index < content.Length; index++)
+        {
+            var candidate = content[index];
+            if (separatorBytes[candidate])
+            {
+                separatorIndex = index;
+                separatorByte = candidate;
+                return true;
+            }
+        }
+
+        separatorIndex = -1;
+        separatorByte = 0;
+        return false;
+    }
+
+    protected override AwkRecordTerminator CreateTerminator(byte separatorByte) =>
+        AwkRecordTerminator.FromText(((char)separatorByte).ToString());
 }
 
 internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
@@ -646,16 +604,6 @@ internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
         return index >= 0;
     }
 
-    private async Task<AwkText> ReadBufferedTextToEndAsync(
-        AwkUtf8Builder buffer,
-        AwkFileDescriptor descriptor)
-    {
-        var buffered = buffer.CopyToAwkText(Context.State.Counters);
-        var tail = await Context.DescriptorReader
-            .ReadToEndTextAsync(descriptor, Context.State.Limits, Context.State.MemoryGovernor)
-            .ConfigureAwait(false);
-        return buffered.Concat(tail, Context.State.Counters, Context.State.MemoryGovernor);
-    }
 }
 
 internal sealed class AwkRegexRecordSeparatorStrategy(
@@ -784,39 +732,12 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
         return byteIndex + (status == OperationStatus.Done && bytesConsumed > 0 ? bytesConsumed : 1);
     }
 
-    private async Task<AwkText> ReadBufferedTextToEndAsync(
-        AwkUtf8Builder buffer,
-        AwkFileDescriptor descriptor,
-        bool reachedEof)
-    {
-        var buffered = buffer.CopyToAwkText(Context.State.Counters);
-        if (reachedEof)
-            return buffered;
-
-        var tail = await Context.DescriptorReader
-            .ReadToEndTextAsync(descriptor, Context.State.Limits, Context.State.MemoryGovernor)
-            .ConfigureAwait(false);
-        return buffered.Concat(tail, Context.State.Counters, Context.State.MemoryGovernor);
-    }
-
-    private async Task<bool> AppendNextByteBatchAsync(
-        AwkFileDescriptor descriptor,
-        AwkUtf8Builder buffer)
-    {
-        var batch = await Context.DescriptorReader.ReadNextBatchAsync(descriptor).ConfigureAwait(false);
-        buffer.Append(batch.Content);
-
-        return batch.ReachedEof;
-    }
 }
 
 internal sealed class AwkParagraphRecordSeparatorStrategy(
     string separatorText,
     AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(separatorText, context)
 {
-    private static readonly Regex Separator =
-        new(@"\r?\n[ \t]*\r?\n+", RegexOptions.None, AwkRegex.MatchTimeout);
-
     public override async ValueTask<AwkStatementFlow> ProcessDescriptorAsync(
         AwkFileDescriptor descriptor,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
@@ -939,21 +860,6 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
         }
     }
 
-    private async Task<AwkText> ReadBufferedTextToEndAsync(
-        AwkUtf8Builder buffer,
-        AwkFileDescriptor descriptor,
-        bool reachedEof)
-    {
-        var buffered = buffer.CopyToAwkText(Context.State.Counters);
-        if (reachedEof)
-            return buffered;
-
-        var tail = await Context.DescriptorReader
-            .ReadToEndTextAsync(descriptor, Context.State.Limits, Context.State.MemoryGovernor)
-            .ConfigureAwait(false);
-        return buffered.Concat(tail, Context.State.Counters, Context.State.MemoryGovernor);
-    }
-
     private static void RemoveLeadingParagraphSeparators(AwkUtf8Builder buffer)
     {
         var span = buffer.AsSpan();
@@ -1063,13 +969,4 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
         return AwkRecordTerminator.FromText(text);
     }
 
-    private async Task<bool> AppendNextByteBatchAsync(
-        AwkFileDescriptor descriptor,
-        AwkUtf8Builder buffer)
-    {
-        var batch = await Context.DescriptorReader.ReadNextBatchAsync(descriptor).ConfigureAwait(false);
-        buffer.Append(batch.Content);
-
-        return batch.ReachedEof;
-    }
 }
