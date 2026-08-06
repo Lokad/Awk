@@ -89,6 +89,22 @@ internal sealed class AwkUtf8Builder : IDisposable
         return this;
     }
 
+    public AwkUtf8Builder Append(byte value, int count)
+    {
+        ThrowIfDisposed();
+        if (count < 0)
+            throw new ArgumentOutOfRangeException(nameof(count));
+
+        if (count == 0)
+            return this;
+
+        var nextLength = CheckedLength(Length, count);
+        EnsureCapacity(nextLength);
+        _buffer.AsSpan(Length, count).Fill(value);
+        Length = nextLength;
+        return this;
+    }
+
     public AwkText CopyToAwkText() =>
         CopyToAwkText(AwkRuntimeCounters.Disabled);
 

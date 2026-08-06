@@ -50,9 +50,8 @@ internal sealed class AwkText : IEquatable<AwkText>
             return Empty;
 
         ArgumentNullException.ThrowIfNull(governor);
-        var bytes = AllocateOwnedBytes(Encoding.UTF8.GetByteCount(text), governor);
-        counters.RecordUtf8Encode();
-        Encoding.UTF8.GetBytes(text.AsSpan(), bytes.AsSpan());
+        var bytes = AllocateOwnedBytes(AwkUtf8Codec.GetEncodedByteCount(text), governor);
+        AwkUtf8Codec.Encode(text, bytes, counters);
         counters.RecordValueCreated();
         counters.RecordAwkTextAllocation(bytes.Length);
         return new AwkText(bytes);
@@ -270,20 +269,14 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public AwkText CopyRuneSlice(int start, int length)
     {
-        if (start < 0 || start > RuneLength)
-            throw new ArgumentOutOfRangeException(nameof(start));
-
-        if (length < 0 || start > RuneLength - length)
-            throw new ArgumentOutOfRangeException(nameof(length));
+        ResolveRuneByteRange(start, length, out var byteStart, out var byteEnd);
 
         if (length == 0)
             return Empty;
 
-        if (start == 0 && length == RuneLength)
+        if (byteStart == 0 && byteEnd == ByteLength)
             return this;
 
-        var byteStart = GetRuneByteOffset(start);
-        var byteEnd = GetRuneByteOffset(start + length);
         return FromTrustedOwnedBytes(AsSpan()[byteStart..byteEnd].ToArray());
     }
 
@@ -294,20 +287,14 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkMemoryGovernor governor)
     {
         ArgumentNullException.ThrowIfNull(governor);
-        if (start < 0 || start > RuneLength)
-            throw new ArgumentOutOfRangeException(nameof(start));
-
-        if (length < 0 || start > RuneLength - length)
-            throw new ArgumentOutOfRangeException(nameof(length));
+        ResolveRuneByteRange(start, length, out var byteStart, out var byteEnd);
 
         if (length == 0)
             return Empty;
 
-        if (start == 0 && length == RuneLength)
+        if (byteStart == 0 && byteEnd == ByteLength)
             return this;
 
-        var byteStart = GetRuneByteOffset(start);
-        var byteEnd = GetRuneByteOffset(start + length);
         var byteLength = byteEnd - byteStart;
         var bytes = AllocateOwnedBytes(byteLength, governor);
         AsSpan()[byteStart..byteEnd].CopyTo(bytes);
@@ -427,26 +414,46 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public override string ToString() => AsString();
 
-    private int GetRuneByteOffset(int runeIndex)
+    private void ResolveRuneByteRange(int start, int length, out int byteStart, out int byteEnd)
     {
-        if (runeIndex == 0)
-            return 0;
+        if (start < 0)
+            throw new ArgumentOutOfRangeException(nameof(start));
 
-        if (runeIndex == RuneLength)
-            return ByteLength;
+        if (length < 0)
+            throw new ArgumentOutOfRangeException(nameof(length));
 
         var span = AsSpan();
         var offset = 0;
-        for (var index = 0; index < runeIndex; index++)
+        var runeIndex = 0;
+        var endRuneIndex = (long)start + length;
+        byteStart = -1;
+        byteEnd = -1;
+        while (true)
         {
+            if (runeIndex == start)
+                byteStart = offset;
+
+            if (runeIndex == endRuneIndex)
+            {
+                byteEnd = offset;
+                return;
+            }
+
+            if (offset == span.Length)
+                break;
+
             var status = Rune.DecodeFromUtf8(span[offset..], out _, out var consumed);
             if (status != OperationStatus.Done)
                 throw new InvalidOperationException("AwkText contains invalid UTF-8.");
 
             offset += consumed;
+            runeIndex++;
         }
 
-        return offset;
+        if (byteStart < 0)
+            throw new ArgumentOutOfRangeException(nameof(start));
+
+        throw new ArgumentOutOfRangeException(nameof(length));
     }
 
     private static AwkText CreateTrustedOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)

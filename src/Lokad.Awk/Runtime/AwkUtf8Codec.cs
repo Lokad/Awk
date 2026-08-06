@@ -73,6 +73,21 @@ internal static class AwkUtf8Codec
         return EncodeOwned(text);
     }
 
+    public static int GetEncodedByteCount(ReadOnlySpan<char> text) =>
+        StrictUtf8.GetByteCount(text);
+
+    public static int Encode(
+        ReadOnlySpan<char> text,
+        Span<byte> destination,
+        AwkRuntimeCounters counters)
+    {
+        if (text.IsEmpty)
+            return 0;
+
+        counters.RecordUtf8Encode();
+        return StrictUtf8.GetBytes(text, destination);
+    }
+
     public static ReadOnlyMemory<byte> EncodeLine(string text)
     {
         if (string.IsNullOrEmpty(text))

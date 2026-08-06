@@ -63,6 +63,21 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task Awk_RegexReplacementEncodingDoesNotScaleWithLiteralLength()
+    {
+        var shortRun = await RunAsync(["BEGIN{s=\"x\"; gsub(/x/,\"é&\",s); print s}"]);
+        var longRun = await RunAsync(
+            ["BEGIN{s=\"x\"; gsub(/x/,\"" + new string('é', 64) + "&\",s); print s}"]);
+
+        Assert.Equal(0, shortRun.ExitCode);
+        Assert.Equal(0, longRun.ExitCode);
+        Assert.Equal("éx\n", shortRun.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(new string('é', 64) + "x\n", longRun.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(shortRun.Counters.Utf8Encodes, longRun.Counters.Utf8Encodes);
+        Assert.Equal(shortRun.Counters.AwkTextAllocations, longRun.Counters.AwkTextAllocations);
+    }
+
+    [Fact]
     public async Task Awk_BenchmarkCountersCoverNonAsciiByteModePolicy()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(

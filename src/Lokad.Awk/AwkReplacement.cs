@@ -2,53 +2,69 @@ namespace Lokad.Awk;
 
 internal static class AwkReplacement
 {
-    public static AwkText Expand(
+    public static void AppendExpanded(
         AwkRegexMatch match,
-        string replacement,
+        AwkText replacement,
         AwkReplacementMode mode,
-        AwkRuntimeState state)
+        AwkUtf8Builder builder)
     {
-        if (replacement.Length == 0)
-            return AwkText.Empty;
+        if (replacement.ByteLength == 0)
+            return;
 
-        return mode == AwkReplacementMode.Substitution
-            ? ExpandSubstitution(match, replacement, state)
-            : ExpandGensub(match, replacement, state);
+        if (mode == AwkReplacementMode.Substitution)
+            AppendSubstitution(match, replacement.AsSpan(), builder);
+        else
+            AppendGensub(match, replacement.AsSpan(), builder);
     }
 
-    private static AwkText ExpandGensub(AwkRegexMatch match, string replacement, AwkRuntimeState state)
+    private static void AppendGensub(
+        AwkRegexMatch match,
+        ReadOnlySpan<byte> replacement,
+        AwkUtf8Builder builder)
     {
-        using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor, replacement.Length + match.Value.ByteLength);
         for (var index = 0; index < replacement.Length; index++)
         {
             var current = replacement[index];
-            if (current == '&')
+            if (current == (byte)'&')
             {
                 builder.Append(match.Value);
                 continue;
             }
 
-            if (current != '\\' || index + 1 >= replacement.Length)
+            if (current != (byte)'\\')
             {
-                AppendString(builder, current.ToString(), state);
+                var literalStart = index;
+                while (index + 1 < replacement.Length &&
+                    replacement[index + 1] is not (byte)'&' and not (byte)'\\')
+                {
+                    index++;
+                }
+
+                builder.Append(replacement.Slice(literalStart, index - literalStart + 1));
+                continue;
+            }
+
+            if (index + 1 >= replacement.Length)
+            {
+                builder.Append((byte)'\\');
                 continue;
             }
 
             index++;
             var escaped = replacement[index];
-            if (escaped == '&')
+            if (escaped == (byte)'&')
             {
-                AppendString(builder, "&", state);
+                builder.Append((byte)'&');
                 continue;
             }
 
-            if (escaped == '\\')
+            if (escaped == (byte)'\\')
             {
-                AppendString(builder, "\\", state);
+                builder.Append((byte)'\\');
                 continue;
             }
 
-            if (char.IsDigit(escaped))
+            if (escaped is >= (byte)'0' and <= (byte)'9')
             {
                 var groupIndex = escaped - '0';
                 if (groupIndex < match.Groups.Count && match.Groups[groupIndex].Success)
@@ -57,59 +73,56 @@ internal static class AwkReplacement
                 continue;
             }
 
-            AppendString(builder, escaped.ToString(), state);
+            builder.Append(escaped);
         }
-
-        return builder.CopyToAwkText(state.Counters);
     }
 
-    private static AwkText ExpandSubstitution(AwkRegexMatch match, string replacement, AwkRuntimeState state)
+    private static void AppendSubstitution(
+        AwkRegexMatch match,
+        ReadOnlySpan<byte> replacement,
+        AwkUtf8Builder builder)
     {
-        using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor, replacement.Length + match.Value.ByteLength);
         for (var index = 0; index < replacement.Length; index++)
         {
             var current = replacement[index];
-            if (current == '&')
+            if (current == (byte)'&')
             {
                 builder.Append(match.Value);
                 continue;
             }
 
-            if (current != '\\')
+            if (current != (byte)'\\')
             {
-                AppendString(builder, current.ToString(), state);
+                var literalStart = index;
+                while (index + 1 < replacement.Length &&
+                    replacement[index + 1] is not (byte)'&' and not (byte)'\\')
+                {
+                    index++;
+                }
+
+                builder.Append(replacement.Slice(literalStart, index - literalStart + 1));
                 continue;
             }
 
             var slashStart = index;
-            while (index < replacement.Length && replacement[index] == '\\')
+            while (index < replacement.Length && replacement[index] == (byte)'\\')
                 index++;
 
             var slashCount = index - slashStart;
-            if (index < replacement.Length && replacement[index] == '&')
+            if (index < replacement.Length && replacement[index] == (byte)'&')
             {
-                AppendString(builder, new string('\\', slashCount / 2), state);
+                builder.Append((byte)'\\', slashCount / 2);
                 if (slashCount % 2 == 0)
                     builder.Append(match.Value);
                 else
-                    AppendString(builder, "&", state);
+                    builder.Append((byte)'&');
 
                 continue;
             }
 
-            AppendString(builder, new string('\\', slashCount), state);
+            builder.Append((byte)'\\', slashCount);
             index--;
         }
-
-        return builder.CopyToAwkText(state.Counters);
-    }
-
-    private static void AppendString(AwkUtf8Builder builder, string text, AwkRuntimeState state)
-    {
-        if (text.Length == 0)
-            return;
-
-        builder.Append(AwkText.FromString(text, state.Counters, state.MemoryGovernor));
     }
 }
 

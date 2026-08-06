@@ -58,6 +58,7 @@ internal static class AwkRegexSubstitution
             return input;
         }
 
+        var replacementText = AwkText.FromString(replacement, state.Counters, state.MemoryGovernor);
         using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor, input.ByteLength);
         var position = 0;
         var seen = 0;
@@ -71,7 +72,7 @@ internal static class AwkRegexSubstitution
                 continue;
 
             builder.Append(input.AsSpan().Slice(position, match.ByteIndex - position));
-            builder.Append(AwkReplacement.Expand(match, replacement, mode, state));
+            AwkReplacement.AppendExpanded(match, replacementText, mode, builder);
             position = match.ByteIndex + match.ByteLength;
             replacementCount++;
 
@@ -101,9 +102,10 @@ internal static class AwkRegexSubstitution
             return input;
         }
 
+        var replacementText = AwkText.FromString(replacement, state.Counters, state.MemoryGovernor);
         using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor, input.ByteLength);
         builder.Append(input.AsSpan().Slice(0, match.ByteIndex));
-        builder.Append(AwkReplacement.Expand(match, replacement, mode, state));
+        AwkReplacement.AppendExpanded(match, replacementText, mode, builder);
         builder.Append(input.AsSpan().Slice(match.ByteIndex + match.ByteLength));
         replacementCount = 1;
         return builder.CopyToAwkText(state.Counters);
