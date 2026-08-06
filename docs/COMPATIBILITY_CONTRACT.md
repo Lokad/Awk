@@ -17,6 +17,14 @@ effects. The current policy is to reject dynamic loading, namespaces, strongly t
 constants, indirect function calls, arrays of arrays, unsupported special files, pipes, and
 coprocesses with exact awk-shaped diagnostics.
 
+## Text And Locale Compatibility
+
+Command-line compatibility is scoped to valid UTF-8 workflows. Host byte payloads remain subject
+to strict UTF-8 validation even when `LC_ALL=C`, `LANG=C`, or `--characters-as-bytes` is present.
+Locale values are awk-visible environment data, not decoder selectors. Supporting byte-oriented C
+locale input would require a separate raw-byte runtime representation and host contract rather
+than an ambient or replacement-character decoding fallback.
+
 ## Cancellation
 
 Cancellation is cooperative and checked in pure CPU loops, regex enumeration, input streaming,

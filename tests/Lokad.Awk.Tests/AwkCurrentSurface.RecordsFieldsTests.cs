@@ -51,6 +51,40 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     }
 
     [Fact]
+    public async Task Awk_LcAllCDoesNotRelaxStrictUtf8Ingress()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.SetStandardInputBytes([0x63, 0x61, 0x66, 0xE9, 0x0A]);
+        var invocation = AwkTestHarness.BuildInvocation(
+            "awk",
+            ["{print $0}"],
+            [new AwkEnvironmentVariable("LC_ALL", "C")]);
+
+        var tool = Assert.IsType<Awk>(Awk.TryParse(invocation));
+        var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
+
+        AssertInvalidUtf8Failure(exitCode, fileSystem);
+    }
+
+    [Fact]
+    public async Task Awk_LcAllCStillAcceptsValidNonAsciiUtf8()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.SetStandardInput("café\n");
+        var invocation = AwkTestHarness.BuildInvocation(
+            "awk",
+            ["{print $0}"],
+            [new AwkEnvironmentVariable("LC_ALL", "C")]);
+
+        var tool = Assert.IsType<Awk>(Awk.TryParse(invocation));
+        var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("café\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
     public async Task Awk_InvalidUtf8FromExplicitInputFileFailsWithDiagnostic()
     {
         var fileSystem = new MockFileSystem();

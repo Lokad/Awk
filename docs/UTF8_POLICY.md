@@ -13,6 +13,12 @@ awk: invalid UTF-8 input
 
 The diagnostic is emitted as UTF-8 bytes with a trailing newline.
 
+Locale environment variables do not select a different ingress codec. `LC_ALL=C`, `LANG=C`, and
+other locale values remain visible through `ENVIRON`, but invalid byte sequences are rejected in
+the same way under every locale. Likewise, `--characters-as-bytes` changes the units used by
+supported string and regex operations over valid UTF-8; it does not admit arbitrary byte strings.
+This intentionally differs from byte-oriented awk implementations operating in the C locale.
+
 ## Managed Host Text
 
 Command-line values, `-v` assignments, `ARGV`, `ENVIRON`, source paths, `AWKPATH`, and current

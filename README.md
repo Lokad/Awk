@@ -43,7 +43,9 @@ metrics; real opcode lowering remains an internal rollout item.
 Compatibility note: `--characters-as-bytes` keeps awk string units in UTF-8 bytes for valid text,
 but `FS=""` in byte mode is intentionally limited to ASCII input. Non-ASCII valid UTF-8 would
 produce invalid one-byte fields, so Lokad.Awk reports an unsupported-policy diagnostic unless a
-future raw-byte field representation is added. See [docs/UTF8_POLICY.md](docs/UTF8_POLICY.md).
+future raw-byte field representation is added. Invalid raw input is rejected even under
+`LC_ALL=C`; locale values do not select a different ingress codec. See
+[docs/UTF8_POLICY.md](docs/UTF8_POLICY.md).
 
 ## Design
 
