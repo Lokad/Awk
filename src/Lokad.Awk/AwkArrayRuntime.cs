@@ -707,42 +707,75 @@ internal sealed class AwkArrayRuntime
         IAwkUserFunction function,
         AwkEvaluationContext context)
     {
-        for (var index = 1; index < entries.Length; index++)
+        if (entries.Length < 2)
+            return;
+
+        var comparatorArguments = new AwkValue[4];
+        var buffer = new KeyValuePair<AwkArrayKey, AwkText>[entries.Length];
+        var source = entries;
+        var destination = buffer;
+        var runLength = 1;
+        while (runLength < entries.Length)
         {
-            var current = entries[index];
-            var insertAt = index - 1;
-            while (insertAt >= 0 &&
-                await CompareWithUserFunctionAsync(function, context, entries[insertAt], current).ConfigureAwait(false) > 0)
+            for (var start = 0; start < entries.Length;)
             {
-                entries[insertAt + 1] = entries[insertAt];
-                insertAt--;
+                var middle = (int)Math.Min((long)start + runLength, entries.Length);
+                var end = (int)Math.Min((long)middle + runLength, entries.Length);
+                await MergeRunsAsync(source, destination, start, middle, end).ConfigureAwait(false);
+                start = end;
             }
 
-            entries[insertAt + 1] = current;
+            (source, destination) = (destination, source);
+            runLength = runLength > entries.Length / 2 ? entries.Length : runLength * 2;
         }
-    }
 
-    private static async ValueTask<int> CompareWithUserFunctionAsync(
-        IAwkUserFunction function,
-        AwkEvaluationContext context,
-        KeyValuePair<AwkArrayKey, AwkText> left,
-        KeyValuePair<AwkArrayKey, AwkText> right)
-    {
-        var state = context.State;
-        var value = await function.InvokeValuesAsync(
-                [
-                    state.CreateByteTextValue(left.Key.ByteText),
-                    state.CreateByteTextValue(left.Value),
-                    state.CreateByteTextValue(right.Key.ByteText),
-                    state.CreateByteTextValue(right.Value)
-                ],
-                context)
-            .ConfigureAwait(false);
-        var number = value.AsNumber();
-        if (number < 0)
-            return -1;
+        if (!ReferenceEquals(source, entries))
+            Array.Copy(source, entries, entries.Length);
 
-        return number > 0 ? 1 : 0;
+        async ValueTask MergeRunsAsync(
+            KeyValuePair<AwkArrayKey, AwkText>[] mergeSource,
+            KeyValuePair<AwkArrayKey, AwkText>[] mergeDestination,
+            int start,
+            int middle,
+            int end)
+        {
+            var leftIndex = start;
+            var rightIndex = middle;
+            var destinationIndex = start;
+            while (leftIndex < middle && rightIndex < end)
+            {
+                var comparison = await CompareAsync(
+                        mergeSource[leftIndex],
+                        mergeSource[rightIndex])
+                    .ConfigureAwait(false);
+                mergeDestination[destinationIndex++] = comparison <= 0
+                    ? mergeSource[leftIndex++]
+                    : mergeSource[rightIndex++];
+            }
+
+            while (leftIndex < middle)
+                mergeDestination[destinationIndex++] = mergeSource[leftIndex++];
+
+            while (rightIndex < end)
+                mergeDestination[destinationIndex++] = mergeSource[rightIndex++];
+        }
+
+        async ValueTask<int> CompareAsync(
+            KeyValuePair<AwkArrayKey, AwkText> left,
+            KeyValuePair<AwkArrayKey, AwkText> right)
+        {
+            var state = context.State;
+            comparatorArguments[0] = state.CreateByteTextValue(left.Key.ByteText);
+            comparatorArguments[1] = state.CreateByteTextValue(left.Value);
+            comparatorArguments[2] = state.CreateByteTextValue(right.Key.ByteText);
+            comparatorArguments[3] = state.CreateByteTextValue(right.Value);
+            var value = await function.InvokeValuesAsync(comparatorArguments, context).ConfigureAwait(false);
+            var number = value.AsNumber();
+            if (number < 0)
+                return -1;
+
+            return number > 0 ? 1 : 0;
+        }
     }
 
     private static double ResolveNumber(AwkText value) =>
@@ -775,6 +808,7 @@ internal sealed class AwkArrayRuntime
         bytes = CheckedAdd(bytes, AwkRuntimeMemory.EstimateKeyValuePairArrayBytes(count));
         bytes = CheckedAdd(bytes, AwkRuntimeMemory.EstimateKeyValuePairArrayBytes(count));
         bytes = CheckedAdd(bytes, AwkRuntimeMemory.EstimateReferenceArrayBytes(count));
+        bytes = CheckedAdd(bytes, AwkRuntimeMemory.EstimateAwkValueArrayBytes(4));
         return bytes;
     }
 

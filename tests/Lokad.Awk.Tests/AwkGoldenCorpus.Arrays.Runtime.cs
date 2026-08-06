@@ -165,6 +165,12 @@ internal static partial class AwkGoldenCorpus
             "2 10 2\n"),
 
         Passing(
+            "asort-user-comparator-has-logarithmic-comparison-bound",
+            ["function cmp(i1,v1,i2,v2){calls++; return v1-v2} BEGIN{for(i=128;i>=1;i--)a[i]=i; n=asort(a,b,\"cmp\"); if(calls>896) exit 9; print n, b[1], b[n]}"],
+            [],
+            "128 1 128\n"),
+
+        Passing(
             "asort-comparator-statement-body",
             ["function cmp(i1,v1,i2,v2, d){d=length(v1)-length(v2); if(d) return d; return i1-i2} BEGIN{a[2]=\"bb\"; a[1]=\"a\"; a[3]=\"cc\"; n=asort(a,b,\"cmp\"); print n, b[1], b[2], b[3]}"],
             [],
