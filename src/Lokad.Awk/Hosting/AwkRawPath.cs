@@ -46,7 +46,13 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
     public static bool TryParse(string? s, [NotNullWhen(true)] out AwkRawPath? result) =>
         TryParse(s, null, out result);
 
-    public AwkPath ToAbsolute(AwkPath current, bool jail = false)
+    public AwkPath ToAbsolute(AwkPath current) =>
+        ResolveAbsolute(current, confineToCurrent: false);
+
+    public AwkPath ToAbsoluteWithin(AwkPath current) =>
+        ResolveAbsolute(current, confineToCurrent: true);
+
+    private AwkPath ResolveAbsolute(AwkPath current, bool confineToCurrent)
     {
         ArgumentNullException.ThrowIfNull(current);
         var combined = Raw.StartsWith('/')
@@ -133,7 +139,7 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
 
         var result = new AwkPath(resultPath);
 
-        if (jail && !current.IsEqualToOrParentOf(result))
+        if (confineToCurrent && !current.IsEqualToOrParentOf(result))
         {
             throw new AwkPathException(
                 $"Cannot resolve '{Raw}': result '{resultPath}' escapes jail '{current.Path}'.");

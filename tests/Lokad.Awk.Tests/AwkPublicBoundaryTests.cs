@@ -45,6 +45,19 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
+    public void AwkPaths_UseOneCanonicalResolutionPolicy()
+    {
+        var current = new AwkPath("/work/input");
+
+        Assert.Equal("/work/output/data", AwkRawPath.Parse("../output/./data").ToAbsolute(current).Path);
+        Assert.Equal(
+            "/work/output/data",
+            AwkPathResolution.ResolveAbsolute("../output/./data", current.Path));
+        Assert.Throws<AwkPathException>(() => AwkRawPath.Parse("../output").ToAbsoluteWithin(current));
+        Assert.Throws<AwkPathException>(() => AwkPathResolution.ResolveAbsolute("../../..", current.Path));
+    }
+
+    [Fact]
     public void AwkOperationError_RequiresTextAndDefaultsToAHostSafeMessage()
     {
         Assert.Throws<ArgumentException>(() => new AwkOperationError(string.Empty));

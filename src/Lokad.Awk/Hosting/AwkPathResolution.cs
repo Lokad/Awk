@@ -49,57 +49,12 @@ public static class AwkPathResolution
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(currentDirectory);
         var baseDirectory = string.IsNullOrEmpty(currentDirectory) || currentDirectory[0] != '/'
-            ? "/"
-            : currentDirectory;
+            ? AwkPath.Root
+            : new AwkPath(currentDirectory);
 
         if (string.IsNullOrEmpty(path))
-        {
-            return baseDirectory;
-        }
+            return baseDirectory.Path;
 
-        var segments = new List<string>();
-        if (path[0] != '/')
-        {
-            AppendSegments(baseDirectory.AsSpan(), segments);
-        }
-
-        AppendSegments(path.AsSpan(), segments);
-        return BuildAbsolutePath(segments);
+        return AwkRawPath.Parse(path).ToAbsolute(baseDirectory).Path;
     }
-
-    private static void AppendSegments(ReadOnlySpan<char> path, List<string> segments)
-    {
-        var start = 0;
-        for (var index = 0; index <= path.Length; index++)
-        {
-            if (index < path.Length && path[index] != '/')
-            {
-                continue;
-            }
-
-            if (index > start)
-            {
-                var segment = path.Slice(start, index - start);
-                if (segment.Length == 1 && segment[0] == '.')
-                {
-                }
-                else if (segment.Length == 2 && segment[0] == '.' && segment[1] == '.')
-                {
-                    if (segments.Count > 0)
-                    {
-                        segments.RemoveAt(segments.Count - 1);
-                    }
-                }
-                else
-                {
-                    segments.Add(segment.ToString());
-                }
-            }
-
-            start = index + 1;
-        }
-    }
-
-    private static string BuildAbsolutePath(IReadOnlyList<string> segments) =>
-        segments.Count == 0 ? "/" : "/" + string.Join("/", segments);
 }
