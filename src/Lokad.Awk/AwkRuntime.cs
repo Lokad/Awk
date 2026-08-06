@@ -86,9 +86,9 @@ internal static class AwkRuntime
             runtimeOptions.Limits);
         var actionExecutor = new AwkRuntimeActionExecutor(program, executableProgram);
         var inputScheduler = new AwkInputScheduler(host, invocation, actionExecutor, state, io, cancellationToken);
-        var inputPreparation = await inputScheduler.TryPrepareFirstMainInputAsync().ConfigureAwait(false);
         try
         {
+            var inputPreparation = await inputScheduler.TryPrepareFirstMainInputAsync().ConfigureAwait(false);
             var beginFlow = await actionExecutor.ExecuteBeginActionsAsync(state, io).ConfigureAwait(false);
 
             if (beginFlow != AwkStatementFlow.ExitProgram && !inputScheduler.HasExplicitInputSource)
@@ -101,17 +101,23 @@ internal static class AwkRuntime
             }
 
             await actionExecutor.ExecuteEndActionsAsync(state, io).ConfigureAwait(false);
+            await inputScheduler.CloseRemainingDescriptorsAsync().ConfigureAwait(false);
             await io.CloseAsync().ConfigureAwait(false);
         }
         catch (AwkRuntimeException exception)
         {
-            await io.CloseAsync().ConfigureAwait(false);
+            await CleanupAfterFailureAsync(inputScheduler, io).ConfigureAwait(false);
             var failure = AwkDiagnostics.Runtime(exception);
             runtimeOptions.Counters.RecordHostCall();
             runtimeOptions.Counters.RecordOutputBytes(failure.Message.Length);
             _ = await host.AppendAsync(stdio.StdErr, failure.Message, cancellationToken)
                 .ConfigureAwait(false);
             return failure.ExitCode.Value;
+        }
+        catch
+        {
+            await CleanupAfterFailureAsync(inputScheduler, io).ConfigureAwait(false);
+            throw;
         }
 
         if (state.TryGetExitCode(out var exitCode))
@@ -121,6 +127,12 @@ internal static class AwkRuntime
             return AwkDiagnostics.SuccessExitCode.Value;
 
         return AwkDiagnostics.SuccessExitCode.Value;
+    }
+
+    private static async Task CleanupAfterFailureAsync(AwkInputScheduler inputScheduler, AwkIo io)
+    {
+        await inputScheduler.CloseRemainingDescriptorsForCleanupAsync().ConfigureAwait(false);
+        await io.CloseForCleanupAsync().ConfigureAwait(false);
     }
 
 }

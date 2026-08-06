@@ -81,6 +81,7 @@ internal static class AwkScriptFileReader
         if (!opened.Success)
             return AwkScriptTextReadResult.MissingText;
 
+        var readCompleted = false;
         try
         {
             var builder = new StringBuilder();
@@ -103,7 +104,9 @@ internal static class AwkScriptFileReader
                 }
             }
 
-            return AwkScriptTextReadResult.FoundText(builder.ToString());
+            var result = AwkScriptTextReadResult.FoundText(builder.ToString());
+            readCompleted = true;
+            return result;
         }
         catch (AwkHostReadException exception)
         {
@@ -113,7 +116,14 @@ internal static class AwkScriptFileReader
         }
         finally
         {
-            await host.CloseDescriptorAsync(opened.FileDescriptor, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception) when (!readCompleted)
+            {
+                // A cleanup failure must not replace a read failure or cancellation.
+            }
         }
     }
 }

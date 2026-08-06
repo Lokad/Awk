@@ -18,6 +18,8 @@ public sealed class MockFileSystem : IAwkHost
 
     public Action? AfterReadLines { get; set; }
 
+    public Action? AfterCloseDescriptor { get; set; }
+
     public Func<AwkFileDescriptor, int, AwkReadResult>? ReadLinesOverride { get; set; }
 
     public int OpenFileCount => _descriptors.OpenFileCount;
@@ -129,7 +131,9 @@ public sealed class MockFileSystem : IAwkHost
         if (descriptor.IsDevNull)
             return Task.FromResult(true);
 
-        return Task.FromResult(_descriptors.Close(descriptor));
+        var closed = _descriptors.Close(descriptor);
+        AfterCloseDescriptor?.Invoke();
+        return Task.FromResult(closed);
     }
 
     public Task<IReadOnlyList<AwkDirectoryEntry>> ListDirectoryAsync(

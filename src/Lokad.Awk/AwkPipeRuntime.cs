@@ -40,19 +40,21 @@ internal sealed class AwkPipeRuntime(
 
     public async Task<AwkPipeCloseResult> CloseOutputAsync(string command)
     {
-        if (!_outputPipes.Remove(command, out var pipe))
+        if (!_outputPipes.TryGetValue(command, out var pipe))
             return AwkPipeCloseResult.NotOpened;
 
         var exitCode = await pipe.CloseAsync(host).ConfigureAwait(false);
+        _outputPipes.Remove(command);
         return AwkPipeCloseResult.Closed(exitCode);
     }
 
     public async Task<AwkPipeCloseResult> CloseInputAsync(string command)
     {
-        if (!_inputPipes.Remove(command, out var pipe))
+        if (!_inputPipes.TryGetValue(command, out var pipe))
             return AwkPipeCloseResult.NotOpened;
 
         var exitCode = await pipe.CloseAsync(host).ConfigureAwait(false);
+        _inputPipes.Remove(command);
         return AwkPipeCloseResult.Closed(exitCode);
     }
 
@@ -75,6 +77,22 @@ internal sealed class AwkPipeRuntime(
         }
     }
 
+    public async Task CloseAllForCleanupAsync()
+    {
+        var outputPipes = new AwkOutputPipe[_outputPipes.Count];
+        _outputPipes.Values.CopyTo(outputPipes, 0);
+        var inputPipes = new AwkInputPipe[_inputPipes.Count];
+        _inputPipes.Values.CopyTo(inputPipes, 0);
+        _outputPipes.Clear();
+        _inputPipes.Clear();
+
+        for (var index = 0; index < outputPipes.Length; index++)
+            await outputPipes[index].CloseForCleanupAsync(host).ConfigureAwait(false);
+
+        for (var index = 0; index < inputPipes.Length; index++)
+            await inputPipes[index].CloseForCleanupAsync(host).ConfigureAwait(false);
+    }
+
     private async Task<AwkOutputPipe> GetOrOpenOutputPipeAsync(string command)
     {
         if (_outputPipes.TryGetValue(command, out var existing))
@@ -94,8 +112,7 @@ internal sealed class AwkPipeRuntime(
         }
         catch
         {
-            await host.CloseDescriptorAsync(descriptors.Write).ConfigureAwait(false);
-            await host.CloseDescriptorAsync(descriptors.Read).ConfigureAwait(false);
+            await CloseCreatedDescriptorsForCleanupAsync(descriptors).ConfigureAwait(false);
             throw;
         }
     }
@@ -117,9 +134,29 @@ internal sealed class AwkPipeRuntime(
         }
         catch
         {
-            await host.CloseDescriptorAsync(descriptors.Read).ConfigureAwait(false);
-            await host.CloseDescriptorAsync(descriptors.Write).ConfigureAwait(false);
+            await CloseCreatedDescriptorsForCleanupAsync(descriptors).ConfigureAwait(false);
             throw;
+        }
+    }
+
+    private async Task CloseCreatedDescriptorsForCleanupAsync(AwkPipeDescriptors descriptors)
+    {
+        try
+        {
+            await host.CloseDescriptorForCleanupAsync(descriptors.Read).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Preserve the failure that interrupted pipe creation.
+        }
+
+        try
+        {
+            await host.CloseDescriptorForCleanupAsync(descriptors.Write).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Preserve the failure that interrupted pipe creation.
         }
     }
 
@@ -133,6 +170,27 @@ internal sealed class AwkPipeRuntime(
         {
             await host.CloseDescriptorAsync(WriteDescriptor).ConfigureAwait(false);
             return await commandCompletion.ConfigureAwait(false);
+        }
+
+        public async Task CloseForCleanupAsync(AwkIoHostAdapter host)
+        {
+            try
+            {
+                await host.CloseDescriptorForCleanupAsync(WriteDescriptor).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Keep cleanup best-effort so the primary execution failure is preserved.
+            }
+
+            try
+            {
+                _ = await commandCompletion.ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Command completion cannot replace the primary execution failure.
+            }
         }
     }
 
@@ -149,6 +207,36 @@ internal sealed class AwkPipeRuntime(
             await host.CloseDescriptorAsync(readDescriptor).ConfigureAwait(false);
             await host.CloseDescriptorAsync(writeDescriptor).ConfigureAwait(false);
             return await commandCompletion.ConfigureAwait(false);
+        }
+
+        public async Task CloseForCleanupAsync(AwkIoHostAdapter host)
+        {
+            try
+            {
+                await host.CloseDescriptorForCleanupAsync(readDescriptor).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Keep closing the remaining pipe endpoint.
+            }
+
+            try
+            {
+                await host.CloseDescriptorForCleanupAsync(writeDescriptor).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Keep cleanup best-effort so the primary execution failure is preserved.
+            }
+
+            try
+            {
+                _ = await commandCompletion.ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Command completion cannot replace the primary execution failure.
+            }
         }
     }
 }

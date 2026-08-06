@@ -8,6 +8,8 @@
   to the default newline separator.
 - Separate host read failures from EOF through structured `AwkReadResult` outcomes; main input,
   `getline`, and source loading now surface failed reads instead of silently truncating input.
+- Close prepared inputs, explicit inputs, redirections, pipes, and source descriptors after runtime
+  failure or cancellation without allowing cleanup failures to replace the primary exception.
 - Accept parenthesized argument lists for `print` and `printf` statements.
 - Evaluate regex constants against the current record in scalar expression contexts.
 - Document and test that strict UTF-8 ingress is unchanged by C locale settings.

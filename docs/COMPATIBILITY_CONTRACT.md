@@ -30,7 +30,9 @@ than an ambient or replacement-character decoding fallback.
 Cancellation is cooperative and checked in pure CPU loops, regex enumeration, input streaming,
 output flushing, recursive functions, memory-governed allocation pressure, and executable-runtime
 fallback paths. Cancellation is not converted into an awk diagnostic; it remains a host-requested
-operation cancellation.
+operation cancellation. Descriptors already opened by the runtime are closed with a non-cancelled
+cleanup token before the cancellation is rethrown, and cleanup failures do not replace the original
+exception.
 
 ## Diagnostics
 

@@ -113,6 +113,12 @@ internal sealed class AwkIoHostAdapter(
         _ = await host.CloseDescriptorAsync(descriptor, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task CloseDescriptorForCleanupAsync(AwkFileDescriptor descriptor)
+    {
+        counters.RecordHostCall();
+        _ = await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
+    }
+
     public AsyncLineReader CreateLineReader(AwkFileDescriptor descriptor, int maxLineCount) =>
         new(host, descriptor, cancellationToken, maxLineCount, counters, resources);
 

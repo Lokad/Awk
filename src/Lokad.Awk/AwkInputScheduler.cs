@@ -13,6 +13,8 @@ internal sealed class AwkInputScheduler(
     AwkIo io,
     CancellationToken cancellationToken)
 {
+    private readonly HashSet<AwkFileDescriptor> _ownedDescriptors = [];
+
     public bool HasExplicitInputSource
     {
         get
@@ -35,16 +37,13 @@ internal sealed class AwkInputScheduler(
         if (!HasExplicitInputSource)
         {
             var standardInput = new PreparedMainInput(
-                host,
                 actionExecutor,
                 state,
                 io,
-                cancellationToken,
                 AwkInputPlanIndex.None,
                 AwkText.FromSourceLiteralString("-"),
                 "-",
                 new AwkArgvIndex(0),
-                invocation.Stdio.StdIn,
                 new AsyncLineReader(
                     host,
                     invocation.Stdio.StdIn,
@@ -52,7 +51,7 @@ internal sealed class AwkInputScheduler(
                     AwkIo.InputReadBatchLineCount,
                     state.Counters,
                     state.Resources),
-                closeDescriptor: false);
+                static () => Task.CompletedTask);
             io.BindMainInputReader(
                 standardInput.Reader,
                 async () => await standardInput.EnsureBeginFileAsync().ConfigureAwait(false));
@@ -69,16 +68,13 @@ internal sealed class AwkInputScheduler(
             if (runtimeArgument.IsStandardInput)
             {
                 var standardInput = new PreparedMainInput(
-                    host,
                     actionExecutor,
                     state,
                     io,
-                    cancellationToken,
                     AwkInputPlanIndex.FromZeroBased(index),
                     runtimeArgument.Text,
                     runtimeArgument.Value,
                     inputArgument.ArgvIndex,
-                    invocation.Stdio.StdIn,
                     new AsyncLineReader(
                         host,
                         invocation.Stdio.StdIn,
@@ -86,7 +82,7 @@ internal sealed class AwkInputScheduler(
                         AwkIo.InputReadBatchLineCount,
                         state.Counters,
                         state.Resources),
-                    closeDescriptor: false);
+                    static () => Task.CompletedTask);
                 io.BindMainInputReader(
                     standardInput.Reader,
                     async () => await standardInput.EnsureBeginFileAsync().ConfigureAwait(false));
@@ -100,17 +96,15 @@ internal sealed class AwkInputScheduler(
             if (!opened.Success)
                 return MainInputPreparation.DeferredFailureResult;
 
+            TrackOwnedDescriptor(opened.FileDescriptor);
             var prepared = new PreparedMainInput(
-                host,
                 actionExecutor,
                 state,
                 io,
-                cancellationToken,
                 AwkInputPlanIndex.FromZeroBased(index),
                 runtimeArgument.Text,
                 AwkUtf8Codec.Decode(path.Display),
                 inputArgument.ArgvIndex,
-                opened.FileDescriptor,
                 new AsyncLineReader(
                     host,
                     opened.FileDescriptor,
@@ -118,7 +112,7 @@ internal sealed class AwkInputScheduler(
                     AwkIo.InputReadBatchLineCount,
                     state.Counters,
                     state.Resources),
-                closeDescriptor: true);
+                async () => await CloseOwnedDescriptorAsync(opened.FileDescriptor).ConfigureAwait(false));
             io.BindMainInputReader(
                 prepared.Reader,
                 async () => await prepared.EnsureBeginFileAsync().ConfigureAwait(false));
@@ -223,11 +217,59 @@ internal sealed class AwkInputScheduler(
                 throw CreateOpenFailure(path, opened);
             }
 
+            TrackOwnedDescriptor(opened.FileDescriptor);
             var inputFlow = await ProcessInputDescriptorAsync(opened.FileDescriptor).ConfigureAwait(false);
-            state.Resources.RecordHostCall();
-            await host.CloseDescriptorAsync(opened.FileDescriptor, cancellationToken).ConfigureAwait(false);
+            await CloseOwnedDescriptorAsync(opened.FileDescriptor).ConfigureAwait(false);
             if (inputFlow == AwkStatementFlow.ExitProgram)
                 break;
+        }
+    }
+
+    public async Task CloseRemainingDescriptorsAsync()
+    {
+        var descriptors = new AwkFileDescriptor[_ownedDescriptors.Count];
+        _ownedDescriptors.CopyTo(descriptors);
+        for (var index = 0; index < descriptors.Length; index++)
+            await CloseOwnedDescriptorAsync(descriptors[index]).ConfigureAwait(false);
+    }
+
+    public async Task CloseRemainingDescriptorsForCleanupAsync()
+    {
+        var descriptors = new AwkFileDescriptor[_ownedDescriptors.Count];
+        _ownedDescriptors.CopyTo(descriptors);
+        _ownedDescriptors.Clear();
+        for (var index = 0; index < descriptors.Length; index++)
+        {
+            try
+            {
+                state.Counters.RecordHostCall();
+                _ = await host.CloseDescriptorAsync(descriptors[index], CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Cleanup must preserve the exception that interrupted execution.
+            }
+        }
+    }
+
+    private void TrackOwnedDescriptor(AwkFileDescriptor descriptor) =>
+        _ownedDescriptors.Add(descriptor);
+
+    private async Task CloseOwnedDescriptorAsync(AwkFileDescriptor descriptor)
+    {
+        if (!_ownedDescriptors.Remove(descriptor))
+            return;
+
+        try
+        {
+            state.Resources.RecordHostCall();
+            _ = await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch
+        {
+            _ownedDescriptors.Add(descriptor);
+            throw;
         }
     }
 
@@ -398,18 +440,15 @@ internal sealed class AwkInputScheduler(
     }
 
     internal sealed class PreparedMainInput(
-        IAwkHost host,
         AwkRuntimeActionExecutor actionExecutor,
         AwkRuntimeState state,
         AwkIo io,
-        CancellationToken cancellationToken,
         AwkInputPlanIndex inputPlanIndex,
         AwkText runtimeArgumentText,
         string fileName,
         AwkArgvIndex argvIndex,
-        AwkFileDescriptor descriptor,
         AsyncLineReader reader,
-        bool closeDescriptor)
+        Func<Task> closeAsync)
     {
         private bool _beginFileExecuted;
         private bool _closed;
@@ -443,12 +482,11 @@ internal sealed class AwkInputScheduler(
 
         public async Task CloseAsync()
         {
-            if (_closed || !closeDescriptor)
+            if (_closed)
                 return;
 
             _closed = true;
-            state.Resources.RecordHostCall();
-            await host.CloseDescriptorAsync(descriptor, cancellationToken).ConfigureAwait(false);
+            await closeAsync().ConfigureAwait(false);
         }
     }
 }

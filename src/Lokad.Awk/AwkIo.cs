@@ -299,6 +299,12 @@ internal sealed class AwkIo
         await _descriptors.CloseAllAsync(_host).ConfigureAwait(false);
     }
 
+    public async Task CloseForCleanupAsync()
+    {
+        await _pipes.CloseAllForCleanupAsync().ConfigureAwait(false);
+        await _descriptors.CloseAllForCleanupAsync(_host).ConfigureAwait(false);
+    }
+
     public async Task<AwkIoOperationResult> CloseAsync(string path)
     {
         var pipeClosed = await _pipes.CloseAnyAsync(path).ConfigureAwait(false);

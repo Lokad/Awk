@@ -51,10 +51,11 @@ internal sealed class AwkIoDescriptorTable
         AwkIoHostAdapter host,
         string key)
     {
-        if (!_outputFiles.Remove(key, out var descriptor))
+        if (!_outputFiles.TryGetValue(key, out var descriptor))
             return false;
 
         await host.CloseDescriptorAsync(descriptor).ConfigureAwait(false);
+        _outputFiles.Remove(key);
         _flushedOutputFiles.Add(key);
         return true;
     }
@@ -77,21 +78,56 @@ internal sealed class AwkIoDescriptorTable
         _inputFiles.Clear();
     }
 
+    public async Task CloseAllForCleanupAsync(AwkIoHostAdapter host)
+    {
+        var outputDescriptors = _outputFiles.Values.ToArray();
+        var inputDescriptors = _inputFiles.Values.Select(static input => input.Descriptor).ToArray();
+        _outputFiles.Clear();
+        _flushedOutputFiles.Clear();
+        _inputFiles.Clear();
+
+        for (var index = 0; index < outputDescriptors.Length; index++)
+        {
+            try
+            {
+                await host.CloseDescriptorForCleanupAsync(outputDescriptors[index]).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Continue closing the remaining descriptors while preserving the primary failure.
+            }
+        }
+
+        for (var index = 0; index < inputDescriptors.Length; index++)
+        {
+            try
+            {
+                await host.CloseDescriptorForCleanupAsync(inputDescriptors[index]).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Continue closing the remaining descriptors while preserving the primary failure.
+            }
+        }
+    }
+
     public async Task<bool> CloseAnyAsync(
         AwkIoHostAdapter host,
         string key)
     {
         var closed = false;
         _flushedOutputFiles.Remove(key);
-        if (_outputFiles.Remove(key, out var descriptor))
+        if (_outputFiles.TryGetValue(key, out var descriptor))
         {
             await host.CloseDescriptorAsync(descriptor).ConfigureAwait(false);
+            _outputFiles.Remove(key);
             closed = true;
         }
 
-        if (_inputFiles.Remove(key, out var input))
+        if (_inputFiles.TryGetValue(key, out var input))
         {
             await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
+            _inputFiles.Remove(key);
             closed = true;
         }
 
@@ -103,10 +139,11 @@ internal sealed class AwkIoDescriptorTable
         string key)
     {
         _flushedOutputFiles.Remove(key);
-        if (!_outputFiles.Remove(key, out var descriptor))
+        if (!_outputFiles.TryGetValue(key, out var descriptor))
             return false;
 
         await host.CloseDescriptorAsync(descriptor).ConfigureAwait(false);
+        _outputFiles.Remove(key);
         return true;
     }
 
@@ -114,10 +151,11 @@ internal sealed class AwkIoDescriptorTable
         AwkIoHostAdapter host,
         string key)
     {
-        if (!_inputFiles.Remove(key, out var input))
+        if (!_inputFiles.TryGetValue(key, out var input))
             return false;
 
         await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
+        _inputFiles.Remove(key);
         return true;
     }
 

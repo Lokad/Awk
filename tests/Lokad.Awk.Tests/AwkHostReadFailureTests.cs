@@ -70,6 +70,25 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     }
 
     [Fact]
+    public async Task Awk_ScriptReadCancellationStillClosesTheSourceDescriptor()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var host = new MockFileSystem
+        {
+            AfterReadLines = cancellation.Cancel,
+            ReadLinesOverride = (_, _) =>
+                AwkReadResult.FromContent("BEGIN{print 1}"u8.ToArray(), [], reachedEof: false)
+        };
+        host.AddFile("/script.awk", "unread");
+        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "-f", "/script.awk")));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => tool.ExecuteAsync(host, cancellation.Token));
+
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
+    [Fact]
     public void AwkReadResult_SeparatesEndOfFileFromFailure()
     {
         var endOfFile = AwkReadResult.EndOfFile;

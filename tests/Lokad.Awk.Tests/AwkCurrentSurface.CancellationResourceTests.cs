@@ -48,6 +48,81 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => tool.ExecuteAsync(fileSystem, cancellation.Token));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(0, fileSystem.OpenFileCount);
+    }
+
+    [Fact]
+    public async Task Awk_BeginExitClosesThePreparedInputDescriptor()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("/file.txt", "unread\n");
+        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+            "awk",
+            "BEGIN{exit}",
+            "/file.txt")));
+
+        var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(0, fileSystem.OpenFileCount);
+    }
+
+    [Fact]
+    public async Task Awk_CleanupFailureDoesNotReplaceCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var fileSystem = new MockFileSystem
+        {
+            AfterReadLines = cancellation.Cancel,
+            AfterCloseDescriptor = static () => throw new InvalidOperationException("cleanup failed")
+        };
+        fileSystem.AddFile("/file.txt", "one\ntwo\n");
+        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+            "awk",
+            "{print}",
+            "/file.txt")));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => tool.ExecuteAsync(fileSystem, cancellation.Token));
+
+        Assert.Equal(0, fileSystem.OpenFileCount);
+    }
+
+    [Fact]
+    public async Task Awk_CancellationClosesRedirectedOutputWithAnUncancelledToken()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var fileSystem = new MockFileSystem
+        {
+            AfterAppend = cancellation.Cancel
+        };
+        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+            "awk",
+            "BEGIN{print \"one\" > \"/out.txt\"; print \"unreached\"}")));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => tool.ExecuteAsync(fileSystem, cancellation.Token));
+
+        Assert.Equal(0, fileSystem.OpenFileCount);
+        Assert.Equal("one\n", fileSystem.ReadFile("/out.txt"));
+    }
+
+    [Fact]
+    public async Task Awk_RuntimeFailureClosesRedirectedOutputBeforeReportingTheDiagnostic()
+    {
+        var fileSystem = new MockFileSystem();
+        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+            "awk",
+            "BEGIN{print \"one\" > \"/out.txt\"; values[1]=1; print values}")));
+
+        var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
+
+        Assert.Equal(2, exitCode);
+        Assert.Equal(0, fileSystem.OpenFileCount);
+        Assert.Equal("one\n", fileSystem.ReadFile("/out.txt"));
+        Assert.Equal(
+            "awk: attempt to use array `values' in a scalar context\n",
+            fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Theory]
