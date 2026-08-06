@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Lokad.Awk;
@@ -219,6 +220,64 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: execution step limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task Awk_DefaultExecutionStepBudgetAllowsMeasuredStreamingWorkload()
+    {
+        const string program =
+            "{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}";
+        var input = BuildExecutionStepCrossingInput();
+        var compiled = await AwkExecutor.CompileAsync(
+            new MockFileSystem(),
+            BuildInvocation("awk", program),
+            CancellationToken.None);
+
+        var limitedFileSystem = new MockFileSystem();
+        limitedFileSystem.SetStandardInput(input);
+        var limitedExitCode = await compiled.ExecuteAsync(
+            limitedFileSystem,
+            CancellationToken.None,
+            CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(1_000_000)));
+
+        Assert.Equal(AwkExitCode.FatalError.Value, limitedExitCode);
+        Assert.Equal(string.Empty, limitedFileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(
+            "awk: execution step limit exceeded\n",
+            limitedFileSystem.GetOutput(AwkFileDescriptor.StdErr));
+
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var measuredOptions = new AwkRuntimeOptions(
+            () => new AwkUnixTimestampSeconds(0),
+            TimeZoneInfo.Utc,
+            new AwkRandomGenerator(),
+            counters,
+            AwkRuntimeLimits.CreateDefault());
+        var measuredFileSystem = new MockFileSystem();
+        measuredFileSystem.SetStandardInput(input);
+
+        var measuredExitCode = await compiled.ExecuteAsync(
+            measuredFileSystem,
+            CancellationToken.None,
+            measuredOptions);
+
+        Assert.Equal(0, measuredExitCode);
+        Assert.Equal("1111 2\n", measuredFileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(string.Empty, measuredFileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(counters.ExecutionSteps > 1_000_000);
+        Assert.True(counters.ExecutionSteps < AwkRuntimeLimits.DefaultMaxExecutionSteps);
+
+        var systemDefaultFileSystem = new MockFileSystem();
+        systemDefaultFileSystem.SetStandardInput(input);
+
+        var systemDefaultExitCode = await compiled.ExecuteAsync(
+            systemDefaultFileSystem,
+            CancellationToken.None,
+            AwkRuntimeOptions.CreateSystemDefault());
+
+        Assert.Equal(0, systemDefaultExitCode);
+        Assert.Equal("1111 2\n", systemDefaultFileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(string.Empty, systemDefaultFileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Fact]
@@ -885,6 +944,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var limits = AwkRuntimeLimits.CreateDefault();
 
+        Assert.Equal(10_000_000, AwkRuntimeLimits.DefaultMaxExecutionSteps);
+        Assert.Equal(10_000_000, AwkRuntimeOptions.DefaultMaxLoopIterations);
+        Assert.Equal(10_000_000, limits.MaxExecutionSteps);
+        Assert.Equal(10_000_000, AwkRuntimeOptions.CreateSystemDefault().Limits.MaxExecutionSteps);
         Assert.Equal(AwkRuntimeOptions.DefaultMaxLoopIterations, limits.MaxExecutionSteps);
         Assert.Equal(AwkRuntimeState.DefaultMaxArrayElements, limits.MaxArrayElements);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxFields, limits.MaxFields);
@@ -1026,6 +1089,24 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             limits);
+
+    private static string BuildExecutionStepCrossingInput()
+    {
+        const int recordCount = 100_000;
+        var builder = new StringBuilder(recordCount * 26);
+        for (var index = 0; index < recordCount; index++)
+        {
+            builder.Append("sku");
+            builder.Append(index % 101);
+            builder.Append(" region");
+            builder.Append(index % 11);
+            builder.Append(index % 2 == 0 ? " open " : " closed ");
+            builder.Append(index % 100);
+            builder.Append('\n');
+        }
+
+        return builder.ToString();
+    }
 
     private static AwkRuntimeState CreateStateWithMemoryLimit(int maxExecutionMemoryBytes) =>
         new(

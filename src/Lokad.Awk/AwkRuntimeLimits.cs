@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 internal sealed class AwkRuntimeLimits
 {
     public const long Unlimited = long.MaxValue;
-    public const int DefaultMaxExecutionSteps = 1_000_000;
+    public const int DefaultMaxExecutionSteps = 10_000_000;
     public const int DefaultMaxFunctionCallDepth = 64;
     public const int DefaultMaxArrayElements = 1_000_000;
     public const int DefaultMaxFields = 1_000_000;

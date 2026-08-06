@@ -28,7 +28,7 @@ These limits constrain awk execution without changing successful compatibility b
 - `MaxExecutionSteps`: interpreter expression evaluation, statement dispatch, and explicit
   loop-iteration budget for runaway scripts. The executable engine charges its documented VM
   budget-check points. A step is not an input record: ordinary scans consume multiple steps per
-  record according to their expression and statement shape. The current default is 1,000,000.
+  record according to their expression and statement shape. The current default is 10,000,000.
 - `MaxFunctionCallDepth`: user-function recursion depth.
 - `MaxArrayElements`: associative array elements.
 - `MaxFields`: current-record field materialization budget. The default matches
@@ -37,6 +37,13 @@ These limits constrain awk execution without changing successful compatibility b
 
 These defaults are intentionally generous or unlimited where ordinary awk scripts historically
 expect no fixed ceiling.
+
+The ten-million-step default is calibrated against deterministic Release counter-report workloads,
+including projection, multi-key filtering, associative aggregation, and two-file comparison. It
+keeps the runaway-script guard finite while allowing representative streaming work to cross the old
+one-million-step ceiling. Hosts and tests can still inject a tighter execution-step budget, and the
+other resource governors are unchanged. Outer cancellation and a Studio command timeout remain
+independent safeguards.
 
 `AwkRuntimeCounters.ExecutionSteps` exposes the charged total. The Release counter-report workflow
 in `docs/BENCHMARKS.md` includes deterministic streaming shapes so changes to the accounting model
