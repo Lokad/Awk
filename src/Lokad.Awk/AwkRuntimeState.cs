@@ -439,6 +439,23 @@ internal sealed class AwkRuntimeState
             environ);
     }
 
+    public IReadOnlyList<AwkEnvironmentVariable> SnapshotEnvironment()
+    {
+        Counters.RecordStringInteropFallback();
+        var values = _variables.SnapshotArrayByteTexts(EnvironmentArrayName);
+        var result = new List<AwkEnvironmentVariable>(values.Count);
+        foreach (var entry in values)
+        {
+            result.Add(new AwkEnvironmentVariable(
+                entry.Key.ByteText.AsString(Counters),
+                entry.Value.AsString(Counters)));
+        }
+
+        result.Sort(static (left, right) =>
+            StringComparer.Ordinal.Compare(left.Name, right.Name));
+        return result;
+    }
+
     public void InitializeProcInfo()
     {
         _variables.SetArrayStringValues(

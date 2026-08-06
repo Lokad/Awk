@@ -83,7 +83,8 @@ internal static class AwkRuntime
             stdio.StdErr,
             cancellationToken,
             runtimeOptions.Counters,
-            runtimeOptions.Limits);
+            runtimeOptions.Limits,
+            state.SnapshotEnvironment);
         var actionExecutor = new AwkRuntimeActionExecutor(program, executableProgram);
         var inputScheduler = new AwkInputScheduler(host, invocation, actionExecutor, state, io, cancellationToken);
         try

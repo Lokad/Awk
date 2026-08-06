@@ -5,6 +5,42 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 {
     [Fact]
+    public async Task Awk_PipeCommandReceivesCurrentEnvironmentAndInvocationDirectory()
+    {
+        var host = new TestOperationVisitor([]);
+        host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(
+            new AwkFileDescriptor(8),
+            new AwkFileDescriptor(9)));
+        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueAppendExitCode(0);
+        host.EnqueueCloseDescriptorResult(true);
+        var command = new AwkCommandInvocation(
+            "awk",
+            [
+                "BEGIN{ENVIRON[\"TOKEN\"]=\"child\"; ENVIRON[\"NEW\"]=\"created\"; " +
+                "delete ENVIRON[\"DROP\"]; ENVIRON[\"PWD\"]=\"/spoof\"; " +
+                "print \"payload\" | \"consumer\"; exit}"
+            ],
+            [
+                new AwkEnvironmentVariable("PWD", "/work"),
+                new AwkEnvironmentVariable("TOKEN", "parent"),
+                new AwkEnvironmentVariable("DROP", "remove")
+            ]);
+        var tool = Assert.IsType<Awk>(Awk.TryParse(command));
+
+        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        var child = Assert.Single(host.CommandInvocations);
+        Assert.Equal("/work", child.CurrentDirectory.Path);
+        Assert.Collection(
+            child.Environment,
+            variable => Assert.Equal(new AwkEnvironmentVariable("NEW", "created"), variable),
+            variable => Assert.Equal(new AwkEnvironmentVariable("PWD", "/spoof"), variable),
+            variable => Assert.Equal(new AwkEnvironmentVariable("TOKEN", "child"), variable));
+    }
+
+    [Fact]
     public async Task Awk_OutputPipeStreamsWritesToHostPipeDescriptor()
     {
         var pipeRead = new AwkFileDescriptor(10);

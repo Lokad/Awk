@@ -47,6 +47,29 @@ internal sealed class AwkIo
         CancellationToken cancellationToken,
         AwkRuntimeCounters counters,
         AwkRuntimeLimits limits)
+        : this(
+            host,
+            currentDirectory,
+            stdIn,
+            stdOut,
+            stdErr,
+            cancellationToken,
+            counters,
+            limits,
+            static () => Array.Empty<AwkEnvironmentVariable>())
+    {
+    }
+
+    internal AwkIo(
+        IAwkHost host,
+        AwkPath currentDirectory,
+        AwkFileDescriptor stdIn,
+        AwkFileDescriptor stdOut,
+        AwkFileDescriptor stdErr,
+        CancellationToken cancellationToken,
+        AwkRuntimeCounters counters,
+        AwkRuntimeLimits limits,
+        Func<IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment)
     {
         _host = new AwkIoHostAdapter(
             host,
@@ -55,6 +78,7 @@ internal sealed class AwkIo
             stdOut,
             stdErr,
             cancellationToken,
+            snapshotEnvironment,
             counters,
             new AwkRuntimeResourceMonitor(limits, counters));
         _maxOutputFiles = limits.MaxOutputFiles;

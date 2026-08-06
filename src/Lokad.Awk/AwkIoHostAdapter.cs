@@ -12,6 +12,7 @@ internal sealed class AwkIoHostAdapter(
     AwkFileDescriptor stdOut,
     AwkFileDescriptor stdErr,
     CancellationToken cancellationToken,
+    Func<IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
     AwkRuntimeCounters counters,
     AwkRuntimeResourceMonitor resources)
 {
@@ -80,7 +81,8 @@ internal sealed class AwkIoHostAdapter(
         new(
             commandName,
             Array.Empty<string>(),
-            Array.Empty<AwkEnvironmentVariable>(),
+            snapshotEnvironment(),
+            currentDirectory,
             stdIn,
             stdOut,
             stdErr);
@@ -89,7 +91,8 @@ internal sealed class AwkIoHostAdapter(
         new(
             commandName,
             Array.Empty<string>(),
-            Array.Empty<AwkEnvironmentVariable>(),
+            snapshotEnvironment(),
+            currentDirectory,
             stdIn,
             stdOut,
             stdErr);

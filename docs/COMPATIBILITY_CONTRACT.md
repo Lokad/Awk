@@ -14,8 +14,13 @@ through a current-surface runtime option.
 
 Unsupported features must fail deterministically before partially performing surprising host
 effects. The current policy is to reject dynamic loading, namespaces, strongly typed regex
-constants, indirect function calls, arrays of arrays, unsupported special files, pipes, and
-coprocesses with exact awk-shaped diagnostics.
+constants, indirect function calls, arrays of arrays, unsupported special files, and two-way
+coprocesses with exact awk-shaped diagnostics. One-way input and output pipes are host-mediated.
+
+When the runtime opens a pipe, the child `AwkCommandInvocation` retains the parent's resolved
+working directory and receives a deterministic snapshot of the current awk `ENVIRON` array. Thus
+assignments and deletions made before pipe creation are visible to the host, while changing the
+`PWD` string does not silently change the already-resolved working directory.
 
 ## Text And Locale Compatibility
 

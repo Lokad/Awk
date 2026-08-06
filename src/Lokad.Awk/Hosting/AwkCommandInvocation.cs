@@ -31,11 +31,30 @@ public sealed class AwkCommandInvocation
         AwkFileDescriptor stdIn,
         AwkFileDescriptor stdOut,
         AwkFileDescriptor stdErr)
+        : this(
+            commandName,
+            arguments,
+            environment,
+            AwkPathResolution.ResolveCurrentDirectory(environment),
+            stdIn,
+            stdOut,
+            stdErr)
+    {
+    }
+
+    public AwkCommandInvocation(
+        string commandName,
+        IReadOnlyList<string> arguments,
+        IReadOnlyList<AwkEnvironmentVariable> environment,
+        AwkPath currentDirectory,
+        AwkFileDescriptor stdIn,
+        AwkFileDescriptor stdOut,
+        AwkFileDescriptor stdErr)
     {
         CommandName = commandName;
         Arguments = arguments;
         Environment = environment;
-        CurrentDirectory = AwkPathResolution.ResolveCurrentDirectory(environment);
+        CurrentDirectory = currentDirectory;
         StdIn = stdIn;
         StdOut = stdOut;
         StdErr = stdErr;

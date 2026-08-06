@@ -10,6 +10,8 @@
   `getline`, and source loading now surface failed reads instead of silently truncating input.
 - Close prepared inputs, explicit inputs, redirections, pipes, and source descriptors after runtime
   failure or cancellation without allowing cleanup failures to replace the primary exception.
+- Preserve the invocation working directory and the current awk `ENVIRON` snapshot when creating
+  host commands for input and output pipes.
 - Accept parenthesized argument lists for `print` and `printf` statements.
 - Evaluate regex constants against the current record in scalar expression contexts.
 - Document and test that strict UTF-8 ingress is unchanged by C locale settings.
