@@ -32,6 +32,12 @@ public interface IAwkHost
 
     Task<IReadOnlyList<AwkDirectoryEntry>> ListDirectoryAsync(AwkPath path, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Reads up to <paramref name="maxLineCount"/> lines. Successful results carry a byte buffer
+    /// and the strictly increasing byte offsets at which every line after the first starts.
+    /// End-of-file is represented independently by <see cref="AwkReadResult.ReachedEof"/>; read
+    /// failures must use <see cref="AwkReadResult.Failure"/> and provide a host-shaped error.
+    /// </summary>
     Task<AwkReadResult> ReadLinesAsync(
         AwkFileDescriptor fileDescriptor,
         int maxLineCount,

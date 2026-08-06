@@ -138,42 +138,71 @@ public enum AwkFileTreePermission
     ReadWrite
 }
 
-public readonly record struct AwkReadResult
+public readonly struct AwkReadResult
 {
-    public AwkReadResult(ReadOnlyMemory<byte> content, int exitCode)
-        : this(content, Array.Empty<int>(), new AwkExitCode(exitCode), reachedEof: exitCode != 0)
+    private AwkReadResult(
+        AwkOperationStatus status,
+        ReadOnlyMemory<byte> content,
+        int[] lineStartOffsets,
+        bool reachedEof,
+        AwkOperationError error)
     {
-    }
-
-    public AwkReadResult(ReadOnlyMemory<byte> content, int[] lineStartOffsets, int exitCode)
-        : this(content, lineStartOffsets, new AwkExitCode(exitCode), reachedEof: exitCode != 0)
-    {
-    }
-
-    public AwkReadResult(ReadOnlyMemory<byte> content, int[] lineStartOffsets, int exitCode, bool reachedEof)
-        : this(content, lineStartOffsets, new AwkExitCode(exitCode), reachedEof)
-    {
-    }
-
-    public AwkReadResult(ReadOnlyMemory<byte> content, int[] lineStartOffsets, AwkExitCode exitCode, bool reachedEof)
-    {
+        ArgumentNullException.ThrowIfNull(lineStartOffsets);
+        ValidateLineStartOffsets(content.Length, lineStartOffsets);
+        Status = status;
         Content = content;
-        LineStartOffsets = lineStartOffsets ?? throw new ArgumentNullException(nameof(lineStartOffsets));
-        ExitCode = exitCode;
+        LineStartOffsets = lineStartOffsets;
         ReachedEof = reachedEof;
+        Error = error;
     }
+
+    public static AwkReadResult EndOfFile { get; } =
+        FromContent(ReadOnlyMemory<byte>.Empty, Array.Empty<int>(), reachedEof: true);
+
+    public static AwkReadResult FromContent(
+        ReadOnlyMemory<byte> content,
+        int[] lineStartOffsets,
+        bool reachedEof) =>
+        new(AwkOperationStatus.Success, content, lineStartOffsets, reachedEof, default);
+
+    public static AwkReadResult Failure(AwkOperationError error) =>
+        new(
+            AwkOperationStatus.Failure,
+            ReadOnlyMemory<byte>.Empty,
+            Array.Empty<int>(),
+            reachedEof: false,
+            error);
+
+    public AwkOperationStatus Status { get; }
 
     public ReadOnlyMemory<byte> Content { get; }
 
-    public int[] LineStartOffsets { get; }
+    public ReadOnlyMemory<int> LineStartOffsets { get; }
 
-    public AwkExitCode ExitCode { get; }
+    public AwkOperationError Error { get; }
 
-    public bool Success => !ExitCode.Failed;
+    public bool Success => Status == AwkOperationStatus.Success;
 
-    public bool Failed => ExitCode.Failed;
+    public bool Failed => Status == AwkOperationStatus.Failure;
 
     public bool ReachedEof { get; }
+
+    private static void ValidateLineStartOffsets(int contentLength, int[] lineStartOffsets)
+    {
+        var previous = 0;
+        for (var index = 0; index < lineStartOffsets.Length; index++)
+        {
+            var offset = lineStartOffsets[index];
+            if (offset <= previous || offset >= contentLength)
+            {
+                throw new ArgumentException(
+                    "Line start offsets must be strictly increasing positions inside the content.",
+                    nameof(lineStartOffsets));
+            }
+
+            previous = offset;
+        }
+    }
 }
 
 public readonly struct AwkFileTestRequest

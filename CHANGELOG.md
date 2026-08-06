@@ -6,6 +6,8 @@
   the runtime's C-locale-oriented compatibility policy.
 - Preserve record boundaries and `RT` when a running program changes `RS` from a custom separator
   to the default newline separator.
+- Separate host read failures from EOF through structured `AwkReadResult` outcomes; main input,
+  `getline`, and source loading now surface failed reads instead of silently truncating input.
 - Accept parenthesized argument lists for `print` and `printf` statements.
 - Evaluate regex constants against the current record in scalar expression contexts.
 - Document and test that strict UTF-8 ingress is unchanged by C locale settings.

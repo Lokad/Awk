@@ -30,6 +30,9 @@ var exitCode = await awk.ExecuteAsync(host, CancellationToken.None);
 
 For an in-memory host implementation pattern, see
 [`MockFileSystem`](tests/Lokad.Awk.Tests/MockFileSystem.cs) in the test suite.
+Host reads report EOF and failure as separate outcomes: successful batches use
+`AwkReadResult.FromContent` (or `EndOfFile`), while failed reads use `AwkReadResult.Failure` with a
+structured `AwkOperationError`. The runtime maps those failures to awk diagnostics and `ERRNO`.
 
 Release notes are tracked in [CHANGELOG.md](CHANGELOG.md).
 

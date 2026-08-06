@@ -12,7 +12,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
         host.BeforeAppend = () => observedBeforeAppend.Add(host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         host.EnqueueAppendExitCode(0);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(new AwkReadResult(ReadOnlyMemory<byte>.Empty, [], 1, true));
+        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
             "awk",
             "BEGIN{print \"one\"; print \"two\"}")));
@@ -113,7 +113,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(new AwkReadResult(ReadOnlyMemory<byte>.Empty, [], 1, true));
+            return Task.FromResult(AwkReadResult.EndOfFile);
         }
 
         public Task<AwkOpenedFile> OpenFileAsync(

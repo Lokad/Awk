@@ -14,7 +14,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueCommandExitCodes([0]);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(new AwkReadResult(ReadOnlyMemory<byte>.Empty, [], 1, true));
+        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         host.EnqueueCloseDescriptorResult(true);
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
             "awk",
@@ -41,7 +41,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(new AwkReadResult(ReadOnlyMemory<byte>.Empty, [], 1, true));
+        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
             "awk",
             "BEGIN{print \"payload\" | \"worker\"; print close(\"worker\")}")));
@@ -82,9 +82,9 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(pipeRead, pipeWrite));
         host.EnqueueCommandExitCodes([0]);
-        host.EnqueueAwkReadResult(new AwkReadResult(AwkUtf8Codec.Encode("hello\n"), [], 0, true));
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent(AwkUtf8Codec.Encode("hello\n"), [], reachedEof: true));
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(new AwkReadResult(ReadOnlyMemory<byte>.Empty, [], 1, true));
+        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueCloseDescriptorResult(true);
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
@@ -108,11 +108,11 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(50), new AwkFileDescriptor(51)));
         host.EnqueueCommandExitCodes([17]);
-        host.EnqueueAwkReadResult(new AwkReadResult(AwkUtf8Codec.Encode("payload\n"), [], 0, true));
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent(AwkUtf8Codec.Encode("payload\n"), [], reachedEof: true));
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(new AwkReadResult(ReadOnlyMemory<byte>.Empty, [], 1, true));
+        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
             "awk",
             "BEGIN{\"producer\" | getline line; print close(\"producer\", \"from\")}")));

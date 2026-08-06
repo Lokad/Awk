@@ -78,7 +78,7 @@ internal sealed class MockFileDescriptorTable
         if (descriptor.IsDevNull)
         {
             return new MockDescriptorReadResult(
-                new AwkReadResult(ReadOnlyMemory<byte>.Empty, Array.Empty<int>(), 1, true),
+                AwkReadResult.EndOfFile,
                 false);
         }
 
@@ -86,7 +86,7 @@ internal sealed class MockFileDescriptorTable
         if (state == null)
         {
             return new MockDescriptorReadResult(
-                new AwkReadResult(ReadOnlyMemory<byte>.Empty, Array.Empty<int>(), 1, true),
+                AwkReadResult.EndOfFile,
                 false);
         }
 
@@ -148,7 +148,7 @@ internal sealed class MockOpenFileState
     public AwkReadResult ReadLines(int maxLineCount)
     {
         if (_offset >= _content.Length)
-            return new AwkReadResult(ReadOnlyMemory<byte>.Empty, Array.Empty<int>(), 1, true);
+            return AwkReadResult.EndOfFile;
 
         var start = _offset;
         var span = _content.AsSpan(start);
@@ -174,10 +174,9 @@ internal sealed class MockOpenFileState
             _offset += consumed;
             var completeBuffer = new byte[consumed];
             Array.Copy(_content, start, completeBuffer, 0, consumed);
-            return new AwkReadResult(
+            return AwkReadResult.FromContent(
                 completeBuffer,
                 lineCount > 1 ? offsets[..(lineCount - 1)] : Array.Empty<int>(),
-                0,
                 _offset >= _content.Length);
         }
 
@@ -185,6 +184,6 @@ internal sealed class MockOpenFileState
         var buffer = new byte[length];
         Array.Copy(_content, start, buffer, 0, length);
         _offset = _content.Length;
-        return new AwkReadResult(buffer, Array.Empty<int>(), 0, true);
+        return AwkReadResult.FromContent(buffer, Array.Empty<int>(), reachedEof: true);
     }
 }

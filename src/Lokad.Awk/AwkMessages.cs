@@ -167,6 +167,16 @@ internal static class AwkMessages
             status +
             "\n");
 
+    internal static ReadOnlyMemory<byte> FormatDescriptorReadError(
+        AwkFileDescriptor descriptor,
+        string message) =>
+        AwkUtf8Codec.Encode(
+            "awk: file descriptor " +
+            descriptor.Id +
+            ": read failed: " +
+            (string.IsNullOrEmpty(message) ? "Operation failed." : message) +
+            "\n");
+
     internal static ReadOnlyMemory<byte> FormatInvalidOption(string option)
     {
         var optionBytes = string.IsNullOrEmpty(option) ? ReadOnlyMemory<byte>.Empty : AwkUtf8Codec.Encode(option);

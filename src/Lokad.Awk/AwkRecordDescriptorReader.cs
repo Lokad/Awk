@@ -46,8 +46,8 @@ internal sealed class AwkRecordDescriptorReader
     {
         _resources.RecordHostCall();
         var result = await _host.ReadLinesAsync(descriptor, AwkIo.InputReadBatchLineCount, _cancellationToken).ConfigureAwait(false);
-        if (result.ExitCode.Failed)
-            return AwkRecordReadBatch.Failed;
+        if (result.Failed)
+            throw new AwkHostReadException(descriptor, result.Error);
 
         _resources.RecordBytesRead(result.Content.Length);
         return AwkRecordReadBatch.Success(result.Content, result.ReachedEof);
@@ -66,8 +66,8 @@ internal sealed class AwkRecordDescriptorReader
             _resources.RecordHostCall();
             var result = await _host.ReadLinesAsync(descriptor, AwkIo.InputReadBatchLineCount, _cancellationToken)
                 .ConfigureAwait(false);
-            if (result.ExitCode.Failed)
-                return builder.CopyToAwkText(_counters);
+            if (result.Failed)
+                throw new AwkHostReadException(descriptor, result.Error);
 
             _resources.RecordBytesRead(result.Content.Length);
             builder.Append(result.Content);
@@ -77,17 +77,13 @@ internal sealed class AwkRecordDescriptorReader
     }
 }
 
-internal readonly struct AwkRecordReadBatch(ReadOnlyMemory<byte> content, bool reachedEof, bool failed)
+internal readonly struct AwkRecordReadBatch(ReadOnlyMemory<byte> content, bool reachedEof)
 {
-    public static AwkRecordReadBatch Failed { get; } =
-        new(ReadOnlyMemory<byte>.Empty, reachedEof: true, failed: true);
-
     public static AwkRecordReadBatch Success(ReadOnlyMemory<byte> content, bool reachedEof) =>
-        new(content, reachedEof, failed: false);
+        new(content, reachedEof);
 
     public ReadOnlyMemory<byte> Content { get; } = content;
 
     public bool ReachedEof { get; } = reachedEof;
 
-    public bool IsFailed { get; } = failed;
 }

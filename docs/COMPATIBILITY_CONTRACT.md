@@ -38,6 +38,15 @@ User-visible failures are newline-terminated UTF-8 bytes at the host boundary. R
 failures introduced through internal runtime options use current-surface tests unless they become
 command-line policy.
 
+## Host Read Protocol
+
+`IAwkHost.ReadLinesAsync` reports transport success independently from end-of-file. A successful
+batch contains bytes, strictly increasing starts for every line after the first, and an explicit
+EOF flag. A failure contains an `AwkOperationError`; it is never interpreted as EOF. Main-input
+failures are fatal, redirected and pipe `getline` failures return `-1` and set `ERRNO`, and source
+read failures retain the source path in their diagnostic. Host-provided CLR exception text is not
+used as a user-visible diagnostic.
+
 ## Public API
 
 The executable runtime, regex adapter choice, and resource governors remain internal rollout

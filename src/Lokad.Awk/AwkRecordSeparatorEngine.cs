@@ -286,39 +286,36 @@ internal sealed class AwkSingleByteRecordSeparatorStrategy(
             }
 
             var batch = await Context.DescriptorReader.ReadNextBatchAsync(descriptor).ConfigureAwait(false);
-            if (!batch.IsFailed)
+            var batchContent = batch.Content;
+            var segmentStart = 0;
+            for (var index = 0; index < batchContent.Length; index++)
             {
-                var content = batch.Content;
-                var segmentStart = 0;
-                for (var index = 0; index < content.Length; index++)
+                Context.State.ThrowIfCancellationRequested();
+                if (batchContent.Span[index] != separatorByte)
+                    continue;
+
+                buffer.Append(batchContent.Slice(segmentStart, index - segmentStart));
+                var record = buffer.CopyToAwkText(Context.State.Counters);
+                buffer.Clear();
+                segmentStart = index + 1;
+                var flow = await Context.RecordProcessor.ProcessAsync(
+                        record,
+                        AwkRecordTerminator.FromText(SeparatorText),
+                        processRecordAsync)
+                    .ConfigureAwait(false);
+                if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
+                    return flow;
+
+                if (!IsCurrentSeparatorVersion)
                 {
-                    Context.State.ThrowIfCancellationRequested();
-                    if (content.Span[index] != separatorByte)
-                        continue;
-
-                    buffer.Append(content.Slice(segmentStart, index - segmentStart));
-                    var record = buffer.CopyToAwkText(Context.State.Counters);
-                    buffer.Clear();
-                    segmentStart = index + 1;
-                    var flow = await Context.RecordProcessor.ProcessAsync(
-                            record,
-                            AwkRecordTerminator.FromText(SeparatorText),
-                            processRecordAsync)
+                    buffer.Append(batchContent.Slice(segmentStart));
+                    var remaining = await ReadBufferedTextToEndAsync(buffer, descriptor).ConfigureAwait(false);
+                    return await Context.ProcessCustomTextContentAsync(remaining, processRecordAsync)
                         .ConfigureAwait(false);
-                    if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
-                        return flow;
-
-                    if (!IsCurrentSeparatorVersion)
-                    {
-                        buffer.Append(content.Slice(segmentStart));
-                        var remaining = await ReadBufferedTextToEndAsync(buffer, descriptor).ConfigureAwait(false);
-                        return await Context.ProcessCustomTextContentAsync(remaining, processRecordAsync)
-                            .ConfigureAwait(false);
-                    }
                 }
-
-                buffer.Append(content.Slice(segmentStart));
             }
+
+            buffer.Append(batchContent.Slice(segmentStart));
 
             if (batch.ReachedEof)
             {
@@ -424,40 +421,37 @@ internal sealed class AwkByteSetRecordSeparatorStrategy(
             }
 
             var batch = await Context.DescriptorReader.ReadNextBatchAsync(descriptor).ConfigureAwait(false);
-            if (!batch.IsFailed)
+            var batchContent = batch.Content;
+            var segmentStart = 0;
+            for (var index = 0; index < batchContent.Length; index++)
             {
-                var content = batch.Content;
-                var segmentStart = 0;
-                for (var index = 0; index < content.Length; index++)
+                Context.State.ThrowIfCancellationRequested();
+                var separatorByte = batchContent.Span[index];
+                if (!separatorBytes[separatorByte])
+                    continue;
+
+                buffer.Append(batchContent.Slice(segmentStart, index - segmentStart));
+                var record = buffer.CopyToAwkText(Context.State.Counters);
+                buffer.Clear();
+                segmentStart = index + 1;
+                var flow = await Context.RecordProcessor.ProcessAsync(
+                        record,
+                        CreateTerminator(separatorByte),
+                        processRecordAsync)
+                    .ConfigureAwait(false);
+                if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
+                    return flow;
+
+                if (!IsCurrentSeparatorVersion)
                 {
-                    Context.State.ThrowIfCancellationRequested();
-                    var separatorByte = content.Span[index];
-                    if (!separatorBytes[separatorByte])
-                        continue;
-
-                    buffer.Append(content.Slice(segmentStart, index - segmentStart));
-                    var record = buffer.CopyToAwkText(Context.State.Counters);
-                    buffer.Clear();
-                    segmentStart = index + 1;
-                    var flow = await Context.RecordProcessor.ProcessAsync(
-                            record,
-                            CreateTerminator(separatorByte),
-                            processRecordAsync)
+                    buffer.Append(batchContent.Slice(segmentStart));
+                    var remaining = await ReadBufferedTextToEndAsync(buffer, descriptor).ConfigureAwait(false);
+                    return await Context.ProcessCustomTextContentAsync(remaining, processRecordAsync)
                         .ConfigureAwait(false);
-                    if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
-                        return flow;
-
-                    if (!IsCurrentSeparatorVersion)
-                    {
-                        buffer.Append(content.Slice(segmentStart));
-                        var remaining = await ReadBufferedTextToEndAsync(buffer, descriptor).ConfigureAwait(false);
-                        return await Context.ProcessCustomTextContentAsync(remaining, processRecordAsync)
-                            .ConfigureAwait(false);
-                    }
                 }
-
-                buffer.Append(content.Slice(segmentStart));
             }
+
+            buffer.Append(batchContent.Slice(segmentStart));
 
             if (batch.ReachedEof)
             {
@@ -566,8 +560,7 @@ internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
             }
 
             var batch = await Context.DescriptorReader.ReadNextBatchAsync(descriptor).ConfigureAwait(false);
-            if (!batch.IsFailed)
-                buffer.Append(batch.Content);
+            buffer.Append(batch.Content);
 
             while (TryFindSeparator(buffer.AsSpan(), out var separatorIndex))
             {
@@ -811,8 +804,7 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
         AwkUtf8Builder buffer)
     {
         var batch = await Context.DescriptorReader.ReadNextBatchAsync(descriptor).ConfigureAwait(false);
-        if (!batch.IsFailed)
-            buffer.Append(batch.Content);
+        buffer.Append(batch.Content);
 
         return batch.ReachedEof;
     }
@@ -1076,8 +1068,7 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
         AwkUtf8Builder buffer)
     {
         var batch = await Context.DescriptorReader.ReadNextBatchAsync(descriptor).ConfigureAwait(false);
-        if (!batch.IsFailed)
-            buffer.Append(batch.Content);
+        buffer.Append(batch.Content);
 
         return batch.ReachedEof;
     }

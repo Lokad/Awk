@@ -13,7 +13,7 @@ internal sealed class AsyncLineReader
     private readonly AwkRuntimeCounters _counters;
     private readonly AwkRuntimeResourceMonitor _resources;
     private ReadOnlyMemory<byte> _content;
-    private int[] _lineStartOffsets;
+    private ReadOnlyMemory<int> _lineStartOffsets;
     private int _lineIndex;
     private int _lineStart;
     private bool _reachedEof;
@@ -63,7 +63,7 @@ internal sealed class AsyncLineReader
         _counters = counters;
         _resources = resources ?? throw new ArgumentNullException(nameof(resources));
         _content = ReadOnlyMemory<byte>.Empty;
-        _lineStartOffsets = Array.Empty<int>();
+        _lineStartOffsets = ReadOnlyMemory<int>.Empty;
     }
 
     public async ValueTask<bool> ReachedEof()
@@ -77,11 +77,8 @@ internal sealed class AsyncLineReader
 
             _resources.RecordHostCall();
             var result = await _host.ReadLinesAsync(_descriptor, _maxLineCount, _cancellationToken).ConfigureAwait(false);
-            if (result.ExitCode.Failed)
-            {
-                _reachedEof = true;
-                return true;
-            }
+            if (result.Failed)
+                throw new AwkHostReadException(_descriptor, result.Error);
 
             _resources.RecordBytesRead(result.Content.Length);
             _content = result.Content;
@@ -102,7 +99,7 @@ internal sealed class AsyncLineReader
         }
 
         var nextStart = _lineIndex < _lineStartOffsets.Length
-            ? _lineStartOffsets[_lineIndex]
+            ? _lineStartOffsets.Span[_lineIndex]
             : _content.Length;
         var line = _content.Slice(_lineStart, nextStart - _lineStart);
         _lineStart = nextStart;

@@ -187,7 +187,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     public async Task Awk_DefaultRecordProcessingReadsInputInBatches()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(new AwkReadResult("first\n"u8.ToArray(), [], 0, reachedEof: false));
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent("first\n"u8.ToArray(), [], reachedEof: false));
         host.EnqueueAppendExitCode(0);
 
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "{print; exit}")));
@@ -201,7 +201,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     public async Task Awk_SingleCharacterCustomRecordSeparatorReadsInputInBatches()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(new AwkReadResult("first|second|"u8.ToArray(), [], 0, reachedEof: false));
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent("first|second|"u8.ToArray(), [], reachedEof: false));
         host.EnqueueAppendExitCode(0);
 
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "BEGIN{RS=\"|\"} {print; exit}")));
@@ -791,10 +791,9 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var host = new TestOperationVisitor([]);
         for (var index = 0; index < batches.Length; index++)
         {
-            host.EnqueueAwkReadResult(new AwkReadResult(
+            host.EnqueueAwkReadResult(AwkReadResult.FromContent(
                 Encoding.UTF8.GetBytes(batches[index]),
                 [],
-                0,
                 reachedEof: index == batches.Length - 1));
             if (index > 0)
                 host.EnqueueAppendExitCode(0);
@@ -812,7 +811,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     public async Task Awk_RegexRecordSeparatorReadsInputInBatches()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(new AwkReadResult("first,second;"u8.ToArray(), [], 0, reachedEof: false));
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent("first,second;"u8.ToArray(), [], reachedEof: false));
         host.EnqueueAppendExitCode(0);
 
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "BEGIN{RS=\"[,;]\"} {print; exit}")));
@@ -850,7 +849,10 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     public async Task Awk_ParagraphRecordSeparatorReadsInputInBatches()
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkReadResult(new AwkReadResult("first paragraph\n\nsecond paragraph\n"u8.ToArray(), [], 0, reachedEof: false));
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+            "first paragraph\n\nsecond paragraph\n"u8.ToArray(),
+            [],
+            reachedEof: false));
         host.EnqueueAppendExitCode(0);
 
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "BEGIN{RS=\"\"} {print $0; exit}")));

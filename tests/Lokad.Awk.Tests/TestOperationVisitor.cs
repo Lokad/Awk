@@ -167,7 +167,7 @@ public sealed class TestOperationVisitor : IAwkHost
 
         if (fileDescriptor.IsDevNull)
         {
-            return Task.FromResult(new AwkReadResult(ReadOnlyMemory<byte>.Empty, Array.Empty<int>(), 1, true));
+            return Task.FromResult(AwkReadResult.EndOfFile);
         }
 
         var operation = Dequeue<TestHostOperation.ReadLines>("read results");

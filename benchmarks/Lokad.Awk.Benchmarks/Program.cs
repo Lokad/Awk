@@ -1340,7 +1340,7 @@ internal sealed class BenchmarkHost : IAwkHost
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!_openFiles.TryGetValue(fileDescriptor, out var state))
-            return Task.FromResult(new AwkReadResult(ReadOnlyMemory<byte>.Empty, [], 1, reachedEof: true));
+            return Task.FromResult(AwkReadResult.EndOfFile);
 
         return Task.FromResult(state.ReadLines(limit));
     }
@@ -1414,7 +1414,7 @@ internal sealed class BenchmarkHost : IAwkHost
                 throw new ArgumentOutOfRangeException(nameof(limit));
 
             if (_offset >= content.Length)
-                return new AwkReadResult(ReadOnlyMemory<byte>.Empty, [], 1, reachedEof: true);
+                return AwkReadResult.EndOfFile;
 
             var start = _offset;
             var span = content.AsSpan(start);
@@ -1440,10 +1440,9 @@ internal sealed class BenchmarkHost : IAwkHost
                 _offset += consumed;
                 var completeBuffer = new byte[consumed];
                 Array.Copy(content, start, completeBuffer, 0, consumed);
-                return new AwkReadResult(
+                return AwkReadResult.FromContent(
                     completeBuffer,
                     lineCount > 1 ? offsets[..(lineCount - 1)] : [],
-                    0,
                     _offset >= content.Length);
             }
 
@@ -1451,7 +1450,7 @@ internal sealed class BenchmarkHost : IAwkHost
             var buffer = new byte[length];
             Array.Copy(content, start, buffer, 0, length);
             _offset = content.Length;
-            return new AwkReadResult(buffer, [], 0, reachedEof: true);
+            return AwkReadResult.FromContent(buffer, [], reachedEof: true);
         }
     }
 }

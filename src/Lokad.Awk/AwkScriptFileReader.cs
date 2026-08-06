@@ -105,6 +105,12 @@ internal static class AwkScriptFileReader
 
             return AwkScriptTextReadResult.FoundText(builder.ToString());
         }
+        catch (AwkHostReadException exception)
+        {
+            return AwkScriptTextReadResult.Failure(
+                AwkMessages.FormatPathError(path.Display, exception.Error.Message),
+                AwkDiagnosticId.SourceLoadFailure);
+        }
         finally
         {
             await host.CloseDescriptorAsync(opened.FileDescriptor, cancellationToken).ConfigureAwait(false);

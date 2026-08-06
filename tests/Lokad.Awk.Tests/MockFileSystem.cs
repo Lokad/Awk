@@ -18,6 +18,8 @@ public sealed class MockFileSystem : IAwkHost
 
     public Action? AfterReadLines { get; set; }
 
+    public Func<AwkFileDescriptor, int, AwkReadResult>? ReadLinesOverride { get; set; }
+
     public int OpenFileCount => _descriptors.OpenFileCount;
 
     public void AddDirectory(
@@ -147,7 +149,10 @@ public sealed class MockFileSystem : IAwkHost
         if (maxLineCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxLineCount));
 
-        var result = _descriptors.ReadLines(fileDescriptor, maxLineCount);
+        var readLinesOverride = ReadLinesOverride;
+        var result = readLinesOverride == null
+            ? _descriptors.ReadLines(fileDescriptor, maxLineCount)
+            : new MockDescriptorReadResult(readLinesOverride(fileDescriptor, maxLineCount), true);
         if (result.NotifyAfterRead)
             AfterReadLines?.Invoke();
 

@@ -75,6 +75,11 @@ internal readonly struct AwkIoError(AwkErrno errno, ReadOnlyMemory<byte> diagnos
     public static AwkIoError FromOpenFailure(ReadOnlyMemory<byte> path, AwkErrno errno) =>
         new(errno, AwkMessages.FormatPathError(path, errno.Text));
 
+    public static AwkIoError FromReadFailure(AwkFileDescriptor descriptor, AwkOperationError error) =>
+        new(
+            AwkErrno.FromHostMessage(error.Message),
+            AwkMessages.FormatDescriptorReadError(descriptor, error.Message));
+
     public AwkErrno Errno { get; } = errno;
 
     public ReadOnlyMemory<byte> Diagnostic { get; } = diagnostic;

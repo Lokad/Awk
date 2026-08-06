@@ -170,8 +170,16 @@ internal sealed class AwkIo
         if (resolved is not AwkInputReaderResult.Resolved resolvedReader)
             throw new InvalidOperationException("Unexpected awk input reader result.");
 
-        if (await resolvedReader.Reader.ReachedEof().ConfigureAwait(false))
-            return AwkGetlineResult.EndOfFile;
+        try
+        {
+            if (await resolvedReader.Reader.ReachedEof().ConfigureAwait(false))
+                return AwkGetlineResult.EndOfFile;
+        }
+        catch (AwkHostReadException exception)
+        {
+            return AwkGetlineResult.Failure(
+                AwkIoError.FromReadFailure(exception.Descriptor, exception.Error));
+        }
 
         var line = AwkRecordLine.ReadUtf8DefaultNewline(resolvedReader.Reader.ReadLine(), _counters);
         _counters.RecordRecordRead();
@@ -181,8 +189,16 @@ internal sealed class AwkIo
     public async Task<AwkGetlineResult> ReadPipeLineAsync(string command)
     {
         var reader = await _pipes.GetInputReaderAsync(command, InputReadBatchLineCount).ConfigureAwait(false);
-        if (await reader.ReachedEof().ConfigureAwait(false))
-            return AwkGetlineResult.EndOfFile;
+        try
+        {
+            if (await reader.ReachedEof().ConfigureAwait(false))
+                return AwkGetlineResult.EndOfFile;
+        }
+        catch (AwkHostReadException exception)
+        {
+            return AwkGetlineResult.Failure(
+                AwkIoError.FromReadFailure(exception.Descriptor, exception.Error));
+        }
 
         var line = AwkRecordLine.ReadUtf8DefaultNewline(reader.ReadLine(), _counters);
         _counters.RecordRecordRead();
@@ -205,8 +221,16 @@ internal sealed class AwkIo
 
         await boundReader.ExecuteBeforeReadAsync().ConfigureAwait(false);
 
-        if (await boundReader.Reader.ReachedEof().ConfigureAwait(false))
-            return AwkGetlineResult.EndOfFile;
+        try
+        {
+            if (await boundReader.Reader.ReachedEof().ConfigureAwait(false))
+                return AwkGetlineResult.EndOfFile;
+        }
+        catch (AwkHostReadException exception)
+        {
+            return AwkGetlineResult.Failure(
+                AwkIoError.FromReadFailure(exception.Descriptor, exception.Error));
+        }
 
         var line = AwkRecordLine.ReadUtf8DefaultNewline(boundReader.Reader.ReadLine(), _counters);
         _counters.RecordRecordRead();

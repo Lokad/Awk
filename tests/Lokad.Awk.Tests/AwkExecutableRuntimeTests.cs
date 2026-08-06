@@ -305,7 +305,7 @@ public sealed class AwkExecutableRuntimeTests
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(new AwkReadResult(ReadOnlyMemory<byte>.Empty, [], 1, reachedEof: true));
+        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var compiled = await AwkExecutor.CompileAsync(
             host,
             AwkTestHarness.BuildInvocation(
@@ -446,7 +446,7 @@ public sealed class AwkExecutableRuntimeTests
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(new AwkReadResult(ReadOnlyMemory<byte>.Empty, [], 1, reachedEof: true));
+        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var compiled = await AwkExecutor.CompileAsync(
             host,
             AwkTestHarness.BuildInvocation(
