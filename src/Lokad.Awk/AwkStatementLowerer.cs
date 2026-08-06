@@ -650,6 +650,12 @@ internal static class AwkStatementLowerer
         AwkLoweringScope scope,
         out IReadOnlyList<AwkExpression> expressions)
     {
+        if (syntax.Kind == AwkExpressionKind.Group &&
+            syntax.FirstChild is { Kind: AwkExpressionKind.ExpressionList } groupedExpressions)
+        {
+            syntax = groupedExpressions;
+        }
+
         if (syntax.Kind != AwkExpressionKind.ExpressionList)
         {
             if (AwkExpressionLowerer.TryLower(syntax, scope, out var expression))

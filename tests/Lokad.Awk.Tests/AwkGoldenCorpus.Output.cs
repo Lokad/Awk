@@ -47,6 +47,37 @@ internal static partial class AwkGoldenCorpus
             ["BEGIN{printf \"out-1\" > \"/dev/stdout\"; printf \"err-1\" > \"/dev/stderr\"; print \"-out-2\"; print \"-err-2\" > \"/dev/stderr\"}"],
             [],
             "out-1-out-2\n",
-            "err-1-err-2\n")
+            "err-1-err-2\n"),
+
+        Posix(Passing(
+            "printf-parenthesized-argument-list",
+            ["BEGIN{a=\"x\"; b=\"y\"; printf(\"%s %s\\n\", a, b)}"],
+            [],
+            "x y\n")),
+
+        Posix(Passing(
+            "printf-parenthesized-undefined-variable-argument",
+            ["BEGIN{printf(\"%s%s\", sep, \"label\")}"],
+            [],
+            "label")),
+
+        Posix(Passing(
+            "print-parenthesized-argument-list",
+            ["BEGIN{print(\"x\", \"y\")}"],
+            [],
+            "x y\n")),
+
+        Posix(Passing(
+            "printf-parenthesized-nested-groups-and-comparison",
+            ["BEGIN{x=2; y=1; printf(((\"%s %d\\n\")), (\"x\"), (x > y))}"],
+            [],
+            "x 1\n")),
+
+        PassingWithExpectedFiles(
+            "printf-parenthesized-argument-list-with-redirection",
+            ["BEGIN{printf(\"%s\", \"file-output\") > \"/out.txt\"}"],
+            [],
+            string.Empty,
+            [File("/out.txt", "file-output")])
     ];
 }
