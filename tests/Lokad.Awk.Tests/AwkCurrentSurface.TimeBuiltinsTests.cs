@@ -17,7 +17,10 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
 
         Assert.Equal(timestamp, (await EvaluateAsync("systime", [], state)).AsNumber());
 
-        state.SetArrayString("PROCINFO", "strftime", "%s");
+        state.SetArrayString(
+            AwkArrayName.FromText("PROCINFO"),
+            new AwkArrayKey("strftime"),
+            "%s");
         Assert.Equal(
             timestamp.ToString(),
             (await EvaluateAsync("strftime", [], state)).AsString());

@@ -682,6 +682,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_ArrayGrowthLimitFailsBeforeAddingElement()
     {
+        var arrayName = AwkArrayName.FromText("a");
         var state = new AwkRuntimeState(AwkRuntimeStatePlan.Create(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
@@ -695,17 +696,19 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             nonDecimalData: false,
             maxArrayElements: 2));
 
-        state.SetArrayString("a", "1", "one");
-        state.SetArrayString("a", "2", "two");
-        var exception = Assert.Throws<AwkRuntimeException>(() => state.SetArrayString("a", "3", "three"));
+        state.SetArrayString(arrayName, new AwkArrayKey("1"), "one");
+        state.SetArrayString(arrayName, new AwkArrayKey("2"), "two");
+        var exception = Assert.Throws<AwkRuntimeException>(
+            () => state.SetArrayString(arrayName, new AwkArrayKey("3"), "three"));
 
         Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.False(state.ContainsArrayValue("a", "3"));
+        Assert.False(state.ContainsArrayValue(arrayName, new AwkArrayKey("3")));
     }
 
     [Fact]
     public void Awk_RuntimeOptionsArrayLimitFlowsToState()
     {
+        var arrayName = AwkArrayName.FromText("a");
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
@@ -717,16 +720,18 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             CancellationToken.None,
             options);
 
-        state.SetArrayString("a", "1", "one");
-        var exception = Assert.Throws<AwkRuntimeException>(() => state.SetArrayString("a", "2", "two"));
+        state.SetArrayString(arrayName, new AwkArrayKey("1"), "one");
+        var exception = Assert.Throws<AwkRuntimeException>(
+            () => state.SetArrayString(arrayName, new AwkArrayKey("2"), "two"));
 
         Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.False(state.ContainsArrayValue("a", "2"));
+        Assert.False(state.ContainsArrayValue(arrayName, new AwkArrayKey("2")));
     }
 
     [Fact]
     public void Awk_ArrayMemoryLimitFailsBeforeAddingElement()
     {
+        var arrayName = AwkArrayName.FromText("a");
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
@@ -738,11 +743,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             CancellationToken.None,
             options);
 
-        state.SetArrayString("a", "k", "v");
-        var exception = Assert.Throws<AwkRuntimeException>(() => state.SetArrayString("a", "long", "value"));
+        state.SetArrayString(arrayName, new AwkArrayKey("k"), "v");
+        var exception = Assert.Throws<AwkRuntimeException>(
+            () => state.SetArrayString(arrayName, new AwkArrayKey("long"), "value"));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.False(state.ContainsArrayValue("a", "long"));
+        Assert.False(state.ContainsArrayValue(arrayName, new AwkArrayKey("long")));
         Assert.Equal(
             AwkRuntimeMemory.EstimateArrayElementBytes(new AwkArrayKey("k"), AwkVariableSlot.FromText("v")),
             state.MemoryGovernor.CurrentCommittedBytes);
@@ -752,6 +758,8 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_ArrayMemoryGovernorReleasesDeletedAndShrunkElements()
     {
+        var arrayName = AwkArrayName.FromText("a");
+        var key = new AwkArrayKey("abc");
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
@@ -763,9 +771,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             CancellationToken.None,
             options);
 
-        state.SetArrayString("a", "abc", "defg");
-        state.SetArrayString("a", "abc", "x");
-        state.DeleteArrayValue("a", "abc");
+        state.SetArrayString(arrayName, key, "defg");
+        state.SetArrayString(arrayName, key, "x");
+        state.DeleteArrayValue(arrayName, key);
 
         Assert.Equal(0, state.MemoryGovernor.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
@@ -775,23 +783,26 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_ArraySnapshotMemoryLimitFailsBeforeReturningKeys()
     {
+        var arrayName = AwkArrayName.FromText("a");
+        var key = new AwkArrayKey("k");
         var state = CreateStateWithMemoryLimit(220);
-        state.SetArrayString("a", "k", "v");
+        state.SetArrayString(arrayName, key, "v");
 
-        var exception = Assert.Throws<AwkRuntimeException>(() => state.SnapshotArrayKeys("a"));
+        var exception = Assert.Throws<AwkRuntimeException>(() => state.SnapshotArrayKeys(arrayName));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.True(state.ContainsArrayValue("a", "k"));
+        Assert.True(state.ContainsArrayValue(arrayName, key));
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
 
     [Fact]
     public void Awk_ArraySnapshotLeaseReleasesReservationAndRejectsFurtherUse()
     {
+        var arrayName = AwkArrayName.FromText("a");
         var state = CreateStateWithMemoryLimit(2_000);
-        state.SetArrayString("a", "k", "v");
+        state.SetArrayString(arrayName, new AwkArrayKey("k"), "v");
         var baselineCommittedBytes = state.MemoryGovernor.CurrentCommittedBytes;
-        var keys = state.SnapshotArrayKeys("a");
+        var keys = state.SnapshotArrayKeys(arrayName);
 
         Assert.Single(keys);
         Assert.True(state.MemoryGovernor.CurrentCommittedBytes > baselineCommittedBytes);
@@ -805,29 +816,38 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_ArraySortMemoryLimitFailsBeforeReplacingDestination()
     {
+        var sourceArrayName = AwkArrayName.FromText("source");
+        var destinationArrayName = AwkArrayName.FromText("destination");
+        var ordinalOne = new AwkArrayKey("1");
         var state = CreateStateWithMemoryLimit(600);
-        state.SetArrayString("source", "k", "v");
-        state.SetArrayString("destination", "1", "keep");
+        state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
+        state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
         var exception = Assert.Throws<AwkRuntimeException>(
-            () => state.SortArrayValues("source", "destination", AwkArraySortOrder.Default));
+            () => state.SortArrayValues(sourceArrayName, destinationArrayName, AwkArraySortOrder.Default));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal("keep", state.GetArrayString("destination", "1"));
+        Assert.Equal("keep", state.GetArrayString(destinationArrayName, ordinalOne));
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
 
     [Fact]
     public void Awk_SplitMemoryLimitFailsBeforeReplacingArray()
     {
+        var arrayName = AwkArrayName.FromText("a");
+        var ordinalOne = new AwkArrayKey("1");
         var state = CreateStateWithMemoryLimit(400);
-        state.SetArrayString("a", "1", "keep");
+        state.SetArrayString(arrayName, ordinalOne, "keep");
 
         var exception = Assert.Throws<AwkRuntimeException>(
-            () => state.SplitIntoArray(new string('x', 80), "a", " ", string.Empty));
+            () => state.SplitIntoArray(
+                new string('x', 80),
+                arrayName,
+                " ",
+                AwkOptionalIdentifier.None));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal("keep", state.GetArrayString("a", "1"));
+        Assert.Equal("keep", state.GetArrayString(arrayName, ordinalOne));
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
 
@@ -940,6 +960,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_ScalarMemoryLimitFailsBeforeReplacingValue()
     {
+        var variableName = AwkVariableName.FromText("x");
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
@@ -950,31 +971,32 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
             options);
-        state.AssignVariable("x", "keep");
+        state.AssignVariable(variableName, "keep");
 
         var exception = Assert.Throws<AwkRuntimeException>(
-            () => state.AssignVariable("x", new string('v', 400)));
+            () => state.AssignVariable(variableName, new string('v', 400)));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal("keep", state.ResolveVariable("x"));
+        Assert.Equal("keep", state.ResolveVariable(variableName));
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
 
     [Fact]
     public void Awk_FunctionLocalMemoryLimitFailsBeforeReplacingValue()
     {
+        var variableName = AwkVariableName.FromText("x");
         var state = CreateStateWithMemoryLimit(300);
         state.PushFunctionFrame(
-            new AwkFunctionLocalLayout([AwkVariableName.FromText("x")]),
+            new AwkFunctionLocalLayout([variableName]),
             [AwkFunctionArgument.Scalar(AwkValue.FromText("keep"))]);
 
         try
         {
             var exception = Assert.Throws<AwkRuntimeException>(
-                () => state.AssignVariable("x", new string('v', 400)));
+                () => state.AssignVariable(variableName, new string('v', 400)));
 
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-            Assert.Equal("keep", state.ResolveVariable("x"));
+            Assert.Equal("keep", state.ResolveVariable(variableName));
             Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
             Assert.True(state.MemoryGovernor.CurrentCommittedBytes > 0);
         }

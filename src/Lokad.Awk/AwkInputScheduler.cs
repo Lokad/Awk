@@ -135,7 +135,7 @@ internal sealed class AwkInputScheduler(
         if (preparation is MainInputPreparation.Prepared preparedToClose)
             await preparedToClose.Input.CloseAsync().ConfigureAwait(false);
 
-        state.BeginInputFile("-", 0);
+        state.BeginInputFile("-", new AwkArgvIndex(0));
         await ProcessInputDescriptorAsync(invocation.Stdio.StdIn).ConfigureAwait(false);
     }
 
