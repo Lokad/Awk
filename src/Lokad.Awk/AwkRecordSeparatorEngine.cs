@@ -62,7 +62,7 @@ internal sealed class AwkRecordSeparatorContext(
         return strategy;
     }
 
-    public async ValueTask<AwkStatementFlow> ProcessCustomTextContentAsync(
+    public async ValueTask<AwkStatementFlow> ProcessUnreadTailWithCurrentSeparatorAsync(
         AwkText content,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
     {
@@ -230,7 +230,7 @@ internal sealed class AwkNewlineRecordSeparatorStrategy(
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
     {
         if (!IsCurrentSeparatorVersion)
-            return await Context.ProcessCustomTextContentAsync(content, processRecordAsync).ConfigureAwait(false);
+            return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(content, processRecordAsync).ConfigureAwait(false);
 
         var start = 0;
         var byteLength = content.ByteLength;
@@ -265,7 +265,7 @@ internal sealed class AwkNewlineRecordSeparatorStrategy(
                     byteLength - start,
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
-                return await Context.ProcessCustomTextContentAsync(remaining, processRecordAsync)
+                return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(remaining, processRecordAsync)
                     .ConfigureAwait(false);
             }
         }
@@ -304,7 +304,7 @@ internal abstract class AwkByteRecordSeparatorStrategy(
             if (!IsCurrentSeparatorVersion)
             {
                 var content = await ReadBufferedTextToEndAsync(buffer, descriptor).ConfigureAwait(false);
-                return await Context.ProcessCustomTextContentAsync(content, processRecordAsync)
+                return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(content, processRecordAsync)
                     .ConfigureAwait(false);
             }
 
@@ -332,7 +332,7 @@ internal abstract class AwkByteRecordSeparatorStrategy(
                 {
                     buffer.Append(batchContent.Slice(segmentStart));
                     var remaining = await ReadBufferedTextToEndAsync(buffer, descriptor).ConfigureAwait(false);
-                    return await Context.ProcessCustomTextContentAsync(remaining, processRecordAsync)
+                    return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(remaining, processRecordAsync)
                         .ConfigureAwait(false);
                 }
             }
@@ -369,7 +369,7 @@ internal abstract class AwkByteRecordSeparatorStrategy(
                     byteLength - start,
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
-                return await Context.ProcessCustomTextContentAsync(tail, processRecordAsync).ConfigureAwait(false);
+                return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(tail, processRecordAsync).ConfigureAwait(false);
             }
 
             if (!TryFindNextSeparator(content.AsSpan()[start..], out var relativeIndex, out var separatorByte))
@@ -532,7 +532,7 @@ internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
             if (!IsCurrentSeparatorVersion)
             {
                 var remaining = await ReadBufferedTextToEndAsync(buffer, descriptor).ConfigureAwait(false);
-                return await Context.ProcessCustomTextContentAsync(remaining, processRecordAsync)
+                return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(remaining, processRecordAsync)
                     .ConfigureAwait(false);
             }
 
@@ -557,7 +557,7 @@ internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
                 if (!IsCurrentSeparatorVersion)
                 {
                     var remaining = await ReadBufferedTextToEndAsync(buffer, descriptor).ConfigureAwait(false);
-                    return await Context.ProcessCustomTextContentAsync(remaining, processRecordAsync)
+                    return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(remaining, processRecordAsync)
                         .ConfigureAwait(false);
                 }
             }
@@ -592,7 +592,7 @@ internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
                     byteLength - start,
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
-                return await Context.ProcessCustomTextContentAsync(tail, processRecordAsync).ConfigureAwait(false);
+                return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(tail, processRecordAsync).ConfigureAwait(false);
             }
 
             var remaining = content.AsSpan()[start..];
@@ -646,7 +646,7 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
             if (!IsCurrentSeparatorVersion)
             {
                 var remainingContent = await ReadBufferedTextToEndAsync(buffer, descriptor, reachedEof).ConfigureAwait(false);
-                return await Context.ProcessCustomTextContentAsync(remainingContent, processRecordAsync)
+                return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(remainingContent, processRecordAsync)
                     .ConfigureAwait(false);
             }
 
@@ -695,7 +695,7 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
             Context.State.ThrowIfCancellationRequested();
             if (!IsCurrentSeparatorVersion)
             {
-                return await Context.ProcessCustomTextContentAsync(remaining, processRecordAsync)
+                return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(remaining, processRecordAsync)
                     .ConfigureAwait(false);
             }
 
@@ -773,7 +773,7 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
             if (!IsCurrentSeparatorVersion)
             {
                 var content = await ReadBufferedTextToEndAsync(buffer, descriptor, reachedEof).ConfigureAwait(false);
-                return await Context.ProcessCustomTextContentAsync(content, processRecordAsync)
+                return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(content, processRecordAsync)
                     .ConfigureAwait(false);
             }
 
@@ -809,7 +809,7 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
                 if (!IsCurrentSeparatorVersion)
                 {
                     var content = await ReadBufferedTextToEndAsync(buffer, descriptor, reachedEof).ConfigureAwait(false);
-                    return await Context.ProcessCustomTextContentAsync(content, processRecordAsync)
+                    return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(content, processRecordAsync)
                         .ConfigureAwait(false);
                 }
 
@@ -848,7 +848,7 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
             Context.State.ThrowIfCancellationRequested();
             if (!IsCurrentSeparatorVersion)
             {
-                return await Context.ProcessCustomTextContentAsync(
+                return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(
                         buffer.CopyToAwkText(Context.State.Counters),
                         processRecordAsync)
                     .ConfigureAwait(false);

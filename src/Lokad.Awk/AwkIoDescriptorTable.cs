@@ -8,28 +8,28 @@ namespace Lokad.Awk;
 
 internal sealed class AwkIoDescriptorTable
 {
-    private readonly Dictionary<string, AwkFileDescriptor> _outputFiles = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, AwkInputFile> _inputFiles = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _flushedOutputFiles = new(StringComparer.Ordinal);
+    private readonly Dictionary<AwkPath, AwkFileDescriptor> _outputFiles = [];
+    private readonly Dictionary<AwkPath, AwkInputFile> _inputFiles = [];
+    private readonly HashSet<AwkPath> _flushedOutputFiles = [];
 
     public int OutputFileCount => _outputFiles.Count;
 
-    public bool TryGetOutput(string key, out AwkFileDescriptor descriptor) =>
-        _outputFiles.TryGetValue(key, out descriptor);
+    public bool TryGetOutput(AwkPath path, out AwkFileDescriptor descriptor) =>
+        _outputFiles.TryGetValue(path, out descriptor);
 
-    public void AddOutput(string key, AwkFileDescriptor descriptor)
+    public void AddOutput(AwkPath path, AwkFileDescriptor descriptor)
     {
-        _outputFiles[key] = descriptor;
+        _outputFiles[path] = descriptor;
     }
 
-    public AwkFileOpenMode ResolveOutputOpenMode(string key, AwkOutputRedirectionKind kind) =>
-        kind == AwkOutputRedirectionKind.Append || _flushedOutputFiles.Remove(key)
+    public AwkFileOpenMode ResolveOutputOpenMode(AwkPath path, AwkOutputRedirectionKind kind) =>
+        kind == AwkOutputRedirectionKind.Append || _flushedOutputFiles.Remove(path)
             ? AwkFileOpenMode.WriteAppend
             : AwkFileOpenMode.WriteTruncate;
 
-    public bool TryGetInput(string key, [NotNullWhen(true)] out AsyncLineReader? reader)
+    public bool TryGetInput(AwkPath path, [NotNullWhen(true)] out AsyncLineReader? reader)
     {
-        if (_inputFiles.TryGetValue(key, out var input))
+        if (_inputFiles.TryGetValue(path, out var input))
         {
             reader = input.Reader;
             return true;
@@ -39,24 +39,24 @@ internal sealed class AwkIoDescriptorTable
         return false;
     }
 
-    public void AddInput(string key, AwkFileDescriptor descriptor, AsyncLineReader reader)
+    public void AddInput(AwkPath path, AwkFileDescriptor descriptor, AsyncLineReader reader)
     {
-        _inputFiles[key] = new AwkInputFile(descriptor, reader);
+        _inputFiles[path] = new AwkInputFile(descriptor, reader);
     }
 
-    public string[] SnapshotOutputKeys() =>
+    public AwkPath[] SnapshotOutputPaths() =>
         _outputFiles.Keys.ToArray();
 
     public async Task<bool> FlushOutputAsync(
         AwkIoHostAdapter host,
-        string key)
+        AwkPath path)
     {
-        if (!_outputFiles.TryGetValue(key, out var descriptor))
+        if (!_outputFiles.TryGetValue(path, out var descriptor))
             return false;
 
         await host.CloseDescriptorAsync(descriptor).ConfigureAwait(false);
-        _outputFiles.Remove(key);
-        _flushedOutputFiles.Add(key);
+        _outputFiles.Remove(path);
+        _flushedOutputFiles.Add(path);
         return true;
     }
 
@@ -113,21 +113,21 @@ internal sealed class AwkIoDescriptorTable
 
     public async Task<bool> CloseAnyAsync(
         AwkIoHostAdapter host,
-        string key)
+        AwkPath path)
     {
         var closed = false;
-        _flushedOutputFiles.Remove(key);
-        if (_outputFiles.TryGetValue(key, out var descriptor))
+        _flushedOutputFiles.Remove(path);
+        if (_outputFiles.TryGetValue(path, out var descriptor))
         {
             await host.CloseDescriptorAsync(descriptor).ConfigureAwait(false);
-            _outputFiles.Remove(key);
+            _outputFiles.Remove(path);
             closed = true;
         }
 
-        if (_inputFiles.TryGetValue(key, out var input))
+        if (_inputFiles.TryGetValue(path, out var input))
         {
             await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
-            _inputFiles.Remove(key);
+            _inputFiles.Remove(path);
             closed = true;
         }
 
@@ -136,26 +136,26 @@ internal sealed class AwkIoDescriptorTable
 
     public async Task<bool> CloseOutputAsync(
         AwkIoHostAdapter host,
-        string key)
+        AwkPath path)
     {
-        _flushedOutputFiles.Remove(key);
-        if (!_outputFiles.TryGetValue(key, out var descriptor))
+        _flushedOutputFiles.Remove(path);
+        if (!_outputFiles.TryGetValue(path, out var descriptor))
             return false;
 
         await host.CloseDescriptorAsync(descriptor).ConfigureAwait(false);
-        _outputFiles.Remove(key);
+        _outputFiles.Remove(path);
         return true;
     }
 
     public async Task<bool> CloseInputAsync(
         AwkIoHostAdapter host,
-        string key)
+        AwkPath path)
     {
-        if (!_inputFiles.TryGetValue(key, out var input))
+        if (!_inputFiles.TryGetValue(path, out var input))
             return false;
 
         await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
-        _inputFiles.Remove(key);
+        _inputFiles.Remove(path);
         return true;
     }
 
