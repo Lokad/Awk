@@ -66,7 +66,12 @@ internal static partial class AwkExpressionLowerer
         for (var index = 0; index < call.ArgumentCount; index++)
         {
             if (!call.GetArgument(index).TryGetValue(out var argumentSyntax) ||
-                !TryLower(argumentSyntax, scope, out var argument))
+                !TryLowerOrdinaryBuiltinArgument(
+                    callable,
+                    index,
+                    argumentSyntax,
+                    scope,
+                    out var argument))
             {
                 return false;
             }
@@ -77,6 +82,16 @@ internal static partial class AwkExpressionLowerer
         lowered = AwkExpression.BuiltinCall(callable, arguments);
         return true;
     }
+
+    private static bool TryLowerOrdinaryBuiltinArgument(
+        AwkBuiltinDefinition callable,
+        int argumentIndex,
+        AwkExpressionSyntax argument,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkExpression? lowered) =>
+        callable.Id == AwkBuiltinId.Gensub && argumentIndex == 0
+            ? TryLowerPatternExpression(argument, scope, out lowered)
+            : TryLower(argument, scope, out lowered);
 
     private static bool TryLowerMetadataBackedCall(
         AwkBuiltinDefinition definition,
@@ -251,7 +266,7 @@ internal static partial class AwkExpressionLowerer
         if (!call.GetArgument(0).TryGetValue(out var valueSyntax) ||
             !call.GetArgument(1).TryGetValue(out var patternSyntax) ||
             !TryLower(valueSyntax, scope, out var value) ||
-            !TryLower(patternSyntax, scope, out var pattern))
+            !TryLowerPatternExpression(patternSyntax, scope, out var pattern))
         {
             return false;
         }
@@ -286,7 +301,7 @@ internal static partial class AwkExpressionLowerer
         if (call.ArgumentCount >= 3)
         {
             if (!call.GetArgument(2).TryGetValue(out var separatorSyntax) ||
-                !TryLower(separatorSyntax, scope, out separator))
+                !TryLowerPatternExpression(separatorSyntax, scope, out separator))
             {
                 return false;
             }
@@ -316,7 +331,7 @@ internal static partial class AwkExpressionLowerer
         if (call.ArgumentCount >= 3)
         {
             if (!call.GetArgument(2).TryGetValue(out var patternSyntax) ||
-                !TryLower(patternSyntax, scope, out pattern))
+                !TryLowerPatternExpression(patternSyntax, scope, out pattern))
             {
                 return false;
             }
@@ -371,7 +386,7 @@ internal static partial class AwkExpressionLowerer
         lowered = null;
         if (!call.GetArgument(0).TryGetValue(out var patternSyntax) ||
             !call.GetArgument(1).TryGetValue(out var replacementSyntax) ||
-            !TryLower(patternSyntax, scope, out var pattern) ||
+            !TryLowerPatternExpression(patternSyntax, scope, out var pattern) ||
             !TryLower(replacementSyntax, scope, out var replacement))
         {
             return false;

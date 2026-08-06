@@ -17,6 +17,18 @@ internal static partial class AwkGoldenCorpus
             "foo\nfood\n"),
 
         Passing(
+            "regex-literal-logical-or-tests-current-record",
+            ["NR == 1 || /93-260/", "/file.txt"],
+            [File("/file.txt", "Header\nalpha\n93-260L\nomega\n")],
+            "Header\n93-260L\n"),
+
+        Passing(
+            "regex-literal-logical-and-tests-current-record",
+            ["NR > 1 && /foo/", "/file.txt"],
+            [File("/file.txt", "foo\nfoo\nbar\n")],
+            "foo\n"),
+
+        Passing(
             "regex-match-expression-literal-and-dynamic",
             ["BEGIN{pat=\"ba.\"; print (\"bar\" ~ /ba./), (\"foo\" !~ /ba./), (\"bar\" ~ pat), (\"foo\" !~ pat)}"],
             [],

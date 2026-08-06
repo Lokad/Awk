@@ -197,6 +197,20 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task Awk_RegexLiteralPredicatesShortCircuitAndStayByteNative()
+    {
+        var (exitCode, fileSystem, counters) = await RunAsync(
+            ["{print (1 || /never/), (0 && /never/), /café/}"],
+            "café\nother\n");
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("1 0 1\n1 0 0\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(2, counters.RegexMatches);
+        Assert.Equal(0, counters.AwkTextAsStringCalls);
+        Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
+    }
+
+    [Fact]
     public async Task Awk_RuntimeCounterEvidenceCoversPrintHeavyActions()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(

@@ -24,6 +24,14 @@ field splitting, `patsplit`, `gsub`, and other paths that genuinely need every m
 Frontend regex diagnostics validate translated AWK literals through a parser-safe validator, not
 through runtime regex construction or engine selection.
 
+Regex constants are context-sensitive. In ordinary scalar expressions, `/pattern/` evaluates the
+numeric result of matching the current record, including in logical expressions, assignments,
+printing, conditionals, and user-function arguments. Direct literal operands in grammar-defined
+pattern positions instead supply pattern text: the right side of `~` and `!~`, regex rule and range
+patterns, regex switch labels, and the pattern parameters of `match`, `split`, `patsplit`, `sub`,
+`gsub`, and `gensub`. Parenthesizing a regex constant in a scalar expression does not turn that
+expression back into a direct literal-pattern operand.
+
 | Area | AWK requirement | Current .NET path | Byte-native candidate requirement |
 | --- | --- | --- | --- |
 | ERE operators | `.`, `*`, `+`, `?`, `{m,n}`, alternation, grouping, anchors | `AwkRegex.Translate` maps awk regex text into .NET regex syntax | Adapter must run translated awk EREs or explicitly translate unsupported syntax before matching |

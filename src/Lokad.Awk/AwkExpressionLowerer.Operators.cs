@@ -130,6 +130,16 @@ internal static partial class AwkExpressionLowerer
         if (!TryLower(expression.Children[0], scope, out var left))
             return false;
 
+        if (operatorKind is AwkTokenKind.Tilde or AwkTokenKind.BangTilde &&
+            TryLowerRegexLiteralPattern(rightSyntax, out var literalRegex))
+        {
+            lowered = AwkExpression.RegexMatch(
+                left,
+                literalRegex,
+                negate: operatorKind == AwkTokenKind.BangTilde);
+            return true;
+        }
+
         if (!TryLower(rightSyntax, scope, out var right))
             return false;
 

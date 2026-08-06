@@ -11,11 +11,26 @@ internal static partial class AwkExpressionLowerer
         [NotNullWhen(true)] out AwkExpression? lowered)
     {
         lowered = null;
-        if (!TryReadRegexLiteralPattern(expression, out var pattern))
+        if (!TryLowerRegexLiteralPattern(expression, out var regex))
             return false;
 
-        lowered = AwkExpression.Literal(pattern);
+        lowered = AwkExpression.RegexMatch(AwkExpression.FieldZero(), regex, negate: false);
         return true;
+    }
+
+    private static bool TryLowerPatternExpression(
+        AwkExpressionSyntax expression,
+        AwkLoweringScope scope,
+        [NotNullWhen(true)] out AwkExpression? lowered)
+    {
+        lowered = null;
+        if (TryReadRegexLiteralPattern(expression, out var pattern))
+        {
+            lowered = AwkExpression.Literal(pattern);
+            return true;
+        }
+
+        return TryLower(expression, scope, out lowered);
     }
 
     public static bool TryLowerRegexLiteralPattern(

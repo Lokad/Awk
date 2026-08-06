@@ -53,6 +53,24 @@ internal static partial class AwkGoldenCorpus
             "5\n"),
 
         Passing(
+            "regex-literal-scalar-expression-contexts",
+            ["function keep(value){return value} {hit=/foo/; print /foo/, !/foo/, (/foo/ ? \"yes\" : \"no\"), hit, keep(/foo/)}", "/file.txt"],
+            [File("/file.txt", "foo\nbar\n")],
+            "1 0 yes 1 1\n0 1 no 0 0\n"),
+
+        Passing(
+            "regex-literal-direct-and-grouped-match-operands",
+            ["{value=\"foo\"; print (value ~ /foo/), (value ~ (/foo/)), (value !~ /bar/)}", "/file.txt"],
+            [File("/file.txt", "foo\nbar\n")],
+            "1 0 1\n1 0 1\n"),
+
+        Passing(
+            "ignorecase-regex-literal-scalar-expression",
+            ["BEGIN{IGNORECASE=1} {print /foo/}", "/file.txt"],
+            [File("/file.txt", "Foo\nbar\n")],
+            "1\n0\n"),
+
+        Passing(
             "ignorecase-regex-matching",
             ["BEGIN{IGNORECASE=1} /foo/{print \"rule\", $0} $0 ~ /BAR/{print \"op\", $0} {if(match($0,/baz/)) print \"match\", RSTART}", "/file.txt"],
             [File("/file.txt", "Foo\nbar\nBAZ\n")],
