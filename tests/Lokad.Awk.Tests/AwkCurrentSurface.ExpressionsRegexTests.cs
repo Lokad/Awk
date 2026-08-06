@@ -55,27 +55,19 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var input = AwkText.FromString("alpha,béta;gamma", counters, governor);
         var baselineTextAllocations = counters.AwkTextAllocations;
 
-        var spans = runtime.EnumerateMatchSpans(regex, input, governor);
-        try
-        {
-            Assert.Collection(
-                spans,
-                first =>
-                {
-                    Assert.Equal(5, first.ByteIndex);
-                    Assert.Equal(1, first.ByteLength);
-                },
-                second =>
-                {
-                    Assert.Equal(11, second.ByteIndex);
-                    Assert.Equal(1, second.ByteLength);
-                });
-        }
-        finally
-        {
-            if (spans is IDisposable disposable)
-                disposable.Dispose();
-        }
+        using var spans = runtime.EnumerateMatchSpans(regex, input, governor);
+        Assert.Collection(
+            spans,
+            first =>
+            {
+                Assert.Equal(5, first.ByteIndex);
+                Assert.Equal(1, first.ByteLength);
+            },
+            second =>
+            {
+                Assert.Equal(11, second.ByteIndex);
+                Assert.Equal(1, second.ByteLength);
+            });
 
         Assert.Equal(baselineTextAllocations, counters.AwkTextAllocations);
         Assert.True(counters.RegexMatches > 0);

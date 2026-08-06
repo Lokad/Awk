@@ -4,17 +4,43 @@ using System.Collections.Generic;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkLeasedReadOnlyList<T>(
-    IReadOnlyList<T> values,
-    IDisposable lease) : IReadOnlyList<T>, IDisposable
+internal sealed class AwkLeasedReadOnlyList<T> : IReadOnlyList<T>, IDisposable
 {
+    private readonly IReadOnlyList<T> _values;
+    private readonly IDisposable _lease;
     private bool _disposed;
 
-    public int Count => values.Count;
+    public AwkLeasedReadOnlyList(IReadOnlyList<T> values, IDisposable lease)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        ArgumentNullException.ThrowIfNull(lease);
+        _values = values;
+        _lease = lease;
+    }
 
-    public T this[int index] => values[index];
+    public int Count
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _values.Count;
+        }
+    }
 
-    public IEnumerator<T> GetEnumerator() => values.GetEnumerator();
+    public T this[int index]
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _values[index];
+        }
+    }
+
+    public IEnumerator<T> GetEnumerator()
+    {
+        ThrowIfDisposed();
+        return _values.GetEnumerator();
+    }
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
@@ -24,6 +50,9 @@ internal sealed class AwkLeasedReadOnlyList<T>(
             return;
 
         _disposed = true;
-        lease.Dispose();
+        _lease.Dispose();
     }
+
+    private void ThrowIfDisposed() =>
+        ObjectDisposedException.ThrowIf(_disposed, this);
 }

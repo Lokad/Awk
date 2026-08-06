@@ -848,13 +848,13 @@ internal sealed class AwkRuntimeState
     public IEnumerable<Match> EnumerateRegexMatches(Regex regex, string input) =>
         Regex.EnumerateMatches(regex, input);
 
-    public IReadOnlyList<AwkRegexMatch> EnumerateRegexMatches(Regex regex, AwkText input) =>
+    public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateRegexMatches(Regex regex, AwkText input) =>
         Regex.EnumerateMatches(regex, input);
 
-    public IReadOnlyList<AwkRegexMatch> EnumerateRegexValueMatches(Regex regex, AwkText input) =>
+    public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateRegexValueMatches(Regex regex, AwkText input) =>
         Regex.EnumerateValueMatches(regex, input);
 
-    public IReadOnlyList<AwkRegexMatchSpan> EnumerateRegexMatchSpans(Regex regex, AwkText input) =>
+    public AwkLeasedReadOnlyList<AwkRegexMatchSpan> EnumerateRegexMatchSpans(Regex regex, AwkText input) =>
         Regex.EnumerateMatchSpans(regex, input);
 
     private bool IsIgnoreCaseEnabled()
@@ -1015,15 +1015,15 @@ internal sealed class AwkRuntimeState
     public void ClearArray(AwkArrayName name) =>
         Arrays.Clear(name);
 
-    public IReadOnlyList<AwkText> SnapshotArrayKeys(string name) =>
+    public AwkLeasedReadOnlyList<AwkText> SnapshotArrayKeys(string name) =>
         Arrays.SnapshotKeys(AwkArrayName.FromText(name));
 
-    public async ValueTask<IReadOnlyList<AwkText>> SnapshotArrayKeysAsync(
+    public async ValueTask<AwkLeasedReadOnlyList<AwkText>> SnapshotArrayKeysAsync(
         AwkArrayName name,
         AwkEvaluationContext context) =>
         await Arrays.SnapshotKeysAsync(name, context).ConfigureAwait(false);
 
-    public async ValueTask<IReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(
+    public async ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(
         AwkArrayName name,
         AwkEvaluationContext context) =>
         await Arrays.SnapshotKeyValuesAsync(name, context).ConfigureAwait(false);

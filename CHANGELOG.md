@@ -14,6 +14,8 @@
   host commands for input and output pipes.
 - Narrow `IAwkHost` to the six capabilities used by the runtime, type append and command statuses
   as `AwkExitCode`, reject malformed command result batches, and diagnose failed descriptor closes.
+- Make governed regex enumerations and array-key snapshots return explicit disposable leases, and
+  reject access after the reservation has been released.
 - Accept parenthesized argument lists for `print` and `printf` statements.
 - Evaluate regex constants against the current record in scalar expression contexts.
 - Document and test that strict UTF-8 ingress is unchanged by C locale settings.

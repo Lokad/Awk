@@ -176,14 +176,14 @@ internal sealed class AwkArrayFacade(
 
     public void Clear(AwkArrayName name) => runtime.Clear(name);
 
-    public IReadOnlyList<AwkText> SnapshotKeys(AwkArrayName name) => runtime.SnapshotKeys(name);
+    public AwkLeasedReadOnlyList<AwkText> SnapshotKeys(AwkArrayName name) => runtime.SnapshotKeys(name);
 
-    public async ValueTask<IReadOnlyList<AwkText>> SnapshotKeysAsync(
+    public async ValueTask<AwkLeasedReadOnlyList<AwkText>> SnapshotKeysAsync(
         AwkArrayName name,
         AwkEvaluationContext context) =>
         await runtime.SnapshotKeysAsync(name, context).ConfigureAwait(false);
 
-    public async ValueTask<IReadOnlyList<AwkArrayKey>> SnapshotKeyValuesAsync(
+    public async ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotKeyValuesAsync(
         AwkArrayName name,
         AwkEvaluationContext context) =>
         await runtime.SnapshotKeyValuesAsync(name, context).ConfigureAwait(false);
@@ -308,12 +308,12 @@ internal sealed class AwkRegexFacade(
     public IEnumerable<Match> EnumerateMatches(Regex regex, string input) =>
         runtime.EnumerateMatches(regex, input);
 
-    public IReadOnlyList<AwkRegexMatch> EnumerateMatches(Regex regex, AwkText input) =>
+    public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateMatches(Regex regex, AwkText input) =>
         runtime.EnumerateMatchValues(regex, input, governor, includeGroups: true);
 
-    public IReadOnlyList<AwkRegexMatch> EnumerateValueMatches(Regex regex, AwkText input) =>
+    public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateValueMatches(Regex regex, AwkText input) =>
         runtime.EnumerateMatchValues(regex, input, governor, includeGroups: false);
 
-    public IReadOnlyList<AwkRegexMatchSpan> EnumerateMatchSpans(Regex regex, AwkText input) =>
+    public AwkLeasedReadOnlyList<AwkRegexMatchSpan> EnumerateMatchSpans(Regex regex, AwkText input) =>
         runtime.EnumerateMatchSpans(regex, input, governor);
 }

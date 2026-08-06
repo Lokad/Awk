@@ -786,6 +786,23 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
+    public void Awk_ArraySnapshotLeaseReleasesReservationAndRejectsFurtherUse()
+    {
+        var state = CreateStateWithMemoryLimit(2_000);
+        state.SetArrayString("a", "k", "v");
+        var baselineCommittedBytes = state.MemoryGovernor.CurrentCommittedBytes;
+        var keys = state.SnapshotArrayKeys("a");
+
+        Assert.Single(keys);
+        Assert.True(state.MemoryGovernor.CurrentCommittedBytes > baselineCommittedBytes);
+
+        keys.Dispose();
+
+        Assert.Equal(baselineCommittedBytes, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Throws<ObjectDisposedException>(() => _ = keys.Count);
+    }
+
+    [Fact]
     public void Awk_ArraySortMemoryLimitFailsBeforeReplacingDestination()
     {
         var state = CreateStateWithMemoryLimit(600);

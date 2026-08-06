@@ -10,8 +10,8 @@ namespace Lokad.Awk;
 internal sealed class AwkByteFieldSplitter(
     Func<AwkRegexPattern, Regex> createRegex,
     Func<AwkRegexLiteralText, Regex> createLiteralRegex,
-    Func<Regex, AwkText, IReadOnlyList<AwkRegexMatch>> enumerateTextMatches,
-    Func<Regex, AwkText, IReadOnlyList<AwkRegexMatchSpan>> enumerateMatchSpans,
+    Func<Regex, AwkText, AwkLeasedReadOnlyList<AwkRegexMatch>> enumerateTextMatches,
+    Func<Regex, AwkText, AwkLeasedReadOnlyList<AwkRegexMatchSpan>> enumerateMatchSpans,
     Func<bool> isIgnoreCaseEnabled,
     Func<bool> charactersAsBytes,
     Action throwIfCancellationRequested,
@@ -71,22 +71,15 @@ internal sealed class AwkByteFieldSplitter(
         var separators = captureSeparators ? new List<AwkText>() : null;
         var content = input.AsSpan();
         var position = 0;
-        var matches = enumerateTextMatches(regex, input);
-        try
+        using var matches = enumerateTextMatches(regex, input);
+        foreach (var match in matches)
         {
-            foreach (var match in matches)
-            {
-                throwIfCancellationRequested();
-                if (separators != null)
-                    separators.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
+            throwIfCancellationRequested();
+            if (separators != null)
+                separators.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
 
-                fields.Add(match.Value);
-                position = match.ByteIndex + match.ByteLength;
-            }
-        }
-        finally
-        {
-            AwkDisposable.DisposeIfPresent(matches);
+            fields.Add(match.Value);
+            position = match.ByteIndex + match.ByteLength;
         }
 
         if (separators != null)
@@ -294,20 +287,13 @@ internal sealed class AwkByteFieldSplitter(
         var separators = new List<AwkText> { AwkText.Empty };
         var content = line.AsSpan();
         var position = 0;
-        var matches = enumerateTextMatches(separator, line);
-        try
+        using var matches = enumerateTextMatches(separator, line);
+        foreach (var match in matches)
         {
-            foreach (var match in matches)
-            {
-                throwIfCancellationRequested();
-                fields.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
-                separators.Add(match.Value);
-                position = AdvanceAfterRegexSeparator(line, match.ByteIndex, match.ByteLength);
-            }
-        }
-        finally
-        {
-            AwkDisposable.DisposeIfPresent(matches);
+            throwIfCancellationRequested();
+            fields.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
+            separators.Add(match.Value);
+            position = AdvanceAfterRegexSeparator(line, match.ByteIndex, match.ByteLength);
         }
 
         fields.Add(SliceTrustedFieldText(content, position, content.Length - position, counters));
@@ -319,19 +305,12 @@ internal sealed class AwkByteFieldSplitter(
     {
         var fields = new List<AwkFieldText>();
         var position = 0;
-        var matches = enumerateMatchSpans(separator, line);
-        try
+        using var matches = enumerateMatchSpans(separator, line);
+        foreach (var match in matches)
         {
-            foreach (var match in matches)
-            {
-                throwIfCancellationRequested();
-                fields.Add(AwkFieldText.FromRecordSlice(position, match.ByteIndex - position));
-                position = AdvanceAfterRegexSeparator(line, match.ByteIndex, match.ByteLength);
-            }
-        }
-        finally
-        {
-            AwkDisposable.DisposeIfPresent(matches);
+            throwIfCancellationRequested();
+            fields.Add(AwkFieldText.FromRecordSlice(position, match.ByteIndex - position));
+            position = AdvanceAfterRegexSeparator(line, match.ByteIndex, match.ByteLength);
         }
 
         fields.Add(AwkFieldText.FromRecordSlice(position, line.ByteLength - position));
@@ -346,19 +325,12 @@ internal sealed class AwkByteFieldSplitter(
         var fields = new List<AwkText>();
         var content = line.AsSpan();
         var position = 0;
-        var matches = enumerateMatchSpans(separator, line);
-        try
+        using var matches = enumerateMatchSpans(separator, line);
+        foreach (var match in matches)
         {
-            foreach (var match in matches)
-            {
-                throwIfCancellationRequested();
-                fields.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
-                position = AdvanceAfterRegexSeparator(line, match.ByteIndex, match.ByteLength);
-            }
-        }
-        finally
-        {
-            AwkDisposable.DisposeIfPresent(matches);
+            throwIfCancellationRequested();
+            fields.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
+            position = AdvanceAfterRegexSeparator(line, match.ByteIndex, match.ByteLength);
         }
 
         fields.Add(SliceTrustedFieldText(content, position, content.Length - position, counters));

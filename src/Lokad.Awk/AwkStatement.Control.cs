@@ -61,28 +61,21 @@ internal abstract partial class AwkStatement
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var state = context.State;
-            var keys = await state.SnapshotArrayKeyValuesAsync(arrayVariable, context).ConfigureAwait(false);
-            try
+            using var keys = await state.SnapshotArrayKeyValuesAsync(arrayVariable, context).ConfigureAwait(false);
+            foreach (var key in keys)
             {
-                foreach (var key in keys)
-                {
-                    state.RecordExecutionStep();
-                    state.ThrowIfCancellationRequested();
-                    state.AssignVariableValue(loopVariable, state.CreateArrayKeyValue(key));
-                    var flow = await ExecuteAllAsync(body, context).ConfigureAwait(false);
-                    if (flow == AwkStatementFlow.BreakLoop)
-                        return AwkStatementFlow.Continue;
+                state.RecordExecutionStep();
+                state.ThrowIfCancellationRequested();
+                state.AssignVariableValue(loopVariable, state.CreateArrayKeyValue(key));
+                var flow = await ExecuteAllAsync(body, context).ConfigureAwait(false);
+                if (flow == AwkStatementFlow.BreakLoop)
+                    return AwkStatementFlow.Continue;
 
-                    if (flow == AwkStatementFlow.ContinueLoop)
-                        continue;
+                if (flow == AwkStatementFlow.ContinueLoop)
+                    continue;
 
-                    if (flow != AwkStatementFlow.Continue)
-                        return flow;
-                }
-            }
-            finally
-            {
-                AwkDisposable.DisposeIfPresent(keys);
+                if (flow != AwkStatementFlow.Continue)
+                    return flow;
             }
 
             return AwkStatementFlow.Continue;

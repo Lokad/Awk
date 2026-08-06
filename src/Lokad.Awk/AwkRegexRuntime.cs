@@ -252,7 +252,7 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-    public IReadOnlyList<AwkRegexMatch> EnumerateMatchValues(
+    public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateMatchValues(
         Regex regex,
         AwkText input,
         AwkMemoryGovernor governor,
@@ -322,7 +322,7 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-    public IReadOnlyList<AwkRegexMatchSpan> EnumerateMatchSpans(
+    public AwkLeasedReadOnlyList<AwkRegexMatchSpan> EnumerateMatchSpans(
         Regex regex,
         AwkText input,
         AwkMemoryGovernor governor)

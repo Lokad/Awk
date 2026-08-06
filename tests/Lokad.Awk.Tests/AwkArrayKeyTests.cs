@@ -82,17 +82,9 @@ public sealed class AwkArrayKeyTests
         var arrayName = AwkArrayName.FromText("a");
         state.SetArrayAwkValue(arrayName, AwkArrayKey.FromOrdinal(7), AwkValue.FromNumber(1));
 
-        var keys = await state.SnapshotArrayKeyValuesAsync(arrayName, new AwkEvaluationContext(0, state));
-        try
-        {
-            var key = Assert.Single(keys);
-            Assert.True(key.IsOrdinal);
-            Assert.Equal("7", state.CreateArrayKeyValue(key).AsString());
-        }
-        finally
-        {
-            if (keys is IDisposable disposable)
-                disposable.Dispose();
-        }
+        using var keys = await state.SnapshotArrayKeyValuesAsync(arrayName, new AwkEvaluationContext(0, state));
+        var key = Assert.Single(keys);
+        Assert.True(key.IsOrdinal);
+        Assert.Equal("7", state.CreateArrayKeyValue(key).AsString());
     }
 }

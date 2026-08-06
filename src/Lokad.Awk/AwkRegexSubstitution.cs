@@ -89,7 +89,7 @@ internal static class AwkRegexSubstitution
         }
         finally
         {
-            AwkDisposable.DisposeIfPresent(matches);
+            matches.Dispose();
         }
     }
 
@@ -164,7 +164,7 @@ internal static class AwkRegexSubstitution
         }
         finally
         {
-            AwkDisposable.DisposeIfPresent(matches);
+            matches.Dispose();
         }
     }
 
