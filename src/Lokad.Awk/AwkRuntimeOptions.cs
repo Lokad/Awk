@@ -4,19 +4,19 @@ namespace Lokad.Awk;
 
 internal sealed class AwkRuntimeOptions
 {
-    public const int DefaultMaxLoopIterations = AwkRuntimeLimits.DefaultMaxExecutionSteps;
+    public const int DefaultMaxExecutionSteps = AwkRuntimeLimits.DefaultMaxExecutionSteps;
 
     public AwkRuntimeOptions(
         Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
         TimeZoneInfo timeZone,
         AwkRandomGenerator randomGenerator,
-        int maxLoopIterations = DefaultMaxLoopIterations)
+        int maxExecutionSteps = DefaultMaxExecutionSteps)
         : this(
             currentUnixTimeSeconds,
             timeZone,
             randomGenerator,
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(maxLoopIterations))
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(maxExecutionSteps))
     {
     }
 
@@ -25,13 +25,13 @@ internal sealed class AwkRuntimeOptions
         TimeZoneInfo timeZone,
         AwkRandomGenerator randomGenerator,
         AwkRuntimeCounters counters,
-        int maxLoopIterations = DefaultMaxLoopIterations)
+        int maxExecutionSteps = DefaultMaxExecutionSteps)
         : this(
             currentUnixTimeSeconds,
             timeZone,
             randomGenerator,
             counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(maxLoopIterations))
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(maxExecutionSteps))
     {
     }
 
@@ -68,8 +68,6 @@ internal sealed class AwkRuntimeOptions
     public AwkRegexEngineKind RegexEngineKind { get; }
 
     public AwkExecutionEngineKind ExecutionEngineKind { get; }
-
-    public int MaxLoopIterations => Limits.MaxExecutionSteps;
 
     public static AwkRuntimeOptions CreateSystemDefault() =>
         new(

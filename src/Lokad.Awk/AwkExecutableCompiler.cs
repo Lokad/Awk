@@ -61,27 +61,36 @@ internal sealed class AwkExecutableCompiler
 
     public void Push(int count = 1)
     {
-        _stackDepth += count;
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        _stackDepth = checked(_stackDepth + count);
         if (_stackDepth > MaxStackDepth)
             MaxStackDepth = _stackDepth;
     }
 
     public void Pop(int count = 1)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        if (count > _stackDepth)
+            throw new InvalidOperationException("The executable compiler stack cannot underflow.");
+
         _stackDepth -= count;
-        if (_stackDepth < 0)
-            _stackDepth = 0;
     }
 
     public void Replace(int popped, int pushed)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(popped);
+        ArgumentOutOfRangeException.ThrowIfNegative(pushed);
+        if (popped > _stackDepth)
+            throw new InvalidOperationException("The executable compiler stack cannot underflow.");
+
         Pop(popped);
         Push(pushed);
     }
 
     public void SetStackDepth(int stackDepth)
     {
-        _stackDepth = Math.Max(0, stackDepth);
+        ArgumentOutOfRangeException.ThrowIfNegative(stackDepth);
+        _stackDepth = stackDepth;
         if (_stackDepth > MaxStackDepth)
             MaxStackDepth = _stackDepth;
     }

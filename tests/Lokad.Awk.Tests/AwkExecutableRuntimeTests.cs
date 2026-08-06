@@ -8,6 +8,21 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkExecutableRuntimeTests
 {
     [Fact]
+    public void AwkExecutableCompiler_RejectsInvalidStackTransitionsWithoutClamping()
+    {
+        var compiler = new AwkExecutableCompiler(new AwkExecutableTableBuilder());
+
+        Assert.Throws<InvalidOperationException>(() => compiler.Pop());
+        Assert.Throws<ArgumentOutOfRangeException>(() => compiler.SetStackDepth(-1));
+        Assert.Equal(0, compiler.StackDepth);
+
+        compiler.Push();
+        Assert.Throws<InvalidOperationException>(() => compiler.Pop(2));
+        Assert.Throws<InvalidOperationException>(() => compiler.Replace(popped: 2, pushed: 1));
+        Assert.Equal(1, compiler.StackDepth);
+    }
+
+    [Fact]
     public void AwkExecutionEngineKind_ExposesProductionSelectionModesOnly()
     {
         Assert.Equal(

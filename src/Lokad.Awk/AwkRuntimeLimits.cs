@@ -2,7 +2,7 @@ using System;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkRuntimeLimits
+internal sealed record AwkRuntimeLimits
 {
     public const long Unlimited = long.MaxValue;
     public const int DefaultMaxExecutionSteps = 10_000_000;
@@ -16,303 +16,80 @@ internal sealed class AwkRuntimeLimits
     public const int DefaultRegexCacheSize = 128;
     public const int DefaultRegexMatchTimeoutSeconds = 2;
 
-    private AwkRuntimeLimits(
-        int maxExecutionSteps,
-        int maxFunctionCallDepth,
-        long maxHostCalls,
-        long maxRecordBytes,
-        long maxValueBytes,
-        long maxOutputBytes,
-        int maxArrayElements,
-        int maxFields,
-        int maxBuilderBytes,
-        long maxRegexCaptureBytes,
-        long maxVmStackBytes,
-        long maxExecutionMemoryBytes,
-        int maxOutputFiles)
+    private AwkRuntimeLimits()
     {
-        ThrowIfNonPositive(maxExecutionSteps, nameof(maxExecutionSteps));
-        ThrowIfNonPositive(maxFunctionCallDepth, nameof(maxFunctionCallDepth));
-        ThrowIfNonPositive(maxHostCalls, nameof(maxHostCalls));
-        ThrowIfNonPositive(maxRecordBytes, nameof(maxRecordBytes));
-        ThrowIfNonPositive(maxValueBytes, nameof(maxValueBytes));
-        ThrowIfNonPositive(maxOutputBytes, nameof(maxOutputBytes));
-        ThrowIfNonPositive(maxArrayElements, nameof(maxArrayElements));
-        ThrowIfNonPositive(maxFields, nameof(maxFields));
-        ThrowIfNonPositive(maxBuilderBytes, nameof(maxBuilderBytes));
-        ThrowIfNonPositive(maxRegexCaptureBytes, nameof(maxRegexCaptureBytes));
-        ThrowIfNonPositive(maxVmStackBytes, nameof(maxVmStackBytes));
-        ThrowIfNonPositive(maxExecutionMemoryBytes, nameof(maxExecutionMemoryBytes));
-        ThrowIfNonPositive(maxOutputFiles, nameof(maxOutputFiles));
-
-        MaxExecutionSteps = maxExecutionSteps;
-        MaxFunctionCallDepth = maxFunctionCallDepth;
-        MaxHostCalls = maxHostCalls;
-        MaxRecordBytes = maxRecordBytes;
-        MaxValueBytes = maxValueBytes;
-        MaxOutputBytes = maxOutputBytes;
-        MaxArrayElements = maxArrayElements;
-        MaxFields = maxFields;
-        MaxBuilderBytes = maxBuilderBytes;
-        MaxRegexCaptureBytes = maxRegexCaptureBytes;
-        MaxVmStackBytes = maxVmStackBytes;
-        MaxExecutionMemoryBytes = maxExecutionMemoryBytes;
-        MaxOutputFiles = maxOutputFiles;
     }
 
-    public int MaxExecutionSteps { get; }
+    public int MaxExecutionSteps { get; private init; } = DefaultMaxExecutionSteps;
 
-    public int MaxFunctionCallDepth { get; }
+    public int MaxFunctionCallDepth { get; private init; } = DefaultMaxFunctionCallDepth;
 
-    public long MaxHostCalls { get; }
+    public long MaxHostCalls { get; private init; } = Unlimited;
 
-    public long MaxRecordBytes { get; }
+    public long MaxRecordBytes { get; private init; } = Unlimited;
 
-    public long MaxValueBytes { get; }
+    public long MaxValueBytes { get; private init; } = Unlimited;
 
-    public long MaxOutputBytes { get; }
+    public long MaxOutputBytes { get; private init; } = Unlimited;
 
-    public int MaxArrayElements { get; }
+    public int MaxArrayElements { get; private init; } = DefaultMaxArrayElements;
 
-    public int MaxFields { get; }
+    public int MaxFields { get; private init; } = DefaultMaxFields;
 
-    public int MaxBuilderBytes { get; }
+    public int MaxBuilderBytes { get; private init; } = DefaultMaxBuilderBytes;
 
-    public long MaxRegexCaptureBytes { get; }
+    public long MaxRegexCaptureBytes { get; private init; } = Unlimited;
 
-    public long MaxVmStackBytes { get; }
+    public long MaxVmStackBytes { get; private init; } = Unlimited;
 
-    public long MaxExecutionMemoryBytes { get; }
+    public long MaxExecutionMemoryBytes { get; private init; } = Unlimited;
 
-    public int MaxOutputFiles { get; }
+    public int MaxOutputFiles { get; private init; } = DefaultMaxOutputFiles;
 
-    public static AwkRuntimeLimits CreateDefault() =>
-        new(
-            DefaultMaxExecutionSteps,
-            DefaultMaxFunctionCallDepth,
-            Unlimited,
-            Unlimited,
-            Unlimited,
-            Unlimited,
-            DefaultMaxArrayElements,
-            DefaultMaxFields,
-            DefaultMaxBuilderBytes,
-            Unlimited,
-            Unlimited,
-            Unlimited,
-            DefaultMaxOutputFiles);
+    public static AwkRuntimeLimits CreateDefault() => new();
 
     public AwkRuntimeLimits WithMaxExecutionSteps(int value) =>
-        new(
-            value,
-            MaxFunctionCallDepth,
-            MaxHostCalls,
-            MaxRecordBytes,
-            MaxValueBytes,
-            MaxOutputBytes,
-            MaxArrayElements,
-            MaxFields,
-            MaxBuilderBytes,
-            MaxRegexCaptureBytes,
-            MaxVmStackBytes,
-            MaxExecutionMemoryBytes,
-            MaxOutputFiles);
+        this with { MaxExecutionSteps = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxFunctionCallDepth(int value) =>
-        new(
-            MaxExecutionSteps,
-            value,
-            MaxHostCalls,
-            MaxRecordBytes,
-            MaxValueBytes,
-            MaxOutputBytes,
-            MaxArrayElements,
-            MaxFields,
-            MaxBuilderBytes,
-            MaxRegexCaptureBytes,
-            MaxVmStackBytes,
-            MaxExecutionMemoryBytes,
-            MaxOutputFiles);
+        this with { MaxFunctionCallDepth = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxHostCalls(long value) =>
-        new(
-            MaxExecutionSteps,
-            MaxFunctionCallDepth,
-            value,
-            MaxRecordBytes,
-            MaxValueBytes,
-            MaxOutputBytes,
-            MaxArrayElements,
-            MaxFields,
-            MaxBuilderBytes,
-            MaxRegexCaptureBytes,
-            MaxVmStackBytes,
-            MaxExecutionMemoryBytes,
-            MaxOutputFiles);
+        this with { MaxHostCalls = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxRecordBytes(long value) =>
-        new(
-            MaxExecutionSteps,
-            MaxFunctionCallDepth,
-            MaxHostCalls,
-            value,
-            MaxValueBytes,
-            MaxOutputBytes,
-            MaxArrayElements,
-            MaxFields,
-            MaxBuilderBytes,
-            MaxRegexCaptureBytes,
-            MaxVmStackBytes,
-            MaxExecutionMemoryBytes,
-            MaxOutputFiles);
+        this with { MaxRecordBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxValueBytes(long value) =>
-        new(
-            MaxExecutionSteps,
-            MaxFunctionCallDepth,
-            MaxHostCalls,
-            MaxRecordBytes,
-            value,
-            MaxOutputBytes,
-            MaxArrayElements,
-            MaxFields,
-            MaxBuilderBytes,
-            MaxRegexCaptureBytes,
-            MaxVmStackBytes,
-            MaxExecutionMemoryBytes,
-            MaxOutputFiles);
+        this with { MaxValueBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxOutputBytes(long value) =>
-        new(
-            MaxExecutionSteps,
-            MaxFunctionCallDepth,
-            MaxHostCalls,
-            MaxRecordBytes,
-            MaxValueBytes,
-            value,
-            MaxArrayElements,
-            MaxFields,
-            MaxBuilderBytes,
-            MaxRegexCaptureBytes,
-            MaxVmStackBytes,
-            MaxExecutionMemoryBytes,
-            MaxOutputFiles);
+        this with { MaxOutputBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxArrayElements(int value) =>
-        new(
-            MaxExecutionSteps,
-            MaxFunctionCallDepth,
-            MaxHostCalls,
-            MaxRecordBytes,
-            MaxValueBytes,
-            MaxOutputBytes,
-            value,
-            MaxFields,
-            MaxBuilderBytes,
-            MaxRegexCaptureBytes,
-            MaxVmStackBytes,
-            MaxExecutionMemoryBytes,
-            MaxOutputFiles);
+        this with { MaxArrayElements = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxFields(int value) =>
-        new(
-            MaxExecutionSteps,
-            MaxFunctionCallDepth,
-            MaxHostCalls,
-            MaxRecordBytes,
-            MaxValueBytes,
-            MaxOutputBytes,
-            MaxArrayElements,
-            value,
-            MaxBuilderBytes,
-            MaxRegexCaptureBytes,
-            MaxVmStackBytes,
-            MaxExecutionMemoryBytes,
-            MaxOutputFiles);
+        this with { MaxFields = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxBuilderBytes(int value) =>
-        new(
-            MaxExecutionSteps,
-            MaxFunctionCallDepth,
-            MaxHostCalls,
-            MaxRecordBytes,
-            MaxValueBytes,
-            MaxOutputBytes,
-            MaxArrayElements,
-            MaxFields,
-            value,
-            MaxRegexCaptureBytes,
-            MaxVmStackBytes,
-            MaxExecutionMemoryBytes,
-            MaxOutputFiles);
+        this with { MaxBuilderBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxRegexCaptureBytes(long value) =>
-        new(
-            MaxExecutionSteps,
-            MaxFunctionCallDepth,
-            MaxHostCalls,
-            MaxRecordBytes,
-            MaxValueBytes,
-            MaxOutputBytes,
-            MaxArrayElements,
-            MaxFields,
-            MaxBuilderBytes,
-            value,
-            MaxVmStackBytes,
-            MaxExecutionMemoryBytes,
-            MaxOutputFiles);
+        this with { MaxRegexCaptureBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxVmStackBytes(long value) =>
-        new(
-            MaxExecutionSteps,
-            MaxFunctionCallDepth,
-            MaxHostCalls,
-            MaxRecordBytes,
-            MaxValueBytes,
-            MaxOutputBytes,
-            MaxArrayElements,
-            MaxFields,
-            MaxBuilderBytes,
-            MaxRegexCaptureBytes,
-            value,
-            MaxExecutionMemoryBytes,
-            MaxOutputFiles);
+        this with { MaxVmStackBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxExecutionMemoryBytes(long value) =>
-        new(
-            MaxExecutionSteps,
-            MaxFunctionCallDepth,
-            MaxHostCalls,
-            MaxRecordBytes,
-            MaxValueBytes,
-            MaxOutputBytes,
-            MaxArrayElements,
-            MaxFields,
-            MaxBuilderBytes,
-            MaxRegexCaptureBytes,
-            MaxVmStackBytes,
-            value,
-            MaxOutputFiles);
+        this with { MaxExecutionMemoryBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxOutputFiles(int value) =>
-        new(
-            MaxExecutionSteps,
-            MaxFunctionCallDepth,
-            MaxHostCalls,
-            MaxRecordBytes,
-            MaxValueBytes,
-            MaxOutputBytes,
-            MaxArrayElements,
-            MaxFields,
-            MaxBuilderBytes,
-            MaxRegexCaptureBytes,
-            MaxVmStackBytes,
-            MaxExecutionMemoryBytes,
-            value);
+        this with { MaxOutputFiles = RequirePositive(value) };
 
-    private static void ThrowIfNonPositive(long value, string parameterName)
-    {
-        if (value <= 0)
-            throw new ArgumentOutOfRangeException(parameterName);
-    }
+    private static int RequirePositive(int value) =>
+        value > 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
+
+    private static long RequirePositive(long value) =>
+        value > 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
 }

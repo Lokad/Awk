@@ -201,7 +201,6 @@ internal sealed class AwkRuntimeState
         Limits = plan.RuntimeOptions.Limits.WithMaxArrayElements(plan.MaxArrayElements);
         Resources = new AwkRuntimeResourceMonitor(Limits, Counters);
         MemoryGovernor = AwkMemoryGovernor.Create(Limits, Counters);
-        MaxLoopIterations = Limits.MaxExecutionSteps;
         CompatibilityMode = plan.CompatibilityMode;
         LintMode = plan.LintMode;
         CharactersAsBytes = plan.CharactersAsBytes;
@@ -296,8 +295,6 @@ internal sealed class AwkRuntimeState
     public bool CharactersAsBytes { get; }
 
     public bool NonDecimalData { get; }
-
-    public int MaxLoopIterations { get; }
 
     public AwkRuntimeCounters Counters { get; }
 
