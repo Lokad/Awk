@@ -18,26 +18,28 @@ internal static partial class AwkSourceLoader
     {
         var normalization = AwkLineContinuations.Normalize(source);
         var normalizedSource = normalization.Text;
-        var builder = new StringBuilder(normalizedSource.Length);
-        var segments = new List<AwkSourceSegment>();
         if (normalizedSource.IndexOf('@') < 0)
         {
-            AppendSourceSegment(
-                builder,
-                segments,
-                sourceName,
-                sourceKind,
+            if (normalizedSource.Length == 0)
+                return SourceExpansionResult.FromSource(AwkExpandedSource.Empty);
+
+            return SourceExpansionResult.FromSource(AwkExpandedSource.Create(
                 normalizedSource,
-                0,
-                normalizedSource.Length,
-                0,
-                0,
-                normalization.LineContinuations);
-            return SourceExpansionResult.FromSource(AwkExpandedSource.Create(builder.ToString(), segments));
+                [new AwkSourceSegment(
+                    sourceName,
+                    sourceKind,
+                    new AwkTextSpan(0, normalizedSource.Length),
+                    new AwkLineOffset(0),
+                    new AwkColumnOffset(0),
+                    normalization.LineContinuations)]));
         }
 
+        var builder = new StringBuilder(normalizedSource.Length);
+        var segments = new List<AwkSourceSegment>();
         var index = 0;
         var sourceLine = 0;
+        var sourceChunkStart = 0;
+        var sourceChunkLine = 0;
         while (index < normalizedSource.Length)
         {
             var lineStart = index;
@@ -53,27 +55,30 @@ internal static partial class AwkSourceLoader
             }
 
             var lineLength = lineEnd - lineStart;
-            var lineContinuations = normalization.LineContinuations.Slice(lineStart, index - lineStart);
-            var sourceLineAdvance = 1 + lineContinuations.Count;
+            var sourceLineAdvance = 1 +
+                normalization.LineContinuations.CountAtOrBefore(index) -
+                normalization.LineContinuations.CountAtOrBefore(lineStart - 1);
             var directiveMarker = normalizedSource.IndexOf('@', lineStart, lineLength);
             if (directiveMarker < 0 ||
                 !AwkDirectiveParser.TryParseIncludeLine(normalizedSource[lineStart..lineEnd], out var includePath))
             {
-                AppendSourceSegment(
-                    builder,
-                    segments,
-                    sourceName,
-                    sourceKind,
-                    normalizedSource,
-                    lineStart,
-                    index - lineStart,
-                    sourceLine,
-                    0,
-                    lineContinuations);
                 sourceLine += sourceLineAdvance;
                 continue;
             }
 
+            AppendSourceSegment(
+                builder,
+                segments,
+                sourceName,
+                sourceKind,
+                normalizedSource,
+                sourceChunkStart,
+                lineStart - sourceChunkStart,
+                sourceChunkLine,
+                0,
+                normalization.LineContinuations.Slice(
+                    sourceChunkStart,
+                    lineStart - sourceChunkStart));
             var include = await TryReadIncludeAsync(host, plan, includePath, cancellationToken)
                 .ConfigureAwait(false);
             if (include is SourceExpansionResult.Failed)
@@ -92,7 +97,23 @@ internal static partial class AwkSourceLoader
             }
 
             sourceLine += sourceLineAdvance;
+            sourceChunkStart = index;
+            sourceChunkLine = sourceLine;
         }
+
+        AppendSourceSegment(
+            builder,
+            segments,
+            sourceName,
+            sourceKind,
+            normalizedSource,
+            sourceChunkStart,
+            normalizedSource.Length - sourceChunkStart,
+            sourceChunkLine,
+            0,
+            normalization.LineContinuations.Slice(
+                sourceChunkStart,
+                normalizedSource.Length - sourceChunkStart));
 
         return SourceExpansionResult.FromSource(AwkExpandedSource.Create(builder.ToString(), segments));
     }

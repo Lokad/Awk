@@ -9,6 +9,21 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkSourceLoaderTests
 {
     [Fact]
+    public async Task AwkSourceLoader_ReusesOrdinaryNormalizedSourceText()
+    {
+        var fileSystem = new MockFileSystem();
+        var program = "BEGIN{print 1}";
+        var invocation = Parse(program);
+
+        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+
+        var source = Assert.Single(LoadedSources(result));
+        Assert.Same(program, source.Text);
+        var segment = Assert.Single(source.Segments);
+        Assert.Equal(new AwkTextSpan(0, program.Length), segment.Span);
+    }
+
+    [Fact]
     public async Task AwkSourceLoader_PreservesIncludeSourceSegments()
     {
         var fileSystem = new MockFileSystem();
@@ -169,6 +184,20 @@ public sealed class AwkSourceLoaderTests
         Assert.Equal(AwkSourceSegmentKind.Inline, segment.Kind);
         Assert.Equal(new AwkTextSpan(0, source.Text.Length), segment.Span);
         Assert.Equal(1, segment.LineContinuations.Count);
+    }
+
+    [Fact]
+    public async Task AwkSourceLoader_BatchesNonDirectiveLinesAroundMarkerText()
+    {
+        var fileSystem = new MockFileSystem();
+        var invocation = Parse("BEGIN{value=1 \\\n+ 2}\n{print \"@marker\", value \\\n+ 3}");
+
+        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+
+        var source = Assert.Single(LoadedSources(result));
+        Assert.Equal("BEGIN{value=1 + 2}\n{print \"@marker\", value + 3}", source.Text);
+        var segment = Assert.Single(source.Segments);
+        Assert.Equal(2, segment.LineContinuations.Count);
     }
 
     [Theory]
