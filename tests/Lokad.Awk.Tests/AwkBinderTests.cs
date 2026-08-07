@@ -287,6 +287,35 @@ public sealed class AwkBinderTests
     }
 
     [Theory]
+    [InlineData("BEGINFILE{getline}", "awk: non-redirected `getline' invalid inside `BEGINFILE' rule\n")]
+    [InlineData("BEGINFILE{if((getline value)>0) print value}", "awk: non-redirected `getline' invalid inside `BEGINFILE' rule\n")]
+    [InlineData("ENDFILE{getline value}", "awk: non-redirected `getline' invalid inside `ENDFILE' rule\n")]
+    public void AwkBinder_ReportsMainInputGetlineInFileBoundaryRules(
+        string source,
+        string expectedMessage)
+    {
+        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+
+        var diagnostic = Assert.Single(binding.Diagnostics);
+        Assert.False(binding.Success);
+        Assert.False(binding.Program.HasProgram);
+        Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
+        Assert.Equal(expectedMessage, Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
+    }
+
+    [Fact]
+    public void AwkBinder_AcceptsRedirectedGetlineAndFunctionCallsInFileBoundaryRules()
+    {
+        var binding = AwkBinder.Bind(AwkParser.Parse(
+            "function readmain(){getline value} " +
+            "BEGINFILE{getline value < \"/side.txt\"; readmain()} " +
+            "ENDFILE{getline value < \"/side.txt\"}"));
+
+        Assert.True(binding.Success);
+        Assert.Empty(binding.Diagnostics);
+    }
+
+    [Theory]
     [InlineData("BEGIN{FUNCTAB[\"x\"]=\"y\"}", "awk: cannot modify special array `FUNCTAB'\n")]
     [InlineData("BEGIN{FUNCTAB[\"x\"]++}", "awk: cannot modify special array `FUNCTAB'\n")]
     [InlineData("BEGIN{delete FUNCTAB[\"x\"]}", "awk: cannot modify special array `FUNCTAB'\n")]

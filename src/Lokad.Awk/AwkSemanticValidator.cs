@@ -133,12 +133,13 @@ internal static class AwkSemanticValidator
         for (var index = 0; index < syntax.Rules.Count; index++)
         {
             var rule = syntax.Rules[index];
+            var context = AwkStatementValidationContext.RuleBody(rule.Kind);
             foreach (var expression in rule.PatternSyntax.EnumerateChildExpressions())
-                ValidateExpressionSemantics(expression, diagnostics);
+                ValidateExpressionSemantics(expression, context, diagnostics);
 
             ValidateStatements(
                 rule.ActionStatements,
-                AwkStatementValidationContext.RuleBody(rule.Kind),
+                context,
                 diagnostics);
         }
     }
@@ -155,14 +156,14 @@ internal static class AwkSemanticValidator
             ValidateArgumentlessStatementShape(statement, diagnostics);
             ValidateControlFlowUsage(statement, context, diagnostics);
             foreach (var expression in statement.EnumerateChildExpressions())
-                ValidateExpressionSemantics(expression, diagnostics);
+                ValidateExpressionSemantics(expression, context, diagnostics);
 
             ValidateDeleteStatement(statement, diagnostics);
             ValidateStatements(statement.BodyStatements, context.EnterBody(statement.Kind), diagnostics);
             ValidateStatements(statement.ElseStatements, context, diagnostics);
             for (var caseIndex = 0; caseIndex < statement.SwitchCases.Count; caseIndex++)
             {
-                ValidateExpressionSemantics(statement.SwitchCases[caseIndex].Expression, diagnostics);
+                ValidateExpressionSemantics(statement.SwitchCases[caseIndex].Expression, context, diagnostics);
                 ValidateStatements(statement.SwitchCases[caseIndex].BodyStatements, context.EnterSwitch(), diagnostics);
             }
         }
@@ -246,28 +247,32 @@ internal static class AwkSemanticValidator
 
     private static void ValidateExpressionSemantics(
         AwkExpressionSyntax? expression,
+        AwkStatementValidationContext context,
         List<AwkDiagnostic> diagnostics)
     {
         if (expression == null)
             return;
 
-        ValidateExpressionSemanticsCore(expression, diagnostics);
+        ValidateExpressionSemanticsCore(expression, context, diagnostics);
     }
 
     private static void ValidateExpressionSemantics(
         AwkSyntaxOptional<AwkExpressionSyntax> expression,
+        AwkStatementValidationContext context,
         List<AwkDiagnostic> diagnostics)
     {
         if (expression.TryGetValue(out var syntax))
-            ValidateExpressionSemanticsCore(syntax, diagnostics);
+            ValidateExpressionSemanticsCore(syntax, context, diagnostics);
     }
 
     private static void ValidateExpressionSemanticsCore(
         AwkExpressionSyntax expression,
+        AwkStatementValidationContext context,
         List<AwkDiagnostic> diagnostics)
     {
         ValidateBareCallableVariable(expression, diagnostics);
         ValidateKnownCallableShape(expression, diagnostics);
+        ValidateMainInputGetlineUsage(expression, context, diagnostics);
 
         if (expression.Kind == AwkExpressionKind.Assignment)
         {
@@ -301,9 +306,37 @@ internal static class AwkSemanticValidator
 
         for (var index = NestedExpressionStartIndex(expression); index < expression.Children.Count; index++)
         {
-            ValidateExpressionSemantics(expression.Children[index], diagnostics);
+            ValidateExpressionSemantics(expression.Children[index], context, diagnostics);
         }
     }
+
+    private static void ValidateMainInputGetlineUsage(
+        AwkExpressionSyntax expression,
+        AwkStatementValidationContext context,
+        List<AwkDiagnostic> diagnostics)
+    {
+        if (!context.TryGetMainInputGetlineProhibition(out var ruleName) ||
+            expression.Kind != AwkExpressionKind.FunctionCall ||
+            expression.Children.Count == 0 ||
+            !AwkExpressionSyntaxFacts.TryGetIdentifier(expression.Children[0], out var identifier) ||
+            !AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Getline) ||
+            !AwkGetlineLowerer.TryResolveExpressionCallParts(expression, out var parts) ||
+            parts.RequiresInputRedirection)
+        {
+            return;
+        }
+
+        AddMainInputGetlineDiagnostic(expression.Span, ruleName, diagnostics);
+    }
+
+    private static void AddMainInputGetlineDiagnostic(
+        AwkTextSpan span,
+        string ruleName,
+        List<AwkDiagnostic> diagnostics) =>
+        diagnostics.Add(new AwkDiagnostic(
+            span,
+            "Non-redirected `getline' invalid inside `" + ruleName + "' rule",
+            AwkDiagnosticId.BindInvalidProgram));
 
     private static int NestedExpressionStartIndex(AwkExpressionSyntax expression) =>
         expression.Kind == AwkExpressionKind.FunctionCall ? 1 : 0;
@@ -514,6 +547,17 @@ internal static class AwkSemanticValidator
 
         public bool CanUseNextFile =>
             !IsInsideFunction && _ruleKind is AwkRuleKind.Main or AwkRuleKind.BeginFile;
+
+        public bool TryGetMainInputGetlineProhibition(out string ruleName)
+        {
+            ruleName = _ruleKind switch
+            {
+                AwkRuleKind.BeginFile => "BEGINFILE",
+                AwkRuleKind.EndFile => "ENDFILE",
+                _ => string.Empty
+            };
+            return ruleName.Length > 0;
+        }
 
         public static AwkStatementValidationContext RuleBody(AwkRuleKind kind) =>
             new(isInsideFunction: false, kind, loopDepth: 0, switchDepth: 0);

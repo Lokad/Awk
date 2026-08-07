@@ -63,6 +63,30 @@ internal static partial class AwkGoldenCorpus
             "paragraph-getline-current-record-preserves-paragraph-field-splitting",
             ["BEGIN{FS=\",\"; RS=\"\"; getline; print NF, $1, $2}", "/file.txt"],
             [File("/file.txt", "a\nb\n\n")],
-            "2 a b\n")
+            "2 a b\n"),
+
+        CompilerDiagnostic(Failing(
+            "beginfile-main-getline-fails",
+            ["BEGINFILE{getline}", "/file.txt"],
+            [File("/file.txt", "line\n")],
+            2,
+            string.Empty,
+            "awk: non-redirected `getline' invalid inside `BEGINFILE' rule\n")),
+
+        CompilerDiagnostic(Failing(
+            "endfile-main-getline-expression-fails",
+            ["ENDFILE{if((getline value)>0) print value}", "/file.txt"],
+            [File("/file.txt", "line\n")],
+            2,
+            string.Empty,
+            "awk: non-redirected `getline' invalid inside `ENDFILE' rule\n")),
+
+        Failing(
+            "function-main-getline-called-from-beginfile-fails",
+            ["function readmain(){getline value} BEGINFILE{readmain()}", "/file.txt"],
+            [File("/file.txt", "line\n")],
+            2,
+            string.Empty,
+            "awk: non-redirected `getline' invalid inside `BEGINFILE' rule\n")
     ];
 }

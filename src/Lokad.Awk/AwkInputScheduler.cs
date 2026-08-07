@@ -24,9 +24,12 @@ internal sealed class AwkInputScheduler(
     private int _nextInputPlanIndex;
     private bool _selectedInputSource;
     private bool _usedStandardInputFallback;
+    private MainInputReadProhibition _mainInputReadProhibition;
 
     public async ValueTask<AwkInputRecordResult> ReadAsync()
     {
+        ThrowIfMainInputReadIsProhibited();
+
         while (!state.ExitRequested)
         {
             if (_currentInput is null && !await TryOpenNextInputAsync().ConfigureAwait(false))
@@ -187,8 +190,7 @@ internal sealed class AwkInputScheduler(
         OwnedInputDescriptor descriptor)
     {
         _currentInput = new OpenMainInput(cursor, descriptor);
-        var beginFileFlow = await actionExecutor.ExecuteBeginFileActionsAsync(state, io)
-            .ConfigureAwait(false);
+        var beginFileFlow = await ExecuteBeginFileActionsAsync().ConfigureAwait(false);
         if (beginFileFlow == AwkStatementFlow.Continue)
             return true;
 
@@ -204,7 +206,7 @@ internal sealed class AwkInputScheduler(
         state.SetErrno(opened.Failed
             ? AwkErrno.FromHostMessage(opened.Error.Message)
             : AwkErrno.NoSuchFileOrDirectory);
-        var flow = await actionExecutor.ExecuteBeginFileActionsAsync(state, io).ConfigureAwait(false);
+        var flow = await ExecuteBeginFileActionsAsync().ConfigureAwait(false);
         if (flow == AwkStatementFlow.ExitProgram)
             return true;
 
@@ -220,7 +222,7 @@ internal sealed class AwkInputScheduler(
             return AwkStatementFlow.Continue;
 
         var flow = executeEndFile
-            ? await actionExecutor.ExecuteEndFileActionsAsync(state, io).ConfigureAwait(false)
+            ? await ExecuteEndFileActionsAsync().ConfigureAwait(false)
             : AwkStatementFlow.Continue;
         var input = _currentInput;
         _currentInput = null;
@@ -229,6 +231,41 @@ internal sealed class AwkInputScheduler(
             await CloseOwnedDescriptorAsync(input.Descriptor.Value).ConfigureAwait(false);
 
         return flow;
+    }
+
+    private async ValueTask<AwkStatementFlow> ExecuteBeginFileActionsAsync()
+    {
+        _mainInputReadProhibition = MainInputReadProhibition.BeginFile;
+        try
+        {
+            return await actionExecutor.ExecuteBeginFileActionsAsync(state, io).ConfigureAwait(false);
+        }
+        finally
+        {
+            _mainInputReadProhibition = MainInputReadProhibition.None;
+        }
+    }
+
+    private async ValueTask<AwkStatementFlow> ExecuteEndFileActionsAsync()
+    {
+        _mainInputReadProhibition = MainInputReadProhibition.EndFile;
+        try
+        {
+            return await actionExecutor.ExecuteEndFileActionsAsync(state, io).ConfigureAwait(false);
+        }
+        finally
+        {
+            _mainInputReadProhibition = MainInputReadProhibition.None;
+        }
+    }
+
+    private void ThrowIfMainInputReadIsProhibited()
+    {
+        if (_mainInputReadProhibition == MainInputReadProhibition.BeginFile)
+            throw new AwkRuntimeException(AwkMessages.ErrorMainInputGetlineInBeginFile);
+
+        if (_mainInputReadProhibition == MainInputReadProhibition.EndFile)
+            throw new AwkRuntimeException(AwkMessages.ErrorMainInputGetlineInEndFile);
     }
 
     private void DisposeCurrentInput()
@@ -355,5 +392,12 @@ internal sealed class AwkInputScheduler(
         public AwkRecordCursor Cursor { get; } = cursor;
 
         public OwnedInputDescriptor Descriptor { get; } = descriptor;
+    }
+
+    private enum MainInputReadProhibition
+    {
+        None,
+        BeginFile,
+        EndFile
     }
 }

@@ -42,6 +42,10 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: next used outside input action\n");
     internal static readonly ReadOnlyMemory<byte> ErrorNextFileOutsideInput =
         AwkUtf8Codec.Encode("awk: nextfile used outside input action\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorMainInputGetlineInBeginFile =
+        AwkUtf8Codec.Encode("awk: non-redirected `getline' invalid inside `BEGINFILE' rule\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorMainInputGetlineInEndFile =
+        AwkUtf8Codec.Encode("awk: non-redirected `getline' invalid inside `ENDFILE' rule\n");
     internal static readonly ReadOnlyMemory<byte> ErrorReturnOutsideFunction =
         AwkUtf8Codec.Encode("awk: return used outside function\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedCoprocess =
