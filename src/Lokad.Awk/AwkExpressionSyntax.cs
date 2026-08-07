@@ -80,6 +80,12 @@ internal sealed class AwkExpressionSyntax(
         while (nodes.Count > 0)
         {
             var node = nodes.Pop();
+            if (node._tokens is { } materializedTokens)
+            {
+                count = checked(count + materializedTokens.Count);
+                continue;
+            }
+
             count = checked(
                 count +
                 node.OperatorTokens.Count +
@@ -98,6 +104,12 @@ internal sealed class AwkExpressionSyntax(
         while (nodes.Count > 0)
         {
             var node = nodes.Pop();
+            if (node._tokens is { } materializedTokens)
+            {
+                offset = CopyTo(materializedTokens, result, offset);
+                continue;
+            }
+
             offset = CopyTo(node.OperatorTokens, result, offset);
             offset = CopyTo(node.DelimiterTokens, result, offset);
             offset = CopyTo(node.SeparatorTokens, result, offset);
