@@ -28,6 +28,16 @@ public enum AwkOperationStatus
     Success
 }
 
+/// <summary>Identifies whether a successful host read reached the end of its input.</summary>
+public enum AwkReadCompletion
+{
+    /// <summary>More input may be available.</summary>
+    MoreData,
+
+    /// <summary>The read reached the end of its input.</summary>
+    EndOfFile
+}
+
 /// <summary>Represents the result of opening a file through an <see cref="IAwkHost"/>.</summary>
 public readonly struct AwkOpenedFile
 {
@@ -120,7 +130,7 @@ public readonly struct AwkReadResult
         AwkOperationStatus status,
         ReadOnlyMemory<byte> content,
         int[] lineStartOffsets,
-        bool reachedEof,
+        AwkReadCompletion completion,
         AwkOperationError error)
     {
         ArgumentNullException.ThrowIfNull(lineStartOffsets);
@@ -148,13 +158,13 @@ public readonly struct AwkReadResult
         LineStartOffsets = lineStartOffsets.Length == 0
             ? ReadOnlyMemory<int>.Empty
             : new ReadOnlyMemory<int>([.. lineStartOffsets]);
-        ReachedEof = reachedEof;
+        Completion = completion;
         Error = error;
     }
 
     /// <summary>Gets a successful empty result that has reached the end of the input.</summary>
     public static AwkReadResult EndOfFile { get; } =
-        FromContent(ReadOnlyMemory<byte>.Empty, Array.Empty<int>(), reachedEof: true);
+        FromContent(ReadOnlyMemory<byte>.Empty, Array.Empty<int>(), AwkReadCompletion.EndOfFile);
 
     /// <summary>
     /// Creates a successful result. Offsets identify each line start after the first and must be
@@ -165,8 +175,8 @@ public readonly struct AwkReadResult
     public static AwkReadResult FromContent(
         ReadOnlyMemory<byte> content,
         int[] lineStartOffsets,
-        bool reachedEof) =>
-        new(AwkOperationStatus.Success, content, lineStartOffsets, reachedEof, default);
+        AwkReadCompletion completion) =>
+        new(AwkOperationStatus.Success, content, lineStartOffsets, completion, default);
 
     /// <summary>Creates a failed read carrying an awk-shaped host error.</summary>
     public static AwkReadResult Failure(AwkOperationError error) =>
@@ -174,7 +184,7 @@ public readonly struct AwkReadResult
             AwkOperationStatus.Failure,
             ReadOnlyMemory<byte>.Empty,
             Array.Empty<int>(),
-            reachedEof: false,
+            AwkReadCompletion.MoreData,
             error);
 
     /// <summary>Gets the outcome category.</summary>
@@ -198,6 +208,9 @@ public readonly struct AwkReadResult
     /// <summary>Gets whether the read failed.</summary>
     public bool Failed => Status == AwkOperationStatus.Failure;
 
+    /// <summary>Gets whether more data may follow a successful read.</summary>
+    public AwkReadCompletion Completion { get; }
+
     /// <summary>Gets whether the successful read consumed the end of the input.</summary>
-    public bool ReachedEof { get; }
+    public bool ReachedEof => Completion == AwkReadCompletion.EndOfFile;
 }

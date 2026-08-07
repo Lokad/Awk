@@ -37,8 +37,10 @@ public interface IAwkHost
     /// </summary>
     Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken cancellationToken);
 
-    /// <summary>Closes a descriptor and returns false when the descriptor could not be closed.</summary>
-    Task<bool> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken cancellationToken);
+    /// <summary>Closes a descriptor and returns the host operation status.</summary>
+    Task<AwkOperationStatus> CloseDescriptorAsync(
+        AwkFileDescriptor descriptor,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Reads up to <paramref name="maxLineCount"/> lines. Successful results carry a byte buffer

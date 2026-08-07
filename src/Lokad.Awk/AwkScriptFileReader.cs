@@ -110,7 +110,8 @@ internal static class AwkScriptFileReader
         {
             var closed = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
                 .ConfigureAwait(false);
-            if (!closed && readResult is not AwkScriptTextReadResult.Failed)
+            if (closed != AwkOperationStatus.Success &&
+                readResult is not AwkScriptTextReadResult.Failed)
             {
                 return AwkScriptTextReadResult.Failure(
                     AwkMessages.FormatPathError(path.Display, "Close failed."),

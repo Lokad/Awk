@@ -95,7 +95,9 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             return Task.FromResult(new AwkPipeDescriptors(PipeReadDescriptor, PipeWriteDescriptor));
         }
 
-        public Task<bool> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken cancellationToken)
+        public Task<AwkOperationStatus> CloseDescriptorAsync(
+            AwkFileDescriptor descriptor,
+            CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (descriptor == PipeWriteDescriptor)
@@ -104,7 +106,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
                 _commandCompletion.TrySetResult([AwkExitCode.Success]);
             }
 
-            return Task.FromResult(true);
+            return Task.FromResult(AwkOperationStatus.Success);
         }
 
         public Task<AwkReadResult> ReadLinesAsync(

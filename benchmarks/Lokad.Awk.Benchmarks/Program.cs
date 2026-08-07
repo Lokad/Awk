@@ -1419,10 +1419,15 @@ internal sealed class BenchmarkHost : IAwkHost
         return Task.FromResult(state.ReadLines(limit));
     }
 
-    public Task<bool> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken cancellationToken)
+    public Task<AwkOperationStatus> CloseDescriptorAsync(
+        AwkFileDescriptor descriptor,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(_openFiles.Remove(descriptor));
+        return Task.FromResult(
+            _openFiles.Remove(descriptor)
+                ? AwkOperationStatus.Success
+                : AwkOperationStatus.Failure);
     }
 
     public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
@@ -1483,14 +1488,16 @@ internal sealed class BenchmarkHost : IAwkHost
                 return AwkReadResult.FromContent(
                     completeBuffer,
                     lineCount > 1 ? offsets[..(lineCount - 1)] : [],
-                    _offset >= content.Length);
+                    _offset >= content.Length
+                        ? AwkReadCompletion.EndOfFile
+                        : AwkReadCompletion.MoreData);
             }
 
             var length = content.Length - start;
             var buffer = new byte[length];
             Array.Copy(content, start, buffer, 0, length);
             _offset = content.Length;
-            return AwkReadResult.FromContent(buffer, [], reachedEof: true);
+            return AwkReadResult.FromContent(buffer, [], AwkReadCompletion.EndOfFile);
         }
     }
 }

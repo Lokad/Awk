@@ -120,18 +120,22 @@ public sealed class MockFileSystem : IAwkHost
         return Task.FromResult(AwkOpenedFile.MissingFile());
     }
 
-    public Task<bool> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken cancellationToken)
+    public Task<AwkOperationStatus> CloseDescriptorAsync(
+        AwkFileDescriptor descriptor,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (descriptor.IsDevNull)
-            return Task.FromResult(true);
+            return Task.FromResult(AwkOperationStatus.Success);
 
         var closed = _descriptors.Close(descriptor);
         AfterCloseDescriptor?.Invoke();
         var closeDescriptorResultOverride = CloseDescriptorResultOverride;
-        return Task.FromResult(closeDescriptorResultOverride == null
+        var succeeded = closeDescriptorResultOverride == null
             ? closed
-            : closeDescriptorResultOverride(descriptor, closed));
+            : closeDescriptorResultOverride(descriptor, closed);
+        return Task.FromResult(
+            succeeded ? AwkOperationStatus.Success : AwkOperationStatus.Failure);
     }
 
     public Task<AwkReadResult> ReadLinesAsync(

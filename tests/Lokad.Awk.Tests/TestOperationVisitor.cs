@@ -89,16 +89,19 @@ public sealed class TestOperationVisitor : IAwkHost
         return Task.FromResult(AwkOpenedFile.Opened(operation.Descriptor));
     }
 
-    public Task<bool> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken cancellationToken)
+    public Task<AwkOperationStatus> CloseDescriptorAsync(
+        AwkFileDescriptor descriptor,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (descriptor.IsDevNull)
         {
-            return Task.FromResult(true);
+            return Task.FromResult(AwkOperationStatus.Success);
         }
 
         var operation = Dequeue<TestHostOperation.CloseDescriptor>("descriptor close results");
-        return Task.FromResult(operation.Closed);
+        return Task.FromResult(
+            operation.Closed ? AwkOperationStatus.Success : AwkOperationStatus.Failure);
     }
 
     public Task<AwkReadResult> ReadLinesAsync(

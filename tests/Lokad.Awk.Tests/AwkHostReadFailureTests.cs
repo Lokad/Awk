@@ -13,7 +13,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         var host = new MockFileSystem
         {
             ReadLinesOverride = (_, _) => readCount++ == 0
-                ? AwkReadResult.FromContent("one\n"u8.ToArray(), [], reachedEof: false)
+                ? AwkReadResult.FromContent("one\n"u8.ToArray(), [], AwkReadCompletion.MoreData)
                 : AwkReadResult.Failure(new AwkOperationError("Device read failed"))
         };
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "{print}")));
@@ -77,7 +77,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         {
             AfterReadLines = cancellation.Cancel,
             ReadLinesOverride = (_, _) =>
-                AwkReadResult.FromContent("BEGIN{print 1}"u8.ToArray(), [], reachedEof: false)
+                AwkReadResult.FromContent("BEGIN{print 1}"u8.ToArray(), [], AwkReadCompletion.MoreData)
         };
         host.AddFile("/script.awk", "unread");
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "-f", "/script.awk")));
@@ -106,16 +106,19 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     public void AwkReadResult_RejectsMalformedLineOffsets()
     {
         Assert.Throws<ArgumentException>(() =>
-            AwkReadResult.FromContent("one\n"u8.ToArray(), [4], reachedEof: true));
+            AwkReadResult.FromContent("one\n"u8.ToArray(), [4], AwkReadCompletion.EndOfFile));
         Assert.Throws<ArgumentException>(() =>
-            AwkReadResult.FromContent("one\ntwo\n"u8.ToArray(), [4, 4], reachedEof: true));
+            AwkReadResult.FromContent("one\ntwo\n"u8.ToArray(), [4, 4], AwkReadCompletion.EndOfFile));
     }
 
     [Fact]
     public void AwkReadResult_SnapshotsLineOffsets()
     {
         int[] offsets = [4];
-        var result = AwkReadResult.FromContent("one\ntwo\n"u8.ToArray(), offsets, reachedEof: true);
+        var result = AwkReadResult.FromContent(
+            "one\ntwo\n"u8.ToArray(),
+            offsets,
+            AwkReadCompletion.EndOfFile);
 
         offsets[0] = 1;
 

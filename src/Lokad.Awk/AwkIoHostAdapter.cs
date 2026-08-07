@@ -121,7 +121,7 @@ internal sealed class AwkIoHostAdapter(
     {
         resources.RecordHostCall();
         var closed = await host.CloseDescriptorAsync(descriptor, cancellationToken).ConfigureAwait(false);
-        if (!closed)
+        if (closed != AwkOperationStatus.Success)
         {
             throw new AwkRuntimeException(
                 AwkMessages.FormatDescriptorCloseError(descriptor),

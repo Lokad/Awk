@@ -177,13 +177,15 @@ internal sealed class MockOpenFileState
             return AwkReadResult.FromContent(
                 completeBuffer,
                 lineCount > 1 ? offsets[..(lineCount - 1)] : Array.Empty<int>(),
-                _offset >= _content.Length);
+                _offset >= _content.Length
+                    ? AwkReadCompletion.EndOfFile
+                    : AwkReadCompletion.MoreData);
         }
 
         var length = _content.Length - start;
         var buffer = new byte[length];
         Array.Copy(_content, start, buffer, 0, length);
         _offset = _content.Length;
-        return AwkReadResult.FromContent(buffer, Array.Empty<int>(), reachedEof: true);
+        return AwkReadResult.FromContent(buffer, Array.Empty<int>(), AwkReadCompletion.EndOfFile);
     }
 }

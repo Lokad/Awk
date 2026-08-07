@@ -118,7 +118,10 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(pipeRead, pipeWrite));
         host.EnqueueCommandExitCodes([0]);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(AwkUtf8Codec.Encode("hello\n"), [], reachedEof: true));
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+            AwkUtf8Codec.Encode("hello\n"),
+            [],
+            AwkReadCompletion.EndOfFile));
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         host.EnqueueCloseDescriptorResult(true);
@@ -149,7 +152,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(
             AwkUtf8Codec.Encode("first|second|"),
             [],
-            reachedEof: true));
+            AwkReadCompletion.EndOfFile));
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         host.EnqueueCloseDescriptorResult(true);
@@ -170,7 +173,10 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(50), new AwkFileDescriptor(51)));
         host.EnqueueCommandExitCodes([17]);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(AwkUtf8Codec.Encode("payload\n"), [], reachedEof: true));
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+            AwkUtf8Codec.Encode("payload\n"),
+            [],
+            AwkReadCompletion.EndOfFile));
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueAppendExitCode(0);

@@ -340,7 +340,7 @@ internal sealed class AwkInputScheduler(
         {
             state.Resources.RecordHostCall();
             var closed = await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
-            if (!closed)
+            if (closed != AwkOperationStatus.Success)
             {
                 throw new AwkRuntimeException(
                     AwkMessages.FormatDescriptorCloseError(descriptor),
