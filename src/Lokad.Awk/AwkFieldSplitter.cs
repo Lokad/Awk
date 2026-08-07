@@ -59,25 +59,11 @@ internal sealed class AwkFieldSplitter(
             _fieldSplittingMode = AwkFieldSplittingMode.FieldWidths;
     }
 
-    public IReadOnlyList<AwkText> SplitFieldTexts(AwkText line, AwkRuntimeCounters counters) =>
-        _fieldSplittingMode switch
-        {
-            AwkFieldSplittingMode.FieldPattern => SplitFieldPatternTexts(line, counters),
-            AwkFieldSplittingMode.FieldWidths => SplitFieldWidthTexts(line, counters),
-            _ => SplitFieldTextsBySeparator(
-                    line,
-                    _fieldSeparator,
-                    _useDefaultSeparator,
-                    captureSeparators: false,
-                    counters)
-                .Fields
-        };
-
     public IReadOnlyList<AwkFieldText> SplitRecordFields(AwkText line, AwkRuntimeCounters counters) =>
         _fieldSplittingMode switch
         {
-            AwkFieldSplittingMode.FieldPattern => ToOwnedFieldTexts(SplitFieldPatternTexts(line, counters)),
-            AwkFieldSplittingMode.FieldWidths => ToOwnedFieldTexts(SplitFieldWidthTexts(line, counters)),
+            AwkFieldSplittingMode.FieldPattern => _byteSplitter.PatsplitRecordFields(line, _fieldPattern),
+            AwkFieldSplittingMode.FieldWidths => SplitFieldWidthRecordFields(line),
             _ => _recordFieldSplittingMode == AwkRecordFieldSplittingMode.Paragraph
                 ? _byteSplitter.SplitParagraphRecordFieldsBySeparator(
                     line,
@@ -109,30 +95,19 @@ internal sealed class AwkFieldSplitter(
     public AwkTextSplitResult Patsplit(AwkText input, string pattern, bool captureSeparators, AwkRuntimeCounters counters) =>
         _byteSplitter.Patsplit(input, pattern, captureSeparators, counters);
 
-    private IReadOnlyList<AwkText> SplitFieldPatternTexts(
-        AwkText line,
-        AwkRuntimeCounters counters)
-    {
-        return Patsplit(line, _fieldPattern, captureSeparators: false, counters).Fields;
-    }
-
-    private IReadOnlyList<AwkText> SplitFieldWidthTexts(
-        AwkText line,
-        AwkRuntimeCounters counters)
+    private IReadOnlyList<AwkFieldText> SplitFieldWidthRecordFields(AwkText line)
     {
         if (_fieldWidths.Count == 0)
             return [];
 
         return charactersAsBytes()
-            ? SplitFieldWidthByteTexts(line, counters)
-            : SplitFieldWidthRuneTexts(line, counters);
+            ? SplitFieldWidthByteRecordFields(line)
+            : SplitFieldWidthRuneRecordFields(line);
     }
 
-    private IReadOnlyList<AwkText> SplitFieldWidthRuneTexts(
-        AwkText line,
-        AwkRuntimeCounters counters)
+    private IReadOnlyList<AwkFieldText> SplitFieldWidthRuneRecordFields(AwkText line)
     {
-        var fields = new List<AwkText>(_fieldWidths.Count);
+        var fields = new List<AwkFieldText>(_fieldWidths.Count);
         var position = 0;
         var bytePosition = 0;
         var runePosition = 0;
@@ -144,7 +119,7 @@ internal sealed class AwkFieldSplitter(
             AdvanceRuneOffset(content, ref runePosition, ref bytePosition, fieldStartRune);
             if (runePosition < fieldStartRune)
             {
-                fields.Add(AwkText.Empty);
+                fields.Add(AwkFieldText.Empty);
                 position = AddFieldWidthUnits(fieldStartRune, width.Width.Value);
                 continue;
             }
@@ -152,17 +127,15 @@ internal sealed class AwkFieldSplitter(
             var fieldStartByte = bytePosition;
             position = AddFieldWidthUnits(fieldStartRune, width.Width.Value);
             AdvanceRuneOffset(content, ref runePosition, ref bytePosition, position);
-            fields.Add(line.CopyByteSlice(fieldStartByte, bytePosition - fieldStartByte, counters, memoryGovernor));
+            fields.Add(AwkFieldText.FromRecordSlice(fieldStartByte, bytePosition - fieldStartByte));
         }
 
         return fields;
     }
 
-    private IReadOnlyList<AwkText> SplitFieldWidthByteTexts(
-        AwkText line,
-        AwkRuntimeCounters counters)
+    private IReadOnlyList<AwkFieldText> SplitFieldWidthByteRecordFields(AwkText line)
     {
-        var fields = new List<AwkText>(_fieldWidths.Count);
+        var fields = new List<AwkFieldText>(_fieldWidths.Count);
         var position = 0;
         var sourceLength = line.ByteLength;
         for (var index = 0; index < _fieldWidths.Count; index++)
@@ -172,13 +145,13 @@ internal sealed class AwkFieldSplitter(
             ThrowIfNotUtf8Boundary(line, position);
             if (position >= sourceLength)
             {
-                fields.Add(AwkText.Empty);
+                fields.Add(AwkFieldText.Empty);
                 continue;
             }
 
             var length = Math.Min(width.Width.Value, sourceLength - position);
             ThrowIfNotUtf8Boundary(line, position + length);
-            fields.Add(line.CopyByteSlice(position, length, counters, memoryGovernor));
+            fields.Add(AwkFieldText.FromRecordSlice(position, length));
             position = AddFieldWidthUnits(position, width.Width.Value);
         }
 
@@ -246,18 +219,6 @@ internal sealed class AwkFieldSplitter(
         }
 
         return widths;
-    }
-
-    private static IReadOnlyList<AwkFieldText> ToOwnedFieldTexts(IReadOnlyList<AwkText> fields)
-    {
-        if (fields.Count == 0)
-            return [];
-
-        var result = new AwkFieldText[fields.Count];
-        for (var index = 0; index < fields.Count; index++)
-            result[index] = AwkFieldText.FromOwned(fields[index]);
-
-        return result;
     }
 
 }

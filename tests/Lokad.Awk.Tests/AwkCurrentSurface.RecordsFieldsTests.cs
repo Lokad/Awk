@@ -311,6 +311,43 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         Assert.True(counters.AwkTextAllocations < fieldCount / 2);
     }
 
+    [Fact]
+    public async Task Awk_FieldCountKeepsSpecialFieldModesAsRecordSlices()
+    {
+        const int fieldCount = 128;
+        var fieldWidths = string.Join(' ', Enumerable.Repeat("1", fieldCount));
+        var scenarios = new[]
+        {
+            (Program: "BEGIN{FPAT=\".\"} {print NF}", Input: new string('a', fieldCount) + "\n"),
+            (Program: $"BEGIN{{FIELDWIDTHS=\"{fieldWidths}\"}} {{print NF}}", Input: new string('a', fieldCount) + "\n"),
+            (Program: "BEGIN{FS=\"\"} {print NF}", Input: new string('a', fieldCount) + "\n")
+        };
+
+        foreach (var scenario in scenarios)
+        {
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var options = new AwkRuntimeOptions(
+                () => new AwkUnixTimestampSeconds(0),
+                TimeZoneInfo.Utc,
+                new AwkRandomGenerator(),
+                counters);
+            var compiled = await AwkExecutor.CompileAsync(
+                new MockFileSystem(),
+                BuildInvocation("awk", scenario.Program),
+                CancellationToken.None);
+            var fileSystem = new MockFileSystem();
+            fileSystem.SetStandardInput(scenario.Input);
+
+            var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+
+            Assert.Equal(0, exitCode);
+            Assert.Equal(fieldCount + "\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(1, counters.FieldSplits);
+            Assert.Equal(fieldCount, counters.FieldsMaterialized);
+            Assert.True(counters.AwkTextAllocations < fieldCount / 2);
+        }
+    }
+
     [Theory]
     [InlineData(false, "{print length($0), index($0,\"é\"), substr($0,4,1)}", "4 4 é\n")]
     [InlineData(true, "{print length($0), index($0,\"é\"), substr($0,4,2)}", "5 4 é\n")]
