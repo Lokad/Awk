@@ -1057,21 +1057,21 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        var recordEnd = TrimTrailingRecordNewlines(content);
-        return AwkText.FromOwnedBytes(content[..recordEnd].ToArray(), counters, governor);
-    }
-
-    private static int TrimTrailingRecordNewlines(ReadOnlySpan<byte> content)
-    {
-        var end = content.Length;
-        while (end > 0 && content[end - 1] == (byte)'\n')
+        static int TrimTrailingRecordNewlines(ReadOnlySpan<byte> recordContent)
         {
-            end--;
-            if (end > 0 && content[end - 1] == (byte)'\r')
+            var end = recordContent.Length;
+            while (end > 0 && recordContent[end - 1] == (byte)'\n')
+            {
                 end--;
+                if (end > 0 && recordContent[end - 1] == (byte)'\r')
+                    end--;
+            }
+
+            return end;
         }
 
-        return end;
+        var recordEnd = TrimTrailingRecordNewlines(content);
+        return AwkText.FromOwnedBytes(content[..recordEnd].ToArray(), counters, governor);
     }
 
     private static AwkRecordTerminator CreateParagraphTerminator(

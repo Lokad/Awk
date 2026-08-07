@@ -70,29 +70,29 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-    private bool IsTextMatch(AwkRegex regex, string input)
-    {
-        _throwIfCancellationRequested();
-        try
-        {
-            _counters.RecordRegexStringAdapterMatch();
-            _counters.RecordRegexMatch();
-            return ResolveDotNetRegex(regex).IsMatch(input);
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
-        }
-    }
-
     public bool IsMatch(AwkRegex regex, AwkText input)
     {
+        bool IsTextMatch(string text)
+        {
+            _throwIfCancellationRequested();
+            try
+            {
+                _counters.RecordRegexStringAdapterMatch();
+                _counters.RecordRegexMatch();
+                return ResolveDotNetRegex(regex).IsMatch(text);
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
+            }
+        }
+
         _throwIfCancellationRequested();
         var policy = ResolveExecutionPolicy(regex, input);
         if (!policy.UsesUtf8Adapter)
         {
             RecordDotNetTextRoute(policy);
-            return IsTextMatch(regex, input.AsString(_counters));
+            return IsTextMatch(input.AsString(_counters));
         }
 
         try
@@ -282,18 +282,6 @@ internal sealed class AwkRegexRuntime
         return regex;
     }
 
-    private Regex CacheDotNet(AwkRegexCacheKey key, Regex regex)
-    {
-        _dotNetRegexCache.Set(key, regex);
-        return regex;
-    }
-
-    private Utf8RegexEngine Cache(AwkRegexCacheKey key, Utf8RegexEngine regex)
-    {
-        _utf8RegexCache.Set(key, regex);
-        return regex;
-    }
-
     private AwkRegex CreateRegex(AwkRegexPattern pattern, bool ignoreCase) =>
         CreateRegex(AwkRegex.TranslatePattern(pattern), ignoreCase);
 
@@ -307,6 +295,12 @@ internal sealed class AwkRegexRuntime
 
     private Utf8RegexEngine ResolveUtf8Regex(AwkRegex regex)
     {
+        Utf8RegexEngine CacheUtf8(AwkRegexCacheKey key, Utf8RegexEngine compiledRegex)
+        {
+            _utf8RegexCache.Set(key, compiledRegex);
+            return compiledRegex;
+        }
+
         var ignoreCase = _isIgnoreCaseEnabled();
         if (regex.TryGetUtf8Regex(ignoreCase, out var precompiled))
             return precompiled;
@@ -316,7 +310,7 @@ internal sealed class AwkRegexRuntime
             return cached;
 
         _counters.RecordRegexCompile();
-        return Cache(
+        return CacheUtf8(
             key,
             new Utf8RegexEngine(
                 regex.Pattern,
@@ -326,6 +320,12 @@ internal sealed class AwkRegexRuntime
 
     private Regex ResolveDotNetRegex(AwkRegex regex)
     {
+        Regex CacheDotNet(AwkRegexCacheKey key, Regex compiledRegex)
+        {
+            _dotNetRegexCache.Set(key, compiledRegex);
+            return compiledRegex;
+        }
+
         var ignoreCase = _isIgnoreCaseEnabled();
         if (regex.TryGetDotNetRegex(ignoreCase, out var precompiled))
             return precompiled;
@@ -349,6 +349,22 @@ internal sealed class AwkRegexRuntime
 
     private AwkRegexExecutionPolicy ResolveExecutionPolicy(AwkRegex regex, AwkText input)
     {
+        bool InputContainsNonAscii()
+        {
+            var span = input.AsSpan();
+            for (var index = 0; index < span.Length; index++)
+            {
+                if (span[index] > 0x7F)
+                {
+                    _counters.RecordRegexPolicyInputBytesInspected(index + 1);
+                    return true;
+                }
+            }
+
+            _counters.RecordRegexPolicyInputBytesInspected(span.Length);
+            return false;
+        }
+
         var charactersAsBytes = _charactersAsBytes();
         var coordinatePolicy = charactersAsBytes
             ? AwkRegexCoordinatePolicy.Byte
@@ -363,7 +379,7 @@ internal sealed class AwkRegexRuntime
         }
 
         if (_engineKind == AwkRegexEngineKind.Utf8Adapter ||
-            (charactersAsBytes && ContainsNonAscii(input)))
+            (charactersAsBytes && InputContainsNonAscii()))
         {
             return new AwkRegexExecutionPolicy(
                 AwkRegexExecutionEngine.Utf8Adapter,
@@ -385,22 +401,6 @@ internal sealed class AwkRegexRuntime
         _counters.RecordRegexDotNetTextMatch();
         if (policy.DotNetRouteReason == AwkRegexDotNetRouteReason.PatternGap)
             _counters.RecordRegexPatternGapFallback();
-    }
-
-    private bool ContainsNonAscii(AwkText input)
-    {
-        var span = input.AsSpan();
-        for (var index = 0; index < span.Length; index++)
-        {
-            if (span[index] > 0x7F)
-            {
-                _counters.RecordRegexPolicyInputBytesInspected(index + 1);
-                return true;
-            }
-        }
-
-        _counters.RecordRegexPolicyInputBytesInspected(span.Length);
-        return false;
     }
 
     private readonly struct AwkRegexCacheKey : IEquatable<AwkRegexCacheKey>
