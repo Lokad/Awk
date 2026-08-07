@@ -36,9 +36,11 @@ dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benc
   `RegexDotNetTextMatches`, `RegexPatternGapFallbacks`, `RegexStringAdapterMatches`,
   `RegexPolicyInputBytesInspected`, `RegexGroupsMaterialized`, byte-mode valid UTF-8 behavior,
   and any `RSTART`/`RLENGTH` offset policy evidence.
-- Record streaming: include `RecordSeparatorTailBytesMoved` and batched-host coverage when record
-  separators, `getline`, or input cursor behavior changed. Dynamic `RS` evidence must cover unread
-  buffered bytes without requiring the descriptor to reach EOF.
+- Record streaming: include `RecordSeparatorResolutions`, `RecordSeparatorBytesScanned`,
+  `RecordSeparatorTailBytesMoved`, and batched-host coverage when record separators, `getline`, or
+  input cursor behavior changed. Dynamic `RS` evidence must cover unread buffered bytes without
+  requiring the descriptor to reach EOF. Distinguish incremental separator plans from general
+  regex plans that can rescan, and verify that rescans do not copy accumulated input snapshots.
 - VM coverage: include execution engine mode, `VmInstructions`, `VmBasicBlockEntries`,
   `VmFallbackCalls`, `VmOpcodeKindsExecuted`, `VmBudgetChecks`, and `VmMaxStackDepth`.
 - Executable default gate: keep `AwkExecutionEngineKind.Interpreter` as the default unless the

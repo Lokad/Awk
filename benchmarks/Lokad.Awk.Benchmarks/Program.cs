@@ -102,6 +102,9 @@ internal sealed class BenchmarkThroughputColumn : IColumn
 [MemoryDiagnoser]
 public class FullInvocationBenchmarks
 {
+    // BenchmarkHost batches on newlines; synthetic lines make custom-RS scans cross host reads.
+    private const int CustomRecordSeparatorRecordsPerLine = 8;
+
     private BenchmarkScenario _columnExtraction = BenchmarkScenario.Empty;
     private BenchmarkScenario _utf8StringFunctions = BenchmarkScenario.Empty;
     private BenchmarkScenario _singleByteFieldSeparator = BenchmarkScenario.Empty;
@@ -140,8 +143,8 @@ public class FullInvocationBenchmarks
         _regexFieldSeparator = BenchmarkScenarioCatalog.RegexFieldSeparator();
         _regexRecordSeparator = new BenchmarkScenario(
             "regex record separator",
-            "BEGIN{RS=\"[|;]+\"} {sum += length($0)} END{print NR, sum}",
-            ["BEGIN{RS=\"[|;]+\"} {sum += length($0)} END{print NR, sum}", "/rs.txt"],
+            "BEGIN{RS=\"([|;])+\"} {sum += length($0)} END{print NR, sum}",
+            ["BEGIN{RS=\"([|;])+\"} {sum += length($0)} END{print NR, sum}", "/rs.txt"],
             [new BenchmarkFile("/rs.txt", CreateRecordSeparatorData())],
             recordCount: 20_000,
             counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
@@ -322,6 +325,9 @@ public class FullInvocationBenchmarks
         {
             builder.Append("record");
             builder.Append(index);
+            if (index % CustomRecordSeparatorRecordsPerLine == CustomRecordSeparatorRecordsPerLine - 1)
+                builder.AppendLine();
+
             builder.Append(index % 2 == 0 ? '|' : ';');
         }
 
@@ -355,6 +361,9 @@ public class FullInvocationBenchmarks
         {
             builder.Append("item");
             builder.Append(index);
+            if (index % CustomRecordSeparatorRecordsPerLine == CustomRecordSeparatorRecordsPerLine - 1)
+                builder.AppendLine();
+
             builder.Append(index % 2 == 0 ? ',' : ';');
         }
 
@@ -370,6 +379,9 @@ public class FullInvocationBenchmarks
             builder.Append(index);
             builder.Append(" café ");
             builder.Append(index % 31);
+            if (index % CustomRecordSeparatorRecordsPerLine == CustomRecordSeparatorRecordsPerLine - 1)
+                builder.AppendLine();
+
             builder.Append('\u00e9');
         }
 
@@ -750,8 +762,8 @@ internal static class BenchmarkCounterReport
         Console.WriteLine("OS: " + Environment.OSVersion);
         Console.WriteLine(".NET: " + Environment.Version);
         Console.WriteLine();
-        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex policy bytes | Regex groups | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | VM instructions | VM fallbacks | Memory peak |");
-        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex policy bytes | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | VM instructions | VM fallbacks | Memory peak |");
+        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
 
         for (var index = 0; index < Scenarios.Length; index++)
         {
@@ -815,6 +827,8 @@ internal static class BenchmarkCounterReport
                 counters.RegexStringAdapterMatches.ToString(CultureInfo.InvariantCulture),
                 counters.RegexPolicyInputBytesInspected.ToString(CultureInfo.InvariantCulture),
                 counters.RegexGroupsMaterialized.ToString(CultureInfo.InvariantCulture),
+                counters.RecordSeparatorResolutions.ToString(CultureInfo.InvariantCulture),
+                counters.RecordSeparatorBytesScanned.ToString(CultureInfo.InvariantCulture),
                 counters.RecordSeparatorTailBytesMoved.ToString(CultureInfo.InvariantCulture),
                 counters.FormattingFallbacks.ToString(CultureInfo.InvariantCulture),
                 counters.StringInteropFallbacks.ToString(CultureInfo.InvariantCulture),
@@ -895,6 +909,13 @@ internal static class BenchmarkCounterReport
             ["BEGIN{RS=\"|\"} NR==1{RS=\"[,;]\"} {total += length($0)} END{print NR, total}", "/dynamic-rs.txt"],
             [new BenchmarkFile("/dynamic-rs.txt", "first|second,third;fourth;")],
             recordCount: 4,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+        new(
+            "counter buffered regex record separator",
+            "BEGIN{RS=\"([,;])+\"} {print length($0)}",
+            ["BEGIN{RS=\"([,;])+\"} {print length($0)}", "/stream.tsv"],
+            [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
+            recordCount: 1,
             counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter non-ASCII record separator",

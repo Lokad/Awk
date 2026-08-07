@@ -292,7 +292,7 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    public async Task Awk_TrueRegexRecordSeparatorDecodesEachInputBatchOnce()
+    public async Task Awk_TrueRegexRecordSeparatorReusesDecodedBatchText()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["BEGIN{RS=\"([|;])+\"} {print $0}"],
