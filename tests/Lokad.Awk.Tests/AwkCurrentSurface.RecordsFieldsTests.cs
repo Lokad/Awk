@@ -1004,6 +1004,67 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         Assert.True(counters.RecordSeparatorBytesScanned <= inputLength + (batchCount * 4));
     }
 
+    [Fact]
+    public async Task Awk_RegexRecordSeparatorDoesNotCopyAccumulatedInputPerBatch()
+    {
+        const int batchCount = 32;
+        const int batchLength = 1024;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(
+            () => new AwkUnixTimestampSeconds(0),
+            TimeZoneInfo.Utc,
+            new AwkRandomGenerator(),
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        var compiled = await AwkExecutor.CompileAsync(
+            new MockFileSystem(),
+            BuildInvocation("awk", "BEGIN{RS=\"([,;])+\"} {print length($0)}"),
+            CancellationToken.None);
+        var host = new TestOperationVisitor([]);
+        var batch = Encoding.UTF8.GetBytes(new string('a', batchLength));
+        for (var index = 0; index < batchCount; index++)
+        {
+            host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+                batch,
+                [],
+                reachedEof: index == batchCount - 1));
+        }
+
+        host.EnqueueAppendExitCode(0);
+
+        var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
+
+        var inputLength = batchCount * batchLength;
+        Assert.Equal(0, exitCode);
+        Assert.Equal(inputLength + "\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+        Assert.True(counters.AwkTextPayloadBytes < inputLength * 2);
+        Assert.True(counters.RecordSeparatorBytesScanned > inputLength);
+    }
+
+    [Fact]
+    public async Task Awk_RegexRecordSeparatorPreservesInputStartAcrossBufferCompaction()
+    {
+        var host = new TestOperationVisitor([]);
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent("xfirst,"u8.ToArray(), [], reachedEof: false));
+        host.EnqueueAppendExitCode(0);
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent("xsecond"u8.ToArray(), [], reachedEof: true));
+        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendExitCode(0);
+
+        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+            "awk",
+            "BEGIN{RS=\"(^x|,)\"} {print $0 \"[\" RT \"]\"}")));
+
+        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(
+            "[x]\nfirst[,]\nxsecond[]\n",
+            host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+    }
+
     [Theory]
     [InlineData("-+", "record--", "-")]
     [InlineData("", "record\n\n", "\n")]

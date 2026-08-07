@@ -39,6 +39,27 @@ public sealed class AwkUtf8BuilderTests
     }
 
     [Fact]
+    public void AwkUtf8Builder_ReservedPrefixSupportsBorrowedRegexViews()
+    {
+        using var builder = AwkUtf8Builder.CreateWithReservedPrefix(
+            AwkRuntimeLimits.CreateDefault(),
+            AwkMemoryGovernor.Disabled,
+            capacity: 2,
+            prefix: 0x01);
+        builder.Append("abc"u8);
+
+        var inputStart = builder.BorrowAsAwkText(includeReservedPrefix: false);
+        var continuedInput = builder.BorrowAsAwkText(includeReservedPrefix: true);
+        var ownedCopy = continuedInput.CopyByteSlice(0, continuedInput.ByteLength);
+
+        Assert.Equal("abc"u8.ToArray(), inputStart.AsSpan().ToArray());
+        Assert.Equal([0x01, (byte)'a', (byte)'b', (byte)'c'], continuedInput.AsSpan().ToArray());
+        builder.RemovePrefix(3);
+        builder.Append("replacement"u8);
+        Assert.Equal([0x01, (byte)'a', (byte)'b', (byte)'c'], ownedCopy.AsSpan().ToArray());
+    }
+
+    [Fact]
     public void AwkUtf8Builder_UsesGovernorReserveCommitRelease()
     {
         var limits = AwkRuntimeLimits.CreateDefault()

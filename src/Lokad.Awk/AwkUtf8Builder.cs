@@ -6,6 +6,7 @@ internal sealed class AwkUtf8Builder : IDisposable
 {
     private readonly AwkMemoryGovernor _governor;
     private readonly int _maxBuilderBytes;
+    private readonly int _contentOffset;
     private byte[] _buffer;
     private int _committedCapacity;
     private bool _disposed;
@@ -21,46 +22,67 @@ internal sealed class AwkUtf8Builder : IDisposable
         AwkRuntimeLimits limits,
         AwkMemoryGovernor governor,
         int capacity)
+        : this(limits, governor, capacity, reservedPrefix: null)
+    {
+    }
+
+    private AwkUtf8Builder(
+        AwkRuntimeLimits limits,
+        AwkMemoryGovernor governor,
+        int capacity,
+        byte? reservedPrefix)
     {
         if (capacity < 0)
             throw new ArgumentOutOfRangeException(nameof(capacity));
 
         _governor = governor;
         _maxBuilderBytes = limits.MaxBuilderBytes;
+        _contentOffset = reservedPrefix.HasValue ? 1 : 0;
         var initialCapacity = Math.Min(capacity, _maxBuilderBytes);
-        if (initialCapacity == 0)
+        var allocatedCapacity = CheckedLength(initialCapacity, _contentOffset);
+        if (allocatedCapacity == 0)
         {
             _buffer = [];
             return;
         }
 
-        _governor.Reserve(initialCapacity);
+        _governor.Reserve(allocatedCapacity);
         try
         {
-            _buffer = new byte[initialCapacity];
+            _buffer = new byte[allocatedCapacity];
         }
         catch
         {
-            _governor.ReleaseReserved(initialCapacity);
+            _governor.ReleaseReserved(allocatedCapacity);
             throw;
         }
 
-        _governor.CommitReserved(initialCapacity);
-        _committedCapacity = initialCapacity;
+        if (reservedPrefix.HasValue)
+            _buffer[0] = reservedPrefix.Value;
+
+        _governor.CommitReserved(allocatedCapacity);
+        _committedCapacity = allocatedCapacity;
     }
+
+    public static AwkUtf8Builder CreateWithReservedPrefix(
+        AwkRuntimeLimits limits,
+        AwkMemoryGovernor governor,
+        int capacity,
+        byte prefix) =>
+        new(limits, governor, capacity, prefix);
 
     public int Length { get; private set; }
 
     public ReadOnlySpan<byte> AsSpan()
     {
         ThrowIfDisposed();
-        return _buffer.AsSpan(0, Length);
+        return _buffer.AsSpan(_contentOffset, Length);
     }
 
     public ReadOnlyMemory<byte> AsMemory()
     {
         ThrowIfDisposed();
-        return _buffer.AsMemory(0, Length);
+        return _buffer.AsMemory(_contentOffset, Length);
     }
 
     public AwkUtf8Builder Append(AwkText text)
@@ -78,7 +100,7 @@ internal sealed class AwkUtf8Builder : IDisposable
 
         var nextLength = CheckedLength(Length, bytes.Length);
         EnsureCapacity(nextLength);
-        bytes.CopyTo(_buffer.AsSpan(Length));
+        bytes.CopyTo(_buffer.AsSpan(_contentOffset + Length));
         Length = nextLength;
         return this;
     }
@@ -88,7 +110,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         ThrowIfDisposed();
         var nextLength = CheckedLength(Length, 1);
         EnsureCapacity(nextLength);
-        _buffer[Length] = value;
+        _buffer[_contentOffset + Length] = value;
         Length = nextLength;
         return this;
     }
@@ -104,7 +126,7 @@ internal sealed class AwkUtf8Builder : IDisposable
 
         var nextLength = CheckedLength(Length, count);
         EnsureCapacity(nextLength);
-        _buffer.AsSpan(Length, count).Fill(value);
+        _buffer.AsSpan(_contentOffset + Length, count).Fill(value);
         Length = nextLength;
         return this;
     }
@@ -133,8 +155,23 @@ internal sealed class AwkUtf8Builder : IDisposable
             return;
         }
 
-        _buffer.AsSpan(length, Length - length).CopyTo(_buffer);
+        _buffer.AsSpan(_contentOffset + length, Length - length)
+            .CopyTo(_buffer.AsSpan(_contentOffset));
         Length -= length;
+    }
+
+    public AwkText BorrowAsAwkText(bool includeReservedPrefix)
+    {
+        // This view is valid only until the builder is mutated.
+        ThrowIfDisposed();
+        if (includeReservedPrefix && _contentOffset == 0)
+            throw new InvalidOperationException("This UTF-8 builder has no reserved prefix.");
+
+        var prefixLength = includeReservedPrefix ? 1 : 0;
+        return AwkText.FromTrustedBorrowedBytes(
+            _buffer,
+            _contentOffset - prefixLength,
+            Length + prefixLength);
     }
 
     public AwkText CopyToAwkText(AwkRuntimeCounters counters)
@@ -143,13 +180,13 @@ internal sealed class AwkUtf8Builder : IDisposable
         if (Length == 0)
             return AwkText.Empty;
 
-        return AwkText.FromOwnedBytes(_buffer.AsSpan(0, Length).ToArray(), counters, _governor);
+        return AwkText.FromOwnedBytes(AsSpan().ToArray(), counters, _governor);
     }
 
     public byte[] ToArray()
     {
         ThrowIfDisposed();
-        return Length == 0 ? [] : _buffer.AsSpan(0, Length).ToArray();
+        return Length == 0 ? [] : AsSpan().ToArray();
     }
 
     public void Dispose()
@@ -170,31 +207,33 @@ internal sealed class AwkUtf8Builder : IDisposable
     {
         void ResizeAndCommit(int newSize)
         {
-            _governor.Reserve(newSize);
+            var allocatedSize = CheckedLength(newSize, _contentOffset);
+            _governor.Reserve(allocatedSize);
             try
             {
-                Array.Resize(ref _buffer, newSize);
+                Array.Resize(ref _buffer, allocatedSize);
             }
             catch
             {
-                _governor.ReleaseReserved(newSize);
+                _governor.ReleaseReserved(allocatedSize);
                 throw;
             }
 
             if (_committedCapacity > 0)
                 _governor.ReleaseCommitted(_committedCapacity);
 
-            _governor.CommitReserved(newSize);
-            _committedCapacity = newSize;
+            _governor.CommitReserved(allocatedSize);
+            _committedCapacity = allocatedSize;
         }
 
-        if (capacity <= _buffer.Length)
+        if (capacity <= _buffer.Length - _contentOffset)
             return;
 
         if (capacity > _maxBuilderBytes)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
 
-        var newSize = _buffer.Length == 0 ? 16 : _buffer.Length;
+        var currentCapacity = _buffer.Length - _contentOffset;
+        var newSize = currentCapacity == 0 ? 16 : currentCapacity;
         while (newSize < capacity)
         {
             if (newSize > _maxBuilderBytes / 2)

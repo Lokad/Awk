@@ -9,22 +9,33 @@ namespace Lokad.Awk;
 internal sealed class AwkText : IEquatable<AwkText>
 {
     private readonly byte[] _bytes;
+    private readonly int _byteOffset;
+    private readonly int _byteLength;
+    private readonly bool _isBorrowed;
     private string? _cachedString;
 
     private AwkText(byte[] bytes)
+        : this(bytes, 0, bytes.Length, isBorrowed: false)
+    {
+    }
+
+    private AwkText(byte[] bytes, int byteOffset, int byteLength, bool isBorrowed)
     {
         _bytes = bytes;
+        _byteOffset = byteOffset;
+        _byteLength = byteLength;
+        _isBorrowed = isBorrowed;
     }
 
     public static AwkText Empty { get; } = new([]);
 
-    public int ByteLength => _bytes.Length;
+    public int ByteLength => _byteLength;
 
-    public int RuneLength => CountRunes(_bytes);
+    public int RuneLength => CountRunes(AsSpan());
 
-    public ReadOnlySpan<byte> AsSpan() => _bytes;
+    public ReadOnlySpan<byte> AsSpan() => _bytes.AsSpan(_byteOffset, _byteLength);
 
-    public ReadOnlyMemory<byte> AsMemory() => _bytes;
+    public ReadOnlyMemory<byte> AsMemory() => _bytes.AsMemory(_byteOffset, _byteLength);
 
     public static AwkText FromSourceLiteralString(string text) =>
         FromString(text, AwkRuntimeCounters.Disabled);
@@ -118,13 +129,30 @@ internal sealed class AwkText : IEquatable<AwkText>
         return CreateTrustedOwnedBytes(bytes, counters);
     }
 
+    internal static AwkText FromTrustedBorrowedBytes(
+        byte[] bytes,
+        int byteOffset,
+        int byteLength)
+    {
+        // The caller owns the backing buffer and must discard this view before mutating it.
+        if (byteOffset < 0 || byteOffset > bytes.Length)
+            throw new ArgumentOutOfRangeException(nameof(byteOffset));
+
+        if (byteLength < 0 || byteOffset > bytes.Length - byteLength)
+            throw new ArgumentOutOfRangeException(nameof(byteLength));
+
+        return byteLength == 0
+            ? Empty
+            : new AwkText(bytes, byteOffset, byteLength, isBorrowed: true);
+    }
+
     public string AsString() =>
         AsString(AwkRuntimeCounters.Disabled);
 
     public string AsString(AwkRuntimeCounters counters)
     {
         counters.RecordAwkTextAsStringCall();
-        if (_bytes.Length == 0)
+        if (_byteLength == 0)
             return string.Empty;
 
         var cached = _cachedString;
@@ -132,7 +160,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             return cached;
 
         counters.RecordAwkTextAsStringDecodeMiss();
-        var decoded = AwkUtf8Codec.DecodeRuntimeText(_bytes, counters);
+        var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(), counters);
         return Interlocked.CompareExchange(ref _cachedString, decoded, null) ?? decoded;
     }
 
@@ -292,7 +320,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (length == 0)
             return Empty;
 
-        if (start == 0 && length == ByteLength)
+        if (!_isBorrowed && start == 0 && length == ByteLength)
             return this;
 
         return FromOwnedBytes(AsSpan().Slice(start, length).ToArray());
@@ -313,7 +341,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (length == 0)
             return Empty;
 
-        if (start == 0 && length == ByteLength)
+        if (!_isBorrowed && start == 0 && length == ByteLength)
             return this;
 
         var bytes = AllocateOwnedBytes(length, governor);
@@ -449,9 +477,10 @@ internal sealed class AwkText : IEquatable<AwkText>
         unchecked
         {
             var hash = (int)2166136261;
-            for (var index = 0; index < _bytes.Length; index++)
+            var span = AsSpan();
+            for (var index = 0; index < span.Length; index++)
             {
-                hash ^= _bytes[index];
+                hash ^= span[index];
                 hash *= 16777619;
             }
 

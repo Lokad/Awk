@@ -84,10 +84,13 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
 
         var tail = _lineReader?.TakeBufferedTail() ?? default;
         _lineReader = null;
-        _buffer = new AwkUtf8Builder(
+        // SOH stays outside the record bytes and the regex search window. Including it after
+        // compaction keeps ^ anchored to the descriptor start rather than the compacted tail.
+        _buffer = AwkUtf8Builder.CreateWithReservedPrefix(
             _state.Limits,
             _state.MemoryGovernor,
-            Math.Max(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, tail.Content.Length));
+            Math.Max(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, tail.Content.Length),
+            0x01);
         _buffer.Append(tail.Content);
         _descriptorReachedEof = tail.DescriptorReachedEof;
     }
@@ -530,17 +533,8 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
             return _regexInput;
 
         _regexInputPrefixLength = _hasConsumedDescriptorBytes ? 1 : 0;
-        if (_regexInputPrefixLength == 0)
-        {
-            _regexInput = CreateText(buffer.AsSpan());
-            return _regexInput;
-        }
-
-        var content = buffer.AsSpan();
-        var bytes = new byte[content.Length + 1];
-        bytes[0] = 0x01;
-        content.CopyTo(bytes.AsSpan(1));
-        _regexInput = AwkText.FromOwnedBytes(bytes, _state.Counters, _state.MemoryGovernor);
+        _regexInput = buffer.BorrowAsAwkText(
+            includeReservedPrefix: _regexInputPrefixLength != 0);
         return _regexInput;
     }
 
