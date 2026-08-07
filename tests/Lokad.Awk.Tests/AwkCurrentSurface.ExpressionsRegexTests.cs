@@ -55,23 +55,45 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var input = AwkText.FromString("alpha,béta;gamma", counters, governor);
         var baselineTextAllocations = counters.AwkTextAllocations;
 
-        using var spans = runtime.EnumerateMatchSpans(regex, input, governor);
-        Assert.Collection(
-            spans,
-            first =>
-            {
-                Assert.Equal(5, first.ByteIndex);
-                Assert.Equal(1, first.ByteLength);
-            },
-            second =>
-            {
-                Assert.Equal(11, second.ByteIndex);
-                Assert.Equal(1, second.ByteLength);
-            });
+        using var spans = runtime.EnumerateMatchSpans(regex, input);
+        Assert.True(spans.MoveNext(out var first));
+        Assert.Equal(5, first.ByteIndex);
+        Assert.Equal(1, first.ByteLength);
+        Assert.True(spans.MoveNext(out var second));
+        Assert.Equal(11, second.ByteIndex);
+        Assert.Equal(1, second.ByteLength);
+        Assert.False(spans.MoveNext(out _));
 
         Assert.Equal(baselineTextAllocations, counters.AwkTextAllocations);
         Assert.True(counters.RegexMatches > 0);
         Assert.Equal(0, counters.StringDecodes);
+    }
+
+    [Fact]
+    public void Awk_DotNetRegexSpanScannerDecodesInputOnce()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var runtime = new AwkRegexRuntime(
+            static () => false,
+            static () => false,
+            static () => { },
+            counters,
+            AwkRegexEngineKind.DotNetCompatibility);
+        var regex = runtime.Create(new AwkRegexPattern("[0-9]"));
+        var input = AwkText.FromString(string.Concat(Enumerable.Repeat("é1", 128)), counters);
+        var count = 0;
+
+        using var spans = runtime.EnumerateMatchSpans(regex, input);
+        while (spans.MoveNext(out var match))
+        {
+            Assert.Equal((count * 3) + 2, match.ByteIndex);
+            Assert.Equal(1, match.ByteLength);
+            count++;
+        }
+
+        Assert.Equal(128, count);
+        Assert.Equal(1, counters.StringDecodes);
+        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
     }
 
     [Fact]

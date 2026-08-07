@@ -12,7 +12,6 @@ internal static class AwkRuntimeMemory
     private const int ListObjectBytes = 32;
     private const int ReferenceBytes = 8;
     private const int AwkRegexMatchBytes = 64;
-    private const int AwkRegexMatchSpanBytes = 16;
     private const int AwkRegexGroupBytes = 32;
     private const int AwkValueBytes = 32;
     private const int KeyValuePairBytes = 32;
@@ -83,14 +82,6 @@ internal static class AwkRuntimeMemory
         }
 
         return bytes;
-    }
-
-    public static long EstimateRegexMatchSpanListBytes(int matchCount)
-    {
-        if (matchCount <= 0)
-            return 0;
-
-        return CheckedAdd(ListObjectBytes, CheckedMultiply(AwkRegexMatchSpanBytes, matchCount));
     }
 
     public static long EstimateReferenceListBytes(int count)

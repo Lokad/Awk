@@ -11,7 +11,7 @@ internal sealed class AwkByteFieldSplitter(
     Func<AwkRegexPattern, Regex> createRegex,
     Func<AwkRegexLiteralText, Regex> createLiteralRegex,
     Func<Regex, AwkText, AwkLeasedReadOnlyList<AwkRegexMatch>> enumerateTextMatches,
-    Func<Regex, AwkText, AwkLeasedReadOnlyList<AwkRegexMatchSpan>> enumerateMatchSpans,
+    Func<Regex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
     Func<bool> isIgnoreCaseEnabled,
     Func<bool> charactersAsBytes,
     Action throwIfCancellationRequested,
@@ -117,7 +117,7 @@ internal sealed class AwkByteFieldSplitter(
         var regex = createRegex(new AwkRegexPattern(pattern));
         var fields = new List<AwkFieldText>();
         using var matches = enumerateMatchSpans(regex, input);
-        foreach (var match in matches)
+        while (matches.MoveNext(out var match))
         {
             throwIfCancellationRequested();
             fields.Add(AwkFieldText.FromRecordSlice(match.ByteIndex, match.ByteLength));
@@ -401,7 +401,7 @@ internal sealed class AwkByteFieldSplitter(
         var fields = new List<AwkFieldText>();
         var position = 0;
         using var matches = enumerateMatchSpans(separator, line);
-        foreach (var match in matches)
+        while (matches.MoveNext(out var match))
         {
             throwIfCancellationRequested();
             fields.Add(AwkFieldText.FromRecordSlice(position, match.ByteIndex - position));
@@ -418,7 +418,7 @@ internal sealed class AwkByteFieldSplitter(
         var fields = new List<AwkFieldText>();
         var position = 0;
         using var matches = enumerateMatchSpans(separator, line);
-        foreach (var match in matches)
+        while (matches.MoveNext(out var match))
         {
             throwIfCancellationRequested();
             while (position < match.ByteIndex)
@@ -458,7 +458,7 @@ internal sealed class AwkByteFieldSplitter(
         var content = line.AsSpan();
         var position = 0;
         using var matches = enumerateMatchSpans(separator, line);
-        foreach (var match in matches)
+        while (matches.MoveNext(out var match))
         {
             throwIfCancellationRequested();
             fields.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));

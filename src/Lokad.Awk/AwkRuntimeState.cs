@@ -796,8 +796,8 @@ internal sealed class AwkRuntimeState
     public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateRegexValueMatches(Regex regex, AwkText input) =>
         _regexRuntime.EnumerateMatchValues(regex, input, MemoryGovernor, includeGroups: false);
 
-    public AwkLeasedReadOnlyList<AwkRegexMatchSpan> EnumerateRegexMatchSpans(Regex regex, AwkText input) =>
-        _regexRuntime.EnumerateMatchSpans(regex, input, MemoryGovernor);
+    public AwkRegexMatchSpanEnumerator EnumerateRegexMatchSpans(Regex regex, AwkText input) =>
+        _regexRuntime.EnumerateMatchSpans(regex, input);
 
     private bool IsIgnoreCaseEnabled()
     {

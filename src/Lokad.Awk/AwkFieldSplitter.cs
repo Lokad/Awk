@@ -12,7 +12,7 @@ internal sealed class AwkFieldSplitter(
     Func<AwkRegexPattern, Regex> createRegex,
     Func<AwkRegexLiteralText, Regex> createLiteralRegex,
     Func<Regex, AwkText, AwkLeasedReadOnlyList<AwkRegexMatch>> enumerateTextMatches,
-    Func<Regex, AwkText, AwkLeasedReadOnlyList<AwkRegexMatchSpan>> enumerateMatchSpans,
+    Func<Regex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
     Func<bool> isIgnoreCaseEnabled,
     Func<bool> charactersAsBytes,
     Action throwIfCancellationRequested,

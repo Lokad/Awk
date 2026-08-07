@@ -120,28 +120,25 @@ internal static class AwkRegexSubstitution
         int maxReplacements,
         out int replacementCount)
     {
-        var matches = state.EnumerateRegexMatchSpans(regex, input);
-        try
+        using var matches = state.EnumerateRegexMatchSpans(regex, input);
+        if (!matches.MoveNext(out var match))
         {
-            if (matches.Count == 0)
-            {
-                replacementCount = 0;
-                return input;
-            }
-
-            var replacementText = AwkText.FromString(replacement, state.Counters, state.MemoryGovernor);
-            using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor, input.ByteLength);
-            var position = 0;
-            var seen = 0;
             replacementCount = 0;
-            foreach (var match in matches)
-            {
-                state.ThrowIfCancellationRequested();
-                seen++;
-                var replace = targetOccurrence == 0 || seen == targetOccurrence;
-                if (!replace)
-                    continue;
+            return input;
+        }
 
+        var replacementText = AwkText.FromString(replacement, state.Counters, state.MemoryGovernor);
+        using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor, input.ByteLength);
+        var position = 0;
+        var seen = 0;
+        replacementCount = 0;
+        do
+        {
+            state.ThrowIfCancellationRequested();
+            seen++;
+            var replace = targetOccurrence == 0 || seen == targetOccurrence;
+            if (replace)
+            {
                 builder.Append(input.AsSpan().Slice(position, match.ByteIndex - position));
                 builder.Append(replacementText);
                 position = match.ByteIndex + match.ByteLength;
@@ -149,18 +146,13 @@ internal static class AwkRegexSubstitution
 
                 if (targetOccurrence > 0 ||
                     (maxReplacements > 0 && replacementCount >= maxReplacements))
-                {
                     break;
-                }
             }
+        }
+        while (matches.MoveNext(out match));
 
-            builder.Append(input.AsSpan().Slice(position));
-            return builder.CopyToAwkText(state.Counters);
-        }
-        finally
-        {
-            matches.Dispose();
-        }
+        builder.Append(input.AsSpan().Slice(position));
+        return builder.CopyToAwkText(state.Counters);
     }
 
     private static AwkText ReplaceFirstLiteral(

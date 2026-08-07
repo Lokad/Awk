@@ -805,22 +805,8 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
 
     private static AwkRegexSearchOffset AdvanceAfterRegexSeparator(
         AwkText content,
-        AwkRegexMatchSpan match)
-    {
-        if (match.ByteLength > 0 || match.ByteIndex >= content.ByteLength)
-        {
-            return new AwkRegexSearchOffset(
-                match.ByteIndex + match.ByteLength,
-                match.Utf16Index + match.Utf16Length);
-        }
-
-        var status = Rune.DecodeFromUtf8(content.AsSpan()[match.ByteIndex..], out var rune, out var bytesConsumed);
-        return status == OperationStatus.Done && bytesConsumed > 0
-            ? new AwkRegexSearchOffset(
-                match.ByteIndex + bytesConsumed,
-                match.Utf16Index + rune.Utf16SequenceLength)
-            : new AwkRegexSearchOffset(match.ByteIndex + 1, match.Utf16Index + 1);
-    }
+        AwkRegexMatchSpan match) =>
+        AwkRegexSearchOffset.AfterMatch(content, match);
 
 }
 
