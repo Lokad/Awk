@@ -143,8 +143,8 @@ public class FullInvocationBenchmarks
         _regexFieldSeparator = BenchmarkScenarioCatalog.RegexFieldSeparator();
         _regexRecordSeparator = new BenchmarkScenario(
             "regex record separator",
-            "BEGIN{RS=\"([|;])+\"} {sum += length($0)} END{print NR, sum}",
-            ["BEGIN{RS=\"([|;])+\"} {sum += length($0)} END{print NR, sum}", "/rs.txt"],
+            "BEGIN{RS=\"([|]|;)+\"} {sum += length($0)} END{print NR, sum}",
+            ["BEGIN{RS=\"([|]|;)+\"} {sum += length($0)} END{print NR, sum}", "/rs.txt"],
             [new BenchmarkFile("/rs.txt", CreateRecordSeparatorData())],
             recordCount: 20_000,
             counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
@@ -911,7 +911,7 @@ internal static class BenchmarkCounterReport
             recordCount: 4,
             counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
-            "counter buffered regex record separator",
+            "counter grouped byte-run record separator",
             "BEGIN{RS=\"([,;])+\"} {print length($0)}",
             ["BEGIN{RS=\"([,;])+\"} {print length($0)}", "/stream.tsv"],
             [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],

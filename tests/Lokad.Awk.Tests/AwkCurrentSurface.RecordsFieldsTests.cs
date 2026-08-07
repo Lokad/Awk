@@ -965,6 +965,8 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     [InlineData("é")]
     [InlineData("[,;]")]
     [InlineData("-+")]
+    [InlineData("([,;])+")]
+    [InlineData("(?:[,;])+")]
     [InlineData("")]
     public async Task Awk_BufferedSeparatorScanningIsLinearAcrossHostBatches(string separator)
     {
@@ -1020,7 +1022,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
-            BuildInvocation("awk", "BEGIN{RS=\"([,;])+\"} {print length($0)}"),
+            BuildInvocation("awk", "BEGIN{RS=\"([,]|;)+\"} {print length($0)}"),
             CancellationToken.None);
         var host = new TestOperationVisitor([]);
         var batch = Encoding.UTF8.GetBytes(new string('a', batchLength));
@@ -1067,6 +1069,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
     [Theory]
     [InlineData("-+", "record--", "-")]
+    [InlineData("(?:-)+", "record--", "-")]
     [InlineData("", "record\n\n", "\n")]
     public async Task Awk_GreedySeparatorContinuationIsLinearAcrossHostBatches(
         string separator,

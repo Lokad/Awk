@@ -608,7 +608,7 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
 
     private bool TryCreateByteSet(string separatorText, out ByteSetSeparator separator)
     {
-        if (!TryCreateByteMembership(separatorText, out var membership))
+        if (!TryCreateByteMembership(separatorText, 0, separatorText.Length, out var membership))
         {
             separator = ByteSetSeparator.Empty;
             return false;
@@ -630,9 +630,31 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
 
     private static bool TryCreateByteRun(string separatorText, out ByteRunSeparator separator)
     {
-        if (separatorText.Length > 1 &&
-            separatorText[^1] == '+' &&
-            TryCreateByteMembership(separatorText[..^1], out var membership))
+        var start = 0;
+        var length = separatorText.Length;
+        var hasOneOrMoreQuantifier = length > 0 && separatorText[length - 1] == '+';
+        if (hasOneOrMoreQuantifier)
+            length--;
+
+        if (length >= 2 && separatorText[start] == '(' && separatorText[start + length - 1] == ')')
+        {
+            start++;
+            length -= 2;
+            if (length >= 2 && separatorText[start] == '?' && separatorText[start + 1] == ':')
+            {
+                start += 2;
+                length -= 2;
+            }
+
+            if (length > 0 && separatorText[start + length - 1] == '+')
+            {
+                hasOneOrMoreQuantifier = true;
+                length--;
+            }
+        }
+
+        if (hasOneOrMoreQuantifier &&
+            TryCreateByteMembership(separatorText, start, length, out var membership))
         {
             separator = new ByteRunSeparator(membership);
             return true;
@@ -642,28 +664,35 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
         return false;
     }
 
-    private static bool TryCreateByteMembership(string separatorText, out ByteMembership membership)
+    private static bool TryCreateByteMembership(
+        string separatorText,
+        int start,
+        int length,
+        out ByteMembership membership)
     {
         static bool IsAsciiLetter(char value) =>
             value is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
 
-        if (separatorText.Length == 1 &&
-            separatorText[0] <= 0x7F &&
-            !IsAsciiLetter(separatorText[0]) &&
-            !IsRegexMetacharacter(separatorText[0]))
+        if (length == 1 &&
+            separatorText[start] <= 0x7F &&
+            !IsAsciiLetter(separatorText[start]) &&
+            !IsRegexMetacharacter(separatorText[start]))
         {
-            membership = ByteMembership.Single((byte)separatorText[0]);
+            membership = ByteMembership.Single((byte)separatorText[start]);
             return true;
         }
 
-        if (separatorText.Length < 3 || separatorText[0] != '[' || separatorText[^1] != ']')
+        if (length < 3 ||
+            separatorText[start] != '[' ||
+            separatorText[start + length - 1] != ']')
         {
             membership = default;
             return false;
         }
 
         membership = default;
-        for (var index = 1; index < separatorText.Length - 1; index++)
+        var end = start + length - 1;
+        for (var index = start + 1; index < end; index++)
         {
             var ch = separatorText[index];
             if (ch > 0x7F || ch is '\\' or '-' or '^' or '[' or ']' || IsAsciiLetter(ch))

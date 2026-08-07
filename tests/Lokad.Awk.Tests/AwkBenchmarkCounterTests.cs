@@ -34,7 +34,7 @@ public sealed class AwkBenchmarkCounterTests
 
         Assert.Equal(0, exitCode);
         Assert.Equal("first\nsecond\nthird\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.True(counters.RegexMatches > 0);
+        Assert.Equal(0, counters.RegexMatches);
         Assert.True(counters.RecordSeparatorResolutions > 0);
     }
 
@@ -293,10 +293,24 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    public async Task Awk_TrueRegexRecordSeparatorReusesDecodedBatchText()
+    public async Task Awk_GroupedByteRunRecordSeparatorAvoidsRegexMatches()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["BEGIN{RS=\"([|;])+\"} {print $0}"],
+            "a|b;c|d;",
+            AwkRegexEngineKind.DotNetCompatibility);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("a\nb\nc\nd\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(0, counters.RegexMatches);
+        Assert.Equal(0, counters.AwkTextAsStringCalls);
+    }
+
+    [Fact]
+    public async Task Awk_GroupedAlternationRecordSeparatorUsesRegexFallback()
+    {
+        var (exitCode, fileSystem, counters) = await RunAsync(
+            ["BEGIN{RS=\"([|]|;)+\"} {print $0}"],
             "a|b;c|d;",
             AwkRegexEngineKind.DotNetCompatibility);
 
