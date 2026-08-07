@@ -96,6 +96,17 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(1, counters.RegexCompiles);
     }
 
+    [Fact]
+    public async Task Awk_RegexCacheRetainsHotPatternDuringChurn()
+    {
+        var (exitCode, fileSystem, counters) = await RunAsync([
+            "BEGIN{hot=\"^hot$\"; for(i=0;i<80;i++){match(\"hot\",hot); cold=\"^cold\" i \"$\"; match(\"none\",cold)} print match(\"hot\",hot)}"]);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(81, counters.RegexCompiles);
+    }
+
     [Theory]
     [InlineData("BEGIN{FS=\"[,;]\"} {print NF}", "a,b;c\n", "3\n")]
     [InlineData("BEGIN{FIELDWIDTHS=\"2 3\"} {print NF}", "abcdef\n", "2\n")]

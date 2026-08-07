@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
 using Utf8RegexEngine = Lokad.Utf8Regex.Utf8Regex;
@@ -15,9 +14,9 @@ internal sealed class AwkRegexRuntime
     private readonly Action _throwIfCancellationRequested;
     private readonly AwkRuntimeCounters _counters;
     private readonly AwkRegexEngineKind _engineKind;
-    private readonly Dictionary<AwkRegexCacheKey, AwkRegex> _regexCache = [];
-    private readonly Dictionary<AwkRegexCacheKey, Regex> _dotNetRegexCache = [];
-    private readonly Dictionary<AwkRegexCacheKey, Utf8RegexEngine> _utf8RegexCache = [];
+    private readonly AwkBoundedCache<AwkRegexCacheKey, AwkRegex> _regexCache = new(MaxCachedRegexes);
+    private readonly AwkBoundedCache<AwkRegexCacheKey, Regex> _dotNetRegexCache = new(MaxCachedRegexes);
+    private readonly AwkBoundedCache<AwkRegexCacheKey, Utf8RegexEngine> _utf8RegexCache = new(MaxCachedRegexes);
 
     public AwkRegexRuntime(
         Func<bool> isIgnoreCaseEnabled,
@@ -279,28 +278,19 @@ internal sealed class AwkRegexRuntime
 
     private AwkRegex Cache(AwkRegexCacheKey key, AwkRegex regex)
     {
-        if (_regexCache.Count >= MaxCachedRegexes)
-            _regexCache.Clear();
-
-        _regexCache[key] = regex;
+        _regexCache.Set(key, regex);
         return regex;
     }
 
     private Regex CacheDotNet(AwkRegexCacheKey key, Regex regex)
     {
-        if (_dotNetRegexCache.Count >= MaxCachedRegexes)
-            _dotNetRegexCache.Clear();
-
-        _dotNetRegexCache[key] = regex;
+        _dotNetRegexCache.Set(key, regex);
         return regex;
     }
 
     private Utf8RegexEngine Cache(AwkRegexCacheKey key, Utf8RegexEngine regex)
     {
-        if (_utf8RegexCache.Count >= MaxCachedRegexes)
-            _utf8RegexCache.Clear();
-
-        _utf8RegexCache[key] = regex;
+        _utf8RegexCache.Set(key, regex);
         return regex;
     }
 
@@ -355,6 +345,7 @@ internal sealed class AwkRegexRuntime
                 regex.Pattern,
                 AwkRegex.ResolveOptions(ignoreCase),
                 AwkRegex.MatchTimeout));
+    }
 
     private AwkRegexExecutionPolicy ResolveExecutionPolicy(AwkRegex regex, AwkText input)
     {
