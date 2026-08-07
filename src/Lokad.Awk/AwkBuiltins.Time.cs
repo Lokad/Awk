@@ -35,6 +35,56 @@ internal static partial class AwkBuiltins
 
     private static AwkValue EvaluateMktime(AwkBuiltinContext context)
     {
+        static double MakeTime(string dateSpec, bool utc, TimeZoneInfo timeZone)
+        {
+            var parts = dateSpec.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 6)
+                return -1;
+
+            var values = new int[6];
+            for (var index = 0; index < values.Length; index++)
+            {
+                if (!int.TryParse(
+                        parts[index],
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out values[index]))
+                {
+                    return -1;
+                }
+            }
+
+            try
+            {
+                if (utc)
+                {
+                    return new DateTimeOffset(
+                            values[0],
+                            values[1],
+                            values[2],
+                            values[3],
+                            values[4],
+                            values[5],
+                            TimeSpan.Zero)
+                        .ToUnixTimeSeconds();
+                }
+
+                var local = new DateTime(
+                    values[0],
+                    values[1],
+                    values[2],
+                    values[3],
+                    values[4],
+                    values[5],
+                    DateTimeKind.Unspecified);
+                return new DateTimeOffset(local, timeZone.GetUtcOffset(local)).ToUnixTimeSeconds();
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return -1;
+            }
+        }
+
         if (context.ArgumentCount is < 1 or > 2)
             return AwkValue.FromNumber(-1);
 
@@ -45,6 +95,19 @@ internal static partial class AwkBuiltins
 
     private static AwkValue EvaluateStrftime(AwkBuiltinContext context)
     {
+        static string FormatTime(
+            string format,
+            AwkUnixTimestampSeconds timestamp,
+            bool utc,
+            TimeZoneInfo timeZone)
+        {
+            var value = DateTimeOffset.FromUnixTimeSeconds(timestamp.Value);
+            if (!utc)
+                value = TimeZoneInfo.ConvertTime(value, timeZone);
+
+            return GnuDateFormatting.Format(value, format);
+        }
+
         if (context.ArgumentCount > 3)
             return AwkValue.FromText(string.Empty);
 
@@ -59,51 +122,5 @@ internal static partial class AwkBuiltins
             : context.State.CurrentUnixTimeSeconds();
         var utc = context.ArgumentCount >= 3 && context.GetValue(2).IsTruthy();
         return context.State.CreateStringValue(FormatTime(format, timestamp, utc, context.State.TimeZone));
-    }
-
-    private static double MakeTime(string dateSpec, bool utc, TimeZoneInfo timeZone)
-    {
-        var parts = dateSpec.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 6)
-            return -1;
-
-        var values = new int[6];
-        for (var index = 0; index < values.Length; index++)
-        {
-            if (!int.TryParse(parts[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out values[index]))
-                return -1;
-        }
-
-        try
-        {
-            if (utc)
-            {
-                return new DateTimeOffset(
-                        values[0],
-                        values[1],
-                        values[2],
-                        values[3],
-                        values[4],
-                        values[5],
-                        TimeSpan.Zero)
-                    .ToUnixTimeSeconds();
-            }
-
-            var local = new DateTime(values[0], values[1], values[2], values[3], values[4], values[5], DateTimeKind.Unspecified);
-            return new DateTimeOffset(local, timeZone.GetUtcOffset(local)).ToUnixTimeSeconds();
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            return -1;
-        }
-    }
-
-    private static string FormatTime(string format, AwkUnixTimestampSeconds timestamp, bool utc, TimeZoneInfo timeZone)
-    {
-        var value = DateTimeOffset.FromUnixTimeSeconds(timestamp.Value);
-        if (!utc)
-            value = TimeZoneInfo.ConvertTime(value, timeZone);
-
-        return GnuDateFormatting.Format(value, format);
     }
 }

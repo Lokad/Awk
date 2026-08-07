@@ -2,37 +2,53 @@ using System.Collections.Generic;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkFunctionParameterBinding(
-    IReadOnlyList<AwkIdentifier> parameters,
-    IReadOnlyList<AwkDiagnostic> diagnostics)
+internal sealed class AwkFunctionParameterBinding
 {
-    public IReadOnlyList<AwkIdentifier> ParameterIdentifiers { get; } = parameters;
-
-    public IReadOnlyList<AwkVariableName> Parameters { get; } = ToNames(parameters);
-
-    public IReadOnlyList<AwkDiagnostic> Diagnostics { get; } = diagnostics;
-
-    public bool Success => Diagnostics.Count == 0;
-
-    private static IReadOnlyList<AwkVariableName> ToNames(IReadOnlyList<AwkIdentifier> identifiers)
+    public AwkFunctionParameterBinding(
+        IReadOnlyList<AwkIdentifier> parameters,
+        IReadOnlyList<AwkDiagnostic> diagnostics)
     {
-        if (identifiers.Count == 0)
-            return [];
-
-        var names = new AwkVariableName[identifiers.Count];
-        for (var index = 0; index < identifiers.Count; index++)
+        static IReadOnlyList<AwkVariableName> ToNames(
+            IReadOnlyList<AwkIdentifier> identifiers)
         {
-            names[index] = new AwkVariableName(identifiers[index]);
+            if (identifiers.Count == 0)
+                return [];
+
+            var names = new AwkVariableName[identifiers.Count];
+            for (var index = 0; index < identifiers.Count; index++)
+            {
+                names[index] = new AwkVariableName(identifiers[index]);
+            }
+
+            return names;
         }
 
-        return names;
+        ParameterIdentifiers = parameters;
+        Parameters = ToNames(parameters);
+        Diagnostics = diagnostics;
     }
+
+    public IReadOnlyList<AwkIdentifier> ParameterIdentifiers { get; }
+
+    public IReadOnlyList<AwkVariableName> Parameters { get; }
+
+    public IReadOnlyList<AwkDiagnostic> Diagnostics { get; }
+
+    public bool Success => Diagnostics.Count == 0;
 }
 
 internal static class AwkFunctionParameters
 {
     public static AwkFunctionParameterBinding Bind(IReadOnlyList<AwkToken> parameterTokens)
     {
+        static void AddDiagnostic(
+            List<AwkDiagnostic> diagnostics,
+            AwkTextSpan span,
+            string message)
+        {
+            diagnostics.Add(new AwkDiagnostic(span, message, AwkDiagnosticId.BindInvalidProgram));
+        }
+
         var parameters = new List<AwkIdentifier>();
         var diagnostics = new List<AwkDiagnostic>();
         var seen = new HashSet<string>(System.StringComparer.Ordinal);
@@ -99,13 +115,5 @@ internal static class AwkFunctionParameters
         }
 
         return new AwkFunctionParameterBinding(parameters, diagnostics);
-    }
-
-    private static void AddDiagnostic(
-        List<AwkDiagnostic> diagnostics,
-        AwkTextSpan span,
-        string message)
-    {
-        diagnostics.Add(new AwkDiagnostic(span, message, AwkDiagnosticId.BindInvalidProgram));
     }
 }

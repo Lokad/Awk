@@ -124,6 +124,20 @@ internal static class AwkBuiltinCallShape
         AwkBuiltinCallSyntax call,
         out AwkBuiltinArgumentRoleFailure failure)
     {
+        static bool IsArrayName(AwkExpressionSyntax argument) =>
+            AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(argument, out _);
+
+        static bool AcceptsArgumentRole(
+            AwkBuiltinArgumentRole role,
+            AwkExpressionSyntax argument) =>
+            role switch
+            {
+                AwkBuiltinArgumentRole.ArrayName => IsArrayName(argument),
+                AwkBuiltinArgumentRole.LValue =>
+                    AwkExpressionSyntaxFacts.IsValidMutationTarget(argument),
+                _ => true
+            };
+
         for (var index = 0; index < call.ArgumentCount; index++)
         {
             if (!call.GetArgument(index).TryGetValue(out var argument))
@@ -158,17 +172,4 @@ internal static class AwkBuiltinCallShape
         return "Argument " + (failure.ArgumentIndex + 1).ToString(CultureInfo.InvariantCulture) +
             " of `" + call.Target.Name + "' must be " + expected + ".";
     }
-
-    private static bool AcceptsArgumentRole(
-        AwkBuiltinArgumentRole role,
-        AwkExpressionSyntax argument) =>
-        role switch
-        {
-            AwkBuiltinArgumentRole.ArrayName => IsArrayName(argument),
-            AwkBuiltinArgumentRole.LValue => AwkExpressionSyntaxFacts.IsValidMutationTarget(argument),
-            _ => true
-        };
-
-    private static bool IsArrayName(AwkExpressionSyntax argument) =>
-        AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(argument, out _);
 }

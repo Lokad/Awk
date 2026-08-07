@@ -26,14 +26,20 @@ internal sealed class AwkLoweringResult(
             diagnostics,
             []));
 
-    public static AwkLoweringResult Failure(AwkSyntaxProgram syntax, string message) =>
-        Failure([new AwkDiagnostic(ResolveFailureSpan(syntax), message, AwkDiagnosticId.BindInvalidProgram)]);
-
-    private static AwkTextSpan ResolveFailureSpan(AwkSyntaxProgram syntax)
+    public static AwkLoweringResult Failure(AwkSyntaxProgram syntax, string message)
     {
-        if (syntax.SourceText.Length == 0)
-            return new AwkTextSpan(0, 0);
+        static AwkTextSpan ResolveFailureSpan(AwkSyntaxProgram syntax)
+        {
+            if (syntax.SourceText.Length == 0)
+                return new AwkTextSpan(0, 0);
 
-        return new AwkTextSpan(0, 1);
+            return new AwkTextSpan(0, 1);
+        }
+
+        return Failure(
+            [new AwkDiagnostic(
+                ResolveFailureSpan(syntax),
+                message,
+                AwkDiagnosticId.BindInvalidProgram)]);
     }
 }
