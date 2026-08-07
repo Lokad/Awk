@@ -665,6 +665,14 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
 
             var content = buffer.CopyToAwkText(Context.State.Counters);
             var match = Context.State.MatchRegexSpan(_separator, content);
+            if (match.Success &&
+                !reachedEof &&
+                match.ByteIndex == content.ByteLength - match.ByteLength)
+            {
+                reachedEof = await AppendNextByteBatchAsync(descriptor, buffer).ConfigureAwait(false);
+                continue;
+            }
+
             if (match.Success)
             {
                 var record = content.CopyByteSlice(0, match.ByteIndex, Context.State.Counters, Context.State.MemoryGovernor);
@@ -789,6 +797,12 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
 
             if (TryFindParagraphSeparator(buffer.AsSpan(), out var separatorIndex, out var separatorLength))
             {
+                if (!reachedEof && separatorIndex == buffer.Length - separatorLength)
+                {
+                    reachedEof = await AppendNextByteBatchAsync(descriptor, buffer).ConfigureAwait(false);
+                    continue;
+                }
+
                 var record = CreateParagraphRecord(
                     buffer,
                     separatorIndex,

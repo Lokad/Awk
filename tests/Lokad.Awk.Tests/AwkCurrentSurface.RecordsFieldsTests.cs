@@ -794,27 +794,43 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
     }
 
-    public static TheoryData<string, string[], string> CustomRecordSeparatorBatchCases => new()
+    public static TheoryData<string, string[], int[], string> CustomRecordSeparatorBatchCases => new()
     {
         {
             "BEGIN{RS=\"|\"} {print $0}",
             ["alpha", "beta|gamma", "|"],
+            [0, 1, 1],
             "alphabeta\ngamma\n"
         },
         {
             "BEGIN{RS=\"é\"} {print $0}",
             ["alpha", "betaégamma", "é"],
+            [0, 1, 1],
             "alphabeta\ngamma\n"
         },
         {
             "BEGIN{RS=\"[,;]\"} {print $0}",
             ["alpha", "beta,gamma", ";"],
+            [0, 1, 1],
             "alphabeta\ngamma\n"
+        },
+        {
+            "BEGIN{RS=\"-+\"} {print $0 \"[\" RT \"]\"}",
+            ["a-", "-b"],
+            [0, 2],
+            "a[--]\nb[]\n"
         },
         {
             "BEGIN{RS=\"\"} {print $0}",
             ["alpha", "beta\n\n", "gamma\n\n"],
+            [0, 0, 2],
             "alphabeta\ngamma\n"
+        },
+        {
+            "BEGIN{RS=\"\"} {print $0 \"[\" length(RT) \"]\"}",
+            ["a\n\n", "\nb"],
+            [0, 2],
+            "a[3]\nb[0]\n"
         }
     };
 
@@ -823,8 +839,10 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     public async Task Awk_CustomRecordSeparatorsKeepRecordsAcrossHostBatches(
         string program,
         string[] batches,
+        int[] appendsAfterBatch,
         string expectedOutput)
     {
+        Assert.Equal(batches.Length, appendsAfterBatch.Length);
         var host = new TestOperationVisitor([]);
         for (var index = 0; index < batches.Length; index++)
         {
@@ -832,7 +850,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
                 Encoding.UTF8.GetBytes(batches[index]),
                 [],
                 reachedEof: index == batches.Length - 1));
-            if (index > 0)
+            for (var appendIndex = 0; appendIndex < appendsAfterBatch[index]; appendIndex++)
                 host.EnqueueAppendExitCode(0);
         }
 
