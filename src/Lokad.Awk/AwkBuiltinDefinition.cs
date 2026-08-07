@@ -194,6 +194,12 @@ internal abstract class AwkBuiltinImplementation
         public override ValueTask<AwkValue> EvaluateAsync(AwkBuiltinContext context)
         {
             var argumentCount = context.ArgumentCount;
+            if (argumentCount == 0)
+            {
+                return ValueTask.FromResult(evaluator(
+                    context.WithEvaluatedArguments(Array.Empty<AwkValue>(), argumentCount)));
+            }
+
             var values = ArrayPool<AwkValue>.Shared.Rent(argumentCount);
             try
             {
