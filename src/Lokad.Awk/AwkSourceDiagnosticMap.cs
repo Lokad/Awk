@@ -8,139 +8,178 @@ internal static class AwkSourceDiagnosticMap
         AwkSourceUnit source,
         IReadOnlyList<AwkDiagnostic> diagnostics)
     {
-        static AwkDiagnostic MapDiagnostic(AwkSourceUnit source, AwkDiagnostic diagnostic)
+        static bool TryFindSegment(
+            IReadOnlyList<AwkSourceSegment> segments,
+            int position,
+            out AwkSourceSegment segment)
+        {
+            var low = 0;
+            var high = segments.Count;
+            while (low < high)
+            {
+                var middle = low + ((high - low) / 2);
+                if (segments[middle].Span.Start <= position)
+                    low = middle + 1;
+                else
+                    high = middle;
+            }
+
+            if (low > 0)
+            {
+                var candidate = segments[low - 1];
+                if (position <= candidate.Span.End)
+                {
+                    segment = candidate;
+                    return true;
+                }
+            }
+
+            segment = default;
+            return false;
+        }
+
+        static AwkSourceLocation CreateLocation(
+            AwkSourceUnit source,
+            AwkSourceSegment segment,
+            int position,
+            SourceLineIndex lineIndex)
+        {
+            var relativeOffset = Math.Clamp(position - segment.Span.Start, 0, segment.Span.Length);
+            var end = Math.Min(segment.Span.Start + relativeOffset, source.Text.Length);
+            var sourceLines = lineIndex.GetPrefix(segment.Span.Start, end);
+            var continuationCount = segment.LineContinuations.CountAtOrBefore(relativeOffset);
+
+            var lastLineStart = sourceLines.LastStart;
+            if (continuationCount > 0)
+            {
+                var lastContinuation = segment.Span.Start +
+                    segment.LineContinuations[continuationCount - 1].NormalizedOffset;
+                if (lastContinuation > lastLineStart)
+                    lastLineStart = lastContinuation;
+            }
+
+            var line = segment.LineOffset + 1 + sourceLines.Count + continuationCount;
+            var column = lastLineStart >= 0
+                ? 1 + end - lastLineStart
+                : segment.ColumnOffset + 1 + relativeOffset;
+            return new AwkSourceLocation(
+                segment.Name,
+                new AwkLineNumber(line),
+                new AwkColumnNumber(column));
+        }
+
+        static AwkDiagnostic MapDiagnostic(
+            AwkSourceUnit source,
+            AwkDiagnostic diagnostic,
+            SourceLineIndex lineIndex)
         {
             if (diagnostic.SourceLocation.HasValue ||
                 !TryFindSegment(source.Segments, diagnostic.Span.Start, out var segment) ||
-                !ShouldAnnotateSource(source, segment))
+                (segment.Kind == AwkSourceSegmentKind.Inline &&
+                    source.Segments.Count == 1 &&
+                    source.Name == "<inline:1>"))
             {
                 return diagnostic;
             }
 
-            return diagnostic.WithSourceLocation(CreateLocation(source, segment, diagnostic.Span.Start));
+            return diagnostic.WithSourceLocation(
+                CreateLocation(source, segment, diagnostic.Span.Start, lineIndex));
         }
 
         if (diagnostics.Count == 0)
             return diagnostics;
 
+        var lineIndex = new SourceLineIndex(source.Text);
         var mapped = new AwkDiagnostic[diagnostics.Count];
         for (var index = 0; index < diagnostics.Count; index++)
         {
-            mapped[index] = MapDiagnostic(source, diagnostics[index]);
+            mapped[index] = MapDiagnostic(source, diagnostics[index], lineIndex);
         }
 
         return mapped;
     }
 
-    private static bool ShouldAnnotateSource(AwkSourceUnit source, AwkSourceSegment segment) =>
-        segment.Kind != AwkSourceSegmentKind.Inline ||
-        source.Segments.Count > 1 ||
-        source.Name != "<inline:1>";
-
-    private static bool TryFindSegment(
-        IReadOnlyList<AwkSourceSegment> segments,
-        int position,
-        out AwkSourceSegment segment)
+    private sealed class SourceLineIndex
     {
-        for (var index = 0; index < segments.Count; index++)
+        private readonly string _source;
+        private readonly int[] _starts;
+
+        public SourceLineIndex(string source)
         {
-            var candidate = segments[index];
-            if (position >= candidate.Span.Start && position < candidate.Span.End)
+            _source = source;
+            var count = 1;
+            for (var index = 0; index < source.Length; index++)
             {
-                segment = candidate;
-                return true;
+                if (source[index] == '\r')
+                {
+                    if (index + 1 < source.Length && source[index + 1] == '\n')
+                        index++;
+
+                    count++;
+                }
+                else if (source[index] == '\n')
+                {
+                    count++;
+                }
+            }
+
+            _starts = new int[count];
+            _starts[0] = 0;
+            var next = 1;
+            for (var index = 0; index < source.Length; index++)
+            {
+                if (source[index] == '\r')
+                {
+                    if (index + 1 < source.Length && source[index + 1] == '\n')
+                        index++;
+
+                    _starts[next++] = index + 1;
+                }
+                else if (source[index] == '\n')
+                {
+                    _starts[next++] = index + 1;
+                }
             }
         }
 
-        for (var index = segments.Count - 1; index >= 0; index--)
+        public SourceLinePrefix GetPrefix(int segmentStart, int end)
         {
-            var candidate = segments[index];
-            if (position == candidate.Span.End)
+            var first = FindFirstAfter(segmentStart);
+            var afterLast = FindFirstAfter(end);
+            var count = afterLast - first;
+            var lastStart = count == 0 ? -1 : _starts[afterLast - 1];
+
+            // A diagnostic may point between the two characters of CRLF. The old
+            // cursor counted the CR at that position even though the combined
+            // line start lies after the LF, so preserve that boundary behavior.
+            if (end > segmentStart &&
+                end < _source.Length &&
+                _source[end - 1] == '\r' &&
+                _source[end] == '\n')
             {
-                segment = candidate;
-                return true;
+                count++;
+                lastStart = end;
+            }
+
+            return new SourceLinePrefix(count, lastStart);
+
+            int FindFirstAfter(int position)
+            {
+                var low = 0;
+                var high = _starts.Length;
+                while (low < high)
+                {
+                    var middle = low + ((high - low) / 2);
+                    if (_starts[middle] <= position)
+                        low = middle + 1;
+                    else
+                        high = middle;
+                }
+
+                return low;
             }
         }
-
-        segment = default;
-        return false;
     }
 
-    private static AwkSourceLocation CreateLocation(
-        AwkSourceUnit source,
-        AwkSourceSegment segment,
-        int position)
-    {
-        var relativeOffset = position - segment.Span.Start;
-        if (relativeOffset < 0)
-            relativeOffset = 0;
-
-        if (relativeOffset > segment.Span.Length)
-            relativeOffset = segment.Span.Length;
-
-        var line = segment.LineOffset + 1;
-        var column = segment.ColumnOffset + 1;
-        var end = segment.Span.Start + relativeOffset;
-        if (end > source.Text.Length)
-            end = source.Text.Length;
-
-        var lineContinuations = segment.LineContinuations;
-        var lineContinuationIndex = 0;
-        for (var index = segment.Span.Start; index < end; index++)
-        {
-            ApplyLineContinuations(
-                lineContinuations,
-                ref lineContinuationIndex,
-                index - segment.Span.Start,
-                ref line,
-                ref column);
-
-            if (source.Text[index] == '\r')
-            {
-                line++;
-                column = 1;
-                if (index + 1 < end && source.Text[index + 1] == '\n')
-                    index++;
-
-                continue;
-            }
-
-            if (source.Text[index] == '\n')
-            {
-                line++;
-                column = 1;
-                continue;
-            }
-
-            column++;
-        }
-
-        ApplyLineContinuations(
-            lineContinuations,
-            ref lineContinuationIndex,
-            relativeOffset,
-            ref line,
-            ref column);
-
-        return new AwkSourceLocation(
-            segment.Name,
-            new AwkLineNumber(line),
-            new AwkColumnNumber(column));
-    }
-
-    private static void ApplyLineContinuations(
-        AwkLineContinuationMap lineContinuations,
-        ref int lineContinuationIndex,
-        int relativeOffset,
-        ref int line,
-        ref int column)
-    {
-        while (lineContinuationIndex < lineContinuations.Count &&
-            lineContinuations[lineContinuationIndex].NormalizedOffset == relativeOffset)
-        {
-            line++;
-            column = 1;
-            lineContinuationIndex++;
-        }
-    }
+    private readonly record struct SourceLinePrefix(int Count, int LastStart);
 }

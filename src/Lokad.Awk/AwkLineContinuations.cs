@@ -155,22 +155,9 @@ internal sealed class AwkLineContinuationMap
             return low;
         }
 
-        int FindFirstAfter(int offset)
-        {
-            var low = 0;
-            var high = Points.Count;
-            while (low < high)
-            {
-                var middle = low + ((high - low) / 2);
-                if (Points[middle].NormalizedOffset <= offset)
-                    low = middle + 1;
-                else
-                    high = middle;
-            }
-
-            return low;
-        }
     }
+
+    public int CountAtOrBefore(int normalizedOffset) => FindFirstAfter(normalizedOffset);
 
     public AwkLineContinuationMap Append(AwkLineContinuationMap next, int nextOffset)
     {
@@ -200,6 +187,22 @@ internal sealed class AwkLineContinuationMap
             points.Add(new AwkLineContinuationPoint(offset + this[index].NormalizedOffset));
 
         return new AwkLineContinuationMap(points);
+    }
+
+    private int FindFirstAfter(int offset)
+    {
+        var low = 0;
+        var high = Points.Count;
+        while (low < high)
+        {
+            var middle = low + ((high - low) / 2);
+            if (Points[middle].NormalizedOffset <= offset)
+                low = middle + 1;
+            else
+                high = middle;
+        }
+
+        return low;
     }
 }
 
