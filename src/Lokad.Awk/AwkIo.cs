@@ -15,8 +15,10 @@ internal sealed class AwkIo
     private readonly AwkPipeRuntime _pipes;
     private readonly AwkSpecialPathPolicy _specialPaths;
     private readonly AwkRuntimeCounters _counters;
+    private readonly AwkRuntimeState _state;
+    private readonly AwkRecordDescriptorReader _descriptorReader;
     private readonly int _maxOutputFiles;
-    private AsyncLineReader? _standardInputReader;
+    private AwkRecordCursor? _standardInputReader;
     private MainInputReaderBinding _mainInputReader = MainInputReaderBinding.Unbound;
 
     internal AwkIo(
@@ -28,6 +30,7 @@ internal sealed class AwkIo
         CancellationToken cancellationToken,
         AwkRuntimeCounters counters,
         AwkRuntimeLimits limits,
+        AwkRuntimeState state,
         Func<IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment)
     {
         _host = new AwkIoHostAdapter(
@@ -41,7 +44,17 @@ internal sealed class AwkIo
             counters,
             new AwkRuntimeResourceMonitor(limits, counters));
         _maxOutputFiles = limits.MaxOutputFiles;
-        _pipes = new AwkPipeRuntime(_host, _maxOutputFiles, () => _descriptors.OutputFileCount);
+        _state = state;
+        _descriptorReader = new AwkRecordDescriptorReader(
+            host,
+            cancellationToken,
+            counters,
+            state.Resources);
+        _pipes = new AwkPipeRuntime(
+            _host,
+            _maxOutputFiles,
+            () => _descriptors.OutputFileCount,
+            CreateRecordCursor);
         _specialPaths = new AwkSpecialPathPolicy(stdIn, stdOut, stdErr);
         _counters = counters;
     }
@@ -103,7 +116,7 @@ internal sealed class AwkIo
         await _host.AppendAsync(descriptor, output.Content).ConfigureAwait(false);
     }
 
-    public async Task<AwkGetlineResult> ReadLineAsync(string path)
+    public async Task<AwkGetlineResult> ReadRedirectedRecordAsync(string path)
     {
         var resolved = await ResolveInputReaderAsync(path).ConfigureAwait(false);
         if (resolved is AwkInputReaderResult.Failed failed)
@@ -114,8 +127,7 @@ internal sealed class AwkIo
 
         try
         {
-            if (await resolvedReader.Reader.ReachedEof().ConfigureAwait(false))
-                return AwkGetlineResult.EndOfFile;
+            return await ReadGetlineRecordAsync(resolvedReader.Reader).ConfigureAwait(false);
         }
         catch (AwkHostReadException exception)
         {
@@ -123,18 +135,14 @@ internal sealed class AwkIo
                 AwkIoError.FromReadFailure(exception.Descriptor, exception.Error));
         }
 
-        var line = AwkRecordLine.ReadUtf8DefaultNewline(resolvedReader.Reader.ReadLine(), _counters);
-        _counters.RecordRecordRead();
-        return AwkGetlineResult.Record(line.Record, line.Terminator);
     }
 
-    public async Task<AwkGetlineResult> ReadPipeLineAsync(string command)
+    public async Task<AwkGetlineResult> ReadPipeRecordAsync(string command)
     {
-        var reader = await _pipes.GetInputReaderAsync(command, InputReadBatchLineCount).ConfigureAwait(false);
+        var reader = await _pipes.GetInputReaderAsync(command).ConfigureAwait(false);
         try
         {
-            if (await reader.ReachedEof().ConfigureAwait(false))
-                return AwkGetlineResult.EndOfFile;
+            return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
         }
         catch (AwkHostReadException exception)
         {
@@ -142,21 +150,18 @@ internal sealed class AwkIo
                 AwkIoError.FromReadFailure(exception.Descriptor, exception.Error));
         }
 
-        var line = AwkRecordLine.ReadUtf8DefaultNewline(reader.ReadLine(), _counters);
-        _counters.RecordRecordRead();
-        return AwkGetlineResult.Record(line.Record, line.Terminator);
     }
 
-    public void BindMainInputReader(AsyncLineReader reader) =>
+    public void BindMainInputReader(AwkRecordCursor reader) =>
         _mainInputReader = MainInputReaderBinding.Bind(reader);
 
-    public void BindMainInputReader(AsyncLineReader reader, Func<Task> beforeReadAsync) =>
+    public void BindMainInputReader(AwkRecordCursor reader, Func<Task> beforeReadAsync) =>
         _mainInputReader = MainInputReaderBinding.Bind(reader, beforeReadAsync);
 
     public void ClearMainInputReader() =>
         _mainInputReader = MainInputReaderBinding.Unbound;
 
-    public async Task<AwkGetlineResult> ReadMainLineAsync()
+    public async Task<AwkGetlineResult> ReadMainRecordAsync()
     {
         if (_mainInputReader is not MainInputReaderBinding.Bound boundReader)
             return AwkGetlineResult.EndOfFile;
@@ -165,19 +170,33 @@ internal sealed class AwkIo
 
         try
         {
-            if (await boundReader.Reader.ReachedEof().ConfigureAwait(false))
-                return AwkGetlineResult.EndOfFile;
+            return await ReadGetlineRecordAsync(boundReader.Reader).ConfigureAwait(false);
         }
         catch (AwkHostReadException exception)
         {
             return AwkGetlineResult.Failure(
                 AwkIoError.FromReadFailure(exception.Descriptor, exception.Error));
         }
-
-        var line = AwkRecordLine.ReadUtf8DefaultNewline(boundReader.Reader.ReadLine(), _counters);
-        _counters.RecordRecordRead();
-        return AwkGetlineResult.Record(line.Record, line.Terminator);
     }
+
+    private async Task<AwkGetlineResult> ReadGetlineRecordAsync(AwkRecordCursor reader)
+    {
+        var input = await reader.ReadAsync().ConfigureAwait(false);
+        if (!input.HasRecord)
+            return AwkGetlineResult.EndOfFile;
+
+        _counters.RecordRecordRead();
+        return AwkGetlineResult.Record(
+            input.RecordText,
+            input.Terminator,
+            input.FieldSplittingMode);
+    }
+
+    private AwkRecordCursor CreateRecordCursor(AwkFileDescriptor descriptor) =>
+        new(
+            _state,
+            _descriptorReader,
+            _host.CreateLineReader(descriptor, InputReadBatchLineCount));
 
     private async Task<AwkInputReaderResult> ResolveInputReaderAsync(string path)
     {
@@ -185,7 +204,7 @@ internal sealed class AwkIo
 
         if (_specialPaths.TryResolveInput(path, out var specialDescriptor))
         {
-            _standardInputReader ??= _host.CreateLineReader(specialDescriptor, InputReadBatchLineCount);
+            _standardInputReader ??= CreateRecordCursor(specialDescriptor);
             return AwkInputReaderResult.Success(_standardInputReader);
         }
 
@@ -203,7 +222,7 @@ internal sealed class AwkIo
             return AwkInputReaderResult.Failure(error);
         }
 
-        var reader = _host.CreateLineReader(opened.FileDescriptor, InputReadBatchLineCount);
+        var reader = CreateRecordCursor(opened.FileDescriptor);
         _descriptors.AddInput(absolutePath, opened.FileDescriptor, reader);
         return AwkInputReaderResult.Success(reader);
     }
@@ -239,12 +258,16 @@ internal sealed class AwkIo
     {
         await _pipes.CloseAllAsync().ConfigureAwait(false);
         await _descriptors.CloseAllAsync(_host).ConfigureAwait(false);
+        _standardInputReader?.Dispose();
+        _standardInputReader = null;
     }
 
     public async Task CloseForCleanupAsync()
     {
         await _pipes.CloseAllForCleanupAsync().ConfigureAwait(false);
         await _descriptors.CloseAllForCleanupAsync(_host).ConfigureAwait(false);
+        _standardInputReader?.Dispose();
+        _standardInputReader = null;
     }
 
     public async Task<AwkIoOperationResult> CloseAsync(string path)
@@ -317,13 +340,13 @@ internal sealed class AwkIo
 
     private abstract class AwkInputReaderResult
     {
-        public static Resolved Success(AsyncLineReader reader) => new(reader);
+        public static Resolved Success(AwkRecordCursor reader) => new(reader);
 
         public static Failed Failure(AwkIoError error) => new(error);
 
-        public sealed class Resolved(AsyncLineReader reader) : AwkInputReaderResult
+        public sealed class Resolved(AwkRecordCursor reader) : AwkInputReaderResult
         {
-            public AsyncLineReader Reader { get; } = reader;
+            public AwkRecordCursor Reader { get; } = reader;
         }
 
         public sealed class Failed(AwkIoError error) : AwkInputReaderResult
@@ -336,9 +359,9 @@ internal sealed class AwkIo
     {
         public static MainInputReaderBinding Unbound { get; } = new Empty();
 
-        public static Bound Bind(AsyncLineReader reader) => new(reader, MainInputReadHook.None);
+        public static Bound Bind(AwkRecordCursor reader) => new(reader, MainInputReadHook.None);
 
-        public static Bound Bind(AsyncLineReader reader, Func<Task> beforeReadAsync) =>
+        public static Bound Bind(AwkRecordCursor reader, Func<Task> beforeReadAsync) =>
             new(reader, MainInputReadHook.Once(beforeReadAsync));
 
         public sealed class Empty : MainInputReaderBinding
@@ -346,12 +369,12 @@ internal sealed class AwkIo
         }
 
         public sealed class Bound(
-            AsyncLineReader reader,
+            AwkRecordCursor reader,
             MainInputReadHook beforeRead) : MainInputReaderBinding
         {
             private MainInputReadHook _beforeRead = beforeRead;
 
-            public AsyncLineReader Reader { get; } = reader;
+            public AwkRecordCursor Reader { get; } = reader;
 
             public async Task ExecuteBeforeReadAsync()
             {

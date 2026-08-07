@@ -46,7 +46,11 @@ internal static class AwkGetlineRuntime
                 context.State.SetRecordTerminator(result.Terminator);
             }
 
-            await target.AssignLineAsync(context, result.LineText).ConfigureAwait(false);
+            await target.AssignRecordAsync(
+                    context,
+                    result.RecordText,
+                    result.FieldSplittingMode)
+                .ConfigureAwait(false);
         }
         else if (result.Failed)
         {

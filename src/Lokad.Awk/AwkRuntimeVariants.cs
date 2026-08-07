@@ -75,23 +75,33 @@ internal abstract record AwkGetlineTarget
     public static AwkGetlineTarget ReferenceTarget(AwkReference reference) =>
         new AwkReferenceGetlineTarget(reference);
 
-    /// <summary>Assigns one byte-native input line while applying the target's record or scalar semantics.</summary>
-    public abstract ValueTask AssignLineAsync(AwkEvaluationContext context, AwkText line);
+    /// <summary>Assigns one byte-native input record while applying the target's record or scalar semantics.</summary>
+    public abstract ValueTask AssignRecordAsync(
+        AwkEvaluationContext context,
+        AwkText record,
+        AwkRecordFieldSplittingMode fieldSplittingMode);
 }
 
 internal sealed record AwkCurrentRecordGetlineTarget : AwkGetlineTarget
 {
-    public override ValueTask AssignLineAsync(AwkEvaluationContext context, AwkText line)
+    public override ValueTask AssignRecordAsync(
+        AwkEvaluationContext context,
+        AwkText record,
+        AwkRecordFieldSplittingMode fieldSplittingMode)
     {
-        context.State.SetCurrentRecord(line);
+        context.State.SetRecordFieldSplittingMode(fieldSplittingMode);
+        context.State.SetCurrentRecord(record);
         return default;
     }
 }
 
 internal sealed record AwkReferenceGetlineTarget(AwkReference Reference) : AwkGetlineTarget
 {
-    public override ValueTask AssignLineAsync(AwkEvaluationContext context, AwkText line) =>
-        Reference.AssignValueAsync(context, context.State.CreateNumericStringValue(line));
+    public override ValueTask AssignRecordAsync(
+        AwkEvaluationContext context,
+        AwkText record,
+        AwkRecordFieldSplittingMode fieldSplittingMode) =>
+        Reference.AssignValueAsync(context, context.State.CreateNumericStringValue(record));
 }
 
 internal abstract record AwkGetlineSource
@@ -107,7 +117,7 @@ internal abstract record AwkGetlineSource
     /// <summary>Gets whether a read advances the scheduler's main-input stream and record counters.</summary>
     public abstract bool ReadsMainInput { get; }
 
-    /// <summary>Reads one line from this source and returns an awk-shaped getline result.</summary>
+    /// <summary>Reads one <c>RS</c>-delimited record and returns an awk-shaped getline result.</summary>
     public abstract ValueTask<AwkGetlineResult> ReadAsync(
         AwkEvaluationContext context,
         AwkExecutionContext execution);
@@ -120,7 +130,7 @@ internal sealed record AwkMainInputGetlineSource : AwkGetlineSource
     public override async ValueTask<AwkGetlineResult> ReadAsync(
         AwkEvaluationContext context,
         AwkExecutionContext execution) =>
-        await execution.Io.ReadMainLineAsync().ConfigureAwait(false);
+        await execution.Io.ReadMainRecordAsync().ConfigureAwait(false);
 }
 
 internal sealed record AwkRedirectionGetlineSource(AwkExpression Expression) : AwkGetlineSource
@@ -130,7 +140,7 @@ internal sealed record AwkRedirectionGetlineSource(AwkExpression Expression) : A
     public override async ValueTask<AwkGetlineResult> ReadAsync(
         AwkEvaluationContext context,
         AwkExecutionContext execution) =>
-        await execution.Io.ReadLineAsync(await Expression
+        await execution.Io.ReadRedirectedRecordAsync(await Expression
             .ResolveStringAsync(context)
             .ConfigureAwait(false)).ConfigureAwait(false);
 }
@@ -142,7 +152,7 @@ internal sealed record AwkInputPipeGetlineSource(AwkExpression Expression) : Awk
     public override async ValueTask<AwkGetlineResult> ReadAsync(
         AwkEvaluationContext context,
         AwkExecutionContext execution) =>
-        await execution.Io.ReadPipeLineAsync(await Expression
+        await execution.Io.ReadPipeRecordAsync(await Expression
             .ResolveStringAsync(context)
             .ConfigureAwait(false)).ConfigureAwait(false);
 }

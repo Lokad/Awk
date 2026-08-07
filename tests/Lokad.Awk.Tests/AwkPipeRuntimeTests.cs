@@ -139,6 +139,32 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
     }
 
     [Fact]
+    public async Task Awk_InputPipeGetlineHonorsCustomRecordSeparator()
+    {
+        var pipeRead = new AwkFileDescriptor(42);
+        var pipeWrite = new AwkFileDescriptor(43);
+        var host = new TestOperationVisitor([]);
+        host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(pipeRead, pipeWrite));
+        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+            AwkUtf8Codec.Encode("first|second|"),
+            [],
+            reachedEof: true));
+        host.EnqueueAppendExitCode(0);
+        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
+        host.EnqueueCloseDescriptorResult(true);
+        host.EnqueueCloseDescriptorResult(true);
+        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+            "awk",
+            "BEGIN{RS=\"|\"; \"producer\" | getline line; print line \"[\" RT \"]\"}")));
+
+        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("first[|]\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+    }
+
+    [Fact]
     public async Task Awk_InputPipeCloseFromReturnsCommandExitStatus()
     {
         var host = new TestOperationVisitor([]);

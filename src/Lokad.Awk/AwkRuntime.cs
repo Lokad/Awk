@@ -82,6 +82,7 @@ internal static class AwkRuntime
             cancellationToken,
             runtimeOptions.Counters,
             runtimeOptions.Limits,
+            state,
             state.SnapshotEnvironment);
         using var actionExecutor = new AwkRuntimeActionExecutor(program, executableProgram, state);
         var inputScheduler = new AwkInputScheduler(host, invocation, actionExecutor, state, io, cancellationToken);

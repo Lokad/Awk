@@ -44,16 +44,10 @@ internal sealed class AwkInputScheduler(
                 AwkText.FromSourceLiteralString("-"),
                 "-",
                 new AwkArgvIndex(0),
-                new AsyncLineReader(
-                    host,
-                    invocation.Stdio.StdIn,
-                    cancellationToken,
-                    AwkIo.InputReadBatchLineCount,
-                    state.Counters,
-                    state.Resources),
+                CreateRecordCursor(invocation.Stdio.StdIn),
                 static () => Task.CompletedTask);
             io.BindMainInputReader(
-                standardInput.Reader,
+                standardInput.Cursor,
                 async () => await standardInput.EnsureBeginFileAsync().ConfigureAwait(false));
             return MainInputPreparation.FromPrepared(standardInput);
         }
@@ -75,16 +69,10 @@ internal sealed class AwkInputScheduler(
                     runtimeArgument.Text,
                     runtimeArgument.Value,
                     inputArgument.ArgvIndex,
-                    new AsyncLineReader(
-                        host,
-                        invocation.Stdio.StdIn,
-                        cancellationToken,
-                        AwkIo.InputReadBatchLineCount,
-                        state.Counters,
-                        state.Resources),
+                    CreateRecordCursor(invocation.Stdio.StdIn),
                     static () => Task.CompletedTask);
                 io.BindMainInputReader(
-                    standardInput.Reader,
+                    standardInput.Cursor,
                     async () => await standardInput.EnsureBeginFileAsync().ConfigureAwait(false));
                 return MainInputPreparation.FromPrepared(standardInput);
             }
@@ -105,16 +93,10 @@ internal sealed class AwkInputScheduler(
                 runtimeArgument.Text,
                 AwkUtf8Codec.Decode(path.Display),
                 inputArgument.ArgvIndex,
-                new AsyncLineReader(
-                    host,
-                    opened.FileDescriptor,
-                    cancellationToken,
-                    AwkIo.InputReadBatchLineCount,
-                    state.Counters,
-                    state.Resources),
+                CreateRecordCursor(opened.FileDescriptor),
                 async () => await CloseOwnedDescriptorAsync(opened.FileDescriptor).ConfigureAwait(false));
             io.BindMainInputReader(
-                prepared.Reader,
+                prepared.Cursor,
                 async () => await prepared.EnsureBeginFileAsync().ConfigureAwait(false));
             return MainInputPreparation.FromPrepared(prepared);
         }
@@ -138,8 +120,7 @@ internal sealed class AwkInputScheduler(
         }
 
         ApplyInputAssignments();
-        if (preparation is MainInputPreparation.Prepared prepared &&
-            state.ResolveRecordSeparator() == "\n")
+        if (preparation is MainInputPreparation.Prepared prepared)
         {
             await ProcessPreparedInputAsync(prepared.Input).ConfigureAwait(false);
             return;
@@ -176,7 +157,6 @@ internal sealed class AwkInputScheduler(
 
             if (preparation is MainInputPreparation.Prepared preparedForArgument &&
                 preparedForArgument.Input.IsForInputPlanIndex(inputPlanIndex) &&
-                state.ResolveRecordSeparator() == "\n" &&
                 preparedForArgument.Input.CanUseCurrentArgument())
             {
                 var preparedFlow = await ProcessPreparedInputAsync(preparedForArgument.Input).ConfigureAwait(false);
@@ -268,6 +248,19 @@ internal sealed class AwkInputScheduler(
 
     private void TrackOwnedDescriptor(AwkFileDescriptor descriptor) =>
         _ownedDescriptors.Add(descriptor);
+
+    private AwkRecordCursor CreateRecordCursor(AwkFileDescriptor descriptor)
+    {
+        var descriptorReader = new AwkRecordDescriptorReader(
+            host,
+            cancellationToken,
+            state.Counters,
+            state.Resources);
+        return new AwkRecordCursor(
+            state,
+            descriptorReader,
+            descriptorReader.CreateLineReader(descriptor));
+    }
 
     private async Task CloseOwnedDescriptorAsync(AwkFileDescriptor descriptor)
     {
@@ -376,8 +369,8 @@ internal sealed class AwkInputScheduler(
         }
 
         var recordReader = new AwkRecordReader(host, state, io, cancellationToken);
-        var inputFlow = await recordReader.ProcessReaderAsync(
-                preparedInput.Reader,
+        var inputFlow = await recordReader.ProcessCursorAsync(
+                preparedInput.Cursor,
                 record => actionExecutor.ProcessRecordAsync(state, io, record))
             .ConfigureAwait(false);
         if (inputFlow == AwkStatementFlow.ExitProgram)
@@ -436,7 +429,7 @@ internal sealed class AwkInputScheduler(
         AwkText runtimeArgumentText,
         string fileName,
         AwkArgvIndex argvIndex,
-        AsyncLineReader reader,
+        AwkRecordCursor cursor,
         Func<Task> closeAsync)
     {
         private bool _beginFileExecuted;
@@ -444,7 +437,7 @@ internal sealed class AwkInputScheduler(
         private readonly AwkInputPlanIndex _inputPlanIndex = inputPlanIndex;
         private readonly AwkText _runtimeArgumentText = runtimeArgumentText;
 
-        public AsyncLineReader Reader { get; } = reader;
+        public AwkRecordCursor Cursor { get; } = cursor;
 
         public bool IsForInputPlanIndex(int inputPlanIndex) =>
             _inputPlanIndex.HasValue && _inputPlanIndex.Value == inputPlanIndex;
@@ -475,6 +468,7 @@ internal sealed class AwkInputScheduler(
                 return;
 
             _closed = true;
+            Cursor.Dispose();
             await closeAsync().ConfigureAwait(false);
         }
     }

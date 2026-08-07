@@ -112,29 +112,51 @@ internal readonly struct AwkIoOperationResult(AwkIoOperationStatus status, AwkIo
 
 internal readonly struct AwkGetlineResult(
     AwkGetlineStatus status,
-    AwkText line,
+    AwkText record,
     AwkRecordTerminator terminator,
+    AwkRecordFieldSplittingMode fieldSplittingMode,
     AwkIoError error)
 {
     public static AwkGetlineResult EndOfFile { get; } =
-        new(AwkGetlineStatus.EndOfFile, AwkText.Empty, AwkRecordTerminator.Empty, AwkIoError.None);
+        new(
+            AwkGetlineStatus.EndOfFile,
+            AwkText.Empty,
+            AwkRecordTerminator.Empty,
+            AwkRecordFieldSplittingMode.Ordinary,
+            AwkIoError.None);
 
     public static AwkGetlineResult Failure(AwkIoError error) =>
-        new(AwkGetlineStatus.Failure, AwkText.Empty, AwkRecordTerminator.Empty, error);
+        new(
+            AwkGetlineStatus.Failure,
+            AwkText.Empty,
+            AwkRecordTerminator.Empty,
+            AwkRecordFieldSplittingMode.Ordinary,
+            error);
 
     public static AwkGetlineResult Record(string line, AwkRecordTerminator terminator) =>
-        Record(AwkText.FromString(line), terminator);
+        Record(
+            AwkText.FromString(line),
+            terminator,
+            AwkRecordFieldSplittingMode.Ordinary);
 
     public static AwkGetlineResult Record(AwkText line, AwkRecordTerminator terminator) =>
-        new(AwkGetlineStatus.Record, line, terminator, AwkIoError.None);
+        Record(line, terminator, AwkRecordFieldSplittingMode.Ordinary);
+
+    public static AwkGetlineResult Record(
+        AwkText record,
+        AwkRecordTerminator terminator,
+        AwkRecordFieldSplittingMode fieldSplittingMode) =>
+        new(AwkGetlineStatus.Record, record, terminator, fieldSplittingMode, AwkIoError.None);
 
     public AwkGetlineStatus Status { get; } = status;
 
-    public AwkText LineText { get; } = line;
+    public AwkText RecordText { get; } = record;
 
-    public string Line => LineText.AsString();
+    public string Line => RecordText.AsString();
 
     public AwkRecordTerminator Terminator { get; } = terminator;
+
+    public AwkRecordFieldSplittingMode FieldSplittingMode { get; } = fieldSplittingMode;
 
     public AwkIoError Error { get; } = error;
 

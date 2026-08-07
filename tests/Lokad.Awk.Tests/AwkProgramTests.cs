@@ -151,6 +151,7 @@ public sealed class AwkProgramTests
         var host = new TestOperationVisitor([]);
         host.EnqueueOpenAwkFileDescriptor(3);
         host.EnqueueAppendExitCode(0);
+        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var io = new AwkIo(
             host,
             AwkPath.Root,
@@ -160,12 +161,11 @@ public sealed class AwkProgramTests
             CancellationToken.None,
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
+            state,
             static () => []);
         var statement = AwkStatement.Print(
             [new AwkExpressionPart(AwkExpression.Literal("x"), leadingSpace: false)],
             new AwkOutputRedirection(AwkExpression.Literal("/out.txt"), AwkOutputRedirectionKind.Write));
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-
         var flow = await statement.ExecuteAsync(state, output, io);
 
         Assert.Equal(AwkStatementFlow.Continue, flow);
@@ -188,5 +188,6 @@ public sealed class AwkProgramTests
             CancellationToken.None,
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
+            new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None),
             static () => []);
 }

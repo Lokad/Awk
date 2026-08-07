@@ -8,10 +8,8 @@ internal sealed class AwkRecordReader
 {
     private readonly AwkRuntimeState _state;
     private readonly AwkIo _io;
-    private readonly CancellationToken _cancellationToken;
     private readonly AwkRecordProcessor _recordProcessor;
     private readonly AwkRecordDescriptorReader _descriptorReader;
-    private readonly AwkRecordSeparatorEngine _separatorEngine;
 
     public AwkRecordReader(
         IAwkHost host,
@@ -21,66 +19,52 @@ internal sealed class AwkRecordReader
     {
         _state = state;
         _io = io;
-        _cancellationToken = cancellationToken;
         _recordProcessor = new AwkRecordProcessor(state);
         _descriptorReader = new AwkRecordDescriptorReader(host, cancellationToken, state.Counters, state.Resources);
-        _separatorEngine = new AwkRecordSeparatorEngine(
-            state,
-            _descriptorReader,
-            _recordProcessor,
-            cancellationToken);
     }
 
     public async ValueTask<AwkStatementFlow> ProcessDescriptorAsync(
         AwkFileDescriptor descriptor,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
     {
-        if (_state.ResolveRecordSeparator() is { } separator && separator != "\n")
-            return await _separatorEngine.ProcessDescriptorAsync(
-                    descriptor,
-                    processRecordAsync)
-                .ConfigureAwait(false);
-
-        // Default newline records stay on AsyncLineReader and stream one host batch at a time.
-        var reader = _descriptorReader.CreateLineReader(descriptor);
-        return await ProcessReaderAsync(reader, processRecordAsync).ConfigureAwait(false);
+        using var cursor = new AwkRecordCursor(
+            _state,
+            _descriptorReader,
+            _descriptorReader.CreateLineReader(descriptor));
+        return await ProcessCursorAsync(cursor, processRecordAsync).ConfigureAwait(false);
     }
 
-    public async ValueTask<AwkStatementFlow> ProcessReaderAsync(
-        AsyncLineReader reader,
+    public async ValueTask<AwkStatementFlow> ProcessCursorAsync(
+        AwkRecordCursor cursor,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
     {
-        _io.BindMainInputReader(reader);
-        var separatorVersion = _state.RecordSeparatorVersion;
-        while (!await reader.ReachedEof().ConfigureAwait(false))
+        _io.BindMainInputReader(cursor);
+        while (true)
         {
             _state.ThrowIfCancellationRequested();
+            var input = await cursor.ReadAsync().ConfigureAwait(false);
+            if (!input.HasRecord)
+            {
+                _io.ClearMainInputReader();
+                return AwkStatementFlow.Continue;
+            }
 
-            var line = AwkRecordLine.ReadUtf8DefaultNewline(reader.ReadLine(), _state.Counters);
-            var flow = await _recordProcessor.ProcessAsync(line.Record, line.Terminator, processRecordAsync)
-                .ConfigureAwait(false);
+            var flow = input.FieldSplittingMode == AwkRecordFieldSplittingMode.Paragraph
+                ? await _recordProcessor.ProcessParagraphAsync(
+                        input.RecordText,
+                        input.Terminator,
+                        processRecordAsync)
+                    .ConfigureAwait(false)
+                : await _recordProcessor.ProcessAsync(
+                        input.RecordText,
+                        input.Terminator,
+                        processRecordAsync)
+                    .ConfigureAwait(false);
             if (flow is AwkStatementFlow.ExitProgram or AwkStatementFlow.NextFile)
             {
                 _io.ClearMainInputReader();
                 return flow;
             }
-
-            if (_state.RecordSeparatorVersion == separatorVersion)
-                continue;
-
-            separatorVersion = _state.RecordSeparatorVersion;
-            if (_state.ResolveRecordSeparator() != "\n")
-            {
-                _io.ClearMainInputReader();
-                return await _separatorEngine.ProcessBufferedDescriptorTailAsync(
-                        reader.Descriptor,
-                        reader.TakeBufferedTail(),
-                        processRecordAsync)
-                    .ConfigureAwait(false);
-            }
         }
-
-        _io.ClearMainInputReader();
-        return AwkStatementFlow.Continue;
     }
 }

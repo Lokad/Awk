@@ -27,7 +27,7 @@ internal sealed class AwkIoDescriptorTable
             ? AwkFileOpenMode.WriteAppend
             : AwkFileOpenMode.WriteTruncate;
 
-    public bool TryGetInput(AwkPath path, [NotNullWhen(true)] out AsyncLineReader? reader)
+    public bool TryGetInput(AwkPath path, [NotNullWhen(true)] out AwkRecordCursor? reader)
     {
         if (_inputFiles.TryGetValue(path, out var input))
         {
@@ -39,7 +39,7 @@ internal sealed class AwkIoDescriptorTable
         return false;
     }
 
-    public void AddInput(AwkPath path, AwkFileDescriptor descriptor, AsyncLineReader reader)
+    public void AddInput(AwkPath path, AwkFileDescriptor descriptor, AwkRecordCursor reader)
     {
         _inputFiles[path] = new AwkInputFile(descriptor, reader);
     }
@@ -72,6 +72,7 @@ internal sealed class AwkIoDescriptorTable
 
         foreach (var input in _inputFiles.Values)
         {
+            input.Reader.Dispose();
             await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
         }
 
@@ -81,7 +82,7 @@ internal sealed class AwkIoDescriptorTable
     public async Task CloseAllForCleanupAsync(AwkIoHostAdapter host)
     {
         var outputDescriptors = _outputFiles.Values.ToArray();
-        var inputDescriptors = _inputFiles.Values.Select(static input => input.Descriptor).ToArray();
+        var inputFiles = _inputFiles.Values.ToArray();
         _outputFiles.Clear();
         _flushedOutputFiles.Clear();
         _inputFiles.Clear();
@@ -98,11 +99,12 @@ internal sealed class AwkIoDescriptorTable
             }
         }
 
-        for (var index = 0; index < inputDescriptors.Length; index++)
+        for (var index = 0; index < inputFiles.Length; index++)
         {
+            inputFiles[index].Reader.Dispose();
             try
             {
-                await host.CloseDescriptorForCleanupAsync(inputDescriptors[index]).ConfigureAwait(false);
+                await host.CloseDescriptorForCleanupAsync(inputFiles[index].Descriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -126,6 +128,7 @@ internal sealed class AwkIoDescriptorTable
 
         if (_inputFiles.TryGetValue(path, out var input))
         {
+            input.Reader.Dispose();
             await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
             _inputFiles.Remove(path);
             closed = true;
@@ -154,15 +157,16 @@ internal sealed class AwkIoDescriptorTable
         if (!_inputFiles.TryGetValue(path, out var input))
             return false;
 
+        input.Reader.Dispose();
         await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
         _inputFiles.Remove(path);
         return true;
     }
 
-    private sealed class AwkInputFile(AwkFileDescriptor descriptor, AsyncLineReader reader)
+    private sealed class AwkInputFile(AwkFileDescriptor descriptor, AwkRecordCursor reader)
     {
         public AwkFileDescriptor Descriptor { get; } = descriptor;
 
-        public AsyncLineReader Reader { get; } = reader;
+        public AwkRecordCursor Reader { get; } = reader;
     }
 }

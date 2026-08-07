@@ -7,7 +7,8 @@ namespace Lokad.Awk;
 internal sealed class AwkPipeRuntime(
     AwkIoHostAdapter host,
     int maxOutputRedirections,
-    Func<int> outputFileCount)
+    Func<int> outputFileCount,
+    Func<AwkFileDescriptor, AwkRecordCursor> createRecordCursor)
 {
     private readonly Dictionary<string, AwkOutputPipe> _outputPipes = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AwkInputPipe> _inputPipes = new(StringComparer.Ordinal);
@@ -22,9 +23,9 @@ internal sealed class AwkPipeRuntime(
         await host.AppendAsync(pipe.WriteDescriptor, content).ConfigureAwait(false);
     }
 
-    public async Task<AsyncLineReader> GetInputReaderAsync(string command, int maxLineCount)
+    public async Task<AwkRecordCursor> GetInputReaderAsync(string command)
     {
-        var pipe = await GetOrOpenInputPipeAsync(command, maxLineCount).ConfigureAwait(false);
+        var pipe = await GetOrOpenInputPipeAsync(command).ConfigureAwait(false);
         return pipe.Reader;
     }
 
@@ -117,7 +118,7 @@ internal sealed class AwkPipeRuntime(
         }
     }
 
-    private async Task<AwkInputPipe> GetOrOpenInputPipeAsync(string command, int maxLineCount)
+    private async Task<AwkInputPipe> GetOrOpenInputPipeAsync(string command)
     {
         if (_inputPipes.TryGetValue(command, out var existing))
             return existing;
@@ -127,7 +128,7 @@ internal sealed class AwkPipeRuntime(
         {
             var invocation = host.CreateInputPipeCommand(command, descriptors.Write);
             var completion = host.RunCommandAsync(invocation);
-            var reader = host.CreateLineReader(descriptors.Read, maxLineCount);
+            var reader = createRecordCursor(descriptors.Read);
             var pipe = new AwkInputPipe(descriptors.Read, descriptors.Write, reader, completion);
             _inputPipes.Add(command, pipe);
             return pipe;
@@ -197,13 +198,14 @@ internal sealed class AwkPipeRuntime(
     private sealed class AwkInputPipe(
         AwkFileDescriptor readDescriptor,
         AwkFileDescriptor writeDescriptor,
-        AsyncLineReader reader,
+        AwkRecordCursor reader,
         Task<AwkExitCode> commandCompletion)
     {
-        public AsyncLineReader Reader { get; } = reader;
+        public AwkRecordCursor Reader { get; } = reader;
 
         public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host)
         {
+            Reader.Dispose();
             await host.CloseDescriptorAsync(readDescriptor).ConfigureAwait(false);
             await host.CloseDescriptorAsync(writeDescriptor).ConfigureAwait(false);
             return await commandCompletion.ConfigureAwait(false);
@@ -211,6 +213,7 @@ internal sealed class AwkPipeRuntime(
 
         public async Task CloseForCleanupAsync(AwkIoHostAdapter host)
         {
+            Reader.Dispose();
             try
             {
                 await host.CloseDescriptorForCleanupAsync(readDescriptor).ConfigureAwait(false);

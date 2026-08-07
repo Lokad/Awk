@@ -111,6 +111,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             CancellationToken.None,
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
+            state,
             static () => []);
         var counters = AwkRuntimeCounters.Disabled;
         var reader = new AsyncLineReader(
@@ -120,11 +121,17 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkIo.InputReadBatchLineCount,
             counters,
             new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters));
+        var descriptorReader = new AwkRecordDescriptorReader(
+            fileSystem,
+            CancellationToken.None,
+            counters,
+            state.Resources);
+        using var cursor = new AwkRecordCursor(state, descriptorReader, reader);
         var recordReader = new AwkRecordReader(fileSystem, state, io, CancellationToken.None);
         var invoked = false;
 
-        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await recordReader.ProcessReaderAsync(
-            reader,
+        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await recordReader.ProcessCursorAsync(
+            cursor,
             _ =>
             {
                 invoked = true;
@@ -212,8 +219,8 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent("a\nb|"u8.ToArray(), [2], reachedEof: false));
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent("c\n"u8.ToArray(), [], reachedEof: true));
         host.EnqueueAppendExitCode(0);
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent("c\n"u8.ToArray(), [], reachedEof: true));
         host.EnqueueAppendExitCode(0);
 
         var program = "{record=$0; terminator=RT; gsub(/\\n/,\"N\",record); gsub(/\\n/,\"N\",terminator); " +
