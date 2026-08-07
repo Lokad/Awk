@@ -45,21 +45,4 @@ public static class AwkPathResolution
 
     internal static AwkResolvedPath FromAbsolute(AwkPath absolute) =>
         new(AwkUtf8Codec.Encode(absolute.Path), absolute);
-
-    /// <summary>
-    /// Resolves <paramref name="path"/> against an absolute current directory and returns canonical path text.
-    /// </summary>
-    public static string ResolveAbsolute(string path, string currentDirectory)
-    {
-        ArgumentNullException.ThrowIfNull(path);
-        ArgumentNullException.ThrowIfNull(currentDirectory);
-        var baseDirectory = string.IsNullOrEmpty(currentDirectory) || currentDirectory[0] != '/'
-            ? AwkPath.Root
-            : new AwkPath(currentDirectory);
-
-        if (string.IsNullOrEmpty(path))
-            return baseDirectory.Path;
-
-        return AwkRawPath.Parse(path).ToAbsolute(baseDirectory).Path;
-    }
 }
