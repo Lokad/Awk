@@ -162,6 +162,14 @@ internal abstract class AwkRecordSeparatorStrategy
         return batch.ReachedEof;
     }
 
+    protected void RemoveProcessedPrefix(AwkUtf8Builder buffer, int prefixLength)
+    {
+        if (prefixLength > 0 && prefixLength < buffer.Length)
+            Context.State.Counters.RecordRecordSeparatorTailBytesMoved(buffer.Length - prefixLength);
+
+        buffer.RemovePrefix(prefixLength);
+    }
+
     protected static bool TryGetSingleByteSeparator(string separatorText, out byte separator)
     {
         if (separatorText.Length == 1 && separatorText[0] <= 0x7F && separatorText[0] != '\n')
@@ -543,13 +551,15 @@ internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
             var batch = await Context.DescriptorReader.ReadNextBatchAsync(descriptor).ConfigureAwait(false);
             buffer.Append(batch.Content);
 
-            while (TryFindSeparator(buffer.AsSpan(), out var separatorIndex))
+            var segmentStart = 0;
+            while (TryFindSeparator(buffer.AsSpan()[segmentStart..], out var relativeSeparatorIndex))
             {
+                var separatorIndex = segmentStart + relativeSeparatorIndex;
                 var record = AwkText.FromOwnedBytes(
-                    buffer.AsSpan()[..separatorIndex].ToArray(),
+                    buffer.AsSpan().Slice(segmentStart, separatorIndex - segmentStart).ToArray(),
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
-                buffer.RemovePrefix(separatorIndex + _separator.ByteLength);
+                segmentStart = separatorIndex + _separator.ByteLength;
                 var flow = await Context.RecordProcessor.ProcessAsync(
                         record,
                         AwkRecordTerminator.FromText(_separator),
@@ -560,11 +570,14 @@ internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
 
                 if (!IsCurrentSeparatorVersion)
                 {
+                    RemoveProcessedPrefix(buffer, segmentStart);
                     var remaining = await ReadBufferedTextToEndAsync(buffer, descriptor).ConfigureAwait(false);
                     return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(remaining, processRecordAsync)
                         .ConfigureAwait(false);
                 }
             }
+
+            RemoveProcessedPrefix(buffer, segmentStart);
 
             if (batch.ReachedEof)
             {
@@ -832,33 +845,35 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
                     .ConfigureAwait(false);
             }
 
-            RemoveLeadingParagraphSeparators(buffer);
-            if (buffer.Length == 0 && !reachedEof)
+            var recordStart = SkipParagraphNewlines(buffer.AsSpan(), start: 0);
+            while (true)
             {
-                reachedEof = await AppendNextByteBatchAsync(descriptor, buffer).ConfigureAwait(false);
-                continue;
-            }
+                if (!TryFindParagraphSeparator(
+                        buffer.AsSpan()[recordStart..],
+                        out var relativeSeparatorIndex,
+                        out var separatorLength))
+                {
+                    break;
+                }
 
-            if (TryFindParagraphSeparator(buffer.AsSpan(), out var separatorIndex, out var separatorLength))
-            {
-                if (!reachedEof && separatorIndex == buffer.Length - separatorLength)
+                var separatorIndex = recordStart + relativeSeparatorIndex;
+                if (!reachedEof && separatorIndex + separatorLength == buffer.Length)
                 {
                     reachedEof = await AppendNextByteBatchAsync(descriptor, buffer).ConfigureAwait(false);
                     continue;
                 }
 
                 var record = CreateParagraphRecord(
-                    buffer,
-                    separatorIndex,
+                    buffer.AsSpan().Slice(recordStart, separatorIndex - recordStart),
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
                 var terminator = CreateParagraphTerminator(
-                    buffer,
+                    buffer.AsSpan(),
                     separatorIndex,
                     separatorLength,
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
-                buffer.RemovePrefix(separatorIndex + separatorLength);
+                recordStart = separatorIndex + separatorLength;
                 var flow = await Context.RecordProcessor.ProcessParagraphAsync(
                         record,
                         terminator,
@@ -869,21 +884,22 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
 
                 if (!IsCurrentSeparatorVersion)
                 {
+                    RemoveProcessedPrefix(buffer, recordStart);
                     var content = await ReadBufferedTextToEndAsync(buffer, descriptor, reachedEof).ConfigureAwait(false);
                     return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(content, processRecordAsync)
                         .ConfigureAwait(false);
                 }
-
-                continue;
             }
 
             if (reachedEof)
             {
-                if (buffer.Length == 0)
+                if (recordStart == buffer.Length)
                     return AwkStatementFlow.Continue;
 
-                var record = CreateFinalParagraphRecord(buffer, Context.State.Counters, Context.State.MemoryGovernor);
-                buffer.Clear();
+                var record = CreateParagraphRecord(
+                    buffer.AsSpan()[recordStart..],
+                    Context.State.Counters,
+                    Context.State.MemoryGovernor);
                 return await Context.RecordProcessor.ProcessParagraphAsync(
                         record,
                         AwkRecordTerminator.Empty,
@@ -891,6 +907,7 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
                     .ConfigureAwait(false);
             }
 
+            RemoveProcessedPrefix(buffer, recordStart);
             reachedEof = await AppendNextByteBatchAsync(descriptor, buffer).ConfigureAwait(false);
         }
     }
@@ -899,40 +916,39 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
         AwkText content,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
     {
-        using var buffer = new AwkUtf8Builder(
-            Context.State.Limits,
-            Context.State.MemoryGovernor,
-            capacity: content.ByteLength);
-        buffer.Append(content);
-        while (true)
+        var recordStart = SkipParagraphNewlines(content.AsSpan(), start: 0);
+        while (recordStart < content.ByteLength)
         {
             Context.State.ThrowIfCancellationRequested();
             if (!IsCurrentSeparatorVersion)
             {
                 return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(
-                        buffer.CopyToAwkText(Context.State.Counters),
+                        content.CopyByteSlice(
+                            recordStart,
+                            content.ByteLength - recordStart,
+                            Context.State.Counters,
+                            Context.State.MemoryGovernor),
                         processRecordAsync)
                     .ConfigureAwait(false);
             }
 
-            RemoveLeadingParagraphSeparators(buffer);
-            if (buffer.Length == 0)
-                return AwkStatementFlow.Continue;
-
-            if (TryFindParagraphSeparator(buffer.AsSpan(), out var separatorIndex, out var separatorLength))
+            if (TryFindParagraphSeparator(
+                    content.AsSpan()[recordStart..],
+                    out var relativeSeparatorIndex,
+                    out var separatorLength))
             {
+                var separatorIndex = recordStart + relativeSeparatorIndex;
                 var record = CreateParagraphRecord(
-                    buffer,
-                    separatorIndex,
+                    content.AsSpan().Slice(recordStart, separatorIndex - recordStart),
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
                 var terminator = CreateParagraphTerminator(
-                    buffer,
+                    content.AsSpan(),
                     separatorIndex,
                     separatorLength,
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
-                buffer.RemovePrefix(separatorIndex + separatorLength);
+                recordStart = separatorIndex + separatorLength;
                 var flow = await Context.RecordProcessor.ProcessParagraphAsync(record, terminator, processRecordAsync)
                     .ConfigureAwait(false);
                 if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
@@ -941,24 +957,27 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
                 continue;
             }
 
-            var final = CreateFinalParagraphRecord(buffer, Context.State.Counters, Context.State.MemoryGovernor);
-            buffer.Clear();
+            var final = CreateParagraphRecord(
+                content.AsSpan()[recordStart..],
+                Context.State.Counters,
+                Context.State.MemoryGovernor);
             return await Context.RecordProcessor.ProcessParagraphAsync(
                     final,
                     AwkRecordTerminator.Empty,
                     processRecordAsync)
                 .ConfigureAwait(false);
         }
+
+        return AwkStatementFlow.Continue;
     }
 
-    private static void RemoveLeadingParagraphSeparators(AwkUtf8Builder buffer)
+    private static int SkipParagraphNewlines(ReadOnlySpan<byte> content, int start)
     {
-        var span = buffer.AsSpan();
-        var removeLength = 0;
-        while (TryReadNewline(span, removeLength, out var newlineLength))
-            removeLength += newlineLength;
+        var position = start;
+        while (TryReadNewline(content, position, out var newlineLength))
+            position += newlineLength;
 
-        buffer.RemovePrefix(removeLength);
+        return position;
     }
 
     private static bool TryFindParagraphSeparator(
@@ -1017,22 +1036,12 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
     }
 
     private static AwkText CreateParagraphRecord(
-        AwkUtf8Builder buffer,
-        int separatorIndex,
+        ReadOnlySpan<byte> content,
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        var recordEnd = TrimTrailingRecordNewlines(buffer.AsSpan()[..separatorIndex]);
-        return AwkText.FromOwnedBytes(buffer.AsSpan()[..recordEnd].ToArray(), counters, governor);
-    }
-
-    private static AwkText CreateFinalParagraphRecord(
-        AwkUtf8Builder buffer,
-        AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
-    {
-        var recordEnd = TrimTrailingRecordNewlines(buffer.AsSpan());
-        return AwkText.FromOwnedBytes(buffer.AsSpan()[..recordEnd].ToArray(), counters, governor);
+        var recordEnd = TrimTrailingRecordNewlines(content);
+        return AwkText.FromOwnedBytes(content[..recordEnd].ToArray(), counters, governor);
     }
 
     private static int TrimTrailingRecordNewlines(ReadOnlySpan<byte> content)
@@ -1049,14 +1058,14 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
     }
 
     private static AwkRecordTerminator CreateParagraphTerminator(
-        AwkUtf8Builder buffer,
+        ReadOnlySpan<byte> content,
         int separatorIndex,
         int separatorLength,
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
         return AwkRecordTerminator.FromText(AwkText.FromOwnedBytes(
-            buffer.AsSpan().Slice(separatorIndex, separatorLength).ToArray(),
+            content.Slice(separatorIndex, separatorLength).ToArray(),
             counters,
             governor));
     }

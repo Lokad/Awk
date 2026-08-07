@@ -38,6 +38,22 @@ public sealed class AwkBenchmarkCounterTests
         Assert.True(counters.RecordSeparatorResolutions > 0);
     }
 
+    [Fact]
+    public async Task Awk_NonAsciiRecordSeparatorDoesNotMoveTailPerRecord()
+    {
+        var input = new StringBuilder();
+        for (var index = 0; index < 1_000; index++)
+            input.Append("xé");
+
+        var (exitCode, fileSystem, counters) = await RunAsync(
+            ["BEGIN{RS=\"é\"} {records++} END{print records}"],
+            input.ToString());
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("1000\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(0, counters.RecordSeparatorTailBytesMoved);
+    }
+
     [Theory]
     [InlineData("BEGIN{FS=\"[,;]\"} {print NF}", "a,b;c\n", "3\n")]
     [InlineData("BEGIN{FIELDWIDTHS=\"2 3\"} {print NF}", "abcdef\n", "2\n")]
