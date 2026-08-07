@@ -12,8 +12,6 @@ internal sealed class AwkLeasedReadOnlyList<T> : IReadOnlyList<T>, IDisposable
 
     public AwkLeasedReadOnlyList(IReadOnlyList<T> values, IDisposable lease)
     {
-        ArgumentNullException.ThrowIfNull(values);
-        ArgumentNullException.ThrowIfNull(lease);
         _values = values;
         _lease = lease;
     }

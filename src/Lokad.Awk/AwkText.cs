@@ -49,7 +49,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (string.IsNullOrEmpty(text))
             return Empty;
 
-        ArgumentNullException.ThrowIfNull(governor);
         var bytes = AllocateOwnedBytes(AwkUtf8Codec.GetEncodedByteCount(text), governor);
         AwkUtf8Codec.Encode(text, bytes, counters);
         counters.RecordValueCreated();
@@ -74,7 +73,6 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public static AwkText FromOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)
     {
-        ArgumentNullException.ThrowIfNull(bytes);
         if (bytes.Length == 0)
             return Empty;
 
@@ -87,8 +85,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        ArgumentNullException.ThrowIfNull(bytes);
-        ArgumentNullException.ThrowIfNull(governor);
         if (bytes.Length == 0)
             return Empty;
 
@@ -102,7 +98,6 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     internal static AwkText FromTrustedOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)
     {
-        ArgumentNullException.ThrowIfNull(bytes);
         if (bytes.Length == 0)
             return Empty;
 
@@ -114,8 +109,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        ArgumentNullException.ThrowIfNull(bytes);
-        ArgumentNullException.ThrowIfNull(governor);
         if (bytes.Length == 0)
             return Empty;
 
@@ -138,7 +131,6 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public int CompareBytes(AwkText other)
     {
-        ArgumentNullException.ThrowIfNull(other);
         return AsSpan().SequenceCompareTo(other.AsSpan());
     }
 
@@ -162,7 +154,6 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public AwkText Concat(AwkText other, AwkRuntimeCounters counters)
     {
-        ArgumentNullException.ThrowIfNull(other);
         if (ByteLength == 0)
             return other;
 
@@ -181,8 +172,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        ArgumentNullException.ThrowIfNull(other);
-        ArgumentNullException.ThrowIfNull(governor);
         if (ByteLength == 0)
             return other;
 
@@ -223,7 +212,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        ArgumentNullException.ThrowIfNull(governor);
         if (count <= 0 || ByteLength == 0)
             return Empty;
 
@@ -264,7 +252,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        ArgumentNullException.ThrowIfNull(governor);
         if (start < 0 || start > ByteLength)
             throw new ArgumentOutOfRangeException(nameof(start));
 
@@ -301,7 +288,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        ArgumentNullException.ThrowIfNull(governor);
         ResolveRuneByteRange(start, length, out var byteStart, out var byteEnd);
 
         if (length == 0)
@@ -318,7 +304,6 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public int IndexOf(AwkText value)
     {
-        ArgumentNullException.ThrowIfNull(value);
         return AsSpan().IndexOf(value.AsSpan());
     }
 
@@ -326,33 +311,28 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public bool StartsWith(AwkText value)
     {
-        ArgumentNullException.ThrowIfNull(value);
         return AsSpan().StartsWith(value.AsSpan());
     }
 
     public bool EndsWith(AwkText value)
     {
-        ArgumentNullException.ThrowIfNull(value);
         return AsSpan().EndsWith(value.AsSpan());
     }
 
     public bool EqualsAsciiIgnoreCase(AwkText other)
     {
-        ArgumentNullException.ThrowIfNull(other);
         return ByteLength == other.ByteLength &&
             BytesEqualAsciiIgnoreCase(AsSpan(), other.AsSpan());
     }
 
     public bool StartsWithAsciiIgnoreCase(AwkText value)
     {
-        ArgumentNullException.ThrowIfNull(value);
         return ByteLength >= value.ByteLength &&
             BytesEqualAsciiIgnoreCase(AsSpan()[..value.ByteLength], value.AsSpan());
     }
 
     public bool ContainsAsciiIgnoreCase(AwkText value)
     {
-        ArgumentNullException.ThrowIfNull(value);
         if (value.ByteLength == 0)
             return true;
 
@@ -480,7 +460,6 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     internal static byte[] AllocateOwnedBytes(int length, AwkMemoryGovernor governor)
     {
-        ArgumentNullException.ThrowIfNull(governor);
         if (length < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
 

@@ -22,8 +22,6 @@ internal sealed class AwkUtf8Builder : IDisposable
         AwkMemoryGovernor governor,
         int capacity)
     {
-        ArgumentNullException.ThrowIfNull(limits);
-        ArgumentNullException.ThrowIfNull(governor);
         if (capacity < 0)
             throw new ArgumentOutOfRangeException(nameof(capacity));
 
@@ -67,7 +65,6 @@ internal sealed class AwkUtf8Builder : IDisposable
 
     public AwkUtf8Builder Append(AwkText text)
     {
-        ArgumentNullException.ThrowIfNull(text);
         return Append(text.AsSpan());
     }
 

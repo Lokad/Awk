@@ -17,7 +17,6 @@ internal readonly record struct AwkFieldSeparatorSpec
 
     public static AwkFieldSeparatorSpec Custom(string text)
     {
-        ArgumentNullException.ThrowIfNull(text);
         return new AwkFieldSeparatorSpec(text, isCustom: true);
     }
 

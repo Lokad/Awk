@@ -43,7 +43,6 @@ internal readonly record struct AwkRuntimeStatePlan(
         bool nonDecimalData,
         int maxArrayElements)
     {
-        ArgumentNullException.ThrowIfNull(runtimeOptions);
         if (maxArrayElements <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxArrayElements));
 

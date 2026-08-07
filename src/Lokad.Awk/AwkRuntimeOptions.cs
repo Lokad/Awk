@@ -114,11 +114,9 @@ internal sealed class AwkRuntimeOptions
         AwkRegexEngineKind regexEngineKind,
         AwkExecutionEngineKind executionEngineKind)
     {
-        CurrentUnixTimeSeconds = currentUnixTimeSeconds ?? throw new ArgumentNullException(nameof(currentUnixTimeSeconds));
-        TimeZone = timeZone ?? throw new ArgumentNullException(nameof(timeZone));
-        RandomGenerator = randomGenerator ?? throw new ArgumentNullException(nameof(randomGenerator));
-        ArgumentNullException.ThrowIfNull(counters);
-        ArgumentNullException.ThrowIfNull(limits);
+        CurrentUnixTimeSeconds = currentUnixTimeSeconds;
+        TimeZone = timeZone;
+        RandomGenerator = randomGenerator;
         Counters = counters;
         Limits = limits;
         RegexEngineKind = regexEngineKind;

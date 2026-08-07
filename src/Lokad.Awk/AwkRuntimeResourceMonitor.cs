@@ -12,8 +12,8 @@ internal sealed class AwkRuntimeResourceMonitor
 
     public AwkRuntimeResourceMonitor(AwkRuntimeLimits limits, AwkRuntimeCounters counters)
     {
-        _limits = limits ?? throw new ArgumentNullException(nameof(limits));
-        _counters = counters ?? throw new ArgumentNullException(nameof(counters));
+        _limits = limits;
+        _counters = counters;
     }
 
     public void RecordHostCall()

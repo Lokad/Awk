@@ -15,14 +15,11 @@ internal sealed class AwkStringRuntime
 
     public int CountUnits(AwkText value)
     {
-        ArgumentNullException.ThrowIfNull(value);
         return _charactersAsBytes() ? value.ByteLength : value.RuneLength;
     }
 
     public int IndexOfUnits(AwkText source, AwkText value)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(value);
         var position = source.IndexOf(value);
         if (position < 0)
             return 0;
@@ -39,7 +36,6 @@ internal sealed class AwkStringRuntime
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        ArgumentNullException.ThrowIfNull(source);
         return _charactersAsBytes()
             ? source.CopyByteSlice(start, length, counters, governor)
             : source.CopyRuneSlice(start, length, counters, governor);

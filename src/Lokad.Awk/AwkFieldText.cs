@@ -28,7 +28,6 @@ internal readonly struct AwkFieldText
 
     public static AwkFieldText FromOwned(AwkText text)
     {
-        ArgumentNullException.ThrowIfNull(text);
         return text.ByteLength == 0
             ? Empty
             : new AwkFieldText(AwkFieldTextKind.Owned, text, 0, text.ByteLength);

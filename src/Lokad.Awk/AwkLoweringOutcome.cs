@@ -16,13 +16,11 @@ internal abstract class AwkLoweringOutcome<T>
 
     public static AwkLoweringOutcome<T> Success(T value)
     {
-        ArgumentNullException.ThrowIfNull(value);
         return new Successful(value);
     }
 
     public static AwkLoweringOutcome<T> Failure(IReadOnlyList<AwkDiagnostic> diagnostics)
     {
-        ArgumentNullException.ThrowIfNull(diagnostics);
         return new Failed(diagnostics);
     }
 

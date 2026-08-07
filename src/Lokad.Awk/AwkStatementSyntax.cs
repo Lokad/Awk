@@ -11,7 +11,6 @@ internal readonly struct AwkSyntaxOptional<T>
 
     private AwkSyntaxOptional(T value)
     {
-        ArgumentNullException.ThrowIfNull(value);
         _value = value;
         HasValue = true;
     }

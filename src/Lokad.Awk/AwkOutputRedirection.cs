@@ -23,7 +23,6 @@ internal readonly record struct AwkRedirectionPath
 
     public AwkRedirectionPath(string text)
     {
-        ArgumentNullException.ThrowIfNull(text);
         _text = text;
     }
 

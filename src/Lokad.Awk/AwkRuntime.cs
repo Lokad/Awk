@@ -43,8 +43,6 @@ internal static class AwkRuntime
         AwkRuntimeOptions runtimeOptions,
         AwkExecutableProgram? executableProgram)
     {
-        ArgumentNullException.ThrowIfNull(runtimeOptions);
-
         if (executableProgram == null &&
             runtimeOptions.ExecutionEngineKind == AwkExecutionEngineKind.Executable)
         {

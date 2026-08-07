@@ -53,8 +53,6 @@ internal sealed class AwkMemoryGovernor
 
     public static AwkMemoryGovernor Create(AwkRuntimeLimits limits, AwkRuntimeCounters counters)
     {
-        ArgumentNullException.ThrowIfNull(limits);
-        ArgumentNullException.ThrowIfNull(counters);
         return limits.MaxExecutionMemoryBytes == AwkRuntimeLimits.Unlimited
             ? Disabled
             : new AwkMemoryGovernor(enabled: true, limits.MaxExecutionMemoryBytes, counters);

@@ -50,7 +50,6 @@ internal readonly struct AwkValue
 
     public static AwkValue FromText(AwkText text, AwkNumberParsingMode numberParsingMode)
     {
-        ArgumentNullException.ThrowIfNull(text);
         if (TryParseAwkNumber(text, numberParsingMode, out var number, out _))
             return new AwkValue(text, number, AwkValueKind.NumericText);
 
@@ -74,7 +73,6 @@ internal readonly struct AwkValue
 
     public static AwkValue FromNumericString(AwkText text, AwkNumberParsingMode numberParsingMode)
     {
-        ArgumentNullException.ThrowIfNull(text);
         if (TryParseAwkNumber(text, numberParsingMode, out var number, out var consumedAll) && consumedAll)
             return new AwkValue(text, number, AwkValueKind.NumericString);
 

@@ -37,7 +37,6 @@ internal sealed class AwkOutputSink : IDisposable
 
     public void Append(AwkText value)
     {
-        ArgumentNullException.ThrowIfNull(value);
         if (value.ByteLength == 0)
             return;
 

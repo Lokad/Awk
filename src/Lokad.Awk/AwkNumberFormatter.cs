@@ -40,7 +40,6 @@ internal static class AwkNumberFormatter
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        ArgumentNullException.ThrowIfNull(governor);
         Span<byte> buffer = stackalloc byte[MaxFormattedDoubleBytes];
         var bytes = Format(value, buffer);
         var owned = AwkText.AllocateOwnedBytes(bytes.Length, governor);
@@ -53,7 +52,6 @@ internal static class AwkNumberFormatter
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        ArgumentNullException.ThrowIfNull(governor);
 
         if (double.IsPositiveInfinity(value))
             return CopyAscii("+inf"u8, counters, governor);
@@ -75,7 +73,6 @@ internal static class AwkNumberFormatter
 
     public static void AppendTo(AwkUtf8Builder builder, double value)
     {
-        ArgumentNullException.ThrowIfNull(builder);
         Span<byte> buffer = stackalloc byte[MaxFormattedDoubleBytes];
         builder.Append(Format(value, buffer));
     }

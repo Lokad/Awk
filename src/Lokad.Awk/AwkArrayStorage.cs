@@ -60,7 +60,6 @@ internal sealed class AwkArrayStorage
 
     public void SetSlots(AwkArrayName name, Dictionary<AwkArrayKey, AwkVariableSlot> slots)
     {
-        ArgumentNullException.ThrowIfNull(slots);
         SelectTable(name)[name] = slots;
     }
 
