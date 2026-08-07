@@ -14,15 +14,13 @@ internal sealed class AwkFunctionRuntime
         int maxFunctionCallDepth,
         AwkMemoryGovernor memoryGovernor,
         Func<AwkText, AwkValue> createByteTextValue,
-        Func<AwkText, AwkValue> createNumericStringValue,
-        Func<AwkText, AwkValue> createNumberFromText)
+        Func<AwkText, AwkValue> createNumericStringValue)
     {
         _calls = new AwkFunctionCallStack(
             maxFunctionCallDepth,
             memoryGovernor,
             createByteTextValue,
-            createNumericStringValue,
-            createNumberFromText);
+            createNumericStringValue);
     }
 
     public bool IsInsideFunction => _calls.IsInsideFunction;

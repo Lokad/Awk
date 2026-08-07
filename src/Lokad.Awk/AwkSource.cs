@@ -129,11 +129,7 @@ internal sealed class AwkScriptFile
 
     public AwkSourceName SourceName { get; }
 
-    public string DisplayName => SourceName.Text;
-
     public AwkSourceIdentity SourceIdentity { get; }
-
-    public string Identity => SourceIdentity.Text;
 }
 
 internal readonly record struct AwkSourceName(string Text)

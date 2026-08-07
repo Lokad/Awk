@@ -8,8 +8,7 @@ internal sealed class AwkFunctionCallStack(
     int maxFunctionCallDepth,
     AwkMemoryGovernor memoryGovernor,
     Func<AwkText, AwkValue> createByteTextValue,
-    Func<AwkText, AwkValue> createNumericStringValue,
-    Func<AwkText, AwkValue> createNumberFromText)
+    Func<AwkText, AwkValue> createNumericStringValue)
 {
     private readonly Stack<AwkFunctionFrame> _frames = new();
     private readonly Stack<AwkFunctionFrame> _recycledFrames = new();
@@ -373,7 +372,7 @@ internal sealed class AwkFunctionCallStack(
             return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName);
 
         return AwkResolvedFunctionLocal.ScalarValue(
-            slot.Value.ToValue(createByteTextValue, createNumericStringValue, createNumberFromText));
+            slot.Value.ToValue(createByteTextValue, createNumericStringValue));
     }
 
     private static bool TryGetLocalSlot(

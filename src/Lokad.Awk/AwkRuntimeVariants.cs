@@ -31,9 +31,6 @@ internal abstract record AwkSubstitutionTarget
     public static AwkSubstitutionTarget ReferenceTarget(AwkReference reference) =>
         new AwkReferenceSubstitutionTarget(reference);
 
-    /// <summary>Resolves the target's current value at the compatibility string boundary.</summary>
-    public abstract ValueTask<string> ResolveInputAsync(AwkEvaluationContext context);
-
     /// <summary>Resolves the target's current value as strict UTF-8 bytes.</summary>
     public abstract ValueTask<AwkText> ResolveInputTextAsync(AwkEvaluationContext context);
 
@@ -43,9 +40,6 @@ internal abstract record AwkSubstitutionTarget
 
 internal sealed record AwkCurrentRecordSubstitutionTarget : AwkSubstitutionTarget
 {
-    public override ValueTask<string> ResolveInputAsync(AwkEvaluationContext context) =>
-        ValueTask.FromResult(context.State.CurrentRecordString);
-
     public override ValueTask<AwkText> ResolveInputTextAsync(AwkEvaluationContext context) =>
         ValueTask.FromResult(context.State.CurrentRecordByteText);
 
@@ -58,9 +52,6 @@ internal sealed record AwkCurrentRecordSubstitutionTarget : AwkSubstitutionTarge
 
 internal sealed record AwkReferenceSubstitutionTarget(AwkReference Reference) : AwkSubstitutionTarget
 {
-    public override async ValueTask<string> ResolveInputAsync(AwkEvaluationContext context) =>
-        (await Reference.EvaluateAsync(context).ConfigureAwait(false)).AsString();
-
     public override async ValueTask<AwkText> ResolveInputTextAsync(AwkEvaluationContext context) =>
         (await Reference.EvaluateAsync(context).ConfigureAwait(false)).ByteText;
 

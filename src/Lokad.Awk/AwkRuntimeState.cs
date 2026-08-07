@@ -146,14 +146,12 @@ internal sealed class AwkRuntimeState
             Counters,
             CreateByteTextValue,
             CreateNumericStringValue,
-            CreateNumberFromByteText,
             ApplySpecialVariableAssignment);
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryGovernor,
             CreateByteTextValue,
-            CreateNumericStringValue,
-            CreateNumberFromByteText);
+            CreateNumericStringValue);
         _regexRuntime = new AwkRegexRuntime(
             IsIgnoreCaseEnabled,
             () => CharactersAsBytes,
@@ -282,9 +280,6 @@ internal sealed class AwkRuntimeState
         Counters.RecordValueCreated();
         return AwkValue.FromNumericString(text, NumberParsingMode);
     }
-
-    private AwkValue CreateNumberFromByteText(AwkText text) =>
-        CreateNumberValue(CreateByteTextValue(text).AsNumber());
 
     public AwkValue CreateNumberValue(double value)
     {

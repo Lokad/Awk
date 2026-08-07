@@ -62,8 +62,7 @@ internal readonly struct AwkVariableSlot
 
     public AwkValue ToValue(
         Func<AwkText, AwkValue> createByteTextValue,
-        Func<AwkText, AwkValue> createNumericStringValue,
-        Func<AwkText, AwkValue> createNumberFromText) =>
+        Func<AwkText, AwkValue> createNumericStringValue) =>
         Kind switch
         {
             AwkVariableSlotKind.Unassigned => AwkValue.Unassigned(),

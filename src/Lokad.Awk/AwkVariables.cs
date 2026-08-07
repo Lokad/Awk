@@ -11,7 +11,6 @@ internal sealed class AwkVariables
 
     private readonly Func<AwkText, AwkValue> _createByteTextValue;
     private readonly Func<AwkText, AwkValue> _createNumericStringValue;
-    private readonly Func<AwkText, AwkValue> _createNumberFromText;
     private readonly Action<string, AwkValue> _applyScalarAssignment;
     private readonly int _maxArrayElements;
     private readonly AwkRuntimeCounters _counters;
@@ -59,7 +58,6 @@ internal sealed class AwkVariables
         AwkRuntimeCounters counters,
         Func<AwkText, AwkValue> createByteTextValue,
         Func<AwkText, AwkValue> createNumericStringValue,
-        Func<AwkText, AwkValue> createNumberFromText,
         Action<string, AwkValue> applyScalarAssignment)
     {
         if (maxArrayElements <= 0)
@@ -70,7 +68,6 @@ internal sealed class AwkVariables
         _counters = counters;
         _createByteTextValue = createByteTextValue;
         _createNumericStringValue = createNumericStringValue;
-        _createNumberFromText = createNumberFromText;
         _applyScalarAssignment = applyScalarAssignment;
         _symbolTable = new AwkSymbolTableArray(
             EnumerateScalarInventory,
@@ -453,7 +450,7 @@ internal sealed class AwkVariables
     }
 
     private AwkValue CreateValue(AwkVariableSlot slot) =>
-        slot.ToValue(_createByteTextValue, _createNumericStringValue, _createNumberFromText);
+        slot.ToValue(_createByteTextValue, _createNumericStringValue);
 
     private bool TryResolveScalarSlot(AwkVariableName name, out AwkGlobalSlotId slotId) =>
         _scalarSlotsByName.TryGetValue(name, out slotId);
