@@ -116,19 +116,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         return FromTrustedOwnedBytes(bytes, counters);
     }
 
-    public static AwkText FromOwnedBytes(
-        byte[] bytes,
-        AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
-    {
-        if (bytes.Length == 0)
-            return Empty;
-
-        RecordOwnedBytesAllocation(bytes.Length, governor);
-        ThrowIfInvalidUtf8(bytes);
-        return CreateTrustedOwnedBytes(bytes, counters);
-    }
-
     internal static AwkText FromTrustedOwnedBytes(byte[] bytes) =>
         FromTrustedOwnedBytes(bytes, AwkRuntimeCounters.Disabled);
 
@@ -288,28 +275,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         }
 
         counters.RecordConcatenationBytesCopied(totalLength);
-        return FromTrustedOwnedBytes(bytes, counters);
-    }
-
-    public AwkText Repeat(
-        int count,
-        AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
-    {
-        if (count <= 0 || ByteLength == 0)
-            return Empty;
-
-        if (count == 1)
-            return this;
-
-        var length = AwkRuntimeMemory.CheckedMultiplyToInt32(ByteLength, count);
-        var bytes = AllocateOwnedBytes(length, governor);
-        var destination = bytes.AsSpan();
-        for (var index = 0; index < count; index++)
-        {
-            AsSpan().CopyTo(destination[(index * ByteLength)..]);
-        }
-
         return FromTrustedOwnedBytes(bytes, counters);
     }
 

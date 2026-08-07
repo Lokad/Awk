@@ -42,7 +42,4 @@ public static class AwkPathResolution
         var absolute = AwkRawPath.Parse(raw).ToAbsolute(currentDirectory);
         return new AwkResolvedPath(AwkUtf8Codec.Encode(raw), absolute);
     }
-
-    internal static AwkResolvedPath FromAbsolute(AwkPath absolute) =>
-        new(AwkUtf8Codec.Encode(absolute.Path), absolute);
 }

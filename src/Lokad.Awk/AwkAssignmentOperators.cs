@@ -2,9 +2,6 @@ namespace Lokad.Awk;
 
 internal static class AwkAssignmentOperators
 {
-    public static bool IsAssignment(AwkTokenKind kind) =>
-        kind == AwkTokenKind.Equal || TryGetCompoundOperation(kind, out _);
-
     public static bool TryGetCompoundOperation(
         AwkTokenKind kind,
         out AwkCompoundAssignmentOperation operation)

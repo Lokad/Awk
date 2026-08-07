@@ -117,10 +117,6 @@ internal enum AwkVariableAssignmentSource
 
 internal static class AwkIdentifiers
 {
-    public static bool IsStart(char value) => AwkNameFacts.IsNameStart(value);
-
-    public static bool IsPart(char value) => AwkNameFacts.IsNamePart(value);
-
     public static bool IsValidName(string name) =>
         AwkNameFacts.IsValidVariableName(name);
 

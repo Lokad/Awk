@@ -175,32 +175,6 @@ internal static class AwkTokenNavigation
         }
     }
 
-    public static int ResolveBalancedEnd(IReadOnlyList<AwkToken> tokens, int openIndex)
-    {
-        var openKind = tokens[openIndex].Kind;
-        var closeKind = openKind switch
-        {
-            AwkTokenKind.LeftBracket => AwkTokenKind.RightBracket,
-            AwkTokenKind.LeftParen => AwkTokenKind.RightParen,
-            AwkTokenKind.LeftBrace => AwkTokenKind.RightBrace,
-            _ => openKind
-        };
-        var depth = 0;
-        for (var index = openIndex; index < tokens.Count; index++)
-        {
-            if (tokens[index].Kind == openKind)
-                depth++;
-            else if (tokens[index].Kind == closeKind)
-            {
-                depth--;
-                if (depth == 0)
-                    return index + 1;
-            }
-        }
-
-        return tokens.Count;
-    }
-
     public static void UpdateDepth(
         AwkTokenKind kind,
         ref int currentParenDepth,

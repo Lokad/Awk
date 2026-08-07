@@ -102,17 +102,6 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInputBytes([0x61, 0x80, 0x0A]);
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        var io = new AwkIo(
-            fileSystem,
-            AwkPath.Root,
-            AwkFileDescriptor.StdIn,
-            AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr,
-            CancellationToken.None,
-            AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
-            state,
-            static () => []);
         var counters = AwkRuntimeCounters.Disabled;
         var reader = new AsyncLineReader(
             fileSystem,
@@ -127,19 +116,10 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             counters,
             state.Resources);
         using var cursor = new AwkRecordCursor(state, descriptorReader, reader);
-        var recordReader = new AwkRecordReader(fileSystem, state, io, CancellationToken.None);
-        var invoked = false;
-
-        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await recordReader.ProcessCursorAsync(
-            cursor,
-            _ =>
-            {
-                invoked = true;
-                return ValueTask.FromResult(AwkStatementFlow.Continue);
-            }));
+        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
+            async () => await cursor.ReadAsync());
 
         Assert.Equal(InvalidUtf8Diagnostic, AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.False(invoked);
         Assert.Equal(0, state.RecordNumber);
         Assert.Equal(0, state.FileRecordNumber);
     }

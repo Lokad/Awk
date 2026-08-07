@@ -66,9 +66,6 @@ public sealed class AwkTextTests
             "Alpha caf\u00e9!",
             source.Concat(suffix, AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
         Assert.Equal(
-            "Alpha caf\u00e9Alpha caf\u00e9",
-            source.Repeat(2, AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
-        Assert.Equal(
             "ha",
             source.CopyByteSlice(3, 2, AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
         Assert.Equal(
@@ -90,7 +87,7 @@ public sealed class AwkTextTests
     }
 
     [Fact]
-    public void AwkText_GovernedAllocationsCoverConcatRepeatAndSlices()
+    public void AwkText_GovernedAllocationsCoverConcatAndSlices()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var governor = AwkMemoryGovernor.Create(
@@ -100,7 +97,6 @@ public sealed class AwkTextTests
         var suffix = AwkText.FromString("!", counters, governor);
 
         Assert.Equal("café!", source.Concat(suffix, counters, governor).AsString());
-        Assert.Equal("cafécafé", source.Repeat(2, counters, governor).AsString());
         Assert.Equal("fé", source.CopyRuneSlice(2, 2, counters, governor).AsString());
         Assert.Equal("ca", source.CopyByteSlice(0, 2, counters, governor).AsString());
 
