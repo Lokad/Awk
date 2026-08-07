@@ -147,6 +147,9 @@ internal static class AwkRegexSubstitution
             return input;
         }
 
+        var initialCapacity = Math.Min(
+            input.ByteLength,
+            AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity);
         if (targetOccurrence > 0)
         {
             for (var seen = 1; seen < targetOccurrence; seen++)
@@ -162,7 +165,8 @@ internal static class AwkRegexSubstitution
             state.ThrowIfCancellationRequested();
             using var occurrenceBuilder = new AwkUtf8Builder(
                 state.Limits,
-                state.MemoryGovernor);
+                state.MemoryGovernor,
+                initialCapacity);
             var matchIndex = matchReplacement.GetByteIndex(in match);
             var matchLength = matchReplacement.GetByteLength(in match);
             occurrenceBuilder.Append(input.AsSpan()[..matchIndex]);
@@ -172,7 +176,10 @@ internal static class AwkRegexSubstitution
             return occurrenceBuilder.CopyToAwkText(state.Counters);
         }
 
-        using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor);
+        using var builder = new AwkUtf8Builder(
+            state.Limits,
+            state.MemoryGovernor,
+            initialCapacity);
         var position = 0;
         replacementCount = 0;
         do
