@@ -68,46 +68,47 @@ internal static class AwkSourceDiagnosticMap
                 new AwkColumnNumber(column));
         }
 
-        static AwkDiagnostic MapDiagnostic(
-            AwkSourceUnit source,
-            AwkDiagnostic diagnostic,
-            SourceLineIndex lineIndex)
+        if (diagnostics.Count == 0)
+            return diagnostics;
+
+        SourceLineIndex? lineIndex = null;
+        AwkDiagnostic[]? mapped = null;
+        for (var index = 0; index < diagnostics.Count; index++)
         {
+            var diagnostic = diagnostics[index];
             if (diagnostic.SourceLocation.HasValue ||
                 !TryFindSegment(source.Segments, diagnostic.Span.Start, out var segment) ||
                 (segment.Kind == AwkSourceSegmentKind.Inline &&
                     source.Segments.Count == 1 &&
                     source.Name == "<inline:1>"))
             {
-                return diagnostic;
+                continue;
             }
 
-            return diagnostic.WithSourceLocation(
+            if (mapped is null)
+            {
+                mapped = new AwkDiagnostic[diagnostics.Count];
+                for (var copyIndex = 0; copyIndex < diagnostics.Count; copyIndex++)
+                    mapped[copyIndex] = diagnostics[copyIndex];
+            }
+
+            lineIndex ??= new SourceLineIndex(source.Text);
+            mapped[index] = diagnostic.WithSourceLocation(
                 CreateLocation(source, segment, diagnostic.Span.Start, lineIndex));
         }
 
-        if (diagnostics.Count == 0)
-            return diagnostics;
-
-        var lineIndex = new SourceLineIndex(source.Text);
-        var mapped = new AwkDiagnostic[diagnostics.Count];
-        for (var index = 0; index < diagnostics.Count; index++)
-        {
-            mapped[index] = MapDiagnostic(source, diagnostics[index], lineIndex);
-        }
-
-        return mapped;
+        return mapped ?? diagnostics;
     }
 
     private sealed class SourceLineIndex
     {
         private readonly string _source;
-        private readonly int[] _starts;
+        private readonly List<int> _starts;
 
         public SourceLineIndex(string source)
         {
             _source = source;
-            var count = 1;
+            _starts = [0];
             for (var index = 0; index < source.Length; index++)
             {
                 if (source[index] == '\r')
@@ -115,29 +116,11 @@ internal static class AwkSourceDiagnosticMap
                     if (index + 1 < source.Length && source[index + 1] == '\n')
                         index++;
 
-                    count++;
+                    _starts.Add(index + 1);
                 }
                 else if (source[index] == '\n')
                 {
-                    count++;
-                }
-            }
-
-            _starts = new int[count];
-            _starts[0] = 0;
-            var next = 1;
-            for (var index = 0; index < source.Length; index++)
-            {
-                if (source[index] == '\r')
-                {
-                    if (index + 1 < source.Length && source[index + 1] == '\n')
-                        index++;
-
-                    _starts[next++] = index + 1;
-                }
-                else if (source[index] == '\n')
-                {
-                    _starts[next++] = index + 1;
+                    _starts.Add(index + 1);
                 }
             }
         }
@@ -166,7 +149,7 @@ internal static class AwkSourceDiagnosticMap
             int FindFirstAfter(int position)
             {
                 var low = 0;
-                var high = _starts.Length;
+                var high = _starts.Count;
                 while (low < high)
                 {
                     var middle = low + ((high - low) / 2);

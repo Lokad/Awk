@@ -3,6 +3,26 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkSourceDiagnosticMapTests
 {
     [Fact]
+    public void MapDiagnostics_ReturnsDefaultInlineDiagnosticsWithoutAllocatingAMappedBatch()
+    {
+        const string text = "BEGIN {";
+        var sourceName = new AwkSourceName("<inline:1>");
+        var segment = new AwkSourceSegment(
+            sourceName,
+            AwkSourceSegmentKind.Inline,
+            new AwkTextSpan(0, text.Length),
+            new AwkLineOffset(0),
+            new AwkColumnOffset(0),
+            AwkLineContinuationMap.Empty);
+        var source = new AwkSourceUnit(sourceName, text, [segment]);
+        AwkDiagnostic[] diagnostics = [new(new AwkTextSpan(text.Length, 0), "test")];
+
+        var mapped = AwkSourceDiagnosticMap.MapDiagnostics(source, diagnostics);
+
+        Assert.Same(diagnostics, mapped);
+    }
+
+    [Fact]
     public void MapDiagnostics_PreservesEveryCrLfBoundaryCoordinate()
     {
         const string text = "a\r\nb";
