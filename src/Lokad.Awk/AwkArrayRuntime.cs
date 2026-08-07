@@ -196,48 +196,6 @@ internal sealed class AwkArrayRuntime
         _variables.ClearArray(_variableRuntime.ResolveOrPromoteArrayName(name));
     }
 
-    public AwkLeasedReadOnlyList<AwkText> SnapshotKeys(AwkArrayName name)
-    {
-        var arrayName = _variableRuntime.ResolveOrPromoteArrayName(name);
-        if (!TryResolveSortedInOrder(out var order))
-            return SnapshotUnsortedKeys(arrayName);
-
-        var lease = ReserveSortedSnapshot(arrayName);
-        try
-        {
-            var values = _variables.SnapshotArrayByteTexts(arrayName);
-            return new AwkLeasedReadOnlyList<AwkText>(SnapshotKeys(values, order), lease);
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
-        }
-    }
-
-    public async ValueTask<AwkLeasedReadOnlyList<AwkText>> SnapshotKeysAsync(
-        AwkArrayName name,
-        AwkEvaluationContext context)
-    {
-        var arrayName = _variableRuntime.ResolveOrPromoteArrayName(name);
-        if (!TryResolveSortedInOrder(out var order))
-            return SnapshotUnsortedKeys(arrayName);
-
-        var lease = ReserveSortedSnapshot(arrayName);
-        try
-        {
-            var values = _variables.SnapshotArrayByteTexts(arrayName);
-            return new AwkLeasedReadOnlyList<AwkText>(
-                await SnapshotKeysAsync(values, order, context).ConfigureAwait(false),
-                lease);
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
-        }
-    }
-
     public AwkLeasedReadOnlyList<AwkArrayKey> SnapshotKeyValues(AwkArrayName name)
     {
         var arrayName = _variableRuntime.ResolveOrPromoteArrayName(name);
@@ -322,37 +280,6 @@ internal sealed class AwkArrayRuntime
         return CopyKeyValues(await SortUserEntriesAsync(values, order, context).ConfigureAwait(false));
     }
 
-    private IReadOnlyList<AwkText> SnapshotKeys(IReadOnlyDictionary<AwkArrayKey, AwkText> values)
-    {
-        if (values.Count == 0)
-            return [];
-
-        return TryResolveSortedInOrder(out var order)
-            ? SnapshotKeys(values, order)
-            : CopyKeys(values.Keys, values.Count);
-    }
-
-    private IReadOnlyList<AwkText> SnapshotKeys(
-        IReadOnlyDictionary<AwkArrayKey, AwkText> values,
-        AwkArraySortOrder order)
-    {
-        if (values.Count == 0)
-            return [];
-
-        return SortKeys(values, order);
-    }
-
-    private async ValueTask<IReadOnlyList<AwkText>> SnapshotKeysAsync(
-        IReadOnlyDictionary<AwkArrayKey, AwkText> values,
-        AwkArraySortOrder order,
-        AwkEvaluationContext context)
-    {
-        if (values.Count == 0)
-            return [];
-
-        return await SortKeysAsync(values, order, context).ConfigureAwait(false);
-    }
-
     private IReadOnlyList<AwkArrayKey> SnapshotKeyValues(
         IReadOnlyDictionary<AwkArrayKey, AwkText> values,
         AwkArraySortOrder order)
@@ -377,29 +304,6 @@ internal sealed class AwkArrayRuntime
     private IReadOnlyDictionary<AwkArrayKey, AwkText> SnapshotByteTexts(AwkArrayName name)
     {
         return _variables.SnapshotArrayByteTexts(_variableRuntime.ResolveOrPromoteArrayName(name));
-    }
-
-    private AwkLeasedReadOnlyList<AwkText> SnapshotUnsortedKeys(AwkArrayName arrayName)
-    {
-        static long EstimateSnapshotBytes(int count) =>
-            CheckedAdd(
-                AwkRuntimeMemory.EstimateReferenceArrayBytes(count),
-                AwkRuntimeMemory.EstimateReferenceArrayBytes(count));
-
-        var count = _variables.GetArraySnapshotCount(arrayName);
-        var lease = _state.MemoryGovernor.ReserveTransient(EstimateSnapshotBytes(count));
-        try
-        {
-            var result = new AwkText[count];
-            _variables.CopyArrayKeyByteTexts(arrayName, result);
-
-            return new AwkLeasedReadOnlyList<AwkText>(result, lease);
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
-        }
     }
 
     private AwkLeasedReadOnlyList<AwkArrayKey> SnapshotUnsortedKeyValues(AwkArrayName arrayName)
@@ -428,15 +332,6 @@ internal sealed class AwkArrayRuntime
         var arrayName = _variableRuntime.ResolveOrPromoteArrayName(sourceArrayName);
         var count = _variables.GetArraySnapshotCount(arrayName);
         return _state.MemoryGovernor.ReserveTransient(EstimateSortOperationBytes(count));
-    }
-
-    private IDisposable ReserveSortedSnapshot(AwkArrayName arrayName)
-    {
-        static long EstimateSnapshotBytes(int count) =>
-            CheckedAdd(EstimateSortOperationBytes(count), AwkRuntimeMemory.EstimateReferenceArrayBytes(count));
-
-        var count = _variables.GetArraySnapshotCount(arrayName);
-        return _state.MemoryGovernor.ReserveTransient(EstimateSnapshotBytes(count));
     }
 
     private IDisposable ReserveSortedKeySnapshot(AwkArrayName arrayName)
@@ -701,18 +596,6 @@ internal sealed class AwkArrayRuntime
         foreach (var key in keys)
         {
             result[index++] = key;
-        }
-
-        return result;
-    }
-
-    private AwkText[] CopyKeys(IEnumerable<AwkArrayKey> keys, int count)
-    {
-        var result = new AwkText[count];
-        var index = 0;
-        foreach (var key in keys)
-        {
-            result[index++] = key.ToByteText(_state.Counters, _state.MemoryGovernor);
         }
 
         return result;

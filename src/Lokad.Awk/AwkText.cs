@@ -399,36 +399,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         return AsSpan().EndsWith(value.AsSpan());
     }
 
-    public bool EqualsAsciiIgnoreCase(AwkText other)
-    {
-        return ByteLength == other.ByteLength &&
-            BytesEqualAsciiIgnoreCase(AsSpan(), other.AsSpan());
-    }
-
-    public bool StartsWithAsciiIgnoreCase(AwkText value)
-    {
-        return ByteLength >= value.ByteLength &&
-            BytesEqualAsciiIgnoreCase(AsSpan()[..value.ByteLength], value.AsSpan());
-    }
-
-    public bool ContainsAsciiIgnoreCase(AwkText value)
-    {
-        if (value.ByteLength == 0)
-            return true;
-
-        if (value.ByteLength > ByteLength)
-            return false;
-
-        var lastStart = ByteLength - value.ByteLength;
-        for (var start = 0; start <= lastStart; start++)
-        {
-            if (BytesEqualAsciiIgnoreCase(AsSpan().Slice(start, value.ByteLength), value.AsSpan()))
-                return true;
-        }
-
-        return false;
-    }
-
     public bool TryParseNumber(
         AwkNumberParsingMode numberParsingMode,
         bool requireFullText,
@@ -620,17 +590,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         }
 
         return count;
-    }
-
-    private static bool BytesEqualAsciiIgnoreCase(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right)
-    {
-        for (var index = 0; index < left.Length; index++)
-        {
-            if (FoldAscii(left[index]) != FoldAscii(right[index]))
-                return false;
-        }
-
-        return true;
     }
 
     private static byte FoldAscii(byte value) =>

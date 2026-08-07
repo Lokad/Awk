@@ -111,16 +111,10 @@ public sealed class AwkTextTests
     }
 
     [Fact]
-    public void AwkText_SupportsAsciiCaseInsensitiveHelpers()
+    public void AwkText_ComparesAsciiTextWithoutDecoding()
     {
-        var text = AwkText.FromString("Prefix-CAF\u00c9");
-
         Assert.True(AwkText.FromString("sku").EqualsAscii("sku"));
         Assert.False(AwkText.FromString("sku").EqualsAscii("sk\u00fa"));
-        Assert.True(text.StartsWithAsciiIgnoreCase(AwkText.FromString("pre")));
-        Assert.True(text.ContainsAsciiIgnoreCase(AwkText.FromString("cAf\u00c9")));
-        Assert.True(AwkText.FromString("SKU").EqualsAsciiIgnoreCase(AwkText.FromString("sku")));
-        Assert.False(text.ContainsAsciiIgnoreCase(AwkText.FromString("caf\u00e9")));
     }
 
     [Fact]

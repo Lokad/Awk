@@ -819,39 +819,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public void Awk_ArraySnapshotMemoryLimitFailsBeforeReturningKeys()
-    {
-        var arrayName = AwkArrayName.FromText("a");
-        var key = new AwkArrayKey("k");
-        var state = CreateStateWithMemoryLimit(220);
-        state.SetArrayString(arrayName, key, "v");
-
-        var exception = Assert.Throws<AwkRuntimeException>(() => state.SnapshotArrayKeys(arrayName));
-
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.True(state.ContainsArrayValue(arrayName, key));
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
-    }
-
-    [Fact]
-    public void Awk_ArraySnapshotLeaseReleasesReservationAndRejectsFurtherUse()
-    {
-        var arrayName = AwkArrayName.FromText("a");
-        var state = CreateStateWithMemoryLimit(2_000);
-        state.SetArrayString(arrayName, new AwkArrayKey("k"), "v");
-        var baselineCommittedBytes = state.MemoryGovernor.CurrentCommittedBytes;
-        var keys = state.SnapshotArrayKeys(arrayName);
-
-        Assert.Single(keys);
-        Assert.True(state.MemoryGovernor.CurrentCommittedBytes > baselineCommittedBytes);
-
-        keys.Dispose();
-
-        Assert.Equal(baselineCommittedBytes, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Throws<ObjectDisposedException>(() => _ = keys.Count);
-    }
-
-    [Fact]
     public void Awk_ArraySortMemoryLimitFailsBeforeReplacingDestination()
     {
         var sourceArrayName = AwkArrayName.FromText("source");

@@ -822,9 +822,6 @@ internal sealed class AwkRuntimeState
     public void ClearArray(AwkArrayName name) =>
         _arrayRuntime.Clear(name);
 
-    public AwkLeasedReadOnlyList<AwkText> SnapshotArrayKeys(AwkArrayName name) =>
-        _arrayRuntime.SnapshotKeys(name);
-
     public async ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(
         AwkArrayName name,
         AwkEvaluationContext context) =>

@@ -19,7 +19,6 @@ public sealed class AwkAssignmentOperatorsTests
         var expected = (AwkCompoundAssignmentOperation)expectedValue;
 
         Assert.True(AwkAssignmentOperators.IsAssignment(kind));
-        Assert.True(AwkAssignmentOperators.IsLValueMutation(kind));
         Assert.True(AwkAssignmentOperators.TryGetCompoundOperation(kind, out var operation));
         Assert.Equal(expected, operation);
     }

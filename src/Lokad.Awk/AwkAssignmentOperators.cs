@@ -5,9 +5,6 @@ internal static class AwkAssignmentOperators
     public static bool IsAssignment(AwkTokenKind kind) =>
         kind == AwkTokenKind.Equal || TryGetCompoundOperation(kind, out _);
 
-    public static bool IsLValueMutation(AwkTokenKind kind) =>
-        IsAssignment(kind) || kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus;
-
     public static bool TryGetCompoundOperation(
         AwkTokenKind kind,
         out AwkCompoundAssignmentOperation operation)
