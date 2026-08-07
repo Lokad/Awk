@@ -223,7 +223,7 @@ public sealed class AwkBenchmarkCounterTests
             "3\n"
         },
         {
-            "BEGIN{RS=\"([,;])+\"} {print $0}",
+            "BEGIN{RS=\"([,]|;)+\"} {print $0}",
             "alpha,beta;",
             "alpha\nbeta\n"
         },
