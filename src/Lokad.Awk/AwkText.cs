@@ -2,12 +2,14 @@ using System;
 using System.Buffers;
 using System.Buffers.Text;
 using System.Text;
+using System.Threading;
 
 namespace Lokad.Awk;
 
 internal sealed class AwkText : IEquatable<AwkText>
 {
     private readonly byte[] _bytes;
+    private string? _cachedString;
 
     private AwkText(byte[] bytes)
     {
@@ -125,8 +127,13 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (_bytes.Length == 0)
             return string.Empty;
 
+        var cached = _cachedString;
+        if (cached is not null)
+            return cached;
+
         counters.RecordAwkTextAsStringDecodeMiss();
-        return AwkUtf8Codec.DecodeRuntimeText(_bytes, counters);
+        var decoded = AwkUtf8Codec.DecodeRuntimeText(_bytes, counters);
+        return Interlocked.CompareExchange(ref _cachedString, decoded, null) ?? decoded;
     }
 
     public int CompareBytes(AwkText other)

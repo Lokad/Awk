@@ -781,6 +781,12 @@ internal sealed class AwkRuntimeState
     public AwkRegexMatchSpan MatchRegexSpan(Regex regex, AwkText input) =>
         _regexRuntime.MatchSpan(regex, input);
 
+    public AwkRegexMatchSpan MatchRegexSpan(
+        Regex regex,
+        AwkText input,
+        AwkRegexSearchOffset searchOffset) =>
+        _regexRuntime.MatchSpan(regex, input, searchOffset);
+
     public Regex CreateRegex(AwkRegexPattern pattern) =>
         _regexRuntime.Create(pattern);
 

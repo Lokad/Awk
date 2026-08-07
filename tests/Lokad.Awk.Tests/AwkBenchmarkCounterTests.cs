@@ -189,6 +189,21 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task Awk_TrueRegexRecordSeparatorDecodesEachInputBatchOnce()
+    {
+        var (exitCode, fileSystem, counters) = await RunAsync(
+            ["BEGIN{RS=\"[|;]+\"} {print $0}"],
+            "a|b;c|d;",
+            AwkRegexEngineKind.DotNetCompatibility);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("a\nb\nc\nd\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.True(counters.RegexMatches > 0);
+        Assert.True(counters.AwkTextAsStringCalls > counters.AwkTextAsStringDecodeMisses);
+        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
+    }
+
+    [Fact]
     public async Task Awk_Utf8RegexPatternGapFallbacksAreCounted()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(

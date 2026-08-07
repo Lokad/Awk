@@ -142,14 +142,7 @@ internal sealed class AwkRegexRuntime
         {
             _counters.RecordRegexStringAdapterFallback();
             _counters.RecordRegexMatch();
-            if (!_isIgnoreCaseEnabled())
-                return regex.Match(input);
-
-            return Regex.Match(
-                input,
-                ResolveMetadata(regex).Pattern,
-                ResolveOptions(ignoreCase: true),
-                AwkRegex.MatchTimeout);
+            return ResolveDotNetRegex(regex).Match(input);
         }
         catch (RegexMatchTimeoutException)
         {
@@ -183,7 +176,13 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-    public AwkRegexMatchSpan MatchSpan(Regex regex, AwkText input)
+    public AwkRegexMatchSpan MatchSpan(Regex regex, AwkText input) =>
+        MatchSpan(regex, input, AwkRegexSearchOffset.Start);
+
+    public AwkRegexMatchSpan MatchSpan(
+        Regex regex,
+        AwkText input,
+        AwkRegexSearchOffset searchOffset)
     {
         _throwIfCancellationRequested();
         var policy = ResolveExecutionPolicy(regex, input);
@@ -191,18 +190,23 @@ internal sealed class AwkRegexRuntime
         {
             RecordTextFallback(policy);
             var text = input.AsString(_counters);
-            var match = Match(regex, text);
+            var match = Match(regex, text, searchOffset.Utf16Index);
             return match.Success
-                ? CreateMatchSpan(text, match)
+                ? CreateMatchSpan(text, match, searchOffset)
                 : AwkRegexMatchSpan.NoMatch;
         }
 
         try
         {
             _counters.RecordRegexMatch();
-            var match = ResolveUtf8Regex(regex).MatchDetailed(input.AsSpan());
+            var match = ResolveUtf8Regex(regex)
+                .MatchDetailedFromUtf16Offset(input.AsSpan(), searchOffset.Utf16Index);
             return match.Success
-                ? AwkRegexMatchSpan.Match(match.IndexInBytes, match.LengthInBytes)
+                ? AwkRegexMatchSpan.Match(
+                    match.IndexInBytes,
+                    match.LengthInBytes,
+                    match.IndexInUtf16,
+                    match.LengthInUtf16)
                 : AwkRegexMatchSpan.NoMatch;
         }
         catch (RegexMatchTimeoutException)
@@ -375,10 +379,38 @@ internal sealed class AwkRegexRuntime
         }
     }
 
+    private Match Match(Regex regex, string input, int startAt)
+    {
+        _throwIfCancellationRequested();
+        try
+        {
+            _counters.RecordRegexStringAdapterFallback();
+            _counters.RecordRegexMatch();
+            return ResolveDotNetRegex(regex).Match(input, startAt);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
+        }
+    }
+
     private static AwkRegexMatchSpan CreateMatchSpan(string input, Match match) =>
         AwkRegexMatchSpan.Match(
             Encoding.UTF8.GetByteCount(input.AsSpan(0, match.Index)),
-            Encoding.UTF8.GetByteCount(input.AsSpan(match.Index, match.Length)));
+            Encoding.UTF8.GetByteCount(input.AsSpan(match.Index, match.Length)),
+            match.Index,
+            match.Length);
+
+    private static AwkRegexMatchSpan CreateMatchSpan(
+        string input,
+        Match match,
+        AwkRegexSearchOffset searchOffset) =>
+        AwkRegexMatchSpan.Match(
+            searchOffset.ByteIndex + Encoding.UTF8.GetByteCount(
+                input.AsSpan(searchOffset.Utf16Index, match.Index - searchOffset.Utf16Index)),
+            Encoding.UTF8.GetByteCount(input.AsSpan(match.Index, match.Length)),
+            match.Index,
+            match.Length);
 
     private Regex Cache(AwkRegexCacheKey key, Regex regex)
     {
@@ -411,6 +443,25 @@ internal sealed class AwkRegexRuntime
 
         _counters.RecordRegexCompile();
         return Cache(key, new Utf8RegexEngine(metadata.Pattern, ResolveOptions(ignoreCase), AwkRegex.MatchTimeout));
+    }
+
+    private Regex ResolveDotNetRegex(Regex regex)
+    {
+        var ignoreCase = _isIgnoreCaseEnabled();
+        if (regex.Options.HasFlag(RegexOptions.IgnoreCase) == ignoreCase)
+            return regex;
+
+        var metadata = ResolveMetadata(regex);
+        var key = new AwkRegexCacheKey(
+            metadata.Pattern,
+            ignoreCase,
+            AwkRegexCacheKind.TranslatedPattern,
+            AwkRegexEngineKind.DotNetCompatibility);
+        if (_regexCache.TryGetValue(key, out var cached))
+            return cached;
+
+        _counters.RecordRegexCompile();
+        return Cache(key, new Regex(metadata.Pattern, ResolveOptions(ignoreCase), AwkRegex.MatchTimeout));
     }
 
     private AwkRegexMetadata ResolveMetadata(Regex regex)

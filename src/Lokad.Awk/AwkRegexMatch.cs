@@ -176,10 +176,24 @@ internal readonly record struct AwkRegexGroup(
 internal readonly record struct AwkRegexMatchSpan(
     bool Success,
     int ByteIndex,
-    int ByteLength)
+    int ByteLength,
+    int Utf16Index,
+    int Utf16Length)
 {
-    public static AwkRegexMatchSpan NoMatch { get; } = new(false, 0, 0);
+    public static AwkRegexMatchSpan NoMatch { get; } = new(false, 0, 0, 0, 0);
 
     public static AwkRegexMatchSpan Match(int byteIndex, int byteLength) =>
-        new(true, byteIndex, byteLength);
+        new(true, byteIndex, byteLength, byteIndex, byteLength);
+
+    public static AwkRegexMatchSpan Match(
+        int byteIndex,
+        int byteLength,
+        int utf16Index,
+        int utf16Length) =>
+        new(true, byteIndex, byteLength, utf16Index, utf16Length);
+}
+
+internal readonly record struct AwkRegexSearchOffset(int ByteIndex, int Utf16Index)
+{
+    public static AwkRegexSearchOffset Start { get; } = new(0, 0);
 }

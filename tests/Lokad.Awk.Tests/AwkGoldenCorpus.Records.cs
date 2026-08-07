@@ -59,6 +59,13 @@ internal static partial class AwkGoldenCorpus
             "1:a[--]\n2:b[---]\n3:c[]\n",
             "a--b---c"),
 
+        Passing(
+            "regex-record-separator-start-anchor-only-matches-input-start",
+            ["BEGIN{RS=\"^.\"} {print NR \":\" $0 \"[\" RT \"]\"}"],
+            [],
+            "1:[a]\n2:bc[]\n",
+            "abc"),
+
         Failing(
             "regex-record-separator-invalid-regex-fails-after-begin-output",
             ["BEGIN{print \"before\"; RS=\"[+\"} {print \"after\"}", "/file.txt"],

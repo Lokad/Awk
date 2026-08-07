@@ -134,8 +134,8 @@ internal static class AwkBenchmark
 
             new AwkBenchmarkScenario(
                 "regex record separator",
-                "Generated mixed separator stream for regex RS fallback allocation tracking.",
-                ["BEGIN{RS=\"[|;]\"} {sum += length($0)} END{print NR, sum}", "/rs.txt"],
+                "Generated mixed separator stream for true regex RS allocation tracking.",
+                ["BEGIN{RS=\"[|;]+\"} {sum += length($0)} END{print NR, sum}", "/rs.txt"],
                 [new AwkBenchmarkFile("/rs.txt", BuildRecordSeparatorData())],
                 1),
 

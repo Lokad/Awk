@@ -664,36 +664,79 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
                 return AwkStatementFlow.Continue;
 
             var content = buffer.CopyToAwkText(Context.State.Counters);
-            var match = Context.State.MatchRegexSpan(_separator, content);
-            if (match.Success &&
-                !reachedEof &&
-                match.ByteIndex == content.ByteLength - match.ByteLength)
+            var recordStart = AwkRegexSearchOffset.Start;
+            while (true)
             {
-                reachedEof = await AppendNextByteBatchAsync(descriptor, buffer).ConfigureAwait(false);
-                continue;
-            }
+                Context.State.ThrowIfCancellationRequested();
+                if (!IsCurrentSeparatorVersion)
+                {
+                    buffer.Clear();
+                    buffer.Append(content.AsSpan()[recordStart.ByteIndex..]);
+                    var remainingContent = await ReadBufferedTextToEndAsync(buffer, descriptor, reachedEof)
+                        .ConfigureAwait(false);
+                    return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(
+                            remainingContent,
+                            processRecordAsync)
+                        .ConfigureAwait(false);
+                }
 
-            if (match.Success)
-            {
-                var record = content.CopyByteSlice(0, match.ByteIndex, Context.State.Counters, Context.State.MemoryGovernor);
-                var terminator = CreateTerminator(content, match);
-                buffer.RemovePrefix(AdvanceAfterRegexSeparator(content, match.ByteIndex, match.ByteLength));
-                var flow = await Context.RecordProcessor.ProcessAsync(record, terminator, processRecordAsync)
-                    .ConfigureAwait(false);
-                if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
-                    return flow;
+                var match = Context.State.MatchRegexSpan(_separator, content, recordStart);
+                if (match.Success &&
+                    !reachedEof &&
+                    match.ByteIndex == content.ByteLength - match.ByteLength)
+                {
+                    buffer.Clear();
+                    buffer.Append(content.AsSpan()[recordStart.ByteIndex..]);
+                    reachedEof = await AppendNextByteBatchAsync(descriptor, buffer).ConfigureAwait(false);
+                    break;
+                }
 
-                continue;
-            }
+                if (match.Success)
+                {
+                    var record = content.CopyByteSlice(
+                        recordStart.ByteIndex,
+                        match.ByteIndex - recordStart.ByteIndex,
+                        Context.State.Counters,
+                        Context.State.MemoryGovernor);
+                    var terminator = CreateTerminator(content, match);
+                    recordStart = AdvanceAfterRegexSeparator(content, match);
+                    var flow = await Context.RecordProcessor.ProcessAsync(record, terminator, processRecordAsync)
+                        .ConfigureAwait(false);
+                    if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
+                        return flow;
 
-            if (reachedEof)
-            {
+                    if (recordStart.ByteIndex < content.ByteLength)
+                        continue;
+
+                    if (reachedEof)
+                        return AwkStatementFlow.Continue;
+
+                    buffer.Clear();
+                    reachedEof = await AppendNextByteBatchAsync(descriptor, buffer).ConfigureAwait(false);
+                    break;
+                }
+
                 buffer.Clear();
-                return await Context.RecordProcessor.ProcessAsync(content, AwkRecordTerminator.Empty, processRecordAsync)
-                    .ConfigureAwait(false);
-            }
+                if (reachedEof)
+                {
+                    var record = recordStart.ByteIndex == 0
+                        ? content
+                        : content.CopyByteSlice(
+                            recordStart.ByteIndex,
+                            content.ByteLength - recordStart.ByteIndex,
+                            Context.State.Counters,
+                            Context.State.MemoryGovernor);
+                    return await Context.RecordProcessor.ProcessAsync(
+                            record,
+                            AwkRecordTerminator.Empty,
+                            processRecordAsync)
+                        .ConfigureAwait(false);
+                }
 
-            reachedEof = await AppendNextByteBatchAsync(descriptor, buffer).ConfigureAwait(false);
+                buffer.Append(content.AsSpan()[recordStart.ByteIndex..]);
+                reachedEof = await AppendNextByteBatchAsync(descriptor, buffer).ConfigureAwait(false);
+                break;
+            }
         }
     }
 
@@ -701,26 +744,43 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
         AwkText content,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
     {
-        var remaining = content;
-        while (remaining.ByteLength > 0)
+        var recordStart = AwkRegexSearchOffset.Start;
+        while (recordStart.ByteIndex < content.ByteLength)
         {
             Context.State.ThrowIfCancellationRequested();
             if (!IsCurrentSeparatorVersion)
             {
+                var remaining = content.CopyByteSlice(
+                    recordStart.ByteIndex,
+                    content.ByteLength - recordStart.ByteIndex,
+                    Context.State.Counters,
+                    Context.State.MemoryGovernor);
                 return await Context.ProcessUnreadTailWithCurrentSeparatorAsync(remaining, processRecordAsync)
                     .ConfigureAwait(false);
             }
 
-            var match = Context.State.MatchRegexSpan(_separator, remaining);
-            var record = match.Success
-                ? remaining.CopyByteSlice(0, match.ByteIndex, Context.State.Counters, Context.State.MemoryGovernor)
-                : remaining;
-            var terminator = match.Success
-                ? CreateTerminator(remaining, match)
-                : AwkRecordTerminator.Empty;
-            remaining = match.Success
-                ? SliceAfterRegexSeparator(remaining, match.ByteIndex, match.ByteLength)
-                : AwkText.Empty;
+            var match = Context.State.MatchRegexSpan(_separator, content, recordStart);
+            if (!match.Success)
+            {
+                var finalRecord = content.CopyByteSlice(
+                    recordStart.ByteIndex,
+                    content.ByteLength - recordStart.ByteIndex,
+                    Context.State.Counters,
+                    Context.State.MemoryGovernor);
+                return await Context.RecordProcessor.ProcessAsync(
+                        finalRecord,
+                        AwkRecordTerminator.Empty,
+                        processRecordAsync)
+                    .ConfigureAwait(false);
+            }
+
+            var record = content.CopyByteSlice(
+                recordStart.ByteIndex,
+                match.ByteIndex - recordStart.ByteIndex,
+                Context.State.Counters,
+                Context.State.MemoryGovernor);
+            var terminator = CreateTerminator(content, match);
+            recordStart = AdvanceAfterRegexSeparator(content, match);
 
             var flow = await Context.RecordProcessor.ProcessAsync(record, terminator, processRecordAsync)
                 .ConfigureAwait(false);
@@ -729,18 +789,6 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
         }
 
         return AwkStatementFlow.Continue;
-    }
-
-    private AwkText SliceAfterRegexSeparator(AwkText content, int byteIndex, int byteLength)
-    {
-        var next = AdvanceAfterRegexSeparator(content, byteIndex, byteLength);
-        return next >= content.ByteLength
-            ? AwkText.Empty
-            : content.CopyByteSlice(
-                next,
-                content.ByteLength - next,
-                Context.State.Counters,
-                Context.State.MemoryGovernor);
     }
 
     private AwkRecordTerminator CreateTerminator(AwkText content, AwkRegexMatchSpan match)
@@ -755,13 +803,23 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
             Context.State.MemoryGovernor));
     }
 
-    private static int AdvanceAfterRegexSeparator(AwkText content, int byteIndex, int byteLength)
+    private static AwkRegexSearchOffset AdvanceAfterRegexSeparator(
+        AwkText content,
+        AwkRegexMatchSpan match)
     {
-        if (byteLength > 0 || byteIndex >= content.ByteLength)
-            return byteIndex + byteLength;
+        if (match.ByteLength > 0 || match.ByteIndex >= content.ByteLength)
+        {
+            return new AwkRegexSearchOffset(
+                match.ByteIndex + match.ByteLength,
+                match.Utf16Index + match.Utf16Length);
+        }
 
-        var status = Rune.DecodeFromUtf8(content.AsSpan()[byteIndex..], out _, out var bytesConsumed);
-        return byteIndex + (status == OperationStatus.Done && bytesConsumed > 0 ? bytesConsumed : 1);
+        var status = Rune.DecodeFromUtf8(content.AsSpan()[match.ByteIndex..], out var rune, out var bytesConsumed);
+        return status == OperationStatus.Done && bytesConsumed > 0
+            ? new AwkRegexSearchOffset(
+                match.ByteIndex + bytesConsumed,
+                match.Utf16Index + rune.Utf16SequenceLength)
+            : new AwkRegexSearchOffset(match.ByteIndex + 1, match.Utf16Index + 1);
     }
 
 }

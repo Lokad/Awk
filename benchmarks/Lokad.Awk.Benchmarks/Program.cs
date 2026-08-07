@@ -140,8 +140,8 @@ public class FullInvocationBenchmarks
         _regexFieldSeparator = BenchmarkScenarioCatalog.RegexFieldSeparator();
         _regexRecordSeparator = new BenchmarkScenario(
             "regex record separator",
-            "BEGIN{RS=\"[|;]\"} {sum += length($0)} END{print NR, sum}",
-            ["BEGIN{RS=\"[|;]\"} {sum += length($0)} END{print NR, sum}", "/rs.txt"],
+            "BEGIN{RS=\"[|;]+\"} {sum += length($0)} END{print NR, sum}",
+            ["BEGIN{RS=\"[|;]+\"} {sum += length($0)} END{print NR, sum}", "/rs.txt"],
             [new BenchmarkFile("/rs.txt", CreateRecordSeparatorData())],
             recordCount: 20_000,
             counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);

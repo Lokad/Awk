@@ -134,8 +134,8 @@ public sealed class AwkTextTests
         Assert.Equal("caf\u00e9", text.AsString(counters));
         Assert.Equal("caf\u00e9", text.AsString(counters));
         Assert.Equal(2, counters.AwkTextAsStringCalls);
-        Assert.Equal(2, counters.AwkTextAsStringDecodeMisses);
-        Assert.Equal(2, counters.StringDecodes);
+        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
+        Assert.Equal(1, counters.StringDecodes);
     }
 
     [Fact]
