@@ -338,12 +338,12 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         Assert.Equal(17, counters.OutputBytes);
         Assert.Equal(1, counters.RegexCompiles);
         Assert.True(counters.RegexMatches >= 2);
-        Assert.True(counters.RegexDotNetTextFallbacks >= 2);
-        Assert.True(counters.RegexStringAdapterFallbacks >= 2);
+        Assert.True(counters.RegexDotNetTextMatches >= 2);
+        Assert.True(counters.RegexStringAdapterMatches >= 2);
         Assert.True(counters.HostCalls >= 6);
         Assert.True(counters.ExecutionSteps > 0);
         Assert.True(counters.CancellationChecks > 0);
-        Assert.True(counters.AwkTextAsStringCalls >= counters.RegexDotNetTextFallbacks);
+        Assert.True(counters.AwkTextAsStringCalls >= counters.RegexDotNetTextMatches);
         Assert.Equal(0, counters.FormattingStringInteropInputs);
     }
 

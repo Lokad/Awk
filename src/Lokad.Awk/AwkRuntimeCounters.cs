@@ -39,11 +39,11 @@ internal sealed class AwkRuntimeCounters
 
     public long RegexMatches { get; private set; }
 
-    public long RegexDotNetTextFallbacks { get; private set; }
+    public long RegexDotNetTextMatches { get; private set; }
 
     public long RegexPatternGapFallbacks { get; private set; }
 
-    public long RegexStringAdapterFallbacks { get; private set; }
+    public long RegexStringAdapterMatches { get; private set; }
 
     public long RegexPolicyInputBytesInspected { get; private set; }
 
@@ -205,13 +205,13 @@ internal sealed class AwkRuntimeCounters
             RegexMatches++;
     }
 
-    public void RecordRegexDotNetTextFallback()
+    public void RecordRegexDotNetTextMatch()
     {
         if (!_enabled)
             return;
 
         lock (_sync)
-            RegexDotNetTextFallbacks++;
+            RegexDotNetTextMatches++;
     }
 
     public void RecordRegexPatternGapFallback()
@@ -223,13 +223,13 @@ internal sealed class AwkRuntimeCounters
             RegexPatternGapFallbacks++;
     }
 
-    public void RecordRegexStringAdapterFallback()
+    public void RecordRegexStringAdapterMatch()
     {
         if (!_enabled)
             return;
 
         lock (_sync)
-            RegexStringAdapterFallbacks++;
+            RegexStringAdapterMatches++;
     }
 
     public void RecordRegexPolicyInputBytesInspected(int byteCount)

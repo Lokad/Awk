@@ -32,7 +32,7 @@ dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benc
   `AwkTextAsStringDecodeMisses`, `Utf8Encodes`, `ByteTextComparisons`, and formatting/string
   interop fallback counts for representative hot-path tests or benchmarks.
 - Regex compatibility: include the tested regex engine mode, corpus status, unsupported cases,
-  `RegexDotNetTextFallbacks`, `RegexPatternGapFallbacks`, `RegexStringAdapterFallbacks`,
+  `RegexDotNetTextMatches`, `RegexPatternGapFallbacks`, `RegexStringAdapterMatches`,
   byte-mode valid UTF-8 behavior, and any `RSTART`/`RLENGTH` offset policy evidence.
 - VM coverage: include execution engine mode, `VmInstructions`, `VmBasicBlockEntries`,
   `VmFallbackCalls`, `VmOpcodeKindsExecuted`, `VmBudgetChecks`, and `VmMaxStackDepth`.

@@ -75,7 +75,7 @@ internal sealed class AwkRegexRuntime
         _throwIfCancellationRequested();
         try
         {
-            _counters.RecordRegexStringAdapterFallback();
+            _counters.RecordRegexStringAdapterMatch();
             _counters.RecordRegexMatch();
             return ResolveDotNetRegex(regex).IsMatch(input);
         }
@@ -91,7 +91,7 @@ internal sealed class AwkRegexRuntime
         var policy = ResolveExecutionPolicy(regex, input);
         if (!policy.UsesUtf8Adapter)
         {
-            RecordTextFallback(policy);
+            RecordDotNetTextRoute(policy);
             return IsTextMatch(regex, input.AsString(_counters));
         }
 
@@ -138,7 +138,7 @@ internal sealed class AwkRegexRuntime
         _throwIfCancellationRequested();
         if (!policy.UsesUtf8Adapter)
         {
-            RecordTextFallback(policy);
+            RecordDotNetTextRoute(policy);
             var text = input.AsString(_counters);
             var match = Match(regex, text, searchOffset.Utf16Index);
             if (!match.Success)
@@ -205,7 +205,7 @@ internal sealed class AwkRegexRuntime
         _throwIfCancellationRequested();
         if (!policy.UsesUtf8Adapter)
         {
-            RecordTextFallback(policy);
+            RecordDotNetTextRoute(policy);
             var text = input.AsString(_counters);
             var match = Match(regex, text, searchOffset.Utf16Index);
             return match.Success
@@ -255,7 +255,7 @@ internal sealed class AwkRegexRuntime
         _throwIfCancellationRequested();
         try
         {
-            _counters.RecordRegexStringAdapterFallback();
+            _counters.RecordRegexStringAdapterMatch();
             _counters.RecordRegexMatch();
             return ResolveDotNetRegex(regex).Match(input, startAt);
         }
@@ -358,7 +358,7 @@ internal sealed class AwkRegexRuntime
         {
             return new AwkRegexExecutionPolicy(
                 AwkRegexExecutionEngine.DotNet,
-                AwkRegexFallbackReason.PatternGap,
+                AwkRegexDotNetRouteReason.PatternGap,
                 coordinatePolicy);
         }
 
@@ -367,23 +367,23 @@ internal sealed class AwkRegexRuntime
         {
             return new AwkRegexExecutionPolicy(
                 AwkRegexExecutionEngine.Utf8Adapter,
-                AwkRegexFallbackReason.None,
+                AwkRegexDotNetRouteReason.NotApplicable,
                 coordinatePolicy);
         }
 
         return new AwkRegexExecutionPolicy(
             AwkRegexExecutionEngine.DotNet,
-            AwkRegexFallbackReason.DotNetCompatibility,
+            AwkRegexDotNetRouteReason.ConfiguredEngine,
             coordinatePolicy);
     }
 
-    private void RecordTextFallback(AwkRegexExecutionPolicy policy)
+    private void RecordDotNetTextRoute(AwkRegexExecutionPolicy policy)
     {
-        if (policy.FallbackReason == AwkRegexFallbackReason.None)
+        if (policy.DotNetRouteReason == AwkRegexDotNetRouteReason.NotApplicable)
             return;
 
-        _counters.RecordRegexDotNetTextFallback();
-        if (policy.FallbackReason == AwkRegexFallbackReason.PatternGap)
+        _counters.RecordRegexDotNetTextMatch();
+        if (policy.DotNetRouteReason == AwkRegexDotNetRouteReason.PatternGap)
             _counters.RecordRegexPatternGapFallback();
     }
 
@@ -447,7 +447,7 @@ internal sealed class AwkRegexRuntime
 
     internal readonly record struct AwkRegexExecutionPolicy(
         AwkRegexExecutionEngine Engine,
-        AwkRegexFallbackReason FallbackReason,
+        AwkRegexDotNetRouteReason DotNetRouteReason,
         AwkRegexCoordinatePolicy CoordinatePolicy)
     {
         public bool UsesUtf8Adapter => Engine == AwkRegexExecutionEngine.Utf8Adapter;
@@ -461,10 +461,10 @@ internal sealed class AwkRegexRuntime
         Utf8Adapter
     }
 
-    internal enum AwkRegexFallbackReason
+    internal enum AwkRegexDotNetRouteReason
     {
-        None,
-        DotNetCompatibility,
+        NotApplicable,
+        ConfiguredEngine,
         PatternGap
     }
 

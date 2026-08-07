@@ -7,22 +7,28 @@ The default string compatibility path remains `System.Text.RegularExpressions`, 
 
 The former byte-mode non-ASCII hard failure has been removed for valid UTF-8 input. Regex
 matching, `match()`, regex `FS`/`RS`, `patsplit`, `sub`, `gsub`, and `gensub` now have adapter
-coverage in the `AwkText` runtime flow. Legacy string overloads remain as compatibility adapters
-for already-decoded callers and for explicitly documented pattern gaps.
+coverage in the `AwkText` runtime flow. The .NET string engine remains the compatibility route
+when configured explicitly and for documented UTF-8 adapter pattern gaps.
 
-Regex fallback evidence uses dedicated counters. `RegexDotNetTextFallbacks` counts `AwkText`
-regex operations routed through the .NET string engine, `RegexPatternGapFallbacks` counts translated
-patterns such as GNU buffer anchors that force that route even in the UTF-8 adapter mode, and
-`RegexStringAdapterFallbacks` counts legacy string regex adapters after a caller has already crossed
-the string boundary. These counters are separate from `AwkTextAsStringCalls` and decode misses.
+Regex routing evidence uses dedicated counters. `RegexDotNetTextMatches` counts `AwkText`
+regex operations routed through the .NET string engine, whether that engine is the configured
+default or a compatibility fallback. `RegexPatternGapFallbacks` counts translated patterns such as
+GNU buffer anchors that force that route in UTF-8 adapter mode, and `RegexStringAdapterMatches`
+counts .NET string-engine match calls after a caller has crossed the string boundary. These counters
+are separate from `AwkTextAsStringCalls` and decode misses.
 Runtime routing keeps the selected engine, fallback reason, and byte-vs-UTF-16 coordinate policy as
 separate decisions so a compatibility fallback cannot silently change offset units or counter
 classification.
 First-match consumers such as `match()`, regex record separators, and `sub()` use first-match
-runtime APIs instead of materializing full match lists. Full enumeration remains reserved for regex
-field splitting, `patsplit`, `gsub`, and other paths that genuinely need every match.
-Frontend regex diagnostics validate translated AWK literals through a parser-safe validator, not
-through runtime regex construction or engine selection.
+runtime APIs instead of materializing full match lists. `sub()` and `gsub()` expand whole-match
+references from byte spans without materializing capture groups; capture values are reserved for
+`match(..., array)` and `gensub()`. Full enumeration remains reserved for regex field splitting,
+`patsplit`, `gsub`, and other paths that genuinely need every match.
+Engine-neutral regex handles retain the initially selected backend, so a dynamic UTF-8 regex does
+not first compile an unused .NET regex. Runtime caches evict the least-recently-used entry instead
+of clearing all compiled patterns when their bounded capacity is reached.
+Frontend regex diagnostics validate translated AWK literals before lowering; runtime backend
+selection remains an execution-time concern.
 
 Regex constants are context-sensitive. In ordinary scalar expressions, `/pattern/` evaluates the
 numeric result of matching the current record, including in logical expressions, assignments,
@@ -34,13 +40,13 @@ expression back into a direct literal-pattern operand.
 
 | Area | AWK requirement | Current .NET path | Byte-native candidate requirement |
 | --- | --- | --- | --- |
-| ERE operators | `.`, `*`, `+`, `?`, `{m,n}`, alternation, grouping, anchors | `AwkRegex.Translate` maps awk regex text into .NET regex syntax | Adapter must run translated awk EREs or explicitly translate unsupported syntax before matching |
+| ERE operators | `.`, `*`, `+`, `?`, `{m,n}`, alternation, grouping, anchors | `AwkRegex.TranslatePattern` maps awk regex text into backend syntax | Adapter must run translated awk EREs or explicitly translate unsupported syntax before matching |
 | Bracket expressions | POSIX character classes, equivalence classes, collating symbols, negation | Translator expands supported POSIX classes and C-locale equivalence/collation cases | Adapter must match current translator output or document a golden-case mismatch |
 | Escapes | AWK escapes, octal/hex escapes, GNU word/buffer operators | Translator handles current supported escape set | Adapter must preserve translated escape semantics, including GNU extensions currently accepted |
 | Anchors and dot/newline | AWK line-oriented matching over runtime strings | .NET regex behavior after translation | Adapter must keep current record/string matching semantics; newline behavior changes require explicit tests |
 | Empty matches | `match`, `sub`, `gsub`, `gensub`, split loops must progress | Current loops rely on .NET `Match` and explicit runtime logic | Adapter must expose empty-match positions and allow progress logic equivalent to current behavior |
 | Captures | `match(..., arr)`, replacement expansion, `gensub` captures | .NET `Match.Groups` with UTF-16 indices | Adapter detailed matches materialize group values and byte-aware offsets for AWK capture arrays and replacement expansion |
-| Replacement syntax | `&`, `\&`, backslash literal rules, capture references in `gensub` | `AwkReplacement` expands from .NET matches on legacy string paths | `AwkReplacement` streams capture-bearing adapter matches into governed UTF-8 builders without retaining the full match sequence |
+| Replacement syntax | `&`, `\&`, backslash literal rules, capture references in `gensub` | `sub`/`gsub` expand whole-match spans; `gensub` expands capture-bearing matches | `AwkReplacement` streams matches into governed UTF-8 builders without retaining the full match sequence |
 | `IGNORECASE` | Dynamic special variable affects regex operations | Runtime recompiles or re-runs with `RegexOptions.IgnoreCase` | Adapter must include `IGNORECASE` in cache keys and dynamic operation behavior |
 | Locale/culture | Current policy is ordinal/C-locale oriented | All regex construction uses `RegexOptions.CultureInvariant`, including dynamic `IGNORECASE` matching | Adapter and compatibility paths must remain independent of the ambient .NET culture |
 | Byte offsets | `--characters-as-bytes` reports byte units for string operations | .NET exposes UTF-16 indices | `match()`, `RSTART`, `RLENGTH`, and capture `start`/`length` use byte units in byte mode and UTF-16-compatible units otherwise |

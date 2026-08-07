@@ -260,7 +260,7 @@ public sealed class AwkBenchmarkCounterTests
 
     [Theory]
     [MemberData(nameof(DefaultRegexCounterCases))]
-    public async Task Awk_DefaultRegexFallbackCountersCoverRepresentativePaths(
+    public async Task Awk_DefaultRegexTextCountersCoverRepresentativePaths(
         string program,
         string input,
         string expectedOutput)
@@ -273,9 +273,9 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.RegexMatches > 0);
-        Assert.True(counters.RegexDotNetTextFallbacks > 0);
-        Assert.True(counters.RegexStringAdapterFallbacks > 0);
-        Assert.True(counters.AwkTextAsStringCalls >= counters.RegexDotNetTextFallbacks);
+        Assert.True(counters.RegexDotNetTextMatches > 0);
+        Assert.True(counters.RegexStringAdapterMatches > 0);
+        Assert.True(counters.AwkTextAsStringCalls >= counters.RegexDotNetTextMatches);
         Assert.True(counters.AwkTextAsStringDecodeMisses <= counters.AwkTextAsStringCalls);
     }
 
@@ -316,9 +316,9 @@ public sealed class AwkBenchmarkCounterTests
 
         Assert.Equal(0, exitCode);
         Assert.Equal("1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.True(counters.RegexDotNetTextFallbacks > 0);
+        Assert.True(counters.RegexDotNetTextMatches > 0);
         Assert.True(counters.RegexPatternGapFallbacks > 0);
-        Assert.True(counters.RegexStringAdapterFallbacks > 0);
+        Assert.True(counters.RegexStringAdapterMatches > 0);
     }
 
     [Fact]
@@ -418,7 +418,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.True(counters.FieldsMaterialized > 0);
         Assert.True(counters.AwkTextAllocations > 0);
         Assert.True(counters.AwkTextPayloadBytes > 0);
-        Assert.Equal(0, counters.RegexStringAdapterFallbacks);
+        Assert.Equal(0, counters.RegexStringAdapterMatches);
         Assert.True(counters.AwkTextAsStringCalls <= rowCount);
         Assert.True(counters.AwkTextAsStringDecodeMisses <= counters.AwkTextAsStringCalls);
     }

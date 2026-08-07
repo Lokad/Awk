@@ -39,11 +39,11 @@ Byte-native paths should avoid decoding records before field splitting, filterin
 Runtime counters track string decodes, UTF-8 encodes, `AwkText.AsString()` calls, and formatting
 fallbacks so migrations can prove that hot paths stay byte-native.
 
-Fallback counters classify the subsystem that crossed the string boundary. An `AwkText.AsString()`
+Boundary counters classify the subsystem that crossed the string boundary. An `AwkText.AsString()`
 call is the low-level interop request, `AwkTextAsStringDecodeMisses` records cache misses, and
 higher-level counters such as `FormattingFallbacks`, `StringInteropFallbacks`,
-`RegexDotNetTextFallbacks`, `RegexPatternGapFallbacks`, and `RegexStringAdapterFallbacks` identify
-why the boundary was crossed.
+`RegexDotNetTextMatches` and `RegexStringAdapterMatches` identify .NET string-engine work, while
+`RegexPatternGapFallbacks` identifies the subset forced across the boundary by an adapter gap.
 
 Some builtins intentionally remain .NET string operations. `printf`, `sprintf`, numeric print
 formatting, `strftime`, `mktime`, GNU date-format directive handling, and non-ASCII

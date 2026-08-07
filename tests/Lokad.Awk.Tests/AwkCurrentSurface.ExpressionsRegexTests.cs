@@ -314,7 +314,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(counters.RegexMatches > 0);
-        Assert.Equal(0, counters.RegexDotNetTextFallbacks);
+        Assert.Equal(0, counters.RegexDotNetTextMatches);
         Assert.Equal(1, counters.StringDecodes);
     }
 
