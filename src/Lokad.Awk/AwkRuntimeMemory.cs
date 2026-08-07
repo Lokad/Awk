@@ -74,6 +74,21 @@ internal static class AwkRuntimeMemory
         return CheckedAdd(ListObjectBytes, CheckedMultiply(ReferenceBytes, count));
     }
 
+    public static long EstimateSplitBufferBytes(
+        int inputByteLength,
+        int fieldListCount,
+        bool includeSeparatorBoundaryList)
+    {
+        if (fieldListCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(fieldListCount));
+
+        var fieldCount = CheckedAdd(inputByteLength, 1);
+        var bytes = CheckedMultiply(EstimateReferenceListBytes(fieldCount), fieldListCount);
+        return includeSeparatorBoundaryList
+            ? CheckedAdd(bytes, EstimateReferenceListBytes(CheckedAdd(fieldCount, 1)))
+            : bytes;
+    }
+
     private static long EstimateArrayBufferBytes(int count, int elementBytes)
     {
         if (count <= 0)

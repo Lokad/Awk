@@ -340,12 +340,10 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
     }
 
     private static long EstimateFieldSplitBuffers(int recordByteLength)
-    {
-        var fields = EstimateFieldCountUpperBound(recordByteLength);
-        var bytes = AwkRuntimeMemory.EstimateReferenceListBytes(fields);
-        bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateReferenceListBytes(fields));
-        return bytes;
-    }
+        => AwkRuntimeMemory.EstimateSplitBufferBytes(
+            recordByteLength,
+            fieldListCount: 2,
+            includeSeparatorBoundaryList: false);
 
     private static int EstimateComposedRecordByteLength(int separatorLength, IReadOnlyList<AwkFieldText> fieldTexts)
     {
@@ -360,11 +358,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         }
 
         return byteLength;
-    }
-
-    private static int EstimateFieldCountUpperBound(int recordByteLength)
-    {
-        return AwkRuntimeMemory.CheckedAdd(recordByteLength, 1);
     }
 
     private void ThrowIfFieldCountExceeded(int count)

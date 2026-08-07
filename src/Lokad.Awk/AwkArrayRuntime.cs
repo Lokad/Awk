@@ -610,24 +610,10 @@ internal sealed class AwkArrayRuntime
             : 0;
 
     private static long EstimateSplitBuffers(int inputByteLength, bool captureSeparators)
-    {
-        static int EstimateFieldCountUpperBound(int inputByteLength)
-        {
-            if (inputByteLength == int.MaxValue)
-                throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-            return inputByteLength + 1;
-        }
-
-        var fields = EstimateFieldCountUpperBound(inputByteLength);
-        var bytes = AwkRuntimeMemory.EstimateReferenceListBytes(fields);
-        if (captureSeparators)
-            bytes = AwkRuntimeMemory.CheckedAdd(
-                bytes,
-                AwkRuntimeMemory.EstimateReferenceListBytes(AwkRuntimeMemory.CheckedAdd(fields, 1)));
-
-        return bytes;
-    }
+        => AwkRuntimeMemory.EstimateSplitBufferBytes(
+            inputByteLength,
+            fieldListCount: 1,
+            includeSeparatorBoundaryList: captureSeparators);
 
     private static long EstimateSortOperationBytes(int count)
     {
