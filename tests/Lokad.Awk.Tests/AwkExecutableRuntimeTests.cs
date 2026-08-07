@@ -213,7 +213,7 @@ public sealed class AwkExecutableRuntimeTests
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.True(exitCode == 0, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(exitCode.Succeeded, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal("1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -237,7 +237,7 @@ public sealed class AwkExecutableRuntimeTests
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.True(exitCode == 0, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(exitCode.Succeeded, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal("2\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.VmBasicBlockEntries >= 2);
         Assert.True(counters.VmInstructions >= 2);
@@ -310,7 +310,7 @@ public sealed class AwkExecutableRuntimeTests
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(7, exitCode);
+        Assert.Equal(new AwkExitCode(7), exitCode);
         Assert.Equal("ab 3\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters.VmFallbackCalls);
         Assert.True(counters.VmInstructions >= 12);
@@ -342,7 +342,7 @@ public sealed class AwkExecutableRuntimeTests
 
         var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("a|b\nc,d\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -456,7 +456,7 @@ public sealed class AwkExecutableRuntimeTests
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("before\nmiddle\nafter 0\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(2, counters.VmFallbackCalls);
         Assert.True(counters.VmOpcodeKindsExecuted >= 4);
@@ -485,7 +485,7 @@ public sealed class AwkExecutableRuntimeTests
 
         var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("a\nbc 0\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -510,7 +510,7 @@ public sealed class AwkExecutableRuntimeTests
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("one alpha one\n" + "two beta two\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters.VmFallbackCalls);
         Assert.True(counters.VmInstructions >= 6);
@@ -536,7 +536,7 @@ public sealed class AwkExecutableRuntimeTests
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -561,7 +561,7 @@ public sealed class AwkExecutableRuntimeTests
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -586,7 +586,7 @@ public sealed class AwkExecutableRuntimeTests
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.MemoryReservedBytes >= 16);
         Assert.True(counters.MemoryCommittedBytes >= 16);
@@ -615,7 +615,7 @@ public sealed class AwkExecutableRuntimeTests
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("3\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.MemoryReservedBytes >= requiredBytes);
         Assert.True(counters.MemoryCommittedBytes >= requiredBytes);
@@ -749,7 +749,7 @@ public sealed class AwkExecutableRuntimeTests
             regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
         return new RunResult(
-            exitCode,
+            exitCode.Value,
             fileSystem.GetOutput(AwkFileDescriptor.StdOut),
             fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }

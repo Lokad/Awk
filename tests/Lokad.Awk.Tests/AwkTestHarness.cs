@@ -69,7 +69,7 @@ internal static class AwkTestHarness
         }
 
         return new AwkTestRunResult(
-            exitCode,
+            exitCode.Value,
             fileSystem.GetOutput(AwkFileDescriptor.StdOut),
             fileSystem.GetOutput(AwkFileDescriptor.StdErr),
             expectedFiles);
@@ -101,7 +101,7 @@ internal static class AwkTestHarness
         }
 
         return new AwkTestRunResult(
-            exitCode,
+            exitCode.Value,
             fileSystem.GetOutput(AwkFileDescriptor.StdOut),
             fileSystem.GetOutput(AwkFileDescriptor.StdErr),
             expectedFiles);
@@ -125,7 +125,7 @@ internal static class AwkTestHarness
         var exitCode = await tool.ExecuteAsync(fileSystem, cancellationToken).ConfigureAwait(false);
 
         return new AwkTestRunResult(
-            exitCode,
+            exitCode.Value,
             fileSystem.GetOutput(AwkFileDescriptor.StdOut),
             fileSystem.GetOutput(AwkFileDescriptor.StdErr),
             new Dictionary<string, string?>(StringComparer.Ordinal));

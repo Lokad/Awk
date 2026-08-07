@@ -19,7 +19,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(["", "one\n"], observedBeforeAppend);
         Assert.Equal("one\ntwo\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
     }
@@ -34,7 +34,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.True(host.CommandWasRunningDuringAppend);
         Assert.True(host.WriteDescriptorClosed);
         Assert.InRange(host.MaxBufferedBytes, 1, 4);

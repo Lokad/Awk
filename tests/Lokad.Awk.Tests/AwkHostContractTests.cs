@@ -17,7 +17,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(AwkExitCode.Success.Value, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
     }
 
     [Theory]
@@ -52,7 +52,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(
             "awk: host returned " + resultCount + " command results for one command\n",
             host.GetAppendedOutput(AwkFileDescriptor.StdErr));
@@ -76,7 +76,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(
             "awk: file descriptor 21: close failed\n",
             host.GetAppendedOutput(AwkFileDescriptor.StdErr));
@@ -94,7 +94,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(0, host.OpenFileCount);
         Assert.Equal(
             "awk: /script.awk: Close failed.\n",

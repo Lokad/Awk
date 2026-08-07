@@ -20,7 +20,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(2, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal("one\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(
             "awk: file descriptor 0: read failed: Device read failed\n",
@@ -42,7 +42,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("-1 Device read failed\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(
             "awk: file descriptor 3: read failed: Device read failed\n",
@@ -62,7 +62,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(2, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(
             "awk: /script.awk: Device read failed\n",

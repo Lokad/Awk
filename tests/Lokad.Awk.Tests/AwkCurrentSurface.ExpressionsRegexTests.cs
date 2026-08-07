@@ -336,7 +336,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -370,7 +370,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
 
             var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-            Assert.Equal(0, exitCode);
+            Assert.Equal(AwkExitCode.Success, exitCode);
             Assert.Equal("1 1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
         }
@@ -391,7 +391,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             "BEGIN{s=\"éa\"; print (s ~ /éa/), match(s,/a/), RSTART, RLENGTH; print match(s,/é/,m), RSTART, RLENGTH, m[0], m[0,\"start\"], m[0,\"length\"]}")));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("1 3 3 1\n1 1 2 é 1 2\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -420,7 +420,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(
             "switch\n1\naction début\nrange début\nrange milieu\nrange fin\naction éclair\n",
             fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -445,14 +445,14 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         firstRun.AddFile("/file.txt", "start\nstill-active\n");
         var firstExitCode = await AwkRuntime.ExecuteAsync(firstRun, invocation, program, CancellationToken.None);
 
-        Assert.Equal(0, firstExitCode);
+        Assert.Equal(AwkExitCode.Success, firstExitCode);
         Assert.Equal("start\nstill-active\n", firstRun.GetOutput(AwkFileDescriptor.StdOut));
 
         var secondRun = new MockFileSystem();
         secondRun.AddFile("/file.txt", "before\nend\n");
         var secondExitCode = await AwkRuntime.ExecuteAsync(secondRun, invocation, program, CancellationToken.None);
 
-        Assert.Equal(0, secondExitCode);
+        Assert.Equal(AwkExitCode.Success, secondExitCode);
         Assert.Equal(string.Empty, secondRun.GetOutput(AwkFileDescriptor.StdOut));
     }
 }

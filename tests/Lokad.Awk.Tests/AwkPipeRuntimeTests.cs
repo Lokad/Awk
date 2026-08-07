@@ -30,7 +30,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         var child = Assert.Single(host.CommandInvocations);
         Assert.Equal("/work", child.CurrentDirectory.Path);
         Assert.Collection(
@@ -58,7 +58,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         var invocation = Assert.Single(host.CommandInvocations);
         Assert.Equal("cat -n", invocation.CommandName);
         Assert.Equal(pipeRead, invocation.StdIn);
@@ -84,7 +84,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("payload\n", host.GetAppendedOutput(pipeWrite));
         Assert.Equal("17\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
     }
@@ -104,7 +104,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(
             "awk: file descriptor 31: append failed with status 9\n",
             host.GetAppendedOutput(AwkFileDescriptor.StdErr));
@@ -132,7 +132,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         var invocation = Assert.Single(host.CommandInvocations);
         Assert.Equal("producer", invocation.CommandName);
         Assert.Equal(AwkFileDescriptor.StdIn, invocation.StdIn);
@@ -163,7 +163,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("first[|]\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -187,7 +187,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("17\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
     }
 }

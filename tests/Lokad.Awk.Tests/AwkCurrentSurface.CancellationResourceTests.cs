@@ -67,7 +67,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(0, fileSystem.OpenFileCount);
     }
 
@@ -121,7 +121,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(2, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(0, fileSystem.OpenFileCount);
         Assert.Equal("one\n", fileSystem.ReadFile("/out.txt"));
         Assert.Equal(
@@ -199,7 +199,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(
             "awk: file descriptor 1: append failed with status 7\n",
             host.GetAppendedOutput(AwkFileDescriptor.StdErr));
@@ -282,7 +282,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("64\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.RegexMatches >= 64);
         Assert.True(counters.CancellationChecks >= 64);
@@ -307,7 +307,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: execution step limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -330,7 +330,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             CancellationToken.None,
             CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(1_000_000)));
 
-        Assert.Equal(AwkExitCode.FatalError.Value, limitedExitCode);
+        Assert.Equal(AwkExitCode.FatalError, limitedExitCode);
         Assert.Equal(string.Empty, limitedFileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(
             "awk: execution step limit exceeded\n",
@@ -353,7 +353,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             CancellationToken.None,
             measuredOptions);
 
-        Assert.Equal(0, measuredExitCode);
+        Assert.Equal(AwkExitCode.Success, measuredExitCode);
         Assert.Equal("1111 2\n", measuredFileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, measuredFileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(counters.ExecutionSteps > 1_000_000);
@@ -367,7 +367,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             CancellationToken.None,
             AwkRuntimeOptions.CreateSystemDefault());
 
-        Assert.Equal(0, systemDefaultExitCode);
+        Assert.Equal(AwkExitCode.Success, systemDefaultExitCode);
         Assert.Equal("1111 2\n", systemDefaultFileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, systemDefaultFileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -391,7 +391,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -408,7 +408,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -425,7 +425,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -489,7 +489,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(counters.MemoryReserveCalls > 0);
@@ -508,7 +508,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -529,7 +529,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: array element limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -549,7 +549,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("2\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -565,7 +565,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: array element limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -582,7 +582,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -599,7 +599,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal("awk: function recursion limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
@@ -616,7 +616,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: host call limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -634,7 +634,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: host call limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -651,7 +651,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -893,7 +893,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(
             "awk: regular expression record separator scan limit exceeded\n",
@@ -1067,7 +1067,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(content + "\n", fileSystem.ReadFile("/out.txt"));
         Assert.InRange(counters.MemoryPeakLiveBytes, 1, 950);
     }
@@ -1316,7 +1316,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal("awk: output file limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(fileSystem.FileExists("/one.txt"));
         Assert.False(fileSystem.FileExists("/two.txt"));

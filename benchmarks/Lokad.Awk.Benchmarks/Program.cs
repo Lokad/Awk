@@ -654,7 +654,7 @@ internal static class BenchmarkExecution
             throw new InvalidOperationException("Benchmark command could not be parsed: " + scenario.Name);
 
         var exitCode = await awk.ExecuteAsync(host, CancellationToken.None).ConfigureAwait(false);
-        if (exitCode != 0)
+        if (exitCode.Failed)
             throw new InvalidOperationException("Benchmark scenario failed: " + scenario.Name);
 
         return host.Result;
@@ -700,7 +700,7 @@ internal static class BenchmarkExecution
     {
         var host = BenchmarkHost.FromFiles(scenario.Files);
         var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None).ConfigureAwait(false);
-        if (exitCode != 0)
+        if (exitCode.Failed)
             throw new InvalidOperationException("Precompiled benchmark scenario failed: " + scenario.Name);
 
         return host.Result;
@@ -715,7 +715,7 @@ internal static class BenchmarkExecution
         var exitCode = await compiled
             .ExecuteAsync(host, CancellationToken.None, ExecutableRuntimeOptions, executable)
             .ConfigureAwait(false);
-        if (exitCode != 0)
+        if (exitCode.Failed)
             throw new InvalidOperationException("Executable benchmark scenario failed: " + scenario.Name);
 
         return host.Result;
@@ -796,7 +796,7 @@ internal static class BenchmarkCounterReport
             .ConfigureAwait(false);
         var host = BenchmarkHost.FromFiles(scenario.Files);
         var exitCode = await compiled.ExecuteAsync(host, cancellationToken, options).ConfigureAwait(false);
-        if (exitCode != 0)
+        if (exitCode.Failed)
             throw new InvalidOperationException("Counter report scenario failed: " + scenario.Name);
 
         var run = host.Result;

@@ -33,7 +33,7 @@ public sealed class Awk
 
     /// <summary>Executes the parsed command, routing every external effect through <paramref name="host"/>.</summary>
     /// <returns>A task whose result is the awk process exit status.</returns>
-    public Task<int> ExecuteAsync(IAwkHost host, CancellationToken cancellationToken)
+    public Task<AwkExitCode> ExecuteAsync(IAwkHost host, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(host);
         return AwkExecutor.ExecuteAsync(host, _invocation, cancellationToken);

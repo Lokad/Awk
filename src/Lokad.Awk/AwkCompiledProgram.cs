@@ -12,10 +12,10 @@ internal sealed class AwkCompiledProgram(
 {
     public IReadOnlyList<AwkDiagnostic> Warnings { get; } = warnings;
 
-    public Task<int> ExecuteAsync(IAwkHost host, CancellationToken cancellationToken) =>
+    public Task<AwkExitCode> ExecuteAsync(IAwkHost host, CancellationToken cancellationToken) =>
         AwkRuntime.ExecuteAsync(host, invocation, program, cancellationToken);
 
-    internal Task<int> ExecuteAsync(
+    internal Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions) =>
@@ -31,7 +31,7 @@ internal sealed class AwkCompiledProgram(
 
     internal AwkExecutableProgram ExecutableProgram { get; } = executableProgram;
 
-    internal Task<int> ExecuteAsync(
+    internal Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions,

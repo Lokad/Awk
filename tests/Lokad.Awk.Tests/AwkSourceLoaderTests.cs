@@ -371,7 +371,7 @@ public sealed class AwkSourceLoaderTests
         var parsedTool = Assert.IsType<Awk>(Awk.TryParse(command));
         var exitCode = await parsedTool.ExecuteAsync(fileSystem, CancellationToken.None);
         var result = new AwkTestRunResult(
-            exitCode,
+            exitCode.Value,
             fileSystem.GetOutput(AwkFileDescriptor.StdOut),
             fileSystem.GetOutput(AwkFileDescriptor.StdErr),
             new Dictionary<string, string?>());
@@ -469,7 +469,7 @@ public sealed class AwkSourceLoaderTests
         var tool = Assert.IsType<Awk>(Awk.TryParse(AwkTestHarness.BuildInvocation("awk", arguments, [])));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None).ConfigureAwait(false);
         return new AwkTestRunResult(
-            exitCode,
+            exitCode.Value,
             fileSystem.GetOutput(AwkFileDescriptor.StdOut),
             fileSystem.GetOutput(AwkFileDescriptor.StdErr),
             new Dictionary<string, string?>());

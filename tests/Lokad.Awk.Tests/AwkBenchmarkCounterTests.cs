@@ -209,7 +209,7 @@ public sealed class AwkBenchmarkCounterTests
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(InvalidUtf8Diagnostic, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, counters.RecordsRead);
@@ -527,7 +527,7 @@ public sealed class AwkBenchmarkCounterTests
             fileSystem.SetStandardInput(input);
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
-        return (exitCode, fileSystem, counters);
+        return (exitCode.Value, fileSystem, counters);
     }
 
     private static string BuildRepeatedSeparatedRows(int rowCount, int fieldCount, char separator)

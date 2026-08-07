@@ -98,7 +98,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("café\ncafé\ncafé\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters.Utf8Encodes);
     }
@@ -181,7 +181,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             "/file.txt")));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("SKU\nb\nd\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -228,7 +228,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             "BEGIN{print prefix}")));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("SKU\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -240,7 +240,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "--help")));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Contains("Usage: awk", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Contains("--assign", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -256,7 +256,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "-f", "/script.awk", "/file.txt")));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("start\none\ntwo\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -277,7 +277,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             "/file.txt")));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("start\none\ntwo\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -297,9 +297,9 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         var secondExitCode = await compiled.ExecuteAsync(secondRun, CancellationToken.None);
 
         Assert.Empty(compiled.Warnings);
-        Assert.Equal(0, firstExitCode);
+        Assert.Equal(AwkExitCode.Success, firstExitCode);
         Assert.Equal("one\ntwo\n", firstRun.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(0, secondExitCode);
+        Assert.Equal(AwkExitCode.Success, secondExitCode);
         Assert.Equal("three\n", secondRun.GetOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -326,7 +326,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             Task.Run(() => compiled.ExecuteAsync(firstRun, CancellationToken.None)),
             Task.Run(() => compiled.ExecuteAsync(secondRun, CancellationToken.None)));
 
-        Assert.Equal([0, 0], executions);
+        Assert.Equal([AwkExitCode.Success, AwkExitCode.Success], executions);
         Assert.Equal("3 2\n", firstRun.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("60 3\n", secondRun.GetOutput(AwkFileDescriptor.StdOut));
     }
@@ -354,7 +354,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.False(AwkRuntimeOptions.CreateSystemDefault().Counters.IsEnabled);
         Assert.Equal(0, AwkRuntimeOptions.CreateSystemDefault().Counters.RecordsRead);
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("beta\n10\ndelta\n12\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(2, counters.RecordsRead);
         Assert.Equal(24, counters.BytesRead);
@@ -411,7 +411,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("00073.5\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(2, counters.FormattingFallbacks);
         Assert.Equal(4, counters.FormattingStringInteropInputs);
@@ -439,7 +439,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(1, counters.ByteTextComparisons);
         Assert.Equal(0, counters.StringDecodes);
@@ -465,7 +465,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("café résumé123\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
@@ -493,7 +493,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("café\nCAFÉ\n1970\n0\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(4, counters.StringInteropFallbacks);
         Assert.True(counters.AwkTextAsStringCalls >= 4);
@@ -519,7 +519,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("abc-xyz\nABC-XYZ\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters.StringInteropFallbacks);
         Assert.Equal(0, counters.StringDecodes);
@@ -546,7 +546,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("abc\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.MemoryReserveCalls > 0);
         Assert.True(counters.MemoryCommitCalls > 0);
@@ -587,7 +587,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(input, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(66, counters.RecordsRead);
         Assert.Equal(0, counters.StringDecodes);
@@ -604,7 +604,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "-f", "/missing.awk")));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(2, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal("awk: /missing.awk: No such file or directory\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 

@@ -7,7 +7,7 @@ namespace Lokad.Awk;
 
 internal static class AwkRuntime
 {
-    public static async Task<int> ExecuteAsync(
+    public static async Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         AwkInvocation invocation,
         AwkProgram program,
@@ -20,7 +20,7 @@ internal static class AwkRuntime
                 AwkRuntimeOptions.CreateSystemDefault())
             .ConfigureAwait(false);
 
-    public static async Task<int> ExecuteAsync(
+    public static async Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         AwkInvocation invocation,
         AwkProgram program,
@@ -35,7 +35,7 @@ internal static class AwkRuntime
                 executableProgram: null)
             .ConfigureAwait(false);
 
-    internal static async Task<int> ExecuteAsync(
+    internal static async Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         AwkInvocation invocation,
         AwkProgram program,
@@ -106,8 +106,8 @@ internal static class AwkRuntime
             var appendStatus = await host.AppendAsync(stdio.StdErr, failure.Message, cancellationToken)
                 .ConfigureAwait(false);
             return appendStatus.Succeeded
-                ? failure.ExitCode.Value
-                : AwkDiagnostics.FatalExitCode.Value;
+                ? failure.ExitCode
+                : AwkDiagnostics.FatalExitCode;
         }
         catch
         {
@@ -116,12 +116,12 @@ internal static class AwkRuntime
         }
 
         if (state.TryGetExitCode(out var exitCode))
-            return exitCode.Value;
+            return exitCode;
 
         if (state.ExitRequested)
-            return AwkDiagnostics.SuccessExitCode.Value;
+            return AwkDiagnostics.SuccessExitCode;
 
-        return AwkDiagnostics.SuccessExitCode.Value;
+        return AwkDiagnostics.SuccessExitCode;
     }
 
     private static async Task CleanupAfterFailureAsync(AwkInputScheduler inputScheduler, AwkIo io)

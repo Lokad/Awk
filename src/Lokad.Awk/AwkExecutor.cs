@@ -6,7 +6,10 @@ namespace Lokad.Awk;
 
 internal static class AwkExecutor
 {
-    public static async Task<int> ExecuteAsync(IAwkHost host, AwkInvocation invocation, CancellationToken cancellationToken)
+    public static async Task<AwkExitCode> ExecuteAsync(
+        IAwkHost host,
+        AwkInvocation invocation,
+        CancellationToken cancellationToken)
     {
         if (invocation.TerminalResult.IsHelp)
         {
@@ -16,8 +19,8 @@ internal static class AwkExecutor
                     cancellationToken)
                 .ConfigureAwait(false);
             return status.Succeeded
-                ? AwkDiagnostics.SuccessExitCode.Value
-                : AwkDiagnostics.FatalExitCode.Value;
+                ? AwkDiagnostics.SuccessExitCode
+                : AwkDiagnostics.FatalExitCode;
         }
 
         if (invocation.TerminalResult.IsVersion)
@@ -28,8 +31,8 @@ internal static class AwkExecutor
                     cancellationToken)
                 .ConfigureAwait(false);
             return status.Succeeded
-                ? AwkDiagnostics.SuccessExitCode.Value
-                : AwkDiagnostics.FatalExitCode.Value;
+                ? AwkDiagnostics.SuccessExitCode
+                : AwkDiagnostics.FatalExitCode;
         }
 
         if (invocation.TerminalResult.IsError)
@@ -43,8 +46,8 @@ internal static class AwkExecutor
                     cancellationToken)
                 .ConfigureAwait(false);
             return status.Succeeded
-                ? failure.ExitCode.Value
-                : AwkDiagnostics.FatalExitCode.Value;
+                ? failure.ExitCode
+                : AwkDiagnostics.FatalExitCode;
         }
 
         var resolved = await ResolveProgramAsync(host, invocation, cancellationToken).ConfigureAwait(false);
@@ -56,7 +59,7 @@ internal static class AwkExecutor
                     cancellationToken)
                 .ConfigureAwait(false);
             if (status.Failed)
-                return AwkDiagnostics.FatalExitCode.Value;
+                return AwkDiagnostics.FatalExitCode;
         }
 
         if (resolved is AwkProgramResolution.Failed failed)
@@ -67,8 +70,8 @@ internal static class AwkExecutor
                     cancellationToken)
                 .ConfigureAwait(false);
             return status.Succeeded
-                ? failed.Diagnostic.ExitCode.Value
-                : AwkDiagnostics.FatalExitCode.Value;
+                ? failed.Diagnostic.ExitCode
+                : AwkDiagnostics.FatalExitCode;
         }
 
         if (resolved is not AwkProgramResolution.ResolvedProgram resolvedProgram)

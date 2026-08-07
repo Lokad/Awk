@@ -79,7 +79,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var tool = Assert.IsType<Awk>(Awk.TryParse(invocation));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("café\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -179,7 +179,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("caf\u00e9\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters.AwkTextAsStringCalls);
         Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
@@ -212,7 +212,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "{print; exit}")));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal([AwkIo.InputReadBatchLineCount], host.ReadLineBatchLineCounts);
     }
 
@@ -237,7 +237,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", program)));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(
             [AwkIo.InputReadBatchLineCount, AwkIo.InputReadBatchLineCount],
             host.ReadLineBatchLineCounts);
@@ -257,7 +257,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "BEGIN{RS=\"|\"} {print; exit}")));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal([AwkIo.InputReadBatchLineCount], host.ReadLineBatchLineCounts);
     }
 
@@ -282,7 +282,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("alpha\nbeta\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(2, counters.RecordsRead);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
@@ -310,7 +310,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("64\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.RecordSeparatorResolutions < 12);
     }
@@ -336,7 +336,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("64\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(1, counters.RecordSeparatorResolutions);
     }
@@ -362,7 +362,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("10\n12\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters.FieldSplits);
         Assert.Equal(0, counters.FieldsMaterialized);
@@ -392,7 +392,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(fieldCount + "\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(1, counters.FieldSplits);
         Assert.Equal(fieldCount, counters.FieldsMaterialized);
@@ -431,7 +431,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
             var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-            Assert.Equal(0, exitCode);
+            Assert.Equal(AwkExitCode.Success, exitCode);
             Assert.Equal(fieldCount + "\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(1, counters.FieldSplits);
             Assert.Equal(fieldCount, counters.FieldsMaterialized);
@@ -467,7 +467,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
@@ -493,7 +493,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("2 café bravo\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(1, counters.StringDecodes);
         Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
@@ -520,7 +520,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("3 a b c\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
@@ -547,7 +547,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("3 é A 😀\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(1, counters.FieldSplits);
         Assert.Equal(3, counters.FieldsMaterialized);
@@ -568,7 +568,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(
             "awk: byte-mode FS=\"\" over non-ASCII text is unsupported in Lokad awk\n",
@@ -627,7 +627,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(expectedRecords, counters.FieldSplits);
         Assert.Equal(expectedFields, counters.FieldsMaterialized);
@@ -694,7 +694,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(expectedFieldSplits, counters.FieldSplits);
         Assert.Equal(expectedFieldsMaterialized, counters.FieldsMaterialized);
@@ -761,7 +761,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.FieldSplits > 0);
         Assert.Equal(0, counters.StringDecodes);
@@ -781,7 +781,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(
             "awk: byte-mode FIELDWIDTHS cannot split a UTF-8 character in Lokad awk\n",
@@ -827,7 +827,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.RegexMatches > 0);
     }
@@ -851,7 +851,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(new MockFileSystem(), CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.True(counters.SeparatorCaptureFallbacks > 0);
     }
 
@@ -866,7 +866,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             "BEGIN{RS=\"|\"} {print $0; RS=\",\"}")));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("first\nsecond\nthird\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
     }
 
@@ -898,7 +898,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(expectedStringDecodes, counters.StringDecodes);
         Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
@@ -969,7 +969,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", program)));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(Enumerable.Repeat(AwkIo.InputReadBatchLineCount, batches.Length), host.ReadLineBatchLineCounts);
         Assert.Equal(expectedOutput, host.GetAppendedOutput(AwkFileDescriptor.StdOut));
     }
@@ -1017,7 +1017,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 
         var inputLength = batchCount * batchLength;
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(inputLength + " 1\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.RecordSeparatorBytesScanned <= inputLength + (batchCount * 4));
     }
@@ -1057,7 +1057,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 
         var inputLength = batchCount * batchLength;
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(inputLength + "\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.AwkTextPayloadBytes < inputLength * 2);
         Assert.Equal(inputLength, counters.RecordSeparatorBytesScanned);
@@ -1086,7 +1086,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(
             "[x]\nfirst[,]\nxsecond[]\n",
             host.GetAppendedOutput(AwkFileDescriptor.StdOut));
@@ -1141,7 +1141,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var inputLength = Encoding.UTF8.GetByteCount(firstBatch) +
             (continuationCount * Encoding.UTF8.GetByteCount(continuationBatch)) +
             4;
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(
             "record[" + (continuationCount + 2) + "]\nnext[0]\n",
             host.GetAppendedOutput(AwkFileDescriptor.StdOut));
@@ -1161,7 +1161,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "BEGIN{RS=\"[,;]\"} {print; exit}")));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal([AwkIo.InputReadBatchLineCount], host.ReadLineBatchLineCounts);
     }
 
@@ -1186,7 +1186,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("alpha\nbeta\ngamma\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.RegexMatches > 0);
     }
@@ -1204,7 +1204,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "BEGIN{RS=\"\"} {print $0; exit}")));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal([AwkIo.InputReadBatchLineCount], host.ReadLineBatchLineCounts);
     }
 
@@ -1229,15 +1229,15 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("one\ntwo\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(2, counters.RecordsRead);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
     }
 
-    private static void AssertInvalidUtf8Failure(int exitCode, MockFileSystem fileSystem)
+    private static void AssertInvalidUtf8Failure(AwkExitCode exitCode, MockFileSystem fileSystem)
     {
-        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         var stderr = fileSystem.GetOutput(AwkFileDescriptor.StdErr);
         Assert.Equal(InvalidUtf8Diagnostic, stderr);
