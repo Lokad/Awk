@@ -3,15 +3,14 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Lokad.Awk;
 
 internal sealed class AwkFieldSplitter(
     AwkFieldSeparatorSpec fieldSeparator,
-    Func<AwkRegexPattern, Regex> createRegex,
-    Func<AwkRegexLiteralText, Regex> createLiteralRegex,
-    Func<Regex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
+    Func<AwkRegexPattern, AwkRegex> createRegex,
+    Func<AwkRegexLiteralText, AwkRegex> createLiteralRegex,
+    Func<AwkRegex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
     Func<bool> isIgnoreCaseEnabled,
     Func<bool> charactersAsBytes,
     Action throwIfCancellationRequested,

@@ -1,29 +1,89 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.RegularExpressions;
+using Utf8RegexEngine = Lokad.Utf8Regex.Utf8Regex;
 
 namespace Lokad.Awk;
 
-internal static class AwkRegex
+internal sealed class AwkRegex
 {
+    private readonly Regex? _dotNetRegex;
+    private readonly Utf8RegexEngine? _utf8Regex;
+    private readonly bool _seedIgnoreCase;
+
+    private AwkRegex(string pattern, bool ignoreCase, Regex dotNetRegex)
+    {
+        Pattern = pattern;
+        RequiresDotNetFallback = RequiresDotNetEngine(pattern);
+        GroupCount = dotNetRegex.GetGroupNumbers().Length;
+        _seedIgnoreCase = ignoreCase;
+        _dotNetRegex = dotNetRegex;
+    }
+
+    private AwkRegex(string pattern, bool ignoreCase, Utf8RegexEngine utf8Regex)
+    {
+        Pattern = pattern;
+        RequiresDotNetFallback = false;
+        GroupCount = utf8Regex.GetGroupNumbers().Length;
+        _seedIgnoreCase = ignoreCase;
+        _utf8Regex = utf8Regex;
+    }
+
     public static readonly TimeSpan MatchTimeout =
         TimeSpan.FromSeconds(AwkRuntimeLimits.DefaultRegexMatchTimeoutSeconds);
 
-    public static Regex Create(
-        AwkRegexPattern pattern,
-        bool ignoreCase) =>
-        Create(pattern, ignoreCase, RegexOptions.None);
+    public string Pattern { get; }
 
-    public static Regex Create(
+    public bool RequiresDotNetFallback { get; }
+
+    public int GroupCount { get; }
+
+    public static AwkRegex Create(
         AwkRegexPattern pattern,
-        bool ignoreCase,
-        RegexOptions extraOptions) =>
+        bool ignoreCase)
+    {
+        var translatedPattern = TranslatePattern(pattern);
+        return new AwkRegex(
+            translatedPattern,
+            ignoreCase,
+            new Regex(
+                translatedPattern,
+                ResolveOptions(ignoreCase),
+                MatchTimeout));
+    }
+
+    internal static AwkRegex CreateDotNet(string translatedPattern, bool ignoreCase) =>
         new(
-            TranslatePattern(pattern),
-            RegexOptions.CultureInvariant |
-                (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None) |
-                extraOptions,
-            MatchTimeout);
+            translatedPattern,
+            ignoreCase,
+            new Regex(translatedPattern, ResolveOptions(ignoreCase), MatchTimeout));
+
+    internal static AwkRegex CreateUtf8(string translatedPattern, bool ignoreCase) =>
+        new(
+            translatedPattern,
+            ignoreCase,
+            new Utf8RegexEngine(translatedPattern, ResolveOptions(ignoreCase), MatchTimeout));
+
+    internal bool TryGetDotNetRegex(bool ignoreCase, [NotNullWhen(true)] out Regex? regex)
+    {
+        regex = _dotNetRegex;
+        return _seedIgnoreCase == ignoreCase && regex is not null;
+    }
+
+    internal bool TryGetUtf8Regex(bool ignoreCase, [NotNullWhen(true)] out Utf8RegexEngine? regex)
+    {
+        regex = _utf8Regex;
+        return _seedIgnoreCase == ignoreCase && regex is not null;
+    }
+
+    internal static bool RequiresDotNetEngine(string translatedPattern) =>
+        translatedPattern.Contains(@"\A", StringComparison.Ordinal) ||
+        translatedPattern.Contains(@"\z", StringComparison.Ordinal);
+
+    internal static RegexOptions ResolveOptions(bool ignoreCase) =>
+        RegexOptions.CultureInvariant |
+        (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
 
     public static string TranslatePattern(AwkRegexPattern pattern) =>
         Translate(pattern.Text);

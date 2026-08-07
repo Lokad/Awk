@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Lokad.Awk;
@@ -60,7 +59,7 @@ internal sealed class AwkConditionClause
     public static AwkConditionClause Comparison(AwkExpression left, AwkExpression right, AwkComparison comparison) =>
         new(AwkExpression.Compare(left, right, comparison));
 
-    public static AwkConditionClause RegexMatch(AwkExpression left, Regex regex, bool negate) =>
+    public static AwkConditionClause RegexMatch(AwkExpression left, AwkRegex regex, bool negate) =>
         new(AwkExpression.RegexMatch(left, regex, negate));
 
     public static AwkConditionClause ArrayMembership(AwkArrayIndex index, string arrayName) =>

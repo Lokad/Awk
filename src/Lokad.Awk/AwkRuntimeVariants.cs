@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Lokad.Awk;
@@ -176,7 +175,7 @@ internal abstract record AwkSwitchCasePattern
     public static AwkSwitchCasePattern FromExpression(AwkExpression expression) =>
         new AwkExpressionSwitchCasePattern(expression);
 
-    public static AwkSwitchCasePattern FromRegex(Regex regex) =>
+    public static AwkSwitchCasePattern FromRegex(AwkRegex regex) =>
         new AwkRegexSwitchCasePattern(regex);
 
     /// <summary>Evaluates whether <paramref name="value"/> matches this switch case under awk comparison rules.</summary>
@@ -192,7 +191,7 @@ internal sealed record AwkExpressionSwitchCasePattern(AwkExpression Expression) 
     }
 }
 
-internal sealed record AwkRegexSwitchCasePattern(Regex Regex) : AwkSwitchCasePattern
+internal sealed record AwkRegexSwitchCasePattern(AwkRegex Regex) : AwkSwitchCasePattern
 {
     public override ValueTask<bool> MatchesAsync(AwkValue value, AwkEvaluationContext context) =>
         ValueTask.FromResult(context.State.IsRegexMatch(Regex, value.ByteText));

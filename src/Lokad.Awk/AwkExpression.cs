@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Lokad.Awk;
@@ -72,7 +71,7 @@ internal abstract partial class AwkExpression
     public static AwkExpression RegexMatch(AwkExpression left, AwkExpression pattern, bool negate) =>
         new RegexMatchExpression(left, pattern, negate);
 
-    public static AwkExpression RegexMatch(AwkExpression left, Regex regex, bool negate) =>
+    public static AwkExpression RegexMatch(AwkExpression left, AwkRegex regex, bool negate) =>
         new PrecompiledRegexMatchExpression(left, regex, negate);
 
     public static AwkExpression ArrayMembership(AwkArrayIndex index, string arrayName) =>

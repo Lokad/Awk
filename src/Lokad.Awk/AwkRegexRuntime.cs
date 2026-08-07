@@ -15,9 +15,9 @@ internal sealed class AwkRegexRuntime
     private readonly Action _throwIfCancellationRequested;
     private readonly AwkRuntimeCounters _counters;
     private readonly AwkRegexEngineKind _engineKind;
-    private readonly Dictionary<AwkRegexCacheKey, Regex> _regexCache = [];
+    private readonly Dictionary<AwkRegexCacheKey, AwkRegex> _regexCache = [];
+    private readonly Dictionary<AwkRegexCacheKey, Regex> _dotNetRegexCache = [];
     private readonly Dictionary<AwkRegexCacheKey, Utf8RegexEngine> _utf8RegexCache = [];
-    private readonly Dictionary<Regex, AwkRegexMetadata> _regexMetadata = new(ReferenceEqualityComparer.Instance);
 
     public AwkRegexRuntime(
         Func<bool> isIgnoreCaseEnabled,
@@ -33,7 +33,7 @@ internal sealed class AwkRegexRuntime
         _engineKind = engineKind;
     }
 
-    public Regex Create(AwkRegexPattern pattern)
+    public AwkRegex Create(AwkRegexPattern pattern)
     {
         _throwIfCancellationRequested();
         var ignoreCase = _isIgnoreCaseEnabled();
@@ -52,7 +52,7 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-    public Regex CreateLiteral(AwkRegexLiteralText literal)
+    public AwkRegex CreateLiteral(AwkRegexLiteralText literal)
     {
         _throwIfCancellationRequested();
         var ignoreCase = _isIgnoreCaseEnabled();
@@ -60,30 +60,25 @@ internal sealed class AwkRegexRuntime
         if (_regexCache.TryGetValue(key, out var cached))
             return cached;
 
-        _counters.RecordRegexCompile();
-        return Cache(
-            key,
-            new Regex(
-                Regex.Escape(literal.Text),
-                ResolveOptions(ignoreCase),
-                AwkRegex.MatchTimeout));
+        try
+        {
+            _counters.RecordRegexCompile();
+            return Cache(key, CreateRegex(Regex.Escape(literal.Text), ignoreCase));
+        }
+        catch (ArgumentException)
+        {
+            throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
+        }
     }
 
-    private bool IsTextMatch(Regex regex, string input)
+    private bool IsTextMatch(AwkRegex regex, string input)
     {
         _throwIfCancellationRequested();
         try
         {
             _counters.RecordRegexStringAdapterFallback();
             _counters.RecordRegexMatch();
-            if (!_isIgnoreCaseEnabled())
-                return regex.IsMatch(input);
-
-            return Regex.IsMatch(
-                input,
-                ResolveMetadata(regex).Pattern,
-                ResolveOptions(ignoreCase: true),
-                AwkRegex.MatchTimeout);
+            return ResolveDotNetRegex(regex).IsMatch(input);
         }
         catch (RegexMatchTimeoutException)
         {
@@ -91,7 +86,7 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-    public bool IsMatch(Regex regex, AwkText input)
+    public bool IsMatch(AwkRegex regex, AwkText input)
     {
         _throwIfCancellationRequested();
         var policy = ResolveExecutionPolicy(regex, input);
@@ -112,7 +107,7 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-    public AwkRegexMatch MatchValue(Regex regex, AwkText input, AwkMemoryGovernor governor)
+    public AwkRegexMatch MatchValue(AwkRegex regex, AwkText input, AwkMemoryGovernor governor)
     {
         return MatchValue(
             regex,
@@ -123,7 +118,7 @@ internal sealed class AwkRegexRuntime
     }
 
     internal AwkRegexMatch MatchValue(
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         AwkMemoryGovernor governor,
         AwkRegexSearchOffset searchOffset,
@@ -134,7 +129,7 @@ internal sealed class AwkRegexRuntime
     }
 
     internal AwkRegexMatch MatchValue(
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         AwkMemoryGovernor governor,
         AwkRegexSearchOffset searchOffset,
@@ -190,11 +185,11 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-    public AwkRegexMatchSpan MatchSpan(Regex regex, AwkText input) =>
+    public AwkRegexMatchSpan MatchSpan(AwkRegex regex, AwkText input) =>
         MatchSpan(regex, input, AwkRegexSearchOffset.Start);
 
     public AwkRegexMatchSpan MatchSpan(
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         AwkRegexSearchOffset searchOffset)
     {
@@ -203,7 +198,7 @@ internal sealed class AwkRegexRuntime
     }
 
     internal AwkRegexMatchSpan MatchSpan(
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         AwkRegexSearchOffset searchOffset,
         AwkRegexExecutionPolicy policy)
@@ -239,7 +234,7 @@ internal sealed class AwkRegexRuntime
     }
 
     public AwkRegexMatchEnumerator EnumerateMatchValues(
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         AwkMemoryGovernor governor)
     {
@@ -247,16 +242,16 @@ internal sealed class AwkRegexRuntime
         return new AwkRegexMatchEnumerator(this, regex, input, governor);
     }
 
-    public AwkRegexMatchSpanEnumerator EnumerateMatchSpans(Regex regex, AwkText input)
+    public AwkRegexMatchSpanEnumerator EnumerateMatchSpans(AwkRegex regex, AwkText input)
     {
         _throwIfCancellationRequested();
         return new AwkRegexMatchSpanEnumerator(this, regex, input);
     }
 
-    internal AwkRegexExecutionPolicy CaptureExecutionPolicy(Regex regex, AwkText input) =>
+    internal AwkRegexExecutionPolicy CaptureExecutionPolicy(AwkRegex regex, AwkText input) =>
         ResolveExecutionPolicy(regex, input);
 
-    private Match Match(Regex regex, string input, int startAt)
+    private Match Match(AwkRegex regex, string input, int startAt)
     {
         _throwIfCancellationRequested();
         try
@@ -282,12 +277,21 @@ internal sealed class AwkRegexRuntime
             match.Index,
             match.Length);
 
-    private Regex Cache(AwkRegexCacheKey key, Regex regex)
+    private AwkRegex Cache(AwkRegexCacheKey key, AwkRegex regex)
     {
         if (_regexCache.Count >= MaxCachedRegexes)
             _regexCache.Clear();
 
         _regexCache[key] = regex;
+        return regex;
+    }
+
+    private Regex CacheDotNet(AwkRegexCacheKey key, Regex regex)
+    {
+        if (_dotNetRegexCache.Count >= MaxCachedRegexes)
+            _dotNetRegexCache.Clear();
+
+        _dotNetRegexCache[key] = regex;
         return regex;
     }
 
@@ -300,72 +304,66 @@ internal sealed class AwkRegexRuntime
         return regex;
     }
 
-    private Regex CreateRegex(AwkRegexPattern pattern, bool ignoreCase) =>
-        AwkRegex.Create(pattern, ignoreCase);
+    private AwkRegex CreateRegex(AwkRegexPattern pattern, bool ignoreCase) =>
+        CreateRegex(AwkRegex.TranslatePattern(pattern), ignoreCase);
 
-    private Utf8RegexEngine ResolveUtf8Regex(Regex regex)
+    private AwkRegex CreateRegex(string translatedPattern, bool ignoreCase)
+    {
+        return _engineKind == AwkRegexEngineKind.Utf8Adapter &&
+            !AwkRegex.RequiresDotNetEngine(translatedPattern)
+            ? AwkRegex.CreateUtf8(translatedPattern, ignoreCase)
+            : AwkRegex.CreateDotNet(translatedPattern, ignoreCase);
+    }
+
+    private Utf8RegexEngine ResolveUtf8Regex(AwkRegex regex)
     {
         var ignoreCase = _isIgnoreCaseEnabled();
-        var metadata = ResolveMetadata(regex);
-        var key = new AwkRegexCacheKey(metadata.Pattern, ignoreCase, AwkRegexCacheKind.TranslatedPattern, _engineKind);
+        if (regex.TryGetUtf8Regex(ignoreCase, out var precompiled))
+            return precompiled;
+
+        var key = new AwkRegexCacheKey(regex.Pattern, ignoreCase, AwkRegexCacheKind.TranslatedPattern, _engineKind);
         if (_utf8RegexCache.TryGetValue(key, out var cached))
             return cached;
 
         _counters.RecordRegexCompile();
-        return Cache(key, new Utf8RegexEngine(metadata.Pattern, ResolveOptions(ignoreCase), AwkRegex.MatchTimeout));
+        return Cache(
+            key,
+            new Utf8RegexEngine(
+                regex.Pattern,
+                AwkRegex.ResolveOptions(ignoreCase),
+                AwkRegex.MatchTimeout));
     }
 
-    private Regex ResolveDotNetRegex(Regex regex)
+    private Regex ResolveDotNetRegex(AwkRegex regex)
     {
         var ignoreCase = _isIgnoreCaseEnabled();
-        if (regex.Options.HasFlag(RegexOptions.IgnoreCase) == ignoreCase)
-            return regex;
+        if (regex.TryGetDotNetRegex(ignoreCase, out var precompiled))
+            return precompiled;
 
-        var metadata = ResolveMetadata(regex);
         var key = new AwkRegexCacheKey(
-            metadata.Pattern,
+            regex.Pattern,
             ignoreCase,
             AwkRegexCacheKind.TranslatedPattern,
             AwkRegexEngineKind.DotNetCompatibility);
-        if (_regexCache.TryGetValue(key, out var cached))
+        if (_dotNetRegexCache.TryGetValue(key, out var cached))
             return cached;
 
         _counters.RecordRegexCompile();
-        return Cache(key, new Regex(metadata.Pattern, ResolveOptions(ignoreCase), AwkRegex.MatchTimeout));
-    }
+        return CacheDotNet(
+            key,
+            new Regex(
+                regex.Pattern,
+                AwkRegex.ResolveOptions(ignoreCase),
+                AwkRegex.MatchTimeout));
 
-    private AwkRegexMetadata ResolveMetadata(Regex regex)
-    {
-        if (_regexMetadata.TryGetValue(regex, out var metadata))
-            return metadata;
-
-        var pattern = regex.ToString();
-        metadata = new AwkRegexMetadata(
-            pattern,
-            pattern.Contains(@"\A", StringComparison.Ordinal) ||
-                pattern.Contains(@"\z", StringComparison.Ordinal));
-
-        if (_regexMetadata.Count >= MaxCachedRegexes)
-            _regexMetadata.Clear();
-
-        _regexMetadata[regex] = metadata;
-        return metadata;
-    }
-
-    private RegexOptions ResolveOptions(bool ignoreCase)
-    {
-        return RegexOptions.CultureInvariant |
-            (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
-    }
-
-    private AwkRegexExecutionPolicy ResolveExecutionPolicy(Regex regex, AwkText input)
+    private AwkRegexExecutionPolicy ResolveExecutionPolicy(AwkRegex regex, AwkText input)
     {
         var charactersAsBytes = _charactersAsBytes();
         var coordinatePolicy = charactersAsBytes
             ? AwkRegexCoordinatePolicy.Byte
             : AwkRegexCoordinatePolicy.Utf16;
 
-        if (ResolveMetadata(regex).RequiresDotNetFallback)
+        if (regex.RequiresDotNetFallback)
         {
             return new AwkRegexExecutionPolicy(
                 AwkRegexExecutionEngine.DotNet,
@@ -449,10 +447,6 @@ internal sealed class AwkRegexRuntime
             HashCode.Combine(Pattern, IgnoreCase, Kind, EngineKind);
     }
 
-    private readonly record struct AwkRegexMetadata(
-        string Pattern,
-        bool RequiresDotNetFallback);
-
     private enum AwkRegexCacheKind
     {
         Pattern,
@@ -493,7 +487,7 @@ internal sealed class AwkRegexRuntime
 internal sealed class AwkRegexMatchEnumerator : IDisposable
 {
     private readonly AwkRegexRuntime _runtime;
-    private readonly Regex _regex;
+    private readonly AwkRegex _regex;
     private readonly AwkText _input;
     private readonly AwkMemoryGovernor _governor;
     private readonly AwkRegexRuntime.AwkRegexExecutionPolicy _executionPolicy;
@@ -504,7 +498,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
 
     public AwkRegexMatchEnumerator(
         AwkRegexRuntime runtime,
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         AwkMemoryGovernor governor)
     {
@@ -514,7 +508,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
         _governor = governor;
         _executionPolicy = runtime.CaptureExecutionPolicy(regex, input);
         _matchLease = governor.ReserveTransient(
-            AwkRuntimeMemory.EstimateRegexMatchBytes(regex.GetGroupNumbers().Length));
+            AwkRuntimeMemory.EstimateRegexMatchBytes(regex.GroupCount));
     }
 
     public bool MoveNext(out AwkRegexMatch match)
@@ -559,7 +553,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
 
 internal sealed class AwkRegexMatchSpanEnumerator(
     AwkRegexRuntime runtime,
-    Regex regex,
+    AwkRegex regex,
     AwkText input) : IDisposable
 {
     private readonly AwkRegexRuntime.AwkRegexExecutionPolicy _executionPolicy =

@@ -1,7 +1,6 @@
 using System;
 using System.Buffers;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -646,7 +645,7 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
     string separatorText,
     AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(context)
 {
-    private readonly Regex _separator = context.State.CreateRegex(new AwkRegexPattern(separatorText));
+    private readonly AwkRegex _separator = context.State.CreateRegex(new AwkRegexPattern(separatorText));
 
     public override async ValueTask<AwkStatementFlow> ProcessDescriptorAsync(
         AwkFileDescriptor descriptor,

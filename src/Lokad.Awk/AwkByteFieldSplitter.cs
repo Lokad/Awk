@@ -3,14 +3,13 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Lokad.Awk;
 
 internal sealed class AwkByteFieldSplitter(
-    Func<AwkRegexPattern, Regex> createRegex,
-    Func<AwkRegexLiteralText, Regex> createLiteralRegex,
-    Func<Regex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
+    Func<AwkRegexPattern, AwkRegex> createRegex,
+    Func<AwkRegexLiteralText, AwkRegex> createLiteralRegex,
+    Func<AwkRegex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
     Func<bool> isIgnoreCaseEnabled,
     Func<bool> charactersAsBytes,
     Action throwIfCancellationRequested,
@@ -292,7 +291,7 @@ internal sealed class AwkByteFieldSplitter(
 
     private AwkTextSplitResult SplitRegex(
         AwkText line,
-        Regex separator,
+        AwkRegex separator,
         bool captureSeparators,
         AwkRuntimeCounters counters)
     {
@@ -317,7 +316,7 @@ internal sealed class AwkByteFieldSplitter(
         return new AwkTextSplitResult(fields, separators);
     }
 
-    private IReadOnlyList<AwkFieldText> SplitRegexRecordFields(AwkText line, Regex separator)
+    private IReadOnlyList<AwkFieldText> SplitRegexRecordFields(AwkText line, AwkRegex separator)
     {
         var fields = new List<AwkFieldText>();
         var position = 0;
@@ -333,7 +332,7 @@ internal sealed class AwkByteFieldSplitter(
         return fields;
     }
 
-    private IReadOnlyList<AwkFieldText> SplitRegexParagraphRecordFields(AwkText line, Regex separator)
+    private IReadOnlyList<AwkFieldText> SplitRegexParagraphRecordFields(AwkText line, AwkRegex separator)
     {
         var content = line.AsSpan();
         var fields = new List<AwkFieldText>();
@@ -372,7 +371,7 @@ internal sealed class AwkByteFieldSplitter(
 
     private AwkTextSplitResult SplitRegexBySpans(
         AwkText line,
-        Regex separator,
+        AwkRegex separator,
         AwkRuntimeCounters counters)
     {
         var fields = new List<AwkText>();

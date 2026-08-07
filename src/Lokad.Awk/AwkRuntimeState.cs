@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -703,28 +702,28 @@ internal sealed class AwkRuntimeState
     public AwkText FormatStringByteText(AwkValue value) =>
         _formattingRuntime.FormatStringByteText(value);
 
-    public bool IsRegexMatch(Regex regex, AwkText input) =>
+    public bool IsRegexMatch(AwkRegex regex, AwkText input) =>
         _regexRuntime.IsMatch(regex, input);
 
-    public AwkRegexMatch MatchRegexValue(Regex regex, AwkText input) =>
+    public AwkRegexMatch MatchRegexValue(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchValue(regex, input, MemoryGovernor);
 
-    public AwkRegexMatchSpan MatchRegexSpan(Regex regex, AwkText input) =>
+    public AwkRegexMatchSpan MatchRegexSpan(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchSpan(regex, input);
 
     public AwkRegexMatchSpan MatchRegexSpan(
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         AwkRegexSearchOffset searchOffset) =>
         _regexRuntime.MatchSpan(regex, input, searchOffset);
 
-    public Regex CreateRegex(AwkRegexPattern pattern) =>
+    public AwkRegex CreateRegex(AwkRegexPattern pattern) =>
         _regexRuntime.Create(pattern);
 
-    public AwkRegexMatchEnumerator EnumerateRegexMatches(Regex regex, AwkText input) =>
+    public AwkRegexMatchEnumerator EnumerateRegexMatches(AwkRegex regex, AwkText input) =>
         _regexRuntime.EnumerateMatchValues(regex, input, MemoryGovernor);
 
-    public AwkRegexMatchSpanEnumerator EnumerateRegexMatchSpans(Regex regex, AwkText input) =>
+    public AwkRegexMatchSpanEnumerator EnumerateRegexMatchSpans(AwkRegex regex, AwkText input) =>
         _regexRuntime.EnumerateMatchSpans(regex, input);
 
     private bool IsIgnoreCaseEnabled()

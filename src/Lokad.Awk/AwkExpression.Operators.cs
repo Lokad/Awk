@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Lokad.Awk;
@@ -212,7 +211,7 @@ internal abstract partial class AwkExpression
 
     private sealed class PrecompiledRegexMatchExpression(
         AwkExpression valueExpression,
-        Regex regex,
+        AwkRegex regex,
         bool negate) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)

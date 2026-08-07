@@ -1,6 +1,4 @@
 using System;
-using System.Text.RegularExpressions;
-
 namespace Lokad.Awk;
 
 internal static partial class AwkBuiltins
@@ -24,7 +22,7 @@ internal static partial class AwkBuiltins
 
     private static AwkText ApplyGensub(
         AwkBuiltinContext context,
-        Regex regex,
+        AwkRegex regex,
         string replacement,
         AwkValue how,
         AwkText input)

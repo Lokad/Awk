@@ -664,7 +664,8 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var regex = AwkRegex.Create(new AwkRegexPattern("a+"), ignoreCase: false);
 
-        Assert.Equal(AwkRegex.MatchTimeout, regex.MatchTimeout);
+        Assert.True(regex.TryGetDotNetRegex(ignoreCase: false, out var dotNetRegex));
+        Assert.Equal(AwkRegex.MatchTimeout, dotNetRegex.MatchTimeout);
     }
 
     [Fact]

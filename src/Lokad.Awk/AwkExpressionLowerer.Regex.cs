@@ -1,6 +1,5 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
-using System.Text.RegularExpressions;
 
 namespace Lokad.Awk;
 
@@ -35,7 +34,7 @@ internal static partial class AwkExpressionLowerer
 
     public static bool TryLowerRegexLiteralPattern(
         AwkExpressionSyntax? expression,
-        [NotNullWhen(true)] out Regex? regex)
+        [NotNullWhen(true)] out AwkRegex? regex)
     {
         regex = null;
         if (!TryReadRegexLiteralPattern(expression, out var pattern))

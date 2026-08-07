@@ -1,12 +1,10 @@
-using System.Text.RegularExpressions;
-
 namespace Lokad.Awk;
 
 internal static class AwkRegexSubstitution
 {
     public static AwkText ReplaceAll(
         AwkRuntimeState state,
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         string replacement,
         AwkReplacementMode mode,
@@ -16,7 +14,7 @@ internal static class AwkRegexSubstitution
 
     public static AwkText ReplaceOccurrence(
         AwkRuntimeState state,
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         string replacement,
         AwkReplacementMode mode,
@@ -26,7 +24,7 @@ internal static class AwkRegexSubstitution
 
     private static AwkText Replace(
         AwkRuntimeState state,
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         string replacement,
         AwkReplacementMode mode,
@@ -106,7 +104,7 @@ internal static class AwkRegexSubstitution
 
     private static AwkText ReplaceSubstitution(
         AwkRuntimeState state,
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         string replacement,
         int targetOccurrence,
@@ -155,7 +153,7 @@ internal static class AwkRegexSubstitution
 
     private static AwkText ReplaceFirstGensub(
         AwkRuntimeState state,
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         string replacement,
         out int replacementCount)
@@ -178,7 +176,7 @@ internal static class AwkRegexSubstitution
 
     private static AwkText ReplaceFirstSubstitution(
         AwkRuntimeState state,
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         string replacement,
         out int replacementCount)
@@ -204,7 +202,7 @@ internal static class AwkRegexSubstitution
 
     private static AwkText ReplaceLiteral(
         AwkRuntimeState state,
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         string replacement,
         int targetOccurrence,
@@ -248,7 +246,7 @@ internal static class AwkRegexSubstitution
 
     private static AwkText ReplaceFirstLiteral(
         AwkRuntimeState state,
-        Regex regex,
+        AwkRegex regex,
         AwkText input,
         string replacement,
         out int replacementCount)

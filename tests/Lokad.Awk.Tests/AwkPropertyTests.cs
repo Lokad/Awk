@@ -55,14 +55,17 @@ public sealed class AwkPropertyTests
     public void Awk_GeneratedPosixDigitRegexesMatchReferenceStrings()
     {
         var random = new Random(17830);
+        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         for (var index = 0; index < 80; index++)
         {
             var prefix = GenerateWord(random, 2 + random.Next(4));
             var suffix = GenerateWord(random, 2 + random.Next(4));
             var regex = AwkRegex.Create(new AwkRegexPattern("^" + prefix + "[[:digit:]]+" + suffix + "$"), ignoreCase: false);
 
-            Assert.Matches(regex, prefix + (1000 + index) + suffix);
-            Assert.DoesNotMatch(regex, prefix + "abc" + suffix);
+            Assert.True(state.IsRegexMatch(
+                regex,
+                AwkText.FromString(prefix + (1000 + index) + suffix)));
+            Assert.False(state.IsRegexMatch(regex, AwkText.FromString(prefix + "abc" + suffix)));
         }
     }
 

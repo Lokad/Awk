@@ -1,13 +1,12 @@
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
 internal abstract class AwkPattern
 {
-    public static AwkPattern Regex(Regex regex) => new RegexPattern(regex);
+    public static AwkPattern Regex(AwkRegex regex) => new RegexPattern(regex);
 
-    public static AwkPattern Range(Regex start, Regex end) => new RangePattern(start, end);
+    public static AwkPattern Range(AwkRegex start, AwkRegex end) => new RangePattern(start, end);
 
     public static AwkPattern Range(AwkCondition start, AwkCondition end) => new ConditionRangePattern(start, end);
 
@@ -16,13 +15,13 @@ internal abstract class AwkPattern
     /// </summary>
     public abstract ValueTask<bool> MatchesAsync(AwkRuntimeState state);
 
-    private sealed class RegexPattern(Regex regex) : AwkPattern
+    private sealed class RegexPattern(AwkRegex regex) : AwkPattern
     {
         public override ValueTask<bool> MatchesAsync(AwkRuntimeState state) =>
             ValueTask.FromResult(state.IsRegexMatch(regex, state.CurrentRecordByteText));
     }
 
-    private sealed class RangePattern(Regex start, Regex end) : AwkPattern
+    private sealed class RangePattern(AwkRegex start, AwkRegex end) : AwkPattern
     {
         public override ValueTask<bool> MatchesAsync(AwkRuntimeState state)
         {

@@ -85,6 +85,17 @@ public sealed class AwkBenchmarkCounterTests
         Assert.True(gensub.Counters.RegexGroupsMaterialized > 0);
     }
 
+    [Fact]
+    public async Task Awk_DynamicUtf8RegexCompilesOnlySelectedEngine()
+    {
+        var (exitCode, fileSystem, counters) = await RunAsync(
+            ["BEGIN{pattern=\"(x)+\"; print match(\"xx\", pattern)}"]);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(1, counters.RegexCompiles);
+    }
+
     [Theory]
     [InlineData("BEGIN{FS=\"[,;]\"} {print NF}", "a,b;c\n", "3\n")]
     [InlineData("BEGIN{FIELDWIDTHS=\"2 3\"} {print NF}", "abcdef\n", "2\n")]
