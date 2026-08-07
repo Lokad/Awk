@@ -14,7 +14,7 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var patternText = await pattern.ResolveStringAsync(context).ConfigureAwait(false);
-            var replacementText = await replacement.ResolveStringAsync(context).ConfigureAwait(false);
+            var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
             var regex = context.State.CreateRegex(new AwkRegexPattern(patternText));
             var input = await target.ResolveInputTextAsync(context).ConfigureAwait(false);
             var replaced = AwkRegexSubstitution.ReplaceAll(
@@ -36,7 +36,7 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var patternText = await pattern.ResolveStringAsync(context).ConfigureAwait(false);
-            var replacementText = await replacement.ResolveStringAsync(context).ConfigureAwait(false);
+            var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
             var regex = context.State.CreateRegex(new AwkRegexPattern(patternText));
             var input = await target.ResolveInputTextAsync(context).ConfigureAwait(false);
             var replaced = AwkRegexSubstitution.ReplaceAll(

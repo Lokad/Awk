@@ -142,20 +142,23 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new AwkRegexPattern("[[:alpha:]]+"));
         var input = AwkText.FromString("abc123déf", counters, state.MemoryGovernor);
+        var replacement = AwkText.FromString("X", counters, state.MemoryGovernor);
         var baselineTextAllocations = counters.AwkTextAllocations;
+        var baselineUtf8Encodes = counters.Utf8Encodes;
 
         var result = AwkRegexSubstitution.ReplaceAll(
             state,
             regex,
             input,
-            "X",
+            replacement,
             AwkReplacementMode.Substitution,
             maxReplacements: 0,
             out var replacementCount);
 
         Assert.Equal(2, replacementCount);
         Assert.Equal("X123X", result.AsString());
-        Assert.Equal(baselineTextAllocations + 2, counters.AwkTextAllocations);
+        Assert.Equal(baselineTextAllocations + 1, counters.AwkTextAllocations);
+        Assert.Equal(baselineUtf8Encodes, counters.Utf8Encodes);
         Assert.True(counters.RegexMatches > 0);
     }
 

@@ -176,7 +176,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, longRun.ExitCode);
         Assert.Equal("éx\n", shortRun.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(new string('é', 64) + "x\n", longRun.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(shortRun.Counters.Utf8Encodes, longRun.Counters.Utf8Encodes);
+        Assert.Equal(0, shortRun.Counters.Utf8Encodes);
+        Assert.Equal(0, longRun.Counters.Utf8Encodes);
         Assert.Equal(shortRun.Counters.AwkTextAllocations, longRun.Counters.AwkTextAllocations);
     }
 

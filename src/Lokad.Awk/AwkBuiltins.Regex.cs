@@ -9,7 +9,7 @@ internal static partial class AwkBuiltins
             return AwkValue.FromText(string.Empty);
 
         var pattern = context.GetString(0);
-        var replacement = context.GetString(1);
+        var replacement = context.GetByteText(1);
         var how = context.GetValue(2);
         var input = context.ArgumentCount == 4 ? context.GetByteText(3) : context.State.CurrentRecordByteText;
         return context.State.CreateByteTextValue(ApplyGensub(
@@ -23,7 +23,7 @@ internal static partial class AwkBuiltins
     private static AwkText ApplyGensub(
         AwkBuiltinContext context,
         AwkRegex regex,
-        string replacement,
+        AwkText replacement,
         AwkValue how,
         AwkText input)
     {

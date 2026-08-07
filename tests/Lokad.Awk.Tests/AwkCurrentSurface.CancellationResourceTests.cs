@@ -963,7 +963,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             state,
             regex,
             input,
-            "X",
+            AwkText.FromString("X"),
             AwkReplacementMode.Substitution,
             maxReplacements: 1,
             out var replacementCount);
