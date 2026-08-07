@@ -30,9 +30,6 @@ internal sealed class AwkSourceLoadPlan
 
     public AwkSourceReference GetSource(int index) => _sources[index];
 
-    public AwkSourceName GetInlineSourceName(int inlineSourceIndex) =>
-        new($"<inline:{inlineSourceIndex}>");
-
     public AwkResolvedPath ResolvePath(string path) =>
         AwkPathResolution.ResolveArgument(path, _currentDirectory);
 

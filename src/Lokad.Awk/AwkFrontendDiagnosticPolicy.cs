@@ -31,11 +31,59 @@ internal static class AwkFrontendDiagnosticPolicy
             }
             else if (tokens[index].Kind is AwkTokenKind.Regex or AwkTokenKind.StrongRegex)
             {
-                AddRegexDiagnosticIfInvalid(tokens[index], diagnostics);
+                AddRegexDiagnosticIfInvalid(tokens[index]);
             }
             else if (tokens[index].Kind is AwkTokenKind.String or AwkTokenKind.InternationalizedString)
             {
-                AddStringEscapeWarnings(tokens[index], diagnostics);
+                AddStringEscapeWarnings(tokens[index]);
+            }
+        }
+
+        void AddStringEscapeWarnings(AwkToken token)
+        {
+            var text = token.TextSpan;
+            var start = token.Kind == AwkTokenKind.InternationalizedString ? 2 : 1;
+            var end = text.Length - 1;
+            for (var index = start; index < end; index++)
+            {
+                if (text[index] != '\\' || index + 1 >= end)
+                    continue;
+
+                index++;
+                var escaped = text[index];
+                if (AwkEscapes.TryReadNumericEscape(text, ref index, end, out _))
+                    continue;
+
+                if (escaped == 'x')
+                {
+                    diagnostics.Add(new AwkDiagnostic(
+                        token.Span,
+                        AwkMessages.FormatStringHexEscapeWarning(),
+                        AwkDiagnosticKind.StringEscapeWarning));
+                    continue;
+                }
+
+                if (AwkLineContinuations.TrySkipAfterBackslash(text, ref index, end))
+                    continue;
+
+                if (AwkEscapes.TryDecodeSimpleEscape(escaped, out _))
+                    continue;
+
+                diagnostics.Add(new AwkDiagnostic(
+                    token.Span,
+                    AwkMessages.FormatStringEscapeWarning(escaped),
+                    AwkDiagnosticKind.StringEscapeWarning));
+            }
+        }
+
+        void AddRegexDiagnosticIfInvalid(AwkToken token)
+        {
+            if (!AwkRegexSyntaxValidator.IsValidLiteral(token))
+            {
+                diagnostics.Add(new AwkDiagnostic(
+                    token.Span,
+                    "Invalid regular expression.",
+                    AwkDiagnosticKind.InvalidRegex));
             }
         }
     }
@@ -71,7 +119,7 @@ internal static class AwkFrontendDiagnosticPolicy
                 errorMessage = AwkMessages.ErrorUnsupportedInternationalization;
                 return true;
             case AwkTokenKind.At:
-                if (IsIndirectFunctionCall(source, tokens, index))
+                if (IsIndirectFunctionCall())
                 {
                     errorMessage = AwkMessages.ErrorUnsupportedIndirectFunctionCall;
                     return true;
@@ -94,6 +142,20 @@ internal static class AwkFrontendDiagnosticPolicy
 
         errorMessage = ReadOnlyMemory<byte>.Empty;
         return false;
+
+        bool IsIndirectFunctionCall()
+        {
+            var identifierIndex = NextSignificantTokenIndex(tokens, index + 1);
+            var identifier = TokenAtOrEnd(source, tokens, identifierIndex);
+            if (identifier.Kind != AwkTokenKind.Identifier || identifier.Span.Start != token.Span.End)
+                return false;
+
+            return TokenAtOrEnd(
+                    source,
+                    tokens,
+                    NextSignificantTokenIndex(tokens, identifierIndex + 1))
+                .Kind == AwkTokenKind.LeftParen;
+        }
     }
 
     private static bool IsDirective(
@@ -102,24 +164,6 @@ internal static class AwkFrontendDiagnosticPolicy
         string name) =>
         AwkDirectiveParser.TryParseAt(tokens, index, out var directive) &&
         string.Equals(directive.Name, name, StringComparison.Ordinal);
-
-    private static bool IsIndirectFunctionCall(
-        string source,
-        IReadOnlyList<AwkToken> tokens,
-        int index)
-    {
-        var token = tokens[index];
-        var identifierIndex = NextSignificantTokenIndex(tokens, index + 1);
-        var identifier = TokenAtOrEnd(source, tokens, identifierIndex);
-        if (identifier.Kind != AwkTokenKind.Identifier || identifier.Span.Start != token.Span.End)
-            return false;
-
-        return TokenAtOrEnd(
-                source,
-                tokens,
-                NextSignificantTokenIndex(tokens, identifierIndex + 1))
-            .Kind == AwkTokenKind.LeftParen;
-    }
 
     private static int NextSignificantTokenIndex(IReadOnlyList<AwkToken> tokens, int index)
     {
@@ -140,54 +184,6 @@ internal static class AwkFrontendDiagnosticPolicy
             ? tokens[index]
             : new AwkToken(AwkTokenKind.EndOfFile, string.Empty, new AwkTextSpan(source.Length, 0));
 
-    private static void AddStringEscapeWarnings(
-        AwkToken token,
-        List<AwkDiagnostic> diagnostics)
-    {
-        var text = token.TextSpan;
-        var start = token.Kind == AwkTokenKind.InternationalizedString ? 2 : 1;
-        var end = text.Length - 1;
-        for (var index = start; index < end; index++)
-        {
-            if (text[index] != '\\' || index + 1 >= end)
-                continue;
-
-            index++;
-            var escaped = text[index];
-            if (AwkEscapes.TryReadNumericEscape(text, ref index, end, out _))
-            {
-                continue;
-            }
-
-            if (escaped == 'x')
-            {
-                diagnostics.Add(new AwkDiagnostic(
-                    token.Span,
-                    AwkMessages.FormatStringHexEscapeWarning(),
-                    AwkDiagnosticKind.StringEscapeWarning));
-                continue;
-            }
-
-            if (AwkLineContinuations.TrySkipAfterBackslash(text, ref index, end))
-                continue;
-
-            if (AwkEscapes.TryDecodeSimpleEscape(escaped, out _))
-                continue;
-
-            diagnostics.Add(new AwkDiagnostic(
-                token.Span,
-                AwkMessages.FormatStringEscapeWarning(escaped),
-                AwkDiagnosticKind.StringEscapeWarning));
-        }
-    }
-
-    private static void AddRegexDiagnosticIfInvalid(
-        AwkToken token,
-        List<AwkDiagnostic> diagnostics)
-    {
-        if (!AwkRegexSyntaxValidator.IsValidLiteral(token))
-            diagnostics.Add(new AwkDiagnostic(token.Span, "Invalid regular expression.", AwkDiagnosticKind.InvalidRegex));
-    }
 }
 
 internal static class AwkRegexSyntaxValidator

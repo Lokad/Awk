@@ -323,7 +323,11 @@ internal sealed class AwkVariables
         if (ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
-        return SnapshotArrayText(GetOrCreateArraySlots(name));
+        var snapshot = new Dictionary<AwkArrayKey, AwkText>();
+        foreach (var pair in GetOrCreateArraySlots(name))
+            snapshot[pair.Key] = pair.Value.ByteText;
+
+        return snapshot;
     }
 
     public int GetArraySnapshotCount(AwkArrayName name)
@@ -419,17 +423,6 @@ internal sealed class AwkVariables
 
         value = slot.ByteText;
         return true;
-    }
-
-    private Dictionary<AwkArrayKey, AwkText> SnapshotArrayText(IReadOnlyDictionary<AwkArrayKey, AwkVariableSlot> slots)
-    {
-        var snapshot = new Dictionary<AwkArrayKey, AwkText>();
-        foreach (var pair in slots)
-        {
-            snapshot[pair.Key] = pair.Value.ByteText;
-        }
-
-        return snapshot;
     }
 
     private AwkValue CreateValue(AwkVariableSlot slot) =>

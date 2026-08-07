@@ -20,7 +20,7 @@ internal static partial class AwkSourceLoader
             if (source is AwkSourceReference.InlineSource inline)
             {
                 inlineSourceIndex++;
-                var sourceName = plan.GetInlineSourceName(inlineSourceIndex);
+                var sourceName = new AwkSourceName($"<inline:{inlineSourceIndex}>");
                 var expanded = await ExpandIncludesAsync(
                         host,
                         plan,

@@ -141,6 +141,48 @@ internal static class AwkCommandParser
                 return ApplyWOption(parser, valueResult.Value);
 
             return ApplyOption(spec, valueResult.Value, spelling);
+
+            static AwkOptionValueResult ReadShortOptionValue(
+                CommandLineOptionParser optionParser,
+                AwkOptionSpec optionSpec)
+            {
+                switch (optionSpec.ShortValuePlacement)
+                {
+                    case AwkShortOptionValuePlacement.None:
+                        return AwkOptionValueResult.Empty;
+                    case AwkShortOptionValuePlacement.AttachedOnly:
+                        AwkOptionValueReader.TryDiscardShortAttached(optionParser);
+                        return AwkOptionValueResult.Empty;
+                    case AwkShortOptionValuePlacement.AttachedOrRaw:
+                        if (optionSpec.ValueCardinality == AwkOptionValueCardinality.Optional)
+                        {
+                            AwkOptionValueReader.TryReadOptionalShortAttachedOrRaw(
+                                optionParser,
+                                out var optionalValue);
+                            return AwkOptionValueResult.Success(optionalValue);
+                        }
+
+                        if (AwkOptionValueReader.TryReadShortAttachedOrRaw(
+                                optionParser,
+                                out var attachedOrRawValue))
+                        {
+                            return AwkOptionValueResult.Success(attachedOrRawValue);
+                        }
+
+                        return AwkOptionValueResult.Fail(
+                            AwkMessages.ErrorMissingValue,
+                            AwkDiagnosticId.OptionMissingValue);
+                    case AwkShortOptionValuePlacement.Raw:
+                        if (AwkOptionValueReader.TryReadShortRaw(optionParser, out var rawValue))
+                            return AwkOptionValueResult.Success(rawValue);
+
+                        return AwkOptionValueResult.Fail(
+                            AwkMessages.ErrorMissingValue,
+                            AwkDiagnosticId.OptionMissingValue);
+                    default:
+                        return AwkOptionValueResult.Empty;
+                }
+            }
         }
 
         private AwkCommandParseResult ParseLongOption(CommandLineOptionParser parser, CommandLineOptionItem.LongOption item)
@@ -156,42 +198,6 @@ internal static class AwkCommandParser
                 return AwkCommandParseResult.Fail(valueResult.Message, valueResult.Id);
 
             return ApplyOption(spec, valueResult.Value, spelling);
-        }
-
-        private AwkOptionValueResult ReadShortOptionValue(
-            CommandLineOptionParser parser,
-            AwkOptionSpec spec)
-        {
-            switch (spec.ShortValuePlacement)
-            {
-                case AwkShortOptionValuePlacement.None:
-                    return AwkOptionValueResult.Empty;
-                case AwkShortOptionValuePlacement.AttachedOnly:
-                    AwkOptionValueReader.TryDiscardShortAttached(parser);
-                    return AwkOptionValueResult.Empty;
-                case AwkShortOptionValuePlacement.AttachedOrRaw:
-                    if (spec.ValueCardinality == AwkOptionValueCardinality.Optional)
-                    {
-                        AwkOptionValueReader.TryReadOptionalShortAttachedOrRaw(parser, out var optionalValue);
-                        return AwkOptionValueResult.Success(optionalValue);
-                    }
-
-                    if (AwkOptionValueReader.TryReadShortAttachedOrRaw(parser, out var attachedOrRawValue))
-                        return AwkOptionValueResult.Success(attachedOrRawValue);
-
-                    return AwkOptionValueResult.Fail(
-                        AwkMessages.ErrorMissingValue,
-                        AwkDiagnosticId.OptionMissingValue);
-                case AwkShortOptionValuePlacement.Raw:
-                    if (AwkOptionValueReader.TryReadShortRaw(parser, out var rawValue))
-                        return AwkOptionValueResult.Success(rawValue);
-
-                    return AwkOptionValueResult.Fail(
-                        AwkMessages.ErrorMissingValue,
-                        AwkDiagnosticId.OptionMissingValue);
-                default:
-                    return AwkOptionValueResult.Empty;
-            }
         }
 
         private AwkOptionValueResult ReadLongOptionValue(
