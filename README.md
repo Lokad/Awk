@@ -80,3 +80,4 @@ Detailed runtime contracts live in:
 ## Dependencies
 
 - `Lokad.Parsing` for tokenization and parser infrastructure
+- `Lokad.Utf8Regex` for strict UTF-8 regex matching and byte-coordinate adapter paths

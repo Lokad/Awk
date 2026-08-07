@@ -24,6 +24,13 @@ runtime APIs instead of materializing full match lists. `sub()` and `gsub()` exp
 references from byte spans without materializing capture groups; capture values are reserved for
 `match(..., array)` and `gensub()`. Full enumeration remains reserved for regex field splitting,
 `patsplit`, `gsub`, and other paths that genuinely need every match.
+Record separators that reduce to one or more bytes from a punctuation-only membership set use an
+incremental byte-run plan, including `([,;])+`, `(?:[,;])+`, and the equivalent quantifier
+inside the wrapper. Captures are not observable from `RS`; `RT` still receives the entire greedy
+run. Other regex separators stay on the selected regex backend. An arbitrary unbounded match can
+begin in an earlier host batch, and the current backends do not expose resumable partial-match
+state, so that correctness path may retry borrowed accumulated input after a batch arrives. It
+does not copy the accumulated snapshot or advance a checkpoint that could skip a cross-batch match.
 Engine-neutral regex handles retain the initially selected backend, so a dynamic UTF-8 regex does
 not first compile an unused .NET regex. Runtime caches evict the least-recently-used entry instead
 of clearing all compiled patterns when their bounded capacity is reached.

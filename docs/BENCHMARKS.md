@@ -18,13 +18,17 @@ dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benc
 
 The counter report prints runtime, date, command, record and byte counts, execution steps, output
 size, and the key decode, regex, formatting, VM, byte-comparison, concatenation, record-separator,
-and memory counters for curated scenarios. Record-separator resolutions count effective separator
-plan rebuilds, bytes scanned measure separator search work, and tail bytes moved measure buffer
-compaction copies. The buffered regex row deliberately spans multiple host batches without a
-separator so accumulated-input behavior remains visible. General regex separators may inspect
-buffered bytes again after another batch arrives, but they borrow the cursor buffer rather than
-copying an accumulated snapshot. Single-byte, byte-set, literal, paragraph, and recognized
-single-byte-run separators retain incremental scan checkpoints. Regex policy bytes inspected and
+and memory counters for curated scenarios. Counter runs enable a one-gibibyte execution-memory
+ceiling so the memory peak column reports governed live bytes instead of the disabled governor's
+zero. Record-separator resolutions count effective separator plan rebuilds, bytes scanned measure
+separator search work, and tail bytes moved measure buffer compaction copies. The grouped
+byte-run row deliberately spans multiple host batches without a separator and should scan each
+input byte once. Single-byte, byte-set, literal, paragraph, and recognized punctuation byte-run
+separators—including redundant capture or noncapturing wrappers—retain incremental scan
+checkpoints. General unbounded regex separators may inspect buffered bytes again after another
+batch arrives because neither regex backend exposes resumable partial-match state; they borrow the
+cursor buffer rather than copying an accumulated snapshot, and focused batched-host tests keep
+that correctness fallback distinct from the incremental plans. Regex policy bytes inspected and
 capture groups materialized distinguish routing work from capture work. Its streaming projection,
 three-key filter, associative aggregation, and two-file comparison rows are deterministic
 calibration shapes for execution-budget decisions. Divide their

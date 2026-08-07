@@ -41,6 +41,8 @@ dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benc
   input cursor behavior changed. Dynamic `RS` evidence must cover unread buffered bytes without
   requiring the descriptor to reach EOF. Distinguish incremental separator plans from general
   regex plans that can rescan, and verify that rescans do not copy accumulated input snapshots.
+  Include grouped punctuation byte-run plans in the incremental evidence when their recognition
+  or continuation behavior changes.
 - VM coverage: include execution engine mode, `VmInstructions`, `VmBasicBlockEntries`,
   `VmFallbackCalls`, `VmOpcodeKindsExecuted`, `VmBudgetChecks`, and `VmMaxStackDepth`.
 - Executable default gate: keep `AwkExecutionEngineKind.Interpreter` as the default unless the

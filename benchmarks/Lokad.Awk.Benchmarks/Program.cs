@@ -750,6 +750,7 @@ internal static class BenchmarkExecution
 
 internal static class BenchmarkCounterReport
 {
+    private const long CounterExecutionMemoryLimitBytes = 1L << 30;
     private static readonly BenchmarkScenario[] Scenarios = CreateScenarios();
 
     public static async Task RunAsync(CancellationToken cancellationToken)
@@ -783,7 +784,8 @@ internal static class BenchmarkCounterReport
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
+            AwkRuntimeLimits.CreateDefault()
+                .WithMaxExecutionMemoryBytes(CounterExecutionMemoryLimitBytes),
             executionEngineKind: scenario.CounterExecutionEngineKind,
             regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
         var compiled = await AwkExecutor

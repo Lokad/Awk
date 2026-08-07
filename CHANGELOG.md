@@ -2,6 +2,16 @@
 
 ## 0.1.0
 
+- Recognize capture-group and noncapturing-group wrappers around punctuation byte-run record
+  separators, preserving greedy cross-batch `RT` while scanning the adversarial counter workload
+  once instead of repeatedly invoking the general regex backend.
+- Keep regex replacements byte-native through `sub`, `gsub`, and `gensub`, share the
+  single/all traversal engines without allocating on the single-match route, and reuse pooled
+  argument, frame, and slot storage for interpreted user-function calls.
+- Bypass per-line include parsing for ordinary source files, binary-search continuation slices and
+  diagnostic source segments, and index physical line starts once per diagnostic batch.
+- Remove the duplicate test-only benchmark harness and forwarding-only runtime conveniences,
+  centralize getline read-failure conversion, and document buffered record-cursor invariants.
 - Route main input and all `getline` sources through one streaming, `RS`-aware record cursor;
   preserve unread buffered bytes across separator changes without draining descriptors to EOF,
   and retain paragraph field-splitting semantics when `getline` assigns `$0`.
