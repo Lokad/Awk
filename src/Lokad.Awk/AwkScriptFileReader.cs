@@ -26,7 +26,7 @@ internal static class AwkScriptFileReader
             return AwkScriptFileReadResult.Failure(failed.ErrorMessage, failed.Id);
 
         var rawPath = AwkUtf8Codec.Decode(path.Display);
-        if (!rawPath.StartsWith("/", StringComparison.Ordinal))
+        if (!rawPath.StartsWith('/'))
         {
             var fromAwkPath = await TryReadFromAwkPathAsync(host, plan, rawPath, cancellationToken)
                 .ConfigureAwait(false);

@@ -11,7 +11,7 @@ internal abstract class AwkArraySortOrder
         if (text.Length == 0)
             return Default;
 
-        if (!text.StartsWith("@", StringComparison.Ordinal))
+        if (!text.StartsWith('@'))
         {
             return AwkIdentifier.TryParse(text, out var identifier)
                 ? new UserFunctionOrder(new AwkFunctionName(identifier))

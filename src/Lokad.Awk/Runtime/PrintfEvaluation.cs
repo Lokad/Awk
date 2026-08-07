@@ -389,9 +389,9 @@ internal static class PrintfEvaluation
             return;
         }
 
-        if (zeroPad && (text.StartsWith("-", StringComparison.Ordinal) ||
-            text.StartsWith("+", StringComparison.Ordinal) ||
-            text.StartsWith(" ", StringComparison.Ordinal)))
+        if (zeroPad && (text.StartsWith('-') ||
+            text.StartsWith('+') ||
+            text.StartsWith(' ')))
         {
             output.Append(text[0]);
             output.Append('0', width - text.Length);
@@ -467,7 +467,7 @@ internal static class PrintfEvaluation
 
         return conversion switch
         {
-            PrintfConversion.Octal => formatted.StartsWith("0", StringComparison.Ordinal) ? formatted : "0" + formatted,
+            PrintfConversion.Octal => formatted.StartsWith('0') ? formatted : "0" + formatted,
             PrintfConversion.HexLower => "0x" + formatted,
             PrintfConversion.HexUpper => "0X" + formatted,
             _ => formatted
@@ -563,7 +563,7 @@ internal static class PrintfEvaluation
         bool leadingSpace,
         bool signedConversion)
     {
-        if (!signedConversion || negative || formatted.StartsWith("-", StringComparison.Ordinal))
+        if (!signedConversion || negative || formatted.StartsWith('-'))
         {
             return formatted;
         }

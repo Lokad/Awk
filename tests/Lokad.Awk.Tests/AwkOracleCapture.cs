@@ -148,7 +148,7 @@ internal static class AwkOracleCapture
             return false;
         }
 
-        return testCase.Arguments.All(argument => !argument.StartsWith("/", StringComparison.Ordinal));
+        return testCase.Arguments.All(argument => !argument.StartsWith('/'));
     }
 
     private static AwkOracleDifferenceClassification ClassifyDifference(AwkGoldenCase testCase)
