@@ -53,6 +53,8 @@ internal sealed class AwkRuntimeCounters
 
     public long RecordSeparatorTailBytesMoved { get; private set; }
 
+    public long RecordSeparatorBytesScanned { get; private set; }
+
     public long SeparatorCaptureFallbacks { get; private set; }
 
     public long FormattingFallbacks { get; private set; }
@@ -266,6 +268,15 @@ internal sealed class AwkRuntimeCounters
 
         lock (_sync)
             RecordSeparatorTailBytesMoved += byteCount;
+    }
+
+    public void RecordRecordSeparatorBytesScanned(int byteCount)
+    {
+        if (!_enabled || byteCount <= 0)
+            return;
+
+        lock (_sync)
+            RecordSeparatorBytesScanned += byteCount;
     }
 
     public void RecordSeparatorCaptureFallback()

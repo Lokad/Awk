@@ -934,6 +934,102 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         Assert.Equal(expectedOutput, host.GetAppendedOutput(AwkFileDescriptor.StdOut));
     }
 
+    [Theory]
+    [InlineData("|")]
+    [InlineData("é")]
+    [InlineData("[,;]")]
+    [InlineData("-+")]
+    [InlineData("")]
+    public async Task Awk_BufferedSeparatorScanningIsLinearAcrossHostBatches(string separator)
+    {
+        const int batchCount = 32;
+        const int batchLength = 1024;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(
+            () => new AwkUnixTimestampSeconds(0),
+            TimeZoneInfo.Utc,
+            new AwkRandomGenerator(),
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        var program = "BEGIN{RS=\"" + separator + "\"} {records++} END{print length($0), records}";
+        var compiled = await AwkExecutor.CompileAsync(
+            new MockFileSystem(),
+            BuildInvocation("awk", program),
+            CancellationToken.None);
+        var host = new TestOperationVisitor([]);
+        var batch = Encoding.UTF8.GetBytes(new string('a', batchLength));
+        for (var index = 0; index < batchCount; index++)
+        {
+            host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+                batch,
+                [],
+                reachedEof: index == batchCount - 1));
+        }
+
+        host.EnqueueAppendExitCode(0);
+
+        var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
+
+        var inputLength = batchCount * batchLength;
+        Assert.Equal(0, exitCode);
+        Assert.Equal(inputLength + " 1\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+        Assert.True(counters.RecordSeparatorBytesScanned <= inputLength + (batchCount * 4));
+    }
+
+    [Theory]
+    [InlineData("-+", "record--", "-")]
+    [InlineData("", "record\n\n", "\n")]
+    public async Task Awk_GreedySeparatorContinuationIsLinearAcrossHostBatches(
+        string separator,
+        string firstBatch,
+        string continuationBatch)
+    {
+        const int continuationCount = 32;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(
+            () => new AwkUnixTimestampSeconds(0),
+            TimeZoneInfo.Utc,
+            new AwkRandomGenerator(),
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        var program = "BEGIN{RS=\"" + separator + "\"} {print $0 \"[\" length(RT) \"]\"}";
+        var compiled = await AwkExecutor.CompileAsync(
+            new MockFileSystem(),
+            BuildInvocation("awk", program),
+            CancellationToken.None);
+        var host = new TestOperationVisitor([]);
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+            Encoding.UTF8.GetBytes(firstBatch),
+            [],
+            reachedEof: false));
+        for (var index = 0; index < continuationCount; index++)
+        {
+            host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+                Encoding.UTF8.GetBytes(continuationBatch),
+                [],
+                reachedEof: false));
+        }
+
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent("next"u8.ToArray(), [], reachedEof: true));
+        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendExitCode(0);
+
+        var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
+
+        var inputLength = Encoding.UTF8.GetByteCount(firstBatch) +
+            (continuationCount * Encoding.UTF8.GetByteCount(continuationBatch)) +
+            4;
+        Assert.Equal(0, exitCode);
+        Assert.Equal(
+            "record[" + (continuationCount + 2) + "]\nnext[0]\n",
+            host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+        Assert.True(counters.RecordSeparatorBytesScanned <= inputLength * 2);
+    }
+
     [Fact]
     public async Task Awk_RegexRecordSeparatorReadsInputInBatches()
     {
@@ -962,7 +1058,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
-            BuildInvocation("awk", "BEGIN{RS=\"[,;]+\"} {print $0}"),
+            BuildInvocation("awk", "BEGIN{RS=\"(,|;)+\"} {print $0}"),
             CancellationToken.None);
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput("alpha,beta;gamma");

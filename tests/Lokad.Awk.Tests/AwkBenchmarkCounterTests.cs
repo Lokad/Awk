@@ -29,7 +29,7 @@ public sealed class AwkBenchmarkCounterTests
     public async Task Awk_BenchmarkCountersCoverDynamicRecordSeparators()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
-            ["BEGIN{RS=\"|\"} {print $0; RS=\"[,;]+\"}"],
+            ["BEGIN{RS=\"|\"} {print $0; RS=\"([,;])+\"}"],
             input: "first|second,third;");
 
         Assert.Equal(0, exitCode);
@@ -222,7 +222,7 @@ public sealed class AwkBenchmarkCounterTests
             "3\n"
         },
         {
-            "BEGIN{RS=\"[,;]+\"} {print $0}",
+            "BEGIN{RS=\"([,;])+\"} {print $0}",
             "alpha,beta;",
             "alpha\nbeta\n"
         },
@@ -295,7 +295,7 @@ public sealed class AwkBenchmarkCounterTests
     public async Task Awk_TrueRegexRecordSeparatorDecodesEachInputBatchOnce()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
-            ["BEGIN{RS=\"[|;]+\"} {print $0}"],
+            ["BEGIN{RS=\"([|;])+\"} {print $0}"],
             "a|b;c|d;",
             AwkRegexEngineKind.DotNetCompatibility);
 
