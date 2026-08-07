@@ -4,23 +4,29 @@ namespace Lokad.Awk;
 
 internal readonly record struct AwkFieldSeparatorSpec
 {
-    private readonly string _text;
-    private readonly bool _isCustom;
+    private readonly string? _customText;
+    private readonly AwkFieldSeparatorKind _kind;
 
-    private AwkFieldSeparatorSpec(string text, bool isCustom)
+    private AwkFieldSeparatorSpec(string text)
     {
-        _text = text;
-        _isCustom = isCustom;
+        _customText = text;
+        _kind = AwkFieldSeparatorKind.Custom;
     }
 
     public static AwkFieldSeparatorSpec Default => default;
 
-    public static AwkFieldSeparatorSpec Custom(string text)
+    public static AwkFieldSeparatorSpec FromText(string text)
     {
-        return new AwkFieldSeparatorSpec(text, isCustom: true);
+        return text == " " ? Default : new AwkFieldSeparatorSpec(text);
     }
 
-    public string Text => _isCustom ? _text : " ";
+    public string Text => _kind == AwkFieldSeparatorKind.Custom ? _customText ?? string.Empty : " ";
 
-    public bool UseDefaultSeparator => !_isCustom;
+    public bool UsesWhitespaceSemantics => _kind == AwkFieldSeparatorKind.Default;
+
+    private enum AwkFieldSeparatorKind
+    {
+        Default,
+        Custom
+    }
 }

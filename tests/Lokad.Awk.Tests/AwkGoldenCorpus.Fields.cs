@@ -29,6 +29,12 @@ internal static partial class AwkGoldenCorpus
             "3 a b c\n"),
 
         Posix(Passing(
+            "space-option-field-separator-uses-whitespace-semantics",
+            ["-F", " ", "{print NF, $1, $2}", "/file.txt"],
+            [File("/file.txt", "  a   b  \n")],
+            "2 a b\n")),
+
+        Posix(Passing(
             "begin-fs-assignment-controls-fields",
             ["BEGIN{FS=\":\"} {print $2}", "/file.txt"],
             [File("/file.txt", "a:b\nc:d\n")],

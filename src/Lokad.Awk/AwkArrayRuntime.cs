@@ -104,8 +104,7 @@ internal sealed class AwkArrayRuntime
             EstimateSplitBuffers(input.ByteLength, separatorArrayName.HasValue));
         var result = _fieldSplitter.SplitFieldTextsBySeparator(
             input,
-            separator,
-            separator == " ",
+            AwkFieldSeparatorSpec.FromText(separator),
             separatorArrayName.HasValue,
             _state.Counters);
         if (separatorArrayName.HasValue)

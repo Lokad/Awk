@@ -234,7 +234,7 @@ internal static class AwkCommandParser
                     _sourceInputPlanner.AddSourceFile(value);
                     return AwkCommandParseResult.ReadInputArguments;
                 case AwkOptionAction.FieldSeparator:
-                    _fieldSeparator = AwkFieldSeparatorSpec.Custom(AwkEscapes.Decode(value));
+                    _fieldSeparator = AwkFieldSeparatorSpec.FromText(AwkEscapes.Decode(value));
                     return AwkCommandParseResult.KeepParsing;
                 case AwkOptionAction.AddSourceFile:
                     _sourceInputPlanner.AddSourceFile(value);

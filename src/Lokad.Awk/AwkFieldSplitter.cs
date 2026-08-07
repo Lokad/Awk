@@ -25,11 +25,10 @@ internal sealed class AwkFieldSplitter(
         throwIfCancellationRequested,
         memoryGovernor);
 
-    private string _fieldSeparator = fieldSeparator.Text;
+    private AwkFieldSeparatorSpec _fieldSeparator = fieldSeparator;
     private string _fieldPattern = string.Empty;
     private IReadOnlyList<AwkFieldWidth> _fieldWidths = [];
     private AwkFieldSplittingMode _fieldSplittingMode;
-    private bool _useDefaultSeparator = fieldSeparator.UseDefaultSeparator;
     private AwkRecordFieldSplittingMode _recordFieldSplittingMode;
 
     public void SetRecordFieldSplittingMode(AwkRecordFieldSplittingMode mode) =>
@@ -37,8 +36,7 @@ internal sealed class AwkFieldSplitter(
 
     public void AssignFieldSeparator(string value)
     {
-        _fieldSeparator = value;
-        _useDefaultSeparator = value == " ";
+        _fieldSeparator = AwkFieldSeparatorSpec.FromText(value);
         _fieldSplittingMode = AwkFieldSplittingMode.FieldSeparator;
     }
 
@@ -184,27 +182,23 @@ internal sealed class AwkFieldSplitter(
                 ? _byteSplitter.SplitParagraphRecordFieldsBySeparator(
                     line,
                     _fieldSeparator,
-                    _useDefaultSeparator,
                     counters)
                 : _byteSplitter.SplitRecordFieldsBySeparator(
                     line,
                     _fieldSeparator,
-                    _useDefaultSeparator,
                     counters)
         };
     }
 
     public AwkTextSplitResult SplitFieldTextsBySeparator(
         AwkText line,
-        string separator,
-        bool useDefaultSeparator,
+        AwkFieldSeparatorSpec separator,
         bool captureSeparators,
         AwkRuntimeCounters counters)
     {
         return _byteSplitter.SplitBySeparator(
             line,
             separator,
-            useDefaultSeparator,
             captureSeparators,
             counters);
     }

@@ -17,51 +17,48 @@ internal sealed class AwkByteFieldSplitter(
 {
     public AwkTextSplitResult SplitBySeparator(
         AwkText line,
-        string separator,
-        bool useDefaultSeparator,
+        AwkFieldSeparatorSpec separator,
         bool captureSeparators,
         AwkRuntimeCounters counters)
     {
-        if (useDefaultSeparator)
+        if (separator.UsesWhitespaceSemantics)
             return SplitWhitespace(line, captureSeparators, counters);
 
-        if (separator.Length == 0)
+        if (separator.Text.Length == 0)
             return SplitCharacters(line, captureSeparators, charactersAsBytes(), counters);
 
-        if (TryGetSingleByteLiteralSeparator(separator, out var separatorByte) && !isIgnoreCaseEnabled())
+        if (TryGetSingleByteLiteralSeparator(separator.Text, out var separatorByte) && !isIgnoreCaseEnabled())
             return SplitSingleByteLiteral(line, separatorByte, captureSeparators, counters);
 
-        var regex = separator.Length > 1
-            ? createRegex(new AwkRegexPattern(separator))
-            : createLiteralRegex(new AwkRegexLiteralText(separator));
+        var regex = separator.Text.Length > 1
+            ? createRegex(new AwkRegexPattern(separator.Text))
+            : createLiteralRegex(new AwkRegexLiteralText(separator.Text));
         return SplitRegex(line, regex, captureSeparators, counters);
     }
 
     public IReadOnlyList<AwkFieldText> SplitRecordFieldsBySeparator(
         AwkText line,
-        string separator,
-        bool useDefaultSeparator,
+        AwkFieldSeparatorSpec separator,
         AwkRuntimeCounters counters)
     {
-        if (useDefaultSeparator)
+        if (separator.UsesWhitespaceSemantics)
             return SplitWhitespaceRecordFields(line);
 
-        if (separator.Length == 0)
+        if (separator.Text.Length == 0)
             return SplitCharacterRecordFields(line, charactersAsBytes());
 
-        if (TryGetSingleByteLiteralSeparator(separator, out var separatorByte) && !isIgnoreCaseEnabled())
+        if (TryGetSingleByteLiteralSeparator(separator.Text, out var separatorByte) && !isIgnoreCaseEnabled())
             return SplitSingleByteLiteralRecordFields(line, separatorByte);
 
-        var regex = separator.Length > 1
-            ? createRegex(new AwkRegexPattern(separator))
-            : createLiteralRegex(new AwkRegexLiteralText(separator));
+        var regex = separator.Text.Length > 1
+            ? createRegex(new AwkRegexPattern(separator.Text))
+            : createLiteralRegex(new AwkRegexLiteralText(separator.Text));
         return SplitRegexRecordFields(line, regex);
     }
 
     public IReadOnlyList<AwkFieldText> SplitParagraphRecordFieldsBySeparator(
         AwkText line,
-        string separator,
-        bool useDefaultSeparator,
+        AwkFieldSeparatorSpec separator,
         AwkRuntimeCounters counters)
     {
         static bool IsSingleCharacter(string value)
@@ -70,15 +67,15 @@ internal sealed class AwkByteFieldSplitter(
             return enumerator.MoveNext() && !enumerator.MoveNext();
         }
 
-        if (useDefaultSeparator || !IsSingleCharacter(separator))
-            return SplitRecordFieldsBySeparator(line, separator, useDefaultSeparator, counters);
+        if (separator.UsesWhitespaceSemantics || !IsSingleCharacter(separator.Text))
+            return SplitRecordFieldsBySeparator(line, separator, counters);
 
-        if (TryGetSingleByteLiteralSeparator(separator, out var separatorByte) && !isIgnoreCaseEnabled())
+        if (TryGetSingleByteLiteralSeparator(separator.Text, out var separatorByte) && !isIgnoreCaseEnabled())
             return SplitSingleByteParagraphRecordFields(line, separatorByte);
 
-        var regex = separator.Length > 1
-            ? createRegex(new AwkRegexPattern(separator))
-            : createLiteralRegex(new AwkRegexLiteralText(separator));
+        var regex = separator.Text.Length > 1
+            ? createRegex(new AwkRegexPattern(separator.Text))
+            : createLiteralRegex(new AwkRegexLiteralText(separator.Text));
         return SplitRegexParagraphRecordFields(line, regex);
     }
 
