@@ -12,7 +12,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
     public async Task Awk_TimeBuiltinsUseInjectedClock()
     {
         const long timestamp = 1234567890;
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, () => new AwkUnixTimestampSeconds(timestamp));
+        var state = CreateState(() => new AwkUnixTimestampSeconds(timestamp), TimeZoneInfo.Local);
         state.InitializeProcInfo();
 
         Assert.Equal(timestamp, (await EvaluateAsync("systime", [], state)).AsNumber());
@@ -28,7 +28,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         _ = await EvaluateAsync("srand", [], state);
         var actualFirstRandom = (await EvaluateAsync("rand", [], state)).AsNumber();
 
-        var expectedState = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, () => new AwkUnixTimestampSeconds(0));
+        var expectedState = CreateState(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Local);
         _ = await EvaluateAsync(
             "srand",
             [AwkExpression.Number(timestamp.ToString(), timestamp)],
@@ -77,7 +77,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             TimeSpan.FromHours(2),
             "Awk fixed +02",
             "Awk fixed +02");
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, () => new AwkUnixTimestampSeconds(0), timeZone);
+        var state = CreateState(() => new AwkUnixTimestampSeconds(0), timeZone);
         state.InitializeProcInfo();
 
         Assert.Equal(
@@ -123,7 +123,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             "Awk standard",
             "Awk daylight",
             [daylightRule]);
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, () => new AwkUnixTimestampSeconds(0), timeZone);
+        var state = CreateState(() => new AwkUnixTimestampSeconds(0), timeZone);
         const long winterTimestamp = 1577836800;
         const long summerTimestamp = 1593561600;
 
@@ -152,4 +152,12 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         IReadOnlyList<AwkExpression> arguments,
         AwkRuntimeState state) =>
         AwkBuiltins.EvaluateAsync(name, arguments, new AwkEvaluationContext(0, state));
+
+    private static AwkRuntimeState CreateState(
+        Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
+        TimeZoneInfo timeZone) =>
+        new(
+            AwkFieldSeparatorSpec.Default,
+            CancellationToken.None,
+            new AwkRuntimeOptions(currentUnixTimeSeconds, timeZone, new AwkRandomGenerator()));
 }

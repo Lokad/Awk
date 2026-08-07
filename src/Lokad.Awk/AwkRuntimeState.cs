@@ -120,76 +120,8 @@ internal sealed class AwkRuntimeState
     public AwkRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
         CancellationToken cancellationToken,
-        AwkLintMode lintMode)
-        : this(AwkRuntimeStatePlan
-            .Create(fieldSeparator, cancellationToken, AwkRuntimeOptions.CreateSystemDefault())
-            .WithLintMode(lintMode))
-    {
-    }
-
-    public AwkRuntimeState(
-        AwkFieldSeparatorSpec fieldSeparator,
-        CancellationToken cancellationToken,
-        Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds)
-        : this(AwkRuntimeStatePlan.Create(
-            fieldSeparator,
-            cancellationToken,
-            new AwkRuntimeOptions(currentUnixTimeSeconds, TimeZoneInfo.Local, new AwkRandomGenerator())))
-    {
-    }
-
-    public AwkRuntimeState(
-        AwkFieldSeparatorSpec fieldSeparator,
-        CancellationToken cancellationToken,
-        Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
-        TimeZoneInfo timeZone)
-        : this(AwkRuntimeStatePlan.Create(
-            fieldSeparator,
-            cancellationToken,
-            new AwkRuntimeOptions(currentUnixTimeSeconds, timeZone, new AwkRandomGenerator())))
-    {
-    }
-
-    public AwkRuntimeState(
-        AwkFieldSeparatorSpec fieldSeparator,
-        CancellationToken cancellationToken,
-        Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
-        AwkLintMode lintMode)
-        : this(AwkRuntimeStatePlan
-            .Create(
-                fieldSeparator,
-                cancellationToken,
-                new AwkRuntimeOptions(currentUnixTimeSeconds, TimeZoneInfo.Local, new AwkRandomGenerator()))
-            .WithLintMode(lintMode))
-    {
-    }
-
-    public AwkRuntimeState(
-        AwkFieldSeparatorSpec fieldSeparator,
-        CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions)
         : this(AwkRuntimeStatePlan.Create(fieldSeparator, cancellationToken, runtimeOptions))
-    {
-    }
-
-    public AwkRuntimeState(
-        AwkFieldSeparatorSpec fieldSeparator,
-        CancellationToken cancellationToken,
-        Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
-        TimeZoneInfo timeZone,
-        AwkCompatibilityMode compatibilityMode,
-        AwkLintMode lintMode,
-        bool charactersAsBytes,
-        bool nonDecimalData)
-        : this(AwkRuntimeStatePlan.Create(
-            fieldSeparator,
-            cancellationToken,
-            new AwkRuntimeOptions(currentUnixTimeSeconds, timeZone, new AwkRandomGenerator()),
-            compatibilityMode,
-            lintMode,
-            charactersAsBytes,
-            nonDecimalData,
-            DefaultMaxArrayElements))
     {
     }
 
