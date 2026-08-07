@@ -81,6 +81,14 @@ internal sealed class AwkFieldSplitter(
 
     public IReadOnlyList<AwkFieldText> SplitRecordFields(AwkText line, AwkRuntimeCounters counters)
     {
+        static int AddFieldWidthUnits(int position, int value)
+        {
+            if (position > int.MaxValue - value)
+                return int.MaxValue;
+
+            return position + value;
+        }
+
         IReadOnlyList<AwkFieldText> SplitFieldWidthRecordFields()
         {
             IReadOnlyList<AwkFieldText> SplitRuneFields()
@@ -205,13 +213,5 @@ internal sealed class AwkFieldSplitter(
 
     public AwkTextSplitResult Patsplit(AwkText input, string pattern, bool captureSeparators, AwkRuntimeCounters counters) =>
         _byteSplitter.Patsplit(input, pattern, captureSeparators, counters);
-
-    private static int AddFieldWidthUnits(int position, int value)
-    {
-        if (position > int.MaxValue - value)
-            return int.MaxValue;
-
-        return position + value;
-    }
 
 }

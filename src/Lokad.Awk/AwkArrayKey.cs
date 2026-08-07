@@ -39,19 +39,6 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     public static AwkArrayKey FromArgvIndex(AwkArgvIndex index) =>
         FromOrdinal(index.Value);
 
-    public static AwkArrayKey Compose(string first, string second, string separator) =>
-        new(first + separator + second);
-
-    public static AwkArrayKey Compose(
-        AwkText first,
-        AwkText second,
-        AwkText separator,
-        AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor) =>
-        new(first
-            .Concat(separator, counters, governor)
-            .Concat(second, counters, governor));
-
     public string StringValue =>
         IsOrdinal
             ? _ordinal.ToString(CultureInfo.InvariantCulture)
