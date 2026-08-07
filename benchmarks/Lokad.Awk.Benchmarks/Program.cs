@@ -631,6 +631,7 @@ internal static class BenchmarkExecution
         new AwkRandomGenerator(),
         AwkRuntimeCounters.Disabled,
         AwkRuntimeLimits.CreateDefault(),
+        AwkRegexEngineKind.DotNetCompatibility,
         executionEngineKind: AwkExecutionEngineKind.Executable);
 
     public static async Task<BenchmarkRunResult> RunFullInvocationAsync(BenchmarkScenario scenario)
