@@ -1007,7 +1007,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     }
 
     [Fact]
-    public async Task Awk_RegexRecordSeparatorDoesNotCopyAccumulatedInputPerBatch()
+    public async Task Awk_GroupedAlternationRecordSeparatorScansEachInputByteOnce()
     {
         const int batchCount = 32;
         const int batchLength = 1024;
@@ -1042,7 +1042,8 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         Assert.Equal(0, exitCode);
         Assert.Equal(inputLength + "\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.AwkTextPayloadBytes < inputLength * 2);
-        Assert.True(counters.RecordSeparatorBytesScanned > inputLength);
+        Assert.Equal(inputLength, counters.RecordSeparatorBytesScanned);
+        Assert.Equal(0, counters.RegexMatches);
     }
 
     [Fact]
@@ -1148,7 +1149,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
-            BuildInvocation("awk", "BEGIN{RS=\"(,|;)+\"} {print $0}"),
+            BuildInvocation("awk", "BEGIN{RS=\"(,+|;+)\"} {print $0}"),
             CancellationToken.None);
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput("alpha,beta;gamma");

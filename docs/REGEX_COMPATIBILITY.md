@@ -26,8 +26,9 @@ references from byte spans without materializing capture groups; capture values 
 `patsplit`, `gsub`, and other paths that genuinely need every match.
 Record separators that reduce to one or more bytes from a punctuation-only membership set use an
 incremental byte-run plan, including `([,;])+`, `(?:[,;])+`, and the equivalent quantifier
-inside the wrapper. Captures are not observable from `RS`; `RT` still receives the entire greedy
-run. Other regex separators stay on the selected regex backend. An arbitrary unbounded match can
+inside the wrapper. Equivalent punctuation-only alternations such as `([,]|;)+` use the same
+plan. Captures are not observable from `RS`; `RT` still receives the entire greedy run. Other
+regex separators stay on the selected regex backend. An arbitrary unbounded match can
 begin in an earlier host batch, and the current backends do not expose resumable partial-match
 state, so that correctness path may retry borrowed accumulated input after a batch arrives. It
 does not copy the accumulated snapshot or advance a checkpoint that could skip a cross-batch match.

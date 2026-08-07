@@ -223,7 +223,7 @@ public sealed class AwkBenchmarkCounterTests
             "3\n"
         },
         {
-            "BEGIN{RS=\"([,]|;)+\"} {print $0}",
+            "BEGIN{RS=\"(,+|;+)\"} {print $0}",
             "alpha,beta;",
             "alpha\nbeta\n"
         },
@@ -307,7 +307,7 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    public async Task Awk_GroupedAlternationRecordSeparatorUsesRegexFallback()
+    public async Task Awk_GroupedAlternationByteRunRecordSeparatorAvoidsRegexMatches()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["BEGIN{RS=\"([|]|;)+\"} {print $0}"],
@@ -316,9 +316,8 @@ public sealed class AwkBenchmarkCounterTests
 
         Assert.Equal(0, exitCode);
         Assert.Equal("a\nb\nc\nd\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.True(counters.RegexMatches > 0);
-        Assert.True(counters.AwkTextAsStringCalls > counters.AwkTextAsStringDecodeMisses);
-        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
+        Assert.Equal(0, counters.RegexMatches);
+        Assert.Equal(0, counters.AwkTextAsStringCalls);
     }
 
     [Fact]

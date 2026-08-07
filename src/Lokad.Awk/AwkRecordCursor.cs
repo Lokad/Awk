@@ -670,41 +670,81 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
         int length,
         out ByteMembership membership)
     {
-        static bool IsAsciiLetter(char value) =>
-            value is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
-
-        if (length == 1 &&
-            separatorText[start] <= 0x7F &&
-            !IsAsciiLetter(separatorText[start]) &&
-            !IsRegexMetacharacter(separatorText[start]))
+        static bool TryAddTerm(
+            string text,
+            int termStart,
+            int termLength,
+            ref ByteMembership values)
         {
-            membership = ByteMembership.Single((byte)separatorText[start]);
-            return true;
-        }
+            static bool IsAsciiLetter(char value) =>
+                value is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
 
-        if (length < 3 ||
-            separatorText[start] != '[' ||
-            separatorText[start + length - 1] != ']')
-        {
-            membership = default;
-            return false;
+            if (termLength == 1)
+            {
+                var value = text[termStart];
+                if (value > 0x7F || IsAsciiLetter(value) || IsRegexMetacharacter(value))
+                    return false;
+
+                values = values.Add((byte)value);
+                return true;
+            }
+
+            if (termLength < 3 || text[termStart] != '[' || text[termStart + termLength - 1] != ']')
+                return false;
+
+            var termEnd = termStart + termLength - 1;
+            for (var index = termStart + 1; index < termEnd; index++)
+            {
+                var ch = text[index];
+                if (ch > 0x7F || ch is '\\' or '-' or '^' or '[' or ']' || IsAsciiLetter(ch))
+                    return false;
+
+                values = values.Add((byte)ch);
+            }
+
+            return values.Count > 0;
         }
 
         membership = default;
-        var end = start + length - 1;
-        for (var index = start + 1; index < end; index++)
+        var end = start + length;
+        var termStart = start;
+        while (termStart < end)
         {
-            var ch = separatorText[index];
-            if (ch > 0x7F || ch is '\\' or '-' or '^' or '[' or ']' || IsAsciiLetter(ch))
+            int termLength;
+            if (separatorText[termStart] == '[')
+            {
+                var closingBracket = separatorText.IndexOf(']', termStart + 1, end - termStart - 1);
+                if (closingBracket < 0)
+                    return false;
+
+                termLength = closingBracket - termStart + 1;
+            }
+            else
+            {
+                termLength = 1;
+            }
+
+            if (!TryAddTerm(separatorText, termStart, termLength, ref membership))
             {
                 membership = default;
                 return false;
             }
 
-            membership = membership.Add((byte)ch);
+            termStart += termLength;
+            if (termStart == end)
+                return true;
+
+            if (separatorText[termStart] != '|')
+            {
+                membership = default;
+                return false;
+            }
+
+            termStart++;
         }
 
-        return membership.Count > 0;
+        membership = default;
+        return false;
     }
 
     private static bool IsRegexMetacharacter(char value) =>

@@ -24,8 +24,9 @@ zero. Record-separator resolutions count effective separator plan rebuilds, byte
 separator search work, and tail bytes moved measure buffer compaction copies. The grouped
 byte-run row deliberately spans multiple host batches without a separator and should scan each
 input byte once. Single-byte, byte-set, literal, paragraph, and recognized punctuation byte-run
-separators—including redundant capture or noncapturing wrappers—retain incremental scan
-checkpoints. General unbounded regex separators may inspect buffered bytes again after another
+separators—including redundant capture or noncapturing wrappers and equivalent punctuation-only
+alternations—retain incremental scan checkpoints. General unbounded regex separators may inspect
+buffered bytes again after another
 batch arrives because neither regex backend exposes resumable partial-match state; they borrow the
 cursor buffer rather than copying an accumulated snapshot, and focused batched-host tests keep
 that correctness fallback distinct from the incremental plans. Regex policy bytes inspected and
