@@ -106,7 +106,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter);
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new AwkRegexPattern("[[:alpha:]]+"));
         var input = AwkText.FromString("abc123déf", counters, state.MemoryGovernor);
@@ -137,7 +138,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter);
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
 
         var result = await AwkTestHarness
             .RunGoldenCaseAsync(testCase, CancellationToken.None, options);
@@ -181,7 +183,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter);
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", program),
@@ -214,7 +217,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
                 AwkRuntimeLimits.CreateDefault(),
                 useUtf8Adapter
                     ? AwkRegexEngineKind.Utf8Adapter
-                    : AwkRegexEngineKind.DotNetCompatibility);
+                    : AwkRegexEngineKind.DotNetCompatibility,
+                AwkExecutionEngineKind.Interpreter);
             var fileSystem = new MockFileSystem();
             var compiled = await AwkExecutor.CompileAsync(
                 fileSystem,
@@ -259,7 +263,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter);
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation(

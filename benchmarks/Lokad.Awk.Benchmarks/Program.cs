@@ -771,7 +771,8 @@ internal static class BenchmarkCounterReport
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(),
-            executionEngineKind: scenario.CounterExecutionEngineKind);
+            executionEngineKind: scenario.CounterExecutionEngineKind,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
         var compiled = await AwkExecutor
             .CompileAsync(
                 BenchmarkHost.FromFiles(scenario.Files),

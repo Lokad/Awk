@@ -263,7 +263,8 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter);
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
         var input = new string('a', 64);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
@@ -333,7 +334,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault());
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var measuredFileSystem = new MockFileSystem();
         measuredFileSystem.SetStandardInput(input);
 
@@ -369,7 +372,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4));
+            AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{print \"abcde\"}"),
@@ -459,7 +464,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(maxExecutionMemoryBytes));
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(maxExecutionMemoryBytes),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", program),
@@ -698,7 +705,11 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             new AwkRuntimeOptions(
                 () => new AwkUnixTimestampSeconds(0),
                 TimeZoneInfo.Local,
-                new AwkRandomGenerator()),
+                new AwkRandomGenerator(),
+                AwkRuntimeCounters.Disabled,
+                AwkRuntimeLimits.CreateDefault(),
+                AwkRegexEngineKind.DotNetCompatibility,
+                AwkExecutionEngineKind.Interpreter),
             AwkCompatibilityMode.GnuDefault,
             AwkLintMode.Off,
             charactersAsBytes: false,
@@ -723,7 +734,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1));
+            AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var state = new AwkRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
@@ -746,7 +759,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(300));
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(300),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var state = new AwkRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
@@ -774,7 +789,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024));
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var state = new AwkRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
@@ -960,7 +977,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(950));
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(950),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var content = new string('x', 80);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
@@ -984,7 +1003,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(200));
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(200),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var state = new AwkRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
@@ -1199,7 +1220,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxOutputFiles(1));
+            AwkRuntimeLimits.CreateDefault().WithMaxOutputFiles(1),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation(
@@ -1222,7 +1245,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            limits);
+            limits,
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
 
     private static string BuildExecutionStepCrossingInput()
     {
@@ -1251,5 +1276,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
                 TimeZoneInfo.Utc,
                 new AwkRandomGenerator(),
                 AwkRuntimeCounters.Disabled,
-                AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(maxExecutionMemoryBytes)));
+                AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(maxExecutionMemoryBytes),
+                AwkRegexEngineKind.DotNetCompatibility,
+                AwkExecutionEngineKind.Interpreter));
 }

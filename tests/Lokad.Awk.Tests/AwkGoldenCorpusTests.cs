@@ -443,6 +443,7 @@ public sealed class AwkGoldenCorpusTests
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
             executionEngineKind: AwkExecutionEngineKind.Executable);
 
     private static string LocateAwkTestReadme()

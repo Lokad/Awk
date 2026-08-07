@@ -45,7 +45,11 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         var expectedRandom = new AwkRandomGenerator();
         random.Seed(new AwkRandomSeed(17828));
         expectedRandom.Seed(new AwkRandomSeed(17828));
-        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, random);
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, random,
+            AwkRuntimeCounters.Disabled,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
 
         var actual = (await EvaluateAsync("rand", [], state)).AsNumber();
@@ -61,7 +65,11 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
-            random);
+            random,
+            AwkRuntimeCounters.Disabled,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var first = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var second = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
 
@@ -159,5 +167,9 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         new(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
-            new AwkRuntimeOptions(currentUnixTimeSeconds, timeZone, new AwkRandomGenerator()));
+            new AwkRuntimeOptions(currentUnixTimeSeconds, timeZone, new AwkRandomGenerator(),
+                AwkRuntimeCounters.Disabled,
+                AwkRuntimeLimits.CreateDefault(),
+                AwkRegexEngineKind.DotNetCompatibility,
+                AwkExecutionEngineKind.Interpreter));
 }

@@ -85,7 +85,10 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
-            counters);
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "{print \"café\"}"),
@@ -308,7 +311,10 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
-            counters);
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "{print $2; if ($0 ~ \"a\") print length($0)}", "/file.txt"),
@@ -365,7 +371,10 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
-            counters);
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{printf \"%s\", sprintf(\"%04d\", 7); print 3.5}"),
@@ -389,7 +398,10 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
-            counters);
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{x=\"café\"; y=\"caff\"; print (x > y)}"),
@@ -412,7 +424,10 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
-            counters);
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{x=\"café\"; y=\" résumé\"; print x y 123}"),
@@ -435,7 +450,10 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
-            counters);
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation(
@@ -460,7 +478,10 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
-            counters);
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{print tolower(\"ABC-xyz\"); print toupper(\"abc-XYZ\")}"),
@@ -485,7 +506,9 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096));
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{print \"abc\"}"),
@@ -522,7 +545,10 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
-            counters);
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "{print $0}", "/file.txt"),

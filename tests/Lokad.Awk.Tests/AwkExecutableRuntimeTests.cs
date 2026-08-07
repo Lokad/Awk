@@ -180,7 +180,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => AwkRuntime.ExecuteAsync(
@@ -207,7 +208,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
@@ -230,7 +232,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
@@ -302,7 +305,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
@@ -333,7 +337,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 
@@ -446,7 +451,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
@@ -474,7 +480,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exitCode = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 
@@ -498,7 +505,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault(),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
@@ -523,7 +531,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxVmStackBytes(8),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
@@ -547,7 +556,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxVmStackBytes(requiredBytes - 1),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
@@ -571,7 +581,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
@@ -599,7 +610,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             counters,
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
@@ -628,7 +640,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            executionEngineKind: AwkExecutionEngineKind.Executable,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => compiled.ExecuteAsync(fileSystem, cancellation.Token, options));
@@ -732,7 +745,8 @@ public sealed class AwkExecutableRuntimeTests
             new AwkRandomGenerator(),
             counters,
             limits,
-            executionEngineKind: executionEngineKind);
+            executionEngineKind: executionEngineKind,
+            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
         return new RunResult(
             exitCode,
