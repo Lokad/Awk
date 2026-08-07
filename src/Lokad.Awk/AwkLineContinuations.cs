@@ -8,13 +8,20 @@ internal static class AwkLineContinuations
 {
     public static AwkLineContinuationNormalization Normalize(string text)
     {
-        if (!ContainsLineContinuation(text))
+        var firstContinuation = 0;
+        while (firstContinuation < text.Length &&
+            !TryReadAt(text, firstContinuation, text.Length, out _))
+        {
+            firstContinuation++;
+        }
+
+        if (firstContinuation == text.Length)
             return new AwkLineContinuationNormalization(text, AwkLineContinuationMap.Empty);
 
         var builder = new StringBuilder(text.Length);
         var continuations = new List<AwkLineContinuationPoint>();
         var segmentStart = 0;
-        var index = 0;
+        var index = firstContinuation;
         while (index < text.Length)
         {
             if (TryReadAt(text, index, text.Length, out var continuation))
@@ -42,17 +49,6 @@ internal static class AwkLineContinuations
 
         escapedIndex += continuation.Length - 2;
         return true;
-    }
-
-    private static bool ContainsLineContinuation(string text)
-    {
-        for (var index = 0; index < text.Length; index++)
-        {
-            if (TryReadAt(text, index, text.Length, out _))
-                return true;
-        }
-
-        return false;
     }
 
     private static bool TryReadAt(

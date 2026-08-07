@@ -45,7 +45,12 @@ internal readonly struct AwkVariableSlot
         if (value.IsNumberValue)
             return new AwkVariableSlot(value.AsNumber());
 
-        return new AwkVariableSlot(value.ByteText, ResolveKind(value));
+        var kind = value.IsUnassignedValue
+            ? AwkVariableSlotKind.Unassigned
+            : value.IsNumericStringValue
+                ? AwkVariableSlotKind.NumericString
+                : AwkVariableSlotKind.Text;
+        return new AwkVariableSlot(value.ByteText, kind);
     }
 
     public string StringValue => ByteText.AsString();
@@ -70,19 +75,6 @@ internal readonly struct AwkVariableSlot
             AwkVariableSlotKind.NumericString => createNumericStringValue(ByteText),
             _ => createByteTextValue(ByteText)
         };
-
-    private static AwkVariableSlotKind ResolveKind(AwkValue value)
-    {
-        if (value.IsUnassignedValue)
-            return AwkVariableSlotKind.Unassigned;
-
-        if (value.IsNumberValue)
-            return AwkVariableSlotKind.Number;
-
-        return value.IsNumericStringValue
-            ? AwkVariableSlotKind.NumericString
-            : AwkVariableSlotKind.Text;
-    }
 }
 
 internal enum AwkVariableSlotKind

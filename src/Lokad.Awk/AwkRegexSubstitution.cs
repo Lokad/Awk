@@ -32,7 +32,7 @@ internal static class AwkRegexSubstitution
         int maxReplacements,
         out int replacementCount)
     {
-        var spanReplacementKind = IsLiteralReplacement(replacement)
+        var spanReplacementKind = replacement.AsSpan().IndexOfAny((byte)'&', (byte)'\\') < 0
             ? SpanReplacementKind.Literal
             : SpanReplacementKind.Substitution;
         if (spanReplacementKind == SpanReplacementKind.Literal ||
@@ -232,17 +232,6 @@ internal static class AwkRegexSubstitution
 
         builder.Append(input.AsSpan()[position..]);
         return builder.CopyToAwkText(state.Counters);
-    }
-
-    private static bool IsLiteralReplacement(AwkText replacement)
-    {
-        foreach (var value in replacement.AsSpan())
-        {
-            if (value is (byte)'&' or (byte)'\\')
-                return false;
-        }
-
-        return true;
     }
 
     private interface IMatchSource<TMatch> : IDisposable
