@@ -299,16 +299,28 @@ internal abstract record AwkRegexBackend(bool SeedIgnoreCase)
         new AwkUtf8RegexBackend(ignoreCase, value);
 }
 
-internal sealed record AwkDotNetRegexBackend(
-    bool IgnoreCase,
-    Regex Value) : AwkRegexBackend(IgnoreCase)
+internal sealed record AwkDotNetRegexBackend : AwkRegexBackend
 {
+    public AwkDotNetRegexBackend(bool seedIgnoreCase, Regex value)
+        : base(seedIgnoreCase)
+    {
+        Value = value;
+    }
+
+    public Regex Value { get; }
+
     public override int GroupCount => Value.GetGroupNumbers().Length;
 }
 
-internal sealed record AwkUtf8RegexBackend(
-    bool IgnoreCase,
-    Utf8RegexEngine Value) : AwkRegexBackend(IgnoreCase)
+internal sealed record AwkUtf8RegexBackend : AwkRegexBackend
 {
+    public AwkUtf8RegexBackend(bool seedIgnoreCase, Utf8RegexEngine value)
+        : base(seedIgnoreCase)
+    {
+        Value = value;
+    }
+
+    public Utf8RegexEngine Value { get; }
+
     public override int GroupCount => Value.GetGroupNumbers().Length;
 }
