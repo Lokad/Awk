@@ -302,8 +302,11 @@ internal sealed class AwkRegexRuntime
         }
 
         var ignoreCase = _isIgnoreCaseEnabled();
-        if (regex.TryGetUtf8Regex(ignoreCase, out var precompiled))
-            return precompiled;
+        if (regex.Backend is AwkUtf8RegexBackend precompiled &&
+            precompiled.SeedIgnoreCase == ignoreCase)
+        {
+            return precompiled.Value;
+        }
 
         var key = new AwkRegexCacheKey(regex.Pattern, ignoreCase, AwkRegexCacheKind.TranslatedPattern, _engineKind);
         if (_utf8RegexCache.TryGetValue(key, out var cached))
@@ -327,8 +330,11 @@ internal sealed class AwkRegexRuntime
         }
 
         var ignoreCase = _isIgnoreCaseEnabled();
-        if (regex.TryGetDotNetRegex(ignoreCase, out var precompiled))
-            return precompiled;
+        if (regex.Backend is AwkDotNetRegexBackend precompiled &&
+            precompiled.SeedIgnoreCase == ignoreCase)
+        {
+            return precompiled.Value;
+        }
 
         var key = new AwkRegexCacheKey(
             regex.Pattern,

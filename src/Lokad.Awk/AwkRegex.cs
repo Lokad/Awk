@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.RegularExpressions;
 using Utf8RegexEngine = Lokad.Utf8Regex.Utf8Regex;
@@ -8,26 +7,12 @@ namespace Lokad.Awk;
 
 internal sealed class AwkRegex
 {
-    private readonly Regex? _dotNetRegex;
-    private readonly Utf8RegexEngine? _utf8Regex;
-    private readonly bool _seedIgnoreCase;
-
-    private AwkRegex(string pattern, bool ignoreCase, Regex dotNetRegex)
+    private AwkRegex(string pattern, AwkRegexBackend backend)
     {
         Pattern = pattern;
         RequiresDotNetFallback = RequiresDotNetEngine(pattern);
-        GroupCount = dotNetRegex.GetGroupNumbers().Length;
-        _seedIgnoreCase = ignoreCase;
-        _dotNetRegex = dotNetRegex;
-    }
-
-    private AwkRegex(string pattern, bool ignoreCase, Utf8RegexEngine utf8Regex)
-    {
-        Pattern = pattern;
-        RequiresDotNetFallback = false;
-        GroupCount = utf8Regex.GetGroupNumbers().Length;
-        _seedIgnoreCase = ignoreCase;
-        _utf8Regex = utf8Regex;
+        Backend = backend;
+        GroupCount = backend.GroupCount;
     }
 
     public static readonly TimeSpan MatchTimeout =
@@ -39,6 +24,8 @@ internal sealed class AwkRegex
 
     public int GroupCount { get; }
 
+    internal AwkRegexBackend Backend { get; }
+
     public static AwkRegex Create(
         AwkRegexPattern pattern,
         bool ignoreCase)
@@ -46,36 +33,27 @@ internal sealed class AwkRegex
         var translatedPattern = TranslatePattern(pattern);
         return new AwkRegex(
             translatedPattern,
-            ignoreCase,
-            new Regex(
-                translatedPattern,
-                ResolveOptions(ignoreCase),
-                MatchTimeout));
+            AwkRegexBackend.DotNet(
+                ignoreCase,
+                new Regex(
+                    translatedPattern,
+                    ResolveOptions(ignoreCase),
+                    MatchTimeout)));
     }
 
     internal static AwkRegex CreateDotNet(string translatedPattern, bool ignoreCase) =>
         new(
             translatedPattern,
-            ignoreCase,
-            new Regex(translatedPattern, ResolveOptions(ignoreCase), MatchTimeout));
+            AwkRegexBackend.DotNet(
+                ignoreCase,
+                new Regex(translatedPattern, ResolveOptions(ignoreCase), MatchTimeout)));
 
     internal static AwkRegex CreateUtf8(string translatedPattern, bool ignoreCase) =>
         new(
             translatedPattern,
-            ignoreCase,
-            new Utf8RegexEngine(translatedPattern, ResolveOptions(ignoreCase), MatchTimeout));
-
-    internal bool TryGetDotNetRegex(bool ignoreCase, [NotNullWhen(true)] out Regex? regex)
-    {
-        regex = _dotNetRegex;
-        return _seedIgnoreCase == ignoreCase && regex is not null;
-    }
-
-    internal bool TryGetUtf8Regex(bool ignoreCase, [NotNullWhen(true)] out Utf8RegexEngine? regex)
-    {
-        regex = _utf8Regex;
-        return _seedIgnoreCase == ignoreCase && regex is not null;
-    }
+            AwkRegexBackend.Utf8(
+                ignoreCase,
+                new Utf8RegexEngine(translatedPattern, ResolveOptions(ignoreCase), MatchTimeout)));
 
     internal static bool RequiresDotNetEngine(string translatedPattern) =>
         translatedPattern.Contains(@"\A", StringComparison.Ordinal) ||
@@ -308,4 +286,29 @@ internal sealed class AwkRegex
 
     private static void AppendLiteral(StringBuilder builder, char value) =>
         builder.Append(Regex.Escape(value.ToString()));
+}
+
+internal abstract record AwkRegexBackend(bool SeedIgnoreCase)
+{
+    public abstract int GroupCount { get; }
+
+    public static AwkRegexBackend DotNet(bool ignoreCase, Regex value) =>
+        new AwkDotNetRegexBackend(ignoreCase, value);
+
+    public static AwkRegexBackend Utf8(bool ignoreCase, Utf8RegexEngine value) =>
+        new AwkUtf8RegexBackend(ignoreCase, value);
+}
+
+internal sealed record AwkDotNetRegexBackend(
+    bool IgnoreCase,
+    Regex Value) : AwkRegexBackend(IgnoreCase)
+{
+    public override int GroupCount => Value.GetGroupNumbers().Length;
+}
+
+internal sealed record AwkUtf8RegexBackend(
+    bool IgnoreCase,
+    Utf8RegexEngine Value) : AwkRegexBackend(IgnoreCase)
+{
+    public override int GroupCount => Value.GetGroupNumbers().Length;
 }
