@@ -163,6 +163,43 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Awk_MissingSubstitutionOccurrenceReturnsInputWithoutBuildingOutput(
+        bool useGensubReplacement)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(
+            () => new AwkUnixTimestampSeconds(0),
+            TimeZoneInfo.Utc,
+            new AwkRandomGenerator(),
+            counters,
+            AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4),
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
+        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var regex = state.CreateRegex(new AwkRegexPattern("a"));
+        var input = AwkText.FromString("a1234", counters, state.MemoryGovernor);
+        var replacement = AwkText.FromString("X", counters, state.MemoryGovernor);
+        var baselineTextAllocations = counters.AwkTextAllocations;
+
+        var result = AwkRegexSubstitution.ReplaceOccurrence(
+            state,
+            regex,
+            input,
+            replacement,
+            useGensubReplacement
+                ? AwkReplacementMode.Gensub
+                : AwkReplacementMode.Substitution,
+            occurrence: 2,
+            out var replacementCount);
+
+        Assert.Same(input, result);
+        Assert.Equal(0, replacementCount);
+        Assert.Equal(baselineTextAllocations, counters.AwkTextAllocations);
+    }
+
+    [Theory]
     [MemberData(nameof(RegexGoldenCases))]
     public async Task Awk_Utf8RegexAdapterMatchesRegexGoldenCases(AwkGoldenCase testCase)
     {

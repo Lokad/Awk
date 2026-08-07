@@ -106,24 +106,42 @@ internal static class AwkRegexSubstitution
             return input;
         }
 
+        if (targetOccurrence > 0)
+        {
+            for (var seen = 1; seen < targetOccurrence; seen++)
+            {
+                state.ThrowIfCancellationRequested();
+                if (!matchSource.MoveNext(out match))
+                {
+                    replacementCount = 0;
+                    return input;
+                }
+            }
+
+            state.ThrowIfCancellationRequested();
+            using var occurrenceBuilder = new AwkUtf8Builder(
+                state.Limits,
+                state.MemoryGovernor,
+                input.ByteLength);
+            occurrenceBuilder.Append(input.AsSpan()[..match.ByteIndex]);
+            AppendSpanReplacement(replacementKind, input, match, replacement, occurrenceBuilder);
+            occurrenceBuilder.Append(input.AsSpan()[(match.ByteIndex + match.ByteLength)..]);
+            replacementCount = 1;
+            return occurrenceBuilder.CopyToAwkText(state.Counters);
+        }
+
         using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor, input.ByteLength);
         var position = 0;
-        var seen = 0;
         replacementCount = 0;
         do
         {
             state.ThrowIfCancellationRequested();
-            seen++;
-            if (targetOccurrence != 0 && seen != targetOccurrence)
-                continue;
-
             builder.Append(input.AsSpan().Slice(position, match.ByteIndex - position));
             AppendSpanReplacement(replacementKind, input, match, replacement, builder);
             position = match.ByteIndex + match.ByteLength;
             replacementCount++;
 
-            if (targetOccurrence > 0 ||
-                (maxReplacements > 0 && replacementCount >= maxReplacements))
+            if (maxReplacements > 0 && replacementCount >= maxReplacements)
             {
                 break;
             }
@@ -170,24 +188,42 @@ internal static class AwkRegexSubstitution
             return input;
         }
 
+        if (targetOccurrence > 0)
+        {
+            for (var seen = 1; seen < targetOccurrence; seen++)
+            {
+                state.ThrowIfCancellationRequested();
+                if (!matchSource.MoveNext(out match))
+                {
+                    replacementCount = 0;
+                    return input;
+                }
+            }
+
+            state.ThrowIfCancellationRequested();
+            using var occurrenceBuilder = new AwkUtf8Builder(
+                state.Limits,
+                state.MemoryGovernor,
+                input.ByteLength);
+            occurrenceBuilder.Append(input.AsSpan()[..match.ByteIndex]);
+            AwkReplacement.AppendGensub(match, replacement, occurrenceBuilder);
+            occurrenceBuilder.Append(input.AsSpan()[(match.ByteIndex + match.ByteLength)..]);
+            replacementCount = 1;
+            return occurrenceBuilder.CopyToAwkText(state.Counters);
+        }
+
         using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor, input.ByteLength);
         var position = 0;
-        var seen = 0;
         replacementCount = 0;
         do
         {
             state.ThrowIfCancellationRequested();
-            seen++;
-            if (targetOccurrence != 0 && seen != targetOccurrence)
-                continue;
-
             builder.Append(input.AsSpan().Slice(position, match.ByteIndex - position));
             AwkReplacement.AppendGensub(match, replacement, builder);
             position = match.ByteIndex + match.ByteLength;
             replacementCount++;
 
-            if (targetOccurrence > 0 ||
-                (maxReplacements > 0 && replacementCount >= maxReplacements))
+            if (maxReplacements > 0 && replacementCount >= maxReplacements)
             {
                 break;
             }
