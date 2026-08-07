@@ -665,15 +665,9 @@ internal static class AwkExecutableDispatcher
         ArrayPool<AwkValue>.Shared.Return(stack, clearArray: true);
 
     private static long EstimateFrameBytes(int stackSlotCount) =>
-        CheckedAdd(VmFrameFixedBytes, AwkRuntimeMemory.EstimateAwkValueArrayBytes(stackSlotCount));
-
-    private static long CheckedAdd(long left, long right)
-    {
-        if (right > 0 && left > long.MaxValue - right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return left + right;
-    }
+        AwkRuntimeMemory.CheckedAdd(
+            VmFrameFixedBytes,
+            AwkRuntimeMemory.EstimateAwkValueArrayBytes(stackSlotCount));
 
     private static void ExecuteNumericOperation(
         AwkValue[] stack,

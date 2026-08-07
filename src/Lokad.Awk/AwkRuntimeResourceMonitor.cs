@@ -20,7 +20,7 @@ internal sealed class AwkRuntimeResourceMonitor
     {
         if (_limits.MaxHostCalls != AwkRuntimeLimits.Unlimited)
         {
-            var next = CheckedAdd(_hostCalls, 1);
+            var next = AwkRuntimeMemory.CheckedAdd(_hostCalls, 1);
             if (next > _limits.MaxHostCalls)
                 throw new AwkRuntimeException(AwkMessages.ErrorHostCallLimit);
 
@@ -32,7 +32,7 @@ internal sealed class AwkRuntimeResourceMonitor
 
     public void RecordExecutionStep()
     {
-        var next = CheckedAdd(_executionSteps, 1);
+        var next = AwkRuntimeMemory.CheckedAdd(_executionSteps, 1);
         if (next > _limits.MaxExecutionSteps)
         {
             throw new AwkRuntimeException(
@@ -56,7 +56,7 @@ internal sealed class AwkRuntimeResourceMonitor
 
         if (_limits.MaxOutputBytes != AwkRuntimeLimits.Unlimited)
         {
-            var next = CheckedAdd(_outputBytes, byteCount);
+            var next = AwkRuntimeMemory.CheckedAdd(_outputBytes, byteCount);
             if (next > _limits.MaxOutputBytes)
                 throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
 
@@ -84,11 +84,4 @@ internal sealed class AwkRuntimeResourceMonitor
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
     }
 
-    private static long CheckedAdd(long left, long right)
-    {
-        if (left > long.MaxValue - right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return left + right;
-    }
 }

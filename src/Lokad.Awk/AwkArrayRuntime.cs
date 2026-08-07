@@ -337,7 +337,9 @@ internal sealed class AwkArrayRuntime
     private IDisposable ReserveSortedKeySnapshot(AwkArrayName arrayName)
     {
         static long EstimateSnapshotBytes(int count) =>
-            CheckedAdd(EstimateSortOperationBytes(count), AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count));
+            AwkRuntimeMemory.CheckedAdd(
+                EstimateSortOperationBytes(count),
+                AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count));
 
         var count = _variables.GetArraySnapshotCount(arrayName);
         return _state.MemoryGovernor.ReserveTransient(EstimateSnapshotBytes(count));
@@ -620,7 +622,9 @@ internal sealed class AwkArrayRuntime
         var fields = EstimateFieldCountUpperBound(inputByteLength);
         var bytes = AwkRuntimeMemory.EstimateReferenceListBytes(fields);
         if (captureSeparators)
-            bytes = CheckedAdd(bytes, AwkRuntimeMemory.EstimateReferenceListBytes(CheckedAdd(fields, 1)));
+            bytes = AwkRuntimeMemory.CheckedAdd(
+                bytes,
+                AwkRuntimeMemory.EstimateReferenceListBytes(AwkRuntimeMemory.CheckedAdd(fields, 1)));
 
         return bytes;
     }
@@ -628,27 +632,11 @@ internal sealed class AwkArrayRuntime
     private static long EstimateSortOperationBytes(int count)
     {
         var bytes = AwkRuntimeMemory.EstimateDictionaryBufferBytes(count);
-        bytes = CheckedAdd(bytes, AwkRuntimeMemory.EstimateKeyValuePairArrayBytes(count));
-        bytes = CheckedAdd(bytes, AwkRuntimeMemory.EstimateKeyValuePairArrayBytes(count));
-        bytes = CheckedAdd(bytes, AwkRuntimeMemory.EstimateReferenceArrayBytes(count));
-        bytes = CheckedAdd(bytes, AwkRuntimeMemory.EstimateAwkValueArrayBytes(4));
+        bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateKeyValuePairArrayBytes(count));
+        bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateKeyValuePairArrayBytes(count));
+        bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateReferenceArrayBytes(count));
+        bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateAwkValueArrayBytes(4));
         return bytes;
-    }
-
-    private static int CheckedAdd(int left, int right)
-    {
-        if (left > int.MaxValue - right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return left + right;
-    }
-
-    private static long CheckedAdd(long left, long right)
-    {
-        if (left > long.MaxValue - right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return left + right;
     }
 
     private readonly record struct AwkArraySortEntry(

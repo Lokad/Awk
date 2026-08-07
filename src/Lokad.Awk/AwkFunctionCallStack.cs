@@ -314,7 +314,9 @@ internal sealed class AwkFunctionCallStack(
         }
 
         CommitGrowth(newBytes, oldBytes);
-        frame.RetainedMemoryBytes = CheckedAdd(frame.RetainedMemoryBytes, newBytes - oldBytes);
+        frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(
+            frame.RetainedMemoryBytes,
+            newBytes - oldBytes);
     }
 
     private void ReserveGrowth(long newBytes, long oldBytes)
@@ -345,7 +347,7 @@ internal sealed class AwkFunctionCallStack(
     {
         var bytes = AwkRuntimeMemory.EstimateFunctionFrameBytes();
         foreach (var slot in frame.Slots)
-            bytes = CheckedAdd(bytes, EstimateLocalSlotBytes(slot));
+            bytes = AwkRuntimeMemory.CheckedAdd(bytes, EstimateLocalSlotBytes(slot));
 
         return bytes;
     }
@@ -418,14 +420,4 @@ internal sealed class AwkFunctionCallStack(
     private static long EstimateLocalSlotBytes(AwkFunctionLocalSlot slot) =>
         AwkRuntimeMemory.EstimateFunctionLocalSlotBytes(slot);
 
-    private static long CheckedAdd(long left, long right)
-    {
-        if (right > 0 && left > long.MaxValue - right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        if (right < 0 && left < long.MinValue - right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return left + right;
-    }
 }

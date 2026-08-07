@@ -29,21 +29,23 @@ internal static class AwkRuntimeMemory
         if (byteLength <= 0)
             return 0;
 
-        return AwkTextObjectBytes + ByteArrayObjectBytes + byteLength;
+        return CheckedAdd(CheckedAdd(AwkTextObjectBytes, ByteArrayObjectBytes), byteLength);
     }
 
     public static long EstimateVariableSlotBytes(AwkVariableSlot slot) =>
-        VariableSlotBytes + EstimateTextBytes(slot.RetainedTextByteLength);
+        CheckedAdd(VariableSlotBytes, EstimateTextBytes(slot.RetainedTextByteLength));
 
     public static long EstimateArrayElementBytes(AwkArrayKey key, AwkVariableSlot slot) =>
-        ArrayEntryBytes + EstimateTextBytes(key.RetainedTextByteLength) + EstimateVariableSlotBytes(slot);
+        CheckedAdd(
+            CheckedAdd(ArrayEntryBytes, EstimateTextBytes(key.RetainedTextByteLength)),
+            EstimateVariableSlotBytes(slot));
 
     public static long EstimateFunctionFrameBytes() =>
         FunctionFrameBytes;
 
     public static long EstimateFunctionLocalSlotBytes(AwkFunctionLocalSlot slot) =>
         slot.Kind == AwkFunctionLocalSlotKind.Scalar
-            ? FunctionLocalEntryBytes + EstimateVariableSlotBytes(slot.Value)
+            ? CheckedAdd(FunctionLocalEntryBytes, EstimateVariableSlotBytes(slot.Value))
             : FunctionLocalEntryBytes;
 
     public static long EstimateReferenceArrayBytes(int count) =>
@@ -80,27 +82,47 @@ internal static class AwkRuntimeMemory
         return CheckedAdd(ArrayObjectBytes, CheckedMultiply(elementBytes, count));
     }
 
-    private static long CheckedMultiply(int left, int right)
+    public static int CheckedAdd(int left, int right)
     {
-        if (right != 0 && left > long.MaxValue / right)
+        if (right > 0 && left > int.MaxValue - right ||
+            right < 0 && left < int.MinValue - right)
+        {
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+        }
 
-        return (long)left * right;
+        return left + right;
     }
 
-    private static long CheckedMultiply(long left, int right)
+    public static long CheckedAdd(long left, long right)
     {
-        if (right != 0 && left > long.MaxValue / right)
+        if (right > 0 && left > long.MaxValue - right ||
+            right < 0 && left < long.MinValue - right)
+        {
+            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+        }
+
+        return left + right;
+    }
+
+    public static int CheckedMultiplyToInt32(int left, int right) =>
+        CheckedToInt32(CheckedMultiply(left, right));
+
+    public static long CheckedMultiply(int left, int right) =>
+        CheckedMultiply((long)left, right);
+
+    public static long CheckedMultiply(long left, int right)
+    {
+        if (left < 0 || right < 0 || right != 0 && left > long.MaxValue / right)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
 
         return left * right;
     }
 
-    private static long CheckedAdd(long left, long right)
+    public static int CheckedToInt32(long value)
     {
-        if (left > long.MaxValue - right)
+        if (value is < 0 or > int.MaxValue)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
 
-        return left + right;
+        return (int)value;
     }
 }

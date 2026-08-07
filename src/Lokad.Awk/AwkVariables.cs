@@ -567,14 +567,6 @@ internal sealed class AwkVariables
         AwkArrayName secondName,
         Dictionary<AwkArrayKey, AwkVariableSlot> secondSlots)
     {
-        static long AddBytes(long left, long right)
-        {
-            if (left > long.MaxValue - right)
-                throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-            return left + right;
-        }
-
         long ExistingBytes(AwkArrayName name) =>
             ShouldGovernArray(name) && _arrays.TryGetSlots(name, out var slots)
                 ? EstimateArrayBytes(slots)
@@ -585,8 +577,8 @@ internal sealed class AwkVariables
             IReadOnlyDictionary<AwkArrayKey, AwkVariableSlot> slots) =>
             ShouldGovernArray(name) ? EstimateArrayBytes(slots) : 0;
 
-        var oldBytes = AddBytes(ExistingBytes(firstName), ExistingBytes(secondName));
-        var newBytes = AddBytes(
+        var oldBytes = AwkRuntimeMemory.CheckedAdd(ExistingBytes(firstName), ExistingBytes(secondName));
+        var newBytes = AwkRuntimeMemory.CheckedAdd(
             ReplacementBytes(firstName, firstSlots),
             ReplacementBytes(secondName, secondSlots));
         using var mutation = ReserveMemoryMutation(newBytes, oldBytes);

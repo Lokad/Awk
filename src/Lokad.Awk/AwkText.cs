@@ -195,7 +195,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (other.ByteLength == 0)
             return this;
 
-        var length = CheckedLength(ByteLength, other.ByteLength);
+        var length = AwkRuntimeMemory.CheckedAdd(ByteLength, other.ByteLength);
         var bytes = new byte[length];
         AsSpan().CopyTo(bytes);
         other.AsSpan().CopyTo(bytes.AsSpan(ByteLength));
@@ -214,7 +214,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (other.ByteLength == 0)
             return this;
 
-        var length = CheckedLength(ByteLength, other.ByteLength);
+        var length = AwkRuntimeMemory.CheckedAdd(ByteLength, other.ByteLength);
         var bytes = AllocateOwnedBytes(length, governor);
         AsSpan().CopyTo(bytes);
         other.AsSpan().CopyTo(bytes.AsSpan(ByteLength));
@@ -236,7 +236,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             if (part.ByteLength == 0)
                 continue;
 
-            totalLength = CheckedLength(totalLength, part.ByteLength);
+            totalLength = AwkRuntimeMemory.CheckedAdd(totalLength, part.ByteLength);
             nonEmptyPartCount++;
             if (nonEmptyPartCount == 1)
                 singleNonEmptyPart = part;
@@ -276,7 +276,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (count == 1)
             return this;
 
-        var length = CheckedProduct(ByteLength, count);
+        var length = AwkRuntimeMemory.CheckedMultiplyToInt32(ByteLength, count);
         var bytes = new byte[length];
         var destination = bytes.AsSpan();
         for (var index = 0; index < count; index++)
@@ -298,7 +298,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (count == 1)
             return this;
 
-        var length = CheckedProduct(ByteLength, count);
+        var length = AwkRuntimeMemory.CheckedMultiplyToInt32(ByteLength, count);
         var bytes = AllocateOwnedBytes(length, governor);
         var destination = bytes.AsSpan();
         for (var index = 0; index < count; index++)
@@ -596,22 +596,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         value is >= (byte)'A' and <= (byte)'Z'
             ? (byte)(value + 32)
             : value;
-
-    private static int CheckedLength(int left, int right)
-    {
-        if (left > int.MaxValue - right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return left + right;
-    }
-
-    private static int CheckedProduct(int left, int right)
-    {
-        if (left > int.MaxValue / right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return left * right;
-    }
 
     private static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index)
     {

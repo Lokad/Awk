@@ -39,7 +39,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         _maxBuilderBytes = limits.MaxBuilderBytes;
         _contentOffset = reservedPrefix.HasValue ? 1 : 0;
         var initialCapacity = Math.Min(capacity, _maxBuilderBytes);
-        var allocatedCapacity = CheckedLength(initialCapacity, _contentOffset);
+        var allocatedCapacity = AwkRuntimeMemory.CheckedAdd(initialCapacity, _contentOffset);
         if (allocatedCapacity == 0)
         {
             _buffer = [];
@@ -98,7 +98,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         if (bytes.IsEmpty)
             return this;
 
-        var nextLength = CheckedLength(Length, bytes.Length);
+        var nextLength = AwkRuntimeMemory.CheckedAdd(Length, bytes.Length);
         EnsureCapacity(nextLength);
         bytes.CopyTo(_buffer.AsSpan(_contentOffset + Length));
         Length = nextLength;
@@ -108,7 +108,7 @@ internal sealed class AwkUtf8Builder : IDisposable
     public AwkUtf8Builder Append(byte value)
     {
         ThrowIfDisposed();
-        var nextLength = CheckedLength(Length, 1);
+        var nextLength = AwkRuntimeMemory.CheckedAdd(Length, 1);
         EnsureCapacity(nextLength);
         _buffer[_contentOffset + Length] = value;
         Length = nextLength;
@@ -124,7 +124,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         if (count == 0)
             return this;
 
-        var nextLength = CheckedLength(Length, count);
+        var nextLength = AwkRuntimeMemory.CheckedAdd(Length, count);
         EnsureCapacity(nextLength);
         _buffer.AsSpan(_contentOffset + Length, count).Fill(value);
         Length = nextLength;
@@ -207,7 +207,7 @@ internal sealed class AwkUtf8Builder : IDisposable
     {
         void ResizeAndCommit(int newSize)
         {
-            var allocatedSize = CheckedLength(newSize, _contentOffset);
+            var allocatedSize = AwkRuntimeMemory.CheckedAdd(newSize, _contentOffset);
             _governor.Reserve(allocatedSize);
             try
             {
@@ -257,11 +257,4 @@ internal sealed class AwkUtf8Builder : IDisposable
             throw new ObjectDisposedException(nameof(AwkUtf8Builder));
     }
 
-    private static int CheckedLength(int left, int right)
-    {
-        if (left > int.MaxValue - right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return left + right;
-    }
 }

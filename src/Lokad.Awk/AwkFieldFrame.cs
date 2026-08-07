@@ -308,11 +308,13 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         IReadOnlyDictionary<int, AwkValue> fieldValueCache)
     {
         var bytes = AwkRuntimeMemory.EstimateTextBytes(recordText);
-        bytes = CheckedLength(bytes, AwkRuntimeMemory.EstimateReferenceListBytes(fieldTexts.Count));
-        bytes = CheckedLength(bytes, EstimateFieldValueCacheBytes(fieldTexts, fieldValueCache));
+        bytes = AwkRuntimeMemory.CheckedAdd(
+            bytes,
+            AwkRuntimeMemory.EstimateReferenceListBytes(fieldTexts.Count));
+        bytes = AwkRuntimeMemory.CheckedAdd(bytes, EstimateFieldValueCacheBytes(fieldTexts, fieldValueCache));
         for (var index = 0; index < fieldTexts.Count; index++)
         {
-            bytes = CheckedLength(bytes, fieldTexts[index].RetainedTextByteLength);
+            bytes = AwkRuntimeMemory.CheckedAdd(bytes, fieldTexts[index].RetainedTextByteLength);
         }
 
         return bytes;
@@ -328,7 +330,9 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
             if ((uint)pair.Key < (uint)fieldTexts.Count &&
                 fieldTexts[pair.Key].Kind == AwkFieldTextKind.RecordSlice)
             {
-                bytes = CheckedLength(bytes, AwkRuntimeMemory.EstimateTextBytes(pair.Value.ByteText));
+                bytes = AwkRuntimeMemory.CheckedAdd(
+                    bytes,
+                    AwkRuntimeMemory.EstimateTextBytes(pair.Value.ByteText));
             }
         }
 
@@ -339,16 +343,20 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
     {
         var fields = EstimateFieldCountUpperBound(recordByteLength);
         var bytes = AwkRuntimeMemory.EstimateReferenceListBytes(fields);
-        bytes = CheckedLength(bytes, AwkRuntimeMemory.EstimateReferenceListBytes(fields));
+        bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateReferenceListBytes(fields));
         return bytes;
     }
 
     private static int EstimateComposedRecordByteLength(int separatorLength, IReadOnlyList<AwkFieldText> fieldTexts)
     {
-        var byteLength = CheckedLength((long)separatorLength * Math.Max(0, fieldTexts.Count - 1));
+        var byteLength = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedMultiply(
+            separatorLength,
+            Math.Max(0, fieldTexts.Count - 1)));
         for (var index = 0; index < fieldTexts.Count; index++)
         {
-            byteLength = CheckedLength(byteLength, fieldTexts[index].ByteLength(AwkText.Empty));
+            byteLength = AwkRuntimeMemory.CheckedAdd(
+                byteLength,
+                fieldTexts[index].ByteLength(AwkText.Empty));
         }
 
         return byteLength;
@@ -356,10 +364,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
 
     private static int EstimateFieldCountUpperBound(int recordByteLength)
     {
-        if (recordByteLength == int.MaxValue)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return recordByteLength + 1;
+        return AwkRuntimeMemory.CheckedAdd(recordByteLength, 1);
     }
 
     private void ThrowIfFieldCountExceeded(int count)
@@ -368,27 +373,4 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
             throw new AwkRuntimeException(AwkMessages.ErrorArrayElementLimit);
     }
 
-    private static int CheckedLength(long value)
-    {
-        if (value is < 0 or > int.MaxValue)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return (int)value;
-    }
-
-    private static long CheckedLength(long left, long right)
-    {
-        if (left > long.MaxValue - right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return left + right;
-    }
-
-    private static int CheckedLength(int left, int right)
-    {
-        if (left > int.MaxValue - right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return left + right;
-    }
 }

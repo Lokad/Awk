@@ -63,9 +63,9 @@ internal sealed class AwkMemoryGovernor
         if (!_enabled || byteCount <= 0)
             return;
 
-        var reserved = AddOrFail(CurrentReservedBytes, byteCount);
+        var reserved = AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, byteCount);
         ThrowIfLiveWouldExceedLimit(reserved, CurrentCommittedBytes);
-        var totalReserved = AddOrFail(TotalReservedBytes, byteCount);
+        var totalReserved = AwkRuntimeMemory.CheckedAdd(TotalReservedBytes, byteCount);
         CurrentReservedBytes = reserved;
         TotalReservedBytes = totalReserved;
         ReserveCount++;
@@ -83,9 +83,9 @@ internal sealed class AwkMemoryGovernor
             throw new InvalidOperationException("Cannot commit more bytes than have been reserved.");
 
         var reserved = CurrentReservedBytes - byteCount;
-        var committed = AddOrFail(CurrentCommittedBytes, byteCount);
+        var committed = AwkRuntimeMemory.CheckedAdd(CurrentCommittedBytes, byteCount);
         ThrowIfLiveWouldExceedLimit(reserved, committed);
-        var totalCommitted = AddOrFail(TotalCommittedBytes, byteCount);
+        var totalCommitted = AwkRuntimeMemory.CheckedAdd(TotalCommittedBytes, byteCount);
         CurrentReservedBytes = reserved;
         CurrentCommittedBytes = committed;
         TotalCommittedBytes = totalCommitted;
@@ -103,7 +103,7 @@ internal sealed class AwkMemoryGovernor
         if (byteCount > CurrentReservedBytes)
             throw new InvalidOperationException("Cannot release more reserved bytes than are currently reserved.");
 
-        TotalReleasedReservedBytes = AddOrFail(TotalReleasedReservedBytes, byteCount);
+        TotalReleasedReservedBytes = AwkRuntimeMemory.CheckedAdd(TotalReleasedReservedBytes, byteCount);
         ReleaseReservedCount++;
         CurrentReservedBytes -= byteCount;
         _counters.RecordMemoryReleaseReserved(byteCount);
@@ -117,7 +117,7 @@ internal sealed class AwkMemoryGovernor
         if (byteCount > CurrentCommittedBytes)
             throw new InvalidOperationException("Cannot release more committed bytes than are currently committed.");
 
-        TotalReleasedCommittedBytes = AddOrFail(TotalReleasedCommittedBytes, byteCount);
+        TotalReleasedCommittedBytes = AwkRuntimeMemory.CheckedAdd(TotalReleasedCommittedBytes, byteCount);
         ReleaseCommittedCount++;
         CurrentCommittedBytes -= byteCount;
         _counters.RecordMemoryReleaseCommitted(byteCount);
@@ -142,7 +142,7 @@ internal sealed class AwkMemoryGovernor
         return new AwkTransientMemoryLease(this, byteCount);
     }
 
-    private long LiveBytes => AddOrFail(CurrentReservedBytes, CurrentCommittedBytes);
+    private long LiveBytes => AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, CurrentCommittedBytes);
 
     private void UpdatePeakLiveBytes()
     {
@@ -151,16 +151,8 @@ internal sealed class AwkMemoryGovernor
 
     private void ThrowIfLiveWouldExceedLimit(long reservedBytes, long committedBytes)
     {
-        if (AddOrFail(reservedBytes, committedBytes) > _maxLiveBytes)
+        if (AwkRuntimeMemory.CheckedAdd(reservedBytes, committedBytes) > _maxLiveBytes)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-    }
-
-    private static long AddOrFail(long left, long right)
-    {
-        if (left > long.MaxValue - right)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-        return left + right;
     }
 
     private sealed class AwkNoopMemoryLease : IDisposable
