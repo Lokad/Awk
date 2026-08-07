@@ -5,21 +5,6 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkSourceUnit
 {
-    public AwkSourceUnit(string name, string text)
-        : this(new AwkSourceName(name), text)
-    {
-    }
-
-    public AwkSourceUnit(AwkSourceName name, string text)
-        : this(name, text, [new AwkSourceSegment(name, AwkSourceSegmentKind.Unknown, new AwkTextSpan(0, text.Length))])
-    {
-    }
-
-    public AwkSourceUnit(string name, string text, IReadOnlyList<AwkSourceSegment> segments)
-        : this(new AwkSourceName(name), text, segments)
-    {
-    }
-
     public AwkSourceUnit(AwkSourceName name, string text, IReadOnlyList<AwkSourceSegment> segments)
     {
         SourceName = name;
@@ -39,46 +24,6 @@ internal readonly struct AwkSourceUnit
 internal readonly struct AwkSourceSegment
 {
     private readonly AwkLineContinuationMap _lineContinuations;
-
-    public AwkSourceSegment(string name, AwkSourceSegmentKind kind, AwkTextSpan span)
-        : this(new AwkSourceName(name), kind, span)
-    {
-    }
-
-    public AwkSourceSegment(AwkSourceName name, AwkSourceSegmentKind kind, AwkTextSpan span)
-        : this(name, kind, span, 0, 0)
-    {
-    }
-
-    public AwkSourceSegment(
-        string name,
-        AwkSourceSegmentKind kind,
-        AwkTextSpan span,
-        int lineOffset,
-        int columnOffset)
-        : this(new AwkSourceName(name), kind, span, lineOffset, columnOffset)
-    {
-    }
-
-    public AwkSourceSegment(
-        AwkSourceName name,
-        AwkSourceSegmentKind kind,
-        AwkTextSpan span,
-        int lineOffset,
-        int columnOffset)
-        : this(name, kind, span, new AwkLineOffset(lineOffset), new AwkColumnOffset(columnOffset))
-    {
-    }
-
-    public AwkSourceSegment(
-        AwkSourceName name,
-        AwkSourceSegmentKind kind,
-        AwkTextSpan span,
-        AwkLineOffset lineOffset,
-        AwkColumnOffset columnOffset)
-        : this(name, kind, span, lineOffset, columnOffset, AwkLineContinuationMap.Empty)
-    {
-    }
 
     public AwkSourceSegment(
         AwkSourceName name,
@@ -173,11 +118,6 @@ internal sealed class AwkExpandedSource
 
 internal sealed class AwkScriptFile
 {
-    public AwkScriptFile(string text, string displayName, string identity)
-        : this(text, new AwkSourceName(displayName), new AwkSourceIdentity(identity))
-    {
-    }
-
     public AwkScriptFile(string text, AwkSourceName displayName, AwkSourceIdentity identity)
     {
         Text = text;

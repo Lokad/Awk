@@ -122,7 +122,10 @@ internal static class AwkSourceDiagnosticMap
             ref line,
             ref column);
 
-        return new AwkSourceLocation(segment.Name, line, column);
+        return new AwkSourceLocation(
+            segment.Name,
+            new AwkLineNumber(line),
+            new AwkColumnNumber(column));
     }
 
     private static void ApplyLineContinuations(

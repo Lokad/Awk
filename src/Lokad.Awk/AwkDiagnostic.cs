@@ -59,11 +59,6 @@ internal readonly struct AwkDiagnostic
 
 internal readonly struct AwkSourceLocation
 {
-    public AwkSourceLocation(string name, int line, int column)
-        : this(name, new AwkLineNumber(line), new AwkColumnNumber(column))
-    {
-    }
-
     public AwkSourceLocation(string name, AwkLineNumber line, AwkColumnNumber column)
     {
         Name = name;
