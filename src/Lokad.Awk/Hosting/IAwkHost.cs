@@ -43,6 +43,9 @@ public interface IAwkHost
     /// <summary>
     /// Reads up to <paramref name="maxLineCount"/> lines. Successful results carry a byte buffer
     /// and the strictly increasing byte offsets at which every line after the first starts.
+    /// The host must keep the returned byte buffer unchanged and alive until the next call for the
+    /// same descriptor begins or the descriptor is closed. Calls for different descriptors have
+    /// independent buffer lifetimes. The result snapshots line-offset metadata before returning.
     /// End-of-file is represented independently by <see cref="AwkReadResult.ReachedEof"/>; read
     /// failures must use <see cref="AwkReadResult.Failure"/> and provide a host-shaped error.
     /// </summary>

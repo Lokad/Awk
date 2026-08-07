@@ -110,4 +110,15 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         Assert.Throws<ArgumentException>(() =>
             AwkReadResult.FromContent("one\ntwo\n"u8.ToArray(), [4, 4], reachedEof: true));
     }
+
+    [Fact]
+    public void AwkReadResult_SnapshotsLineOffsets()
+    {
+        int[] offsets = [4];
+        var result = AwkReadResult.FromContent("one\ntwo\n"u8.ToArray(), offsets, reachedEof: true);
+
+        offsets[0] = 1;
+
+        Assert.Equal([4], result.LineStartOffsets.ToArray());
+    }
 }

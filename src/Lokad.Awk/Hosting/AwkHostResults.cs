@@ -145,7 +145,9 @@ public readonly struct AwkReadResult
         ValidateLineStartOffsets(content.Length, lineStartOffsets);
         Status = status;
         Content = content;
-        LineStartOffsets = lineStartOffsets;
+        LineStartOffsets = lineStartOffsets.Length == 0
+            ? ReadOnlyMemory<int>.Empty
+            : new ReadOnlyMemory<int>([.. lineStartOffsets]);
         ReachedEof = reachedEof;
         Error = error;
     }
@@ -156,7 +158,9 @@ public readonly struct AwkReadResult
 
     /// <summary>
     /// Creates a successful result. Offsets identify each line start after the first and must be
-    /// strictly increasing positions inside <paramref name="content"/>.
+    /// strictly increasing positions inside <paramref name="content"/>. Offset metadata is copied;
+    /// the content remains borrowed under the lifetime contract of
+    /// <see cref="IAwkHost.ReadLinesAsync"/>.
     /// </summary>
     public static AwkReadResult FromContent(
         ReadOnlyMemory<byte> content,
@@ -176,10 +180,13 @@ public readonly struct AwkReadResult
     /// <summary>Gets the outcome category.</summary>
     public AwkOperationStatus Status { get; }
 
-    /// <summary>Gets the bytes returned by a successful read.</summary>
+    /// <summary>
+    /// Gets the bytes returned by a successful read. The memory remains valid until the host starts
+    /// the next read on the same descriptor or that descriptor is closed.
+    /// </summary>
     public ReadOnlyMemory<byte> Content { get; }
 
-    /// <summary>Gets the byte offsets at which lines after the first begin.</summary>
+    /// <summary>Gets an immutable snapshot of the byte offsets at which lines after the first begin.</summary>
     public ReadOnlyMemory<int> LineStartOffsets { get; }
 
     /// <summary>Gets the host-shaped error returned by a failed read.</summary>

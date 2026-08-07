@@ -54,6 +54,10 @@ failures are fatal, redirected and pipe `getline` failures return `-1` and set `
 read failures retain the source path in their diagnostic. Host-provided CLR exception text is not
 used as a user-visible diagnostic.
 
+Line-start offsets are snapshotted by `AwkReadResult`. Successful content is borrowed: the host
+keeps it unchanged and alive until the next read begins on the same descriptor or that descriptor
+is closed. Reads on other descriptors do not end that lifetime.
+
 ## Public API
 
 The executable runtime, regex adapter choice, and resource governors remain internal rollout
