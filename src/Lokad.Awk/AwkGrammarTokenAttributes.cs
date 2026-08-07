@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Lokad.Parsing.Parser;
@@ -94,6 +95,9 @@ internal sealed class AwkTopLevelPatternLeafAttribute : AwkTokenSetAttribute
 
 internal static class AwkGrammarTokenSets
 {
+    private static IReadOnlyList<AwkTokenKind> ReadOnly(AwkTokenKind[] tokens) =>
+        Array.AsReadOnly(tokens);
+
     private static readonly AwkTokenKind[] LiteralTokens =
     [
         AwkTokenKind.Number,
@@ -198,7 +202,7 @@ internal static class AwkGrammarTokenSets
         ..OperatorsWithColon
     ];
 
-    public static readonly AwkTokenKind[] StatementCaseLabelLeaf =
+    public static IReadOnlyList<AwkTokenKind> StatementCaseLabelLeaf { get; } = ReadOnly(
     [
         AwkTokenKind.BadToken,
         ..NamedValueTokens,
@@ -208,9 +212,9 @@ internal static class AwkGrammarTokenSets
         ..SimpleStatementKeywords,
         AwkTokenKind.Switch,
         ..OperatorsWithoutColon
-    ];
+    ]);
 
-    public static readonly AwkTokenKind[] StatementExpressionStartLeaf =
+    public static IReadOnlyList<AwkTokenKind> StatementExpressionStartLeaf { get; } = ReadOnly(
     [
         AwkTokenKind.BadToken,
         ..LiteralTokens,
@@ -218,9 +222,9 @@ internal static class AwkGrammarTokenSets
         AwkTokenKind.Function,
         AwkTokenKind.In,
         ..FullExpressionOperators
-    ];
+    ]);
 
-    public static readonly AwkTokenKind[] StatementSimpleLeaf =
+    public static IReadOnlyList<AwkTokenKind> StatementSimpleLeaf { get; } = ReadOnly(
     [
         AwkTokenKind.BadToken,
         ..NamedValueTokens,
@@ -229,18 +233,18 @@ internal static class AwkGrammarTokenSets
         AwkTokenKind.In,
         ..SimpleStatementKeywords,
         ..FullExpressionOperators
-    ];
+    ]);
 
-    public static readonly AwkTokenKind[] StatementMalformedControlLeaf =
+    public static IReadOnlyList<AwkTokenKind> StatementMalformedControlLeaf { get; } = ReadOnly(
     [
         AwkTokenKind.BadToken,
         ..NamedValueTokens,
         AwkTokenKind.In,
         ..SimpleStatementKeywords,
         ..FullExpressionOperators
-    ];
+    ]);
 
-    public static readonly AwkTokenKind[] StatementGroupLeaf =
+    public static IReadOnlyList<AwkTokenKind> StatementGroupLeaf { get; } = ReadOnly(
     [
         AwkTokenKind.BadToken,
         AwkTokenKind.NewLine,
@@ -255,9 +259,9 @@ internal static class AwkGrammarTokenSets
         AwkTokenKind.RightBrace,
         AwkTokenKind.Semicolon,
         ..FullExpressionOperators
-    ];
+    ]);
 
-    public static readonly AwkTokenKind[] TopLevelDirectiveArgumentLeaf =
+    public static IReadOnlyList<AwkTokenKind> TopLevelDirectiveArgumentLeaf { get; } = ReadOnly(
     [
         AwkTokenKind.BadToken,
         ..NamedValueTokens,
@@ -274,9 +278,9 @@ internal static class AwkGrammarTokenSets
         AwkTokenKind.RightBracket,
         ..FullExpressionOperators,
         AwkTokenKind.Comment
-    ];
+    ]);
 
-    public static readonly AwkTokenKind[] TopLevelBlockLeaf =
+    public static IReadOnlyList<AwkTokenKind> TopLevelBlockLeaf { get; } = ReadOnly(
     [
         AwkTokenKind.BadToken,
         AwkTokenKind.NewLine,
@@ -293,9 +297,9 @@ internal static class AwkGrammarTokenSets
         AwkTokenKind.RightBracket,
         AwkTokenKind.Semicolon,
         ..FullExpressionOperators
-    ];
+    ]);
 
-    public static readonly AwkTokenKind[] TopLevelParenthesizedLeaf =
+    public static IReadOnlyList<AwkTokenKind> TopLevelParenthesizedLeaf { get; } = ReadOnly(
     [
         AwkTokenKind.BadToken,
         AwkTokenKind.NewLine,
@@ -312,9 +316,9 @@ internal static class AwkGrammarTokenSets
         AwkTokenKind.RightBracket,
         AwkTokenKind.Semicolon,
         ..FullExpressionOperators
-    ];
+    ]);
 
-    public static readonly AwkTokenKind[] TopLevelBracketedLeaf =
+    public static IReadOnlyList<AwkTokenKind> TopLevelBracketedLeaf { get; } = ReadOnly(
     [
         AwkTokenKind.BadToken,
         AwkTokenKind.NewLine,
@@ -331,9 +335,9 @@ internal static class AwkGrammarTokenSets
         AwkTokenKind.RightParen,
         AwkTokenKind.Semicolon,
         ..FullExpressionOperators
-    ];
+    ]);
 
-    public static readonly AwkTokenKind[] TopLevelPatternLeaf =
+    public static IReadOnlyList<AwkTokenKind> TopLevelPatternLeaf { get; } = ReadOnly(
     [
         AwkTokenKind.BadToken,
         ..NamedValueTokens,
@@ -348,5 +352,5 @@ internal static class AwkGrammarTokenSets
         AwkTokenKind.RightBrace,
         AwkTokenKind.RightParen,
         ..OperatorsWithColon
-    ];
+    ]);
 }
