@@ -42,9 +42,18 @@ internal static partial class AwkBuiltins
             return AwkValue.FromNumber(-1);
 
         await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
-        var result = context.ArgumentCount == 0
-            ? await execution.Io.FlushAsync(string.Empty).ConfigureAwait(false)
-            : await execution.Io.FlushAsync(await context.GetStringAsync(0).ConfigureAwait(false)).ConfigureAwait(false);
+        AwkIoOperationResult result;
+        if (context.ArgumentCount == 0)
+        {
+            result = await execution.Io.FlushAllAsync().ConfigureAwait(false);
+        }
+        else
+        {
+            var path = await context.GetStringAsync(0).ConfigureAwait(false);
+            result = path.Length == 0
+                ? await execution.Io.FlushAllAsync().ConfigureAwait(false)
+                : await execution.Io.FlushPathAsync(path).ConfigureAwait(false);
+        }
         if (result.Failed)
             context.State.SetErrno(result.Error.Errno);
 

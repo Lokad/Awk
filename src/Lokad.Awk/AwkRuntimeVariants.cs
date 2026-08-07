@@ -164,20 +164,31 @@ internal abstract record AwkFflushTarget
     public static AwkFflushTarget ExpressionTarget(AwkExpression expression) =>
         new AwkExpressionFflushTarget(expression);
 
-    /// <summary>Resolves the redirection name, using an empty name to represent all open outputs.</summary>
-    public abstract ValueTask<string> ResolveAsync(AwkEvaluationContext context);
+    /// <summary>Flushes the represented output set.</summary>
+    public abstract ValueTask<AwkIoOperationResult> FlushAsync(
+        AwkEvaluationContext context,
+        AwkIo io);
 }
 
 internal sealed record AwkAllFflushTarget : AwkFflushTarget
 {
-    public override ValueTask<string> ResolveAsync(AwkEvaluationContext context) =>
-        ValueTask.FromResult(string.Empty);
+    public override async ValueTask<AwkIoOperationResult> FlushAsync(
+        AwkEvaluationContext context,
+        AwkIo io) =>
+        await io.FlushAllAsync().ConfigureAwait(false);
 }
 
 internal sealed record AwkExpressionFflushTarget(AwkExpression Expression) : AwkFflushTarget
 {
-    public override ValueTask<string> ResolveAsync(AwkEvaluationContext context) =>
-        Expression.ResolveStringAsync(context);
+    public override async ValueTask<AwkIoOperationResult> FlushAsync(
+        AwkEvaluationContext context,
+        AwkIo io)
+    {
+        var path = await Expression.ResolveStringAsync(context).ConfigureAwait(false);
+        return path.Length == 0
+            ? await io.FlushAllAsync().ConfigureAwait(false)
+            : await io.FlushPathAsync(path).ConfigureAwait(false);
+    }
 }
 
 internal abstract record AwkSwitchCasePattern

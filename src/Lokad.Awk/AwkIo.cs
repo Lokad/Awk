@@ -227,18 +227,22 @@ internal sealed class AwkIo
         return AwkInputReaderResult.Success(reader);
     }
 
-    public async Task<AwkIoOperationResult> FlushAsync(string? path)
+    public async Task<AwkIoOperationResult> FlushAllAsync()
     {
-        if (string.IsNullOrEmpty(path))
+        var paths = _descriptors.SnapshotOutputPaths();
+        for (var index = 0; index < paths.Length; index++)
         {
-            var paths = _descriptors.SnapshotOutputPaths();
-            for (var index = 0; index < paths.Length; index++)
-            {
-                await _descriptors.FlushOutputAsync(_host, paths[index]).ConfigureAwait(false);
-            }
-
-            return AwkIoOperationResult.Success;
+            await _descriptors.FlushOutputAsync(_host, paths[index]).ConfigureAwait(false);
         }
+
+        return AwkIoOperationResult.Success;
+    }
+
+    public async Task<AwkIoOperationResult> FlushPathAsync(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (path.Length == 0)
+            throw new ArgumentException("A targeted flush requires a non-empty path.", nameof(path));
 
         if (_pipes.HasOutputPipe(path))
             return AwkIoOperationResult.Success;

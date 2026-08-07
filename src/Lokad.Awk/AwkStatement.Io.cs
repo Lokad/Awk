@@ -44,10 +44,7 @@ internal abstract partial class AwkStatement
         {
             var execution = RequireExecutionContext(context);
             await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
-            var target = await targetExpression
-                .ResolveAsync(context)
-                .ConfigureAwait(false);
-            await execution.Io.FlushAsync(target).ConfigureAwait(false);
+            _ = await targetExpression.FlushAsync(context, execution.Io).ConfigureAwait(false);
             return AwkStatementFlow.Continue;
         }
     }
