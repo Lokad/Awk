@@ -20,6 +20,22 @@ internal sealed class AwkStringRuntime
 
     public int IndexOfUnits(AwkText source, AwkText value)
     {
+        static int CountRunes(ReadOnlySpan<byte> bytes)
+        {
+            var count = 0;
+            while (!bytes.IsEmpty)
+            {
+                var status = Rune.DecodeFromUtf8(bytes, out _, out var consumed);
+                if (status != OperationStatus.Done)
+                    throw new InvalidOperationException("AwkText contains invalid UTF-8.");
+
+                count++;
+                bytes = bytes[consumed..];
+            }
+
+            return count;
+        }
+
         var position = source.IndexOf(value);
         if (position < 0)
             return 0;
@@ -41,19 +57,4 @@ internal sealed class AwkStringRuntime
             : source.CopyRuneSlice(start, length, counters, governor);
     }
 
-    private static int CountRunes(ReadOnlySpan<byte> value)
-    {
-        var count = 0;
-        while (!value.IsEmpty)
-        {
-            var status = Rune.DecodeFromUtf8(value, out _, out var consumed);
-            if (status != OperationStatus.Done)
-                throw new InvalidOperationException("AwkText contains invalid UTF-8.");
-
-            count++;
-            value = value[consumed..];
-        }
-
-        return count;
-    }
 }

@@ -176,6 +176,9 @@ internal abstract class AwkRecordSeparatorStrategy
 
     protected static bool TryGetSimpleByteSetRegexSeparator(string separatorText, out bool[] separators)
     {
+        static bool IsAsciiLetter(char value) =>
+            value is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
+
         separators = [];
         if (separatorText.Length < 3 ||
             separatorText[0] != '[' ||
@@ -210,9 +213,6 @@ internal abstract class AwkRecordSeparatorStrategy
         separators = set;
         return true;
     }
-
-    private static bool IsAsciiLetter(char ch) =>
-        ch is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
 }
 
 internal sealed class AwkNewlineRecordSeparatorStrategy(
