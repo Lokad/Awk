@@ -11,15 +11,17 @@ internal static partial class AwkSourceLoader
         AwkSourceName sourceName,
         AwkSourceSegmentKind sourceKind,
         string sourceText,
+        int sourceStart,
+        int sourceLength,
         int lineOffset,
         int columnOffset,
         AwkLineContinuationMap lineContinuations)
     {
-        if (sourceText.Length == 0)
+        if (sourceLength == 0)
             return;
 
-        var span = new AwkTextSpan(builder.Length, sourceText.Length);
-        builder.Append(sourceText);
+        var span = new AwkTextSpan(builder.Length, sourceLength);
+        builder.Append(sourceText, sourceStart, sourceLength);
         AddSegment(segments, new AwkSourceSegment(
             sourceName,
             sourceKind,

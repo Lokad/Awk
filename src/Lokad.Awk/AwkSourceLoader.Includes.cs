@@ -20,6 +20,22 @@ internal static partial class AwkSourceLoader
         var normalizedSource = normalization.Text;
         var builder = new StringBuilder(normalizedSource.Length);
         var segments = new List<AwkSourceSegment>();
+        if (normalizedSource.IndexOf('@') < 0)
+        {
+            AppendSourceSegment(
+                builder,
+                segments,
+                sourceName,
+                sourceKind,
+                normalizedSource,
+                0,
+                normalizedSource.Length,
+                0,
+                0,
+                normalization.LineContinuations);
+            return SourceExpansionResult.FromSource(AwkExpandedSource.Create(builder.ToString(), segments));
+        }
+
         var index = 0;
         var sourceLine = 0;
         while (index < normalizedSource.Length)
@@ -36,21 +52,24 @@ internal static partial class AwkSourceLoader
                     index++;
             }
 
-            var line = normalizedSource[lineStart..lineEnd];
             var lineLength = lineEnd - lineStart;
-            var lineContinuations = normalization.LineContinuations.Slice(lineStart, lineLength);
+            var lineContinuations = normalization.LineContinuations.Slice(lineStart, index - lineStart);
             var sourceLineAdvance = 1 + lineContinuations.Count;
-            if (!AwkDirectiveParser.TryParseIncludeLine(line, out var includePath))
+            var directiveMarker = normalizedSource.IndexOf('@', lineStart, lineLength);
+            if (directiveMarker < 0 ||
+                !AwkDirectiveParser.TryParseIncludeLine(normalizedSource[lineStart..lineEnd], out var includePath))
             {
                 AppendSourceSegment(
                     builder,
                     segments,
                     sourceName,
                     sourceKind,
-                    normalizedSource[lineStart..index],
+                    normalizedSource,
+                    lineStart,
+                    index - lineStart,
                     sourceLine,
                     0,
-                    normalization.LineContinuations.Slice(lineStart, index - lineStart));
+                    lineContinuations);
                 sourceLine += sourceLineAdvance;
                 continue;
             }

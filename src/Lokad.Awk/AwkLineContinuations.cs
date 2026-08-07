@@ -127,16 +127,49 @@ internal sealed class AwkLineContinuationMap
         if (IsEmpty)
             return Empty;
 
-        var end = start + length;
-        var points = new List<AwkLineContinuationPoint>();
-        for (var index = 0; index < Points.Count; index++)
+        var end = checked(start + length);
+        var first = FindFirstAtOrAfter(start);
+        var afterLast = FindFirstAfter(end);
+        if (first == afterLast)
+            return Empty;
+
+        var points = new List<AwkLineContinuationPoint>(afterLast - first);
+        for (var index = first; index < afterLast; index++)
+            points.Add(new AwkLineContinuationPoint(Points[index].NormalizedOffset - start));
+
+        return new AwkLineContinuationMap(points);
+
+        int FindFirstAtOrAfter(int offset)
         {
-            var offset = Points[index].NormalizedOffset;
-            if (offset >= start && offset <= end)
-                points.Add(new AwkLineContinuationPoint(offset - start));
+            var low = 0;
+            var high = Points.Count;
+            while (low < high)
+            {
+                var middle = low + ((high - low) / 2);
+                if (Points[middle].NormalizedOffset < offset)
+                    low = middle + 1;
+                else
+                    high = middle;
+            }
+
+            return low;
         }
 
-        return points.Count == 0 ? Empty : new AwkLineContinuationMap(points);
+        int FindFirstAfter(int offset)
+        {
+            var low = 0;
+            var high = Points.Count;
+            while (low < high)
+            {
+                var middle = low + ((high - low) / 2);
+                if (Points[middle].NormalizedOffset <= offset)
+                    low = middle + 1;
+                else
+                    high = middle;
+            }
+
+            return low;
+        }
     }
 
     public AwkLineContinuationMap Append(AwkLineContinuationMap next, int nextOffset)
