@@ -149,7 +149,7 @@ internal static class AwkScriptFileReader
                 int.MaxValue,
                 counters,
                 new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters));
-            while (!await reader.ReachedEof().ConfigureAwait(false))
+            while (await reader.TryBufferLineAsync().ConfigureAwait(false))
             {
                 var line = reader.ReadLine();
                 if (line.IsEmpty)

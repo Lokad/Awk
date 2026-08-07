@@ -33,18 +33,22 @@ internal sealed class AwkRecordDescriptorReader
             throw new AwkHostReadException(descriptor, result.Error);
 
         _resources.RecordBytesRead(result.Content.Length);
-        return AwkRecordReadBatch.Success(result.Content, result.ReachedEof);
+        return AwkRecordReadBatch.Success(result.Content, result.Completion);
     }
 
 }
 
-internal readonly struct AwkRecordReadBatch(ReadOnlyMemory<byte> content, bool reachedEof)
+internal readonly struct AwkRecordReadBatch(
+    ReadOnlyMemory<byte> content,
+    AwkReadCompletion completion)
 {
-    public static AwkRecordReadBatch Success(ReadOnlyMemory<byte> content, bool reachedEof) =>
-        new(content, reachedEof);
+    public static AwkRecordReadBatch Success(
+        ReadOnlyMemory<byte> content,
+        AwkReadCompletion completion) =>
+        new(content, completion);
 
     public ReadOnlyMemory<byte> Content { get; } = content;
 
-    public bool ReachedEof { get; } = reachedEof;
+    public bool ReachedEof => completion == AwkReadCompletion.EndOfFile;
 
 }

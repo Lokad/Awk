@@ -126,8 +126,10 @@ internal static class AwkBuiltinCallShape
     {
         for (var index = 0; index < call.ArgumentCount; index++)
         {
-            if (!call.GetArgument(index).TryGetValue(out var argument) ||
-                !AcceptsArgumentRole(call.Definition.GetArgumentRole(index), argument))
+            if (!call.GetArgument(index).TryGetValue(out var argument))
+                throw new InvalidOperationException("A counted builtin argument must be present.");
+
+            if (!AcceptsArgumentRole(call.Definition.GetArgumentRole(index), argument))
             {
                 failure = new AwkBuiltinArgumentRoleFailure(
                     index,

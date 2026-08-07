@@ -79,7 +79,7 @@ internal sealed class AwkFieldSplitter(
             _fieldSplittingMode = AwkFieldSplittingMode.FieldWidths;
     }
 
-    public IReadOnlyList<AwkFieldText> SplitRecordFields(AwkText line, AwkRuntimeCounters counters)
+    public IReadOnlyList<AwkFieldText> SplitRecordFields(AwkText line)
     {
         static int AddFieldWidthUnits(int position, int value)
         {

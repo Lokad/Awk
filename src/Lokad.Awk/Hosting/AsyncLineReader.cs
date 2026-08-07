@@ -43,13 +43,13 @@ internal sealed class AsyncLineReader
         _lineStartOffsets = ReadOnlyMemory<int>.Empty;
     }
 
-    public async ValueTask<bool> ReachedEof()
+    public async ValueTask<bool> TryBufferLineAsync()
     {
         while (_lineIndex >= BufferedLineCount)
         {
             if (_reachedEof)
             {
-                return true;
+                return false;
             }
 
             _resources.RecordHostCall();
@@ -65,14 +65,15 @@ internal sealed class AsyncLineReader
             _reachedEof = result.ReachedEof;
         }
 
-        return false;
+        return true;
     }
 
     public ReadOnlyMemory<byte> ReadLine()
     {
         if (_lineIndex >= BufferedLineCount)
         {
-            throw new InvalidOperationException("No line is buffered. Call ReachedEof() before ReadLine().");
+            throw new InvalidOperationException(
+                "No line is buffered. Call TryBufferLineAsync() before ReadLine().");
         }
 
         var nextStart = _lineIndex < _lineStartOffsets.Length

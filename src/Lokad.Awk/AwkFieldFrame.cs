@@ -43,7 +43,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
     }
 
     public IReadOnlyList<string> GetFields(
-        Func<AwkText, AwkRuntimeCounters, IReadOnlyList<AwkFieldText>> splitFields)
+        Func<AwkText, IReadOnlyList<AwkFieldText>> splitFields)
     {
         EnsureFields(splitFields);
         EnsureFieldStrings();
@@ -51,7 +51,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
     }
 
     public int GetFieldCount(
-        Func<AwkText, AwkRuntimeCounters, IReadOnlyList<AwkFieldText>> splitFields)
+        Func<AwkText, IReadOnlyList<AwkFieldText>> splitFields)
     {
         EnsureFields(splitFields);
         return _fieldTexts.Count;
@@ -59,7 +59,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
 
     public AwkValue GetFieldValue(
         AwkFieldIndex index,
-        Func<AwkText, AwkRuntimeCounters, IReadOnlyList<AwkFieldText>> splitFields,
+        Func<AwkText, IReadOnlyList<AwkFieldText>> splitFields,
         Func<AwkText, AwkValue> createFieldValue)
     {
         EnsureFields(splitFields);
@@ -95,7 +95,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         AwkFieldIndex index,
         AwkValue value,
         string outputFieldSeparator,
-        Func<AwkText, AwkRuntimeCounters, IReadOnlyList<AwkFieldText>> splitFields,
+        Func<AwkText, IReadOnlyList<AwkFieldText>> splitFields,
         Func<AwkText, AwkValue> createRecordValue)
     {
         if (index.IsCurrentRecord)
@@ -129,7 +129,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
     public void AssignFieldCount(
         AwkFieldCount count,
         string outputFieldSeparator,
-        Func<AwkText, AwkRuntimeCounters, IReadOnlyList<AwkFieldText>> splitFields,
+        Func<AwkText, IReadOnlyList<AwkFieldText>> splitFields,
         Func<AwkText, AwkValue> createRecordValue)
     {
         EnsureFields(splitFields);
@@ -210,14 +210,14 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
     }
 
     private void EnsureFields(
-        Func<AwkText, AwkRuntimeCounters, IReadOnlyList<AwkFieldText>> splitFields)
+        Func<AwkText, IReadOnlyList<AwkFieldText>> splitFields)
     {
         if (_fieldsAreSplit)
             return;
 
         counters.RecordFieldSplit();
         using var splitLease = governor.ReserveTransient(EstimateFieldSplitBuffers(_recordText.ByteLength));
-        var fieldTexts = splitFields(_recordText, counters);
+        var fieldTexts = splitFields(_recordText);
         ThrowIfFieldCountExceeded(fieldTexts.Count);
         ReplaceRetainedMemory(EstimateRetainedBytes(_recordText, fieldTexts, EmptyFieldValueCache));
         _fieldTexts = fieldTexts;

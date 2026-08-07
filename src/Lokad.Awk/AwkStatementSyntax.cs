@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
 namespace Lokad.Awk;
@@ -27,7 +28,7 @@ internal readonly struct AwkSyntaxOptional<T>
     public T Value =>
         HasValue ? _value : throw new InvalidOperationException("No syntax value is present.");
 
-    public bool TryGetValue(out T value)
+    public bool TryGetValue([MaybeNullWhen(false)] out T value)
     {
         value = _value;
         return HasValue;

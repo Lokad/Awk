@@ -75,7 +75,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
     private async ValueTask<AwkInputRecordResult> ReadDefaultNewlineAsync(AsyncLineReader reader)
     {
-        if (await reader.ReachedEof().ConfigureAwait(false))
+        if (!await reader.TryBufferLineAsync().ConfigureAwait(false))
             return AwkInputRecordResult.EndOfFile;
 
         var line = AwkRecordLine.ReadUtf8DefaultNewline(reader.ReadLine(), _state.Counters);

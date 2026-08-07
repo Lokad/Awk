@@ -17,7 +17,7 @@ public sealed class AwkFieldFrameTests
                 AwkFieldText.FromRecordSlice(6, 4)
             ]);
 
-        var count = frame.GetFieldCount((_, _) => fieldList);
+        var count = frame.GetFieldCount(_ => fieldList);
 
         Assert.Equal(2, count);
     }
@@ -61,7 +61,7 @@ public sealed class AwkFieldFrameTests
     private static AwkMemoryGovernor CreateGovernor(AwkRuntimeCounters counters) =>
         AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
 
-    private static IReadOnlyList<AwkFieldText> SplitAlphaBeta(AwkText _, AwkRuntimeCounters __) =>
+    private static IReadOnlyList<AwkFieldText> SplitAlphaBeta(AwkText _) =>
         [
             AwkFieldText.FromRecordSlice(0, 5),
             AwkFieldText.FromRecordSlice(6, 4)

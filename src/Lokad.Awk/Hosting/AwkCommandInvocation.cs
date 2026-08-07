@@ -10,12 +10,12 @@ public readonly record struct AwkEnvironmentVariable
     private readonly string? _value;
 
     /// <summary>Initializes an exported environment variable.</summary>
-    public AwkEnvironmentVariable(string Name, string Value)
+    public AwkEnvironmentVariable(string name, string value)
     {
-        ArgumentException.ThrowIfNullOrEmpty(Name);
-        ArgumentNullException.ThrowIfNull(Value);
-        _name = Name;
-        _value = Value;
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(value);
+        _name = name;
+        _value = value;
     }
 
     /// <summary>Gets the variable name.</summary>
@@ -25,10 +25,10 @@ public readonly record struct AwkEnvironmentVariable
     public string Value => _value ?? string.Empty;
 
     /// <summary>Deconstructs the variable into its name and value.</summary>
-    public void Deconstruct(out string Name, out string Value)
+    public void Deconstruct(out string name, out string value)
     {
-        Name = this.Name;
-        Value = this.Value;
+        name = Name;
+        value = Value;
     }
 }
 
