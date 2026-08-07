@@ -295,6 +295,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.FormattingStringInteropInputs);
         Assert.Equal(0, counters.StringInteropFallbacks);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
+        Assert.Equal(1, counters.OutputSinkCreations);
     }
 
     [Fact]
@@ -366,6 +367,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.FormattingFallbacks);
         Assert.Equal(0, counters.FormattingStringInteropInputs);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
+        Assert.Equal(1, counters.OutputSinkCreations);
     }
 
     private static Task<(int ExitCode, MockFileSystem FileSystem, AwkRuntimeCounters Counters)> RunAsync(

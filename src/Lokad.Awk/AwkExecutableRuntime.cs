@@ -276,13 +276,14 @@ internal static class AwkExecutableDispatcher
         AwkExecutableAction action,
         AwkExecutableTables tables,
         AwkRuntimeState state,
-        AwkIo io)
+        AwkIo io,
+        AwkOutputSink output)
     {
         if (action.Blocks.Count == 0)
             return AwkStatementFlow.Continue;
 
         if (action.UsesFallbackOnly)
-            return await ExecuteFallbackActionAsync(action, state, io).ConfigureAwait(false);
+            return await ExecuteFallbackActionAsync(action, state, io, output).ConfigureAwait(false);
 
         var bindings = state.GetExecutableBindings(tables);
         var stackSlotCount = NormalizeStackDepth(action.MaxStackDepth);
@@ -293,7 +294,6 @@ internal static class AwkExecutableDispatcher
         try
         {
             var stackCount = 0;
-            using var output = new AwkOutputSink(state.Limits, state.MemoryGovernor, state.Counters);
             using var executionContext = state.PushExecutionContext(output, io);
             var evaluationContext = new AwkEvaluationContext(state.RecordNumber, state, output, io);
             var pc = 0;
@@ -593,7 +593,8 @@ internal static class AwkExecutableDispatcher
     private static async ValueTask<AwkStatementFlow> ExecuteFallbackActionAsync(
         AwkExecutableAction action,
         AwkRuntimeState state,
-        AwkIo io)
+        AwkIo io,
+        AwkOutputSink output)
     {
         using var frame = EnterFallbackFrame(state);
         state.Counters.RecordVmBasicBlockEntry();
@@ -605,7 +606,7 @@ internal static class AwkExecutableDispatcher
         state.Counters.RecordVmInstruction();
         state.Counters.RecordVmOpcode(opcode);
         state.Counters.RecordVmFallbackCall();
-        return await action.FallbackAction.ExecuteAsync(state, io).ConfigureAwait(false);
+        return await action.FallbackAction.ExecuteAsync(state, io, output).ConfigureAwait(false);
     }
 
     private static void ExecutePrint(

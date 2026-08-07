@@ -4,15 +4,20 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkRuntimeActionExecutor
+internal sealed class AwkRuntimeActionExecutor : IDisposable
 {
     private readonly AwkProgram _program;
     private readonly AwkExecutableProgram? _executableProgram;
+    private readonly AwkOutputSink _output;
 
-    public AwkRuntimeActionExecutor(AwkProgram program, AwkExecutableProgram? executableProgram)
+    public AwkRuntimeActionExecutor(
+        AwkProgram program,
+        AwkExecutableProgram? executableProgram,
+        AwkRuntimeState state)
     {
         _program = program;
         _executableProgram = executableProgram;
+        _output = new AwkOutputSink(state.Limits, state.MemoryGovernor, state.Counters);
     }
 
     public bool HasBeginFileActions => _program.BeginFileActions.Count > 0;
@@ -62,21 +67,48 @@ internal sealed class AwkRuntimeActionExecutor
         state.SetCurrentRecord(record);
         if (_executableProgram == null)
         {
-            return await ProcessRecordActionsAsync(
-                    _program.MainActions,
-                    action => action.MatchesAsync(state),
-                    action => action.ExecuteAsync(state, io))
-                .ConfigureAwait(false);
+            for (var index = 0; index < _program.MainActions.Count; index++)
+            {
+                var action = _program.MainActions[index];
+                if (!await action.MatchesAsync(state).ConfigureAwait(false))
+                    continue;
+
+                var flow = await action.ExecuteAsync(state, io, _output).ConfigureAwait(false);
+                var decision = ResolveRecordActionFlow(flow);
+                if (decision.ShouldStop)
+                    return decision.Flow;
+            }
+
+            return AwkStatementFlow.Continue;
         }
 
-        return await ProcessRecordActionsAsync(
-                _executableProgram.MainActions,
-                action => MatchesExecutableActionAsync(action, state),
-                action => AwkExecutableDispatcher.ExecuteActionAsync(action, _executableProgram.Tables, state, io))
-            .ConfigureAwait(false);
+        for (var index = 0; index < _executableProgram.MainActions.Count; index++)
+        {
+            var action = _executableProgram.MainActions[index];
+            if (!await MatchesExecutableActionAsync(action, state).ConfigureAwait(false))
+                continue;
+
+            var flow = await AwkExecutableDispatcher.ExecuteActionAsync(
+                    action,
+                    _executableProgram.Tables,
+                    state,
+                    io,
+                    _output)
+                .ConfigureAwait(false);
+            var decision = ResolveRecordActionFlow(flow);
+            if (decision.ShouldStop)
+                return decision.Flow;
+        }
+
+        return AwkStatementFlow.Continue;
     }
 
-    private static async ValueTask<AwkStatementFlow> ExecutePhaseActionsAsync(
+    public void Dispose()
+    {
+        _output.Dispose();
+    }
+
+    private async ValueTask<AwkStatementFlow> ExecutePhaseActionsAsync(
         IReadOnlyList<AwkAction> interpreterActions,
         IReadOnlyList<AwkExecutableAction>? executableActions,
         AwkExecutableTables? executableTables,
@@ -86,52 +118,30 @@ internal sealed class AwkRuntimeActionExecutor
     {
         if (executableActions == null)
         {
-            return await ExecutePhaseActionsAsync(
-                    interpreterActions,
-                    phase,
-                    action => action.ExecuteAsync(state, io))
-                .ConfigureAwait(false);
+            for (var index = 0; index < interpreterActions.Count; index++)
+            {
+                var flow = await interpreterActions[index].ExecuteAsync(state, io, _output).ConfigureAwait(false);
+                var decision = ResolvePhaseActionFlow(flow, phase);
+                if (decision.ShouldStop)
+                    return decision.Flow;
+            }
+
+            return AwkStatementFlow.Continue;
         }
 
         if (executableTables is not AwkExecutableTables tables)
             throw new InvalidOperationException("Executable action tables are required for executable actions.");
 
-        return await ExecutePhaseActionsAsync(
-                executableActions,
-                phase,
-                action => AwkExecutableDispatcher.ExecuteActionAsync(action, tables, state, io))
-            .ConfigureAwait(false);
-    }
-
-    private static async ValueTask<AwkStatementFlow> ExecutePhaseActionsAsync<TAction>(
-        IReadOnlyList<TAction> actions,
-        AwkActionPhase phase,
-        Func<TAction, ValueTask<AwkStatementFlow>> executeActionAsync)
-    {
-        for (var index = 0; index < actions.Count; index++)
+        for (var index = 0; index < executableActions.Count; index++)
         {
-            var flow = await executeActionAsync(actions[index]).ConfigureAwait(false);
+            var flow = await AwkExecutableDispatcher.ExecuteActionAsync(
+                    executableActions[index],
+                    tables,
+                    state,
+                    io,
+                    _output)
+                .ConfigureAwait(false);
             var decision = ResolvePhaseActionFlow(flow, phase);
-            if (decision.ShouldStop)
-                return decision.Flow;
-        }
-
-        return AwkStatementFlow.Continue;
-    }
-
-    private static async ValueTask<AwkStatementFlow> ProcessRecordActionsAsync<TAction>(
-        IReadOnlyList<TAction> actions,
-        Func<TAction, ValueTask<bool>> matchesAsync,
-        Func<TAction, ValueTask<AwkStatementFlow>> executeActionAsync)
-    {
-        for (var index = 0; index < actions.Count; index++)
-        {
-            var action = actions[index];
-            if (!await matchesAsync(action).ConfigureAwait(false))
-                continue;
-
-            var flow = await executeActionAsync(action).ConfigureAwait(false);
-            var decision = ResolveRecordActionFlow(flow);
             if (decision.ShouldStop)
                 return decision.Flow;
         }

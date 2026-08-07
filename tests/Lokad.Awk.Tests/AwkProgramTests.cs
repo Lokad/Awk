@@ -36,8 +36,9 @@ public sealed class AwkProgramTests
         var action = new AwkAction(null, statements);
         statements.Clear();
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        using var output = new AwkOutputSink();
 
-        var flow = await action.ExecuteAsync(state, CreateIo());
+        var flow = await action.ExecuteAsync(state, CreateIo(), output);
 
         Assert.Equal(AwkStatementFlow.ExitProgram, flow);
     }

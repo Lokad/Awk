@@ -25,6 +25,7 @@ internal sealed class AwkOutputSink : IDisposable
     {
         _standardOutput = new AwkUtf8Builder(limits, governor);
         _counters = counters;
+        counters.RecordOutputSinkCreation();
     }
 
     public void Append(string value)

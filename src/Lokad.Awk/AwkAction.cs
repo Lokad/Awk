@@ -26,12 +26,14 @@ internal readonly struct AwkAction
         return await _pattern.MatchesAsync(state).ConfigureAwait(false);
     }
 
-    public async ValueTask<AwkStatementFlow> ExecuteAsync(AwkRuntimeState state, AwkIo io)
+    public async ValueTask<AwkStatementFlow> ExecuteAsync(
+        AwkRuntimeState state,
+        AwkIo io,
+        AwkOutputSink output)
     {
         if (_statements.Count == 0)
             return AwkStatementFlow.Continue;
 
-        using var output = new AwkOutputSink(state.Limits, state.MemoryGovernor, state.Counters);
         using var executionContext = state.PushExecutionContext(output, io);
         var evaluationContext = new AwkEvaluationContext(state.RecordNumber, state, output, io);
         foreach (var statement in _statements)

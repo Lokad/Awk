@@ -14,10 +14,10 @@ internal sealed class AwkExecutionContextStack
 {
     private readonly Stack<AwkExecutionContext> _contexts = new();
 
-    public IDisposable Push(AwkOutputSink output, AwkIo io)
+    public AwkExecutionContextScope Push(AwkOutputSink output, AwkIo io)
     {
         _contexts.Push(new AwkExecutionContext(output, io));
-        return new Scope(this);
+        return new AwkExecutionContextScope(this);
     }
 
     public bool TryGet(out AwkExecutionContext context)
@@ -32,16 +32,16 @@ internal sealed class AwkExecutionContextStack
         return false;
     }
 
-    private void Pop()
+    internal void Pop()
     {
         _contexts.Pop();
     }
+}
 
-    private sealed class Scope(AwkExecutionContextStack stack) : IDisposable
+internal readonly struct AwkExecutionContextScope(AwkExecutionContextStack stack) : IDisposable
+{
+    public void Dispose()
     {
-        public void Dispose()
-        {
-            stack.Pop();
-        }
+        stack.Pop();
     }
 }

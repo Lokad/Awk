@@ -32,6 +32,8 @@ internal sealed class AwkRuntimeCounters
 
     public long OutputBytes { get; private set; }
 
+    public long OutputSinkCreations { get; private set; }
+
     public long RegexCompiles { get; private set; }
 
     public long RegexMatches { get; private set; }
@@ -385,6 +387,14 @@ internal sealed class AwkRuntimeCounters
             return;
 
         AwkTextAsStringCalls++;
+    }
+
+    public void RecordOutputSinkCreation()
+    {
+        if (!_enabled)
+            return;
+
+        OutputSinkCreations++;
     }
 
     public void RecordAwkTextAsStringDecodeMiss()

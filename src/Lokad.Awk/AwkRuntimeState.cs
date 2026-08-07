@@ -478,7 +478,7 @@ internal sealed class AwkRuntimeState
         return _functions.TryConsumeReturnValue(out value);
     }
 
-    public IDisposable PushExecutionContext(AwkOutputSink output, AwkIo io)
+    public AwkExecutionContextScope PushExecutionContext(AwkOutputSink output, AwkIo io)
     {
         return _executionContexts.Push(output, io);
     }
