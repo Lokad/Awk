@@ -1161,6 +1161,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(AwkRuntimeLimits.DefaultMaxFields, limits.MaxFields);
         Assert.Equal(AwkIo.DefaultMaxOutputFiles, limits.MaxOutputFiles);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxBuilderBytes, limits.MaxBuilderBytes);
+        Assert.Equal(
+            AwkRuntimeLimits.DefaultMaxRegexRecordSeparatorBytesScanned,
+            limits.MaxRegexRecordSeparatorBytesScanned);
         Assert.Equal(AwkRuntimeLimits.DefaultInputReadBatchLineCount, AwkIo.InputReadBatchLineCount);
         Assert.Equal(
             TimeSpan.FromSeconds(AwkRuntimeLimits.DefaultRegexMatchTimeoutSeconds),
