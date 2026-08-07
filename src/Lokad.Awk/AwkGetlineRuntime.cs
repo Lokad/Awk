@@ -11,6 +11,40 @@ internal static class AwkGetlineRuntime
         AwkExecutionContext execution,
         bool flushPendingDiagnostics)
     {
+        static async ValueTask ApplyResultAsync(
+            AwkGetlineTarget target,
+            AwkEvaluationContext context,
+            AwkExecutionContext execution,
+            bool readMainInput,
+            AwkGetlineResult result)
+        {
+            if (result.HasRecord)
+            {
+                if (readMainInput)
+                {
+                    context.State.AdvanceMainInputRecord(result.Terminator);
+                }
+                else
+                {
+                    context.State.SetRecordTerminator(result.Terminator);
+                }
+
+                await target.AssignRecordAsync(
+                        context,
+                        result.RecordText,
+                        result.FieldSplittingMode)
+                    .ConfigureAwait(false);
+            }
+            else if (result.Failed)
+            {
+                context.State.SetErrno(result.Error.Errno);
+                if (result.Error.HasDiagnostic)
+                {
+                    await execution.Io.WriteStandardErrorAsync(result.Error.Diagnostic).ConfigureAwait(false);
+                }
+            }
+        }
+
         var readMainInput = source.ReadsMainInput;
         if (readMainInput)
         {
@@ -26,37 +60,5 @@ internal static class AwkGetlineRuntime
         await ApplyResultAsync(target, context, execution, readMainInput, result)
             .ConfigureAwait(false);
         return result;
-    }
-
-    private static async ValueTask ApplyResultAsync(
-        AwkGetlineTarget target,
-        AwkEvaluationContext context,
-        AwkExecutionContext execution,
-        bool readMainInput,
-        AwkGetlineResult result)
-    {
-        if (result.HasRecord)
-        {
-            if (readMainInput)
-            {
-                context.State.AdvanceMainInputRecord(result.Terminator);
-            }
-            else
-            {
-                context.State.SetRecordTerminator(result.Terminator);
-            }
-
-            await target.AssignRecordAsync(
-                    context,
-                    result.RecordText,
-                    result.FieldSplittingMode)
-                .ConfigureAwait(false);
-        }
-        else if (result.Failed)
-        {
-            context.State.SetErrno(result.Error.Errno);
-            if (result.Error.HasDiagnostic)
-                await execution.Io.WriteStandardErrorAsync(result.Error.Diagnostic).ConfigureAwait(false);
-        }
     }
 }

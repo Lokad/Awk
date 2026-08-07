@@ -584,10 +584,7 @@ internal sealed class AwkRuntimeState
     public AwkGlobalSlotId GetOrCreateGlobalScalarSlot(AwkVariableName name) =>
         _variableRuntime.GetOrCreateGlobalScalarSlot(name);
 
-    public string ResolveRecordSeparator() =>
-        ResolveRecordSeparatorCore();
-
-    private string ResolveRecordSeparatorCore()
+    public string ResolveRecordSeparator()
     {
         Counters.RecordRecordSeparatorResolution();
         return ResolveVariable(RecordSeparatorVariableName, "\n");

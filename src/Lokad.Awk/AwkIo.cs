@@ -118,7 +118,36 @@ internal sealed class AwkIo
 
     public async Task<AwkGetlineResult> ReadRedirectedRecordAsync(string path)
     {
-        var resolved = await ResolveInputReaderAsync(path).ConfigureAwait(false);
+        async Task<AwkInputReaderResult> ResolveInputReaderAsync()
+        {
+            AwkSpecialPathPolicy.ThrowIfUnsupported(path);
+
+            if (_specialPaths.TryResolveInput(path, out var specialDescriptor))
+            {
+                _standardInputReader ??= CreateRecordCursor(specialDescriptor);
+                return AwkInputReaderResult.Success(_standardInputReader);
+            }
+
+            var targetPath = _host.ResolvePath(path);
+            var absolutePath = targetPath.Absolute;
+            if (_descriptors.TryGetInput(absolutePath, out var existing))
+                return AwkInputReaderResult.Success(existing);
+
+            var opened = await _host.OpenFileAsync(targetPath.Absolute, AwkFileOpenMode.Read).ConfigureAwait(false);
+            if (!opened.Success)
+            {
+                var error = opened.Failed
+                    ? AwkIoError.FromOpenFailure(targetPath.Display, AwkErrno.FromHostMessage(opened.Error.Message))
+                    : AwkIoError.FromMissingPath(targetPath.Display);
+                return AwkInputReaderResult.Failure(error);
+            }
+
+            var reader = CreateRecordCursor(opened.FileDescriptor);
+            _descriptors.AddInput(absolutePath, opened.FileDescriptor, reader);
+            return AwkInputReaderResult.Success(reader);
+        }
+
+        var resolved = await ResolveInputReaderAsync().ConfigureAwait(false);
         if (resolved is AwkInputReaderResult.Failed failed)
             return AwkGetlineResult.Failure(failed.Error);
 
@@ -197,35 +226,6 @@ internal sealed class AwkIo
             _state,
             _descriptorReader,
             _host.CreateLineReader(descriptor, InputReadBatchLineCount));
-
-    private async Task<AwkInputReaderResult> ResolveInputReaderAsync(string path)
-    {
-        AwkSpecialPathPolicy.ThrowIfUnsupported(path);
-
-        if (_specialPaths.TryResolveInput(path, out var specialDescriptor))
-        {
-            _standardInputReader ??= CreateRecordCursor(specialDescriptor);
-            return AwkInputReaderResult.Success(_standardInputReader);
-        }
-
-        var targetPath = _host.ResolvePath(path);
-        var absolutePath = targetPath.Absolute;
-        if (_descriptors.TryGetInput(absolutePath, out var existing))
-            return AwkInputReaderResult.Success(existing);
-
-        var opened = await _host.OpenFileAsync(targetPath.Absolute, AwkFileOpenMode.Read).ConfigureAwait(false);
-        if (!opened.Success)
-        {
-            var error = opened.Failed
-                ? AwkIoError.FromOpenFailure(targetPath.Display, AwkErrno.FromHostMessage(opened.Error.Message))
-                : AwkIoError.FromMissingPath(targetPath.Display);
-            return AwkInputReaderResult.Failure(error);
-        }
-
-        var reader = CreateRecordCursor(opened.FileDescriptor);
-        _descriptors.AddInput(absolutePath, opened.FileDescriptor, reader);
-        return AwkInputReaderResult.Success(reader);
-    }
 
     public async Task<AwkIoOperationResult> FlushAllAsync()
     {
