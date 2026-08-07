@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 
 namespace Lokad.Awk;
@@ -11,18 +12,19 @@ internal sealed class AwkFunctionCallStack(
     Func<AwkText, AwkValue> createNumberFromText)
 {
     private readonly Stack<AwkFunctionFrame> _frames = new();
+    private readonly Stack<AwkFunctionFrame> _recycledFrames = new();
 
     public bool IsInsideFunction => _frames.Count > 0;
 
-    public void PushFrame(AwkFunctionLocalLayout layout, IReadOnlyList<AwkFunctionArgument> arguments)
+    public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments)
     {
         if (_frames.Count >= maxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
 
-        var slots = new AwkFunctionLocalSlot[layout.SlotCount];
+        var slots = ArrayPool<AwkFunctionLocalSlot>.Shared.Rent(layout.SlotCount);
         for (var index = 0; index < layout.SlotCount; index++)
         {
-            if (index >= arguments.Count)
+            if (index >= arguments.Length)
             {
                 slots[index] = AwkFunctionLocalSlot.MissingScalar();
                 continue;
@@ -44,26 +46,47 @@ internal sealed class AwkFunctionCallStack(
             slots[index] = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(argument.Value));
         }
 
-        var frame = new AwkFunctionFrame(layout, slots);
-        frame.RetainedMemoryBytes = EstimateFrameBytes(frame);
-        memoryGovernor.Reserve(frame.RetainedMemoryBytes);
+        var frame = _recycledFrames.Count == 0
+            ? new AwkFunctionFrame()
+            : _recycledFrames.Pop();
+        frame.Initialize(layout, slots);
         try
         {
-            _frames.Push(frame);
+            frame.RetainedMemoryBytes = EstimateFrameBytes(frame);
+            memoryGovernor.Reserve(frame.RetainedMemoryBytes);
+            try
+            {
+                _frames.Push(frame);
+            }
+            catch
+            {
+                memoryGovernor.ReleaseReserved(frame.RetainedMemoryBytes);
+                throw;
+            }
+
+            try
+            {
+                memoryGovernor.CommitReserved(frame.RetainedMemoryBytes);
+            }
+            catch
+            {
+                _frames.Pop();
+                memoryGovernor.ReleaseReserved(frame.RetainedMemoryBytes);
+                throw;
+            }
         }
         catch
         {
-            memoryGovernor.ReleaseReserved(frame.RetainedMemoryBytes);
+            RecycleFrame(frame);
             throw;
         }
-
-        memoryGovernor.CommitReserved(frame.RetainedMemoryBytes);
     }
 
     public void PopFrame()
     {
         var frame = _frames.Pop();
         memoryGovernor.ReleaseCommitted(frame.RetainedMemoryBytes);
+        RecycleFrame(frame);
     }
 
     public void SetReturnValue(AwkValue value)
@@ -86,11 +109,6 @@ internal sealed class AwkFunctionCallStack(
 
         value = AwkValue.FromText(string.Empty);
         return false;
-    }
-
-    public bool TryResolveLocal(string name, out AwkResolvedFunctionLocal local)
-    {
-        return TryResolveLocal(AwkVariableName.FromText(name), out local);
     }
 
     public bool TryResolveLocal(AwkVariableName name, out AwkResolvedFunctionLocal local)
@@ -125,11 +143,6 @@ internal sealed class AwkFunctionCallStack(
         return false;
     }
 
-    public bool TryResolveLocalText(string name, out AwkResolvedFunctionLocal local)
-    {
-        return TryResolveLocalText(AwkVariableName.FromText(name), out local);
-    }
-
     public bool TryResolveLocalText(AwkVariableName name, out AwkResolvedFunctionLocal local)
     {
         if (_frames.Count > 0)
@@ -160,11 +173,6 @@ internal sealed class AwkFunctionCallStack(
 
         local = AwkResolvedFunctionLocal.Missing;
         return false;
-    }
-
-    public bool TryResolveLocalValue(string name, out AwkResolvedFunctionLocal local)
-    {
-        return TryResolveLocalValue(AwkVariableName.FromText(name), out local);
     }
 
     public bool TryResolveLocalValue(AwkVariableName name, out AwkResolvedFunctionLocal local)
@@ -220,11 +228,6 @@ internal sealed class AwkFunctionCallStack(
         return true;
     }
 
-    public bool TryAssignLocal(string name, string value)
-    {
-        return TryAssignLocal(AwkVariableName.FromText(name), value);
-    }
-
     public bool TryAssignLocal(AwkVariableName name, string value)
     {
         if (_frames.Count == 0)
@@ -239,11 +242,6 @@ internal sealed class AwkFunctionCallStack(
 
         ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromText(value)));
         return true;
-    }
-
-    public bool TryAssignLocal(string name, AwkValue value)
-    {
-        return TryAssignLocal(AwkVariableName.FromText(name), value);
     }
 
     public bool TryAssignLocal(AwkVariableName name, AwkValue value)
@@ -346,10 +344,17 @@ internal sealed class AwkFunctionCallStack(
     private static long EstimateFrameBytes(AwkFunctionFrame frame)
     {
         var bytes = AwkRuntimeMemory.EstimateFunctionFrameBytes();
-        foreach (var slot in frame.Slots)
-            bytes = AwkRuntimeMemory.CheckedAdd(bytes, EstimateLocalSlotBytes(slot));
+        for (var index = 0; index < frame.Layout.SlotCount; index++)
+            bytes = AwkRuntimeMemory.CheckedAdd(bytes, EstimateLocalSlotBytes(frame.Slots[index]));
 
         return bytes;
+    }
+
+    private void RecycleFrame(AwkFunctionFrame frame)
+    {
+        var slots = frame.Reset();
+        ArrayPool<AwkFunctionLocalSlot>.Shared.Return(slots, clearArray: true);
+        _recycledFrames.Push(frame);
     }
 
     private static AwkResolvedFunctionLocal ResolveLocalKind(AwkFunctionLocalSlot slot)
@@ -407,7 +412,7 @@ internal sealed class AwkFunctionCallStack(
         AwkFunctionLocalSlotId slotId,
         out AwkFunctionLocalSlot slot)
     {
-        if ((uint)slotId.Index < (uint)frame.Slots.Length)
+        if ((uint)slotId.Index < (uint)frame.Layout.SlotCount)
         {
             slot = frame.Slots[slotId.Index];
             return true;

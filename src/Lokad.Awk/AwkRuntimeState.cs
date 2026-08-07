@@ -390,7 +390,7 @@ internal sealed class AwkRuntimeState
 
     public void PushFunctionFrame(
         AwkFunctionLocalLayout layout,
-        IReadOnlyList<AwkFunctionArgument> arguments)
+        ReadOnlySpan<AwkFunctionArgument> arguments)
     {
         _functions.PushFrame(layout, arguments);
     }

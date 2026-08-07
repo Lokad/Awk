@@ -35,21 +35,34 @@ internal readonly record struct AwkFunctionLocalSlotId(int Index);
 
 internal sealed class AwkFunctionFrame
 {
-    public AwkFunctionFrame(AwkFunctionLocalLayout layout, AwkFunctionLocalSlot[] slots)
-    {
-        Layout = layout;
-        Slots = slots;
-    }
+    // Slot arrays are pooled and may be larger than the active layout. SlotCount
+    // is therefore the authoritative bound while the frame is initialized.
+    public AwkFunctionLocalLayout Layout { get; private set; } = AwkFunctionLocalLayout.Empty;
 
-    public AwkFunctionLocalLayout Layout { get; }
-
-    public AwkFunctionLocalSlot[] Slots { get; }
+    public AwkFunctionLocalSlot[] Slots { get; private set; } = [];
 
     public bool HasReturnValue { get; set; }
 
     public AwkValue ReturnValue { get; set; } = AwkValue.FromText(string.Empty);
 
     public long RetainedMemoryBytes { get; set; }
+
+    public void Initialize(AwkFunctionLocalLayout layout, AwkFunctionLocalSlot[] slots)
+    {
+        Layout = layout;
+        Slots = slots;
+    }
+
+    public AwkFunctionLocalSlot[] Reset()
+    {
+        var slots = Slots;
+        Layout = AwkFunctionLocalLayout.Empty;
+        Slots = [];
+        HasReturnValue = false;
+        ReturnValue = AwkValue.FromText(string.Empty);
+        RetainedMemoryBytes = 0;
+        return slots;
+    }
 }
 
 internal readonly struct AwkFunctionLocalSlot

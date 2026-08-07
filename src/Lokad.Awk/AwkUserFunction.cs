@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -59,30 +60,43 @@ internal sealed class AwkUserFunction : IAwkUserFunction
     {
         context.State.ThrowIfCancellationRequested();
 
-        var values = new AwkFunctionArgument[arguments.Count];
-        for (var index = 0; index < arguments.Count; index++)
+        var values = arguments.Count == 0
+            ? []
+            : ArrayPool<AwkFunctionArgument>.Shared.Rent(arguments.Count);
+        try
         {
-            var argument = arguments[index];
-            if (argument.TryGetVariableName(out var variableName))
+            for (var index = 0; index < arguments.Count; index++)
             {
-                var arrayName = new AwkArrayName(variableName.Identifier);
-                if (context.State.IsArray(arrayName))
+                var argument = arguments[index];
+                if (argument.TryGetVariableName(out var variableName))
                 {
-                    values[index] = AwkFunctionArgument.Array(arrayName);
-                    continue;
+                    var arrayName = new AwkArrayName(variableName.Identifier);
+                    if (context.State.IsArray(arrayName))
+                    {
+                        values[index] = AwkFunctionArgument.Array(arrayName);
+                        continue;
+                    }
+
+                    if (!context.State.HasScalar(variableName))
+                    {
+                        values[index] = AwkFunctionArgument.PotentialArray(arrayName);
+                        continue;
+                    }
                 }
 
-                if (!context.State.HasScalar(variableName))
-                {
-                    values[index] = AwkFunctionArgument.PotentialArray(arrayName);
-                    continue;
-                }
+                values[index] = AwkFunctionArgument.Scalar(
+                    await argument.EvaluateAsync(context).ConfigureAwait(false));
             }
 
-            values[index] = AwkFunctionArgument.Scalar(await argument.EvaluateAsync(context).ConfigureAwait(false));
+            PushArguments(values, arguments.Count, context);
+        }
+        finally
+        {
+            if (arguments.Count > 0)
+                ArrayPool<AwkFunctionArgument>.Shared.Return(values, clearArray: true);
         }
 
-        return await InvokeArgumentsAsync(values, context).ConfigureAwait(false);
+        return await InvokeFrameAsync(context).ConfigureAwait(false);
     }
 
     public async ValueTask<AwkValue> InvokeValuesAsync(
@@ -91,22 +105,37 @@ internal sealed class AwkUserFunction : IAwkUserFunction
     {
         context.State.ThrowIfCancellationRequested();
 
-        var values = new AwkFunctionArgument[arguments.Count];
-        for (var index = 0; index < arguments.Count; index++)
+        var values = arguments.Count == 0
+            ? []
+            : ArrayPool<AwkFunctionArgument>.Shared.Rent(arguments.Count);
+        try
         {
-            values[index] = AwkFunctionArgument.Scalar(arguments[index]);
+            for (var index = 0; index < arguments.Count; index++)
+                values[index] = AwkFunctionArgument.Scalar(arguments[index]);
+
+            PushArguments(values, arguments.Count, context);
+        }
+        finally
+        {
+            if (arguments.Count > 0)
+                ArrayPool<AwkFunctionArgument>.Shared.Return(values, clearArray: true);
         }
 
-        return await InvokeArgumentsAsync(values, context).ConfigureAwait(false);
+        return await InvokeFrameAsync(context).ConfigureAwait(false);
     }
 
-    private async ValueTask<AwkValue> InvokeArgumentsAsync(
-        IReadOnlyList<AwkFunctionArgument> arguments,
+    private void PushArguments(
+        AwkFunctionArgument[] arguments,
+        int argumentCount,
         AwkEvaluationContext context)
     {
+        context.State.ThrowIfCancellationRequested();
+        context.State.PushFunctionFrame(LocalLayout, arguments.AsSpan(0, argumentCount));
+    }
+
+    private async ValueTask<AwkValue> InvokeFrameAsync(AwkEvaluationContext context)
+    {
         var state = context.State;
-        state.ThrowIfCancellationRequested();
-        state.PushFunctionFrame(LocalLayout, arguments);
         try
         {
             if (_statements.Count == 0)
@@ -166,14 +195,8 @@ internal readonly struct AwkFunctionArgument
     public static AwkFunctionArgument Scalar(AwkValue value) =>
         new(AwkFunctionArgumentKind.Scalar, value, default);
 
-    public static AwkFunctionArgument Array(string arrayName) =>
-        Array(AwkArrayName.FromText(arrayName));
-
     public static AwkFunctionArgument Array(AwkArrayName arrayName) =>
         new(AwkFunctionArgumentKind.Array, default, arrayName);
-
-    public static AwkFunctionArgument PotentialArray(string arrayName) =>
-        PotentialArray(AwkArrayName.FromText(arrayName));
 
     public static AwkFunctionArgument PotentialArray(AwkArrayName arrayName) =>
         new(AwkFunctionArgumentKind.PotentialArray, default, arrayName);

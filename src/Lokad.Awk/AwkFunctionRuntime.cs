@@ -55,7 +55,7 @@ internal sealed class AwkFunctionRuntime
     public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out IAwkUserFunction? function) =>
         _functions.TryGetValue(name, out function);
 
-    public void PushFrame(AwkFunctionLocalLayout layout, IReadOnlyList<AwkFunctionArgument> arguments) =>
+    public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments) =>
         _calls.PushFrame(layout, arguments);
 
     public void PopFrame() =>
@@ -67,26 +67,17 @@ internal sealed class AwkFunctionRuntime
     public bool TryConsumeReturnValue(out AwkValue value) =>
         _calls.TryConsumeReturnValue(out value);
 
-    public bool TryResolveLocal(string name, out AwkResolvedFunctionLocal local) =>
-        _calls.TryResolveLocal(name, out local);
-
     public bool TryResolveLocal(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocal(name, out local);
 
     public bool TryResolveLocal(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocal(slotId, out local);
 
-    public bool TryResolveLocalText(string name, out AwkResolvedFunctionLocal local) =>
-        _calls.TryResolveLocalText(name, out local);
-
     public bool TryResolveLocalText(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocalText(name, out local);
 
     public bool TryResolveLocalText(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocalText(slotId, out local);
-
-    public bool TryResolveLocalValue(string name, out AwkResolvedFunctionLocal local) =>
-        _calls.TryResolveLocalValue(name, out local);
 
     public bool TryResolveLocalValue(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocalValue(name, out local);
@@ -97,13 +88,7 @@ internal sealed class AwkFunctionRuntime
     public bool TryPromotePotentialArrayAlias(AwkVariableName name, out AwkArrayName arrayName) =>
         _calls.TryPromotePotentialArrayAlias(name, out arrayName);
 
-    public bool TryAssignLocal(string name, string value) =>
-        _calls.TryAssignLocal(name, value);
-
     public bool TryAssignLocal(AwkVariableName name, string value) =>
-        _calls.TryAssignLocal(name, value);
-
-    public bool TryAssignLocal(string name, AwkValue value) =>
         _calls.TryAssignLocal(name, value);
 
     public bool TryAssignLocal(AwkVariableName name, AwkValue value) =>

@@ -6,15 +6,36 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionLocalSlotTests
 {
     [Fact]
+    public void AwkFunctionCallStack_ReusesFrameAndSlotStorage()
+    {
+        var stack = CreateCallStack(AwkRuntimeCounters.Disabled);
+        var layout = new AwkFunctionLocalLayout([AwkVariableName.FromText("x")]);
+        AwkFunctionArgument[] arguments =
+            [AwkFunctionArgument.Scalar(AwkValue.FromText("value"))];
+        stack.PushFrame(layout, arguments);
+        stack.PopFrame();
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < 10_000; index++)
+        {
+            stack.PushFrame(layout, arguments);
+            stack.PopFrame();
+        }
+
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        Assert.True(allocatedBytes < 1024, "Allocated bytes: " + allocatedBytes);
+    }
+
+    [Fact]
     public void AwkFunctionCallStack_ResolvesNumericLocalSlotValueWithoutTextProjection()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var stack = new AwkFunctionCallStack(
-            maxFunctionCallDepth: 8,
-            AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters),
-            static text => AwkValue.FromText(text),
-            static text => AwkValue.FromNumericString(text),
-            static text => AwkValue.FromNumber(AwkValue.FromText(text).AsNumber()));
+        var stack = CreateCallStack(counters);
         var localName = AwkVariableName.FromText("x");
         var layout = new AwkFunctionLocalLayout([localName]);
         var slotId = new AwkFunctionLocalSlotId(0);
@@ -55,4 +76,12 @@ public sealed class AwkFunctionLocalSlotTests
             stack.PopFrame();
         }
     }
+
+    private static AwkFunctionCallStack CreateCallStack(AwkRuntimeCounters counters) =>
+        new(
+            maxFunctionCallDepth: 8,
+            AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters),
+            static text => AwkValue.FromText(text),
+            static text => AwkValue.FromNumericString(text),
+            static text => AwkValue.FromNumber(AwkValue.FromText(text).AsNumber()));
 }
