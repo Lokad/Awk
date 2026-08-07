@@ -304,6 +304,34 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     }
 
     [Fact]
+    public async Task Awk_CompiledProgramSupportsConcurrentExecutions()
+    {
+        var compiled = await AwkExecutor.CompileAsync(
+            new MockFileSystem(),
+            BuildInvocation("awk", "BEGIN{RS=\"|\"} {sum += $1} END{print sum, NR}", "/file.txt"),
+            CancellationToken.None);
+        using var readBarrier = new Barrier(participantCount: 2);
+        var firstRun = new MockFileSystem
+        {
+            AfterReadLines = () => Assert.True(readBarrier.SignalAndWait(TimeSpan.FromSeconds(10)))
+        };
+        firstRun.AddFile("/file.txt", "1|2|");
+        var secondRun = new MockFileSystem
+        {
+            AfterReadLines = () => Assert.True(readBarrier.SignalAndWait(TimeSpan.FromSeconds(10)))
+        };
+        secondRun.AddFile("/file.txt", "10|20|30|");
+
+        var executions = await Task.WhenAll(
+            Task.Run(() => compiled.ExecuteAsync(firstRun, CancellationToken.None)),
+            Task.Run(() => compiled.ExecuteAsync(secondRun, CancellationToken.None)));
+
+        Assert.Equal([0, 0], executions);
+        Assert.Equal("3 2\n", firstRun.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("60 3\n", secondRun.GetOutput(AwkFileDescriptor.StdOut));
+    }
+
+    [Fact]
     public async Task Awk_RuntimeCountersAreOptInAndTrackCoreRuntimeEvents()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
