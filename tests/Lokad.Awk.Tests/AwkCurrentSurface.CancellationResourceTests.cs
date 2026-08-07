@@ -841,7 +841,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var exception = Assert.Throws<AwkRuntimeException>(
             () => state.SplitIntoArray(
-                new string('x', 80),
+                AwkText.FromString(new string('x', 80)),
                 arrayName,
                 " ",
                 AwkOptionalIdentifier.None));

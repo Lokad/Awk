@@ -99,17 +99,6 @@ internal sealed class AwkArrayRuntime
     }
 
     public int SplitIntoArray(
-        string input,
-        AwkArrayName arrayName,
-        string separator,
-        AwkOptionalIdentifier separatorArrayName) =>
-        SplitIntoArray(
-            AwkText.FromString(input, _state.Counters, _state.MemoryGovernor),
-            arrayName,
-            separator,
-            separatorArrayName);
-
-    public int SplitIntoArray(
         AwkText input,
         AwkArrayName arrayName,
         string separator,
@@ -132,19 +121,6 @@ internal sealed class AwkArrayRuntime
         }
 
         return result.Fields.Count;
-    }
-
-    public int PatsplitIntoArray(
-        string input,
-        AwkArrayName arrayName,
-        string pattern,
-        AwkOptionalIdentifier separatorArrayName)
-    {
-        return PatsplitIntoArray(
-            AwkText.FromString(input, _state.Counters, _state.MemoryGovernor),
-            arrayName,
-            pattern,
-            separatorArrayName);
     }
 
     public int PatsplitIntoArray(

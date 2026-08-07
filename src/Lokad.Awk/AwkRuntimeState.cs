@@ -507,20 +507,11 @@ internal sealed class AwkRuntimeState
                 : 0;
     }
 
-    public int CountStringUnits(string value) =>
-        _stringRuntime.CountUnits(value);
-
     public int CountStringUnits(AwkText value) =>
         _stringRuntime.CountUnits(value);
 
-    public int IndexOfStringUnits(string source, string value) =>
-        _stringRuntime.IndexOfUnits(source, value);
-
     public int IndexOfStringUnits(AwkText source, AwkText value) =>
         _stringRuntime.IndexOfUnits(source, value);
-
-    public string SubstringByStringUnits(string source, int start, int length) =>
-        _stringRuntime.SubstringByUnits(source, start, length);
 
     public AwkText SubstringByStringUnits(AwkText source, int start, int length) =>
         _stringRuntime.SubstringByUnits(source, start, length, Counters, MemoryGovernor);
@@ -779,14 +770,8 @@ internal sealed class AwkRuntimeState
     public AwkText FormatPrintByteText(AwkValue value) =>
         _formattingRuntime.FormatPrintByteText(value);
 
-    public string FormatStringValue(AwkValue value) =>
-        _formattingRuntime.FormatStringValue(value);
-
     public AwkText FormatStringByteText(AwkValue value) =>
         _formattingRuntime.FormatStringByteText(value);
-
-    public bool IsRegexMatch(Regex regex, string input) =>
-        _regexRuntime.IsMatch(regex, input);
 
     public bool IsRegexMatch(Regex regex, AwkText input) =>
         _regexRuntime.IsMatch(regex, input);
@@ -848,25 +833,11 @@ internal sealed class AwkRuntimeState
         _arrayRuntime.DeleteValue(name, index);
 
     public int SplitIntoArray(
-        string input,
-        AwkArrayName arrayName,
-        string separator,
-        AwkOptionalIdentifier separatorArrayName) =>
-        _arrayRuntime.SplitIntoArray(input, arrayName, separator, separatorArrayName);
-
-    public int SplitIntoArray(
         AwkText input,
         AwkArrayName arrayName,
         string separator,
         AwkOptionalIdentifier separatorArrayName) =>
         _arrayRuntime.SplitIntoArray(input, arrayName, separator, separatorArrayName);
-
-    public int PatsplitIntoArray(
-        string input,
-        AwkArrayName arrayName,
-        string pattern,
-        AwkOptionalIdentifier separatorArrayName) =>
-        _arrayRuntime.PatsplitIntoArray(input, arrayName, pattern, separatorArrayName);
 
     public int PatsplitIntoArray(
         AwkText input,

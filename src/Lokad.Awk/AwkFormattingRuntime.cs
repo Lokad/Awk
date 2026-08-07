@@ -29,11 +29,6 @@ internal sealed class AwkFormattingRuntime(
             [FormatStringInput(value)]).ToArray(), counters, governor);
     }
 
-    public string FormatStringValue(AwkValue value)
-    {
-        return FormatStringByteText(value).AsString(counters);
-    }
-
     public AwkText FormatStringByteText(AwkValue value)
     {
         if (!value.IsNumberValue || !value.TryGetNumber(out var number))
