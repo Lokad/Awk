@@ -150,7 +150,7 @@ internal sealed class AwkBuiltinDefinition(
 
     public string Name { get; } = name;
 
-    public IReadOnlyList<string> Aliases { get; } = AwkExecutableCollections.Copy(aliases);
+    public IReadOnlyList<string> Aliases { get; } = AwkCollectionSnapshots.Copy(aliases);
 
     public AwkArity Arity { get; } = arity;
 
@@ -165,7 +165,7 @@ internal sealed class AwkBuiltinDefinition(
     public AwkBuiltinLoweringKind LoweringKind { get; } = loweringKind;
 
     public IReadOnlyList<AwkBuiltinArgumentRole> ArgumentRoles { get; } =
-        AwkExecutableCollections.Copy(argumentRoles);
+        AwkCollectionSnapshots.Copy(argumentRoles);
 
     public AwkBuiltinArgumentRole GetArgumentRole(int index) =>
         index >= 0 && index < ArgumentRoles.Count

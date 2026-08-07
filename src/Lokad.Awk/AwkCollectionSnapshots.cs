@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Lokad.Awk;
 
-internal static class AwkExecutableCollections
+internal static class AwkCollectionSnapshots
 {
     public static IReadOnlyList<T> Copy<T>(IReadOnlyList<T> values)
     {

@@ -22,14 +22,14 @@ internal sealed class AwkSourceInputPlanner
 
     public AwkInvocationPlan BuildPlan(IReadOnlyList<AwkEnvironmentVariable> environment) =>
         new(
-            new AwkSourcePlan(AwkExecutableCollections.Copy(_sources)),
+            new AwkSourcePlan(AwkCollectionSnapshots.Copy(_sources)),
             new AwkInputPlan(
-                AwkExecutableCollections.Copy(_paths),
-                AwkExecutableCollections.Copy(_inputArguments)),
+                AwkCollectionSnapshots.Copy(_paths),
+                AwkCollectionSnapshots.Copy(_inputArguments)),
             new AwkRuntimeArgumentPlan(
-                AwkExecutableCollections.Copy(_runtimeArguments),
-                AwkExecutableCollections.Copy(_variables),
-                AwkExecutableCollections.Copy(environment),
+                AwkCollectionSnapshots.Copy(_runtimeArguments),
+                AwkCollectionSnapshots.Copy(_variables),
+                AwkCollectionSnapshots.Copy(environment),
                 _currentDirectory));
 
     public void AddInlineScript(string source)

@@ -10,7 +10,7 @@ internal readonly struct AwkCondition
 
     public AwkCondition(IReadOnlyList<IReadOnlyList<AwkConditionClause>> alternatives)
     {
-        _alternatives = AwkExecutableCollections.CopyNested(alternatives);
+        _alternatives = AwkCollectionSnapshots.CopyNested(alternatives);
     }
 
     public async ValueTask<bool> EvaluateAsync(AwkEvaluationContext context)

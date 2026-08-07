@@ -85,10 +85,10 @@ internal abstract partial class AwkExpression
         new TernaryExpression(condition, whenTrue, whenFalse);
 
     public static AwkExpression FunctionCall(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments) =>
-        new FunctionCallExpression(name, AwkExecutableCollections.Copy(arguments));
+        new FunctionCallExpression(name, AwkCollectionSnapshots.Copy(arguments));
 
     public static AwkExpression BuiltinCall(AwkBuiltinDefinition definition, IReadOnlyList<AwkExpression> arguments) =>
-        new BuiltinCallExpression(definition, AwkExecutableCollections.Copy(arguments));
+        new BuiltinCallExpression(definition, AwkCollectionSnapshots.Copy(arguments));
 
     public static AwkExpression Gsub(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) =>
         new GsubExpression(pattern, replacement, target);

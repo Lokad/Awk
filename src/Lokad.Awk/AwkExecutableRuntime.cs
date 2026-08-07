@@ -732,7 +732,7 @@ internal sealed class AwkExecutableBlock
     public AwkExecutableBlock(int label, IReadOnlyList<AwkInstruction> instructions)
     {
         Label = label;
-        Instructions = AwkExecutableCollections.Copy(instructions);
+        Instructions = AwkCollectionSnapshots.Copy(instructions);
     }
 
     public int Label { get; }

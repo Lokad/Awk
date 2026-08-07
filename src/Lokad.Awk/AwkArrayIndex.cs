@@ -13,7 +13,7 @@ internal abstract record AwkArrayIndex
     public static AwkArrayIndex Composite(IReadOnlyList<AwkExpression> expressions) =>
         expressions.Count == 1
             ? Simple(expressions[0])
-            : new AwkCompositeArrayIndex(AwkExecutableCollections.Copy(expressions));
+            : new AwkCompositeArrayIndex(AwkCollectionSnapshots.Copy(expressions));
 
     /// <summary>Evaluates every component and returns the byte-native key used by an awk array.</summary>
     public abstract ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context);

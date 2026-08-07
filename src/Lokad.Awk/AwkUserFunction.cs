@@ -35,7 +35,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
     {
         FunctionName = name;
         LocalLayout = localLayout;
-        _statements = AwkExecutableCollections.Copy(statements);
+        _statements = AwkCollectionSnapshots.Copy(statements);
     }
 
     public AwkFunctionName FunctionName { get; }

@@ -17,7 +17,7 @@ internal abstract partial class AwkExpression
             if (parts.Count < 2)
                 throw new ArgumentException("Concatenation requires at least two expressions.", nameof(parts));
 
-            _parts = AwkExecutableCollections.Copy(parts);
+            _parts = AwkCollectionSnapshots.Copy(parts);
         }
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)

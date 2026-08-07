@@ -11,7 +11,7 @@ internal readonly struct AwkAction
     public AwkAction(AwkPattern? pattern, IReadOnlyList<AwkStatement> statements)
     {
         _pattern = pattern;
-        _statements = AwkExecutableCollections.Copy(statements);
+        _statements = AwkCollectionSnapshots.Copy(statements);
     }
 
     internal bool IsPatternless => _pattern == null;

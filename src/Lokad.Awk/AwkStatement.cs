@@ -35,7 +35,7 @@ internal sealed class AwkSwitchCase
         IReadOnlyList<AwkStatement> statements)
     {
         Pattern = pattern;
-        Statements = AwkExecutableCollections.Copy(statements);
+        Statements = AwkCollectionSnapshots.Copy(statements);
     }
 
     public AwkSwitchCasePattern Pattern { get; }
@@ -54,7 +54,7 @@ internal abstract partial class AwkStatement
         Print(parts, AwkOutputTarget.Redirected(redirection));
 
     public static AwkStatement Print(IReadOnlyList<AwkExpressionPart> parts, AwkOutputTarget target) =>
-        new PrintStatement(AwkExecutableCollections.Copy(parts), target);
+        new PrintStatement(AwkCollectionSnapshots.Copy(parts), target);
 
     public static AwkStatement Printf(AwkExpression format, IReadOnlyList<AwkExpression> arguments) =>
         Printf(format, arguments, AwkOutputTarget.Standard);
@@ -69,7 +69,7 @@ internal abstract partial class AwkStatement
         AwkExpression format,
         IReadOnlyList<AwkExpression> arguments,
         AwkOutputTarget target) =>
-        new PrintfStatement(format, AwkExecutableCollections.Copy(arguments), target);
+        new PrintfStatement(format, AwkCollectionSnapshots.Copy(arguments), target);
 
     public static AwkStatement Gsub(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) =>
         Expression(AwkExpression.Gsub(pattern, replacement, target));
@@ -109,27 +109,27 @@ internal abstract partial class AwkStatement
         IReadOnlyList<AwkStatement> elseBody) =>
         new IfStatement(
             condition,
-            AwkExecutableCollections.Copy(body),
-            AwkExecutableCollections.Copy(elseBody));
+            AwkCollectionSnapshots.Copy(body),
+            AwkCollectionSnapshots.Copy(elseBody));
 
     public static AwkStatement ForIn(string loopVariable, string arrayVariable, IReadOnlyList<AwkStatement> body) =>
         ForIn(AwkVariableName.FromText(loopVariable), AwkArrayName.FromText(arrayVariable), body);
 
     public static AwkStatement ForIn(AwkVariableName loopVariable, AwkArrayName arrayVariable, IReadOnlyList<AwkStatement> body) =>
-        new ForInStatement(loopVariable, arrayVariable, AwkExecutableCollections.Copy(body));
+        new ForInStatement(loopVariable, arrayVariable, AwkCollectionSnapshots.Copy(body));
 
     public static AwkStatement For(
         AwkStatement initializer,
         AwkCondition condition,
         AwkStatement increment,
         IReadOnlyList<AwkStatement> body) =>
-        new ForStatement(initializer, condition, increment, AwkExecutableCollections.Copy(body));
+        new ForStatement(initializer, condition, increment, AwkCollectionSnapshots.Copy(body));
 
     public static AwkStatement While(AwkCondition condition, IReadOnlyList<AwkStatement> body) =>
-        new WhileStatement(condition, AwkExecutableCollections.Copy(body));
+        new WhileStatement(condition, AwkCollectionSnapshots.Copy(body));
 
     public static AwkStatement DoWhile(IReadOnlyList<AwkStatement> body, AwkCondition condition) =>
-        new DoWhileStatement(AwkExecutableCollections.Copy(body), condition);
+        new DoWhileStatement(AwkCollectionSnapshots.Copy(body), condition);
 
     public static AwkStatement Switch(
         AwkExpression value,
@@ -137,8 +137,8 @@ internal abstract partial class AwkStatement
         IReadOnlyList<AwkStatement> defaultBody) =>
         new SwitchStatement(
             value,
-            AwkExecutableCollections.Copy(cases),
-            AwkExecutableCollections.Copy(defaultBody));
+            AwkCollectionSnapshots.Copy(cases),
+            AwkCollectionSnapshots.Copy(defaultBody));
 
     public static AwkStatement Break() => BreakStatement.Instance;
 
