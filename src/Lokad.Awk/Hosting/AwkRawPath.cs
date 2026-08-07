@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 
 namespace Lokad.Awk;
 
@@ -19,8 +18,19 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
     public string Raw { get; }
 
     /// <summary>Returns whether <paramref name="s"/> is a well-formed raw awk path.</summary>
-    public static bool IsValid(string? s) =>
-        !string.IsNullOrEmpty(s) && s.All(c => !AwkPath.IsForbiddenChar(c) && c is not ('*' or '\\' or ':'));
+    public static bool IsValid(string? s)
+    {
+        if (string.IsNullOrEmpty(s))
+            return false;
+
+        for (var index = 0; index < s.Length; index++)
+        {
+            if (AwkPath.IsForbiddenChar(s[index]) || s[index] is '*' or '\\' or ':')
+                return false;
+        }
+
+        return true;
+    }
 
     /// <summary>Parses a well-formed raw awk path.</summary>
     public static AwkRawPath Parse(string s) => Parse(s, null);
@@ -74,7 +84,7 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
                 : current.Path + "/" + Raw;
 
         var span = combined.AsSpan(1);
-        List<(int start, int len)>? segments = null;
+        List<PathSegment>? segments = null;
 
         foreach (var range in span.Split('/'))
         {
@@ -86,7 +96,7 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
 
             if (!isDot && !isDotDot && len > 0)
             {
-                segments?.Add((start + 1, len));
+                segments?.Add(new PathSegment(start + 1, len));
                 continue;
             }
 
@@ -99,7 +109,7 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
                     var l = r.End.Value - s;
                     if (l > 0)
                     {
-                        segments.Add((s + 1, l));
+                        segments.Add(new PathSegment(s + 1, l));
                     }
                 }
             }
@@ -125,26 +135,27 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
         else
         {
             var totalLen = Math.Max(1, segments.Count);
-            foreach (var (_, len) in segments)
+            foreach (var segment in segments)
             {
-                totalLen += len;
+                totalLen += segment.Length;
             }
 
-            resultPath = string.Create(totalLen, (combined, segments), static (dst, state) =>
+            resultPath = string.Create(
+                totalLen,
+                new PathCreationState(combined, segments),
+                static (destination, state) =>
             {
-                var (src, segs) = state;
-                dst[0] = '/';
-                var pos = 1;
-                for (var i = 0; i < segs.Count; i++)
+                destination[0] = '/';
+                var position = 1;
+                for (var index = 0; index < state.Segments.Count; index++)
                 {
-                    if (i > 0)
-                    {
-                        dst[pos++] = '/';
-                    }
+                    if (index > 0)
+                        destination[position++] = '/';
 
-                    var (segStart, segLen) = segs[i];
-                    src.AsSpan(segStart, segLen).CopyTo(dst[pos..]);
-                    pos += segLen;
+                    var segment = state.Segments[index];
+                    state.Source.AsSpan(segment.Start, segment.Length)
+                        .CopyTo(destination[position..]);
+                    position += segment.Length;
                 }
             });
         }
@@ -162,4 +173,10 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
 
     /// <inheritdoc />
     public override string ToString() => Raw;
+
+    private readonly record struct PathSegment(int Start, int Length);
+
+    private readonly record struct PathCreationState(
+        string Source,
+        IReadOnlyList<PathSegment> Segments);
 }

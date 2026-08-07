@@ -58,6 +58,29 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
+    public void AwkPaths_ValidateWithoutAllocatingSegments()
+    {
+        const string canonical = "/work/input/data.csv";
+        const string raw = "../input/data.csv";
+        _ = AwkPath.IsValid(canonical);
+        _ = AwkRawPath.IsValid(raw);
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < 10_000; index++)
+        {
+            if (!AwkPath.IsValid(canonical) || !AwkRawPath.IsValid(raw))
+                throw new InvalidOperationException("A valid path was rejected.");
+        }
+
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        Assert.True(allocatedBytes < 1_024, "Allocated bytes: " + allocatedBytes);
+    }
+
+    [Fact]
     public void AwkOperationError_RequiresTextAndDefaultsToAHostSafeMessage()
     {
         Assert.Throws<ArgumentException>(() => new AwkOperationError(string.Empty));

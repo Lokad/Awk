@@ -79,20 +79,26 @@ public sealed class AwkPath
             return false;
         }
 
-        foreach (var segment in path[1..].Split('/'))
+        var segmentStart = 1;
+        for (var index = 1; index <= path.Length; index++)
         {
-            if (segment.Length == 0 || segment is "." or "..")
+            if (index < path.Length && path[index] != '/')
+            {
+                if (IsForbiddenChar(path[index]))
+                    return false;
+
+                continue;
+            }
+
+            var segmentLength = index - segmentStart;
+            if (segmentLength == 0 ||
+                segmentLength == 1 && path[segmentStart] == '.' ||
+                segmentLength == 2 && path[segmentStart] == '.' && path[segmentStart + 1] == '.')
             {
                 return false;
             }
 
-            foreach (var c in segment)
-            {
-                if (IsForbiddenChar(c))
-                {
-                    return false;
-                }
-            }
+            segmentStart = index + 1;
         }
 
         return true;
