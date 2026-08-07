@@ -884,6 +884,52 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
+    public void Awk_SplitMemoryLimitFailsBeforeReplacingEitherCaptureArray()
+    {
+        var fieldArrayName = AwkArrayName.FromText("fields");
+        var separatorArrayName = AwkArrayName.FromText("separators");
+        var ordinalOne = new AwkArrayKey("1");
+        var state = CreateStateWithMemoryLimit(650);
+        state.SetArrayString(fieldArrayName, ordinalOne, "keep-field");
+        state.SetArrayString(separatorArrayName, ordinalOne, "keep-separator");
+
+        var exception = Assert.Throws<AwkRuntimeException>(
+            () => state.SplitIntoArray(
+                AwkText.FromString("a b"),
+                fieldArrayName,
+                " ",
+                AwkOptionalIdentifier.FromText(separatorArrayName.Text)));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+        Assert.Equal("keep-field", state.GetArrayString(fieldArrayName, ordinalOne));
+        Assert.Equal("keep-separator", state.GetArrayString(separatorArrayName, ordinalOne));
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+    }
+
+    [Fact]
+    public void Awk_PatsplitMemoryLimitFailsBeforeReplacingEitherCaptureArray()
+    {
+        var fieldArrayName = AwkArrayName.FromText("fields");
+        var separatorArrayName = AwkArrayName.FromText("separators");
+        var ordinalOne = new AwkArrayKey("1");
+        var state = CreateStateWithMemoryLimit(650);
+        state.SetArrayString(fieldArrayName, ordinalOne, "keep-field");
+        state.SetArrayString(separatorArrayName, ordinalOne, "keep-separator");
+
+        var exception = Assert.Throws<AwkRuntimeException>(
+            () => state.PatsplitIntoArray(
+                AwkText.FromString("a b"),
+                fieldArrayName,
+                "[^ ]+",
+                AwkOptionalIdentifier.FromText(separatorArrayName.Text)));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+        Assert.Equal("keep-field", state.GetArrayString(fieldArrayName, ordinalOne));
+        Assert.Equal("keep-separator", state.GetArrayString(separatorArrayName, ordinalOne));
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+    }
+
+    [Fact]
     public void Awk_FieldSplitMemoryLimitFailsBeforeMaterializingFields()
     {
         var state = CreateStateWithMemoryLimit(300);

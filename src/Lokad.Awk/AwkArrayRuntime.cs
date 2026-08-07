@@ -108,11 +108,18 @@ internal sealed class AwkArrayRuntime
             separator == " ",
             separatorArrayName.HasValue,
             _state.Counters);
-        SetValuesFromExternalText(arrayName, result.Fields);
         if (separatorArrayName.HasValue)
         {
             _state.Counters.RecordSeparatorCaptureFallback();
-            SetValuesFromZero(new AwkArrayName(separatorArrayName.Value), result.Separators);
+            SetSplitArrayValues(
+                arrayName,
+                result.Fields,
+                new AwkArrayName(separatorArrayName.Value),
+                result.Separators);
+        }
+        else
+        {
+            SetValuesFromExternalText(arrayName, result.Fields);
         }
 
         return result.Fields.Count;
@@ -130,10 +137,16 @@ internal sealed class AwkArrayRuntime
         var result = _fieldSplitter.Patsplit(input, pattern, separatorArrayName.HasValue, _state.Counters);
         if (separatorArrayName.HasValue)
         {
-            SetValuesFromZero(new AwkArrayName(separatorArrayName.Value), result.Separators);
+            SetSplitArrayValues(
+                arrayName,
+                result.Fields,
+                new AwkArrayName(separatorArrayName.Value),
+                result.Separators);
         }
-
-        SetValuesFromExternalText(arrayName, result.Fields);
+        else
+        {
+            SetValuesFromExternalText(arrayName, result.Fields);
+        }
         return result.Fields.Count;
     }
 
@@ -441,9 +454,22 @@ internal sealed class AwkArrayRuntime
         _variables.SetArrayValuesFromExternalText(_variableRuntime.ResolveOrPromoteArrayName(name), values);
     }
 
-    private void SetValuesFromZero(AwkArrayName name, IReadOnlyList<AwkText> values)
+    private void SetSplitArrayValues(
+        AwkArrayName fieldArrayName,
+        IReadOnlyList<AwkText> fields,
+        AwkArrayName separatorArrayName,
+        IReadOnlyList<AwkText> separators)
     {
-        _variables.SetZeroBasedArrayValues(_variableRuntime.ResolveOrPromoteArrayName(name), values);
+        var resolvedFieldArrayName = _variableRuntime.ResolveOrPromoteArrayName(fieldArrayName);
+        var resolvedSeparatorArrayName = _variableRuntime.ResolveOrPromoteArrayName(separatorArrayName);
+        if (resolvedFieldArrayName == resolvedSeparatorArrayName)
+            throw new AwkRuntimeException(AwkMessages.ErrorSplitSameDestinationAndSeparatorArray);
+
+        _variables.SetSplitArrayValues(
+            resolvedFieldArrayName,
+            fields,
+            resolvedSeparatorArrayName,
+            separators);
     }
 
     private static void ThrowIfSameSplitArrays(AwkArrayName arrayName, AwkOptionalIdentifier separatorArrayName)

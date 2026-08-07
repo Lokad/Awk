@@ -295,11 +295,21 @@ internal sealed class AwkVariables
         ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, AwkVariableSlot.FromExternalText));
     }
 
-    public void SetZeroBasedArrayValues(AwkArrayName name, IReadOnlyList<AwkText> values)
+    public void SetSplitArrayValues(
+        AwkArrayName fieldArrayName,
+        IReadOnlyList<AwkText> fields,
+        AwkArrayName separatorArrayName,
+        IReadOnlyList<AwkText> separators)
     {
-        AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
-        ThrowIfArrayReplacementWouldExceedLimit(values.Count);
-        ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 0, AwkVariableSlot.FromText));
+        AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(fieldArrayName.Text);
+        AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(separatorArrayName.Text);
+        ThrowIfArrayReplacementWouldExceedLimit(fields.Count);
+        ThrowIfArrayReplacementWouldExceedLimit(separators.Count);
+        ReplaceArraySlots(
+            fieldArrayName,
+            CreateIndexedArraySlots(fields, firstIndex: 1, AwkVariableSlot.FromExternalText),
+            separatorArrayName,
+            CreateIndexedArraySlots(separators, firstIndex: 0, AwkVariableSlot.FromText));
     }
 
     public void ClearArray(AwkArrayName name)
@@ -548,6 +558,40 @@ internal sealed class AwkVariables
             : 0;
         using var mutation = ReserveMemoryMutation(newBytes, oldBytes);
         _arrays.SetSlots(name, slots);
+        mutation.Commit();
+    }
+
+    private void ReplaceArraySlots(
+        AwkArrayName firstName,
+        Dictionary<AwkArrayKey, AwkVariableSlot> firstSlots,
+        AwkArrayName secondName,
+        Dictionary<AwkArrayKey, AwkVariableSlot> secondSlots)
+    {
+        static long AddBytes(long left, long right)
+        {
+            if (left > long.MaxValue - right)
+                throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+
+            return left + right;
+        }
+
+        long ExistingBytes(AwkArrayName name) =>
+            ShouldGovernArray(name) && _arrays.TryGetSlots(name, out var slots)
+                ? EstimateArrayBytes(slots)
+                : 0;
+
+        static long ReplacementBytes(
+            AwkArrayName name,
+            IReadOnlyDictionary<AwkArrayKey, AwkVariableSlot> slots) =>
+            ShouldGovernArray(name) ? EstimateArrayBytes(slots) : 0;
+
+        var oldBytes = AddBytes(ExistingBytes(firstName), ExistingBytes(secondName));
+        var newBytes = AddBytes(
+            ReplacementBytes(firstName, firstSlots),
+            ReplacementBytes(secondName, secondSlots));
+        using var mutation = ReserveMemoryMutation(newBytes, oldBytes);
+        _arrays.SetSlots(firstName, firstSlots);
+        _arrays.SetSlots(secondName, secondSlots);
         mutation.Commit();
     }
 
