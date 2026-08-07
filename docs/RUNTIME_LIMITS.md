@@ -57,7 +57,7 @@ or default budget can be calibrated without using machine-dependent elapsed time
 
 These names are not public embedding policy unless a concrete host need appears:
 
-- `DefaultInputReadBatchBytes`: streaming read batch size.
+- `DefaultInputReadBatchLineCount`: maximum lines requested per streaming host read.
 - `DefaultUtf8BuilderInitialCapacity`: initial byte-builder capacity.
 - `DefaultRegexCacheSize`: compiled regex least-recently-used cache capacity.
 - `DefaultRegexMatchTimeoutSeconds`: .NET regex timeout guard.
@@ -65,10 +65,12 @@ These names are not public embedding policy unless a concrete host need appears:
   buffers check this limit and, when the memory governor is enabled, reserve/commit/release the
   same estimated bytes through the governor.
 
-`AwkText` allocation itself is preflighted with the governor and then released after construction;
-retained ordinary array entries are charged separately with an estimate that includes key/value
-payloads and small-object overhead. Read-only built-in special arrays such as `FUNCTAB` are static
-runtime metadata and are not charged against the execution memory budget.
+Runtime-owned `AwkText` byte arrays and builder materialization are preflighted with the governor;
+APIs accepting an already-created owned array account it at their boundary. The transient charge is
+released after construction. Retained ordinary array entries are charged separately with an
+estimate that includes key/value payloads and small-object overhead. Read-only built-in special
+arrays such as `FUNCTAB` are static runtime metadata and are not charged against the execution
+memory budget.
 
 ## Mutation Semantics
 

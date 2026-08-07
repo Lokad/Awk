@@ -132,9 +132,8 @@ internal static class AwkSourceDiagnosticMap
             var count = afterLast - first;
             var lastStart = count == 0 ? -1 : _starts[afterLast - 1];
 
-            // A diagnostic may point between the two characters of CRLF. The old
-            // cursor counted the CR at that position even though the combined
-            // line start lies after the LF, so preserve that boundary behavior.
+            // A position between CR and LF belongs to the following logical line;
+            // count that boundary even though its combined line start follows LF.
             if (end > segmentStart &&
                 end < _source.Length &&
                 _source[end - 1] == '\r' &&
