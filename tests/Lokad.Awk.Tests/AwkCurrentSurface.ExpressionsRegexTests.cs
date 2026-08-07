@@ -96,6 +96,32 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Awk_CaptureMatchReusesGroupZeroValue(bool useUtf8Adapter)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var runtime = new AwkRegexRuntime(
+            static () => false,
+            static () => false,
+            static () => { },
+            counters,
+            useUtf8Adapter
+                ? AwkRegexEngineKind.Utf8Adapter
+                : AwkRegexEngineKind.DotNetCompatibility);
+        var regex = runtime.Create(new AwkRegexPattern("(a)"));
+        var input = AwkText.FromString("a", counters);
+        var baselineTextAllocations = counters.AwkTextAllocations;
+
+        var match = runtime.MatchValue(regex, input, AwkMemoryGovernor.Disabled);
+
+        Assert.True(match.Success);
+        Assert.Equal(2, match.Groups.Count);
+        Assert.Same(match.Groups[0].Value, match.Value);
+        Assert.Equal(baselineTextAllocations + 2, counters.AwkTextAllocations);
+    }
+
     [Fact]
     public void Awk_RegexLiteralSubstitutionUsesMatchSpans()
     {

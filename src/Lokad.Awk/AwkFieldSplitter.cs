@@ -11,7 +11,6 @@ internal sealed class AwkFieldSplitter(
     AwkFieldSeparatorSpec fieldSeparator,
     Func<AwkRegexPattern, Regex> createRegex,
     Func<AwkRegexLiteralText, Regex> createLiteralRegex,
-    Func<Regex, AwkText, AwkLeasedReadOnlyList<AwkRegexMatch>> enumerateTextMatches,
     Func<Regex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
     Func<bool> isIgnoreCaseEnabled,
     Func<bool> charactersAsBytes,
@@ -21,7 +20,6 @@ internal sealed class AwkFieldSplitter(
     private readonly AwkByteFieldSplitter _byteSplitter = new(
         createRegex,
         createLiteralRegex,
-        enumerateTextMatches,
         enumerateMatchSpans,
         isIgnoreCaseEnabled,
         charactersAsBytes,

@@ -10,7 +10,6 @@ namespace Lokad.Awk;
 internal sealed class AwkByteFieldSplitter(
     Func<AwkRegexPattern, Regex> createRegex,
     Func<AwkRegexLiteralText, Regex> createLiteralRegex,
-    Func<Regex, AwkText, AwkLeasedReadOnlyList<AwkRegexMatch>> enumerateTextMatches,
     Func<Regex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
     Func<bool> isIgnoreCaseEnabled,
     Func<bool> charactersAsBytes,
@@ -95,14 +94,14 @@ internal sealed class AwkByteFieldSplitter(
         var separators = captureSeparators ? new List<AwkText>() : null;
         var content = input.AsSpan();
         var position = 0;
-        using var matches = enumerateTextMatches(regex, input);
-        foreach (var match in matches)
+        using var matches = enumerateMatchSpans(regex, input);
+        while (matches.MoveNext(out var match))
         {
             throwIfCancellationRequested();
             if (separators != null)
                 separators.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
 
-            fields.Add(match.Value);
+            fields.Add(SliceTrustedFieldText(content, match.ByteIndex, match.ByteLength, counters));
             position = match.ByteIndex + match.ByteLength;
         }
 
@@ -304,12 +303,12 @@ internal sealed class AwkByteFieldSplitter(
         var separators = new List<AwkText> { AwkText.Empty };
         var content = line.AsSpan();
         var position = 0;
-        using var matches = enumerateTextMatches(separator, line);
-        foreach (var match in matches)
+        using var matches = enumerateMatchSpans(separator, line);
+        while (matches.MoveNext(out var match))
         {
             throwIfCancellationRequested();
             fields.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
-            separators.Add(match.Value);
+            separators.Add(SliceTrustedFieldText(content, match.ByteIndex, match.ByteLength, counters));
             position = AdvanceAfterRegexSeparator(line, match.ByteIndex, match.ByteLength);
         }
 

@@ -248,8 +248,13 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var regex = runtime.Create(new AwkRegexPattern("a"));
         var input = AwkText.FromString(new string('a', 32));
 
-        Assert.Throws<OperationCanceledException>(
-            () => runtime.EnumerateMatchValues(regex, input, AwkMemoryGovernor.Disabled));
+        using var matches = runtime.EnumerateMatchValues(regex, input, AwkMemoryGovernor.Disabled);
+        Assert.Throws<OperationCanceledException>(() =>
+        {
+            while (matches.MoveNext(out _))
+            {
+            }
+        });
         Assert.True(checks > 5);
     }
 
@@ -892,15 +897,22 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public void Awk_RegexEnumerationMemoryLimitFailsBeforeCreatingMatchList()
+    public void Awk_RegexEnumerationHoldsOnlyOneMatchBuffer()
     {
         var state = CreateStateWithMemoryLimit(200);
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("aaaa");
 
-        var exception = Assert.Throws<AwkRuntimeException>(() => state.EnumerateRegexMatches(regex, input));
+        var matchCount = 0;
+        using (var matches = state.EnumerateRegexMatches(regex, input))
+        {
+            while (matches.MoveNext(out _))
+                matchCount++;
 
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+            Assert.InRange(state.MemoryGovernor.CurrentCommittedBytes, 1, 200);
+        }
+
+        Assert.Equal(4, matchCount);
         Assert.Equal(0, state.MemoryGovernor.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }

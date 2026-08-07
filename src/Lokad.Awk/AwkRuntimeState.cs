@@ -165,7 +165,6 @@ internal sealed class AwkRuntimeState
             plan.FieldSeparator,
             CreateRegex,
             _regexRuntime.CreateLiteral,
-            EnumerateRegexValueMatches,
             EnumerateRegexMatchSpans,
             IsIgnoreCaseEnabled,
             () => CharactersAsBytes,
@@ -722,11 +721,8 @@ internal sealed class AwkRuntimeState
     public Regex CreateRegex(AwkRegexPattern pattern) =>
         _regexRuntime.Create(pattern);
 
-    public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateRegexMatches(Regex regex, AwkText input) =>
-        _regexRuntime.EnumerateMatchValues(regex, input, MemoryGovernor, includeGroups: true);
-
-    public AwkLeasedReadOnlyList<AwkRegexMatch> EnumerateRegexValueMatches(Regex regex, AwkText input) =>
-        _regexRuntime.EnumerateMatchValues(regex, input, MemoryGovernor, includeGroups: false);
+    public AwkRegexMatchEnumerator EnumerateRegexMatches(Regex regex, AwkText input) =>
+        _regexRuntime.EnumerateMatchValues(regex, input, MemoryGovernor);
 
     public AwkRegexMatchSpanEnumerator EnumerateRegexMatchSpans(Regex regex, AwkText input) =>
         _regexRuntime.EnumerateMatchSpans(regex, input);

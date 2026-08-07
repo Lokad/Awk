@@ -40,7 +40,9 @@ internal readonly record struct AwkRegexMatch(
                 counters);
         }
 
-        var value = AwkText.FromString(match.Value, counters);
+        var value = groups.Length == 0
+            ? AwkText.FromString(match.Value, counters)
+            : groups[0].Value;
         var byteLength = Encoding.UTF8.GetByteCount(input.AsSpan(match.Index, match.Length));
         return new AwkRegexMatch(
             true,
@@ -50,28 +52,6 @@ internal readonly record struct AwkRegexMatch(
             byteLength,
             value,
             groups);
-    }
-
-    public static AwkRegexMatch FromMatchValue(
-        Match match,
-        string input,
-        int byteIndex,
-        bool useByteOffsets,
-        AwkRuntimeCounters counters)
-    {
-        if (!match.Success)
-            return NoMatch;
-
-        var value = AwkText.FromString(match.Value, counters);
-        var byteLength = Encoding.UTF8.GetByteCount(input.AsSpan(match.Index, match.Length));
-        return new AwkRegexMatch(
-            true,
-            useByteOffsets ? byteIndex : match.Index,
-            useByteOffsets ? byteLength : match.Length,
-            byteIndex,
-            byteLength,
-            value,
-            []);
     }
 
     public static AwkRegexMatch FromUtf8Match(
@@ -89,33 +69,17 @@ internal readonly record struct AwkRegexMatch(
             groups[index] = FromUtf8Group(match.GetGroup(index), useByteOffsets, counters, governor);
         }
 
+        var value = groups.Length == 0
+            ? CreateText(match, counters, governor)
+            : groups[0].Value;
         return new AwkRegexMatch(
             true,
             useByteOffsets ? match.IndexInBytes : match.IndexInUtf16,
             useByteOffsets ? match.LengthInBytes : match.LengthInUtf16,
             match.IndexInBytes,
             match.LengthInBytes,
-            CreateText(match, counters, governor),
+            value,
             groups);
-    }
-
-    public static AwkRegexMatch FromUtf8MatchValue(
-        Utf8MatchContext match,
-        bool useByteOffsets,
-        AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
-    {
-        if (!match.Success)
-            return NoMatch;
-
-        return new AwkRegexMatch(
-            true,
-            useByteOffsets ? match.IndexInBytes : match.IndexInUtf16,
-            useByteOffsets ? match.LengthInBytes : match.LengthInUtf16,
-            match.IndexInBytes,
-            match.LengthInBytes,
-            CreateText(match, counters, governor),
-            []);
     }
 
     private static AwkRegexGroup FromGroup(

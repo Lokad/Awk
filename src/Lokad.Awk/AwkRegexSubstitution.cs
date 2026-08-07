@@ -52,7 +52,7 @@ internal static class AwkRegexSubstitution
             return ReplaceFirst(state, regex, input, replacement, mode, out replacementCount);
 
         using var matches = state.EnumerateRegexMatches(regex, input);
-        if (matches.Count == 0)
+        if (!matches.MoveNext(out var match))
         {
             replacementCount = 0;
             return input;
@@ -63,7 +63,7 @@ internal static class AwkRegexSubstitution
         var position = 0;
         var seen = 0;
         replacementCount = 0;
-        foreach (var match in matches)
+        do
         {
             state.ThrowIfCancellationRequested();
             seen++;
@@ -82,6 +82,7 @@ internal static class AwkRegexSubstitution
                 break;
             }
         }
+        while (matches.MoveNext(out match));
 
         builder.Append(input.AsSpan().Slice(position));
         return builder.CopyToAwkText(state.Counters);
