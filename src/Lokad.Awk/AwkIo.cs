@@ -181,11 +181,8 @@ internal sealed class AwkIo
 
     }
 
-    public void BindMainInputReader(AwkRecordCursor reader) =>
+    public void BindMainInputReader(AwkInputRecordReader reader) =>
         _mainInputReader = MainInputReaderBinding.Bind(reader);
-
-    public void BindMainInputReader(AwkRecordCursor reader, Func<Task> beforeReadAsync) =>
-        _mainInputReader = MainInputReaderBinding.Bind(reader, beforeReadAsync);
 
     public void ClearMainInputReader() =>
         _mainInputReader = MainInputReaderBinding.Unbound;
@@ -194,8 +191,6 @@ internal sealed class AwkIo
     {
         if (_mainInputReader is not MainInputReaderBinding.Bound boundReader)
             return AwkGetlineResult.EndOfFile;
-
-        await boundReader.ExecuteBeforeReadAsync().ConfigureAwait(false);
 
         try
         {
@@ -208,7 +203,7 @@ internal sealed class AwkIo
         }
     }
 
-    private async Task<AwkGetlineResult> ReadGetlineRecordAsync(AwkRecordCursor reader)
+    private async Task<AwkGetlineResult> ReadGetlineRecordAsync(AwkInputRecordReader reader)
     {
         var input = await reader.ReadAsync().ConfigureAwait(false);
         if (!input.HasRecord)
@@ -363,49 +358,15 @@ internal sealed class AwkIo
     {
         public static MainInputReaderBinding Unbound { get; } = new Empty();
 
-        public static Bound Bind(AwkRecordCursor reader) => new(reader, MainInputReadHook.None);
-
-        public static Bound Bind(AwkRecordCursor reader, Func<Task> beforeReadAsync) =>
-            new(reader, MainInputReadHook.Once(beforeReadAsync));
+        public static Bound Bind(AwkInputRecordReader reader) => new(reader);
 
         public sealed class Empty : MainInputReaderBinding
         {
         }
 
-        public sealed class Bound(
-            AwkRecordCursor reader,
-            MainInputReadHook beforeRead) : MainInputReaderBinding
+        public sealed class Bound(AwkInputRecordReader reader) : MainInputReaderBinding
         {
-            private MainInputReadHook _beforeRead = beforeRead;
-
-            public AwkRecordCursor Reader { get; } = reader;
-
-            public async Task ExecuteBeforeReadAsync()
-            {
-                var beforeRead = _beforeRead;
-                _beforeRead = MainInputReadHook.None;
-                await beforeRead.ExecuteAsync().ConfigureAwait(false);
-            }
-        }
-    }
-
-    private abstract class MainInputReadHook
-    {
-        public static MainInputReadHook None { get; } = new Empty();
-
-        public static MainInputReadHook Once(Func<Task> callback) => new Callback(callback);
-
-        /// <summary>Executes the one-shot pre-read action; empty implementations complete without effects.</summary>
-        public abstract Task ExecuteAsync();
-
-        public sealed class Empty : MainInputReadHook
-        {
-            public override Task ExecuteAsync() => Task.CompletedTask;
-        }
-
-        public sealed class Callback(Func<Task> callback) : MainInputReadHook
-        {
-            public override Task ExecuteAsync() => callback();
+            public AwkInputRecordReader Reader { get; } = reader;
         }
     }
 }

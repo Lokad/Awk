@@ -7,6 +7,20 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
 {
     [Fact]
+    public async Task Awk_ExitFromBeginDoesNotOpenMainInput()
+    {
+        var host = new TestOperationVisitor([]);
+        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+            "awk",
+            "BEGIN{exit}",
+            "/unopened.txt")));
+
+        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.Success.Value, exitCode);
+    }
+
+    [Fact]
     public async Task Awk_HelpAppendFailureReturnsFatalStatus()
     {
         var host = new TestOperationVisitor([]);

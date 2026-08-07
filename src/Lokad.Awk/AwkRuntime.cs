@@ -86,19 +86,12 @@ internal static class AwkRuntime
             state.SnapshotEnvironment);
         using var actionExecutor = new AwkRuntimeActionExecutor(program, executableProgram, state);
         var inputScheduler = new AwkInputScheduler(host, invocation, actionExecutor, state, io, cancellationToken);
+        io.BindMainInputReader(inputScheduler);
         try
         {
-            var inputPreparation = await inputScheduler.TryPrepareFirstMainInputAsync().ConfigureAwait(false);
             var beginFlow = await actionExecutor.ExecuteBeginActionsAsync(state, io).ConfigureAwait(false);
-
-            if (beginFlow != AwkStatementFlow.ExitProgram && !inputScheduler.HasExplicitInputSource)
-            {
-                await inputScheduler.ProcessDefaultInputAsync(inputPreparation).ConfigureAwait(false);
-            }
-            else if (beginFlow != AwkStatementFlow.ExitProgram)
-            {
-                await inputScheduler.ProcessExplicitInputsAsync(inputPreparation).ConfigureAwait(false);
-            }
+            if (beginFlow != AwkStatementFlow.ExitProgram)
+                await inputScheduler.ProcessRemainingInputAsync().ConfigureAwait(false);
 
             await actionExecutor.ExecuteEndActionsAsync(state, io).ConfigureAwait(false);
             await inputScheduler.CloseRemainingDescriptorsAsync().ConfigureAwait(false);
