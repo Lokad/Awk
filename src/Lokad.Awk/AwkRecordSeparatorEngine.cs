@@ -90,14 +90,11 @@ internal readonly struct AwkRecordSeparatorStrategyCache(
 
 internal abstract class AwkRecordSeparatorStrategy
 {
-    protected AwkRecordSeparatorStrategy(string separatorText, AwkRecordSeparatorContext context)
+    protected AwkRecordSeparatorStrategy(AwkRecordSeparatorContext context)
     {
-        SeparatorText = separatorText;
         Context = context;
         SeparatorVersion = context.State.RecordSeparatorVersion;
     }
-
-    protected string SeparatorText { get; }
 
     protected AwkRecordSeparatorContext Context { get; }
 
@@ -109,16 +106,16 @@ internal abstract class AwkRecordSeparatorStrategy
     public static AwkRecordSeparatorStrategy Create(string separatorText, AwkRecordSeparatorContext context)
     {
         if (separatorText.Length == 0)
-            return new AwkParagraphRecordSeparatorStrategy(separatorText, context);
+            return new AwkParagraphRecordSeparatorStrategy(context);
 
         if (separatorText == "\n")
-            return new AwkNewlineRecordSeparatorStrategy(separatorText, context);
+            return new AwkNewlineRecordSeparatorStrategy(context);
 
         if (TryGetSingleByteSeparator(separatorText, out var separatorByte))
             return new AwkSingleByteRecordSeparatorStrategy(separatorText, separatorByte, context);
 
         if (TryGetSimpleByteSetRegexSeparator(separatorText, out var separatorBytes))
-            return new AwkByteSetRecordSeparatorStrategy(separatorText, separatorBytes, context);
+            return new AwkByteSetRecordSeparatorStrategy(separatorBytes, context);
 
         if (separatorText.Length == 1)
             return new AwkSingleCharacterRecordSeparatorStrategy(separatorText, context);
@@ -219,8 +216,7 @@ internal abstract class AwkRecordSeparatorStrategy
 }
 
 internal sealed class AwkNewlineRecordSeparatorStrategy(
-    string separatorText,
-    AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(separatorText, context)
+    AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(context)
 {
     public override async ValueTask<AwkStatementFlow> ProcessDescriptorAsync(
         AwkFileDescriptor descriptor,
@@ -294,8 +290,7 @@ internal sealed class AwkNewlineRecordSeparatorStrategy(
 }
 
 internal abstract class AwkByteRecordSeparatorStrategy(
-    string separatorText,
-    AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(separatorText, context)
+    AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(context)
 {
     public sealed override async ValueTask<AwkStatementFlow> ProcessDescriptorAsync(
         AwkFileDescriptor descriptor,
@@ -456,7 +451,7 @@ internal abstract class AwkByteRecordSeparatorStrategy(
 internal sealed class AwkSingleByteRecordSeparatorStrategy(
     string separatorText,
     byte separatorByte,
-    AwkRecordSeparatorContext context) : AwkByteRecordSeparatorStrategy(separatorText, context)
+    AwkRecordSeparatorContext context) : AwkByteRecordSeparatorStrategy(context)
 {
     private readonly AwkRecordTerminator _terminator = AwkRecordTerminator.FromText(
         AwkText.FromString(separatorText, context.State.Counters));
@@ -480,10 +475,9 @@ internal sealed class AwkByteSetRecordSeparatorStrategy : AwkByteRecordSeparator
     private readonly AwkRecordTerminator[] _terminators;
 
     public AwkByteSetRecordSeparatorStrategy(
-        string separatorText,
         bool[] separatorBytes,
         AwkRecordSeparatorContext context)
-        : base(separatorText, context)
+        : base(context)
     {
         _separatorBytes = separatorBytes;
         _terminators = new AwkRecordTerminator[separatorBytes.Length];
@@ -524,7 +518,7 @@ internal sealed class AwkByteSetRecordSeparatorStrategy : AwkByteRecordSeparator
 
 internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
     string separatorText,
-    AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(separatorText, context)
+    AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(context)
 {
     private readonly AwkText _separator = AwkText.FromString(separatorText, context.State.Counters);
 
@@ -637,7 +631,7 @@ internal sealed class AwkSingleCharacterRecordSeparatorStrategy(
 
 internal sealed class AwkRegexRecordSeparatorStrategy(
     string separatorText,
-    AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(separatorText, context)
+    AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(context)
 {
     private readonly Regex _separator = context.State.CreateRegex(new AwkRegexPattern(separatorText));
 
@@ -765,8 +759,7 @@ internal sealed class AwkRegexRecordSeparatorStrategy(
 }
 
 internal sealed class AwkParagraphRecordSeparatorStrategy(
-    string separatorText,
-    AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(separatorText, context)
+    AwkRecordSeparatorContext context) : AwkRecordSeparatorStrategy(context)
 {
     public override async ValueTask<AwkStatementFlow> ProcessDescriptorAsync(
         AwkFileDescriptor descriptor,
