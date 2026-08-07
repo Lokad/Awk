@@ -92,7 +92,10 @@ public sealed class AwkBenchmarkCounterTests
     public async Task Awk_BenchmarkCountersCoverInvalidInputFailure()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = CreateOptions(counters);
+        var options = CreateOptions(
+            counters,
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             AwkTestHarness.BuildInvocation("awk", "{print}"),
@@ -337,6 +340,7 @@ public sealed class AwkBenchmarkCounterTests
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["function inc(x){return x+1} {print inc($2)}"],
             "sku1 1\nsku2 2\n",
+            AwkRegexEngineKind.Utf8Adapter,
             executionEngineKind: AwkExecutionEngineKind.Executable);
 
         Assert.Equal(0, exitCode);
@@ -349,11 +353,34 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.AwkTextAsStringCalls);
     }
 
+    private static Task<(int ExitCode, MockFileSystem FileSystem, AwkRuntimeCounters Counters)> RunAsync(
+        string[] arguments) =>
+        RunAsync(
+            arguments,
+            string.Empty,
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
+
+    private static Task<(int ExitCode, MockFileSystem FileSystem, AwkRuntimeCounters Counters)> RunAsync(
+        string[] arguments,
+        string input) =>
+        RunAsync(
+            arguments,
+            input,
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
+
+    private static Task<(int ExitCode, MockFileSystem FileSystem, AwkRuntimeCounters Counters)> RunAsync(
+        string[] arguments,
+        string input,
+        AwkRegexEngineKind regexEngineKind) =>
+        RunAsync(arguments, input, regexEngineKind, AwkExecutionEngineKind.Interpreter);
+
     private static async Task<(int ExitCode, MockFileSystem FileSystem, AwkRuntimeCounters Counters)> RunAsync(
         string[] arguments,
-        string input = "",
-        AwkRegexEngineKind regexEngineKind = AwkRegexEngineKind.Utf8Adapter,
-        AwkExecutionEngineKind executionEngineKind = AwkExecutionEngineKind.Interpreter)
+        string input,
+        AwkRegexEngineKind regexEngineKind,
+        AwkExecutionEngineKind executionEngineKind)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = CreateOptions(counters, regexEngineKind, executionEngineKind);
@@ -390,8 +417,8 @@ public sealed class AwkBenchmarkCounterTests
 
     private static AwkRuntimeOptions CreateOptions(
         AwkRuntimeCounters counters,
-        AwkRegexEngineKind regexEngineKind = AwkRegexEngineKind.Utf8Adapter,
-        AwkExecutionEngineKind executionEngineKind = AwkExecutionEngineKind.Interpreter) =>
+        AwkRegexEngineKind regexEngineKind,
+        AwkExecutionEngineKind executionEngineKind) =>
         new(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,

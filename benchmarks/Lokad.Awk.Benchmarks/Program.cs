@@ -128,26 +128,30 @@ public class FullInvocationBenchmarks
             "{total += length($0); hits += index($0, \"\u00e9\"); sample = substr($0, 2, 5)} END{print total, hits, sample}",
             ["{total += length($0); hits += index($0, \"\u00e9\"); sample = substr($0, 2, 5)} END{print total, hits, sample}", "/utf8.txt"],
             [new BenchmarkFile("/utf8.txt", CreateLargeUtf8Data())],
-            recordCount: 12_000);
+            recordCount: 12_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
         _singleByteFieldSeparator = new BenchmarkScenario(
             "single-byte field separator",
             "{sum += length($2); if($3 ~ /flag/) hits++} END{print sum, hits}",
             ["-F", "|", "{sum += length($2); if($3 ~ /flag/) hits++} END{print sum, hits}", "/pipe.txt"],
             [new BenchmarkFile("/pipe.txt", CreatePipeFieldData())],
-            recordCount: 18_000);
+            recordCount: 18_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
         _regexFieldSeparator = BenchmarkScenarioCatalog.RegexFieldSeparator();
         _regexRecordSeparator = new BenchmarkScenario(
             "regex record separator",
             "BEGIN{RS=\"[|;]\"} {sum += length($0)} END{print NR, sum}",
             ["BEGIN{RS=\"[|;]\"} {sum += length($0)} END{print NR, sum}", "/rs.txt"],
             [new BenchmarkFile("/rs.txt", CreateRecordSeparatorData())],
-            recordCount: 20_000);
+            recordCount: 20_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
         _splitAndGsub = new BenchmarkScenario(
             "split and gsub",
             "{n=split($0,a,\",\"); gsub(/[0-9]+/,\"#\",$0); total += n + length($0)} END{print total}",
             ["{n=split($0,a,\",\"); gsub(/[0-9]+/,\"#\",$0); total += n + length($0)} END{print total}", "/split.csv"],
             [new BenchmarkFile("/split.csv", CreateSplitSubstitutionData())],
-            recordCount: 16_000);
+            recordCount: 16_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
         _dynamicRecordSeparator = BenchmarkScenarioCatalog.DynamicRecordSeparator();
         _nonAsciiRecordSeparator = BenchmarkScenarioCatalog.NonAsciiRecordSeparator();
         _fieldModes = BenchmarkScenarioCatalog.FieldModes();
@@ -825,25 +829,29 @@ internal static class BenchmarkCounterReport
             "{print $2}",
             ["{print $2}", "/data.tsv"],
             [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n")],
-            recordCount: 3),
+            recordCount: 3,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter streaming projection calibration",
             "{print $2}",
             ["{print $2}", "/stream.tsv"],
             [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
-            recordCount: CounterStreamingRecordCount),
+            recordCount: CounterStreamingRecordCount,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter three-key filter calibration",
             "$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}",
             ["$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}", "/stream.tsv"],
             [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
-            recordCount: CounterStreamingRecordCount),
+            recordCount: CounterStreamingRecordCount,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter associative aggregation calibration",
             "{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}",
             ["{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}", "/stream.tsv"],
             [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
-            recordCount: CounterStreamingRecordCount),
+            recordCount: CounterStreamingRecordCount,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter two-file comparison calibration",
             "NR==FNR{left[$1]=$2; next} ($1 in left) && left[$1]!=$2{differences++} END{print differences+0}",
@@ -852,109 +860,127 @@ internal static class BenchmarkCounterReport
                 new BenchmarkFile("/left.tsv", BuildCounterComparisonRows(changed: false)),
                 new BenchmarkFile("/right.tsv", BuildCounterComparisonRows(changed: true))
             ],
-            recordCount: CounterComparisonRecordCount * 2),
+            recordCount: CounterComparisonRecordCount * 2,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter arithmetic loop",
             "BEGIN{for(i=1;i<=100;i++) total += i * 2; print total}",
             ["BEGIN{for(i=1;i<=100;i++) total += i * 2; print total}"],
             [],
-            recordCount: 0),
+            recordCount: 0,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter print-heavy action",
             "BEGIN{for(i=1;i<=50;i++) print \"row\", i}",
             ["BEGIN{for(i=1;i<=50;i++) print \"row\", i}"],
             [],
-            recordCount: 0),
+            recordCount: 0,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter regex field separator",
             "BEGIN{FS=\"[|;]\"} {sum += NF + length($2)} END{print sum}",
             ["BEGIN{FS=\"[|;]\"} {sum += NF + length($2)} END{print sum}", "/pipe.txt"],
             [new BenchmarkFile("/pipe.txt", "a|beta;flag\nb|delta;plain\nc|gamma;flag\n")],
-            recordCount: 3),
+            recordCount: 3,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter dynamic record separator",
             "BEGIN{RS=\"|\"} NR==1{RS=\"[,;]\"} {total += length($0)} END{print NR, total}",
             ["BEGIN{RS=\"|\"} NR==1{RS=\"[,;]\"} {total += length($0)} END{print NR, total}", "/dynamic-rs.txt"],
             [new BenchmarkFile("/dynamic-rs.txt", "first|second,third;fourth;")],
-            recordCount: 4),
+            recordCount: 4,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter non-ASCII record separator",
             "BEGIN{RS=\"\u00e9\"} {total += length($0)} END{print NR, total}",
             ["BEGIN{RS=\"\u00e9\"} {total += length($0)} END{print NR, total}", "/non-ascii-rs.txt"],
             [new BenchmarkFile("/non-ascii-rs.txt", "caf\u00e91\u00e9r\u00e9sum\u00e92\u00e9")],
-            recordCount: 3),
+            recordCount: 3,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter field modes",
             "NR%2{FPAT=\"[A-Z]+|[0-9]+\"; FIELDWIDTHS=\"\"; fp += NF; split($0,a,/[0-9]+/,s); sep += length(s[1]); next} {FPAT=\"\"; FIELDWIDTHS=\"2 3\"; fw += NF} END{print fw, fp, sep}",
             ["NR%2{FPAT=\"[A-Z]+|[0-9]+\"; FIELDWIDTHS=\"\"; fp += NF; split($0,a,/[0-9]+/,s); sep += length(s[1]); next} {FPAT=\"\"; FIELDWIDTHS=\"2 3\"; fw += NF} END{print fw, fp, sep}", "/field-modes.txt"],
             [new BenchmarkFile("/field-modes.txt", "A-12-B\nabcdef\nC-34-D\nghijkl\n")],
-            recordCount: 4),
+            recordCount: 4,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter UTF-8 FIELDWIDTHS",
             "BEGIN{FIELDWIDTHS=\"4 5 2\"} {total += length($1) + length($2) + NF} END{print total}",
             ["BEGIN{FIELDWIDTHS=\"4 5 2\"} {total += length($1) + length($2) + NF} END{print total}", "/fieldwidths.txt"],
             [new BenchmarkFile("/fieldwidths.txt", "caf\u00e9bravo12\nna\u00efveplain34\n")],
-            recordCount: 2),
+            recordCount: 2,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter large split fields",
             "{n=split($0,a,\" \"); total += n + length($1) + length($NF) + length(a[1]) + length(a[n])} END{print total}",
             ["{n=split($0,a,\" \"); total += n + length($1) + length($NF) + length(a[1]) + length(a[n])} END{print total}", "/split-fields.txt"],
             [new BenchmarkFile("/split-fields.txt", BuildCounterSeparatedRows())],
-            recordCount: 32),
+            recordCount: 32,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter large scalar growth",
             "{x = x $0} END{print length(x)}",
             ["{x = x $0} END{print length(x)}", "/scalar.txt"],
             [new BenchmarkFile("/scalar.txt", "alpha\nbeta\ngamma\n")],
-            recordCount: 3),
+            recordCount: 3,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter large field list",
             "{total += NF + length($8)} END{print total}",
             ["{total += NF + length($8)} END{print total}", "/fields.txt"],
             [new BenchmarkFile("/fields.txt", "a b c d e f g h i j\n1 2 3 4 5 6 7 8 9 10\n")],
-            recordCount: 2),
+            recordCount: 2,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter small text split arrays",
             "{n=split($0,a,\"\"); total += n + length(a[1]) + length(a[n])} END{print total}",
             ["{n=split($0,a,\"\"); total += n + length(a[1]) + length(a[n])} END{print total}", "/small-split.txt"],
             [new BenchmarkFile("/small-split.txt", "abcdef\nbcdefg\n")],
-            recordCount: 2),
+            recordCount: 2,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter regex replacement expansion",
             "{gsub(/([[:alpha:]]+)([[:digit:]]+)/,\"<&>-<&>-<&>\",$0); total += length($0)} END{print total}",
             ["{gsub(/([[:alpha:]]+)([[:digit:]]+)/,\"<&>-<&>-<&>\",$0); total += length($0)} END{print total}", "/replace.txt"],
             [new BenchmarkFile("/replace.txt", "sku1 item22\nsku3 item44\n")],
-            recordCount: 2),
+            recordCount: 2,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter regex pattern gap",
             "BEGIN{s=\"abc\"; print match(s,/\\`a/)}",
             ["BEGIN{s=\"abc\"; print match(s,/\\`a/)}"],
             [],
-            recordCount: 0),
+            recordCount: 0,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter array sorting",
             "{a[$1] += $2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"; for(k in a) print k, a[k]}",
             ["{a[$1] += $2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"; for(k in a) print k, a[k]}", "/array-sort.txt"],
             [new BenchmarkFile("/array-sort.txt", "b 2\na 1\nb 3\n")],
-            recordCount: 3),
+            recordCount: 3,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter small ordinal array",
             "BEGIN{for(i=1;i<=64;i++) a[i]=i; for(i=1;i<=64;i++) total += a[i]; print total}",
             ["BEGIN{for(i=1;i<=64;i++) a[i]=i; for(i=1;i<=64;i++) total += a[i]; print total}"],
             [],
-            recordCount: 0),
+            recordCount: 0,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter user-function loop",
             "function add(x,y){return x+y} BEGIN{for(i=1;i<=80;i++) total=add(total,i); print total}",
             ["function add(x,y){return x+y} BEGIN{for(i=1;i<=80;i++) total=add(total,i); print total}"],
             [],
-            recordCount: 0),
+            recordCount: 0,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter byte concat",
             "{x = $1 \"|\" $2 \"|\" $3; total += length(x)} END{print total}",
             ["--characters-as-bytes", "{x = $1 \"|\" $2 \"|\" $3; total += length(x)} END{print total}", "/concat.txt"],
             [new BenchmarkFile("/concat.txt", "a b c\nx y z\n")],
-            recordCount: 2),
+            recordCount: 2,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter executable opcode execution",
             "{print $2}",
@@ -1041,7 +1067,8 @@ internal static class BenchmarkScenarioCatalog
             "{print $2}",
             ["{print $2}", "/data.tsv"],
             [new BenchmarkFile("/data.tsv", BuildColumnData())],
-            recordCount: 20_000);
+            recordCount: 20_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario DynamicRecordSeparator() =>
         new(
@@ -1049,7 +1076,8 @@ internal static class BenchmarkScenarioCatalog
             "BEGIN{RS=\"|\"} NR==1{RS=\"[,;]\"} {total += length($0)} END{print NR, total}",
             ["BEGIN{RS=\"|\"} NR==1{RS=\"[,;]\"} {total += length($0)} END{print NR, total}", "/dynamic-rs.txt"],
             [new BenchmarkFile("/dynamic-rs.txt", FullInvocationBenchmarks.CreateDynamicRecordSeparatorData())],
-            recordCount: 14_001);
+            recordCount: 14_001,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario NonAsciiRecordSeparator() =>
         new(
@@ -1057,7 +1085,8 @@ internal static class BenchmarkScenarioCatalog
             "BEGIN{RS=\"\u00e9\"} {total += length($0)} END{print NR, total}",
             ["BEGIN{RS=\"\u00e9\"} {total += length($0)} END{print NR, total}", "/non-ascii-rs.txt"],
             [new BenchmarkFile("/non-ascii-rs.txt", FullInvocationBenchmarks.CreateNonAsciiRecordSeparatorData())],
-            recordCount: 14_000);
+            recordCount: 14_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario RegexFieldSeparator() =>
         new(
@@ -1065,7 +1094,8 @@ internal static class BenchmarkScenarioCatalog
             "BEGIN{FS=\"[|;]\"} {sum += NF + length($2)} END{print sum}",
             ["BEGIN{FS=\"[|;]\"} {sum += NF + length($2)} END{print sum}", "/pipe.txt"],
             [new BenchmarkFile("/pipe.txt", FullInvocationBenchmarks.CreatePipeFieldData())],
-            recordCount: 18_000);
+            recordCount: 18_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario FieldModes() =>
         new(
@@ -1073,7 +1103,8 @@ internal static class BenchmarkScenarioCatalog
             "NR%2{FPAT=\"[A-Z]+|[0-9]+\"; FIELDWIDTHS=\"\"; fp += NF; split($0,a,/[0-9]+/,s); sep += length(s[1]); next} {FPAT=\"\"; FIELDWIDTHS=\"2 3\"; fw += NF} END{print fw, fp, sep}",
             ["NR%2{FPAT=\"[A-Z]+|[0-9]+\"; FIELDWIDTHS=\"\"; fp += NF; split($0,a,/[0-9]+/,s); sep += length(s[1]); next} {FPAT=\"\"; FIELDWIDTHS=\"2 3\"; fw += NF} END{print fw, fp, sep}", "/field-modes.txt"],
             [new BenchmarkFile("/field-modes.txt", FullInvocationBenchmarks.CreateFieldModeData())],
-            recordCount: 10_000);
+            recordCount: 10_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario FieldWidthsUtf8() =>
         new(
@@ -1081,7 +1112,8 @@ internal static class BenchmarkScenarioCatalog
             "BEGIN{FIELDWIDTHS=\"4 5 2\"} {total += length($1) + length($2) + NF} END{print total}",
             ["BEGIN{FIELDWIDTHS=\"4 5 2\"} {total += length($1) + length($2) + NF} END{print total}", "/fieldwidths.txt"],
             [new BenchmarkFile("/fieldwidths.txt", FullInvocationBenchmarks.CreateFieldWidthsUtf8Data())],
-            recordCount: 10_000);
+            recordCount: 10_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario LargeScalarGrowth() =>
         new(
@@ -1089,7 +1121,8 @@ internal static class BenchmarkScenarioCatalog
             "{x = x $0; if (NR % 500 == 0) sample = length(x)} END{print length(x), sample}",
             ["{x = x $0; if (NR % 500 == 0) sample = length(x)} END{print length(x), sample}", "/scalar.txt"],
             [new BenchmarkFile("/scalar.txt", FullInvocationBenchmarks.CreateLargeScalarGrowthData())],
-            recordCount: 2_500);
+            recordCount: 2_500,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario LargeFieldList() =>
         new(
@@ -1097,7 +1130,8 @@ internal static class BenchmarkScenarioCatalog
             "{total += NF + length($200)} END{print total}",
             ["{total += NF + length($200)} END{print total}", "/fields.txt"],
             [new BenchmarkFile("/fields.txt", FullInvocationBenchmarks.CreateLargeFieldListData())],
-            recordCount: 2_000);
+            recordCount: 2_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario SmallTextSplitArrays() =>
         new(
@@ -1105,7 +1139,8 @@ internal static class BenchmarkScenarioCatalog
             "{n=split($0,a,\"\"); total += n + length(a[1]) + length(a[n])} END{print total}",
             ["{n=split($0,a,\"\"); total += n + length(a[1]) + length(a[n])} END{print total}", "/small-split.txt"],
             [new BenchmarkFile("/small-split.txt", FullInvocationBenchmarks.CreateSmallTextSplitArrayData())],
-            recordCount: 12_000);
+            recordCount: 12_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario RegexReplacementExpansion() =>
         new(
@@ -1113,7 +1148,8 @@ internal static class BenchmarkScenarioCatalog
             "{gsub(/([[:alpha:]]+)([[:digit:]]+)/,\"<&>-<&>-<&>\",$0); total += length($0)} END{print total}",
             ["{gsub(/([[:alpha:]]+)([[:digit:]]+)/,\"<&>-<&>-<&>\",$0); total += length($0)} END{print total}", "/replace.txt"],
             [new BenchmarkFile("/replace.txt", FullInvocationBenchmarks.CreateRegexReplacementExpansionData())],
-            recordCount: 10_000);
+            recordCount: 10_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario ArraySorting() =>
         new(
@@ -1121,7 +1157,8 @@ internal static class BenchmarkScenarioCatalog
             "{a[$1] += $2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"; for(k in a) print k, a[k]}",
             ["{a[$1] += $2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"; for(k in a) print k, a[k]}", "/array-sort.txt"],
             [new BenchmarkFile("/array-sort.txt", FullInvocationBenchmarks.CreateArraySortingData())],
-            recordCount: 8_000);
+            recordCount: 8_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario HeavyConcatByteMode() =>
         new(
@@ -1129,7 +1166,8 @@ internal static class BenchmarkScenarioCatalog
             "{x = $1 \"|\" $2 \"|\" $3 \"|\" $4; total += length(x)} END{print total}",
             ["--characters-as-bytes", "{x = $1 \"|\" $2 \"|\" $3 \"|\" $4; total += length(x)} END{print total}", "/concat.txt"],
             [new BenchmarkFile("/concat.txt", FullInvocationBenchmarks.CreateHeavyConcatData())],
-            recordCount: 12_000);
+            recordCount: 12_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static BenchmarkScenario ExecutableFallbackDispatch() =>
         new(
@@ -1137,7 +1175,8 @@ internal static class BenchmarkScenarioCatalog
             "function inc(x){return x+1} {print inc($2)}",
             ["function inc(x){return x+1} {print inc($2)}", "/data.tsv"],
             [new BenchmarkFile("/data.tsv", BuildColumnData())],
-            recordCount: 20_000);
+            recordCount: 20_000,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
 
     public static bool TryResolveMetrics(string benchmarkTypeName, string benchmarkMethodName, out BenchmarkWorkloadMetrics metrics)
     {
@@ -1218,9 +1257,15 @@ internal sealed class BenchmarkScenario(
     IReadOnlyList<string> arguments,
     IReadOnlyList<BenchmarkFile> files,
     long recordCount,
-    AwkExecutionEngineKind counterExecutionEngineKind = AwkExecutionEngineKind.Interpreter)
+    AwkExecutionEngineKind counterExecutionEngineKind)
 {
-    public static BenchmarkScenario Empty { get; } = new(string.Empty, string.Empty, [], [], 0);
+    public static BenchmarkScenario Empty { get; } = new(
+        string.Empty,
+        string.Empty,
+        [],
+        [],
+        0,
+        AwkExecutionEngineKind.Interpreter);
 
     public string Name { get; } = name;
 

@@ -396,15 +396,18 @@ public sealed class AwkSourceLoaderTests
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
     }
 
+    private static AwkInvocation Parse(string program) =>
+        Parse(program, []);
+
     private static AwkInvocation Parse(
         string program,
-        IReadOnlyList<AwkEnvironmentVariable>? environment = null)
+        IReadOnlyList<AwkEnvironmentVariable> environment)
     {
         return AwkCommandParser.Parse(
             AwkTestHarness.BuildInvocation(
                 "awk",
                 [program],
-                environment ?? []));
+                environment));
     }
 
     private static IReadOnlyList<AwkSourceUnit> LoadedSources(AwkSourceLoadResult result) =>

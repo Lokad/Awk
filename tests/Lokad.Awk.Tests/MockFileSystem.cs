@@ -26,21 +26,28 @@ public sealed class MockFileSystem : IAwkHost
 
     public int OpenFileCount => _descriptors.OpenFileCount;
 
-    public void AddDirectory(
-        string path,
-        AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite) =>
+    public void AddDirectory(string path) =>
+        AddDirectory(path, AwkFileTreePermission.ReadWrite);
+
+    public void AddDirectory(string path, AwkFileTreePermission permission) =>
         _files.AddDirectory(path, permission);
+
+    public void AddFile(string path, string content) =>
+        AddFile(path, content, AwkFileTreePermission.ReadWrite);
 
     public void AddFile(
         string path,
         string content,
-        AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite) =>
+        AwkFileTreePermission permission) =>
         _files.AddFile(path, content, permission);
+
+    public void AddFile(string path, byte[] content) =>
+        AddFile(path, content, AwkFileTreePermission.ReadWrite);
 
     public void AddFile(
         string path,
         byte[] content,
-        AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite) =>
+        AwkFileTreePermission permission) =>
         _files.AddFile(path, content, permission);
 
     public void AddReadOpenError(string path, string message) =>

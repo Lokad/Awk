@@ -18,29 +18,36 @@ internal sealed class MockFileTree
     private readonly DirectoryNode _root = new(AwkFileTreePermission.ReadWrite);
     private readonly Dictionary<AwkPath, AwkOperationError> _readOpenErrors = [];
 
-    public void AddDirectory(
-        string path,
-        AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite)
+    public void AddDirectory(string path) =>
+        AddDirectory(path, AwkFileTreePermission.ReadWrite);
+
+    public void AddDirectory(string path, AwkFileTreePermission permission)
     {
         EnsureDirectory(ParsePath(path), permission);
     }
 
+    public void AddFile(string path, string content) =>
+        AddFile(path, content, AwkFileTreePermission.ReadWrite);
+
     public void AddFile(
         string path,
         string content,
-        AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite) =>
+        AwkFileTreePermission permission) =>
         AddFile(path, Encoding.UTF8.GetBytes(content), permission);
+
+    public void AddFile(string path, byte[] content) =>
+        AddFile(path, content, AwkFileTreePermission.ReadWrite);
 
     public void AddFile(
         string path,
         byte[] content,
-        AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite)
+        AwkFileTreePermission permission)
     {
         var filePath = ParsePath(path);
         if (!TryGetParentAndName(filePath, out var parent, out var name))
             throw new InvalidOperationException("MockFileSystem requires a file path.");
 
-        var directory = EnsureDirectory(parent);
+        var directory = EnsureDirectory(parent, AwkFileTreePermission.ReadWrite);
         directory.Children[name] = new FileNode(content, permission);
     }
 
@@ -109,7 +116,7 @@ internal sealed class MockFileTree
 
     private DirectoryNode EnsureDirectory(
         AwkPath path,
-        AwkFileTreePermission permission = AwkFileTreePermission.ReadWrite)
+        AwkFileTreePermission permission)
     {
         var current = _root;
         foreach (var segment in SplitPath(path))
