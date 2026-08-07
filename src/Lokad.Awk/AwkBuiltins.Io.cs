@@ -23,7 +23,7 @@ internal static partial class AwkBuiltins
             direction = AwkOptionalCloseDirection.Some(parsedDirection);
         }
 
-        await execution.Output.FlushIoEventsAsync(execution.Io).ConfigureAwait(false);
+        await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
         var result = !direction.HasValue
             ? await execution.Io.CloseAsync(path).ConfigureAwait(false)
             : await execution.Io.CloseAsync(path, direction.Value).ConfigureAwait(false);
@@ -41,7 +41,7 @@ internal static partial class AwkBuiltins
         if (!context.TryGetExecutionContext(out var execution))
             return AwkValue.FromNumber(-1);
 
-        await execution.Output.FlushIoEventsAsync(execution.Io).ConfigureAwait(false);
+        await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
         var result = context.ArgumentCount == 0
             ? await execution.Io.FlushAsync(string.Empty).ConfigureAwait(false)
             : await execution.Io.FlushAsync(await context.GetStringAsync(0).ConfigureAwait(false)).ConfigureAwait(false);

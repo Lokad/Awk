@@ -9,16 +9,16 @@ internal static class AwkGetlineRuntime
         AwkGetlineSource source,
         AwkEvaluationContext context,
         AwkExecutionContext execution,
-        bool flushRedirectedIoEvents)
+        bool flushPendingDiagnostics)
     {
         var readMainInput = source.ReadsMainInput;
         if (readMainInput)
         {
             await execution.Output.FlushAsync(execution.Io).ConfigureAwait(false);
         }
-        else if (flushRedirectedIoEvents)
+        else if (flushPendingDiagnostics)
         {
-            await execution.Output.FlushIoEventsAsync(execution.Io).ConfigureAwait(false);
+            await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
         }
 
         var result = await source.ReadAsync(context, execution).ConfigureAwait(false);

@@ -964,24 +964,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public void Awk_RedirectedOutputMemoryLimitFailsBeforeQueueingWrite()
-    {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(300);
-        var governor = AwkMemoryGovernor.Create(limits);
-        using var output = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
-
-        var exception = Assert.Throws<AwkRuntimeException>(
-            () => output.AppendRedirected(
-                "/out.txt",
-                AwkOutputRedirectionKind.Write,
-                AwkUtf8Codec.Encode(new string('x', 80))));
-
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Empty(output.IoEvents);
-        Assert.Equal(0, governor.CurrentReservedBytes);
-    }
-
-    [Fact]
     public void Awk_ScalarMemoryLimitFailsBeforeReplacingValue()
     {
         var variableName = AwkVariableName.FromText("x");

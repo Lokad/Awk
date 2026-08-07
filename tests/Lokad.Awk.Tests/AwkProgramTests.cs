@@ -147,10 +147,7 @@ public sealed class AwkProgramTests
     public async Task AwkStatement_RedirectedPrintWritesDirectlyToIo()
     {
         var output = new AwkOutputSink();
-        var host = new TestOperationVisitor([])
-        {
-            BeforeAppend = () => Assert.Empty(output.IoEvents)
-        };
+        var host = new TestOperationVisitor([]);
         host.EnqueueOpenAwkFileDescriptor(3);
         host.EnqueueAppendExitCode(0);
         var io = new AwkIo(
@@ -168,7 +165,6 @@ public sealed class AwkProgramTests
         var flow = await statement.ExecuteAsync(state, output, io);
 
         Assert.Equal(AwkStatementFlow.Continue, flow);
-        Assert.Empty(output.IoEvents);
         Assert.Equal("x\n", host.GetAppendedOutput(new AwkFileDescriptor(3)));
     }
 

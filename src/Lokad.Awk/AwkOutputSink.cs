@@ -7,10 +7,8 @@ namespace Lokad.Awk;
 internal sealed class AwkOutputSink : IDisposable
 {
     private readonly AwkUtf8Builder _standardOutput;
-    private readonly List<AwkIoEvent> _ioEvents = [];
-    private readonly List<IDisposable> _ioEventLeases = [];
+    private readonly List<AwkDiagnostic> _diagnostics = [];
     private readonly AwkRuntimeCounters _counters;
-    private readonly AwkMemoryGovernor _governor;
 
     public AwkOutputSink()
         : this(
@@ -27,10 +25,7 @@ internal sealed class AwkOutputSink : IDisposable
     {
         _standardOutput = new AwkUtf8Builder(limits, governor);
         _counters = counters;
-        _governor = governor;
     }
-
-    public IReadOnlyList<AwkIoEvent> IoEvents => _ioEvents;
 
     public void Append(string value)
     {
@@ -57,46 +52,8 @@ internal sealed class AwkOutputSink : IDisposable
         _standardOutput.Append(content);
     }
 
-    public void AppendRedirected(string path, AwkOutputRedirectionKind kind, string content)
-    {
-        AppendRedirected(new AwkRedirectionPath(path), kind, content);
-    }
-
-    public void AppendRedirected(AwkRedirectionPath path, AwkOutputRedirectionKind kind, string content)
-    {
-        if (content.Length == 0)
-            return;
-
-        AppendRedirected(path, kind, AwkUtf8Codec.Encode(content, _counters));
-    }
-
-    public void AppendRedirected(string path, AwkOutputRedirectionKind kind, ReadOnlyMemory<byte> content)
-    {
-        AppendRedirected(new AwkRedirectionPath(path), kind, content);
-    }
-
-    public void AppendRedirected(AwkRedirectionPath path, AwkOutputRedirectionKind kind, ReadOnlyMemory<byte> content)
-    {
-        if (content.IsEmpty)
-            return;
-
-        var lease = _governor.ReserveTransient(AwkRuntimeMemory.EstimateByteArrayBytes(content.Length));
-        try
-        {
-            AddIoEvent(AwkIoEvent.Write(new AwkRedirectedOutput(path, kind, content)), lease);
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
-        }
-    }
-
-    public void Close(string path) =>
-        AddIoEvent(AwkIoEvent.Close(path), _governor.ReserveTransient(0));
-
     public void ReportDiagnostic(AwkDiagnostic diagnostic) =>
-        AddIoEvent(AwkIoEvent.DiagnosticWarning(diagnostic), _governor.ReserveTransient(0));
+        _diagnostics.Add(diagnostic);
 
     public async Task FlushAsync(AwkIo io)
     {
@@ -106,64 +63,27 @@ internal sealed class AwkOutputSink : IDisposable
             _standardOutput.Clear();
         }
 
-        await FlushIoEventsAsync(io).ConfigureAwait(false);
+        await FlushDiagnosticsAsync(io).ConfigureAwait(false);
     }
 
-    public async Task FlushIoEventsAsync(AwkIo io)
+    public async Task FlushDiagnosticsAsync(AwkIo io)
     {
         try
         {
-            for (var index = 0; index < _ioEvents.Count; index++)
+            for (var index = 0; index < _diagnostics.Count; index++)
             {
-                var ioEvent = _ioEvents[index];
-                if (ioEvent.Kind == AwkIoEventKind.Write)
-                {
-                    await io.WriteAsync(ioEvent.Output).ConfigureAwait(false);
-                }
-                else if (ioEvent.Kind == AwkIoEventKind.Close)
-                {
-                    await io.CloseAsync(ioEvent.Path).ConfigureAwait(false);
-                }
-                else if (ioEvent.Kind == AwkIoEventKind.Diagnostic)
-                {
-                    await io.WriteStandardErrorAsync(AwkDiagnostics.Warning(ioEvent.Diagnostic)).ConfigureAwait(false);
-                }
+                await io.WriteStandardErrorAsync(AwkDiagnostics.Warning(_diagnostics[index])).ConfigureAwait(false);
             }
         }
         finally
         {
-            ClearIoEvents();
+            _diagnostics.Clear();
         }
-    }
-
-    private void AddIoEvent(AwkIoEvent ioEvent, IDisposable lease)
-    {
-        _ioEvents.Add(ioEvent);
-        try
-        {
-            _ioEventLeases.Add(lease);
-        }
-        catch
-        {
-            _ioEvents.RemoveAt(_ioEvents.Count - 1);
-            throw;
-        }
-    }
-
-    private void ClearIoEvents()
-    {
-        for (var index = 0; index < _ioEventLeases.Count; index++)
-        {
-            _ioEventLeases[index].Dispose();
-        }
-
-        _ioEventLeases.Clear();
-        _ioEvents.Clear();
     }
 
     public void Dispose()
     {
-        ClearIoEvents();
+        _diagnostics.Clear();
         _standardOutput.Dispose();
     }
 

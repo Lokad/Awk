@@ -20,7 +20,7 @@ internal abstract partial class AwkExpression
                     source,
                     context,
                     execution,
-                    flushRedirectedIoEvents: true)
+                    flushPendingDiagnostics: true)
                 .ConfigureAwait(false);
             return AwkValue.FromNumber(result.StatusCode);
         }

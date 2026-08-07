@@ -30,7 +30,7 @@ internal abstract partial class AwkStatement
                     source,
                     context,
                     execution,
-                    flushRedirectedIoEvents: false)
+                    flushPendingDiagnostics: false)
                 .ConfigureAwait(false);
 
             return AwkStatementFlow.Continue;
@@ -44,7 +44,7 @@ internal abstract partial class AwkStatement
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var execution = RequireExecutionContext(context);
-            await execution.Output.FlushIoEventsAsync(execution.Io).ConfigureAwait(false);
+            await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
             var target = await targetExpression
                 .ResolveAsync(context)
                 .ConfigureAwait(false);
@@ -60,7 +60,7 @@ internal abstract partial class AwkStatement
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var execution = RequireExecutionContext(context);
-            await execution.Output.FlushIoEventsAsync(execution.Io).ConfigureAwait(false);
+            await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
             var target = await targetExpression
                 .ResolveStringAsync(context)
                 .ConfigureAwait(false);
