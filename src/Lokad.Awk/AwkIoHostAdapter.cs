@@ -121,7 +121,12 @@ internal sealed class AwkIoHostAdapter(
     {
         resources.RecordHostCall();
         var closed = await host.CloseDescriptorAsync(descriptor, cancellationToken).ConfigureAwait(false);
-        ThrowIfCloseFailed(descriptor, closed);
+        if (!closed)
+        {
+            throw new AwkRuntimeException(
+                AwkMessages.FormatDescriptorCloseError(descriptor),
+                AwkDiagnosticId.HostIoFailure);
+        }
     }
 
     public async Task CloseDescriptorForCleanupAsync(AwkFileDescriptor descriptor)
@@ -140,16 +145,6 @@ internal sealed class AwkIoHostAdapter(
 
         throw new AwkRuntimeException(
             AwkMessages.FormatAppendError(descriptor, status.Value),
-            AwkDiagnosticId.HostIoFailure);
-    }
-
-    private static void ThrowIfCloseFailed(AwkFileDescriptor descriptor, bool closed)
-    {
-        if (closed)
-            return;
-
-        throw new AwkRuntimeException(
-            AwkMessages.FormatDescriptorCloseError(descriptor),
             AwkDiagnosticId.HostIoFailure);
     }
 }
