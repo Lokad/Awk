@@ -129,6 +129,33 @@ public sealed class AwkProgramTests
     }
 
     [Fact]
+    public async Task AwkExpression_ReusesConcatenationTemporaryStorage()
+    {
+        var parts = Enumerable.Range(0, 32)
+            .Select(static _ => AwkExpression.Literal("x"))
+            .ToArray();
+        var expression = AwkExpression.Concat(parts);
+        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var context = new AwkEvaluationContext(0, state);
+        _ = await expression.EvaluateAsync(context);
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < 10_000; index++)
+        {
+            var value = await expression.EvaluateAsync(context);
+            if (value.ByteText.ByteLength != 32)
+                throw new InvalidOperationException("Concatenation returned an unexpected value.");
+        }
+
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        Assert.True(allocatedBytes < 1_500_000, "Allocated bytes: " + allocatedBytes);
+    }
+
+    [Fact]
     public async Task AwkStatement_CopiesCallerOwnedPrintParts()
     {
         var parts = new List<AwkExpressionPart>

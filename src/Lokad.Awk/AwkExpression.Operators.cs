@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
@@ -19,25 +20,63 @@ internal abstract partial class AwkExpression
             _parts = AwkExecutableCollections.Copy(parts);
         }
 
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var formattedParts = new AwkText[_parts.Count];
-            var first = await _parts[0].EvaluateAsync(context).ConfigureAwait(false);
-            var second = await _parts[1].EvaluateAsync(context).ConfigureAwait(false);
-            formattedParts[0] = context.State.FormatStringByteText(first);
-            formattedParts[1] = context.State.FormatStringByteText(second);
-
-            for (var index = 2; index < _parts.Count; index++)
+            var formattedParts = ArrayPool<AwkText>.Shared.Rent(_parts.Count);
+            try
             {
-                var value = await _parts[index].EvaluateAsync(context).ConfigureAwait(false);
-                formattedParts[index] = context.State.FormatStringByteText(value);
-            }
+                for (var index = 0; index < _parts.Count; index++)
+                {
+                    var pending = _parts[index].EvaluateAsync(context);
+                    if (!pending.IsCompletedSuccessfully)
+                        return EvaluateRemainingAsync(context, formattedParts, index, pending);
 
-            return context.State.CreateByteTextValue(AwkText.Concat(
-                formattedParts,
+                    formattedParts[index] = context.State.FormatStringByteText(pending.Result);
+                }
+
+                var result = CreateValue(context, formattedParts);
+                ReturnParts(formattedParts);
+                return ValueTask.FromResult(result);
+            }
+            catch
+            {
+                ReturnParts(formattedParts);
+                throw;
+            }
+        }
+
+        private async ValueTask<AwkValue> EvaluateRemainingAsync(
+            AwkEvaluationContext context,
+            AwkText[] formattedParts,
+            int currentIndex,
+            ValueTask<AwkValue> pending)
+        {
+            try
+            {
+                var current = await pending.ConfigureAwait(false);
+                formattedParts[currentIndex] = context.State.FormatStringByteText(current);
+                for (var index = currentIndex + 1; index < _parts.Count; index++)
+                {
+                    var value = await _parts[index].EvaluateAsync(context).ConfigureAwait(false);
+                    formattedParts[index] = context.State.FormatStringByteText(value);
+                }
+
+                return CreateValue(context, formattedParts);
+            }
+            finally
+            {
+                ReturnParts(formattedParts);
+            }
+        }
+
+        private AwkValue CreateValue(AwkEvaluationContext context, AwkText[] formattedParts) =>
+            context.State.CreateByteTextValue(AwkText.Concat(
+                formattedParts.AsSpan(0, _parts.Count),
                 context.State.Counters,
                 context.State.MemoryGovernor));
-        }
+
+        private static void ReturnParts(AwkText[] formattedParts) =>
+            ArrayPool<AwkText>.Shared.Return(formattedParts, clearArray: true);
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {

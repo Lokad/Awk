@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -6,33 +7,50 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkBuiltinContext
 {
-    private readonly AwkBuiltinArguments _arguments;
+    private readonly IReadOnlyList<AwkExpression> _expressions;
+    private readonly AwkValue[] _values;
+    private readonly int _valueCount;
+    private readonly bool _argumentsAreEvaluated;
 
     public AwkBuiltinContext(
         IReadOnlyList<AwkExpression> arguments,
         AwkEvaluationContext evaluationContext)
     {
-        _arguments = new AwkExpressionBuiltinArguments(arguments);
+        _expressions = arguments;
+        _values = [];
+        _valueCount = 0;
+        _argumentsAreEvaluated = false;
         Evaluation = evaluationContext;
     }
 
     private AwkBuiltinContext(
-        IReadOnlyList<AwkValue> evaluatedArguments,
+        AwkValue[] evaluatedArguments,
+        int argumentCount,
         AwkEvaluationContext evaluationContext)
     {
-        _arguments = new AwkValueBuiltinArguments(evaluatedArguments);
+        _expressions = [];
+        _values = evaluatedArguments;
+        _valueCount = argumentCount;
+        _argumentsAreEvaluated = true;
         Evaluation = evaluationContext;
     }
 
-    public int ArgumentCount => _arguments.Count;
+    public int ArgumentCount => _argumentsAreEvaluated ? _valueCount : _expressions.Count;
 
     public AwkEvaluationContext Evaluation { get; }
 
     public AwkRuntimeState State => Evaluation.State;
 
-    public AwkValue GetValue(int index) => _arguments.GetValue(index, Evaluation);
+    public AwkValue GetValue(int index) =>
+        _argumentsAreEvaluated
+            ? _values[index]
+            : throw new InvalidOperationException(
+                "Unevaluated awk builtin arguments require asynchronous evaluation.");
 
-    public ValueTask<AwkValue> GetValueAsync(int index) => _arguments.GetValueAsync(index, Evaluation);
+    public ValueTask<AwkValue> GetValueAsync(int index) =>
+        _argumentsAreEvaluated
+            ? ValueTask.FromResult(_values[index])
+            : _expressions[index].EvaluateAsync(Evaluation);
 
     public string GetString(int index) => GetValue(index).AsString(State.Counters);
 
@@ -46,61 +64,8 @@ internal readonly struct AwkBuiltinContext
     public bool TryGetExecutionContext(out AwkExecutionContext context) =>
         Evaluation.TryGetExecutionContext(out context);
 
-    public async ValueTask<AwkBuiltinContext> WithEvaluatedArgumentsAsync()
-    {
-        if (_arguments.IsEvaluated)
-            return this;
-
-        var values = new AwkValue[_arguments.Count];
-        for (var index = 0; index < _arguments.Count; index++)
-        {
-            values[index] = await _arguments.GetValueAsync(index, Evaluation).ConfigureAwait(false);
-        }
-
-        return new AwkBuiltinContext(values, Evaluation);
-    }
-}
-
-internal abstract class AwkBuiltinArguments
-{
-    /// <summary>Gets the number of supplied arguments.</summary>
-    public abstract int Count { get; }
-
-    /// <summary>Gets whether every argument is already evaluated and safe to retrieve synchronously.</summary>
-    public abstract bool IsEvaluated { get; }
-
-    /// <summary>Returns an already evaluated argument; unevaluated implementations must reject this call.</summary>
-    public abstract AwkValue GetValue(int index, AwkEvaluationContext context);
-
-    /// <summary>Evaluates if necessary and returns the requested argument.</summary>
-    public abstract ValueTask<AwkValue> GetValueAsync(int index, AwkEvaluationContext context);
-}
-
-internal sealed class AwkExpressionBuiltinArguments(IReadOnlyList<AwkExpression> arguments) : AwkBuiltinArguments
-{
-    public override int Count => arguments.Count;
-
-    public override bool IsEvaluated => false;
-
-    public override AwkValue GetValue(int index, AwkEvaluationContext context)
-    {
-        throw new InvalidOperationException("Unevaluated awk builtin arguments require asynchronous evaluation.");
-    }
-
-    public override ValueTask<AwkValue> GetValueAsync(int index, AwkEvaluationContext context) =>
-        arguments[index].EvaluateAsync(context);
-}
-
-internal sealed class AwkValueBuiltinArguments(IReadOnlyList<AwkValue> arguments) : AwkBuiltinArguments
-{
-    public override int Count => arguments.Count;
-
-    public override bool IsEvaluated => true;
-
-    public override AwkValue GetValue(int index, AwkEvaluationContext context) => arguments[index];
-
-    public override ValueTask<AwkValue> GetValueAsync(int index, AwkEvaluationContext context) =>
-        ValueTask.FromResult(arguments[index]);
+    public AwkBuiltinContext WithEvaluatedArguments(AwkValue[] values, int argumentCount) =>
+        new(values, argumentCount, Evaluation);
 }
 
 internal abstract class AwkArity
@@ -226,8 +191,58 @@ internal abstract class AwkBuiltinImplementation
 
     private sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator) : AwkBuiltinImplementation
     {
-        public override async ValueTask<AwkValue> EvaluateAsync(AwkBuiltinContext context) =>
-            evaluator(await context.WithEvaluatedArgumentsAsync().ConfigureAwait(false));
+        public override ValueTask<AwkValue> EvaluateAsync(AwkBuiltinContext context)
+        {
+            var argumentCount = context.ArgumentCount;
+            var values = ArrayPool<AwkValue>.Shared.Rent(argumentCount);
+            try
+            {
+                for (var index = 0; index < argumentCount; index++)
+                {
+                    var pending = context.GetValueAsync(index);
+                    if (!pending.IsCompletedSuccessfully)
+                        return EvaluateRemainingAsync(context, values, argumentCount, index, pending);
+
+                    values[index] = pending.Result;
+                }
+
+                var result = evaluator(context.WithEvaluatedArguments(values, argumentCount));
+                ReturnValues(values, argumentCount);
+                return ValueTask.FromResult(result);
+            }
+            catch
+            {
+                ReturnValues(values, argumentCount);
+                throw;
+            }
+        }
+
+        private async ValueTask<AwkValue> EvaluateRemainingAsync(
+            AwkBuiltinContext context,
+            AwkValue[] values,
+            int argumentCount,
+            int currentIndex,
+            ValueTask<AwkValue> pending)
+        {
+            try
+            {
+                values[currentIndex] = await pending.ConfigureAwait(false);
+                for (var index = currentIndex + 1; index < argumentCount; index++)
+                    values[index] = await context.GetValueAsync(index).ConfigureAwait(false);
+
+                return evaluator(context.WithEvaluatedArguments(values, argumentCount));
+            }
+            finally
+            {
+                ReturnValues(values, argumentCount);
+            }
+        }
+
+        private static void ReturnValues(AwkValue[] values, int argumentCount)
+        {
+            Array.Clear(values, 0, argumentCount);
+            ArrayPool<AwkValue>.Shared.Return(values);
+        }
     }
 
     private sealed class AsyncBuiltinImplementation(AwkAsyncBuiltinEvaluator evaluator) : AwkBuiltinImplementation
