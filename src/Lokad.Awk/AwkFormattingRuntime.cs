@@ -115,7 +115,7 @@ internal sealed class AwkFormattingRuntime(
     {
         var format = resolveVariable(variable);
         var text = format.Text ?? AwkText.Empty;
-        return TextEqualsAscii(text, AwkFormattingVariableFacts.DefaultFormat(variable));
+        return text.EqualsAscii(AwkFormattingVariableFacts.DefaultFormat(variable));
     }
 
     private string ResolveFormatString(AwkFormattingVariable variable)
@@ -129,7 +129,7 @@ internal sealed class AwkFormattingRuntime(
             return _outputFormatString;
 
         var defaultFormat = AwkFormattingVariableFacts.DefaultFormat(variable);
-        if (TextEqualsAscii(text, defaultFormat))
+        if (text.EqualsAscii(defaultFormat))
         {
             _outputFormatText = text;
             _outputFormatString = defaultFormat;
@@ -150,7 +150,7 @@ internal sealed class AwkFormattingRuntime(
             return _conversionFormatString;
 
         var defaultFormat = AwkFormattingVariableFacts.DefaultFormat(AwkFormattingVariable.ConversionFormat);
-        if (TextEqualsAscii(text, defaultFormat))
+        if (text.EqualsAscii(defaultFormat))
         {
             _conversionFormatText = text;
             _conversionFormatString = defaultFormat;
@@ -165,18 +165,4 @@ internal sealed class AwkFormattingRuntime(
         return _conversionFormatString;
     }
 
-    private static bool TextEqualsAscii(AwkText text, string value)
-    {
-        var span = text.AsSpan();
-        if (span.Length != value.Length)
-            return false;
-
-        for (var index = 0; index < span.Length; index++)
-        {
-            if (span[index] != (byte)value[index])
-                return false;
-        }
-
-        return true;
-    }
 }

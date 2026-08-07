@@ -94,7 +94,7 @@ internal static partial class AwkExpressionLowerer
                 : AwkLValueLowerer.CreateFailureDiagnostic(expression.Children[0], "Invalid assignment target.");
         }
 
-        if (IsIncrementOrDecrementExpression(expression))
+        if (AwkFrontendClassifier.IsIncrementOrDecrementExpression(expression))
         {
             return expression.Children.Count == 0
                 ? InvalidExpression(expression, "Invalid increment expression.")
@@ -145,20 +145,6 @@ internal static partial class AwkExpressionLowerer
         }
 
         return InvalidExpression(expression, "Invalid function call.");
-    }
-
-    private static bool IsIncrementOrDecrementExpression(AwkExpressionSyntax expression)
-    {
-        if (expression.Kind is not AwkExpressionKind.Unary and not AwkExpressionKind.Postfix)
-            return false;
-
-        for (var index = 0; index < expression.OperatorTokens.Count; index++)
-        {
-            if (expression.OperatorTokens[index].Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus)
-                return true;
-        }
-
-        return false;
     }
 
     private static AwkDiagnostic InvalidExpression(AwkExpressionSyntax expression, string message) =>

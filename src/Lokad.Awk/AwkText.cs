@@ -142,6 +142,21 @@ internal sealed class AwkText : IEquatable<AwkText>
         return AsSpan().SequenceCompareTo(other.AsSpan());
     }
 
+    public bool EqualsAscii(string value)
+    {
+        var span = AsSpan();
+        if (span.Length != value.Length)
+            return false;
+
+        for (var index = 0; index < span.Length; index++)
+        {
+            if (value[index] > 0x7F || span[index] != (byte)value[index])
+                return false;
+        }
+
+        return true;
+    }
+
     public AwkText Concat(AwkText other) =>
         Concat(other, AwkRuntimeCounters.Disabled);
 

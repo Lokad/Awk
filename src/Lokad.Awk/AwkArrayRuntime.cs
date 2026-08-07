@@ -12,9 +12,6 @@ internal sealed class AwkArrayRuntime
     private static readonly AwkArrayKey ProcInfoSortedInKey =
         new(AwkText.FromSourceLiteralString("sorted_in"));
 
-    private static readonly IComparer<AwkArraySortEntry> DefaultSortComparer =
-        new AwkArraySortEntryComparer(AwkArraySortMode.ValueStringAscending);
-
     private static readonly IComparer<AwkArraySortEntry> IndexStringAscendingComparer =
         new AwkArraySortEntryComparer(AwkArraySortMode.IndexStringAscending);
 
@@ -490,64 +487,43 @@ internal sealed class AwkArrayRuntime
         IReadOnlyDictionary<AwkArrayKey, AwkText> values,
         AwkArraySortOrder order)
     {
+        static (AwkArraySortMode Mode, IComparer<AwkArraySortEntry> Comparer) ResolveSortPlan(
+            AwkArraySortOrder sortOrder) =>
+            sortOrder switch
+            {
+                AwkArraySortOrder.DefaultOrder =>
+                    (AwkArraySortMode.ValueStringAscending, ValueStringAscendingComparer),
+                AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexStringAscending } =>
+                    (AwkArraySortMode.IndexStringAscending, IndexStringAscendingComparer),
+                AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexStringDescending } =>
+                    (AwkArraySortMode.IndexStringDescending, IndexStringDescendingComparer),
+                AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexNumberAscending } =>
+                    (AwkArraySortMode.IndexNumberAscending, IndexNumberAscendingComparer),
+                AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexNumberDescending } =>
+                    (AwkArraySortMode.IndexNumberDescending, IndexNumberDescendingComparer),
+                AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueStringAscending } =>
+                    (AwkArraySortMode.ValueStringAscending, ValueStringAscendingComparer),
+                AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueStringDescending } =>
+                    (AwkArraySortMode.ValueStringDescending, ValueStringDescendingComparer),
+                AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueNumberAscending } =>
+                    (AwkArraySortMode.ValueNumberAscending, ValueNumberAscendingComparer),
+                AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueNumberDescending } =>
+                    (AwkArraySortMode.ValueNumberDescending, ValueNumberDescendingComparer),
+                AwkArraySortOrder.UnknownBuiltinOrder unknown =>
+                    throw new AwkRuntimeException(AwkMessages.FormatUndefinedSortComparison(unknown.Text)),
+                _ => throw new InvalidOperationException("Unknown awk array sort order.")
+            };
+
         if (order is AwkArraySortOrder.UserFunctionOrder)
         {
             throw new InvalidOperationException("User-defined awk sort comparators require asynchronous evaluation.");
         }
 
-        var sortMode = ResolveSortMode(order);
-        var entries = CopySortEntries(values, sortMode);
-        Array.Sort(entries, ResolveSortComparer(order));
+        var plan = ResolveSortPlan(order);
+        var entries = CopySortEntries(values, plan.Mode);
+        Array.Sort(entries, plan.Comparer);
         return entries;
     }
-
-    private IComparer<AwkArraySortEntry> ResolveSortComparer(AwkArraySortOrder order) =>
-        order switch
-        {
-            AwkArraySortOrder.DefaultOrder => DefaultSortComparer,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexStringAscending } =>
-                IndexStringAscendingComparer,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexStringDescending } =>
-                IndexStringDescendingComparer,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexNumberAscending } =>
-                IndexNumberAscendingComparer,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexNumberDescending } =>
-                IndexNumberDescendingComparer,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueStringAscending } =>
-                ValueStringAscendingComparer,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueStringDescending } =>
-                ValueStringDescendingComparer,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueNumberAscending } =>
-                ValueNumberAscendingComparer,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueNumberDescending } =>
-                ValueNumberDescendingComparer,
-            AwkArraySortOrder.UnknownBuiltinOrder unknown =>
-                throw new AwkRuntimeException(AwkMessages.FormatUndefinedSortComparison(unknown.Text)),
-            _ => throw new InvalidOperationException("Unknown awk array sort order.")
-        };
-
-    private static AwkArraySortMode ResolveSortMode(AwkArraySortOrder order) =>
-        order switch
-        {
-            AwkArraySortOrder.DefaultOrder => AwkArraySortMode.ValueStringAscending,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexStringAscending } =>
-                AwkArraySortMode.IndexStringAscending,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexStringDescending } =>
-                AwkArraySortMode.IndexStringDescending,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexNumberAscending } =>
-                AwkArraySortMode.IndexNumberAscending,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexNumberDescending } =>
-                AwkArraySortMode.IndexNumberDescending,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueStringAscending } =>
-                AwkArraySortMode.ValueStringAscending,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueStringDescending } =>
-                AwkArraySortMode.ValueStringDescending,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueNumberAscending } =>
-                AwkArraySortMode.ValueNumberAscending,
-            AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueNumberDescending } =>
-                AwkArraySortMode.ValueNumberDescending,
-            _ => AwkArraySortMode.ValueStringAscending
-        };
 
     private async ValueTask<AwkArraySortEntry[]> SortUserEntriesAsync(
         IReadOnlyDictionary<AwkArrayKey, AwkText> values,

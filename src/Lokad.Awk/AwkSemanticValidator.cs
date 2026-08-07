@@ -283,7 +283,7 @@ internal static class AwkSemanticValidator
                 ValidateSpecialArrayElementMutation(expression.Children[0], diagnostics);
             }
         }
-        else if (IsIncrementOrDecrementExpression(expression) &&
+        else if (AwkFrontendClassifier.IsIncrementOrDecrementExpression(expression) &&
             (expression.Children.Count == 0 || !IsValidMutationTarget(expression.Children[0])))
         {
             diagnostics.Add(new AwkDiagnostic(
@@ -291,7 +291,7 @@ internal static class AwkSemanticValidator
                 "Invalid increment target.",
                 AwkDiagnosticId.BindInvalidProgram));
         }
-        else if (IsIncrementOrDecrementExpression(expression))
+        else if (AwkFrontendClassifier.IsIncrementOrDecrementExpression(expression))
         {
             ValidateSpecialArrayElementMutation(expression.Children[0], diagnostics);
         }
@@ -366,20 +366,6 @@ internal static class AwkSemanticValidator
         }
 
         return true;
-    }
-
-    private static bool IsIncrementOrDecrementExpression(AwkExpressionSyntax expression)
-    {
-        if (expression.Kind is not AwkExpressionKind.Unary and not AwkExpressionKind.Postfix)
-            return false;
-
-        for (var index = 0; index < expression.OperatorTokens.Count; index++)
-        {
-            if (expression.OperatorTokens[index].Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus)
-                return true;
-        }
-
-        return false;
     }
 
     private static bool IsValidMutationTarget(AwkExpressionSyntax expression) =>

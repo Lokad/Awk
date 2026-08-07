@@ -308,10 +308,10 @@ internal sealed class AwkInputScheduler(
 
         if (inputArgument is AwkInputArgument.StandardInputArgument)
         {
-            if (TextEqualsAscii(text, "-"))
+            if (text.EqualsAscii("-"))
                 return new RuntimeArgumentValue(text, "-");
 
-            if (TextEqualsAscii(text, "/dev/stdin"))
+            if (text.EqualsAscii("/dev/stdin"))
                 return new RuntimeArgumentValue(text, "/dev/stdin");
         }
 
@@ -332,21 +332,6 @@ internal sealed class AwkInputScheduler(
             : AwkPathResolution.ResolveArgument(
                 runtimeArgument.Value,
                 invocation.RuntimeArgumentsPlan.CurrentDirectory);
-
-    private static bool TextEqualsAscii(AwkText text, string value)
-    {
-        var span = text.AsSpan();
-        if (span.Length != value.Length)
-            return false;
-
-        for (var index = 0; index < span.Length; index++)
-        {
-            if (span[index] != (byte)value[index])
-                return false;
-        }
-
-        return true;
-    }
 
     private readonly record struct RuntimeArgumentValue(AwkText Text, string Value)
     {
