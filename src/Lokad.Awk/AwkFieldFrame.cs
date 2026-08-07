@@ -356,7 +356,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         {
             byteLength = AwkRuntimeMemory.CheckedAdd(
                 byteLength,
-                fieldTexts[index].ByteLength(AwkText.Empty));
+                fieldTexts[index].ByteLength());
         }
 
         return byteLength;

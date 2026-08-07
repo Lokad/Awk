@@ -189,12 +189,10 @@ internal sealed class AwkFieldSplitter(
             _ => _recordFieldSplittingMode == AwkRecordFieldSplittingMode.Paragraph
                 ? _byteSplitter.SplitParagraphRecordFieldsBySeparator(
                     line,
-                    _fieldSeparator,
-                    counters)
+                    _fieldSeparator)
                 : _byteSplitter.SplitRecordFieldsBySeparator(
                     line,
-                    _fieldSeparator,
-                    counters)
+                    _fieldSeparator)
         };
     }
 

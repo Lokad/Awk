@@ -45,7 +45,7 @@ internal readonly struct AwkFieldText
             ? AwkRuntimeMemory.EstimateTextBytes(_ownedText)
             : 0;
 
-    public int ByteLength(AwkText recordText) =>
+    public int ByteLength() =>
         Kind switch
         {
             AwkFieldTextKind.Empty => 0,
