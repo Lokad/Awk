@@ -727,6 +727,9 @@ internal sealed class AwkRuntimeState
         _recordFields.SetCurrentRecord(line);
     }
 
+    public void SetRecordFieldSplittingMode(AwkRecordFieldSplittingMode mode) =>
+        _fieldSplitter.SetRecordFieldSplittingMode(mode);
+
     public AwkValue GetCurrentRecordValue() => _recordFields.CurrentRecordValue;
 
     public AwkValue GetFieldValue(int index) => _recordFields.GetFieldValue(index);

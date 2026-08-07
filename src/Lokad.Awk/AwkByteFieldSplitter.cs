@@ -60,6 +60,30 @@ internal sealed class AwkByteFieldSplitter(
         return SplitRegexRecordFields(line, regex);
     }
 
+    public IReadOnlyList<AwkFieldText> SplitParagraphRecordFieldsBySeparator(
+        AwkText line,
+        string separator,
+        bool useDefaultSeparator,
+        AwkRuntimeCounters counters)
+    {
+        static bool IsSingleCharacter(string value)
+        {
+            var enumerator = value.EnumerateRunes().GetEnumerator();
+            return enumerator.MoveNext() && !enumerator.MoveNext();
+        }
+
+        if (useDefaultSeparator || !IsSingleCharacter(separator))
+            return SplitRecordFieldsBySeparator(line, separator, useDefaultSeparator, counters);
+
+        if (TryGetSingleByteLiteralSeparator(separator, out var separatorByte) && !isIgnoreCaseEnabled())
+            return SplitSingleByteParagraphRecordFields(line, separatorByte);
+
+        var regex = separator.Length > 1
+            ? createRegex(new AwkRegexPattern(separator))
+            : createLiteralRegex(new AwkRegexLiteralText(separator));
+        return SplitRegexParagraphRecordFields(line, regex);
+    }
+
     public AwkTextSplitResult Patsplit(
         AwkText input,
         string pattern,
@@ -274,6 +298,24 @@ internal sealed class AwkByteFieldSplitter(
         return fields;
     }
 
+    private static IReadOnlyList<AwkFieldText> SplitSingleByteParagraphRecordFields(AwkText line, byte separator)
+    {
+        var content = line.AsSpan();
+        var fields = new List<AwkFieldText>();
+        var position = 0;
+        for (var index = 0; index < content.Length; index++)
+        {
+            if (content[index] != separator && content[index] != (byte)'\n')
+                continue;
+
+            fields.Add(AwkFieldText.FromRecordSlice(position, index - position));
+            position = index + 1;
+        }
+
+        fields.Add(AwkFieldText.FromRecordSlice(position, content.Length - position));
+        return fields;
+    }
+
     private AwkTextSplitResult SplitRegex(
         AwkText line,
         Regex separator,
@@ -314,6 +356,43 @@ internal sealed class AwkByteFieldSplitter(
         }
 
         fields.Add(AwkFieldText.FromRecordSlice(position, line.ByteLength - position));
+        return fields;
+    }
+
+    private IReadOnlyList<AwkFieldText> SplitRegexParagraphRecordFields(AwkText line, Regex separator)
+    {
+        var content = line.AsSpan();
+        var fields = new List<AwkFieldText>();
+        var position = 0;
+        using var matches = enumerateMatchSpans(separator, line);
+        foreach (var match in matches)
+        {
+            throwIfCancellationRequested();
+            while (position < match.ByteIndex)
+            {
+                var newlineOffset = content[position..match.ByteIndex].IndexOf((byte)'\n');
+                if (newlineOffset < 0)
+                    break;
+
+                fields.Add(AwkFieldText.FromRecordSlice(position, newlineOffset));
+                position += newlineOffset + 1;
+            }
+
+            fields.Add(AwkFieldText.FromRecordSlice(position, match.ByteIndex - position));
+            position = AdvanceAfterRegexSeparator(line, match.ByteIndex, match.ByteLength);
+        }
+
+        while (position < content.Length)
+        {
+            var newlineOffset = content[position..].IndexOf((byte)'\n');
+            if (newlineOffset < 0)
+                break;
+
+            fields.Add(AwkFieldText.FromRecordSlice(position, newlineOffset));
+            position += newlineOffset + 1;
+        }
+
+        fields.Add(AwkFieldText.FromRecordSlice(position, content.Length - position));
         return fields;
     }
 

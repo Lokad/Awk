@@ -82,6 +82,27 @@ internal static partial class AwkGoldenCorpus
             "a\r\n\r\n\r\nb"),
 
         Passing(
+            "paragraph-record-separator-whitespace-only-line-is-record-data",
+            ["BEGIN{RS=\"\"} {text=$0; gsub(/\\n/,\"<NL>\",text); print NR \":\" text}"],
+            [],
+            "1:a<NL> <NL>b\n",
+            "a\n \nb\n\n"),
+
+        Passing(
+            "paragraph-record-separator-preserves-lone-carriage-returns",
+            ["BEGIN{RS=\"\"} {print NR \":\" length($0) \":\" index($0,\"\\r\")}"],
+            [],
+            "1:2:1\n2:2:2\n",
+            "\ra\n\nb\r"),
+
+        Passing(
+            "paragraph-record-separator-single-character-fs-also-splits-newlines",
+            ["BEGIN{RS=\"\"; FS=\",\"} {print NF \":\" $1 \":\" $2 \":\" $3 \":\" $4}"],
+            [],
+            "4:a:b:c:d\n",
+            "a,b\nc,d\n\n"),
+
+        Passing(
             "default-rs-crlf-trims-cr-and-sets-rt",
             ["{t=RT; if(t==\"\\n\") t=\"<LF>\"; print NR \":\" length($0) \":\" index($0,\"\\r\") \":[\" t \"]\"}", "/file.txt"],
             [File("/file.txt", "a\r\nb\n")],

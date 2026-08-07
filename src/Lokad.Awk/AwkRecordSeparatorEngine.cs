@@ -808,7 +808,7 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
                 buffer.RemovePrefix(separatorIndex + separatorLength);
-                var flow = await Context.RecordProcessor.ProcessAsync(
+                var flow = await Context.RecordProcessor.ProcessParagraphAsync(
                         record,
                         terminator,
                         processRecordAsync)
@@ -833,7 +833,7 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
 
                 var record = CreateFinalParagraphRecord(buffer, Context.State.Counters, Context.State.MemoryGovernor);
                 buffer.Clear();
-                return await Context.RecordProcessor.ProcessAsync(
+                return await Context.RecordProcessor.ProcessParagraphAsync(
                         record,
                         AwkRecordTerminator.Empty,
                         processRecordAsync)
@@ -882,7 +882,7 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
                     Context.State.Counters,
                     Context.State.MemoryGovernor);
                 buffer.RemovePrefix(separatorIndex + separatorLength);
-                var flow = await Context.RecordProcessor.ProcessAsync(record, terminator, processRecordAsync)
+                var flow = await Context.RecordProcessor.ProcessParagraphAsync(record, terminator, processRecordAsync)
                     .ConfigureAwait(false);
                 if (AwkRecordSeparatorContext.IsTerminalFlow(flow))
                     return flow;
@@ -892,7 +892,7 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
 
             var final = CreateFinalParagraphRecord(buffer, Context.State.Counters, Context.State.MemoryGovernor);
             buffer.Clear();
-            return await Context.RecordProcessor.ProcessAsync(
+            return await Context.RecordProcessor.ProcessParagraphAsync(
                     final,
                     AwkRecordTerminator.Empty,
                     processRecordAsync)
@@ -904,10 +904,8 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
     {
         var span = buffer.AsSpan();
         var removeLength = 0;
-        while (removeLength < span.Length && span[removeLength] is (byte)'\r' or (byte)'\n')
-        {
-            removeLength++;
-        }
+        while (TryReadNewline(span, removeLength, out var newlineLength))
+            removeLength += newlineLength;
 
         buffer.RemovePrefix(removeLength);
     }
@@ -923,8 +921,6 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
                 continue;
 
             var position = index + firstNewlineLength;
-            while (position < content.Length && content[position] is (byte)' ' or (byte)'\t')
-                position++;
 
             if (!TryReadNewline(content, position, out var secondNewlineLength))
                 continue;
@@ -991,8 +987,12 @@ internal sealed class AwkParagraphRecordSeparatorStrategy(
     private static int TrimTrailingRecordNewlines(ReadOnlySpan<byte> content)
     {
         var end = content.Length;
-        while (end > 0 && content[end - 1] is (byte)'\r' or (byte)'\n')
+        while (end > 0 && content[end - 1] == (byte)'\n')
+        {
             end--;
+            if (end > 0 && content[end - 1] == (byte)'\r')
+                end--;
+        }
 
         return end;
     }
