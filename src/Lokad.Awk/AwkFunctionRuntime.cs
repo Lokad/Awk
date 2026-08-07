@@ -52,9 +52,6 @@ internal sealed class AwkFunctionRuntime
         return functionTable;
     }
 
-    public bool TryGetUserFunction(string name, [NotNullWhen(true)] out IAwkUserFunction? function) =>
-        TryGetUserFunction(AwkFunctionName.FromText(name), out function);
-
     public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out IAwkUserFunction? function) =>
         _functions.TryGetValue(name, out function);
 

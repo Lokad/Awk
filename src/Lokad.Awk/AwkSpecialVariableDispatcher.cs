@@ -10,7 +10,7 @@ internal sealed class AwkSpecialVariableDispatcher(
     public void InitializeScalars(AwkFieldSeparatorSpec fieldSeparator)
     {
         variables.SetScalarText(
-            AwkSpecialVariables.Name(AwkSpecialVariableId.FieldSeparator),
+            AwkSpecialVariables.VariableName(AwkSpecialVariableId.FieldSeparator),
             fieldSeparator.Text);
         foreach (var variable in AwkSpecialVariables.Scalars)
         {
@@ -20,14 +20,8 @@ internal sealed class AwkSpecialVariableDispatcher(
                 continue;
             }
 
-            variables.SetScalarValue(variable.Name, variable.InitialValue.Value);
+            variables.SetScalarValue(variable.VariableName, variable.InitialValue.Value);
         }
-    }
-
-    public void ApplyAssignment(string name, string value)
-    {
-        if (AwkSpecialVariables.TryGetScalar(name, out var id))
-            ApplyAssignment(id, value);
     }
 
     public void ApplyAssignment(string name, AwkValue value)

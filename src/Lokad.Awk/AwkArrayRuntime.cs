@@ -64,7 +64,7 @@ internal sealed class AwkArrayRuntime
 
     public bool TryPeekAwkValue(AwkArrayName name, AwkArrayKey index, out AwkValue value)
     {
-        if (_variableRuntime.IsLocalScalar(name.Text))
+        if (_variableRuntime.IsLocalScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
         return _variables.TryPeekArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index, out value);

@@ -82,25 +82,12 @@ internal sealed class AwkVariables
             SetScalarValueFromSymbolTable);
     }
 
-    public bool ContainsScalar(string name) =>
-        TryToVariableName(name, out var variableName) &&
-        ContainsScalar(variableName);
-
     public bool ContainsScalar(AwkVariableName name) =>
         _scalarSlotsByName.ContainsKey(name);
-
-    public bool ContainsArray(string name) =>
-        TryToArrayName(name, out var arrayName) &&
-        ContainsArray(arrayName);
 
     public bool ContainsArray(AwkArrayName name) =>
         _symbolTable.IsName(name.Text) ||
         _arrays.Contains(name);
-
-    public bool TryGetArrayCount(string name, out int count) =>
-        TryToArrayName(name, out var arrayName)
-            ? TryGetArrayCount(arrayName, out count)
-            : TryGetMissingArrayCount(out count);
 
     public bool TryGetArrayCount(AwkArrayName name, out int count)
     {
@@ -120,16 +107,10 @@ internal sealed class AwkVariables
         return false;
     }
 
-    public void SetScalarText(string name, string value) =>
-        SetScalarText(AwkVariableName.FromText(name), value);
-
     public void SetScalarText(AwkVariableName name, string value)
     {
         SetScalarSlot(name, AwkVariableSlot.FromText(value));
     }
-
-    public void SetScalarValue(string name, AwkValue value) =>
-        SetScalarValue(AwkVariableName.FromText(name), value);
 
     public void SetScalarValue(AwkVariableName name, AwkValue value)
     {
@@ -147,9 +128,6 @@ internal sealed class AwkVariables
         _governScalarMemory = true;
     }
 
-    public string GetOrCreateScalarString(string name) =>
-        GetOrCreateScalarString(AwkVariableName.FromText(name));
-
     public string GetOrCreateScalarString(AwkVariableName name)
     {
         if (TryGetScalarState(name, out var state))
@@ -159,9 +137,6 @@ internal sealed class AwkVariables
         return string.Empty;
     }
 
-    public string GetOrCreateScalarString(string name, string fallback) =>
-        GetOrCreateScalarString(AwkVariableName.FromText(name), fallback);
-
     public string GetOrCreateScalarString(AwkVariableName name, string fallback)
     {
         if (TryGetScalarState(name, out var state))
@@ -170,9 +145,6 @@ internal sealed class AwkVariables
         SetScalarSlot(name, AwkVariableSlot.FromText(fallback));
         return fallback;
     }
-
-    public AwkValue GetOrCreateScalarValue(string name) =>
-        GetOrCreateScalarValue(AwkVariableName.FromText(name));
 
     public AwkValue GetOrCreateScalarValue(AwkVariableName name)
     {
@@ -249,7 +221,7 @@ internal sealed class AwkVariables
             return true;
         }
 
-        if (ContainsScalar(name.Text))
+        if (ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
         if (!_arrays.TryGetSlots(name, out var values) ||
@@ -341,7 +313,7 @@ internal sealed class AwkVariables
         if (_symbolTable.IsName(name.Text))
             return _symbolTable.SnapshotByteTexts();
 
-        if (ContainsScalar(name.Text))
+        if (ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
         return SnapshotArrayText(GetOrCreateArraySlots(name));
@@ -352,7 +324,7 @@ internal sealed class AwkVariables
         if (_symbolTable.IsName(name.Text))
             return _symbolTable.Count;
 
-        if (ContainsScalar(name.Text))
+        if (ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
         return GetOrCreateArraySlots(name).Count;
@@ -524,7 +496,7 @@ internal sealed class AwkVariables
 
     private void SetScalarValueFromSymbolTable(string name, AwkValue value)
     {
-        SetScalarValue(name, value);
+        SetScalarValue(AwkVariableName.FromText(name), value);
         _applyScalarAssignment(name, value);
     }
 
@@ -641,36 +613,6 @@ internal sealed class AwkVariables
 
     private static bool ShouldGovernArray(AwkArrayName name) =>
         !AwkSpecialArrayPolicy.IsElementReadOnly(name.Text);
-
-    private static bool TryGetMissingArrayCount(out int count)
-    {
-        count = 0;
-        return false;
-    }
-
-    private static bool TryToArrayName(string name, out AwkArrayName arrayName)
-    {
-        if (AwkIdentifier.TryParse(name, out var identifier))
-        {
-            arrayName = new AwkArrayName(identifier);
-            return true;
-        }
-
-        arrayName = default;
-        return false;
-    }
-
-    private static bool TryToVariableName(string name, out AwkVariableName variableName)
-    {
-        if (AwkIdentifier.TryParse(name, out var identifier))
-        {
-            variableName = new AwkVariableName(identifier);
-            return true;
-        }
-
-        variableName = default;
-        return false;
-    }
 
     private void ThrowIfArrayWouldGrowPastLimit(IReadOnlyDictionary<AwkArrayKey, AwkVariableSlot> values, AwkArrayKey index)
     {

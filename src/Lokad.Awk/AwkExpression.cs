@@ -117,8 +117,6 @@ internal abstract partial class AwkExpression
     public static AwkExpression Length(AwkExpression value, AwkOptionalIdentifier arrayName) =>
         new LengthExpression(value, arrayName);
 
-    public static AwkExpression IsArray(string variableName) => IsArray(AwkArrayName.FromText(variableName));
-
     public static AwkExpression IsArray(AwkArrayName variableName) => new IsArrayExpression(variableName);
 
     public static AwkExpression TypeOf(AwkExpression value, AwkOptionalIdentifier variableName) =>

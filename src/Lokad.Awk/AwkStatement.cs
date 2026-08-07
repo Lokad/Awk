@@ -104,14 +104,8 @@ internal abstract partial class AwkStatement
     public static AwkStatement Asort(string sourceArrayName, string destinationArrayName, AwkExpression order) =>
         Expression(AwkExpression.Asort(sourceArrayName, destinationArrayName, order));
 
-    public static AwkStatement DeleteArrayElement(string arrayName, AwkArrayIndex index) =>
-        DeleteArrayElement(AwkArrayName.FromText(arrayName), index);
-
     public static AwkStatement DeleteArrayElement(AwkArrayName arrayName, AwkArrayIndex index) =>
         new DeleteArrayElementStatement(arrayName, index);
-
-    public static AwkStatement DeleteArray(string arrayName) =>
-        DeleteArray(AwkArrayName.FromText(arrayName));
 
     public static AwkStatement DeleteArray(AwkArrayName arrayName) =>
         new DeleteArrayStatement(arrayName);
