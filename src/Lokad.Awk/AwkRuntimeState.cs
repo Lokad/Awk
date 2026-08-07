@@ -205,7 +205,7 @@ internal sealed class AwkRuntimeState
         CharactersAsBytes = plan.CharactersAsBytes;
         NonDecimalData = plan.NonDecimalData;
         _timeRuntime = new AwkTimeRuntime(plan.RuntimeOptions.CurrentUnixTimeSeconds, plan.RuntimeOptions.TimeZone);
-        _randomRuntime = new AwkRandomRuntime(plan.RuntimeOptions.RandomGenerator, _timeRuntime);
+        _randomRuntime = new AwkRandomRuntime(plan.RuntimeOptions.CreateRandomGenerator(), _timeRuntime);
         _cancellationToken = plan.CancellationToken;
         _variables = new AwkVariables(
             plan.MaxArrayElements,

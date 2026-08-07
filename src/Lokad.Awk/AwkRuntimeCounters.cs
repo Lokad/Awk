@@ -3,6 +3,7 @@ namespace Lokad.Awk;
 internal sealed class AwkRuntimeCounters
 {
     private readonly bool _enabled;
+    private readonly object _sync = new();
     private ulong _vmOpcodeMask;
 
     private AwkRuntimeCounters(bool enabled)
@@ -119,7 +120,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        RecordsRead++;
+        lock (_sync)
+            RecordsRead++;
     }
 
     public void RecordBytesRead(long byteCount)
@@ -127,7 +129,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        BytesRead += byteCount;
+        lock (_sync)
+            BytesRead += byteCount;
     }
 
     public void RecordFieldsMaterialized(int count)
@@ -135,7 +138,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || count <= 0)
             return;
 
-        FieldsMaterialized += count;
+        lock (_sync)
+            FieldsMaterialized += count;
     }
 
     public void RecordFieldSplit()
@@ -143,7 +147,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        FieldSplits++;
+        lock (_sync)
+            FieldSplits++;
     }
 
     public void RecordValueCreated()
@@ -151,7 +156,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        ValuesCreated++;
+        lock (_sync)
+            ValuesCreated++;
     }
 
     public void RecordStringDecode()
@@ -159,7 +165,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        StringDecodes++;
+        lock (_sync)
+            StringDecodes++;
     }
 
     public void RecordUtf8Encode()
@@ -167,7 +174,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        Utf8Encodes++;
+        lock (_sync)
+            Utf8Encodes++;
     }
 
     public void RecordOutputBytes(long byteCount)
@@ -175,7 +183,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        OutputBytes += byteCount;
+        lock (_sync)
+            OutputBytes += byteCount;
     }
 
     public void RecordRegexCompile()
@@ -183,7 +192,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        RegexCompiles++;
+        lock (_sync)
+            RegexCompiles++;
     }
 
     public void RecordRegexMatch()
@@ -191,7 +201,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        RegexMatches++;
+        lock (_sync)
+            RegexMatches++;
     }
 
     public void RecordRegexDotNetTextFallback()
@@ -199,7 +210,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        RegexDotNetTextFallbacks++;
+        lock (_sync)
+            RegexDotNetTextFallbacks++;
     }
 
     public void RecordRegexPatternGapFallback()
@@ -207,7 +219,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        RegexPatternGapFallbacks++;
+        lock (_sync)
+            RegexPatternGapFallbacks++;
     }
 
     public void RecordRegexStringAdapterFallback()
@@ -215,7 +228,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        RegexStringAdapterFallbacks++;
+        lock (_sync)
+            RegexStringAdapterFallbacks++;
     }
 
     public void RecordRegexRecordSeparatorFallback()
@@ -223,7 +237,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        RegexRecordSeparatorFallbacks++;
+        lock (_sync)
+            RegexRecordSeparatorFallbacks++;
     }
 
     public void RecordRegexFieldSeparatorFallback()
@@ -231,7 +246,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        RegexFieldSeparatorFallbacks++;
+        lock (_sync)
+            RegexFieldSeparatorFallbacks++;
     }
 
     public void RecordRecordSeparatorResolution()
@@ -239,7 +255,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        RecordSeparatorResolutions++;
+        lock (_sync)
+            RecordSeparatorResolutions++;
     }
 
     public void RecordFieldPatternFallback()
@@ -247,7 +264,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        FieldPatternFallbacks++;
+        lock (_sync)
+            FieldPatternFallbacks++;
     }
 
     public void RecordFieldWidthFallback()
@@ -255,7 +273,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        FieldWidthFallbacks++;
+        lock (_sync)
+            FieldWidthFallbacks++;
     }
 
     public void RecordSeparatorCaptureFallback()
@@ -263,7 +282,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        SeparatorCaptureFallbacks++;
+        lock (_sync)
+            SeparatorCaptureFallbacks++;
     }
 
     public void RecordFormattingFallback()
@@ -271,7 +291,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        FormattingFallbacks++;
+        lock (_sync)
+            FormattingFallbacks++;
     }
 
     public void RecordFormattingStringInteropInput() => RecordFormattingStringInteropInput(1);
@@ -281,7 +302,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || count <= 0)
             return;
 
-        FormattingStringInteropInputs += count;
+        lock (_sync)
+            FormattingStringInteropInputs += count;
     }
 
     public void RecordStringInteropFallback()
@@ -289,7 +311,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        StringInteropFallbacks++;
+        lock (_sync)
+            StringInteropFallbacks++;
     }
 
     public void RecordHostCall()
@@ -297,7 +320,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        HostCalls++;
+        lock (_sync)
+            HostCalls++;
     }
 
     public void RecordExecutionStep()
@@ -305,7 +329,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        ExecutionSteps++;
+        lock (_sync)
+            ExecutionSteps++;
     }
 
     public void RecordVmInstruction()
@@ -313,7 +338,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        VmInstructions++;
+        lock (_sync)
+            VmInstructions++;
     }
 
     public void RecordVmOpcode(AwkOpcode opcode)
@@ -325,12 +351,15 @@ internal sealed class AwkRuntimeCounters
         if ((uint)opcodeIndex >= sizeof(ulong) * 8)
             return;
 
-        var opcodeBit = 1UL << opcodeIndex;
-        if ((_vmOpcodeMask & opcodeBit) != 0)
-            return;
+        lock (_sync)
+        {
+            var opcodeBit = 1UL << opcodeIndex;
+            if ((_vmOpcodeMask & opcodeBit) != 0)
+                return;
 
-        _vmOpcodeMask |= opcodeBit;
-        VmOpcodeKindsExecuted++;
+            _vmOpcodeMask |= opcodeBit;
+            VmOpcodeKindsExecuted++;
+        }
     }
 
     public void RecordVmBasicBlockEntry()
@@ -338,7 +367,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        VmBasicBlockEntries++;
+        lock (_sync)
+            VmBasicBlockEntries++;
     }
 
     public void RecordVmFallbackCall()
@@ -346,7 +376,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        VmFallbackCalls++;
+        lock (_sync)
+            VmFallbackCalls++;
     }
 
     public void RecordVmPatternFallback()
@@ -354,7 +385,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        VmPatternFallbacks++;
+        lock (_sync)
+            VmPatternFallbacks++;
     }
 
     public void RecordVmBudgetCheck()
@@ -362,15 +394,20 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        VmBudgetChecks++;
+        lock (_sync)
+            VmBudgetChecks++;
     }
 
     public void RecordVmStackDepth(long depth)
     {
-        if (!_enabled || depth <= VmMaxStackDepth)
+        if (!_enabled)
             return;
 
-        VmMaxStackDepth = depth;
+        lock (_sync)
+        {
+            if (depth > VmMaxStackDepth)
+                VmMaxStackDepth = depth;
+        }
     }
 
     public void RecordCancellationCheck()
@@ -378,7 +415,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        CancellationChecks++;
+        lock (_sync)
+            CancellationChecks++;
     }
 
     public void RecordAwkTextAsStringCall()
@@ -386,7 +424,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        AwkTextAsStringCalls++;
+        lock (_sync)
+            AwkTextAsStringCalls++;
     }
 
     public void RecordOutputSinkCreation()
@@ -394,7 +433,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        OutputSinkCreations++;
+        lock (_sync)
+            OutputSinkCreations++;
     }
 
     public void RecordAwkTextAsStringDecodeMiss()
@@ -402,7 +442,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        AwkTextAsStringDecodeMisses++;
+        lock (_sync)
+            AwkTextAsStringDecodeMisses++;
     }
 
     public void RecordAwkTextAllocation(int byteCount)
@@ -410,12 +451,15 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        AwkTextAllocations++;
-        AwkTextPayloadBytes += byteCount;
-        if (byteCount <= 16)
+        lock (_sync)
         {
-            AwkTextSmallPayloadAllocations++;
-            AwkTextSmallPayloadBytes += byteCount;
+            AwkTextAllocations++;
+            AwkTextPayloadBytes += byteCount;
+            if (byteCount <= 16)
+            {
+                AwkTextSmallPayloadAllocations++;
+                AwkTextSmallPayloadBytes += byteCount;
+            }
         }
     }
 
@@ -424,7 +468,8 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled)
             return;
 
-        ByteTextComparisons++;
+        lock (_sync)
+            ByteTextComparisons++;
     }
 
     public void RecordMemoryReserve(long byteCount, long liveBytes)
@@ -432,9 +477,12 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        MemoryReserveCalls++;
-        MemoryReservedBytes += byteCount;
-        RecordMemoryLiveBytes(liveBytes);
+        lock (_sync)
+        {
+            MemoryReserveCalls++;
+            MemoryReservedBytes += byteCount;
+            RecordMemoryLiveBytes(liveBytes);
+        }
     }
 
     public void RecordMemoryCommit(long byteCount, long liveBytes)
@@ -442,9 +490,12 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        MemoryCommitCalls++;
-        MemoryCommittedBytes += byteCount;
-        RecordMemoryLiveBytes(liveBytes);
+        lock (_sync)
+        {
+            MemoryCommitCalls++;
+            MemoryCommittedBytes += byteCount;
+            RecordMemoryLiveBytes(liveBytes);
+        }
     }
 
     public void RecordMemoryReleaseReserved(long byteCount)
@@ -452,8 +503,11 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        MemoryReleaseReservedCalls++;
-        MemoryReleasedReservedBytes += byteCount;
+        lock (_sync)
+        {
+            MemoryReleaseReservedCalls++;
+            MemoryReleasedReservedBytes += byteCount;
+        }
     }
 
     public void RecordMemoryReleaseCommitted(long byteCount)
@@ -461,8 +515,11 @@ internal sealed class AwkRuntimeCounters
         if (!_enabled || byteCount <= 0)
             return;
 
-        MemoryReleaseCommittedCalls++;
-        MemoryReleasedCommittedBytes += byteCount;
+        lock (_sync)
+        {
+            MemoryReleaseCommittedCalls++;
+            MemoryReleasedCommittedBytes += byteCount;
+        }
     }
 
     private void RecordMemoryLiveBytes(long liveBytes)

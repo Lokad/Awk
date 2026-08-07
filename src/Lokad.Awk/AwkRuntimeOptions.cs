@@ -4,6 +4,8 @@ namespace Lokad.Awk;
 
 internal sealed class AwkRuntimeOptions
 {
+    private readonly AwkRandomGenerator _randomGenerator;
+
     public const int DefaultMaxExecutionSteps = AwkRuntimeLimits.DefaultMaxExecutionSteps;
 
     public AwkRuntimeOptions(
@@ -116,7 +118,7 @@ internal sealed class AwkRuntimeOptions
     {
         CurrentUnixTimeSeconds = currentUnixTimeSeconds;
         TimeZone = timeZone;
-        RandomGenerator = randomGenerator;
+        _randomGenerator = randomGenerator.Clone();
         Counters = counters;
         Limits = limits;
         RegexEngineKind = regexEngineKind;
@@ -127,7 +129,7 @@ internal sealed class AwkRuntimeOptions
 
     public TimeZoneInfo TimeZone { get; }
 
-    public AwkRandomGenerator RandomGenerator { get; }
+    public AwkRandomGenerator CreateRandomGenerator() => _randomGenerator.Clone();
 
     public AwkRuntimeCounters Counters { get; }
 

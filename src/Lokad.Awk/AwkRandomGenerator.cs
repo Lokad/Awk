@@ -9,7 +9,8 @@ namespace Lokad.Awk;
 /// The additive generator, warm-up, and shuffle stage intentionally mirror gawk so
 /// explicit seeds produce stable oracle-compatible values. Runtime state receives
 /// the generator through <see cref="AwkRuntimeOptions"/> instead of constructing it
-/// at call sites, which keeps deterministic tests and future compatibility modes explicit.
+/// at call sites. Options snapshot it and each runtime receives an independent clone,
+/// which keeps deterministic and concurrent executions isolated.
 /// </remarks>
 internal sealed class AwkRandomGenerator
 {
@@ -31,6 +32,19 @@ internal sealed class AwkRandomGenerator
     {
         Seed(new AwkRandomSeed(1));
     }
+
+    private AwkRandomGenerator(AwkRandomGenerator source)
+    {
+        source._state.CopyTo(_state, 0);
+        source._shuffleBuffer.CopyTo(_shuffleBuffer, 0);
+        _shuffleNeedsInitialization = source._shuffleNeedsInitialization;
+        _frontIndex = source._frontIndex;
+        _rearIndex = source._rearIndex;
+        _shuffleState = source._shuffleState;
+        _seed = source._seed;
+    }
+
+    public AwkRandomGenerator Clone() => new(this);
 
     public AwkRandomSeed Seed(AwkRandomSeed seed)
     {

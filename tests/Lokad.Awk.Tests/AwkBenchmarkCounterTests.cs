@@ -15,6 +15,17 @@ public sealed class AwkBenchmarkCounterTests
         "sku1 region2 open 30\n";
 
     [Fact]
+    public void Awk_RuntimeCountersDoNotLoseConcurrentUpdates()
+    {
+        const int updateCount = 10_000;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+
+        Parallel.For(0, updateCount, _ => counters.RecordExecutionStep());
+
+        Assert.Equal(updateCount, counters.ExecutionSteps);
+    }
+
+    [Fact]
     public async Task Awk_BenchmarkCountersCoverDynamicRecordSeparators()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
