@@ -70,7 +70,7 @@ internal sealed class AwkExecutableProgram
             executable[index] = AwkExecutableAction.Compile(actions[index], tables);
         }
 
-        return Array.AsReadOnly(executable);
+        return executable;
     }
 
     private static IReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction> CompileFunctions(
@@ -851,14 +851,14 @@ internal sealed class AwkExecutableTableBuilder
 
     public AwkExecutableTables ToTables() =>
         new(
-            Array.AsReadOnly(_constants.ToArray()),
-            Array.AsReadOnly(_names.ToArray()),
-            Array.AsReadOnly(_arrayNames.ToArray()),
-            Array.AsReadOnly(_scalarSymbols.ToArray()),
-            Array.AsReadOnly(_fallbackActions.ToArray()),
-            Array.AsReadOnly(_fallbackFunctions.ToArray()),
-            Array.AsReadOnly(_fallbackStatements.ToArray()),
-            Array.AsReadOnly(_fallbackExpressions.ToArray()));
+            _constants.ToArray(),
+            _names.ToArray(),
+            _arrayNames.ToArray(),
+            _scalarSymbols.ToArray(),
+            _fallbackActions.ToArray(),
+            _fallbackFunctions.ToArray(),
+            _fallbackStatements.ToArray(),
+            _fallbackExpressions.ToArray());
 }
 
 internal readonly struct AwkExecutableScalarSymbol

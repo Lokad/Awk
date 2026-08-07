@@ -61,11 +61,11 @@ internal abstract partial class AwkStatement
         {
             var state = context.State;
             using var keys = await state.SnapshotArrayKeyValuesAsync(arrayVariable, context).ConfigureAwait(false);
-            foreach (var key in keys)
+            for (var index = 0; index < keys.Count; index++)
             {
                 state.RecordExecutionStep();
                 state.ThrowIfCancellationRequested();
-                state.AssignVariableValue(loopVariable, state.CreateArrayKeyValue(key));
+                state.AssignVariableValue(loopVariable, state.CreateArrayKeyValue(keys[index]));
                 var flow = await ExecuteAllAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;

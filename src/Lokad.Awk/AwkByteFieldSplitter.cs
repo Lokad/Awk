@@ -1,7 +1,6 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
 namespace Lokad.Awk;
@@ -180,9 +179,12 @@ internal sealed class AwkByteFieldSplitter(
             splitBytes,
             new OwnedListFieldSink(line, counters, memoryGovernor, splitBytes ? line.ByteLength : 0));
 
-        return new AwkTextSplitResult(
-            fields,
-            captureSeparators ? Enumerable.Repeat(AwkText.Empty, fields.Count + 1).ToArray() : []);
+        if (!captureSeparators)
+            return new AwkTextSplitResult(fields, []);
+
+        var separators = new AwkText[fields.Count + 1];
+        Array.Fill(separators, AwkText.Empty);
+        return new AwkTextSplitResult(fields, separators);
     }
 
     private static IReadOnlyList<AwkFieldText> SplitCharacterRecordFields(AwkText line, bool splitBytes)

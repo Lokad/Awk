@@ -36,11 +36,11 @@ internal readonly struct AwkAction
 
         using var executionContext = state.PushExecutionContext(output, io);
         var evaluationContext = new AwkEvaluationContext(state.RecordNumber, state, output, io);
-        foreach (var statement in _statements)
+        for (var index = 0; index < _statements.Count; index++)
         {
             state.RecordExecutionStep();
             state.ThrowIfCancellationRequested();
-            var flow = await statement.ExecuteAsync(evaluationContext).ConfigureAwait(false);
+            var flow = await _statements[index].ExecuteAsync(evaluationContext).ConfigureAwait(false);
             await output.FlushAsync(io).ConfigureAwait(false);
             if (flow is AwkStatementFlow.NextRecord or AwkStatementFlow.NextFile or AwkStatementFlow.ExitProgram)
                 return flow;

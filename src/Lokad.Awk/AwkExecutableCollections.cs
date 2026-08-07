@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 
 namespace Lokad.Awk;
@@ -13,7 +12,7 @@ internal static class AwkExecutableCollections
             copy[index] = values[index];
         }
 
-        return Array.AsReadOnly(copy);
+        return copy;
     }
 
     public static IReadOnlyList<IReadOnlyList<T>> CopyNested<T>(IReadOnlyList<IReadOnlyList<T>> values)
@@ -24,6 +23,6 @@ internal static class AwkExecutableCollections
             copy[index] = Copy(values[index]);
         }
 
-        return Array.AsReadOnly(copy);
+        return copy;
     }
 }
