@@ -268,6 +268,24 @@ public sealed class AwkSourceLoaderTests
     }
 
     [Fact]
+    public async Task AwkSourceLoader_PreservesHostOpenFailure()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddReadOpenError("/script.awk", "Permission denied");
+        var invocation = AwkCommandParser.Parse(
+            AwkTestHarness.BuildInvocation("awk", ["--file", "/script.awk"]));
+
+        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+
+        var failure = Assert.IsType<AwkSourceLoadResult.Failed>(result);
+        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Id);
+        Assert.Equal(
+            "awk: /script.awk: Permission denied\n",
+            AwkUtf8Codec.Decode(failure.ErrorMessage));
+        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
     public async Task AwkSourceLoader_NormalizesLineContinuationsBeforeParserUnsupportedInspection()
     {
         var fileSystem = new MockFileSystem();

@@ -78,8 +78,15 @@ internal static class AwkScriptFileReader
     {
         var opened = await host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken)
             .ConfigureAwait(false);
-        if (!opened.Success)
+        if (opened.Missing)
             return AwkScriptTextReadResult.MissingText;
+
+        if (opened.Failed)
+        {
+            return AwkScriptTextReadResult.Failure(
+                AwkMessages.FormatPathError(path.Display, opened.Error.Message),
+                AwkDiagnosticId.SourceLoadFailure);
+        }
 
         AwkScriptTextReadResult readResult;
         try
