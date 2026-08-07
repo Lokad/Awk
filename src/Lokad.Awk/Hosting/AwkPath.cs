@@ -54,13 +54,6 @@ public sealed class AwkPath
     /// <summary>Gets the canonical temporary-directory path.</summary>
     public static AwkPath Tmp { get; } = new("/tmp");
 
-    /// <summary>Returns whether the complete path ends with <paramref name="ext"/>.</summary>
-    public bool HasExtension(string ext)
-    {
-        ArgumentNullException.ThrowIfNull(ext);
-        return Path.EndsWith(ext, StringComparison.Ordinal);
-    }
-
     /// <summary>Returns whether <paramref name="path"/> is canonical absolute awk path text.</summary>
     public static bool IsValid(string? path)
     {
@@ -137,17 +130,6 @@ public sealed class AwkPath
     /// <summary>Returns the canonical child path, or <see langword="null"/> for an invalid segment.</summary>
     public AwkPath? TryChild(string? name) =>
         AwkPathSegment.TryCreate(name, out var segment) ? TryChild(segment) : null;
-
-    /// <summary>Forms a canonical child path from a validated segment.</summary>
-    public AwkPath Child(AwkPathSegment segment) =>
-        TryChild(segment) ?? throw new ArgumentException($"'{segment.Name}' is not a valid child path segment.", nameof(segment));
-
-    /// <summary>Forms a canonical child path from segment text.</summary>
-    public AwkPath Child(string name)
-    {
-        ArgumentNullException.ThrowIfNull(name);
-        return TryChild(name) ?? throw new ArgumentException($"'{name}' is not a valid child path segment.", nameof(name));
-    }
 
     /// <inheritdoc />
     public override string ToString() => Path;

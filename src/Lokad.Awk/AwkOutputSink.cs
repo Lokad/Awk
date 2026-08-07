@@ -87,5 +87,5 @@ internal sealed class AwkOutputSink : IDisposable
         _standardOutput.Dispose();
     }
 
-    public override string ToString() => AwkUtf8Codec.Decode(_standardOutput.ToArray());
+    public override string ToString() => AwkUtf8Codec.Decode(_standardOutput.AsSpan());
 }

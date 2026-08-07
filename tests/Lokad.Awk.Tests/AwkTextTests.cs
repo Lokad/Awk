@@ -37,7 +37,7 @@ public sealed class AwkTextTests
         var hostException = Assert.Throws<AwkRuntimeException>(
             () => AwkText.FromHostBytes(new byte[] { 0xC3, 0x28 }));
         var ownedException = Assert.Throws<AwkRuntimeException>(
-            () => AwkText.FromOwnedBytes([0x61, 0x80]));
+            () => AwkText.FromOwnedBytes([0x61, 0x80], AwkRuntimeCounters.Disabled));
 
         Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(hostException.MessageBytes));
         Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(ownedException.MessageBytes));
@@ -71,7 +71,13 @@ public sealed class AwkTextTests
         Assert.Equal(
             "ha",
             source.CopyByteSlice(3, 2, AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
-        Assert.Equal("caf\u00e9", source.CopyRuneSlice(6, 4).AsString());
+        Assert.Equal(
+            "caf\u00e9",
+            source.CopyRuneSlice(
+                6,
+                4,
+                AwkRuntimeCounters.Disabled,
+                AwkMemoryGovernor.Disabled).AsString());
         Assert.Equal(6, source.IndexOf(AwkText.FromString("caf\u00e9")));
         Assert.True(source.StartsWith(AwkText.FromString("Alpha")));
         Assert.True(source.EndsWith(AwkText.FromString("caf\u00e9")));

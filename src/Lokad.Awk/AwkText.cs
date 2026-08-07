@@ -119,9 +119,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         return FromTrustedOwnedBytes(bytes.ToArray(), counters);
     }
 
-    public static AwkText FromOwnedBytes(byte[] bytes) =>
-        FromOwnedBytes(bytes, AwkRuntimeCounters.Disabled);
-
     public static AwkText FromOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)
     {
         if (bytes.Length == 0)
@@ -349,19 +346,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         var bytes = AllocateOwnedBytes(length, governor);
         AsSpan().Slice(start, length).CopyTo(bytes);
         return FromOwnedBytes(bytes, counters);
-    }
-
-    public AwkText CopyRuneSlice(int start, int length)
-    {
-        ResolveRuneByteRange(start, length, out var byteStart, out var byteEnd);
-
-        if (length == 0)
-            return Empty;
-
-        if (byteStart == 0 && byteEnd == ByteLength)
-            return this;
-
-        return FromTrustedOwnedBytes(AsSpan()[byteStart..byteEnd].ToArray());
     }
 
     public AwkText CopyRuneSlice(

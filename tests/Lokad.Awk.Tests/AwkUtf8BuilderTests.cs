@@ -12,14 +12,14 @@ public sealed class AwkUtf8BuilderTests
             AwkMemoryGovernor.Disabled,
             capacity: 2);
 
-        builder.Append("caf"u8.ToArray());
+        builder.Append("caf"u8);
         builder.Append(AwkText.FromString("\u00e9"));
-        var text = builder.CopyToAwkText();
+        var text = builder.CopyToAwkText(AwkRuntimeCounters.Disabled);
 
         Assert.Equal(5, builder.Length);
         Assert.Equal(5, text.ByteLength);
         Assert.Equal("caf\u00e9", text.AsString());
-        Assert.Equal("caf\u00e9"u8.ToArray(), builder.ToArray());
+        Assert.Equal("caf\u00e9"u8.ToArray(), builder.AsSpan().ToArray());
     }
 
     [Fact]
@@ -30,12 +30,12 @@ public sealed class AwkUtf8BuilderTests
             AwkMemoryGovernor.Disabled,
             capacity: 4);
 
-        builder.Append("abcd"u8.ToArray());
+        builder.Append("abcd"u8);
         var exception = Assert.Throws<AwkRuntimeException>(() => builder.Append((byte)'e'));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal(4, builder.Length);
-        Assert.Equal("abcd", builder.CopyToAwkText().AsString());
+        Assert.Equal("abcd", builder.CopyToAwkText(AwkRuntimeCounters.Disabled).AsString());
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class AwkUtf8BuilderTests
         using (var builder = new AwkUtf8Builder(limits, governor, capacity: 4))
         {
             Assert.Equal(4, governor.CurrentCommittedBytes);
-            builder.Append("abcde"u8.ToArray());
+            builder.Append("abcde"u8);
             Assert.Equal(8, governor.CurrentCommittedBytes);
             Assert.Equal(12, governor.PeakLiveBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);
@@ -101,13 +101,13 @@ public sealed class AwkUtf8BuilderTests
             .WithMaxExecutionMemoryBytes(10);
         var governor = AwkMemoryGovernor.Create(limits);
         using var builder = new AwkUtf8Builder(limits, governor, capacity: 4);
-        builder.Append("abcd"u8.ToArray());
+        builder.Append("abcd"u8);
 
         var exception = Assert.Throws<AwkRuntimeException>(() => builder.Append((byte)'e'));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal(4, builder.Length);
-        Assert.Equal("abcd", builder.CopyToAwkText().AsString());
+        Assert.Equal("abcd", builder.CopyToAwkText(AwkRuntimeCounters.Disabled).AsString());
         Assert.Equal(4, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
     }
