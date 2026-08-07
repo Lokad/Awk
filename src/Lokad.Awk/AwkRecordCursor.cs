@@ -335,7 +335,8 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
         var input = GetRegexInput(buffer);
         var searchOffset = GetRegexSearchOffset(buffer);
-        RecordSeparatorScan(input.ByteLength - searchOffset.ByteIndex);
+        _state.Resources.RecordRegexRecordSeparatorBytesScanned(
+            input.ByteLength - searchOffset.ByteIndex);
         var match = _state.MatchRegexSpan(
             separator.Value,
             input,

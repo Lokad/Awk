@@ -857,6 +857,27 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
+    public async Task Awk_RegexRecordSeparatorScanLimitFailsBeforeRunningOversizedSearch()
+    {
+        var options = CreateOptions(
+            AwkRuntimeLimits.CreateDefault().WithMaxRegexRecordSeparatorBytesScanned(8));
+        var compiled = await AwkExecutor.CompileAsync(
+            new MockFileSystem(),
+            BuildInvocation("awk", "BEGIN{RS=\"a+b\"} {print $0}"),
+            CancellationToken.None);
+        var fileSystem = new MockFileSystem();
+        fileSystem.SetStandardInput("aaaaaaaaaaaaaaaa");
+
+        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+
+        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(
+            "awk: regular expression record separator scan limit exceeded\n",
+            fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
     public void Awk_SplitMemoryLimitFailsBeforeReplacingEitherCaptureArray()
     {
         var fieldArrayName = AwkArrayName.FromText("fields");

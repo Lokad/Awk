@@ -32,6 +32,8 @@ regex separators stay on the selected regex backend. An arbitrary unbounded matc
 begin in an earlier host batch, and the current backends do not expose resumable partial-match
 state, so that correctness path may retry borrowed accumulated input after a batch arrives. It
 does not copy the accumulated snapshot or advance a checkpoint that could skip a cross-batch match.
+Those retries are preflighted against `MaxRegexRecordSeparatorBytesScanned`, whose finite default
+prevents adversarial host batching from causing unbounded aggregate rescanning.
 Engine-neutral regex handles retain the initially selected backend, so a dynamic UTF-8 regex does
 not first compile an unused .NET regex. Runtime caches evict the least-recently-used entry instead
 of clearing all compiled patterns when their bounded capacity is reached.

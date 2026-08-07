@@ -9,6 +9,7 @@ internal sealed class AwkRuntimeResourceMonitor
     private long _executionSteps;
     private long _hostCalls;
     private long _outputBytes;
+    private long _regexRecordSeparatorBytesScanned;
 
     public AwkRuntimeResourceMonitor(AwkRuntimeLimits limits, AwkRuntimeCounters counters)
     {
@@ -64,6 +65,23 @@ internal sealed class AwkRuntimeResourceMonitor
         }
 
         _counters.RecordOutputBytes(byteCount);
+    }
+
+    public void RecordRegexRecordSeparatorBytesScanned(int byteCount)
+    {
+        if (byteCount <= 0)
+            return;
+
+        var next = AwkRuntimeMemory.CheckedAdd(_regexRecordSeparatorBytesScanned, byteCount);
+        if (next > _limits.MaxRegexRecordSeparatorBytesScanned)
+        {
+            throw new AwkRuntimeException(
+                AwkMessages.ErrorRegexRecordSeparatorScanLimit,
+                AwkDiagnosticId.RuntimeResourceLimit);
+        }
+
+        _regexRecordSeparatorBytesScanned = next;
+        _counters.RecordRecordSeparatorBytesScanned(byteCount);
     }
 
     public void ThrowIfRecordBytesExceeded(long byteCount) =>

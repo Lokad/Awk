@@ -24,6 +24,8 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: invalid UTF-8 input\n");
     internal static readonly ReadOnlyMemory<byte> ErrorRegexTimeout =
         AwkUtf8Codec.Encode("awk: regular expression match timed out\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorRegexRecordSeparatorScanLimit =
+        AwkUtf8Codec.Encode("awk: regular expression record separator scan limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorNotEnoughPrintfArguments =
         AwkUtf8Codec.Encode("awk: not enough arguments to satisfy format string\n");
     internal static readonly ReadOnlyMemory<byte> ErrorDivisionByZero =

@@ -34,6 +34,10 @@ These limits constrain awk execution without changing successful compatibility b
 - `MaxFields`: current-record field materialization budget. The default matches
   `MaxArrayElements`, but hosts can now set a different field policy.
 - `MaxRegexCaptureBytes`: materialized regex capture payloads before writing capture arrays.
+- `MaxRegexRecordSeparatorBytesScanned`: cumulative bytes submitted to the general regex record-
+  separator fallback. The 64 MiB default bounds repeated cross-batch searches when a backend cannot
+  resume an arbitrary partial match; specialized byte, literal, and byte-run separators do not
+  consume this budget.
 
 These defaults are intentionally generous or unlimited where ordinary awk scripts historically
 expect no fixed ceiling.

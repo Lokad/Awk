@@ -10,6 +10,7 @@ internal sealed record AwkRuntimeLimits
     public const int DefaultMaxArrayElements = 1_000_000;
     public const int DefaultMaxFields = 1_000_000;
     public const int DefaultMaxBuilderBytes = 64 << 20;
+    public const long DefaultMaxRegexRecordSeparatorBytesScanned = 64L << 20;
     public const int DefaultMaxOutputFiles = 10_000;
     public const int DefaultInputReadBatchLineCount = 128;
     public const int DefaultUtf8BuilderInitialCapacity = 256;
@@ -39,6 +40,9 @@ internal sealed record AwkRuntimeLimits
     public int MaxBuilderBytes { get; private init; } = DefaultMaxBuilderBytes;
 
     public long MaxRegexCaptureBytes { get; private init; } = Unlimited;
+
+    public long MaxRegexRecordSeparatorBytesScanned { get; private init; } =
+        DefaultMaxRegexRecordSeparatorBytesScanned;
 
     public long MaxVmStackBytes { get; private init; } = Unlimited;
 
@@ -77,6 +81,9 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxRegexCaptureBytes(long value) =>
         this with { MaxRegexCaptureBytes = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxRegexRecordSeparatorBytesScanned(long value) =>
+        this with { MaxRegexRecordSeparatorBytesScanned = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxVmStackBytes(long value) =>
         this with { MaxVmStackBytes = RequirePositive(value) };
