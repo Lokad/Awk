@@ -120,12 +120,18 @@ internal sealed class AwkVariables
         return false;
     }
 
-    public void SetScalarText(string name, string value)
+    public void SetScalarText(string name, string value) =>
+        SetScalarText(AwkVariableName.FromText(name), value);
+
+    public void SetScalarText(AwkVariableName name, string value)
     {
         SetScalarSlot(name, AwkVariableSlot.FromText(value));
     }
 
-    public void SetScalarValue(string name, AwkValue value)
+    public void SetScalarValue(string name, AwkValue value) =>
+        SetScalarValue(AwkVariableName.FromText(name), value);
+
+    public void SetScalarValue(AwkVariableName name, AwkValue value)
     {
         SetScalarSlot(name, AwkVariableSlot.FromValue(value));
     }
@@ -141,7 +147,10 @@ internal sealed class AwkVariables
         _governScalarMemory = true;
     }
 
-    public string GetOrCreateScalarString(string name)
+    public string GetOrCreateScalarString(string name) =>
+        GetOrCreateScalarString(AwkVariableName.FromText(name));
+
+    public string GetOrCreateScalarString(AwkVariableName name)
     {
         if (TryGetScalarState(name, out var state))
             return state.Slot.StringValue;
@@ -150,7 +159,10 @@ internal sealed class AwkVariables
         return string.Empty;
     }
 
-    public string GetOrCreateScalarString(string name, string fallback)
+    public string GetOrCreateScalarString(string name, string fallback) =>
+        GetOrCreateScalarString(AwkVariableName.FromText(name), fallback);
+
+    public string GetOrCreateScalarString(AwkVariableName name, string fallback)
     {
         if (TryGetScalarState(name, out var state))
             return state.Slot.StringValue;
@@ -159,7 +171,10 @@ internal sealed class AwkVariables
         return fallback;
     }
 
-    public AwkValue GetOrCreateScalarValue(string name)
+    public AwkValue GetOrCreateScalarValue(string name) =>
+        GetOrCreateScalarValue(AwkVariableName.FromText(name));
+
+    public AwkValue GetOrCreateScalarValue(AwkVariableName name)
     {
         if (TryGetScalarState(name, out var state))
             return CreateValue(state.Slot);
@@ -473,10 +488,9 @@ internal sealed class AwkVariables
         return false;
     }
 
-    private bool TryGetScalarState(string name, out AwkScalarState state)
+    private bool TryGetScalarState(AwkVariableName name, out AwkScalarState state)
     {
-        if (TryToVariableName(name, out var variableName) &&
-            _scalarSlotsByName.TryGetValue(variableName, out var id))
+        if (_scalarSlotsByName.TryGetValue(name, out var id))
         {
             state = GetScalarState(id);
             return true;
@@ -493,11 +507,6 @@ internal sealed class AwkVariables
     {
         for (var index = 0; index < _scalarSlots.Count; index++)
             yield return new AwkScalarInventoryItem(new AwkGlobalSlotId(index), _scalarSlots[index].Name);
-    }
-
-    private AwkGlobalSlotId GetOrCreateScalarSlot(string name)
-    {
-        return GetOrCreateScalarSlotCore(AwkVariableName.FromText(name));
     }
 
     private AwkGlobalSlotId GetOrCreateScalarSlotCore(AwkVariableName name)
@@ -519,9 +528,9 @@ internal sealed class AwkVariables
         _applyScalarAssignment(name, value);
     }
 
-    private void SetScalarSlot(string name, AwkVariableSlot slot)
+    private void SetScalarSlot(AwkVariableName name, AwkVariableSlot slot)
     {
-        SetScalarSlot(GetOrCreateScalarSlot(name), slot);
+        SetScalarSlot(GetOrCreateScalarSlotCore(name), slot);
     }
 
     private void SetScalarSlot(AwkGlobalSlotId id, AwkVariableSlot slot)

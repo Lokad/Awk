@@ -7,11 +7,12 @@ internal sealed class AwkVariableRuntime(
     AwkFunctionRuntime functions,
     AwkSpecialVariableDispatcher specialVariables)
 {
-    public bool HasScalar(string name) => ResolveName(name).Kind == AwkVariableNameResolutionKind.GlobalScalar;
+    public bool HasScalar(string name) => HasScalar(AwkVariableName.FromText(name));
 
     public bool HasScalar(AwkIdentifier identifier) => HasScalar(identifier.Text);
 
-    public bool HasScalar(AwkVariableName name) => HasScalar(name.Text);
+    public bool HasScalar(AwkVariableName name) =>
+        ResolveName(name).Kind == AwkVariableNameResolutionKind.GlobalScalar;
 
     public bool IsArray(string name) =>
         ResolveName(name).Kind is
@@ -21,7 +22,11 @@ internal sealed class AwkVariableRuntime(
 
     public bool IsArray(AwkIdentifier identifier) => IsArray(identifier.Text);
 
-    public bool IsArray(AwkArrayName name) => IsArray(name.Text);
+    public bool IsArray(AwkArrayName name) =>
+        ResolveName(new AwkVariableName(name.Identifier)).Kind is
+            AwkVariableNameResolutionKind.LocalArrayAlias or
+            AwkVariableNameResolutionKind.SymbolTableArray or
+            AwkVariableNameResolutionKind.GlobalArray;
 
     public bool TryGetExistingArrayCount(string name, out int count)
     {
@@ -38,14 +43,17 @@ internal sealed class AwkVariableRuntime(
 
     public bool TryGetExistingArrayCount(AwkArrayName name, out int count)
     {
-        var resolved = ResolveName(name.Text);
+        var resolved = ResolveName(new AwkVariableName(name.Identifier));
         if (resolved.Kind == AwkVariableNameResolutionKind.LocalArrayAlias)
             return TryGetExistingArrayCount(resolved.ArrayName, out count);
 
         return variables.TryGetArrayCount(name, out count);
     }
 
-    public string ResolveVariable(string name)
+    public string ResolveVariable(string name) =>
+        ResolveVariable(AwkVariableName.FromText(name));
+
+    public string ResolveVariable(AwkVariableName name)
     {
         if (functions.TryResolveLocalText(name, out var local))
         {
@@ -55,16 +63,19 @@ internal sealed class AwkVariableRuntime(
             if (local.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
                 return string.Empty;
 
-            ThrowIfArrayAsScalar(name, AwkVariableNameResolution.LocalArrayAlias(local.ArrayName));
+            ThrowIfArrayAsScalar(name.Text, AwkVariableNameResolution.LocalArrayAlias(local.ArrayName));
         }
 
         var resolved = ResolveName(name);
-        ThrowIfArrayAsScalar(name, resolved);
+        ThrowIfArrayAsScalar(name.Text, resolved);
 
         return variables.GetOrCreateScalarString(name);
     }
 
-    public AwkValue ResolveVariableValue(string name)
+    public AwkValue ResolveVariableValue(string name) =>
+        ResolveVariableValue(AwkVariableName.FromText(name));
+
+    public AwkValue ResolveVariableValue(AwkVariableName name)
     {
         if (functions.TryResolveLocalValue(name, out var local))
         {
@@ -74,20 +85,14 @@ internal sealed class AwkVariableRuntime(
             if (local.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
                 return AwkValue.Unassigned();
 
-            ThrowIfArrayAsScalar(name, AwkVariableNameResolution.LocalArrayAlias(local.ArrayName));
+            ThrowIfArrayAsScalar(name.Text, AwkVariableNameResolution.LocalArrayAlias(local.ArrayName));
         }
 
         var resolved = ResolveName(name);
-        ThrowIfArrayAsScalar(name, resolved);
+        ThrowIfArrayAsScalar(name.Text, resolved);
 
         return variables.GetOrCreateScalarValue(name);
     }
-
-    public AwkValue ResolveVariableValue(AwkVariableName name) =>
-        ResolveVariableValue(name.Text);
-
-    public string ResolveVariable(AwkVariableName name) =>
-        ResolveVariable(name.Text);
 
     public string ResolveFunctionLocal(
         AwkFunctionLocalSlotId slotId,
@@ -125,7 +130,10 @@ internal sealed class AwkVariableRuntime(
         return ResolveVariableValue(name);
     }
 
-    public string ResolveVariable(string name, string fallback)
+    public string ResolveVariable(string name, string fallback) =>
+        ResolveVariable(AwkVariableName.FromText(name), fallback);
+
+    public string ResolveVariable(AwkVariableName name, string fallback)
     {
         if (functions.TryResolveLocalText(name, out var local))
         {
@@ -135,66 +143,47 @@ internal sealed class AwkVariableRuntime(
             if (local.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
                 return string.Empty;
 
-            ThrowIfArrayAsScalar(name, AwkVariableNameResolution.LocalArrayAlias(local.ArrayName));
+            ThrowIfArrayAsScalar(name.Text, AwkVariableNameResolution.LocalArrayAlias(local.ArrayName));
         }
 
         var resolved = ResolveName(name);
-        ThrowIfArrayAsScalar(name, resolved);
+        ThrowIfArrayAsScalar(name.Text, resolved);
 
         return variables.GetOrCreateScalarString(name, fallback);
     }
 
-    public string ResolveVariable(AwkVariableName name, string fallback) =>
-        ResolveVariable(name.Text, fallback);
+    public void AssignVariable(string name, string value) =>
+        AssignVariable(AwkVariableName.FromText(name), value);
 
-    public void AssignVariable(string name, string value)
+    public void AssignVariable(AwkIdentifier identifier, string value) =>
+        AssignVariable(new AwkVariableName(identifier), value);
+
+    public void AssignVariable(AwkVariableName name, string value)
     {
         if (functions.TryAssignLocal(name, value))
             return;
 
-        ThrowIfArrayAsScalar(name, ResolveName(name));
+        ThrowIfArrayAsScalar(name.Text, ResolveName(name));
 
         variables.SetScalarText(name, value);
-        specialVariables.ApplyAssignment(name, value);
-    }
-
-    public void AssignVariable(AwkIdentifier identifier, string value) =>
-        AssignVariable(identifier.Text, value);
-
-    public void AssignVariable(AwkVariableName name, string value)
-    {
-        if (functions.TryAssignLocal(name.Text, value))
-            return;
-
-        ThrowIfArrayAsScalar(name.Text, ResolveName(name.Text));
-
-        variables.SetScalarText(name.Text, value);
         if (AwkSpecialVariables.TryGetScalar(name, out var id))
             specialVariables.ApplyAssignment(id, value);
     }
 
-    public void AssignVariableValue(string name, AwkValue value)
+    public void AssignVariableValue(string name, AwkValue value) =>
+        AssignVariableValue(AwkVariableName.FromText(name), value);
+
+    public void AssignVariableValue(AwkIdentifier identifier, AwkValue value) =>
+        AssignVariableValue(new AwkVariableName(identifier), value);
+
+    public void AssignVariableValue(AwkVariableName name, AwkValue value)
     {
         if (functions.TryAssignLocal(name, value))
             return;
 
-        ThrowIfArrayAsScalar(name, ResolveName(name));
+        ThrowIfArrayAsScalar(name.Text, ResolveName(name));
 
         variables.SetScalarValue(name, value);
-        specialVariables.ApplyAssignment(name, value);
-    }
-
-    public void AssignVariableValue(AwkIdentifier identifier, AwkValue value) =>
-        AssignVariableValue(identifier.Text, value);
-
-    public void AssignVariableValue(AwkVariableName name, AwkValue value)
-    {
-        if (functions.TryAssignLocal(name.Text, value))
-            return;
-
-        ThrowIfArrayAsScalar(name.Text, ResolveName(name.Text));
-
-        variables.SetScalarValue(name.Text, value);
         if (AwkSpecialVariables.TryGetScalar(name, out var id))
             specialVariables.ApplyAssignment(id, value);
     }
@@ -247,7 +236,7 @@ internal sealed class AwkVariableRuntime(
 
     public AwkGlobalSlotId GetOrCreateGlobalScalarSlot(AwkVariableName name)
     {
-        ThrowIfArrayAsScalar(name.Text, ResolveName(name.Text));
+        ThrowIfArrayAsScalar(name.Text, ResolveName(name));
         return variables.GetOrCreateScalarSlot(name);
     }
 
@@ -265,7 +254,7 @@ internal sealed class AwkVariableRuntime(
 
     public AwkArrayName ResolveOrPromoteArrayName(AwkArrayName name)
     {
-        var resolved = ResolveName(name.Text);
+        var resolved = ResolveName(new AwkVariableName(name.Identifier));
         if (resolved.Kind == AwkVariableNameResolutionKind.LocalArrayAlias)
             return ResolveOrPromoteArrayName(resolved.ArrayName);
 
@@ -290,7 +279,7 @@ internal sealed class AwkVariableRuntime(
 
     public void EnsureArrayName(AwkArrayName name)
     {
-        var resolved = ResolveName(name.Text);
+        var resolved = ResolveName(new AwkVariableName(name.Identifier));
         if (resolved.Kind == AwkVariableNameResolutionKind.LocalScalar)
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
@@ -298,7 +287,10 @@ internal sealed class AwkVariableRuntime(
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
     }
 
-    private AwkVariableNameResolution ResolveName(string name)
+    private AwkVariableNameResolution ResolveName(string name) =>
+        ResolveName(AwkVariableName.FromText(name));
+
+    private AwkVariableNameResolution ResolveName(AwkVariableName name)
     {
         if (functions.TryResolveLocal(name, out var local))
         {
@@ -310,10 +302,10 @@ internal sealed class AwkVariableRuntime(
             };
         }
 
-        if (string.Equals(name, AwkVariables.SymbolTableName, StringComparison.Ordinal))
+        if (string.Equals(name.Text, AwkVariables.SymbolTableName, StringComparison.Ordinal))
             return AwkVariableNameResolution.SymbolTableArray;
 
-        if (variables.ContainsArray(name))
+        if (variables.ContainsArray(new AwkArrayName(name.Identifier)))
             return AwkVariableNameResolution.GlobalArray;
 
         if (variables.ContainsScalar(name))

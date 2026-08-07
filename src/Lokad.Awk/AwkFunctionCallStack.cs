@@ -93,7 +93,7 @@ internal sealed class AwkFunctionCallStack(
         return TryResolveLocal(AwkVariableName.FromText(name), out local);
     }
 
-    private bool TryResolveLocal(AwkVariableName name, out AwkResolvedFunctionLocal local)
+    public bool TryResolveLocal(AwkVariableName name, out AwkResolvedFunctionLocal local)
     {
         if (_frames.Count > 0)
         {
@@ -130,7 +130,7 @@ internal sealed class AwkFunctionCallStack(
         return TryResolveLocalText(AwkVariableName.FromText(name), out local);
     }
 
-    private bool TryResolveLocalText(AwkVariableName name, out AwkResolvedFunctionLocal local)
+    public bool TryResolveLocalText(AwkVariableName name, out AwkResolvedFunctionLocal local)
     {
         if (_frames.Count > 0)
         {
@@ -167,7 +167,7 @@ internal sealed class AwkFunctionCallStack(
         return TryResolveLocalValue(AwkVariableName.FromText(name), out local);
     }
 
-    private bool TryResolveLocalValue(AwkVariableName name, out AwkResolvedFunctionLocal local)
+    public bool TryResolveLocalValue(AwkVariableName name, out AwkResolvedFunctionLocal local)
     {
         if (_frames.Count > 0)
         {
@@ -225,7 +225,7 @@ internal sealed class AwkFunctionCallStack(
         return TryAssignLocal(AwkVariableName.FromText(name), value);
     }
 
-    private bool TryAssignLocal(AwkVariableName name, string value)
+    public bool TryAssignLocal(AwkVariableName name, string value)
     {
         if (_frames.Count == 0)
             return false;
@@ -246,7 +246,7 @@ internal sealed class AwkFunctionCallStack(
         return TryAssignLocal(AwkVariableName.FromText(name), value);
     }
 
-    private bool TryAssignLocal(AwkVariableName name, AwkValue value)
+    public bool TryAssignLocal(AwkVariableName name, AwkValue value)
     {
         if (_frames.Count == 0)
             return false;
