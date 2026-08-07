@@ -14,12 +14,20 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
     private readonly AwkFileDescriptor _descriptor;
     private AsyncLineReader? _lineReader;
     private AwkUtf8Builder? _buffer;
+    // All buffered-search positions are absolute indexes into _buffer. The
+    // unread record begins at _bufferStart; _scanOffset is the earliest byte
+    // that the active separator strategy has not ruled out.
     private int _bufferStart;
     private int _scanOffset;
+    // Run and paragraph separators can end at a batch boundary. These bounds
+    // retain that candidate so the next batch only extends the pending run.
     private int _pendingSeparatorStart = -1;
     private int _pendingSeparatorEnd = -1;
     private bool _descriptorReachedEof;
     private bool _hasConsumedDescriptorBytes;
+    // General regex searches borrow the current buffer. The optional reserved
+    // prefix prevents ^ from re-anchoring after a record has been consumed;
+    // the offset pair caches the byte-to-UTF-16 coordinate conversion.
     private AwkText? _regexInput;
     private int _regexInputPrefixLength;
     private int _regexOffsetBufferStart = -1;
@@ -169,7 +177,7 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
         var separatorIndex = relativeIndex < 0 ? -1 : scanStart + relativeIndex;
         if (separatorIndex < 0)
         {
-            MarkScannedThroughEnd();
+            MarkScannedThroughEnd(0);
             return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
         }
 
@@ -194,7 +202,7 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
         RecordSeparatorScan(relativeIndex < 0 ? candidate.Length : relativeIndex + 1);
         if (relativeIndex < 0)
         {
-            MarkScannedThroughEnd();
+            MarkScannedThroughEnd(0);
             return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
         }
 
@@ -226,7 +234,7 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
         }
 
         RecordSeparatorScan(content.Length - scanStart);
-        MarkScannedThroughEnd();
+        MarkScannedThroughEnd(0);
         return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
     }
 
@@ -251,7 +259,7 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
         if (separatorIndex < 0)
         {
             RecordSeparatorScan(content.Length - scanStart);
-            MarkScannedThroughEnd();
+            MarkScannedThroughEnd(0);
             return FinalRecordOrNeedMore(content, AwkRecordFieldSplittingMode.Ordinary);
         }
 
@@ -474,7 +482,7 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
     private int GetRelativeScanStart(ReadOnlySpan<byte> content) =>
         Math.Clamp(_scanOffset - _bufferStart, 0, content.Length);
 
-    private void MarkScannedThroughEnd(int preservedTailLength = 0)
+    private void MarkScannedThroughEnd(int preservedTailLength)
     {
         var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
         _scanOffset = Math.Max(_bufferStart, buffer.Length - preservedTailLength);

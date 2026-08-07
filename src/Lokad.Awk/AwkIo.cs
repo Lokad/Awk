@@ -154,31 +154,13 @@ internal sealed class AwkIo
         if (resolved is not AwkInputReaderResult.Resolved resolvedReader)
             throw new InvalidOperationException("Unexpected awk input reader result.");
 
-        try
-        {
-            return await ReadGetlineRecordAsync(resolvedReader.Reader).ConfigureAwait(false);
-        }
-        catch (AwkHostReadException exception)
-        {
-            return AwkGetlineResult.Failure(
-                AwkIoError.FromReadFailure(exception.Descriptor, exception.Error));
-        }
-
+        return await ReadGetlineRecordAsync(resolvedReader.Reader).ConfigureAwait(false);
     }
 
     public async Task<AwkGetlineResult> ReadPipeRecordAsync(string command)
     {
         var reader = await _pipes.GetInputReaderAsync(command).ConfigureAwait(false);
-        try
-        {
-            return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
-        }
-        catch (AwkHostReadException exception)
-        {
-            return AwkGetlineResult.Failure(
-                AwkIoError.FromReadFailure(exception.Descriptor, exception.Error));
-        }
-
+        return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
     }
 
     public void BindMainInputReader(AwkInputRecordReader reader) =>
@@ -192,28 +174,28 @@ internal sealed class AwkIo
         if (_mainInputReader is not MainInputReaderBinding.Bound boundReader)
             return AwkGetlineResult.EndOfFile;
 
+        return await ReadGetlineRecordAsync(boundReader.Reader).ConfigureAwait(false);
+    }
+
+    private async Task<AwkGetlineResult> ReadGetlineRecordAsync(AwkInputRecordReader reader)
+    {
         try
         {
-            return await ReadGetlineRecordAsync(boundReader.Reader).ConfigureAwait(false);
+            var input = await reader.ReadAsync().ConfigureAwait(false);
+            if (!input.HasRecord)
+                return AwkGetlineResult.EndOfFile;
+
+            _counters.RecordRecordRead();
+            return AwkGetlineResult.Record(
+                input.RecordText,
+                input.Terminator,
+                input.FieldSplittingMode);
         }
         catch (AwkHostReadException exception)
         {
             return AwkGetlineResult.Failure(
                 AwkIoError.FromReadFailure(exception.Descriptor, exception.Error));
         }
-    }
-
-    private async Task<AwkGetlineResult> ReadGetlineRecordAsync(AwkInputRecordReader reader)
-    {
-        var input = await reader.ReadAsync().ConfigureAwait(false);
-        if (!input.HasRecord)
-            return AwkGetlineResult.EndOfFile;
-
-        _counters.RecordRecordRead();
-        return AwkGetlineResult.Record(
-            input.RecordText,
-            input.Terminator,
-            input.FieldSplittingMode);
     }
 
     private AwkRecordCursor CreateRecordCursor(AwkFileDescriptor descriptor) =>

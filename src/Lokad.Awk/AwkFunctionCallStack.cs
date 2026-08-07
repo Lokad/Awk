@@ -300,45 +300,30 @@ internal sealed class AwkFunctionCallStack(
     {
         var oldBytes = EstimateLocalSlotBytes(oldSlot);
         var newBytes = EstimateLocalSlotBytes(newSlot);
-        ReserveGrowth(newBytes, oldBytes);
+        var growth = newBytes - oldBytes;
+        if (growth > 0)
+            memoryGovernor.Reserve(growth);
+
         try
         {
             frame.Slots[slotId.Index] = newSlot;
         }
         catch
         {
-            ReleaseReservedGrowth(newBytes, oldBytes);
+            if (growth > 0)
+                memoryGovernor.ReleaseReserved(growth);
+
             throw;
         }
 
-        CommitGrowth(newBytes, oldBytes);
+        if (growth > 0)
+            memoryGovernor.CommitReserved(growth);
+        else if (growth < 0)
+            memoryGovernor.ReleaseCommitted(-growth);
+
         frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(
             frame.RetainedMemoryBytes,
-            newBytes - oldBytes);
-    }
-
-    private void ReserveGrowth(long newBytes, long oldBytes)
-    {
-        if (newBytes > oldBytes)
-            memoryGovernor.Reserve(newBytes - oldBytes);
-    }
-
-    private void ReleaseReservedGrowth(long newBytes, long oldBytes)
-    {
-        if (newBytes > oldBytes)
-            memoryGovernor.ReleaseReserved(newBytes - oldBytes);
-    }
-
-    private void CommitGrowth(long newBytes, long oldBytes)
-    {
-        if (newBytes > oldBytes)
-        {
-            memoryGovernor.CommitReserved(newBytes - oldBytes);
-        }
-        else if (oldBytes > newBytes)
-        {
-            memoryGovernor.ReleaseCommitted(oldBytes - newBytes);
-        }
+            growth);
     }
 
     private static long EstimateFrameBytes(AwkFunctionFrame frame)

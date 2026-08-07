@@ -290,6 +290,7 @@ internal sealed class AwkRegex
 
 internal abstract record AwkRegexBackend(bool SeedIgnoreCase)
 {
+    /// <summary>Gets the complete-match group plus every capturing group exposed by this backend.</summary>
     public abstract int GroupCount { get; }
 
     public static AwkRegexBackend DotNet(bool ignoreCase, Regex value) =>
