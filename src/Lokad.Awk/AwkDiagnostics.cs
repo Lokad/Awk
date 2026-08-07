@@ -112,11 +112,11 @@ internal static class AwkDiagnostics
     }
 
     private static string FormatLocation(AwkSourceLocation location) =>
-        location.Name +
+        location.SourceName.Text +
         ":" +
-        location.Line.ToString(CultureInfo.InvariantCulture) +
+        location.LineNumber.Value.ToString(CultureInfo.InvariantCulture) +
         ":" +
-        location.Column.ToString(CultureInfo.InvariantCulture);
+        location.ColumnNumber.Value.ToString(CultureInfo.InvariantCulture);
 
     private static string EnsureTrailingNewLine(string message) =>
         message.EndsWith('\n') ? message : message + "\n";

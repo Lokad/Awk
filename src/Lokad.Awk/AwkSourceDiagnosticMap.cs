@@ -58,12 +58,12 @@ internal static class AwkSourceDiagnosticMap
                     lastLineStart = lastContinuation;
             }
 
-            var line = segment.LineOffset + 1 + sourceLines.Count + continuationCount;
+            var line = segment.SourceLineOffset.Value + 1 + sourceLines.Count + continuationCount;
             var column = lastLineStart >= 0
                 ? 1 + end - lastLineStart
-                : segment.ColumnOffset + 1 + relativeOffset;
+                : segment.SourceColumnOffset.Value + 1 + relativeOffset;
             return new AwkSourceLocation(
-                segment.Name,
+                segment.SourceName,
                 new AwkLineNumber(line),
                 new AwkColumnNumber(column));
         }
@@ -80,7 +80,7 @@ internal static class AwkSourceDiagnosticMap
                 !TryFindSegment(source.Segments, diagnostic.Span.Start, out var segment) ||
                 (segment.Kind == AwkSourceSegmentKind.Inline &&
                     source.Segments.Count == 1 &&
-                    source.Name == "<inline:1>"))
+                    source.SourceName == new AwkSourceName("<inline:1>")))
             {
                 continue;
             }

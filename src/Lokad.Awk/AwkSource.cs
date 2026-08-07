@@ -14,8 +14,6 @@ internal readonly struct AwkSourceUnit
 
     public AwkSourceName SourceName { get; }
 
-    public string Name => SourceName.Text;
-
     public string Text { get; }
 
     public IReadOnlyList<AwkSourceSegment> Segments { get; }
@@ -43,19 +41,13 @@ internal readonly struct AwkSourceSegment
 
     public AwkSourceName SourceName { get; }
 
-    public string Name => SourceName.Text;
-
     public AwkSourceSegmentKind Kind { get; }
 
     public AwkTextSpan Span { get; }
 
     public AwkLineOffset SourceLineOffset { get; }
 
-    public int LineOffset => SourceLineOffset.Value;
-
     public AwkColumnOffset SourceColumnOffset { get; }
-
-    public int ColumnOffset => SourceColumnOffset.Value;
 
     public AwkLineContinuationMap LineContinuations => _lineContinuations ?? AwkLineContinuationMap.Empty;
 }

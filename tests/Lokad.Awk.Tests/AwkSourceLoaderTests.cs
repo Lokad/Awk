@@ -33,14 +33,14 @@ public sealed class AwkSourceLoaderTests
         var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
 
         var source = Assert.Single(LoadedSources(result));
-        Assert.Equal("<inline:1>", source.Name);
+        Assert.Equal(new AwkSourceName("<inline:1>"), source.SourceName);
         Assert.Equal("function helper(){ return 1 }\nBEGIN{print helper()}", source.Text);
         Assert.Equal(
             [AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Inline],
             source.Segments.Select(segment => segment.Kind).ToArray());
-        Assert.Equal("/lib/common.awk", source.Segments[0].Name);
-        Assert.Equal("<inline:1>", source.Segments[1].Name);
-        Assert.Equal(1, source.Segments[1].LineOffset);
+        Assert.Equal(new AwkSourceName("/lib/common.awk"), source.Segments[0].SourceName);
+        Assert.Equal(new AwkSourceName("<inline:1>"), source.Segments[1].SourceName);
+        Assert.Equal(new AwkLineOffset(1), source.Segments[1].SourceLineOffset);
         Assert.Equal(new AwkTextSpan(0, "function helper(){ return 1 }\n".Length), source.Segments[0].Span);
         Assert.Equal(
             new AwkTextSpan("function helper(){ return 1 }\n".Length, "BEGIN{print helper()}".Length),
@@ -63,8 +63,8 @@ public sealed class AwkSourceLoaderTests
         Assert.Equal(
             [AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Inline],
             source.Segments.Select(segment => segment.Kind).ToArray());
-        Assert.Equal("/lib/common.awk", source.Segments[0].Name);
-        Assert.Equal("<inline:1>", source.Segments[1].Name);
+        Assert.Equal(new AwkSourceName("/lib/common.awk"), source.Segments[0].SourceName);
+        Assert.Equal(new AwkSourceName("<inline:1>"), source.Segments[1].SourceName);
     }
 
     [Fact]
@@ -130,8 +130,8 @@ public sealed class AwkSourceLoaderTests
 
         var sources = LoadedSources(result);
         Assert.Equal(2, sources.Count);
-        Assert.Equal("/lib/common.awk", sources[0].Name);
-        Assert.Equal("/main.awk", sources[1].Name);
+        Assert.Equal(new AwkSourceName("/lib/common.awk"), sources[0].SourceName);
+        Assert.Equal(new AwkSourceName("/main.awk"), sources[1].SourceName);
         Assert.Contains("marker=\"include\"", sources[0].Text);
         Assert.DoesNotContain("marker=\"include\"", sources[1].Text);
         Assert.Contains("BEGIN{print marker}", sources[1].Text);
@@ -150,8 +150,8 @@ public sealed class AwkSourceLoaderTests
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{marker=\"relative\"}\nBEGIN{print marker}", source.Text);
-        Assert.Equal("lib/common.awk", source.Segments[0].Name);
-        Assert.Equal("<inline:1>", source.Segments[1].Name);
+        Assert.Equal(new AwkSourceName("lib/common.awk"), source.Segments[0].SourceName);
+        Assert.Equal(new AwkSourceName("<inline:1>"), source.Segments[1].SourceName);
     }
 
     [Fact]

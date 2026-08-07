@@ -59,22 +59,18 @@ internal readonly struct AwkDiagnostic
 
 internal readonly struct AwkSourceLocation
 {
-    public AwkSourceLocation(string name, AwkLineNumber line, AwkColumnNumber column)
+    public AwkSourceLocation(AwkSourceName sourceName, AwkLineNumber line, AwkColumnNumber column)
     {
-        Name = name;
+        SourceName = sourceName;
         LineNumber = line;
         ColumnNumber = column;
     }
 
-    public string Name { get; }
+    public AwkSourceName SourceName { get; }
 
     public AwkLineNumber LineNumber { get; }
 
-    public int Line => LineNumber.Value;
-
     public AwkColumnNumber ColumnNumber { get; }
-
-    public int Column => ColumnNumber.Value;
 }
 
 internal readonly record struct AwkLineNumber

@@ -79,8 +79,8 @@ public sealed class AwkSourceDiagnosticMapTests
     private static void AssertLocation(AwkDiagnostic diagnostic, int line, int column)
     {
         var location = Assert.IsType<AwkSourceLocation>(diagnostic.SourceLocation);
-        Assert.Equal("/script.awk", location.Name);
-        Assert.Equal(line, location.Line);
-        Assert.Equal(column, location.Column);
+        Assert.Equal(new AwkSourceName("/script.awk"), location.SourceName);
+        Assert.Equal(new AwkLineNumber(line), location.LineNumber);
+        Assert.Equal(new AwkColumnNumber(column), location.ColumnNumber);
     }
 }
