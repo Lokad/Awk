@@ -15,8 +15,9 @@ internal static class AwkFrontendDiagnosticPolicy
         {
             if (tokens[index].Kind == AwkTokenKind.BadToken)
             {
-                var kind = tokens[index].Text.StartsWith("/", StringComparison.Ordinal) ||
-                    tokens[index].Text.StartsWith("@/", StringComparison.Ordinal)
+                var text = tokens[index].TextSpan;
+                var kind = text.StartsWith("/", StringComparison.Ordinal) ||
+                    text.StartsWith("@/", StringComparison.Ordinal)
                     ? AwkDiagnosticKind.InvalidRegex
                     : AwkDiagnosticKind.Syntax;
                 diagnostics.Add(new AwkDiagnostic(tokens[index].Span, "Unrecognized awk token.", kind));
@@ -78,7 +79,11 @@ internal static class AwkFrontendDiagnosticPolicy
 
                 break;
             case AwkTokenKind.RightBracket:
-                if (NextSignificantToken(source, tokens, index + 1).Kind == AwkTokenKind.LeftBracket)
+                if (TokenAtOrEnd(
+                        source,
+                        tokens,
+                        NextSignificantTokenIndex(tokens, index + 1))
+                    .Kind == AwkTokenKind.LeftBracket)
                 {
                     errorMessage = AwkMessages.ErrorUnsupportedArrayOfArrays;
                     return true;
@@ -104,59 +109,52 @@ internal static class AwkFrontendDiagnosticPolicy
         int index)
     {
         var token = tokens[index];
-        var identifier = NextSignificantToken(source, tokens, index + 1);
+        var identifierIndex = NextSignificantTokenIndex(tokens, index + 1);
+        var identifier = TokenAtOrEnd(source, tokens, identifierIndex);
         if (identifier.Kind != AwkTokenKind.Identifier || identifier.Span.Start != token.Span.End)
             return false;
 
-        return NextSignificantToken(source, tokens, IndexAfter(tokens, identifier)).Kind == AwkTokenKind.LeftParen;
+        return TokenAtOrEnd(
+                source,
+                tokens,
+                NextSignificantTokenIndex(tokens, identifierIndex + 1))
+            .Kind == AwkTokenKind.LeftParen;
     }
 
-    private static AwkToken NextSignificantToken(
-        string source,
-        IReadOnlyList<AwkToken> tokens,
-        int index)
+    private static int NextSignificantTokenIndex(IReadOnlyList<AwkToken> tokens, int index)
     {
         for (var current = index; current < tokens.Count; current++)
         {
-            var token = tokens[current];
-            if (token.Kind is AwkTokenKind.Comment or AwkTokenKind.NewLine)
-                continue;
-
-            return token;
-        }
-
-        return new AwkToken(AwkTokenKind.EndOfFile, string.Empty, new AwkTextSpan(source.Length, 0));
-    }
-
-    private static int IndexAfter(IReadOnlyList<AwkToken> tokens, AwkToken token)
-    {
-        for (var index = 0; index < tokens.Count; index++)
-        {
-            if (tokens[index].Span.Start == token.Span.Start &&
-                tokens[index].Span.Length == token.Span.Length &&
-                tokens[index].Kind == token.Kind)
-            {
-                return index + 1;
-            }
+            if (tokens[current].Kind is not (AwkTokenKind.Comment or AwkTokenKind.NewLine))
+                return current;
         }
 
         return tokens.Count;
     }
 
+    private static AwkToken TokenAtOrEnd(
+        string source,
+        IReadOnlyList<AwkToken> tokens,
+        int index) =>
+        index < tokens.Count
+            ? tokens[index]
+            : new AwkToken(AwkTokenKind.EndOfFile, string.Empty, new AwkTextSpan(source.Length, 0));
+
     private static void AddStringEscapeWarnings(
         AwkToken token,
         List<AwkDiagnostic> diagnostics)
     {
+        var text = token.TextSpan;
         var start = token.Kind == AwkTokenKind.InternationalizedString ? 2 : 1;
-        var end = token.Text.Length - 1;
+        var end = text.Length - 1;
         for (var index = start; index < end; index++)
         {
-            if (token.Text[index] != '\\' || index + 1 >= end)
+            if (text[index] != '\\' || index + 1 >= end)
                 continue;
 
             index++;
-            var escaped = token.Text[index];
-            if (AwkEscapes.TryReadNumericEscape(token.Text, ref index, end, out _))
+            var escaped = text[index];
+            if (AwkEscapes.TryReadNumericEscape(text, ref index, end, out _))
             {
                 continue;
             }
@@ -170,7 +168,7 @@ internal static class AwkFrontendDiagnosticPolicy
                 continue;
             }
 
-            if (AwkLineContinuations.TrySkipAfterBackslash(token.Text, ref index, end))
+            if (AwkLineContinuations.TrySkipAfterBackslash(text, ref index, end))
                 continue;
 
             if (AwkEscapes.TryDecodeSimpleEscape(escaped, out _))
@@ -196,12 +194,13 @@ internal static class AwkRegexSyntaxValidator
 {
     public static bool IsValidLiteral(AwkToken token)
     {
+        var text = token.Text;
         string pattern;
         if (token.Kind == AwkTokenKind.StrongRegex)
         {
-            pattern = token.Text.Length >= 3 ? token.Text[2..^1] : string.Empty;
+            pattern = text.Length >= 3 ? text[2..^1] : string.Empty;
         }
-        else if (!AwkRegexLiteral.TryReadPattern(token.Text, out pattern))
+        else if (!AwkRegexLiteral.TryReadPattern(text, out pattern))
         {
             return false;
         }

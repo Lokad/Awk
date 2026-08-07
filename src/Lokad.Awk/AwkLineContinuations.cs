@@ -42,7 +42,10 @@ internal static class AwkLineContinuations
             new AwkLineContinuationMap(continuations));
     }
 
-    public static bool TrySkipAfterBackslash(string text, ref int escapedIndex, int endExclusive)
+    public static bool TrySkipAfterBackslash(
+        ReadOnlySpan<char> text,
+        ref int escapedIndex,
+        int endExclusive)
     {
         if (!TryReadAt(text, escapedIndex - 1, endExclusive, out var continuation))
             return false;
@@ -52,7 +55,7 @@ internal static class AwkLineContinuations
     }
 
     private static bool TryReadAt(
-        string text,
+        ReadOnlySpan<char> text,
         int backslashIndex,
         int endExclusive,
         out AwkLineContinuation continuation)

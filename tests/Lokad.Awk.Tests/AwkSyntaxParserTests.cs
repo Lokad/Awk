@@ -640,6 +640,29 @@ public sealed class AwkSyntaxParserTests
             program.Diagnostics.Select(diagnostic => diagnostic.Kind).ToArray());
     }
 
+    [Fact]
+    public void AwkFrontendDiagnosticPolicy_InspectsSourceBackedStringsWithoutMaterializingText()
+    {
+        var source = "\"" + new string('a', 16_384) + "\"";
+        AwkToken[] tokens =
+        [
+            AwkToken.FromSource(AwkTokenKind.String, source, new AwkTextSpan(0, source.Length))
+        ];
+        var diagnostics = new List<AwkDiagnostic>();
+
+        AwkFrontendDiagnosticPolicy.AddLexicalDiagnostics(source, tokens, diagnostics);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        AwkFrontendDiagnosticPolicy.AddLexicalDiagnostics(source, tokens, diagnostics);
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        Assert.Empty(diagnostics);
+        Assert.True(allocatedBytes < 1024, "Allocated bytes: " + allocatedBytes);
+    }
+
     private static AwkExpressionSyntax AssignedValue(AwkStatementSyntax statement)
     {
         var expression = RequiredExpression(statement);

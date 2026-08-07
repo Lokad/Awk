@@ -39,7 +39,11 @@ internal static class AwkEscapes
         return builder.ToString();
     }
 
-    public static bool TryReadNumericEscape(string text, ref int index, int endExclusive, out char value)
+    public static bool TryReadNumericEscape(
+        ReadOnlySpan<char> text,
+        ref int index,
+        int endExclusive,
+        out char value)
     {
         value = default;
         if (index >= endExclusive)
