@@ -9,11 +9,14 @@ tight limits to prove deterministic failure semantics.
 These limits are host-mediated and may be changed by internal hosts/tests through
 `AwkRuntimeOptions`; they are not a stable public embedding API:
 
-- `MaxHostCalls`: total host operations such as open, read, write, and close.
+- `MaxHostCalls`: aggregate host operations such as open, read, write, and close across input,
+  output, redirections, pipes, source loading, and cleanup for one execution.
 - `MaxOutputFiles`: number of distinct redirected output files.
 - `MaxOutputBytes`: bytes emitted to host-visible output streams.
 - `MaxRecordBytes`: bytes in one awk-visible input record.
 - `MaxValueBytes`: bytes in one awk-visible text value.
+- `MaxBuilderBytes`: bytes retained by one transient UTF-8 builder. The default is 64 MiB, and
+  growth is rejected before the builder changes.
 - `MaxExecutionMemoryBytes`: live governed runtime memory across retained ordinary arrays,
   governed transient builders, VM frames, and explicit preflighted `AwkText` byte allocations.
 
@@ -76,5 +79,5 @@ memory budget.
 
 Resource failures must occur before the observable mutation when the current surface requires it:
 array insertions, array replacement, field-list growth, record processing, output writes, regex
-capture array replacement, and VM stack growth all preflight their limit before changing awk state
-or host-visible output.
+capture array replacement, text-value copies, formatted output construction, and VM stack growth
+all preflight their limit before changing awk state or host-visible output.

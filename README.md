@@ -28,11 +28,15 @@ IAwkHost host = new ApplicationAwkHost(); // Owns files, streams, pipes, and pro
 var exitCode = await awk.ExecuteAsync(host, CancellationToken.None);
 ```
 
+`ExecuteAsync` returns an `AwkExitCode`; embedding code can keep the result typed and cross to its
+integer `Value` only at a process boundary.
+
 For an in-memory host implementation pattern, see
 [`MockFileSystem`](tests/Lokad.Awk.Tests/MockFileSystem.cs) in the test suite.
 Host reads report EOF and failure as separate outcomes: successful batches use
 `AwkReadResult.FromContent` (or `EndOfFile`), while failed reads use `AwkReadResult.Failure` with a
-structured `AwkOperationError`. The runtime maps those failures to awk diagnostics and `ERRNO`.
+structured `AwkOperationError`. `AwkReadCompletion.MoreData` requires a nonempty batch, preventing a
+host from causing a no-progress read loop. The runtime maps failures to awk diagnostics and `ERRNO`.
 The result snapshots line offsets. Hosts keep successful read content unchanged and alive until the
 next read starts on the same descriptor or that descriptor is closed; descriptors have independent
 buffer lifetimes.

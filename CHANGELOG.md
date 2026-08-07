@@ -2,6 +2,21 @@
 
 ## 0.1.0
 
+- Enforce `MaxHostCalls` once across every input and output path, retain source-open failures rather
+  than treating them as missing files, and reject successful host reads that permit more data
+  without making progress.
+- Bound indexed access to deeply composed token lists by materializing one thread-safe snapshot on
+  demand, avoiding accidental quadratic parsing work.
+- Preflight runtime-owned UTF-8 copies, field materialization, regex captures, records, and formatted
+  output before allocation or visible mutation, with runtime-counter coverage for deliberate string
+  compatibility boundaries.
+- Return `AwkExitCode` through the public and internal execution pipeline, validate file descriptor
+  identifiers at construction, and remove the unused string-based path-resolution facade.
+- Remove forwarding async state machines, read-only collection wrappers, zero-argument pool rents,
+  and unused runtime conveniences; cache rune counts alongside ASCII classification without adding
+  per-value storage.
+- Scope single-caller helpers to their callers and rename the shared collection snapshot utility to
+  match its use across syntax, source planning, and runtime code.
 - Recognize capture-group and noncapturing-group wrappers and equivalent punctuation-only
   alternations around byte-run record separators, preserving greedy cross-batch `RT` while
   scanning the adversarial counter workloads once instead of invoking the general regex backend.

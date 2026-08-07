@@ -48,11 +48,13 @@ command-line policy.
 ## Host Read Protocol
 
 `IAwkHost.ReadLinesAsync` reports transport success independently from end-of-file. A successful
-batch contains bytes, strictly increasing starts for every line after the first, and an explicit
-EOF flag. A failure contains an `AwkOperationError`; it is never interpreted as EOF. Main-input
-failures are fatal, redirected and pipe `getline` failures return `-1` and set `ERRNO`, and source
-read failures retain the source path in their diagnostic. Host-provided CLR exception text is not
-used as a user-visible diagnostic.
+batch carries an explicit `AwkReadCompletion`, and its offsets identify strictly increasing starts
+for every line after the first. `MoreData` must contain at least one byte; only `EndOfFile` may be
+an empty success. A failure contains an `AwkOperationError`; it is never interpreted as EOF.
+Main-input failures are fatal, redirected and pipe `getline` failures return `-1` and set `ERRNO`,
+and source open/read failures retain the source path in their diagnostic. A failed source open is
+not treated as a missing source. Host-provided CLR exception text is not used as a user-visible
+diagnostic.
 
 Line-start offsets are snapshotted by `AwkReadResult`. Successful content is borrowed: the host
 keeps it unchanged and alive until the next read begins on the same descriptor or that descriptor
@@ -70,5 +72,6 @@ embedding scenario has a concrete need and tests that pin the host contract.
 
 `IAwkHost` exposes only command execution, descriptor append/open/close/read, and pipe creation.
 Append and command completion use `AwkExitCode`; command result lists are positional and must match
-the submitted command count. Directory mutation, metadata, file-test, copy, and descriptor-duplicate
+the submitted command count. `Awk.ExecuteAsync` also returns `AwkExitCode`, keeping CLR integers out
+of runtime control flow. Directory mutation, metadata, file-test, copy, and descriptor-duplicate
 operations are outside the runtime contract until an implemented awk feature requires them.
