@@ -617,6 +617,24 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
+    public async Task Awk_HostCallLimitIsSharedAcrossInputAndOutput()
+    {
+        var options = CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxHostCalls(2));
+        var compiled = await AwkExecutor.CompileAsync(
+            new MockFileSystem(),
+            BuildInvocation("awk", "{print $0}", "/file.txt"),
+            CancellationToken.None);
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("/file.txt", "one\n");
+
+        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+
+        Assert.Equal(AwkExitCode.FatalError.Value, exitCode);
+        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: host call limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
     public async Task Awk_RegexCaptureLimitFailsBeforeClearingDestinationArray()
     {
         var options = CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxRegexCaptureBytes(2));

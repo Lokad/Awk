@@ -42,7 +42,7 @@ internal sealed class AwkIo
             cancellationToken,
             snapshotEnvironment,
             counters,
-            new AwkRuntimeResourceMonitor(limits, counters));
+            state.Resources);
         _maxOutputFiles = limits.MaxOutputFiles;
         _state = state;
         _descriptorReader = new AwkRecordDescriptorReader(
