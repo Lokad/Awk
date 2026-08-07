@@ -168,15 +168,33 @@ public readonly struct AwkReadResult
 
     /// <summary>
     /// Creates a successful result. Offsets identify each line start after the first and must be
-    /// strictly increasing positions inside <paramref name="content"/>. Offset metadata is copied;
-    /// the content remains borrowed under the lifetime contract of
+    /// strictly increasing positions inside <paramref name="content"/>. A result that permits more
+    /// data must contain at least one byte so callers always make progress. Offset metadata is
+    /// copied; the content remains borrowed under the lifetime contract of
     /// <see cref="IAwkHost.ReadLinesAsync"/>.
     /// </summary>
     public static AwkReadResult FromContent(
         ReadOnlyMemory<byte> content,
         int[] lineStartOffsets,
-        AwkReadCompletion completion) =>
-        new(AwkOperationStatus.Success, content, lineStartOffsets, completion, default);
+        AwkReadCompletion completion)
+    {
+        if (completion is not AwkReadCompletion.MoreData and not AwkReadCompletion.EndOfFile)
+            throw new ArgumentOutOfRangeException(nameof(completion));
+
+        if (content.IsEmpty && completion == AwkReadCompletion.MoreData)
+        {
+            throw new ArgumentException(
+                "A successful read that permits more data must contain at least one byte.",
+                nameof(content));
+        }
+
+        return new AwkReadResult(
+            AwkOperationStatus.Success,
+            content,
+            lineStartOffsets,
+            completion,
+            default);
+    }
 
     /// <summary>Creates a failed read carrying an awk-shaped host error.</summary>
     public static AwkReadResult Failure(AwkOperationError error) =>

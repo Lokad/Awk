@@ -112,6 +112,15 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
     }
 
     [Fact]
+    public void AwkReadResult_RejectsSuccessfulReadsThatCannotMakeProgress()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            AwkReadResult.FromContent(ReadOnlyMemory<byte>.Empty, [], AwkReadCompletion.MoreData));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            AwkReadResult.FromContent("one\n"u8.ToArray(), [], (AwkReadCompletion)42));
+    }
+
+    [Fact]
     public void AwkReadResult_SnapshotsLineOffsets()
     {
         int[] offsets = [4];
