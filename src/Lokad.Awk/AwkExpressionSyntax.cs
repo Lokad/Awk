@@ -74,21 +74,36 @@ internal sealed class AwkExpressionSyntax(
 
     private IReadOnlyList<AwkToken> BuildTokens()
     {
-        var count = OperatorTokens.Count + DelimiterTokens.Count + SeparatorTokens.Count;
-        for (var index = 0; index < Children.Count; index++)
-            count += Children[index].Tokens.Count;
+        var nodes = new Stack<AwkExpressionSyntax>();
+        nodes.Push(this);
+        var count = 0;
+        while (nodes.Count > 0)
+        {
+            var node = nodes.Pop();
+            count = checked(
+                count +
+                node.OperatorTokens.Count +
+                node.DelimiterTokens.Count +
+                node.SeparatorTokens.Count);
+            for (var index = 0; index < node.Children.Count; index++)
+                nodes.Push(node.Children[index]);
+        }
 
         if (count == 0)
             return [];
 
         var result = new AwkToken[count];
         var offset = 0;
-        for (var index = 0; index < Children.Count; index++)
-            offset = CopyTo(Children[index].Tokens, result, offset);
-
-        offset = CopyTo(OperatorTokens, result, offset);
-        offset = CopyTo(DelimiterTokens, result, offset);
-        _ = CopyTo(SeparatorTokens, result, offset);
+        nodes.Push(this);
+        while (nodes.Count > 0)
+        {
+            var node = nodes.Pop();
+            offset = CopyTo(node.OperatorTokens, result, offset);
+            offset = CopyTo(node.DelimiterTokens, result, offset);
+            offset = CopyTo(node.SeparatorTokens, result, offset);
+            for (var index = 0; index < node.Children.Count; index++)
+                nodes.Push(node.Children[index]);
+        }
 
         System.Array.Sort(
             result,

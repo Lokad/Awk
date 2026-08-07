@@ -126,11 +126,22 @@ internal static class AwkTokenNavigation
 
     public static IReadOnlyList<AwkToken> Flatten(IEnumerable<IReadOnlyList<AwkToken>> groups)
     {
-        var tokens = new List<AwkToken>();
+        List<IReadOnlyList<AwkToken>>? nonEmptyGroups = null;
         foreach (var group in groups)
-            tokens.AddRange(group);
+        {
+            if (group.Count == 0)
+                continue;
 
-        return tokens;
+            nonEmptyGroups ??= [];
+            nonEmptyGroups.Add(group);
+        }
+
+        return nonEmptyGroups?.Count switch
+        {
+            null or 0 => [],
+            1 => nonEmptyGroups[0],
+            _ => new CompositeTokenList(nonEmptyGroups)
+        };
     }
 
     public static int FindFirstTopLevel(
@@ -220,6 +231,70 @@ internal static class AwkTokenNavigation
                     currentBraceDepth--;
                 break;
         }
+    }
+
+    private sealed class CompositeTokenList : IReadOnlyList<AwkToken>
+    {
+        private readonly IReadOnlyList<AwkToken>[] _groups;
+
+        public CompositeTokenList(List<IReadOnlyList<AwkToken>> groups)
+        {
+            _groups = groups.ToArray();
+            for (var index = 0; index < _groups.Length; index++)
+                Count = checked(Count + _groups[index].Count);
+        }
+
+        public int Count { get; }
+
+        public AwkToken this[int index]
+        {
+            get
+            {
+                if ((uint)index >= (uint)Count)
+                    throw new ArgumentOutOfRangeException(nameof(index));
+
+                IReadOnlyList<AwkToken> current = this;
+                while (current is CompositeTokenList composite)
+                {
+                    for (var groupIndex = 0; groupIndex < composite._groups.Length; groupIndex++)
+                    {
+                        var group = composite._groups[groupIndex];
+                        if (index < group.Count)
+                        {
+                            current = group;
+                            break;
+                        }
+
+                        index -= group.Count;
+                    }
+                }
+
+                return current[index];
+            }
+        }
+
+        public IEnumerator<AwkToken> GetEnumerator()
+        {
+            var pending = new Stack<IReadOnlyList<AwkToken>>();
+            for (var index = _groups.Length - 1; index >= 0; index--)
+                pending.Push(_groups[index]);
+
+            while (pending.Count > 0)
+            {
+                var group = pending.Pop();
+                if (group is CompositeTokenList composite)
+                {
+                    for (var index = composite._groups.Length - 1; index >= 0; index--)
+                        pending.Push(composite._groups[index]);
+                    continue;
+                }
+
+                for (var index = 0; index < group.Count; index++)
+                    yield return group[index];
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
 }

@@ -6,6 +6,35 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkSyntaxParserTests
 {
     [Fact]
+    public void AwkExpressionSyntax_ProjectsDeepTokensWithLinearAllocation()
+    {
+        _ = ProjectExpressionTokens(CreateNestedExpression(8));
+        var expression = CreateNestedExpression(2_048);
+
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var tokens = ProjectExpressionTokens(expression);
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        Assert.Equal(2_048, tokens.Count);
+        Assert.True(allocatedBytes < 1_000_000, "Allocated bytes: " + allocatedBytes);
+    }
+
+    [Fact]
+    public void AwkTokenNavigation_ComposesDeepTokenListsWithLinearAllocation()
+    {
+        _ = ComposeTokenLists(8).ToArray();
+
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var tokens = ComposeTokenLists(2_048).ToArray();
+        var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        Assert.Equal(2_048, tokens.Length);
+        Assert.Equal(0, tokens[0].Span.Start);
+        Assert.Equal(2_047, tokens[^1].Span.Start);
+        Assert.True(allocatedBytes < 1_000_000, "Allocated bytes: " + allocatedBytes);
+    }
+
+    [Fact]
     public void AwkSyntaxParser_ParsesBeginMainAndEndRulesInOrder()
     {
         var program = AwkSyntaxParser.Parse("BEGIN{print \"start\"} /foo/ {print $0} END{print NR}");
@@ -17,6 +46,40 @@ public sealed class AwkSyntaxParserTests
         Assert.True(program.Rules[0].HasExplicitAction);
         Assert.Single(program.Rules[1].PatternTokens);
         Assert.Equal(AwkTokenKind.Regex, program.Rules[1].PatternTokens[0].Kind);
+    }
+
+    private static AwkExpressionSyntax CreateNestedExpression(int depth)
+    {
+        AwkExpressionSyntax? expression = null;
+        for (var index = depth - 1; index >= 0; index--)
+        {
+            var token = new AwkToken(AwkTokenKind.Number, "1", new AwkTextSpan(index, 1));
+            expression = new AwkExpressionSyntax(
+                AwkExpressionKind.Binary,
+                null,
+                [token],
+                [],
+                [],
+                expression == null ? [] : [expression],
+                new AwkTextSpan(index, depth - index));
+        }
+
+        return expression ?? throw new InvalidOperationException("An expression depth is required.");
+    }
+
+    private static IReadOnlyList<AwkToken> ProjectExpressionTokens(AwkExpressionSyntax expression) =>
+        expression.Tokens;
+
+    private static IReadOnlyList<AwkToken> ComposeTokenLists(int count)
+    {
+        IReadOnlyList<AwkToken> tokens = [];
+        for (var index = count - 1; index >= 0; index--)
+        {
+            var token = new AwkToken(AwkTokenKind.Number, "1", new AwkTextSpan(index, 1));
+            tokens = AwkTokenNavigation.Flatten([[token], tokens]);
+        }
+
+        return tokens;
     }
 
     [Fact]
