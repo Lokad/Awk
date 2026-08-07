@@ -833,7 +833,7 @@ internal sealed class AwkStatementSyntaxParser
         if (AwkStatementSyntaxFacts.HasWholeStatementExpression(kind))
             return ExpressionListFromParsed(ParseExpression(tokens));
 
-        if (AwkStatementSyntaxFacts.IsOptionalValue(kind))
+        if (AwkStatementKindFacts.IsOptionalValue(kind))
             return ExpressionListFromParsed(ParseExpression(AwkTokenNavigation.Slice(tokens, 1, tokens.Count - 1)));
 
         return [];
@@ -863,12 +863,12 @@ internal sealed class AwkStatementSyntaxParser
         IReadOnlyList<AwkExpressionSyntax> expressions,
         AwkSyntaxOptional<AwkGetlineSyntax> getline)
     {
-        if (AwkFrontendClassifier.IsArgumentless(kind))
+        if (AwkStatementValidationFacts.IsArgumentless(kind))
         {
             var trailing = AwkTokenNavigation.FindNextSignificant(tokens, 1);
             return trailing == null
                 ? null
-                : new BoundaryDiagnostic(trailing.Value, AwkFrontendClassifier.ArgumentlessDiagnostic(kind));
+                : new BoundaryDiagnostic(trailing.Value, AwkStatementValidationFacts.ArgumentlessDiagnostic(kind));
         }
 
         if (kind == AwkStatementKind.Delete)
@@ -1033,7 +1033,8 @@ internal sealed class AwkStatementSyntaxParser
     }
 
     private static bool IsCallExpression(AwkExpressionSyntax expression, string name) =>
-        AwkFrontendClassifier.TryGetNamedCallableTarget(expression, name, out _);
+        AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
+        string.Equals(target.Name, name, StringComparison.Ordinal);
 
     private static AwkToken? FirstToken(AwkExpressionSyntax expression) =>
         expression.Tokens.Count == 0 ? null : expression.Tokens[0];

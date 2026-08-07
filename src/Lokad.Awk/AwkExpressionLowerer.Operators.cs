@@ -117,7 +117,7 @@ internal static partial class AwkExpressionLowerer
         var operatorKind = expression.OperatorTokens[0].Kind;
         if (operatorKind == AwkTokenKind.In)
         {
-            if (!AwkFrontendClassifier.TryGetIdentifier(rightSyntax, out var arrayName) ||
+            if (!AwkExpressionSyntaxFacts.TryGetIdentifier(rightSyntax, out var arrayName) ||
                 !TryLowerMembershipIndex(expression.Children[0], scope, out var membershipIndex))
             {
                 return false;

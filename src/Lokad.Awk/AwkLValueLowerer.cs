@@ -34,7 +34,7 @@ internal static class AwkLValueLowerer
         AwkExpressionSyntax expression,
         AwkLoweringScope scope)
     {
-        if (!AwkFrontendClassifier.TryGetAssignableIdentifier(expression, out var identifier))
+        if (!AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(expression, out var identifier))
         {
             return AwkLValueLoweringResult.InvalidTarget(expression, "Invalid lvalue target.");
         }
@@ -51,7 +51,7 @@ internal static class AwkLValueLowerer
         AwkLoweringScope scope)
     {
         if (expression.Children.Count < 2 ||
-            !AwkFrontendClassifier.TryGetAssignableArrayElementTarget(expression, out var target) ||
+            !AwkExpressionSyntaxFacts.TryGetAssignableArrayElementTarget(expression, out var target) ||
             !AwkExpressionLowerer.TryLowerArrayIndex(expression.Children, scope, out var index))
         {
             return AwkLValueLoweringResult.InvalidTarget(expression, "Invalid lvalue target.");
@@ -67,7 +67,7 @@ internal static class AwkLValueLowerer
         if (expression.Children.Count != 1)
             return AwkLValueLoweringResult.InvalidTarget(expression, "Invalid field lvalue target.");
 
-        if (AwkFrontendClassifier.IsFieldCountExpression(expression.Children[0]))
+        if (AwkExpressionSyntaxFacts.IsFieldCountExpression(expression.Children[0]))
         {
             return AwkLValueLoweringResult.Valid(AwkReference.Field(AwkExpression.FieldCount()));
         }

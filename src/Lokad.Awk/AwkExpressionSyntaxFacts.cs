@@ -99,6 +99,20 @@ internal static class AwkExpressionSyntaxFacts
             expression.Children.Count >= 2;
     }
 
+    public static bool IsIncrementOrDecrementExpression(AwkExpressionSyntax expression)
+    {
+        if (expression.Kind is not AwkExpressionKind.Unary and not AwkExpressionKind.Postfix)
+            return false;
+
+        for (var index = 0; index < expression.OperatorTokens.Count; index++)
+        {
+            if (expression.OperatorTokens[index].Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus)
+                return true;
+        }
+
+        return false;
+    }
+
     public static bool TryGetStaticArrayElementName(
         AwkExpressionSyntax expression,
         out AwkIdentifierSyntax target)

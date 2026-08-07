@@ -94,7 +94,7 @@ internal static partial class AwkExpressionLowerer
                 : AwkLValueLowerer.CreateFailureDiagnostic(expression.Children[0], "Invalid assignment target.");
         }
 
-        if (AwkFrontendClassifier.IsIncrementOrDecrementExpression(expression))
+        if (AwkExpressionSyntaxFacts.IsIncrementOrDecrementExpression(expression))
         {
             return expression.Children.Count == 0
                 ? InvalidExpression(expression, "Invalid increment expression.")
@@ -106,14 +106,14 @@ internal static partial class AwkExpressionLowerer
 
         if (expression.Kind == AwkExpressionKind.ArrayElement &&
             expression.TargetExpression is { } targetExpression &&
-            AwkFrontendClassifier.TryGetIdentifier(targetExpression, out var target) &&
+            AwkExpressionSyntaxFacts.TryGetIdentifier(targetExpression, out var target) &&
             AwkIdentifiers.IsReservedName(target.Name))
         {
             return InvalidExpression(targetExpression, "Reserved identifier `" + target.Name + "' cannot be used as an array name.");
         }
 
         if (expression.Kind == AwkExpressionKind.Variable &&
-            AwkFrontendClassifier.TryGetIdentifier(expression, out var identifier) &&
+            AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier) &&
             AwkIdentifiers.IsReservedName(identifier.Name))
         {
             return InvalidExpression(expression, "Reserved identifier `" + identifier.Name + "' cannot be used as a variable.");
@@ -137,7 +137,7 @@ internal static partial class AwkExpressionLowerer
                 return InvalidExpression(failure.Argument, AwkBuiltinCallShape.FormatArgumentRoleFailure(call, failure));
         }
 
-        if (AwkFrontendClassifier.TryGetCallableTarget(expression, out var target) &&
+        if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
             AwkBuiltins.TryGetSpecialSyntax(target.Name, out var specialSyntax) &&
             specialSyntax.Id == AwkBuiltinId.Getline)
         {
@@ -156,7 +156,7 @@ internal static partial class AwkExpressionLowerer
         [NotNullWhen(true)] out AwkExpression? lowered)
     {
         lowered = null;
-        if (!AwkFrontendClassifier.TryGetIdentifier(expression, out var token))
+        if (!AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var token))
             return false;
 
         var identifier = token.Name;
@@ -209,7 +209,7 @@ internal static partial class AwkExpressionLowerer
         if (expression.Children.Count != 1)
             return false;
 
-        if (AwkFrontendClassifier.IsFieldCountExpression(expression.Children[0]))
+        if (AwkExpressionSyntaxFacts.IsFieldCountExpression(expression.Children[0]))
         {
             lowered = AwkExpression.FieldNf();
             return true;
@@ -229,7 +229,7 @@ internal static partial class AwkExpressionLowerer
     {
         lowered = null;
         if (expression.Children.Count < 2 ||
-            !AwkFrontendClassifier.TryGetArrayElementTarget(expression, out var target))
+            !AwkExpressionSyntaxFacts.TryGetArrayElementTarget(expression, out var target))
         {
             return false;
         }

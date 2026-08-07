@@ -64,7 +64,7 @@ internal static class AwkStatementLowerer
             return AwkGetlineLowerer.CreateFailureDiagnostic(syntax);
 
         if (syntax.Kind == AwkStatementKind.Delete &&
-            AwkFrontendClassifier.SingleExpression(syntax).TryGetValue(out var deleteTarget))
+            AwkStatementLoweringShapes.SingleExpression(syntax).TryGetValue(out var deleteTarget))
         {
             return new AwkDiagnostic(
                 deleteTarget.Span,
@@ -74,14 +74,14 @@ internal static class AwkStatementLowerer
 
         if ((AwkStatementLoweringFacts.IsExpressionBackedStatement(syntax.Kind) ||
                 syntax.Kind is AwkStatementKind.Close or AwkStatementKind.Fflush) &&
-            AwkFrontendClassifier.SingleExpression(syntax).TryGetValue(out var expression))
+            AwkStatementLoweringShapes.SingleExpression(syntax).TryGetValue(out var expression))
         {
             return AwkExpressionLowerer.CreateFailureDiagnostic(expression);
         }
 
         if ((syntax.Kind is AwkStatementKind.Print or AwkStatementKind.Printf) &&
-            AwkFrontendClassifier.Output(syntax).TryGetValue(out var output) &&
-            AwkFrontendClassifier.RequiredExpression(output.Output).TryGetValue(out var outputExpression))
+            AwkStatementLoweringShapes.Output(syntax).TryGetValue(out var output) &&
+            AwkStatementLoweringShapes.RequiredExpression(output.Output).TryGetValue(out var outputExpression))
         {
             return AwkExpressionLowerer.CreateFailureDiagnostic(outputExpression);
         }
@@ -106,7 +106,7 @@ internal static class AwkStatementLowerer
         if (AwkStatementLoweringFacts.TryCreateArgumentlessStatement(syntax.Kind, out var argumentlessStatement))
             return TryLowerArgumentlessStatement(syntax, argumentlessStatement, out statement);
 
-        if (AwkStatementLoweringFacts.IsOptionalValue(syntax.Kind))
+        if (AwkStatementKindFacts.IsOptionalValue(syntax.Kind))
             return TryLowerOptionalValueStatement(syntax, scope, out statement);
 
         if (AwkStatementLoweringFacts.IsExpressionBackedStatement(syntax.Kind))
@@ -140,7 +140,7 @@ internal static class AwkStatementLowerer
             return TryLowerInputPipeGetlineStatement(inputPipePayload.InputPipeGetline, scope, out statement);
         }
 
-        if (!AwkFrontendClassifier.SingleExpression(syntax).TryGetValue(out var expressionSyntax) ||
+        if (!AwkStatementLoweringShapes.SingleExpression(syntax).TryGetValue(out var expressionSyntax) ||
             !AwkExpressionLowerer.TryLower(expressionSyntax, scope, out var expression))
         {
             return false;
@@ -162,7 +162,7 @@ internal static class AwkStatementLowerer
             return true;
         }
 
-        if (!AwkFrontendClassifier.RequiredExpression(syntax.Command).TryGetValue(out var commandSyntax) ||
+        if (!AwkStatementLoweringShapes.RequiredExpression(syntax.Command).TryGetValue(out var commandSyntax) ||
             !AwkExpressionLowerer.TryLower(commandSyntax, scope, out var command))
         {
             return false;
@@ -171,7 +171,7 @@ internal static class AwkStatementLowerer
         var target = AwkGetlineTarget.CurrentRecord;
         if (!syntax.Target.IsEmpty)
         {
-            if (!AwkFrontendClassifier.RequiredExpression(syntax.Target).TryGetValue(out var targetSyntax))
+            if (!AwkStatementLoweringShapes.RequiredExpression(syntax.Target).TryGetValue(out var targetSyntax))
                 return false;
 
             var targetResult = AwkLValueLowerer.Lower(targetSyntax, scope);
@@ -191,7 +191,7 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.Output(syntax).TryGetValue(out var output) ||
+        if (!AwkStatementLoweringShapes.Output(syntax).TryGetValue(out var output) ||
             !TryLowerOutputRedirection(output.Redirection, scope, out var redirection))
         {
             return false;
@@ -204,7 +204,7 @@ internal static class AwkStatementLowerer
             return true;
         }
 
-        if (!AwkFrontendClassifier.RequiredExpression(output.Output).TryGetValue(out var outputExpression) ||
+        if (!AwkStatementLoweringShapes.RequiredExpression(output.Output).TryGetValue(out var outputExpression) ||
             !TryLowerExpressionList(outputExpression, scope, out var expressions))
         {
             return false;
@@ -224,9 +224,9 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.Output(syntax).TryGetValue(out var output) ||
+        if (!AwkStatementLoweringShapes.Output(syntax).TryGetValue(out var output) ||
             !TryLowerOutputRedirection(output.Redirection, scope, out var redirection) ||
-            !AwkFrontendClassifier.RequiredExpression(output.Output).TryGetValue(out var outputExpression) ||
+            !AwkStatementLoweringShapes.RequiredExpression(output.Output).TryGetValue(out var outputExpression) ||
             !TryLowerExpressionList(outputExpression, scope, out var expressions) ||
             expressions.Count == 0)
         {
@@ -247,12 +247,12 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.SingleExpression(syntax).TryGetValue(out var target))
+        if (!AwkStatementLoweringShapes.SingleExpression(syntax).TryGetValue(out var target))
         {
             return false;
         }
 
-        if (AwkFrontendClassifier.TryGetAssignableIdentifier(target, out var arrayName))
+        if (AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(target, out var arrayName))
         {
             statement = AwkStatement.DeleteArray(new AwkArrayName(arrayName.Identifier));
             return true;
@@ -260,7 +260,7 @@ internal static class AwkStatementLowerer
 
         if (target.Kind != AwkExpressionKind.ArrayElement ||
             target.Children.Count < 2 ||
-            !AwkFrontendClassifier.TryGetAssignableArrayElementTarget(target, out var targetArrayName) ||
+            !AwkExpressionSyntaxFacts.TryGetAssignableArrayElementTarget(target, out var targetArrayName) ||
             !AwkExpressionLowerer.TryLowerArrayIndex(target.Children, scope, out var index))
         {
             return false;
@@ -276,7 +276,7 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.Getline(syntax).TryGetValue(out var getline))
+        if (!AwkStatementLoweringShapes.Getline(syntax).TryGetValue(out var getline))
             return false;
 
         if (!AwkGetlineLowerer.TryResolveStatementParts(getline, out var parts) ||
@@ -295,7 +295,7 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.TryGetWholeStatementCall(syntax, AwkBuiltinId.Close, out var call) ||
+        if (!AwkStatementLoweringShapes.TryGetWholeStatementCall(syntax, AwkBuiltinId.Close, out var call) ||
             call.ArgumentCount < 1 ||
             !call.GetArgument(0).TryGetValue(out var targetSyntax) ||
             !AwkExpressionLowerer.TryLower(targetSyntax, scope, out var target))
@@ -313,7 +313,7 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.TryGetWholeStatementCall(syntax, AwkBuiltinId.Fflush, out var call))
+        if (!AwkStatementLoweringShapes.TryGetWholeStatementCall(syntax, AwkBuiltinId.Fflush, out var call))
         {
             return false;
         }
@@ -369,7 +369,7 @@ internal static class AwkStatementLowerer
                 out statement);
         }
 
-        if (!AwkFrontendClassifier.SingleExpression(syntax).TryGetValue(out var valueSyntax) ||
+        if (!AwkStatementLoweringShapes.SingleExpression(syntax).TryGetValue(out var valueSyntax) ||
             !AwkExpressionLowerer.TryLower(valueSyntax, scope, out var value))
         {
             return false;
@@ -387,7 +387,7 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.Control(syntax).TryGetValue(out var control))
+        if (!AwkStatementLoweringShapes.Control(syntax).TryGetValue(out var control))
             return false;
 
         if (control.HasDanglingElseBody)
@@ -410,9 +410,9 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.Control(syntax).TryGetValue(out var outer) ||
+        if (!AwkStatementLoweringShapes.Control(syntax).TryGetValue(out var outer) ||
             syntax.BodyStatements.Count != 1 ||
-            !AwkFrontendClassifier.Control(syntax.BodyStatements[0]).TryGetValue(out var inner))
+            !AwkStatementLoweringShapes.Control(syntax.BodyStatements[0]).TryGetValue(out var inner))
         {
             return false;
         }
@@ -439,7 +439,7 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.Control(syntax).TryGetValue(out var control) ||
+        if (!AwkStatementLoweringShapes.Control(syntax).TryGetValue(out var control) ||
             !TryLowerConditionSlot(control.Header, scope, out var condition) ||
             !TryLowerList(control.BodyStatements, scope, out var body))
         {
@@ -456,7 +456,7 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.Control(syntax).TryGetValue(out var control) ||
+        if (!AwkStatementLoweringShapes.Control(syntax).TryGetValue(out var control) ||
             !TryLowerConditionSlot(control.Header, scope, out var condition) ||
             !TryLowerList(control.BodyStatements, scope, out var body))
         {
@@ -473,7 +473,7 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.For(syntax).TryGetValue(out var forShape) ||
+        if (!AwkStatementLoweringShapes.For(syntax).TryGetValue(out var forShape) ||
             !TryLowerList(forShape.BodyStatements, scope, out var body))
         {
             return false;
@@ -491,8 +491,8 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkStatement? statement)
     {
         statement = null;
-        if (!AwkFrontendClassifier.Switch(syntax).TryGetValue(out var switchShape) ||
-            !AwkFrontendClassifier.RequiredExpression(switchShape.Header).TryGetValue(out var switchExpression) ||
+        if (!AwkStatementLoweringShapes.Switch(syntax).TryGetValue(out var switchShape) ||
+            !AwkStatementLoweringShapes.RequiredExpression(switchShape.Header).TryGetValue(out var switchExpression) ||
             !AwkExpressionLowerer.TryLower(switchExpression, scope, out var value))
         {
             return false;
@@ -613,7 +613,7 @@ internal static class AwkStatementLowerer
         out AwkCondition condition)
     {
         condition = default;
-        if (!AwkFrontendClassifier.RequiredExpression(slot).TryGetValue(out var expression) ||
+        if (!AwkStatementLoweringShapes.RequiredExpression(slot).TryGetValue(out var expression) ||
             !AwkExpressionLowerer.TryLower(expression, scope, out var lowered))
         {
             return false;
@@ -635,7 +635,7 @@ internal static class AwkStatementLowerer
         if (!syntax.TryGetValue(out var redirectionSyntax))
             return true;
 
-        if (!AwkFrontendClassifier.RequiredExpression(redirectionSyntax.Target).TryGetValue(out var targetSyntax) ||
+        if (!AwkStatementLoweringShapes.RequiredExpression(redirectionSyntax.Target).TryGetValue(out var targetSyntax) ||
             !AwkExpressionLowerer.TryLower(targetSyntax, scope, out var targetExpression))
         {
             return false;
@@ -690,15 +690,15 @@ internal static class AwkStatementLowerer
         [NotNullWhen(true)] out AwkExpression? expression)
     {
         expression = null;
-        return AwkFrontendClassifier.RequiredExpression(slot).TryGetValue(out var syntax) &&
+        return AwkStatementLoweringShapes.RequiredExpression(slot).TryGetValue(out var syntax) &&
             AwkExpressionLowerer.TryLower(syntax, scope, out expression);
     }
 
     private static bool TryGetIdentifierExpression(AwkExpressionSlotSyntax slot, out AwkIdentifier identifier)
     {
         identifier = default;
-        if (!AwkFrontendClassifier.RequiredExpression(slot).TryGetValue(out var expression) ||
-            !AwkFrontendClassifier.TryGetIdentifier(expression, out var token))
+        if (!AwkStatementLoweringShapes.RequiredExpression(slot).TryGetValue(out var expression) ||
+            !AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var token))
         {
             return false;
         }

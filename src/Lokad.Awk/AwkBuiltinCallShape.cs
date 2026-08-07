@@ -19,7 +19,7 @@ internal readonly record struct AwkBuiltinCallSyntax(
     {
         identifier = default;
         if (!GetArgument(argumentIndex).TryGetValue(out var argument) ||
-            !AwkFrontendClassifier.TryGetAssignableIdentifier(argument, out var syntax))
+            !AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(argument, out var syntax))
         {
             return false;
         }
@@ -67,7 +67,7 @@ internal static class AwkBuiltinCallShape
         out AwkBuiltinCallSyntax call)
     {
         call = default;
-        if (!AwkFrontendClassifier.TryGetCallableTarget(expression, out var target) ||
+        if (!AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) ||
             !string.Equals(target.Name, definition.Name, StringComparison.Ordinal))
         {
             return false;
@@ -82,7 +82,7 @@ internal static class AwkBuiltinCallShape
         out AwkBuiltinCallSyntax call)
     {
         call = default;
-        if (!AwkFrontendClassifier.TryGetCallableTarget(expression, out var target) ||
+        if (!AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) ||
             target.IsSpecialSyntax ||
             !AwkBuiltins.TryGetCallable(target.Name, out var definition))
         {
@@ -163,10 +163,10 @@ internal static class AwkBuiltinCallShape
         role switch
         {
             AwkBuiltinArgumentRole.ArrayName => IsArrayName(argument),
-            AwkBuiltinArgumentRole.LValue => AwkFrontendClassifier.IsValidMutationTarget(argument),
+            AwkBuiltinArgumentRole.LValue => AwkExpressionSyntaxFacts.IsValidMutationTarget(argument),
             _ => true
         };
 
     private static bool IsArrayName(AwkExpressionSyntax argument) =>
-        AwkFrontendClassifier.TryGetAssignableIdentifier(argument, out _);
+        AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(argument, out _);
 }

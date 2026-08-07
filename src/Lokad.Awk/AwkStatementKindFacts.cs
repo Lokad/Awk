@@ -10,6 +10,12 @@ internal enum AwkControlFlowRequirement
     MainOrBeginFileInput
 }
 
+internal static class AwkStatementKindFacts
+{
+    public static bool IsOptionalValue(AwkStatementKind kind) =>
+        kind is AwkStatementKind.Return or AwkStatementKind.Exit;
+}
+
 internal static class AwkStatementSyntaxFacts
 {
     public static bool TryResolveIdentifier(string name, out AwkStatementKind kind)
@@ -23,9 +29,6 @@ internal static class AwkStatementSyntaxFacts
 
     public static bool HasWholeStatementExpression(AwkStatementKind kind) =>
         AwkBuiltins.TryGetStatementDefinition(kind, out _);
-
-    public static bool IsOptionalValue(AwkStatementKind kind) =>
-        kind is AwkStatementKind.Return or AwkStatementKind.Exit;
 
     public static bool RequiresCallBoundary(AwkStatementKind kind) =>
         AwkBuiltins.TryGetStatementDefinition(kind, out var definition) &&
@@ -132,9 +135,6 @@ internal static class AwkStatementLoweringFacts
         AwkBuiltins.TryGetStatementDefinition(kind, out var definition) &&
         definition.Kind == AwkCallableKind.SpecialForm;
 
-    public static bool IsOptionalValue(AwkStatementKind kind) =>
-        kind is AwkStatementKind.Return or AwkStatementKind.Exit;
-
     public static bool TryCreateArgumentlessStatement(AwkStatementKind kind, out AwkStatement statement)
     {
         statement = kind switch
@@ -159,6 +159,6 @@ internal static class AwkStatementLoweringFacts
             AwkStatementKind.Exit => AwkStatement.Exit(value),
             _ => AwkStatement.NoOp()
         };
-        return IsOptionalValue(kind);
+        return AwkStatementKindFacts.IsOptionalValue(kind);
     }
 }

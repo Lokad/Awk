@@ -109,7 +109,7 @@ internal static class AwkSymbolCollector
     {
         if (expression.Kind == AwkExpressionKind.Variable)
         {
-            if (AwkFrontendClassifier.TryGetIdentifier(expression, out var identifier))
+            if (AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier))
                 AddVariableReference(identifier, symbols, AwkSymbolReferenceKind.Variable);
 
             return;
@@ -142,7 +142,7 @@ internal static class AwkSymbolCollector
         List<AwkSymbolReference> symbols,
         ISet<AwkIdentifier> functionNames)
     {
-        if (AwkFrontendClassifier.TryGetArrayElementTarget(expression, out var target))
+        if (AwkExpressionSyntaxFacts.TryGetArrayElementTarget(expression, out var target))
         {
             AddVariableReference(target, symbols, AwkSymbolReferenceKind.Array);
             CollectChildren(expression, symbols, functionNames, 1);
@@ -157,7 +157,7 @@ internal static class AwkSymbolCollector
         List<AwkSymbolReference> symbols,
         ISet<AwkIdentifier> functionNames)
     {
-        if (AwkFrontendClassifier.TryGetCallableTarget(expression, out var target))
+        if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target))
         {
             if (target.IsSpecialSyntax)
             {
@@ -165,7 +165,7 @@ internal static class AwkSymbolCollector
                 return;
             }
 
-            var kind = AwkFrontendClassifier.ClassifyCallableReference(target, functionNames);
+            var kind = ClassifyCallableReference(target, functionNames);
             symbols.Add(new AwkNamedSymbolReference(target.Identifier, kind, target.Span));
             CollectChildren(expression, symbols, functionNames, 1);
             return;
@@ -193,8 +193,34 @@ internal static class AwkSymbolCollector
     {
         symbols.Add(new AwkNamedSymbolReference(
             identifier.Identifier,
-            AwkFrontendClassifier.ClassifyVariableReference(identifier, ordinaryKind),
+            ClassifyVariableReference(identifier, ordinaryKind),
             identifier.Span));
+    }
+
+    private static AwkSymbolReferenceKind ClassifyVariableReference(
+        AwkIdentifierSyntax identifier,
+        AwkSymbolReferenceKind ordinaryKind)
+    {
+        if (AwkSpecialVariables.TryGet(identifier.Name, out var definition))
+        {
+            return definition is AwkSpecialArrayVariableDefinition
+                ? AwkSymbolReferenceKind.SpecialArray
+                : AwkSymbolReferenceKind.SpecialVariable;
+        }
+
+        return ordinaryKind;
+    }
+
+    private static AwkSymbolReferenceKind ClassifyCallableReference(
+        AwkCallableTargetSyntax target,
+        ISet<AwkIdentifier> functionNames)
+    {
+        if (AwkBuiltins.IsKnownFunctionOrSpecialForm(target.Name))
+            return AwkSymbolReferenceKind.BuiltinFunction;
+
+        return functionNames.Contains(target.Identifier)
+            ? AwkSymbolReferenceKind.UserFunction
+            : AwkSymbolReferenceKind.UnknownFunction;
     }
 }
 

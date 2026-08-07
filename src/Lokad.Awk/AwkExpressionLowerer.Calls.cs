@@ -13,7 +13,7 @@ internal static partial class AwkExpressionLowerer
     {
         lowered = null;
         if (expression.Children.Count == 0 ||
-            !AwkFrontendClassifier.TryGetCallableTarget(expression, out var target))
+            !AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target))
         {
             return false;
         }
@@ -183,7 +183,7 @@ internal static partial class AwkExpressionLowerer
         if (!call.GetArgument(0).TryGetValue(out var argument))
             return false;
 
-        if (AwkFrontendClassifier.TryGetIdentifier(argument, out var arrayName))
+        if (AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out var arrayName))
         {
             var variableName = new AwkVariableName(arrayName.Identifier);
             lowered = AwkExpression.Length(
@@ -210,7 +210,7 @@ internal static partial class AwkExpressionLowerer
         if (!call.GetArgument(0).TryGetValue(out var argument))
             return false;
 
-        if (AwkFrontendClassifier.TryGetIdentifier(argument, out var variableName))
+        if (AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out var variableName))
         {
             lowered = AwkExpression.IsArray(new AwkArrayName(variableName.Identifier));
             return true;
@@ -232,7 +232,7 @@ internal static partial class AwkExpressionLowerer
         if (!call.GetArgument(0).TryGetValue(out var argument))
             return false;
 
-        if (AwkFrontendClassifier.TryGetIdentifier(argument, out var variableName))
+        if (AwkExpressionSyntaxFacts.TryGetIdentifier(argument, out var variableName))
         {
             var name = new AwkVariableName(variableName.Identifier);
             lowered = AwkExpression.TypeOf(
@@ -243,7 +243,7 @@ internal static partial class AwkExpressionLowerer
             return true;
         }
 
-        if (AwkFrontendClassifier.TryGetArrayElementTarget(argument, out var arrayName) &&
+        if (AwkExpressionSyntaxFacts.TryGetArrayElementTarget(argument, out var arrayName) &&
             TryLowerArrayIndex(argument.Children, scope, out var arrayIndex))
         {
             lowered = AwkExpression.TypeOfArrayElement(new AwkArrayName(arrayName.Identifier), arrayIndex);

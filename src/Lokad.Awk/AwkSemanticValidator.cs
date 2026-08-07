@@ -176,7 +176,7 @@ internal static class AwkSemanticValidator
         if (HasUnexpectedArgument(statement))
             return;
 
-        if (AwkFrontendClassifier.TryGetControlFlowRequirement(
+        if (AwkStatementValidationFacts.TryGetControlFlowRequirement(
                 statement.Kind,
                 out var requirement,
                 out var diagnostic) &&
@@ -201,7 +201,7 @@ internal static class AwkSemanticValidator
         AwkStatementSyntax statement,
         List<AwkDiagnostic> diagnostics)
     {
-        if (AwkFrontendClassifier.IsArgumentless(statement.Kind))
+        if (AwkStatementValidationFacts.IsArgumentless(statement.Kind))
             AddUnexpectedArgumentDiagnostic(statement, diagnostics);
     }
 
@@ -214,19 +214,19 @@ internal static class AwkSemanticValidator
 
         diagnostics.Add(new AwkDiagnostic(
             statement.Span,
-            AwkFrontendClassifier.ArgumentlessDiagnostic(statement.Kind),
+            AwkStatementValidationFacts.ArgumentlessDiagnostic(statement.Kind),
             AwkDiagnosticId.BindInvalidProgram));
     }
 
     private static bool HasUnexpectedArgument(AwkStatementSyntax statement) =>
-        AwkFrontendClassifier.IsArgumentless(statement.Kind) &&
+        AwkStatementValidationFacts.IsArgumentless(statement.Kind) &&
         statement.Tokens.Count > 1;
 
     private static void ValidateControlStatementShape(
         AwkStatementSyntax statement,
         List<AwkDiagnostic> diagnostics)
     {
-        if (AwkFrontendClassifier.TryGetMissingExpressionDiagnostic(statement.Kind, out var message))
+        if (AwkStatementValidationFacts.TryGetMissingExpressionDiagnostic(statement.Kind, out var message))
             AddMissingExpressionDiagnostic(statement, message, diagnostics);
     }
 
@@ -283,7 +283,7 @@ internal static class AwkSemanticValidator
                 ValidateSpecialArrayElementMutation(expression.Children[0], diagnostics);
             }
         }
-        else if (AwkFrontendClassifier.IsIncrementOrDecrementExpression(expression) &&
+        else if (AwkExpressionSyntaxFacts.IsIncrementOrDecrementExpression(expression) &&
             (expression.Children.Count == 0 || !IsValidMutationTarget(expression.Children[0])))
         {
             diagnostics.Add(new AwkDiagnostic(
@@ -291,7 +291,7 @@ internal static class AwkSemanticValidator
                 "Invalid increment target.",
                 AwkDiagnosticId.BindInvalidProgram));
         }
-        else if (AwkFrontendClassifier.IsIncrementOrDecrementExpression(expression))
+        else if (AwkExpressionSyntaxFacts.IsIncrementOrDecrementExpression(expression))
         {
             ValidateSpecialArrayElementMutation(expression.Children[0], diagnostics);
         }
@@ -312,7 +312,10 @@ internal static class AwkSemanticValidator
         AwkExpressionSyntax expression,
         List<AwkDiagnostic> diagnostics)
     {
-        if (!AwkFrontendClassifier.TryGetBareCallableVariable(expression, out var identifier))
+        if (expression.Kind != AwkExpressionKind.Variable ||
+            !AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier) ||
+            AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length) ||
+            !AwkBuiltins.IsKnownFunctionOrSpecialForm(identifier.Name))
         {
             return;
         }
@@ -369,7 +372,7 @@ internal static class AwkSemanticValidator
     }
 
     private static bool IsValidMutationTarget(AwkExpressionSyntax expression) =>
-        AwkFrontendClassifier.IsValidMutationTarget(expression);
+        AwkExpressionSyntaxFacts.IsValidMutationTarget(expression);
 
     private static void ValidateDeleteStatement(
         AwkStatementSyntax statement,
@@ -401,7 +404,7 @@ internal static class AwkSemanticValidator
             target = target.Children[0];
         }
 
-        if (AwkFrontendClassifier.TryGetStaticArrayTargetName(target, out _))
+        if (AwkExpressionSyntaxFacts.TryGetStaticArrayTargetName(target, out _))
         {
             ValidateSpecialArrayDelete(target, diagnostics);
             return;
@@ -458,7 +461,7 @@ internal static class AwkSemanticValidator
 
     private static bool TryGetStaticArrayElementName(AwkExpressionSyntax expression, out string name)
     {
-        if (AwkFrontendClassifier.TryGetStaticArrayElementName(expression, out var target))
+        if (AwkExpressionSyntaxFacts.TryGetStaticArrayElementName(expression, out var target))
         {
             name = target.Name;
             return true;
@@ -470,7 +473,7 @@ internal static class AwkSemanticValidator
 
     private static bool TryGetStaticArrayTargetName(AwkExpressionSyntax expression, out string name)
     {
-        if (AwkFrontendClassifier.TryGetStaticArrayTargetName(expression, out var target))
+        if (AwkExpressionSyntaxFacts.TryGetStaticArrayTargetName(expression, out var target))
         {
             name = target.Name;
             return true;
@@ -516,9 +519,9 @@ internal static class AwkSemanticValidator
             new(isInsideFunction: false, kind, loopDepth: 0, switchDepth: 0);
 
         public AwkStatementValidationContext EnterBody(AwkStatementKind kind) =>
-            AwkFrontendClassifier.IsLoopBodyKind(kind)
+            AwkStatementValidationFacts.IsLoopBodyKind(kind)
                 ? new(IsInsideFunction, _ruleKind, _loopDepth + 1, _switchDepth)
-                : AwkFrontendClassifier.IsSwitchBodyKind(kind)
+                : AwkStatementValidationFacts.IsSwitchBodyKind(kind)
                     ? EnterSwitch()
                     : this;
 
