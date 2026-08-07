@@ -4,12 +4,7 @@ namespace Lokad.Awk;
 
 internal static class AwkRecordLine
 {
-    public static AwkRecordLineResult ReadUtf8DefaultNewline(ReadOnlyMemory<byte> rawLine) =>
-        ReadUtf8DefaultNewline(rawLine, AwkRuntimeCounters.Disabled);
-
-    public static AwkRecordLineResult ReadUtf8DefaultNewline(
-        ReadOnlyMemory<byte> rawLine,
-        AwkRuntimeCounters counters)
+    public static AwkRecordLineResult SplitDefaultNewline(ReadOnlyMemory<byte> rawLine)
     {
         var span = rawLine.Span;
         var end = span.Length;
@@ -22,13 +17,15 @@ internal static class AwkRecordLine
                 end--;
         }
 
-        return new AwkRecordLineResult(AwkText.FromHostBytes(rawLine[..end], counters), terminator);
+        return new AwkRecordLineResult(rawLine[..end], terminator);
     }
 }
 
-internal readonly struct AwkRecordLineResult(AwkText record, AwkRecordTerminator terminator)
+internal readonly struct AwkRecordLineResult(
+    ReadOnlyMemory<byte> recordBytes,
+    AwkRecordTerminator terminator)
 {
-    public AwkText Record { get; } = record;
+    public ReadOnlyMemory<byte> RecordBytes { get; } = recordBytes;
 
     public AwkRecordTerminator Terminator { get; } = terminator;
 }

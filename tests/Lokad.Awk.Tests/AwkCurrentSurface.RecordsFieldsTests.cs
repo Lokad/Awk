@@ -12,29 +12,29 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     private const string InvalidUtf8Diagnostic = "awk: invalid UTF-8 input\n";
 
     [Fact]
-    public void AwkRecordLine_DecodesUtf8DefaultNewlineRecords()
+    public void AwkRecordLine_SplitsUtf8DefaultNewlineRecords()
     {
-        var line = AwkRecordLine.ReadUtf8DefaultNewline("caf\u00e9\n"u8.ToArray());
+        var line = AwkRecordLine.SplitDefaultNewline("caf\u00e9\n"u8.ToArray());
 
-        Assert.Equal("caf\u00e9", line.Record.AsString());
+        Assert.Equal("caf\u00e9", AwkUtf8Codec.Decode(line.RecordBytes));
         Assert.Equal("\n", line.Terminator.ByteText.AsString());
     }
 
     [Fact]
     public void AwkRecordLine_DecodesDefaultNewlineCrLfAsSingleRecordTerminator()
     {
-        var line = AwkRecordLine.ReadUtf8DefaultNewline("alpha\r\n"u8.ToArray());
+        var line = AwkRecordLine.SplitDefaultNewline("alpha\r\n"u8.ToArray());
 
-        Assert.Equal("alpha", line.Record.AsString());
+        Assert.Equal("alpha", AwkUtf8Codec.Decode(line.RecordBytes));
         Assert.Equal("\n", line.Terminator.ByteText.AsString());
     }
 
     [Fact]
     public void AwkRecordLine_DecodesUnterminatedUtf8Record()
     {
-        var line = AwkRecordLine.ReadUtf8DefaultNewline("caf\u00e9"u8.ToArray());
+        var line = AwkRecordLine.SplitDefaultNewline("caf\u00e9"u8.ToArray());
 
-        Assert.Equal("caf\u00e9", line.Record.AsString());
+        Assert.Equal("caf\u00e9", AwkUtf8Codec.Decode(line.RecordBytes));
         Assert.Equal(string.Empty, line.Terminator.ByteText.AsString());
     }
 

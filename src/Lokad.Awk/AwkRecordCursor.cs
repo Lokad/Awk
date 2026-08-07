@@ -78,9 +78,15 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         if (!await reader.TryBufferLineAsync().ConfigureAwait(false))
             return AwkInputRecordResult.EndOfFile;
 
-        var line = AwkRecordLine.ReadUtf8DefaultNewline(reader.ReadLine(), _state.Counters);
+        var line = AwkRecordLine.SplitDefaultNewline(reader.ReadLine());
+        _state.Resources.ThrowIfRecordBytesExceeded(line.RecordBytes.Length);
+        _state.Resources.ThrowIfValueBytesExceeded(line.RecordBytes.Length);
+        var record = AwkText.CopyHostBytes(
+            line.RecordBytes.Span,
+            _state.Counters,
+            _state.MemoryGovernor);
         return AwkInputRecordResult.Record(
-            line.Record,
+            record,
             line.Terminator,
             AwkRecordFieldSplittingMode.Ordinary);
     }

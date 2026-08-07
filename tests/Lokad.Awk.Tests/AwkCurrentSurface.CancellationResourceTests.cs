@@ -498,19 +498,34 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public async Task Awk_RecordByteLimitFailsBeforeProcessingHugeRecord()
     {
-        var options = CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxRecordBytes(4));
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxRecordBytes(4);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "{print NR; print $0}", "/file.txt"),
             CancellationToken.None);
+
+        var baselineCounters = AwkRuntimeCounters.CreateEnabled();
+        var baselineFileSystem = new MockFileSystem();
+        baselineFileSystem.AddFile("/file.txt", string.Empty);
+        var baselineExitCode = await compiled.ExecuteAsync(
+            baselineFileSystem,
+            CancellationToken.None,
+            CreateOptions(limits, baselineCounters));
+
+        var counters = AwkRuntimeCounters.CreateEnabled();
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/file.txt", "abcde\n");
 
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+        var exitCode = await compiled.ExecuteAsync(
+            fileSystem,
+            CancellationToken.None,
+            CreateOptions(limits, counters));
 
+        Assert.Equal(AwkExitCode.Success, baselineExitCode);
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(baselineCounters.AwkTextPayloadBytes, counters.AwkTextPayloadBytes);
     }
 
     [Fact]
@@ -1323,11 +1338,16 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     private static AwkRuntimeOptions CreateOptions(AwkRuntimeLimits limits) =>
+        CreateOptions(limits, AwkRuntimeCounters.Disabled);
+
+    private static AwkRuntimeOptions CreateOptions(
+        AwkRuntimeLimits limits,
+        AwkRuntimeCounters counters) =>
         new(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
-            AwkRuntimeCounters.Disabled,
+            counters,
             limits,
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
