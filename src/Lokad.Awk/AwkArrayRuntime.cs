@@ -88,11 +88,6 @@ internal sealed class AwkArrayRuntime
         _variables.DeleteArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
     }
 
-    public void SetValues(AwkArrayName name, IReadOnlyList<string> values)
-    {
-        _variables.SetArrayValues(_variableRuntime.ResolveOrPromoteArrayName(name), values);
-    }
-
     public void SetValues(AwkArrayName name, IReadOnlyList<AwkText> values)
     {
         _variables.SetArrayValues(_variableRuntime.ResolveOrPromoteArrayName(name), values);

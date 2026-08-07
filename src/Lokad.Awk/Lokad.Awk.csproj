@@ -12,7 +12,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageReleaseNotes>0.1.0 isolates Lokad.Awk as a standalone package.</PackageReleaseNotes>
+    <PackageReleaseNotes>See CHANGELOG.md for release details.</PackageReleaseNotes>
     <PackageTags>awk;scripting;text-processing;embedding;sandbox</PackageTags>
     <PackageProjectUrl>https://github.com/Lokad/Awk</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Lokad/Awk.git</RepositoryUrl>

@@ -35,29 +35,23 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, exitCode);
         Assert.Equal("first\nsecond\nthird\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.RegexMatches > 0);
-        Assert.Equal(0, counters.RegexRecordSeparatorFallbacks);
+        Assert.True(counters.RecordSeparatorResolutions > 0);
     }
 
     [Theory]
-    [InlineData("BEGIN{FS=\"[,;]\"} {print NF}", "a,b;c\n", "3\n", nameof(AwkRuntimeCounters.RegexFieldSeparatorFallbacks))]
-    [InlineData("BEGIN{FIELDWIDTHS=\"2 3\"} {print NF}", "abcdef\n", "2\n", nameof(AwkRuntimeCounters.FieldWidthFallbacks))]
-    [InlineData("BEGIN{FPAT=\"[A-Z]+|[0-9]+\"} {print NF}", "A-12-B\n", "3\n", nameof(AwkRuntimeCounters.FieldPatternFallbacks))]
+    [InlineData("BEGIN{FS=\"[,;]\"} {print NF}", "a,b;c\n", "3\n")]
+    [InlineData("BEGIN{FIELDWIDTHS=\"2 3\"} {print NF}", "abcdef\n", "2\n")]
+    [InlineData("BEGIN{FPAT=\"[A-Z]+|[0-9]+\"} {print NF}", "A-12-B\n", "3\n")]
     public async Task Awk_BenchmarkCountersCoverFieldSplittingModes(
         string program,
         string input,
-        string expectedOutput,
-        string counterName)
+        string expectedOutput)
     {
         var (exitCode, fileSystem, counters) = await RunAsync([program], input);
 
         Assert.Equal(0, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        if (counterName == nameof(AwkRuntimeCounters.FieldWidthFallbacks))
-            Assert.Equal(0, counters.FieldWidthFallbacks);
-        else if (counterName == nameof(AwkRuntimeCounters.RegexFieldSeparatorFallbacks))
-            Assert.Equal(0, counters.RegexFieldSeparatorFallbacks);
-        else
-            Assert.Equal(0, counters.FieldPatternFallbacks);
+        Assert.True(counters.FieldSplits > 0);
     }
 
     [Fact]

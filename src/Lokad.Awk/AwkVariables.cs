@@ -294,13 +294,6 @@ internal sealed class AwkVariables
             _memoryGovernor.ReleaseCommitted(EstimateElementBytes(index, slot));
     }
 
-    public void SetArrayValues(AwkArrayName name, IReadOnlyList<string> values)
-    {
-        AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
-        ThrowIfArrayReplacementWouldExceedLimit(values.Count);
-        ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, AwkVariableSlot.FromText));
-    }
-
     public void SetArrayValues(AwkArrayName name, IReadOnlyList<AwkText> values)
     {
         AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
@@ -431,13 +424,6 @@ internal sealed class AwkVariables
         var writeIndex = 0;
         foreach (var key in slots.Keys)
             destination[writeIndex++] = key;
-    }
-
-    public bool TryGetArrayString(AwkArrayName name, AwkArrayKey index, out string value)
-    {
-        var result = TryGetArrayByteText(name, index, out var text);
-        value = text.AsString(_counters);
-        return result;
     }
 
     public bool TryGetArrayByteText(AwkArrayName name, AwkArrayKey index, out AwkText value)
@@ -652,9 +638,6 @@ internal sealed class AwkVariables
         count = 0;
         return false;
     }
-
-    private static AwkArrayName ToArrayName(string name) =>
-        AwkArrayName.FromText(name);
 
     private static bool TryToArrayName(string name, out AwkArrayName arrayName)
     {

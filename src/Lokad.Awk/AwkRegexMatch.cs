@@ -118,27 +118,6 @@ internal readonly record struct AwkRegexMatch(
             []);
     }
 
-    public static AwkRegexMatch FromUtf8ValueMatch(
-        AwkText input,
-        Utf8ValueMatch match,
-        bool useByteOffsets,
-        AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
-    {
-        if (!match.Success)
-            return NoMatch;
-
-        var value = input.CopyByteSlice(match.IndexInBytes, match.LengthInBytes, counters, governor);
-        return new AwkRegexMatch(
-            true,
-            useByteOffsets ? match.IndexInBytes : match.IndexInUtf16,
-            useByteOffsets ? match.LengthInBytes : match.LengthInUtf16,
-            match.IndexInBytes,
-            match.LengthInBytes,
-            value,
-            []);
-    }
-
     private static AwkRegexGroup FromGroup(
         Group group,
         string input,

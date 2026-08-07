@@ -40,16 +40,6 @@ internal sealed class AwkRecordProcessor(AwkRuntimeState state)
         return await processRecordAsync(record).ConfigureAwait(false);
     }
 
-    public async ValueTask<AwkStatementFlow> ProcessAsync(
-        string record,
-        AwkRecordTerminator terminator,
-        Func<string, ValueTask<AwkStatementFlow>> processRecordAsync)
-    {
-        state.ThrowIfRecordBytesExceeded(record);
-        state.Counters.RecordRecordRead();
-        state.AdvanceMainInputRecord(terminator);
-        return await processRecordAsync(record).ConfigureAwait(false);
-    }
 }
 
 internal enum AwkRecordFieldSplittingMode

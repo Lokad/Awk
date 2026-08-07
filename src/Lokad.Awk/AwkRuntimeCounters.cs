@@ -45,15 +45,7 @@ internal sealed class AwkRuntimeCounters
 
     public long RegexStringAdapterFallbacks { get; private set; }
 
-    public long RegexRecordSeparatorFallbacks { get; private set; }
-
-    public long RegexFieldSeparatorFallbacks { get; private set; }
-
     public long RecordSeparatorResolutions { get; private set; }
-
-    public long FieldPatternFallbacks { get; private set; }
-
-    public long FieldWidthFallbacks { get; private set; }
 
     public long SeparatorCaptureFallbacks { get; private set; }
 
@@ -232,24 +224,6 @@ internal sealed class AwkRuntimeCounters
             RegexStringAdapterFallbacks++;
     }
 
-    public void RecordRegexRecordSeparatorFallback()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            RegexRecordSeparatorFallbacks++;
-    }
-
-    public void RecordRegexFieldSeparatorFallback()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            RegexFieldSeparatorFallbacks++;
-    }
-
     public void RecordRecordSeparatorResolution()
     {
         if (!_enabled)
@@ -257,24 +231,6 @@ internal sealed class AwkRuntimeCounters
 
         lock (_sync)
             RecordSeparatorResolutions++;
-    }
-
-    public void RecordFieldPatternFallback()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            FieldPatternFallbacks++;
-    }
-
-    public void RecordFieldWidthFallback()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            FieldWidthFallbacks++;
     }
 
     public void RecordSeparatorCaptureFallback()

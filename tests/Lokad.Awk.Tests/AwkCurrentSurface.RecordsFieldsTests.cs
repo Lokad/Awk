@@ -527,9 +527,6 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         Assert.Equal(expectedFields, counters.FieldsMaterialized);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
-        Assert.Equal(0, counters.RegexFieldSeparatorFallbacks);
-        Assert.Equal(0, counters.FieldPatternFallbacks);
-        Assert.Equal(0, counters.FieldWidthFallbacks);
     }
 
     public static TheoryData<string, string, string, int, int> FieldRecompositionCounterCases => new()
@@ -594,9 +591,6 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         Assert.Equal(expectedFieldsMaterialized, counters.FieldsMaterialized);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
-        Assert.Equal(0, counters.RegexFieldSeparatorFallbacks);
-        Assert.Equal(0, counters.FieldPatternFallbacks);
-        Assert.Equal(0, counters.FieldWidthFallbacks);
     }
 
     public static TheoryData<string[], string, string> FieldWidthTextCases => new()
@@ -658,7 +652,6 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         Assert.Equal(0, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.FieldSplits > 0);
-        Assert.Equal(0, counters.FieldWidthFallbacks);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
     }
@@ -724,8 +717,6 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         Assert.Equal(0, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.RegexMatches > 0);
-        Assert.Equal(0, counters.RegexFieldSeparatorFallbacks);
-        Assert.Equal(0, counters.FieldPatternFallbacks);
     }
 
     [Fact]
@@ -896,7 +887,6 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         Assert.Equal(0, exitCode);
         Assert.Equal("alpha\nbeta\ngamma\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(0, counters.RegexRecordSeparatorFallbacks);
         Assert.True(counters.RegexMatches > 0);
     }
 

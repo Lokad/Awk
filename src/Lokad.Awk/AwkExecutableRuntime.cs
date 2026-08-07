@@ -733,7 +733,6 @@ internal sealed class AwkExecutableTables
         IReadOnlyList<AwkVariableName> names,
         IReadOnlyList<AwkArrayName> arrayNames,
         IReadOnlyList<AwkExecutableScalarSymbol> scalarSymbols,
-        IReadOnlyList<AwkRegexPattern> regexes,
         IReadOnlyList<AwkAction> fallbackActions,
         IReadOnlyList<AwkUserFunction> fallbackFunctions,
         IReadOnlyList<AwkStatement> fallbackStatements,
@@ -743,7 +742,6 @@ internal sealed class AwkExecutableTables
         Names = names;
         ArrayNames = arrayNames;
         ScalarSymbols = scalarSymbols;
-        Regexes = regexes;
         FallbackActions = fallbackActions;
         FallbackFunctions = fallbackFunctions;
         FallbackStatements = fallbackStatements;
@@ -757,8 +755,6 @@ internal sealed class AwkExecutableTables
     public IReadOnlyList<AwkArrayName> ArrayNames { get; }
 
     public IReadOnlyList<AwkExecutableScalarSymbol> ScalarSymbols { get; }
-
-    public IReadOnlyList<AwkRegexPattern> Regexes { get; }
 
     public IReadOnlyList<AwkAction> FallbackActions { get; }
 
@@ -777,7 +773,6 @@ internal sealed class AwkExecutableTableBuilder
     private readonly List<AwkExecutableScalarSymbol> _scalarSymbols = [];
     private readonly Dictionary<AwkVariableName, int> _nameIndexes = new();
     private readonly Dictionary<AwkArrayName, int> _arrayNameIndexes = new();
-    private readonly List<AwkRegexPattern> _regexes = [];
     private readonly List<AwkAction> _fallbackActions = [];
     private readonly List<AwkUserFunction> _fallbackFunctions = [];
     private readonly List<AwkStatement> _fallbackStatements = [];
@@ -799,12 +794,6 @@ internal sealed class AwkExecutableTableBuilder
         _scalarSymbols.Add(AwkExecutableScalarSymbol.Create(name));
         _nameIndexes[name] = index;
         return index;
-    }
-
-    public int InternRegex(AwkRegexPattern pattern)
-    {
-        _regexes.Add(pattern);
-        return _regexes.Count - 1;
     }
 
     public int InternArrayName(AwkArrayName name)
@@ -848,7 +837,6 @@ internal sealed class AwkExecutableTableBuilder
             Array.AsReadOnly(_names.ToArray()),
             Array.AsReadOnly(_arrayNames.ToArray()),
             Array.AsReadOnly(_scalarSymbols.ToArray()),
-            Array.AsReadOnly(_regexes.ToArray()),
             Array.AsReadOnly(_fallbackActions.ToArray()),
             Array.AsReadOnly(_fallbackFunctions.ToArray()),
             Array.AsReadOnly(_fallbackStatements.ToArray()),
