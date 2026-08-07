@@ -155,7 +155,7 @@ internal sealed class AwkRegex
 
             var end = FindBracketExpressionEnd(pattern, index + 1);
             if (end < 0)
-                continue;
+                return pattern;
 
             var content = pattern.Substring(index + 1, end - index - 1);
             var translated = TranslatePosixClassTokens(content);
@@ -180,6 +180,7 @@ internal sealed class AwkRegex
     private static int FindBracketExpressionEnd(string pattern, int start)
     {
         var index = start;
+        var posixTokenMarker = '\0';
         if (index < pattern.Length && pattern[index] == '^')
             index++;
 
@@ -194,30 +195,30 @@ internal sealed class AwkRegex
                 continue;
             }
 
-            if (pattern[index] == ']')
+            if (posixTokenMarker != '\0')
             {
-                if (index > start && HasPosixBracketTokenStart(pattern, start, index, pattern[index - 1]))
-                    continue;
+                if (pattern[index] == ']' && pattern[index - 1] == posixTokenMarker)
+                    posixTokenMarker = '\0';
 
-                return index;
+                continue;
             }
+
+            if (pattern[index] == '[' && index + 1 < pattern.Length)
+            {
+                var marker = pattern[index + 1];
+                if (marker is ':' or '=' or '.')
+                {
+                    posixTokenMarker = marker;
+                    index++;
+                    continue;
+                }
+            }
+
+            if (pattern[index] == ']')
+                return index;
         }
 
         return -1;
-    }
-
-    private static bool HasPosixBracketTokenStart(string pattern, int start, int end, char marker)
-    {
-        if (marker is not (':' or '=' or '.'))
-            return false;
-
-        for (var index = start; index + 1 < end; index++)
-        {
-            if (pattern[index] == '[' && pattern[index + 1] == marker)
-                return true;
-        }
-
-        return false;
     }
 
     private static string TranslatePosixClassTokens(string content)

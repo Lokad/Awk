@@ -10,6 +10,28 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTestBase
 {
+    [Fact]
+    public void Awk_RegexTranslationLeavesLargeUnclosedBracketPrefixUntouched()
+    {
+        var pattern = string.Concat(Enumerable.Repeat("[:", 16_384));
+
+        var translated = AwkRegex.TranslatePattern(new AwkRegexPattern(pattern));
+
+        Assert.Same(pattern, translated);
+    }
+
+    [Theory]
+    [InlineData("[[:alpha:]]", "[\\p{L}]")]
+    [InlineData("[[=a=][.b.]]", "[ab]")]
+    public void Awk_RegexTranslationRecognizesClosedPosixBracketTokens(
+        string pattern,
+        string expected)
+    {
+        var translated = AwkRegex.TranslatePattern(new AwkRegexPattern(pattern));
+
+        Assert.Equal(expected, translated);
+    }
+
     public static IEnumerable<object[]> RegexGoldenCases()
     {
         foreach (var testCase in AwkGoldenCorpus.DirectCases)
