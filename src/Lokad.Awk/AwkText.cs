@@ -171,6 +171,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         var bytes = new byte[length];
         AsSpan().CopyTo(bytes);
         other.AsSpan().CopyTo(bytes.AsSpan(ByteLength));
+        counters.RecordConcatenationBytesCopied(length);
         return FromTrustedOwnedBytes(bytes, counters);
     }
 
@@ -189,6 +190,50 @@ internal sealed class AwkText : IEquatable<AwkText>
         var bytes = AllocateOwnedBytes(length, governor);
         AsSpan().CopyTo(bytes);
         other.AsSpan().CopyTo(bytes.AsSpan(ByteLength));
+        counters.RecordConcatenationBytesCopied(length);
+        return FromTrustedOwnedBytes(bytes, counters);
+    }
+
+    public static AwkText Concat(
+        ReadOnlySpan<AwkText> parts,
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor)
+    {
+        var totalLength = 0;
+        var nonEmptyPartCount = 0;
+        AwkText? singleNonEmptyPart = null;
+        for (var index = 0; index < parts.Length; index++)
+        {
+            var part = parts[index];
+            if (part.ByteLength == 0)
+                continue;
+
+            totalLength = CheckedLength(totalLength, part.ByteLength);
+            nonEmptyPartCount++;
+            if (nonEmptyPartCount == 1)
+                singleNonEmptyPart = part;
+        }
+
+        if (nonEmptyPartCount == 0)
+            return Empty;
+
+        if (nonEmptyPartCount == 1)
+        {
+            return singleNonEmptyPart ??
+                throw new InvalidOperationException("A non-empty concatenation must retain its only part.");
+        }
+
+        var bytes = AllocateOwnedBytes(totalLength, governor);
+        var destination = bytes.AsSpan();
+        var position = 0;
+        for (var index = 0; index < parts.Length; index++)
+        {
+            var part = parts[index];
+            part.AsSpan().CopyTo(destination[position..]);
+            position += part.ByteLength;
+        }
+
+        counters.RecordConcatenationBytesCopied(totalLength);
         return FromTrustedOwnedBytes(bytes, counters);
     }
 

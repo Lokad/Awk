@@ -750,8 +750,8 @@ internal static class BenchmarkCounterReport
         Console.WriteLine("OS: " + Environment.OSVersion);
         Console.WriteLine(".NET: " + Environment.Version);
         Console.WriteLine();
-        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex policy bytes | Regex groups | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | VM instructions | VM fallbacks | Memory peak |");
-        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex policy bytes | Regex groups | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | VM instructions | VM fallbacks | Memory peak |");
+        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
 
         for (var index = 0; index < Scenarios.Length; index++)
         {
@@ -819,6 +819,7 @@ internal static class BenchmarkCounterReport
                 counters.FormattingFallbacks.ToString(CultureInfo.InvariantCulture),
                 counters.StringInteropFallbacks.ToString(CultureInfo.InvariantCulture),
                 counters.ByteTextComparisons.ToString(CultureInfo.InvariantCulture),
+                counters.ConcatenationBytesCopied.ToString(CultureInfo.InvariantCulture),
                 counters.VmInstructions.ToString(CultureInfo.InvariantCulture),
                 counters.VmFallbackCalls.ToString(CultureInfo.InvariantCulture),
                 counters.MemoryPeakLiveBytes.ToString(CultureInfo.InvariantCulture) + " |"));

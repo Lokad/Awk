@@ -47,7 +47,7 @@ internal abstract partial class AwkExpression
 
     public static AwkExpression Number(string text, double value) => new NumberExpression(text, value);
 
-    public static AwkExpression Concat(AwkExpression left, AwkExpression right) => new ConcatExpression(left, right);
+    public static AwkExpression Concat(IReadOnlyList<AwkExpression> parts) => new ConcatExpression(parts);
 
     public static AwkExpression Add(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Add);
 

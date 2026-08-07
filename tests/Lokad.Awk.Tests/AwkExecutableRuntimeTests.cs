@@ -59,6 +59,7 @@ public sealed class AwkExecutableRuntimeTests
                 AwkOpcode.Modulo,
                 AwkOpcode.Power,
                 AwkOpcode.Negate,
+                AwkOpcode.FormatString,
                 AwkOpcode.Concat,
                 AwkOpcode.Compare,
                 AwkOpcode.Truthiness,

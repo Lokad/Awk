@@ -125,6 +125,12 @@ internal static partial class AwkGoldenCorpus
             "v=0.33\nv=1\n"),
 
         Passing(
+            "multipart-concat-preserves-formatting-order",
+            ["function changefmt(){CONVFMT=\"%.2f\"; return \"b\"} BEGIN{CONVFMT=\"%.4f\"; print ((1/3) \"a\" changefmt())}"],
+            [],
+            "0.3333ab\n"),
+
+        Passing(
             "comparison-logical-and-ternary-expressions",
             ["BEGIN{x=1; print (\"b\" > \"a\"), (2 <= 2), (2 != 3); print (0 && ++x), x; print (1 || ++x), x; print (x ? \"yes\" : ++y), y+0}"],
             [],

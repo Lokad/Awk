@@ -7,27 +7,54 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkExpression
 {
-    private sealed class ConcatExpression(AwkExpression left, AwkExpression right) : AwkExpression
+    private sealed class ConcatExpression : AwkExpression
     {
+        private readonly IReadOnlyList<AwkExpression> _parts;
+
+        public ConcatExpression(IReadOnlyList<AwkExpression> parts)
+        {
+            if (parts.Count < 2)
+                throw new ArgumentException("Concatenation requires at least two expressions.", nameof(parts));
+
+            _parts = AwkExecutableCollections.Copy(parts);
+        }
+
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var leftValue = await left.EvaluateAsync(context).ConfigureAwait(false);
-            var rightValue = await right.EvaluateAsync(context).ConfigureAwait(false);
-            return context.State.CreateByteTextValue(context.State
-                .FormatStringByteText(leftValue)
-                .Concat(
-                    context.State.FormatStringByteText(rightValue),
-                    context.State.Counters,
-                    context.State.MemoryGovernor));
+            var formattedParts = new AwkText[_parts.Count];
+            var first = await _parts[0].EvaluateAsync(context).ConfigureAwait(false);
+            var second = await _parts[1].EvaluateAsync(context).ConfigureAwait(false);
+            formattedParts[0] = context.State.FormatStringByteText(first);
+            formattedParts[1] = context.State.FormatStringByteText(second);
+
+            for (var index = 2; index < _parts.Count; index++)
+            {
+                var value = await _parts[index].EvaluateAsync(context).ConfigureAwait(false);
+                formattedParts[index] = context.State.FormatStringByteText(value);
+            }
+
+            return context.State.CreateByteTextValue(AwkText.Concat(
+                formattedParts,
+                context.State.Counters,
+                context.State.MemoryGovernor));
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
-            if (!compiler.TryEmitExpression(left) || !compiler.TryEmitExpression(right))
+            if (!compiler.TryEmitExpression(_parts[0]) || !compiler.TryEmitExpression(_parts[1]))
                 return false;
 
-            compiler.Emit(AwkOpcode.Concat);
-            compiler.Replace(popped: 2, pushed: 1);
+            compiler.Emit(AwkOpcode.FormatString, operand0: 2);
+            for (var index = 2; index < _parts.Count; index++)
+            {
+                if (!compiler.TryEmitExpression(_parts[index]))
+                    return false;
+
+                compiler.Emit(AwkOpcode.FormatString, operand0: 1);
+            }
+
+            compiler.Emit(AwkOpcode.Concat, operand0: _parts.Count);
+            compiler.Replace(popped: _parts.Count, pushed: 1);
             return true;
         }
     }

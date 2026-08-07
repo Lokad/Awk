@@ -107,6 +107,35 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(81, counters.RegexCompiles);
     }
 
+    [Fact]
+    public async Task Awk_MultipartConcatenationCopiesFinalPayloadOnce()
+    {
+        var expression = new StringBuilder();
+        for (var index = 0; index < 64; index++)
+            expression.Append(index == 0 ? "\"x\"" : " \"x\"");
+
+        var program = "BEGIN{s=" + expression + "; print s}";
+        var interpreter = await RunAsync(
+            [program],
+            string.Empty,
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
+        var executable = await RunAsync(
+            [program],
+            string.Empty,
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Executable);
+
+        Assert.Equal(0, interpreter.ExitCode);
+        Assert.Equal(0, executable.ExitCode);
+        var expectedOutput = new string('x', 64) + "\n";
+        Assert.Equal(expectedOutput, interpreter.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(expectedOutput, executable.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(64, interpreter.Counters.ConcatenationBytesCopied);
+        Assert.Equal(64, executable.Counters.ConcatenationBytesCopied);
+        Assert.Equal(0, executable.Counters.VmFallbackCalls);
+    }
+
     [Theory]
     [InlineData("BEGIN{FS=\"[,;]\"} {print NF}", "a,b;c\n", "3\n")]
     [InlineData("BEGIN{FIELDWIDTHS=\"2 3\"} {print NF}", "abcdef\n", "2\n")]

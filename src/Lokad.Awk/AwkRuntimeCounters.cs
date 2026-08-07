@@ -95,6 +95,8 @@ internal sealed class AwkRuntimeCounters
 
     public long ByteTextComparisons { get; private set; }
 
+    public long ConcatenationBytesCopied { get; private set; }
+
     public long MemoryReserveCalls { get; private set; }
 
     public long MemoryCommitCalls { get; private set; }
@@ -459,6 +461,15 @@ internal sealed class AwkRuntimeCounters
 
         lock (_sync)
             ByteTextComparisons++;
+    }
+
+    public void RecordConcatenationBytesCopied(int byteCount)
+    {
+        if (!_enabled || byteCount <= 0)
+            return;
+
+        lock (_sync)
+            ConcatenationBytesCopied += byteCount;
     }
 
     public void RecordMemoryReserve(long byteCount, long liveBytes)

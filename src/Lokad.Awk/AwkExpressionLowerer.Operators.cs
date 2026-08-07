@@ -207,21 +207,41 @@ internal static partial class AwkExpressionLowerer
         return true;
     }
 
-    private static bool TryLowerBinaryExpression(
+    private static bool TryLowerConcatenation(
         AwkExpressionSyntax expression,
         AwkLoweringScope scope,
-        Func<AwkExpression, AwkExpression, AwkExpression> factory,
         [NotNullWhen(true)] out AwkExpression? lowered)
     {
-        lowered = null;
-        if (expression.Children.Count != 2 ||
-            !TryLower(expression.Children[0], scope, out var left) ||
-            !TryLower(expression.Children[1], scope, out var right))
+        var syntaxParts = new List<AwkExpressionSyntax>();
+        var pending = new Stack<AwkExpressionSyntax>();
+        pending.Push(expression);
+        while (pending.Count > 0)
         {
-            return false;
+            var current = pending.Pop();
+            if (current.Kind == AwkExpressionKind.Concatenation && current.Children.Count == 2)
+            {
+                pending.Push(current.Children[1]);
+                pending.Push(current.Children[0]);
+                continue;
+            }
+
+            syntaxParts.Add(current);
         }
 
-        lowered = factory(left, right);
+        lowered = null;
+        if (syntaxParts.Count < 2)
+            return false;
+
+        var parts = new AwkExpression[syntaxParts.Count];
+        for (var index = 0; index < syntaxParts.Count; index++)
+        {
+            if (!TryLower(syntaxParts[index], scope, out var part))
+                return false;
+
+            parts[index] = part;
+        }
+
+        lowered = AwkExpression.Concat(parts);
         return true;
     }
 }

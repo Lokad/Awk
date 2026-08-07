@@ -433,16 +433,40 @@ internal static class AwkExecutableDispatcher
                             pc++;
                             break;
 
+                        case AwkOpcode.FormatString:
+                            {
+                                var start = stackCount - instruction.Operand0;
+                                for (var index = start; index < stackCount; index++)
+                                {
+                                    stack[index] = state.CreateByteTextValue(
+                                        state.FormatStringByteText(stack[index]));
+                                }
+
+                                pc++;
+                                break;
+                            }
+
                         case AwkOpcode.Concat:
                             {
-                                var right = stack[--stackCount];
-                                var left = stack[--stackCount];
-                                stack[stackCount++] = state.CreateByteTextValue(state
-                                    .FormatStringByteText(left)
-                                    .Concat(
-                                        state.FormatStringByteText(right),
+                                var partCount = instruction.Operand0;
+                                var partStart = stackCount - partCount;
+                                var rentedParts = ArrayPool<AwkText>.Shared.Rent(partCount);
+                                try
+                                {
+                                    for (var index = 0; index < partCount; index++)
+                                        rentedParts[index] = stack[partStart + index].ByteText;
+
+                                    stackCount = partStart;
+                                    stack[stackCount++] = state.CreateByteTextValue(AwkText.Concat(
+                                        rentedParts.AsSpan(0, partCount),
                                         state.Counters,
                                         state.MemoryGovernor));
+                                }
+                                finally
+                                {
+                                    ArrayPool<AwkText>.Shared.Return(rentedParts, clearArray: true);
+                                }
+
                                 pc++;
                                 break;
                             }
@@ -992,6 +1016,7 @@ internal enum AwkOpcode
     Modulo,
     Power,
     Negate,
+    FormatString,
     Concat,
     Compare,
     Truthiness,

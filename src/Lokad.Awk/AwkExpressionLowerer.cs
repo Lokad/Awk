@@ -45,7 +45,7 @@ internal static partial class AwkExpressionLowerer
             case AwkExpressionKind.Binary:
                 return TryLowerBinary(expression, scope, out lowered);
             case AwkExpressionKind.Concatenation:
-                return TryLowerBinaryExpression(expression, scope, AwkExpression.Concat, out lowered);
+                return TryLowerConcatenation(expression, scope, out lowered);
             case AwkExpressionKind.Conditional:
                 return TryLowerConditional(expression, scope, out lowered);
             case AwkExpressionKind.Assignment:
