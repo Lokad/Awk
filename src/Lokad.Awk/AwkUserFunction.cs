@@ -30,14 +30,6 @@ internal sealed class AwkUserFunction : IAwkUserFunction
 
     public AwkUserFunction(
         AwkFunctionName name,
-        IReadOnlyList<AwkVariableName> parameters,
-        IReadOnlyList<AwkStatement> statements)
-        : this(name, new AwkFunctionLocalLayout(parameters), statements)
-    {
-    }
-
-    public AwkUserFunction(
-        AwkFunctionName name,
         AwkFunctionLocalLayout localLayout,
         IReadOnlyList<AwkStatement> statements)
     {

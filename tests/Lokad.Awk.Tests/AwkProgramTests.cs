@@ -16,13 +16,13 @@ public sealed class AwkProgramTests
         var secondFunctionName = AwkFunctionName.FromText("second");
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction>
         {
-            [firstFunctionName] = new AwkUserFunction(firstFunctionName, [], [])
+            [firstFunctionName] = new AwkUserFunction(firstFunctionName, AwkFunctionLocalLayout.Empty, [])
         };
 
         var program = new AwkProgram(beginActions, [], [], [], [], functions);
 
         beginActions.Clear();
-        functions[secondFunctionName] = new AwkUserFunction(secondFunctionName, [], []);
+        functions[secondFunctionName] = new AwkUserFunction(secondFunctionName, AwkFunctionLocalLayout.Empty, []);
 
         Assert.Single(program.BeginActions);
         Assert.Single(program.Functions);
@@ -51,7 +51,8 @@ public sealed class AwkProgramTests
         {
             AwkStatement.Return(AwkOptionalExpression.Some(AwkExpression.Number("1", 1)))
         };
-        var function = new AwkUserFunction(AwkFunctionName.FromText("f"), parameters, statements);
+        var localLayout = new AwkFunctionLocalLayout(parameters);
+        var function = new AwkUserFunction(AwkFunctionName.FromText("f"), localLayout, statements);
         parameters.Clear();
         statements.Clear();
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);

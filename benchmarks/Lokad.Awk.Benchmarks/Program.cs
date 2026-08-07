@@ -606,8 +606,8 @@ public class ExecutableLayerBenchmarks
         _fallbackScenario = BenchmarkScenarioCatalog.ExecutableFallbackDispatch();
         _vmCompiled = BenchmarkExecution.CompileLegacyAsync(_vmScenario).GetAwaiter().GetResult();
         _fallbackCompiled = BenchmarkExecution.CompileLegacyAsync(_fallbackScenario).GetAwaiter().GetResult();
-        _vmExecutable = _vmCompiled.CompileExecutableProgram();
-        _fallbackExecutable = _fallbackCompiled.CompileExecutableProgram();
+        _vmExecutable = _vmCompiled.ExecutableProgram;
+        _fallbackExecutable = _fallbackCompiled.ExecutableProgram;
         BenchmarkExecution.ValidatePrecompiledExecutable(_vmScenario, _vmCompiled, _vmExecutable);
         BenchmarkExecution.ValidatePrecompiledExecutable(_fallbackScenario, _fallbackCompiled, _fallbackExecutable);
     }

@@ -680,7 +680,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var functionName = AwkFunctionName.FromText("f");
         var function = new AwkUserFunction(
             functionName,
-            [],
+            AwkFunctionLocalLayout.Empty,
             [AwkStatement.Return(AwkOptionalExpression.Some(AwkExpression.FunctionCall(functionName, [])))]);
         state.InitializeFunctions(new Dictionary<AwkFunctionName, AwkUserFunction>
         {

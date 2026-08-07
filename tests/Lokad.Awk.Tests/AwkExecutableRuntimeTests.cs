@@ -165,7 +165,6 @@ public sealed class AwkExecutableRuntimeTests
             AwkTestHarness.BuildInvocation("awk", "BEGIN{print 1}"),
             CancellationToken.None);
 
-        Assert.Same(compiled.ExecutableProgram, compiled.CompileExecutableProgram());
         Assert.NotEmpty(compiled.ExecutableProgram.BeginActions);
     }
 

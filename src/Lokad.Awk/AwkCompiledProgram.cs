@@ -31,9 +31,6 @@ internal sealed class AwkCompiledProgram(
 
     internal AwkExecutableProgram ExecutableProgram { get; } = executableProgram;
 
-    internal AwkExecutableProgram CompileExecutableProgram() =>
-        ExecutableProgram;
-
     internal Task<int> ExecuteAsync(
         IAwkHost host,
         CancellationToken cancellationToken,
