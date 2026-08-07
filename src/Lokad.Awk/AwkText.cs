@@ -13,7 +13,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     private readonly int _byteLength;
     private readonly bool _isBorrowed;
     private string? _cachedString;
-    private int _asciiState;
+    private int _textFacts;
 
     private AwkText(byte[] bytes)
         : this(bytes, 0, bytes.Length, isBorrowed: false)
@@ -32,7 +32,19 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public int ByteLength => _byteLength;
 
-    public int RuneLength => CountRunes(AsSpan());
+    public int RuneLength
+    {
+        get
+        {
+            var cached = Volatile.Read(ref _textFacts);
+            if (cached > 0)
+                return cached - 1;
+
+            var runeLength = CountRunes(AsSpan());
+            Volatile.Write(ref _textFacts, runeLength + 1);
+            return runeLength;
+        }
+    }
 
     public ReadOnlySpan<byte> AsSpan() => _bytes.AsSpan(_byteOffset, _byteLength);
 
@@ -40,9 +52,12 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public bool ContainsNonAscii(AwkRuntimeCounters counters)
     {
-        var cached = Volatile.Read(ref _asciiState);
-        if (cached != 0)
-            return cached == 2;
+        var cached = Volatile.Read(ref _textFacts);
+        if (cached > 0)
+            return cached - 1 != ByteLength;
+
+        if (cached < 0)
+            return true;
 
         var span = AsSpan();
         for (var index = 0; index < span.Length; index++)
@@ -51,12 +66,12 @@ internal sealed class AwkText : IEquatable<AwkText>
                 continue;
 
             counters.RecordRegexPolicyInputBytesInspected(index + 1);
-            Volatile.Write(ref _asciiState, 2);
+            _ = Interlocked.CompareExchange(ref _textFacts, -1, comparand: 0);
             return true;
         }
 
         counters.RecordRegexPolicyInputBytesInspected(span.Length);
-        Volatile.Write(ref _asciiState, 1);
+        Volatile.Write(ref _textFacts, ByteLength + 1);
         return false;
     }
 

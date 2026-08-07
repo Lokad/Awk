@@ -15,6 +15,22 @@ public sealed class AwkTextTests
         Assert.Equal("caf\u00e9", text.AsString());
     }
 
+    [Theory]
+    [InlineData("ascii", false)]
+    [InlineData("aé", true)]
+    public void AwkText_RuneLengthSharesTextFactsWithAsciiClassification(
+        string value,
+        bool expectedNonAscii)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var text = AwkText.FromString(value);
+
+        _ = text.RuneLength;
+
+        Assert.Equal(expectedNonAscii, text.ContainsNonAscii(counters));
+        Assert.Equal(0, counters.RegexPolicyInputBytesInspected);
+    }
+
     [Fact]
     public void AwkText_RejectsInvalidUtf8AtByteIngress()
     {
