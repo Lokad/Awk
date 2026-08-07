@@ -39,7 +39,9 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(fromText.GetHashCode(), fromOrdinal.GetHashCode());
         Assert.Equal("value", values[fromText]);
         Assert.Equal(text, fromOrdinal.StringValue);
-        Assert.Equal(text, fromOrdinal.ByteText.AsString());
+        Assert.Equal(
+            text,
+            fromOrdinal.ToByteText(AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
         Assert.Equal(text.Length, fromOrdinal.ByteLength);
         Assert.Equal(0, fromOrdinal.RetainedTextByteLength);
         Assert.Equal(fromText.ByteLength, fromText.RetainedTextByteLength);
@@ -53,6 +55,25 @@ public sealed class AwkArrayKeyTests
         var textBytes = AwkRuntimeMemory.EstimateArrayElementBytes(new AwkArrayKey("12"), slot);
 
         Assert.True(ordinalBytes < textBytes);
+    }
+
+    [Fact]
+    public void AwkArrayKey_OrdinalMaterializationUsesRuntimeAccounting()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var governor = AwkMemoryGovernor.Create(
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024),
+            counters);
+        var baselineAllocations = counters.AwkTextAllocations;
+        var baselineBytes = counters.AwkTextPayloadBytes;
+
+        var text = AwkArrayKey.FromOrdinal(123).ToByteText(counters, governor);
+
+        Assert.Equal("123", text.AsString());
+        Assert.Equal(baselineAllocations + 1, counters.AwkTextAllocations);
+        Assert.Equal(baselineBytes + 3, counters.AwkTextPayloadBytes);
+        Assert.True(counters.MemoryPeakLiveBytes >= 3);
+        Assert.Equal(0, governor.CurrentReservedBytes);
     }
 
     [Fact]

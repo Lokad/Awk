@@ -405,7 +405,7 @@ internal sealed class AwkVariables
         {
             var keys = _symbolTable.SnapshotKeys();
             for (var index = 0; index < keys.Count; index++)
-                destination[index] = keys[index].ByteText;
+                destination[index] = keys[index].ToByteText(_counters, _memoryGovernor);
 
             return;
         }
@@ -413,7 +413,7 @@ internal sealed class AwkVariables
         var slots = GetOrCreateArraySlots(name);
         var writeIndex = 0;
         foreach (var key in slots.Keys)
-            destination[writeIndex++] = key.ByteText;
+            destination[writeIndex++] = key.ToByteText(_counters, _memoryGovernor);
     }
 
     public void CopyArrayKeys(AwkArrayName name, AwkArrayKey[] destination)

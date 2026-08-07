@@ -365,7 +365,7 @@ internal sealed class AwkRuntimeState
             : new AwkArrayKey(FormatStringByteText(value));
 
     public AwkValue CreateArrayKeyValue(AwkArrayKey key) =>
-        CreateByteTextValue(key.ByteText);
+        CreateByteTextValue(key.ToByteText(Counters, MemoryGovernor));
 
     public void ThrowIfCancellationRequested()
     {
@@ -427,7 +427,7 @@ internal sealed class AwkRuntimeState
         foreach (var entry in values)
         {
             result.Add(new AwkEnvironmentVariable(
-                entry.Key.ByteText.AsString(Counters),
+                entry.Key.ToByteText(Counters, MemoryGovernor).AsString(Counters),
                 entry.Value.AsString(Counters)));
         }
 

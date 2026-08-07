@@ -55,7 +55,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     public string StringValue =>
         IsOrdinal
             ? _ordinal.ToString(CultureInfo.InvariantCulture)
-            : ByteText.AsString();
+            : Text.AsString();
 
     public int ByteLength
     {
@@ -69,33 +69,32 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
             return IsOrdinal
                 ? CountOrdinalBytes(_ordinal)
-                : ByteText.ByteLength;
+                : Text.ByteLength;
         }
     }
 
     public int RetainedTextByteLength =>
-        IsOrdinal ? 0 : ByteText.ByteLength;
+        IsOrdinal ? 0 : Text.ByteLength;
 
     public bool IsOrdinal => _kind == AwkArrayKeyKind.Ordinal;
 
-    public AwkText ByteText
+    public AwkText ToByteText(AwkRuntimeCounters counters, AwkMemoryGovernor governor)
     {
-        get
-        {
-            if (!IsOrdinal)
-                return _text ?? AwkText.Empty;
+        if (!IsOrdinal)
+            return Text;
 
-            Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-            var bytes = FormatOrdinalBytes(_ordinal, buffer);
-            return AwkText.FromTrustedOwnedBytes(bytes.ToArray());
-        }
+        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
+        var formatted = FormatOrdinalBytes(_ordinal, buffer);
+        var bytes = AwkText.AllocateOwnedBytes(formatted.Length, governor);
+        formatted.CopyTo(bytes);
+        return AwkText.FromTrustedOwnedBytes(bytes, counters);
     }
 
     public void AppendTo(AwkUtf8Builder builder)
     {
         if (!IsOrdinal)
         {
-            builder.Append(ByteText);
+            builder.Append(Text);
             return;
         }
 
@@ -107,10 +106,10 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         IsOrdinal
             ? other.IsOrdinal
                 ? _ordinal == other._ordinal
-                : OrdinalEqualsText(_ordinal, other.ByteText)
+                : OrdinalEqualsText(_ordinal, other.Text)
             : other.IsOrdinal
-                ? OrdinalEqualsText(other._ordinal, ByteText)
-                : ByteText.Equals(other.ByteText);
+                ? OrdinalEqualsText(other._ordinal, Text)
+                : Text.Equals(other.Text);
 
     public override bool Equals(object? obj) =>
         obj is AwkArrayKey other && Equals(other);
@@ -121,6 +120,8 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
             : _hashCode;
 
     public override string ToString() => StringValue;
+
+    private AwkText Text => _text ?? AwkText.Empty;
 
     private static int ComputeHash(AwkText text)
     {

@@ -549,7 +549,7 @@ internal sealed class AwkArrayRuntime
             _ => AwkArraySortMode.ValueStringAscending
         };
 
-    private async ValueTask<KeyValuePair<AwkArrayKey, AwkText>[]> SortUserEntriesAsync(
+    private async ValueTask<AwkArraySortEntry[]> SortUserEntriesAsync(
         IReadOnlyDictionary<AwkArrayKey, AwkText> values,
         AwkArraySortOrder order,
         AwkEvaluationContext context)
@@ -559,7 +559,7 @@ internal sealed class AwkArrayRuntime
             if (!_state.TryGetUserFunction(userFunctionOrder.FunctionName, out var function))
                 throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(userFunctionOrder.FunctionName.Text));
 
-            var entries = CopyKeyValueEntries(values);
+            var entries = CopySortEntries(values, AwkArraySortMode.ValueStringAscending);
             await SortWithUserFunctionAsync(entries, function, context).ConfigureAwait(false);
             return entries;
         }
@@ -567,7 +567,7 @@ internal sealed class AwkArrayRuntime
         throw new InvalidOperationException("Expected a user-defined awk sort comparator.");
     }
 
-    private static AwkArraySortEntry[] CopySortEntries(
+    private AwkArraySortEntry[] CopySortEntries(
         IReadOnlyDictionary<AwkArrayKey, AwkText> values,
         AwkArraySortMode sortMode)
     {
@@ -575,7 +575,7 @@ internal sealed class AwkArrayRuntime
         var index = 0;
         foreach (var pair in values)
         {
-            var keyText = pair.Key.ByteText;
+            var keyText = pair.Key.ToByteText(_state.Counters, _state.MemoryGovernor);
             entries[index++] = new AwkArraySortEntry(
                 pair.Key,
                 keyText,
@@ -586,31 +586,7 @@ internal sealed class AwkArrayRuntime
         return entries;
     }
 
-    private static KeyValuePair<AwkArrayKey, AwkText>[] CopyKeyValueEntries(
-        IReadOnlyDictionary<AwkArrayKey, AwkText> values)
-    {
-        var entries = new KeyValuePair<AwkArrayKey, AwkText>[values.Count];
-        var index = 0;
-        foreach (var pair in values)
-        {
-            entries[index++] = pair;
-        }
-
-        return entries;
-    }
-
     private static AwkText[] CopyValues(AwkArraySortEntry[] entries)
-    {
-        var result = new AwkText[entries.Length];
-        for (var index = 0; index < entries.Length; index++)
-        {
-            result[index] = entries[index].Value;
-        }
-
-        return result;
-    }
-
-    private static AwkText[] CopyValues(KeyValuePair<AwkArrayKey, AwkText>[] entries)
     {
         var result = new AwkText[entries.Length];
         for (var index = 0; index < entries.Length; index++)
@@ -632,29 +608,7 @@ internal sealed class AwkArrayRuntime
         return result;
     }
 
-    private static AwkText[] CopyKeys(KeyValuePair<AwkArrayKey, AwkText>[] entries)
-    {
-        var result = new AwkText[entries.Length];
-        for (var index = 0; index < entries.Length; index++)
-        {
-            result[index] = entries[index].Key.ByteText;
-        }
-
-        return result;
-    }
-
     private static AwkArrayKey[] CopyKeyValues(AwkArraySortEntry[] entries)
-    {
-        var result = new AwkArrayKey[entries.Length];
-        for (var index = 0; index < entries.Length; index++)
-        {
-            result[index] = entries[index].Key;
-        }
-
-        return result;
-    }
-
-    private static AwkArrayKey[] CopyKeyValues(KeyValuePair<AwkArrayKey, AwkText>[] entries)
     {
         var result = new AwkArrayKey[entries.Length];
         for (var index = 0; index < entries.Length; index++)
@@ -677,13 +631,13 @@ internal sealed class AwkArrayRuntime
         return result;
     }
 
-    private static AwkText[] CopyKeys(IEnumerable<AwkArrayKey> keys, int count)
+    private AwkText[] CopyKeys(IEnumerable<AwkArrayKey> keys, int count)
     {
         var result = new AwkText[count];
         var index = 0;
         foreach (var key in keys)
         {
-            result[index++] = key.ByteText;
+            result[index++] = key.ToByteText(_state.Counters, _state.MemoryGovernor);
         }
 
         return result;
@@ -703,7 +657,7 @@ internal sealed class AwkArrayRuntime
         };
 
     private static async ValueTask SortWithUserFunctionAsync(
-        KeyValuePair<AwkArrayKey, AwkText>[] entries,
+        AwkArraySortEntry[] entries,
         IAwkUserFunction function,
         AwkEvaluationContext context)
     {
@@ -711,7 +665,7 @@ internal sealed class AwkArrayRuntime
             return;
 
         var comparatorArguments = new AwkValue[4];
-        var buffer = new KeyValuePair<AwkArrayKey, AwkText>[entries.Length];
+        var buffer = new AwkArraySortEntry[entries.Length];
         var source = entries;
         var destination = buffer;
         var runLength = 1;
@@ -733,8 +687,8 @@ internal sealed class AwkArrayRuntime
             Array.Copy(source, entries, entries.Length);
 
         async ValueTask MergeRunsAsync(
-            KeyValuePair<AwkArrayKey, AwkText>[] mergeSource,
-            KeyValuePair<AwkArrayKey, AwkText>[] mergeDestination,
+            AwkArraySortEntry[] mergeSource,
+            AwkArraySortEntry[] mergeDestination,
             int start,
             int middle,
             int end)
@@ -761,13 +715,13 @@ internal sealed class AwkArrayRuntime
         }
 
         async ValueTask<int> CompareAsync(
-            KeyValuePair<AwkArrayKey, AwkText> left,
-            KeyValuePair<AwkArrayKey, AwkText> right)
+            AwkArraySortEntry left,
+            AwkArraySortEntry right)
         {
             var state = context.State;
-            comparatorArguments[0] = state.CreateByteTextValue(left.Key.ByteText);
+            comparatorArguments[0] = state.CreateByteTextValue(left.KeyText);
             comparatorArguments[1] = state.CreateByteTextValue(left.Value);
-            comparatorArguments[2] = state.CreateByteTextValue(right.Key.ByteText);
+            comparatorArguments[2] = state.CreateByteTextValue(right.KeyText);
             comparatorArguments[3] = state.CreateByteTextValue(right.Value);
             var value = await function.InvokeValuesAsync(comparatorArguments, context).ConfigureAwait(false);
             var number = value.AsNumber();
