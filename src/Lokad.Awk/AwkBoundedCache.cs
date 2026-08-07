@@ -13,8 +13,7 @@ internal sealed class AwkBoundedCache<TKey, TValue>
 
     public AwkBoundedCache(int capacity)
     {
-        if (capacity <= 0)
-            throw new ArgumentOutOfRangeException(nameof(capacity));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
 
         _capacity = capacity;
     }

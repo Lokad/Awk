@@ -1465,8 +1465,7 @@ internal sealed class BenchmarkHost : IAwkHost
 
         public AwkReadResult ReadLines(int limit)
         {
-            if (limit <= 0)
-                throw new ArgumentOutOfRangeException(nameof(limit));
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
 
             if (_offset >= content.Length)
                 return AwkReadResult.EndOfFile;

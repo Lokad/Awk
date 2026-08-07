@@ -26,10 +26,7 @@ internal sealed class AsyncLineReader
         AwkRuntimeCounters counters,
         AwkRuntimeResourceMonitor resources)
     {
-        if (maxLineCount <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maxLineCount));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxLineCount);
 
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(resources);

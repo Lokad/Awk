@@ -60,8 +60,7 @@ internal sealed class AwkVariables
         Func<AwkText, AwkValue> createNumericStringValue,
         Action<string, AwkValue> applyScalarAssignment)
     {
-        if (maxArrayElements <= 0)
-            throw new ArgumentOutOfRangeException(nameof(maxArrayElements));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxArrayElements);
 
         _maxArrayElements = maxArrayElements;
         _memoryGovernor = memoryGovernor;

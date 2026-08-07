@@ -10,10 +10,7 @@ public sealed class TestOperationVisitor : IAwkHost
 
     public TestOperationVisitor(IReadOnlyList<int> exitCodes)
     {
-        if (exitCodes == null)
-        {
-            throw new ArgumentNullException(nameof(exitCodes));
-        }
+        ArgumentNullException.ThrowIfNull(exitCodes);
 
         foreach (var exitCode in exitCodes)
         {
@@ -54,10 +51,7 @@ public sealed class TestOperationVisitor : IAwkHost
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (commands == null)
-        {
-            throw new ArgumentNullException(nameof(commands));
-        }
+        ArgumentNullException.ThrowIfNull(commands);
 
         foreach (var command in commands)
         {
@@ -111,10 +105,7 @@ public sealed class TestOperationVisitor : IAwkHost
     {
         cancellationToken.ThrowIfCancellationRequested();
         ReadLineBatchLineCounts.Add(maxLineCount);
-        if (maxLineCount <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maxLineCount));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxLineCount);
 
         if (fileDescriptor.IsDevNull)
         {
@@ -127,10 +118,7 @@ public sealed class TestOperationVisitor : IAwkHost
 
     public void EnqueueCommandExitCodes(int[] exitCodes)
     {
-        if (exitCodes == null)
-        {
-            throw new ArgumentNullException(nameof(exitCodes));
-        }
+        ArgumentNullException.ThrowIfNull(exitCodes);
 
         var typedExitCodes = new AwkExitCode[exitCodes.Length];
         for (var index = 0; index < exitCodes.Length; index++)

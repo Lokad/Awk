@@ -32,8 +32,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         int capacity,
         byte? reservedPrefix)
     {
-        if (capacity < 0)
-            throw new ArgumentOutOfRangeException(nameof(capacity));
+        ArgumentOutOfRangeException.ThrowIfNegative(capacity);
 
         _governor = governor;
         _maxBuilderBytes = limits.MaxBuilderBytes;
@@ -118,8 +117,7 @@ internal sealed class AwkUtf8Builder : IDisposable
     public AwkUtf8Builder Append(byte value, int count)
     {
         ThrowIfDisposed();
-        if (count < 0)
-            throw new ArgumentOutOfRangeException(nameof(count));
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
 
         if (count == 0)
             return this;
@@ -140,8 +138,8 @@ internal sealed class AwkUtf8Builder : IDisposable
     public void RemovePrefix(int length)
     {
         ThrowIfDisposed();
-        if (length < 0 || length > Length)
-            throw new ArgumentOutOfRangeException(nameof(length));
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(length, Length);
 
         if (length == 0)
             return;
@@ -246,8 +244,7 @@ internal sealed class AwkUtf8Builder : IDisposable
 
     private void ThrowIfDisposed()
     {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(AwkUtf8Builder));
+        ObjectDisposedException.ThrowIf(_disposed, this);
     }
 
 }

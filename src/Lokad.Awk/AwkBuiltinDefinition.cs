@@ -75,16 +75,15 @@ internal abstract class AwkArity
 {
     public static AwkArity Exact(int argumentCount)
     {
-        ThrowIfNegative(argumentCount, nameof(argumentCount));
+        ArgumentOutOfRangeException.ThrowIfNegative(argumentCount);
         return new ExactArity(argumentCount);
     }
 
     public static AwkArity Range(int minimumArgumentCount, int maximumArgumentCount)
     {
-        ThrowIfNegative(minimumArgumentCount, nameof(minimumArgumentCount));
-        ThrowIfNegative(maximumArgumentCount, nameof(maximumArgumentCount));
-        if (maximumArgumentCount < minimumArgumentCount)
-            throw new ArgumentOutOfRangeException(nameof(maximumArgumentCount));
+        ArgumentOutOfRangeException.ThrowIfNegative(minimumArgumentCount);
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumArgumentCount);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumArgumentCount, minimumArgumentCount);
 
         return minimumArgumentCount == maximumArgumentCount
             ? new ExactArity(minimumArgumentCount)
@@ -93,7 +92,7 @@ internal abstract class AwkArity
 
     public static AwkArity AtLeast(int minimumArgumentCount)
     {
-        ThrowIfNegative(minimumArgumentCount, nameof(minimumArgumentCount));
+        ArgumentOutOfRangeException.ThrowIfNegative(minimumArgumentCount);
         return new AtLeastArity(minimumArgumentCount);
     }
 
@@ -102,12 +101,6 @@ internal abstract class AwkArity
 
     /// <summary>Returns whether this arity accepts <paramref name="argumentCount"/> arguments.</summary>
     public abstract bool Accepts(int argumentCount);
-
-    private static void ThrowIfNegative(int value, string parameterName)
-    {
-        if (value < 0)
-            throw new ArgumentOutOfRangeException(parameterName);
-    }
 
     public sealed class ExactArity(int argumentCount) : AwkArity
     {

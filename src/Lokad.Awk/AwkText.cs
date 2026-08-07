@@ -322,18 +322,14 @@ internal sealed class AwkText : IEquatable<AwkText>
 
         void ResolveRuneByteRange(out int resolvedByteStart, out int resolvedByteEnd)
         {
-            if (start < 0)
-                throw new ArgumentOutOfRangeException(nameof(start));
-
-            if (length < 0)
-                throw new ArgumentOutOfRangeException(nameof(length));
+            ArgumentOutOfRangeException.ThrowIfNegative(start);
+            ArgumentOutOfRangeException.ThrowIfNegative(length);
 
             var endRuneIndex = (long)start + length;
             if (IsAscii(out var inspectedByteCount))
             {
                 counters.RecordRuneSliceBytesScanned(inspectedByteCount);
-                if (start > ByteLength)
-                    throw new ArgumentOutOfRangeException(nameof(start));
+                ArgumentOutOfRangeException.ThrowIfGreaterThan(start, ByteLength);
 
                 if (endRuneIndex > ByteLength)
                     throw new ArgumentOutOfRangeException(nameof(length));
@@ -346,8 +342,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             counters.RecordRuneSliceBytesScanned(inspectedByteCount);
             var checkpoints = GetRuneByteCheckpoints();
             var runeLength = RuneLength;
-            if (start > runeLength)
-                throw new ArgumentOutOfRangeException(nameof(start));
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(start, runeLength);
 
             if (endRuneIndex > runeLength)
                 throw new ArgumentOutOfRangeException(nameof(length));

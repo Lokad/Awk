@@ -144,8 +144,7 @@ public sealed class MockFileSystem : IAwkHost
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (maxLineCount <= 0)
-            throw new ArgumentOutOfRangeException(nameof(maxLineCount));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxLineCount);
 
         var readLinesOverride = ReadLinesOverride;
         var result = readLinesOverride == null

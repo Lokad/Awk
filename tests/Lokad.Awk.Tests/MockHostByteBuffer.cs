@@ -22,8 +22,7 @@ internal sealed class MockHostByteBuffer
 
     internal MockHostByteBuffer(int capacity, int maxBufferBytes)
     {
-        if (maxBufferBytes <= 0)
-            throw new ArgumentOutOfRangeException(nameof(maxBufferBytes));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBufferBytes);
 
         _maxBufferBytes = maxBufferBytes;
         _buffer = capacity > 0 ? new byte[capacity] : [];
