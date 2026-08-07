@@ -6,17 +6,15 @@ namespace Lokad.Awk;
 internal sealed class CommandLineOptionParser
 {
     private readonly IReadOnlyList<string> _arguments;
-    private readonly bool _allowSingleDashLongOptions;
     private bool _parsingOptions = true;
     private int _argumentIndex;
     private string _shortGroup = string.Empty;
     private int _shortIndex;
 
-    public CommandLineOptionParser(IReadOnlyList<string> arguments, bool allowSingleDashLongOptions)
+    public CommandLineOptionParser(IReadOnlyList<string> arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         _arguments = arguments;
-        _allowSingleDashLongOptions = allowSingleDashLongOptions;
     }
 
     public bool TryRead(out CommandLineOptionItem item)
@@ -40,12 +38,6 @@ internal sealed class CommandLineOptionParser
             if (_parsingOptions && IsLongOption(argument))
             {
                 item = ParseLongOption(argument);
-                return true;
-            }
-
-            if (_parsingOptions && IsSingleDashLongOption(argument))
-            {
-                item = ParseSingleDashLongOption(argument);
                 return true;
             }
 
@@ -120,30 +112,15 @@ internal sealed class CommandLineOptionParser
         return true;
     }
 
-    private bool IsShortOptionGroup(string argument)
-    {
-        if (argument.Length <= 1 || argument[0] != '-' || argument[1] == '-')
-        {
-            return false;
-        }
-
-        if (_allowSingleDashLongOptions && argument.Length > 2)
-        {
-            return false;
-        }
-
-        return true;
-    }
+    private static bool IsShortOptionGroup(string argument) =>
+        argument.Length > 1 && argument[0] == '-' && argument[1] != '-';
 
     private static bool IsLongOption(string argument) =>
         argument.Length > 2 && argument[0] == '-' && argument[1] == '-';
 
-    private bool IsSingleDashLongOption(string argument) =>
-        _allowSingleDashLongOptions && argument.Length > 2 && argument[0] == '-' && argument[1] != '-';
-
     private static bool IsDoubleDash(string argument) => argument == "--";
 
-    private static CommandLineOptionItem ParseLongOption(string argument)
+    private static CommandLineOptionItem.LongOption ParseLongOption(string argument)
     {
         var equalsIndex = argument.IndexOf('=', 2);
 
@@ -157,19 +134,6 @@ internal sealed class CommandLineOptionParser
         return new CommandLineOptionItem.LongOption(name, CommandLineOptionValue.Inline(value));
     }
 
-    private static CommandLineOptionItem ParseSingleDashLongOption(string argument)
-    {
-        var equalsIndex = argument.IndexOf('=', 1);
-
-        if (equalsIndex < 0)
-        {
-            return new CommandLineOptionItem.LongOption(argument[1..], CommandLineOptionValue.Absent);
-        }
-
-        var name = argument[1..equalsIndex];
-        var value = argument[(equalsIndex + 1)..];
-        return new CommandLineOptionItem.LongOption(name, CommandLineOptionValue.Inline(value));
-    }
 }
 
 internal abstract record CommandLineOptionItem

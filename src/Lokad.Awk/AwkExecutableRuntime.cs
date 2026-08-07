@@ -863,32 +863,44 @@ internal sealed class AwkExecutableTableBuilder
 
 internal readonly struct AwkExecutableScalarSymbol
 {
-    private AwkExecutableScalarSymbol(AwkVariableName name, AwkSpecialVariableId specialId, bool isSpecial)
+    private readonly AwkSpecialVariableId _specialId;
+    private readonly AwkExecutableScalarSymbolKind _kind;
+
+    private AwkExecutableScalarSymbol(
+        AwkVariableName name,
+        AwkSpecialVariableId specialId,
+        AwkExecutableScalarSymbolKind kind)
     {
         Name = name;
-        SpecialId = specialId;
-        IsSpecial = isSpecial;
+        _specialId = specialId;
+        _kind = kind;
     }
 
     public AwkVariableName Name { get; }
 
-    public AwkSpecialVariableId SpecialId { get; }
-
-    public bool IsSpecial { get; }
-
     public static AwkExecutableScalarSymbol Create(AwkVariableName name) =>
         AwkSpecialVariables.TryGetScalar(name, out var id)
-            ? new(name, id, isSpecial: true)
-            : new(name, default, isSpecial: false);
+            ? new(name, id, AwkExecutableScalarSymbolKind.Special)
+            : new(name, default, AwkExecutableScalarSymbolKind.Global);
+
+    public bool TryGetSpecialId(out AwkSpecialVariableId specialId)
+    {
+        specialId = _specialId;
+        return _kind == AwkExecutableScalarSymbolKind.Special;
+    }
+
+    private enum AwkExecutableScalarSymbolKind
+    {
+        Global,
+        Special
+    }
 }
 
 internal sealed class AwkExecutableRuntimeBindings
 {
     private readonly AwkExecutableScalarBinding[] _scalars;
-    private AwkGlobalSlotId _outputFieldSeparatorSlotId;
-    private AwkGlobalSlotId _outputRecordSeparatorSlotId;
-    private bool _hasOutputFieldSeparatorSlotId;
-    private bool _hasOutputRecordSeparatorSlotId;
+    private AwkOptionalGlobalSlotId _outputFieldSeparatorSlotId;
+    private AwkOptionalGlobalSlotId _outputRecordSeparatorSlotId;
 
     public AwkExecutableRuntimeBindings(AwkExecutableTables tables)
     {
@@ -903,22 +915,20 @@ internal sealed class AwkExecutableRuntimeBindings
     public AwkText LoadOutputFieldSeparator(AwkRuntimeState state) =>
         LoadSpecialScalarText(
             ref _outputFieldSeparatorSlotId,
-            ref _hasOutputFieldSeparatorSlotId,
             AwkSpecialVariableId.OutputFieldSeparator,
             state);
 
     public AwkText LoadOutputRecordSeparator(AwkRuntimeState state) =>
         LoadSpecialScalarText(
             ref _outputRecordSeparatorSlotId,
-            ref _hasOutputRecordSeparatorSlotId,
             AwkSpecialVariableId.OutputRecordSeparator,
             state);
 
     public AwkValue LoadScalar(int index, AwkRuntimeState state)
     {
         ref var scalar = ref _scalars[index];
-        if (scalar.Symbol.IsSpecial)
-            return state.ResolveSpecialVariableValue(scalar.Symbol.SpecialId);
+        if (scalar.Symbol.TryGetSpecialId(out var specialId))
+            return state.ResolveSpecialVariableValue(specialId);
 
         return state.GetGlobalScalarValue(GetOrCreateSlotId(ref scalar, state));
     }
@@ -926,9 +936,9 @@ internal sealed class AwkExecutableRuntimeBindings
     public void StoreScalar(int index, AwkRuntimeState state, AwkValue value)
     {
         ref var scalar = ref _scalars[index];
-        if (scalar.Symbol.IsSpecial)
+        if (scalar.Symbol.TryGetSpecialId(out var specialId))
         {
-            state.AssignSpecialVariableValue(scalar.Symbol.SpecialId, value);
+            state.AssignSpecialVariableValue(specialId, value);
             return;
         }
 
@@ -939,24 +949,23 @@ internal sealed class AwkExecutableRuntimeBindings
         ref AwkExecutableScalarBinding scalar,
         AwkRuntimeState state)
     {
-        if (scalar.HasSlotId)
-            return scalar.SlotId;
+        if (scalar.SlotId.TryGetValue(out var slotId))
+            return slotId;
 
-        scalar.SlotId = state.GetOrCreateGlobalScalarSlot(scalar.Symbol.Name);
-        scalar.HasSlotId = true;
-        return scalar.SlotId;
+        slotId = state.GetOrCreateGlobalScalarSlot(scalar.Symbol.Name);
+        scalar.SlotId = AwkOptionalGlobalSlotId.FromValue(slotId);
+        return slotId;
     }
 
     private static AwkText LoadSpecialScalarText(
-        ref AwkGlobalSlotId slotId,
-        ref bool hasSlotId,
+        ref AwkOptionalGlobalSlotId optionalSlotId,
         AwkSpecialVariableId id,
         AwkRuntimeState state)
     {
-        if (!hasSlotId)
+        if (!optionalSlotId.TryGetValue(out var slotId))
         {
             slotId = state.GetOrCreateGlobalScalarSlot(AwkSpecialVariables.VariableName(id));
-            hasSlotId = true;
+            optionalSlotId = AwkOptionalGlobalSlotId.FromValue(slotId);
         }
 
         return state.GetGlobalScalarValue(slotId).ByteText;
@@ -966,9 +975,33 @@ internal sealed class AwkExecutableRuntimeBindings
     {
         public AwkExecutableScalarSymbol Symbol { get; } = symbol;
 
-        public AwkGlobalSlotId SlotId { get; set; }
+        public AwkOptionalGlobalSlotId SlotId { get; set; }
+    }
+}
 
-        public bool HasSlotId { get; set; }
+internal readonly struct AwkOptionalGlobalSlotId
+{
+    private readonly AwkGlobalSlotId _value;
+    private readonly AwkOptionalGlobalSlotIdKind _kind;
+
+    private AwkOptionalGlobalSlotId(AwkGlobalSlotId value)
+    {
+        _value = value;
+        _kind = AwkOptionalGlobalSlotIdKind.Value;
+    }
+
+    public static AwkOptionalGlobalSlotId FromValue(AwkGlobalSlotId value) => new(value);
+
+    public bool TryGetValue(out AwkGlobalSlotId value)
+    {
+        value = _value;
+        return _kind == AwkOptionalGlobalSlotIdKind.Value;
+    }
+
+    private enum AwkOptionalGlobalSlotIdKind
+    {
+        None,
+        Value
     }
 }
 

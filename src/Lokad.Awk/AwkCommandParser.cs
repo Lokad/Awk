@@ -21,7 +21,7 @@ internal static class AwkCommandParser
 
         public AwkInvocation Parse()
         {
-            var parser = new CommandLineOptionParser(invocation.Arguments, allowSingleDashLongOptions: false);
+            var parser = new CommandLineOptionParser(invocation.Arguments);
             var parsingInputArguments = false;
             while (true)
             {

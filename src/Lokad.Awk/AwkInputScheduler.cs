@@ -45,7 +45,7 @@ internal sealed class AwkInputScheduler(
             if (record.HasRecord)
                 return record;
 
-            var endFileFlow = await CompleteCurrentInputAsync(executeEndFile: true).ConfigureAwait(false);
+            var endFileFlow = await CompleteCurrentInputAsync(EndFileAction.Execute).ConfigureAwait(false);
             if (endFileFlow == AwkStatementFlow.ExitProgram)
                 return AwkInputRecordResult.EndOfFile;
         }
@@ -74,13 +74,13 @@ internal sealed class AwkInputScheduler(
                     .ConfigureAwait(false);
             if (flow == AwkStatementFlow.ExitProgram)
             {
-                await CompleteCurrentInputAsync(executeEndFile: false).ConfigureAwait(false);
+                await CompleteCurrentInputAsync(EndFileAction.Skip).ConfigureAwait(false);
                 return;
             }
 
             if (flow == AwkStatementFlow.NextFile)
             {
-                var endFileFlow = await CompleteCurrentInputAsync(executeEndFile: true).ConfigureAwait(false);
+                var endFileFlow = await CompleteCurrentInputAsync(EndFileAction.Execute).ConfigureAwait(false);
                 if (endFileFlow == AwkStatementFlow.ExitProgram)
                     return;
             }
@@ -89,8 +89,8 @@ internal sealed class AwkInputScheduler(
 
     public async Task CloseRemainingDescriptorsAsync()
     {
-        await CompleteCurrentInputAsync(executeEndFile: false).ConfigureAwait(false);
-        var descriptors = SnapshotOwnedDescriptors(clear: false);
+        await CompleteCurrentInputAsync(EndFileAction.Skip).ConfigureAwait(false);
+        var descriptors = SnapshotOwnedDescriptors(OwnedDescriptorRetention.Retain);
         for (var index = 0; index < descriptors.Length; index++)
             await CloseOwnedDescriptorAsync(descriptors[index]).ConfigureAwait(false);
 
@@ -101,7 +101,7 @@ internal sealed class AwkInputScheduler(
     {
         _currentInput?.Cursor.Dispose();
         _currentInput = null;
-        var descriptors = SnapshotOwnedDescriptors(clear: true);
+        var descriptors = SnapshotOwnedDescriptors(OwnedDescriptorRetention.Clear);
         for (var index = 0; index < descriptors.Length; index++)
         {
             try
@@ -236,7 +236,7 @@ internal sealed class AwkInputScheduler(
         if (beginFileFlow == AwkStatementFlow.Continue)
             return true;
 
-        await CompleteCurrentInputAsync(executeEndFile: false).ConfigureAwait(false);
+        await CompleteCurrentInputAsync(EndFileAction.Skip).ConfigureAwait(false);
         return false;
     }
 
@@ -265,19 +265,19 @@ internal sealed class AwkInputScheduler(
                 AwkDiagnosticId.HostIoFailure);
     }
 
-    private async ValueTask<AwkStatementFlow> CompleteCurrentInputAsync(bool executeEndFile)
+    private async ValueTask<AwkStatementFlow> CompleteCurrentInputAsync(EndFileAction endFileAction)
     {
         if (_currentInput is null)
             return AwkStatementFlow.Continue;
 
-        var flow = executeEndFile
+        var flow = endFileAction == EndFileAction.Execute
             ? await ExecuteEndFileActionsAsync().ConfigureAwait(false)
             : AwkStatementFlow.Continue;
         var input = _currentInput;
         _currentInput = null;
         input.Cursor.Dispose();
-        if (input.Descriptor.HasValue)
-            await CloseOwnedDescriptorAsync(input.Descriptor.Value).ConfigureAwait(false);
+        if (input.Descriptor.TryGetValue(out var descriptor))
+            await CloseOwnedDescriptorAsync(descriptor).ConfigureAwait(false);
 
         return flow;
     }
@@ -308,11 +308,11 @@ internal sealed class AwkInputScheduler(
         }
     }
 
-    private AwkFileDescriptor[] SnapshotOwnedDescriptors(bool clear)
+    private AwkFileDescriptor[] SnapshotOwnedDescriptors(OwnedDescriptorRetention retention)
     {
         var descriptors = new AwkFileDescriptor[_ownedDescriptors.Count];
         _ownedDescriptors.CopyTo(descriptors);
-        if (clear)
+        if (retention == OwnedDescriptorRetention.Clear)
             _ownedDescriptors.Clear();
 
         return descriptors;
@@ -359,11 +359,26 @@ internal sealed class AwkInputScheduler(
         public bool IsStandardInput => Value is "-" or "/dev/stdin";
     }
 
-    private readonly record struct OwnedInputDescriptor(bool HasValue, AwkFileDescriptor Value)
+    private readonly struct OwnedInputDescriptor
     {
+        private readonly AwkFileDescriptor _value;
+        private readonly OwnedInputDescriptorKind _kind;
+
+        private OwnedInputDescriptor(AwkFileDescriptor value)
+        {
+            _value = value;
+            _kind = OwnedInputDescriptorKind.Owned;
+        }
+
         public static OwnedInputDescriptor None => default;
 
-        public static OwnedInputDescriptor Owned(AwkFileDescriptor descriptor) => new(true, descriptor);
+        public static OwnedInputDescriptor Owned(AwkFileDescriptor descriptor) => new(descriptor);
+
+        public bool TryGetValue(out AwkFileDescriptor descriptor)
+        {
+            descriptor = _value;
+            return _kind == OwnedInputDescriptorKind.Owned;
+        }
     }
 
     private sealed class OpenMainInput(
@@ -380,5 +395,23 @@ internal sealed class AwkInputScheduler(
         None,
         BeginFile,
         EndFile
+    }
+
+    private enum EndFileAction
+    {
+        Skip,
+        Execute
+    }
+
+    private enum OwnedDescriptorRetention
+    {
+        Retain,
+        Clear
+    }
+
+    private enum OwnedInputDescriptorKind
+    {
+        None,
+        Owned
     }
 }
