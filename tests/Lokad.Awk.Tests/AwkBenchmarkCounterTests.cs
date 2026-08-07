@@ -54,6 +54,21 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.RecordSeparatorTailBytesMoved);
     }
 
+    [Fact]
+    public async Task Awk_RegexEnumerationInspectsInputPolicyOnce()
+    {
+        var input = new string('x', 1_000) + "é\n";
+        var (exitCode, fileSystem, counters) = await RunAsync(
+            ["-b", "{gsub(/x/, \"\"); print length($0)}"],
+            input,
+            AwkRegexEngineKind.DotNetCompatibility);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("2\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(1_001, counters.RegexPolicyInputBytesInspected);
+        Assert.Equal(1_001, counters.RegexMatches);
+    }
+
     [Theory]
     [InlineData("BEGIN{FS=\"[,;]\"} {print NF}", "a,b;c\n", "3\n")]
     [InlineData("BEGIN{FIELDWIDTHS=\"2 3\"} {print NF}", "abcdef\n", "2\n")]

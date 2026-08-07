@@ -129,8 +129,19 @@ internal sealed class AwkRegexRuntime
         AwkRegexSearchOffset searchOffset,
         out AwkRegexMatchSpan matchSpan)
     {
-        _throwIfCancellationRequested();
         var policy = ResolveExecutionPolicy(regex, input);
+        return MatchValue(regex, input, governor, searchOffset, policy, out matchSpan);
+    }
+
+    internal AwkRegexMatch MatchValue(
+        Regex regex,
+        AwkText input,
+        AwkMemoryGovernor governor,
+        AwkRegexSearchOffset searchOffset,
+        AwkRegexExecutionPolicy policy,
+        out AwkRegexMatchSpan matchSpan)
+    {
+        _throwIfCancellationRequested();
         if (!policy.UsesUtf8Adapter)
         {
             RecordTextFallback(policy);
@@ -187,8 +198,17 @@ internal sealed class AwkRegexRuntime
         AwkText input,
         AwkRegexSearchOffset searchOffset)
     {
-        _throwIfCancellationRequested();
         var policy = ResolveExecutionPolicy(regex, input);
+        return MatchSpan(regex, input, searchOffset, policy);
+    }
+
+    internal AwkRegexMatchSpan MatchSpan(
+        Regex regex,
+        AwkText input,
+        AwkRegexSearchOffset searchOffset,
+        AwkRegexExecutionPolicy policy)
+    {
+        _throwIfCancellationRequested();
         if (!policy.UsesUtf8Adapter)
         {
             RecordTextFallback(policy);
@@ -232,6 +252,9 @@ internal sealed class AwkRegexRuntime
         _throwIfCancellationRequested();
         return new AwkRegexMatchSpanEnumerator(this, regex, input);
     }
+
+    internal AwkRegexExecutionPolicy CaptureExecutionPolicy(Regex regex, AwkText input) =>
+        ResolveExecutionPolicy(regex, input);
 
     private Match Match(Regex regex, string input, int startAt)
     {
@@ -375,15 +398,19 @@ internal sealed class AwkRegexRuntime
             _counters.RecordRegexPatternGapFallback();
     }
 
-    private static bool ContainsNonAscii(AwkText input)
+    private bool ContainsNonAscii(AwkText input)
     {
         var span = input.AsSpan();
         for (var index = 0; index < span.Length; index++)
         {
             if (span[index] > 0x7F)
+            {
+                _counters.RecordRegexPolicyInputBytesInspected(index + 1);
                 return true;
+            }
         }
 
+        _counters.RecordRegexPolicyInputBytesInspected(span.Length);
         return false;
     }
 
@@ -433,7 +460,7 @@ internal sealed class AwkRegexRuntime
         TranslatedPattern
     }
 
-    private readonly record struct AwkRegexExecutionPolicy(
+    internal readonly record struct AwkRegexExecutionPolicy(
         AwkRegexExecutionEngine Engine,
         AwkRegexFallbackReason FallbackReason,
         AwkRegexCoordinatePolicy CoordinatePolicy)
@@ -443,20 +470,20 @@ internal sealed class AwkRegexRuntime
         public bool UseByteOffsets => CoordinatePolicy == AwkRegexCoordinatePolicy.Byte;
     }
 
-    private enum AwkRegexExecutionEngine
+    internal enum AwkRegexExecutionEngine
     {
         DotNet,
         Utf8Adapter
     }
 
-    private enum AwkRegexFallbackReason
+    internal enum AwkRegexFallbackReason
     {
         None,
         DotNetCompatibility,
         PatternGap
     }
 
-    private enum AwkRegexCoordinatePolicy
+    internal enum AwkRegexCoordinatePolicy
     {
         Utf16,
         Byte
@@ -469,6 +496,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
     private readonly Regex _regex;
     private readonly AwkText _input;
     private readonly AwkMemoryGovernor _governor;
+    private readonly AwkRegexRuntime.AwkRegexExecutionPolicy _executionPolicy;
     private readonly IDisposable _matchLease;
     private AwkRegexSearchOffset _nextOffset = AwkRegexSearchOffset.Start;
     private bool _completed;
@@ -484,6 +512,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
         _regex = regex;
         _input = input;
         _governor = governor;
+        _executionPolicy = runtime.CaptureExecutionPolicy(regex, input);
         _matchLease = governor.ReserveTransient(
             AwkRuntimeMemory.EstimateRegexMatchBytes(regex.GetGroupNumbers().Length));
     }
@@ -502,6 +531,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
             _input,
             _governor,
             _nextOffset,
+            _executionPolicy,
             out var matchSpan);
         if (!match.Success)
         {
@@ -532,6 +562,8 @@ internal sealed class AwkRegexMatchSpanEnumerator(
     Regex regex,
     AwkText input) : IDisposable
 {
+    private readonly AwkRegexRuntime.AwkRegexExecutionPolicy _executionPolicy =
+        runtime.CaptureExecutionPolicy(regex, input);
     private AwkRegexSearchOffset _nextOffset = AwkRegexSearchOffset.Start;
     private bool _completed;
     private bool _disposed;
@@ -545,7 +577,7 @@ internal sealed class AwkRegexMatchSpanEnumerator(
             return false;
         }
 
-        match = runtime.MatchSpan(regex, input, _nextOffset);
+        match = runtime.MatchSpan(regex, input, _nextOffset, _executionPolicy);
         if (!match.Success)
         {
             _completed = true;

@@ -45,6 +45,8 @@ internal sealed class AwkRuntimeCounters
 
     public long RegexStringAdapterFallbacks { get; private set; }
 
+    public long RegexPolicyInputBytesInspected { get; private set; }
+
     public long RecordSeparatorResolutions { get; private set; }
 
     public long RecordSeparatorTailBytesMoved { get; private set; }
@@ -224,6 +226,15 @@ internal sealed class AwkRuntimeCounters
 
         lock (_sync)
             RegexStringAdapterFallbacks++;
+    }
+
+    public void RecordRegexPolicyInputBytesInspected(int byteCount)
+    {
+        if (!_enabled || byteCount <= 0)
+            return;
+
+        lock (_sync)
+            RegexPolicyInputBytesInspected += byteCount;
     }
 
     public void RecordRecordSeparatorResolution()

@@ -750,8 +750,8 @@ internal static class BenchmarkCounterReport
         Console.WriteLine("OS: " + Environment.OSVersion);
         Console.WriteLine(".NET: " + Environment.Version);
         Console.WriteLine();
-        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | VM instructions | VM fallbacks | Memory peak |");
-        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex policy bytes | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | VM instructions | VM fallbacks | Memory peak |");
+        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
 
         for (var index = 0; index < Scenarios.Length; index++)
         {
@@ -813,6 +813,7 @@ internal static class BenchmarkCounterReport
                 counters.RegexDotNetTextFallbacks.ToString(CultureInfo.InvariantCulture),
                 counters.RegexPatternGapFallbacks.ToString(CultureInfo.InvariantCulture),
                 counters.RegexStringAdapterFallbacks.ToString(CultureInfo.InvariantCulture),
+                counters.RegexPolicyInputBytesInspected.ToString(CultureInfo.InvariantCulture),
                 counters.RecordSeparatorTailBytesMoved.ToString(CultureInfo.InvariantCulture),
                 counters.FormattingFallbacks.ToString(CultureInfo.InvariantCulture),
                 counters.StringInteropFallbacks.ToString(CultureInfo.InvariantCulture),
