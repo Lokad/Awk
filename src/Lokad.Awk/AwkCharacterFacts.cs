@@ -20,14 +20,4 @@ internal static class AwkCharacterFacts
         return value - 'A' + 10;
     }
 
-    public static bool AreOctalDigits(string text, int start, int end)
-    {
-        for (var index = start; index < end; index++)
-        {
-            if (!IsOctalDigit(text[index]))
-                return false;
-        }
-
-        return true;
-    }
 }

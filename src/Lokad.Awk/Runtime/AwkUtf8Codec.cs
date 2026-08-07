@@ -88,22 +88,4 @@ internal static class AwkUtf8Codec
         return StrictUtf8.GetBytes(text, destination);
     }
 
-    public static ReadOnlyMemory<byte> EncodeLine(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return new[] { (byte)'\n' };
-        }
-
-        if (text[^1] == '\n')
-        {
-            return StrictUtf8.GetBytes(text);
-        }
-
-        var byteCount = StrictUtf8.GetByteCount(text);
-        var buffer = new byte[byteCount + 1];
-        StrictUtf8.GetBytes(text.AsSpan(), buffer.AsSpan());
-        buffer[^1] = (byte)'\n';
-        return buffer;
-    }
 }

@@ -185,7 +185,6 @@ internal sealed class AwkByteFieldSplitter(
             return new AwkTextSplitResult([], captureSeparators ? [AwkText.Empty] : []);
 
         var fields = new List<AwkText>(splitBytes ? line.ByteLength : 0);
-        var content = line.AsSpan();
         var scanner = new AwkCharacterFieldScanner(line, splitBytes);
         while (scanner.MoveNext(out var field))
         {

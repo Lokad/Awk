@@ -32,14 +32,6 @@ internal static class AwkRuntimeMemory
         return AwkTextObjectBytes + ByteArrayObjectBytes + byteLength;
     }
 
-    public static long EstimateByteArrayBytes(int byteLength)
-    {
-        if (byteLength <= 0)
-            return 0;
-
-        return ByteArrayObjectBytes + byteLength;
-    }
-
     public static long EstimateVariableSlotBytes(AwkVariableSlot slot) =>
         VariableSlotBytes + EstimateTextBytes(slot.RetainedTextByteLength);
 

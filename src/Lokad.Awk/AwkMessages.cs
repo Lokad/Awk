@@ -257,9 +257,6 @@ internal static class AwkMessages
     internal static ReadOnlyMemory<byte> FormatCannotModifySpecialArray(string name) =>
         FormatSymbolDiagnostic(ErrorCannotModifySpecialArrayPrefix, name, ErrorCannotModifySpecialArraySuffix);
 
-    internal static ReadOnlyMemory<byte> FormatGensubThirdArgumentWarning(string value) =>
-        AwkUtf8Codec.Encode(FormatGensubThirdArgumentWarningText(value));
-
     internal static string FormatGensubThirdArgumentWarningText(string value) =>
         "awk: warning: gensub: third argument `" + value + "' treated as 1\n";
 

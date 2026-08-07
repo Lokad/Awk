@@ -72,20 +72,6 @@ internal sealed class AwkExpressionSyntax(
             ? FirstChild
             : null;
 
-    public bool TryGetVariableIdentifier(out AwkToken token)
-    {
-        if (Kind == AwkExpressionKind.Variable &&
-            Tokens.Count == 1 &&
-            Tokens[0].Kind == AwkTokenKind.Identifier)
-        {
-            token = Tokens[0];
-            return true;
-        }
-
-        token = default;
-        return false;
-    }
-
     private IReadOnlyList<AwkToken> BuildTokens()
     {
         var count = OperatorTokens.Count + DelimiterTokens.Count + SeparatorTokens.Count;

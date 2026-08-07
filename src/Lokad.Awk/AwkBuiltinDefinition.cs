@@ -41,13 +41,7 @@ internal readonly struct AwkBuiltinContext
 
     public AwkText GetByteText(int index) => GetValue(index).ByteText;
 
-    public async ValueTask<AwkText> GetByteTextAsync(int index) =>
-        (await GetValueAsync(index).ConfigureAwait(false)).ByteText;
-
     public double GetNumber(int index) => GetValue(index).AsNumber();
-
-    public async ValueTask<double> GetNumberAsync(int index) =>
-        (await GetValueAsync(index).ConfigureAwait(false)).AsNumber();
 
     public bool TryGetExecutionContext(out AwkExecutionContext context) =>
         Evaluation.TryGetExecutionContext(out context);

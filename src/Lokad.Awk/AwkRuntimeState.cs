@@ -812,11 +812,6 @@ internal sealed class AwkRuntimeState
     public AwkLeasedReadOnlyList<AwkText> SnapshotArrayKeys(AwkArrayName name) =>
         _arrayRuntime.SnapshotKeys(name);
 
-    public async ValueTask<AwkLeasedReadOnlyList<AwkText>> SnapshotArrayKeysAsync(
-        AwkArrayName name,
-        AwkEvaluationContext context) =>
-        await _arrayRuntime.SnapshotKeysAsync(name, context).ConfigureAwait(false);
-
     public async ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(
         AwkArrayName name,
         AwkEvaluationContext context) =>

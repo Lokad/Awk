@@ -122,23 +122,6 @@ internal sealed class AwkLineContinuationMap
 
     public AwkLineContinuationPoint this[int index] => Points[index];
 
-    public int CountInRange(int start, int length)
-    {
-        if (IsEmpty)
-            return 0;
-
-        var end = start + length;
-        var count = 0;
-        for (var index = 0; index < Points.Count; index++)
-        {
-            var offset = Points[index].NormalizedOffset;
-            if (offset >= start && offset <= end)
-                count++;
-        }
-
-        return count;
-    }
-
     public AwkLineContinuationMap Slice(int start, int length)
     {
         if (IsEmpty)
