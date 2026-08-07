@@ -11,8 +11,8 @@ internal abstract partial class AwkStatement
 {
     private sealed class IfStatement(
         AwkCondition condition,
-        IReadOnlyList<AwkStatement> body,
-        IReadOnlyList<AwkStatement> elseBody) : AwkStatement
+        AwkStatement[] body,
+        AwkStatement[] elseBody) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
@@ -27,13 +27,13 @@ internal abstract partial class AwkStatement
 
             var jumpIfFalseIndex = compiler.Emit(AwkOpcode.JumpIfFalse);
             compiler.Pop();
-            for (var index = 0; index < body.Count; index++)
+            for (var index = 0; index < body.Length; index++)
             {
                 compiler.Emit(AwkOpcode.CheckBudget);
                 compiler.EmitStatementOrFallback(body[index]);
             }
 
-            if (elseBody.Count == 0)
+            if (elseBody.Length == 0)
             {
                 compiler.PatchOperand0(jumpIfFalseIndex, compiler.CurrentOffset);
                 return true;
@@ -41,7 +41,7 @@ internal abstract partial class AwkStatement
 
             var jumpOverElseIndex = compiler.Emit(AwkOpcode.Jump);
             compiler.PatchOperand0(jumpIfFalseIndex, compiler.CurrentOffset);
-            for (var index = 0; index < elseBody.Count; index++)
+            for (var index = 0; index < elseBody.Length; index++)
             {
                 compiler.Emit(AwkOpcode.CheckBudget);
                 compiler.EmitStatementOrFallback(elseBody[index]);
@@ -55,7 +55,7 @@ internal abstract partial class AwkStatement
     private sealed class ForInStatement(
         AwkVariableName loopVariable,
         AwkArrayName arrayVariable,
-        IReadOnlyList<AwkStatement> body) : AwkStatement
+        AwkStatement[] body) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
@@ -85,7 +85,7 @@ internal abstract partial class AwkStatement
         AwkStatement initializer,
         AwkCondition condition,
         AwkStatement increment,
-        IReadOnlyList<AwkStatement> body) : AwkStatement
+        AwkStatement[] body) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
@@ -131,7 +131,7 @@ internal abstract partial class AwkStatement
         }
     }
 
-    private sealed class WhileStatement(AwkCondition condition, IReadOnlyList<AwkStatement> body) : AwkStatement
+    private sealed class WhileStatement(AwkCondition condition, AwkStatement[] body) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
@@ -159,7 +159,7 @@ internal abstract partial class AwkStatement
         }
     }
 
-    private sealed class DoWhileStatement(IReadOnlyList<AwkStatement> body, AwkCondition condition) : AwkStatement
+    private sealed class DoWhileStatement(AwkStatement[] body, AwkCondition condition) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
@@ -185,8 +185,8 @@ internal abstract partial class AwkStatement
 
     private sealed class SwitchStatement(
         AwkExpression valueExpression,
-        IReadOnlyList<AwkSwitchCase> cases,
-        IReadOnlyList<AwkStatement> defaultBody) : AwkStatement
+        AwkSwitchCase[] cases,
+        AwkStatement[] defaultBody) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
@@ -195,7 +195,7 @@ internal abstract partial class AwkStatement
                 throw new AwkRuntimeException(AwkMessages.ErrorSwitchIsGnuExtension, AwkDiagnosticId.UnsupportedPolicy);
 
             var value = await valueExpression.EvaluateAsync(context).ConfigureAwait(false);
-            for (var index = 0; index < cases.Count; index++)
+            for (var index = 0; index < cases.Length; index++)
             {
                 var candidate = cases[index];
                 if (!await MatchesAsync(candidate, value, context).ConfigureAwait(false))
@@ -215,7 +215,7 @@ internal abstract partial class AwkStatement
             candidate.Pattern.MatchesAsync(value, context);
 
         private static async ValueTask<AwkStatementFlow> ExecuteSelectedAsync(
-            IReadOnlyList<AwkStatement> body,
+            AwkStatement[] body,
             AwkEvaluationContext context)
         {
             var flow = await ExecuteAllAsync(body, context).ConfigureAwait(false);

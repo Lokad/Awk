@@ -40,7 +40,7 @@ internal sealed class AwkSwitchCase
 
     public AwkSwitchCasePattern Pattern { get; }
 
-    public IReadOnlyList<AwkStatement> Statements { get; }
+    public AwkStatement[] Statements { get; }
 }
 
 internal abstract partial class AwkStatement
@@ -183,11 +183,11 @@ internal abstract partial class AwkStatement
             : throw new InvalidOperationException("Statement execution requires an awk IO context.");
 
     private static async ValueTask<AwkStatementFlow> ExecuteAllAsync(
-        IReadOnlyList<AwkStatement> statements,
+        AwkStatement[] statements,
         AwkEvaluationContext context)
     {
         var execution = RequireExecutionContext(context);
-        for (var index = 0; index < statements.Count; index++)
+        for (var index = 0; index < statements.Length; index++)
         {
             context.State.RecordExecutionStep();
             context.State.ThrowIfCancellationRequested();

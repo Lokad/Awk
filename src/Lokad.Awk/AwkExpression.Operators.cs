@@ -10,7 +10,7 @@ internal abstract partial class AwkExpression
 {
     private sealed class ConcatExpression : AwkExpression
     {
-        private readonly IReadOnlyList<AwkExpression> _parts;
+        private readonly AwkExpression[] _parts;
 
         public ConcatExpression(IReadOnlyList<AwkExpression> parts)
         {
@@ -22,10 +22,10 @@ internal abstract partial class AwkExpression
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var formattedParts = ArrayPool<AwkText>.Shared.Rent(_parts.Count);
+            var formattedParts = ArrayPool<AwkText>.Shared.Rent(_parts.Length);
             try
             {
-                for (var index = 0; index < _parts.Count; index++)
+                for (var index = 0; index < _parts.Length; index++)
                 {
                     var pending = _parts[index].EvaluateAsync(context);
                     if (!pending.IsCompletedSuccessfully)
@@ -55,7 +55,7 @@ internal abstract partial class AwkExpression
             {
                 var current = await pending.ConfigureAwait(false);
                 formattedParts[currentIndex] = context.State.FormatStringByteText(current);
-                for (var index = currentIndex + 1; index < _parts.Count; index++)
+                for (var index = currentIndex + 1; index < _parts.Length; index++)
                 {
                     var value = await _parts[index].EvaluateAsync(context).ConfigureAwait(false);
                     formattedParts[index] = context.State.FormatStringByteText(value);
@@ -71,7 +71,7 @@ internal abstract partial class AwkExpression
 
         private AwkValue CreateValue(AwkEvaluationContext context, AwkText[] formattedParts) =>
             context.State.CreateByteTextValue(AwkText.Concat(
-                formattedParts.AsSpan(0, _parts.Count),
+                formattedParts.AsSpan(0, _parts.Length),
                 context.State.Counters,
                 context.State.MemoryGovernor));
 
@@ -84,7 +84,7 @@ internal abstract partial class AwkExpression
                 return false;
 
             compiler.Emit(AwkOpcode.FormatString, operand0: 2);
-            for (var index = 2; index < _parts.Count; index++)
+            for (var index = 2; index < _parts.Length; index++)
             {
                 if (!compiler.TryEmitExpression(_parts[index]))
                     return false;
@@ -92,8 +92,8 @@ internal abstract partial class AwkExpression
                 compiler.Emit(AwkOpcode.FormatString, operand0: 1);
             }
 
-            compiler.Emit(AwkOpcode.Concat, operand0: _parts.Count);
-            compiler.Replace(popped: _parts.Count, pushed: 1);
+            compiler.Emit(AwkOpcode.Concat, operand0: _parts.Length);
+            compiler.Replace(popped: _parts.Length, pushed: 1);
             return true;
         }
     }

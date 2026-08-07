@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
@@ -52,36 +51,25 @@ internal readonly struct AwkProgram
         IReadOnlyList<AwkAction> endFileActions,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
     {
-        BeginActions = CopyActions(beginActions);
-        MainActions = CopyActions(mainActions);
-        EndActions = CopyActions(endActions);
-        BeginFileActions = CopyActions(beginFileActions);
-        EndFileActions = CopyActions(endFileActions);
+        BeginActions = AwkCollectionSnapshots.Copy(beginActions);
+        MainActions = AwkCollectionSnapshots.Copy(mainActions);
+        EndActions = AwkCollectionSnapshots.Copy(endActions);
+        BeginFileActions = AwkCollectionSnapshots.Copy(beginFileActions);
+        EndFileActions = AwkCollectionSnapshots.Copy(endFileActions);
         Functions = CopyFunctions(functions);
     }
 
-    public IReadOnlyList<AwkAction> BeginActions { get; }
+    public AwkAction[] BeginActions { get; }
 
-    public IReadOnlyList<AwkAction> MainActions { get; }
+    public AwkAction[] MainActions { get; }
 
-    public IReadOnlyList<AwkAction> EndActions { get; }
+    public AwkAction[] EndActions { get; }
 
-    public IReadOnlyList<AwkAction> BeginFileActions { get; }
+    public AwkAction[] BeginFileActions { get; }
 
-    public IReadOnlyList<AwkAction> EndFileActions { get; }
+    public AwkAction[] EndFileActions { get; }
 
     public IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> Functions { get; }
-
-    private static IReadOnlyList<AwkAction> CopyActions(IReadOnlyList<AwkAction> actions)
-    {
-        var copy = new AwkAction[actions.Count];
-        for (var index = 0; index < actions.Count; index++)
-        {
-            copy[index] = actions[index];
-        }
-
-        return Array.AsReadOnly(copy);
-    }
 
     private static IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> CopyFunctions(
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)

@@ -26,7 +26,7 @@ internal interface IAwkUserFunction
 
 internal sealed class AwkUserFunction : IAwkUserFunction
 {
-    private readonly IReadOnlyList<AwkStatement> _statements;
+    private readonly AwkStatement[] _statements;
 
     public AwkUserFunction(
         AwkFunctionName name,
@@ -130,13 +130,13 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         var state = context.State;
         try
         {
-            if (_statements.Count == 0)
+            if (_statements.Length == 0)
                 return AwkValue.FromText(string.Empty);
 
             if (!context.TryGetExecutionContext(out var execution))
                 return AwkValue.FromText(string.Empty);
 
-            for (var index = 0; index < _statements.Count; index++)
+            for (var index = 0; index < _statements.Length; index++)
             {
                 state.RecordExecutionStep();
                 state.ThrowIfCancellationRequested();

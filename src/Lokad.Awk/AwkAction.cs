@@ -6,7 +6,7 @@ namespace Lokad.Awk;
 internal readonly struct AwkAction
 {
     private readonly AwkPattern? _pattern;
-    private readonly IReadOnlyList<AwkStatement> _statements;
+    private readonly AwkStatement[] _statements;
 
     public AwkAction(AwkPattern? pattern, IReadOnlyList<AwkStatement> statements)
     {
@@ -16,7 +16,7 @@ internal readonly struct AwkAction
 
     internal bool IsPatternless => _pattern == null;
 
-    internal IReadOnlyList<AwkStatement> Statements => _statements;
+    internal AwkStatement[] Statements => _statements;
 
     public ValueTask<bool> MatchesAsync(AwkRuntimeState state) =>
         _pattern == null
@@ -28,12 +28,12 @@ internal readonly struct AwkAction
         AwkIo io,
         AwkOutputSink output)
     {
-        if (_statements.Count == 0)
+        if (_statements.Length == 0)
             return AwkStatementFlow.Continue;
 
         using var executionContext = state.PushExecutionContext(output, io);
         var evaluationContext = new AwkEvaluationContext(state.RecordNumber, state, output, io);
-        for (var index = 0; index < _statements.Count; index++)
+        for (var index = 0; index < _statements.Length; index++)
         {
             state.RecordExecutionStep();
             state.ThrowIfCancellationRequested();

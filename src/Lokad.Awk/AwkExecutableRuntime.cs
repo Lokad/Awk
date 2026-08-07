@@ -8,11 +8,11 @@ namespace Lokad.Awk;
 internal sealed class AwkExecutableProgram
 {
     private AwkExecutableProgram(
-        IReadOnlyList<AwkExecutableAction> beginActions,
-        IReadOnlyList<AwkExecutableAction> mainActions,
-        IReadOnlyList<AwkExecutableAction> endActions,
-        IReadOnlyList<AwkExecutableAction> beginFileActions,
-        IReadOnlyList<AwkExecutableAction> endFileActions,
+        AwkExecutableAction[] beginActions,
+        AwkExecutableAction[] mainActions,
+        AwkExecutableAction[] endActions,
+        AwkExecutableAction[] beginFileActions,
+        AwkExecutableAction[] endFileActions,
         IReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction> functions,
         AwkExecutableTables tables)
     {
@@ -25,15 +25,15 @@ internal sealed class AwkExecutableProgram
         Tables = tables;
     }
 
-    public IReadOnlyList<AwkExecutableAction> BeginActions { get; }
+    public AwkExecutableAction[] BeginActions { get; }
 
-    public IReadOnlyList<AwkExecutableAction> MainActions { get; }
+    public AwkExecutableAction[] MainActions { get; }
 
-    public IReadOnlyList<AwkExecutableAction> EndActions { get; }
+    public AwkExecutableAction[] EndActions { get; }
 
-    public IReadOnlyList<AwkExecutableAction> BeginFileActions { get; }
+    public AwkExecutableAction[] BeginFileActions { get; }
 
-    public IReadOnlyList<AwkExecutableAction> EndFileActions { get; }
+    public AwkExecutableAction[] EndFileActions { get; }
 
     public IReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction> Functions { get; }
 
@@ -60,12 +60,12 @@ internal sealed class AwkExecutableProgram
             tables.ToTables());
     }
 
-    private static IReadOnlyList<AwkExecutableAction> CompileActions(
-        IReadOnlyList<AwkAction> actions,
+    private static AwkExecutableAction[] CompileActions(
+        AwkAction[] actions,
         AwkExecutableTableBuilder tables)
     {
-        var executable = new AwkExecutableAction[actions.Count];
-        for (var index = 0; index < actions.Count; index++)
+        var executable = new AwkExecutableAction[actions.Length];
+        for (var index = 0; index < actions.Length; index++)
         {
             executable[index] = AwkExecutableAction.Compile(actions[index], tables);
         }
@@ -84,9 +84,9 @@ internal sealed class AwkExecutableProgram
         return new ReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction>(executable);
     }
 
-    private static bool AreFallbackOnly(IReadOnlyList<AwkExecutableAction> actions)
+    private static bool AreFallbackOnly(AwkExecutableAction[] actions)
     {
-        for (var index = 0; index < actions.Count; index++)
+        for (var index = 0; index < actions.Length; index++)
         {
             if (!actions[index].UsesFallbackOnly)
                 return false;
@@ -142,11 +142,11 @@ internal sealed class AwkExecutableAction
         AwkAction action,
         AwkExecutableTableBuilder tables)
     {
-        if (!action.IsPatternless || action.Statements.Count == 0)
+        if (!action.IsPatternless || action.Statements.Length == 0)
             return FromFallback(action, tables);
 
         var compiler = new AwkExecutableCompiler(tables);
-        for (var index = 0; index < action.Statements.Count; index++)
+        for (var index = 0; index < action.Statements.Length; index++)
         {
             compiler.Emit(AwkOpcode.CheckBudget);
             compiler.EmitStatementOrFallback(action.Statements[index]);
@@ -237,7 +237,7 @@ internal sealed class AwkExecutableFunction : IAwkUserFunction
 
         state.Counters.RecordVmBasicBlockEntry();
         var block = Blocks[0];
-        for (var index = 0; index < block.Instructions.Count; index++)
+        for (var index = 0; index < block.Instructions.Length; index++)
         {
             var opcode = block.Instructions[index].Opcode;
             state.Counters.RecordVmInstruction();
@@ -300,7 +300,7 @@ internal static class AwkExecutableDispatcher
             var flushingOutput = false;
             try
             {
-                while (pc < block.Instructions.Count)
+                while (pc < block.Instructions.Length)
                 {
                     var instruction = block.Instructions[pc];
                     state.Counters.RecordVmInstruction();
@@ -623,7 +623,7 @@ internal static class AwkExecutableDispatcher
         using var frame = EnterFallbackFrame(state);
         state.Counters.RecordVmBasicBlockEntry();
         var block = action.Blocks[0];
-        if (block.Instructions.Count != 1 || block.Instructions[0].Opcode != AwkOpcode.FallbackAction)
+        if (block.Instructions.Length != 1 || block.Instructions[0].Opcode != AwkOpcode.FallbackAction)
             throw new InvalidOperationException("Executable action fallback block is malformed.");
 
         var opcode = block.Instructions[0].Opcode;
@@ -737,10 +737,10 @@ internal sealed class AwkExecutableBlock
 
     public int Label { get; }
 
-    public IReadOnlyList<AwkInstruction> Instructions { get; }
+    public AwkInstruction[] Instructions { get; }
 
     public bool IsFallbackOnly =>
-        Instructions.Count == 1 &&
+        Instructions.Length == 1 &&
         Instructions[0].Opcode is AwkOpcode.FallbackAction or AwkOpcode.FallbackFunction;
 }
 

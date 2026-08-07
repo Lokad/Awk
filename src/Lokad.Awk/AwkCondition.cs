@@ -6,7 +6,7 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkCondition
 {
-    private readonly IReadOnlyList<IReadOnlyList<AwkConditionClause>> _alternatives;
+    private readonly AwkConditionClause[][] _alternatives;
 
     public AwkCondition(IReadOnlyList<IReadOnlyList<AwkConditionClause>> alternatives)
     {
@@ -15,14 +15,14 @@ internal readonly struct AwkCondition
 
     public async ValueTask<bool> EvaluateAsync(AwkEvaluationContext context)
     {
-        if (_alternatives.Count == 0)
+        if (_alternatives.Length == 0)
             return false;
 
-        for (var alternativeIndex = 0; alternativeIndex < _alternatives.Count; alternativeIndex++)
+        for (var alternativeIndex = 0; alternativeIndex < _alternatives.Length; alternativeIndex++)
         {
             var clauses = _alternatives[alternativeIndex];
-            var matches = clauses.Count > 0;
-            for (var clauseIndex = 0; clauseIndex < clauses.Count; clauseIndex++)
+            var matches = clauses.Length > 0;
+            for (var clauseIndex = 0; clauseIndex < clauses.Length; clauseIndex++)
             {
                 if (await clauses[clauseIndex].EvaluateAsync(context).ConfigureAwait(false))
                     continue;
@@ -40,7 +40,7 @@ internal readonly struct AwkCondition
 
     internal bool TryEmitExecutable(AwkExecutableCompiler compiler)
     {
-        if (_alternatives.Count != 1 || _alternatives[0].Count != 1)
+        if (_alternatives.Length != 1 || _alternatives[0].Length != 1)
             return false;
 
         return _alternatives[0][0].TryEmitExecutable(compiler);

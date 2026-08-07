@@ -20,12 +20,12 @@ internal sealed class AwkFunctionLocalLayout
             _slotsByName[parameter] = new AwkFunctionLocalSlotId(index);
         }
 
-        Parameters = Array.AsReadOnly(copiedParameters);
+        Parameters = copiedParameters;
     }
 
-    public IReadOnlyList<AwkVariableName> Parameters { get; }
+    public AwkVariableName[] Parameters { get; }
 
-    public int SlotCount => Parameters.Count;
+    public int SlotCount => Parameters.Length;
 
     public bool TryGetSlot(AwkVariableName name, out AwkFunctionLocalSlotId slot) =>
         _slotsByName.TryGetValue(name, out slot);

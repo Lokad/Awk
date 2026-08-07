@@ -8,12 +8,12 @@ namespace Lokad.Awk;
 internal abstract partial class AwkStatement
 {
     private sealed class PrintStatement(
-        IReadOnlyList<AwkExpressionPart> parts,
+        AwkExpressionPart[] parts,
         AwkOutputTarget target) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
-            if (parts.Count == 0)
+            if (parts.Length == 0)
                 return AwkStatementFlow.Continue;
 
             var state = context.State;
@@ -21,11 +21,11 @@ internal abstract partial class AwkStatement
             var output = execution.Output;
             if (!target.IsRedirected)
             {
-                var segments = ArrayPool<AwkText>.Shared.Rent((parts.Count * 2) + 1);
+                var segments = ArrayPool<AwkText>.Shared.Rent((parts.Length * 2) + 1);
                 var segmentCount = 0;
                 try
                 {
-                    for (var i = 0; i < parts.Count; i++)
+                    for (var i = 0; i < parts.Length; i++)
                     {
                         var part = parts[i];
                         if (part.LeadingSpace && i > 0)
@@ -54,7 +54,7 @@ internal abstract partial class AwkStatement
             }
 
             using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor);
-            for (var i = 0; i < parts.Count; i++)
+            for (var i = 0; i < parts.Length; i++)
             {
                 var part = parts[i];
                 if (part.LeadingSpace && i > 0)
@@ -81,10 +81,10 @@ internal abstract partial class AwkStatement
 
         internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
         {
-            if (target.IsRedirected || parts.Count == 0)
+            if (target.IsRedirected || parts.Length == 0)
                 return false;
 
-            for (var index = 0; index < parts.Count; index++)
+            for (var index = 0; index < parts.Length; index++)
             {
                 if (parts[index].LeadingSpace != (index > 0))
                     return false;
@@ -92,8 +92,8 @@ internal abstract partial class AwkStatement
                 compiler.EmitExpressionOrFallback(parts[index].Expression);
             }
 
-            compiler.Emit(AwkOpcode.Print, parts.Count);
-            compiler.Pop(parts.Count);
+            compiler.Emit(AwkOpcode.Print, parts.Length);
+            compiler.Pop(parts.Length);
             return true;
         }
 
@@ -103,7 +103,7 @@ internal abstract partial class AwkStatement
 
     private sealed class PrintfStatement(
         AwkExpression format,
-        IReadOnlyList<AwkExpression> arguments,
+        AwkExpression[] arguments,
         AwkOutputTarget target) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
@@ -112,16 +112,16 @@ internal abstract partial class AwkStatement
             var execution = RequireExecutionContext(context);
             var output = execution.Output;
             var formatText = await format.ResolveStringAsync(context).ConfigureAwait(false);
-            var resolvedArguments = ArrayPool<AwkValue>.Shared.Rent(arguments.Count);
+            var resolvedArguments = ArrayPool<AwkValue>.Shared.Rent(arguments.Length);
             AwkText formatted;
             try
             {
-                for (var i = 0; i < arguments.Count; i++)
+                for (var i = 0; i < arguments.Length; i++)
                     resolvedArguments[i] = await arguments[i].EvaluateAsync(context).ConfigureAwait(false);
 
                 formatted = AwkFormattingRuntime.FormatPrintfStrictByteText(
                     formatText,
-                    new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Count, state.Counters),
+                    new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state.Counters),
                     state.Counters,
                     state.MemoryGovernor);
             }

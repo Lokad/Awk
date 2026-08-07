@@ -20,7 +20,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         _output = new AwkOutputSink(state.Limits, state.MemoryGovernor, state.Counters);
     }
 
-    public bool HasBeginFileActions => _program.BeginFileActions.Count > 0;
+    public bool HasBeginFileActions => _program.BeginFileActions.Length > 0;
 
     public ValueTask<AwkStatementFlow> ExecuteBeginActionsAsync(AwkRuntimeState state, AwkIo io) =>
         ExecutePhaseActionsAsync(
@@ -63,7 +63,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         state.SetCurrentRecord(record);
         if (_executableProgram == null)
         {
-            for (var index = 0; index < _program.MainActions.Count; index++)
+            for (var index = 0; index < _program.MainActions.Length; index++)
             {
                 var action = _program.MainActions[index];
                 if (!await action.MatchesAsync(state).ConfigureAwait(false))
@@ -78,7 +78,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
             return AwkStatementFlow.Continue;
         }
 
-        for (var index = 0; index < _executableProgram.MainActions.Count; index++)
+        for (var index = 0; index < _executableProgram.MainActions.Length; index++)
         {
             var action = _executableProgram.MainActions[index];
             if (!await MatchesExecutableActionAsync(action, state).ConfigureAwait(false))
@@ -105,8 +105,8 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
     }
 
     private async ValueTask<AwkStatementFlow> ExecutePhaseActionsAsync(
-        IReadOnlyList<AwkAction> interpreterActions,
-        IReadOnlyList<AwkExecutableAction>? executableActions,
+        AwkAction[] interpreterActions,
+        AwkExecutableAction[]? executableActions,
         AwkExecutableTables? executableTables,
         AwkActionPhase phase,
         AwkRuntimeState state,
@@ -114,7 +114,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
     {
         if (executableActions == null)
         {
-            for (var index = 0; index < interpreterActions.Count; index++)
+            for (var index = 0; index < interpreterActions.Length; index++)
             {
                 var flow = await interpreterActions[index].ExecuteAsync(state, io, _output).ConfigureAwait(false);
                 var decision = ResolvePhaseActionFlow(flow, phase);
@@ -128,7 +128,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         if (executableTables is not AwkExecutableTables tables)
             throw new InvalidOperationException("Executable action tables are required for executable actions.");
 
-        for (var index = 0; index < executableActions.Count; index++)
+        for (var index = 0; index < executableActions.Length; index++)
         {
             var flow = await AwkExecutableDispatcher.ExecuteActionAsync(
                     executableActions[index],
