@@ -10,23 +10,6 @@ internal sealed class AwkRecordDescriptorReader
     private readonly AwkRuntimeCounters _counters;
     private readonly AwkRuntimeResourceMonitor _resources;
 
-    public AwkRecordDescriptorReader(IAwkHost host, CancellationToken cancellationToken)
-        : this(host, cancellationToken, AwkRuntimeCounters.Disabled)
-    {
-    }
-
-    public AwkRecordDescriptorReader(
-        IAwkHost host,
-        CancellationToken cancellationToken,
-        AwkRuntimeCounters counters)
-        : this(
-            host,
-            cancellationToken,
-            counters,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters))
-    {
-    }
-
     public AwkRecordDescriptorReader(
         IAwkHost host,
         CancellationToken cancellationToken,

@@ -672,10 +672,11 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         using var cancellation = new CancellationTokenSource();
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
+        var functionName = AwkFunctionName.FromText("f");
         var function = new AwkUserFunction(
-            "f",
+            functionName,
             [],
-            [AwkStatement.Return(AwkOptionalExpression.Some(AwkExpression.FunctionCall("f", [])))]);
+            [AwkStatement.Return(AwkOptionalExpression.Some(AwkExpression.FunctionCall(functionName, [])))]);
         state.InitializeFunctions(new Dictionary<AwkFunctionName, AwkUserFunction>
         {
             [function.FunctionName] = function

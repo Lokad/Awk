@@ -51,7 +51,7 @@ public sealed class AwkProgramTests
         {
             AwkStatement.Return(AwkOptionalExpression.Some(AwkExpression.Number("1", 1)))
         };
-        var function = new AwkUserFunction("f", parameters, statements);
+        var function = new AwkUserFunction(AwkFunctionName.FromText("f"), parameters, statements);
         parameters.Clear();
         statements.Clear();
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);

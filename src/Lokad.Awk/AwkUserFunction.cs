@@ -28,14 +28,6 @@ internal sealed class AwkUserFunction : IAwkUserFunction
     private readonly IReadOnlyList<AwkStatement> _statements;
 
     public AwkUserFunction(
-        string name,
-        IReadOnlyList<AwkVariableName> parameters,
-        IReadOnlyList<AwkStatement> statements)
-        : this(AwkFunctionName.FromText(name), parameters, statements)
-    {
-    }
-
-    public AwkUserFunction(
         AwkFunctionName name,
         IReadOnlyList<AwkVariableName> parameters,
         IReadOnlyList<AwkStatement> statements)

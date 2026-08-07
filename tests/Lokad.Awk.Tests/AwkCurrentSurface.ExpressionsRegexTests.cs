@@ -27,7 +27,12 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     public void Awk_RegexRuntimeCachesByPatternAndIgnoreCase()
     {
         var ignoreCase = false;
-        var runtime = new AwkRegexRuntime(() => ignoreCase, () => false, static () => { });
+        var runtime = new AwkRegexRuntime(
+            () => ignoreCase,
+            static () => false,
+            static () => { },
+            AwkRuntimeCounters.Disabled,
+            AwkRegexEngineKind.DotNetCompatibility);
 
         var first = runtime.Create(new AwkRegexPattern("a+"));
         var second = runtime.Create(new AwkRegexPattern("a+"));

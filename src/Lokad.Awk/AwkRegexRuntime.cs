@@ -22,28 +22,6 @@ internal sealed class AwkRegexRuntime
     public AwkRegexRuntime(
         Func<bool> isIgnoreCaseEnabled,
         Func<bool> charactersAsBytes,
-        Action throwIfCancellationRequested)
-        : this(isIgnoreCaseEnabled, charactersAsBytes, throwIfCancellationRequested, AwkRuntimeCounters.Disabled)
-    {
-    }
-
-    public AwkRegexRuntime(
-        Func<bool> isIgnoreCaseEnabled,
-        Func<bool> charactersAsBytes,
-        Action throwIfCancellationRequested,
-        AwkRuntimeCounters counters)
-        : this(
-            isIgnoreCaseEnabled,
-            charactersAsBytes,
-            throwIfCancellationRequested,
-            counters,
-            AwkRegexEngineKind.DotNetCompatibility)
-    {
-    }
-
-    public AwkRegexRuntime(
-        Func<bool> isIgnoreCaseEnabled,
-        Func<bool> charactersAsBytes,
         Action throwIfCancellationRequested,
         AwkRuntimeCounters counters,
         AwkRegexEngineKind engineKind)
