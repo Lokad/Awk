@@ -86,4 +86,11 @@ public sealed class AwkPublicBoundaryTests
         Assert.Throws<ArgumentException>(() => new AwkOperationError(string.Empty));
         Assert.Equal("Operation failed.", default(AwkOperationError).Message);
     }
+
+    [Fact]
+    public void AwkFileDescriptor_RejectsNegativeIdentifiers()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AwkFileDescriptor(-1));
+        Assert.Equal(0, default(AwkFileDescriptor).Id);
+    }
 }
