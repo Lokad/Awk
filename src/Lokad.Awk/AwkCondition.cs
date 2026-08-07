@@ -62,9 +62,6 @@ internal sealed class AwkConditionClause
     public static AwkConditionClause RegexMatch(AwkExpression left, AwkRegex regex, bool negate) =>
         new(AwkExpression.RegexMatch(left, regex, negate));
 
-    public static AwkConditionClause ArrayMembership(AwkArrayIndex index, string arrayName) =>
-        new(AwkExpression.ArrayMembership(index, arrayName));
-
     public static AwkConditionClause Truthy(AwkExpression expression) =>
         new(expression);
 

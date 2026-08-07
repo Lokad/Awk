@@ -117,7 +117,8 @@ public sealed class AwkProgramTests
     public async Task AwkExpression_CopiesCallerOwnedFunctionArguments()
     {
         var arguments = new List<AwkExpression> { AwkExpression.Number("4", 4) };
-        var expression = AwkExpression.FunctionCall("sqrt", arguments);
+        Assert.True(AwkBuiltins.TryGetCallable("sqrt", out var definition));
+        var expression = AwkExpression.BuiltinCall(definition, arguments);
         arguments.Clear();
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
 

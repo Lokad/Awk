@@ -32,15 +32,10 @@ internal abstract partial class AwkExpression
 
     public static AwkExpression Literal(string literal) => new LiteralExpression(literal);
 
-    public static AwkExpression Variable(string name) => Variable(AwkVariableName.FromText(name));
-
     public static AwkExpression Variable(AwkVariableName name) => new VariableExpression(name);
 
     public static AwkExpression LocalVariable(AwkVariableName name, AwkFunctionLocalSlotId slotId) =>
         new LocalVariableExpression(name, slotId);
-
-    public static AwkExpression ArrayElement(string name, AwkArrayIndex index) =>
-        ArrayElement(AwkArrayName.FromText(name), index);
 
     public static AwkExpression ArrayElement(AwkArrayName name, AwkArrayIndex index) =>
         new ArrayElementExpression(name, index);
@@ -74,9 +69,6 @@ internal abstract partial class AwkExpression
     public static AwkExpression RegexMatch(AwkExpression left, AwkRegex regex, bool negate) =>
         new PrecompiledRegexMatchExpression(left, regex, negate);
 
-    public static AwkExpression ArrayMembership(AwkArrayIndex index, string arrayName) =>
-        ArrayMembership(index, AwkArrayName.FromText(arrayName));
-
     public static AwkExpression ArrayMembership(AwkArrayIndex index, AwkArrayName arrayName) =>
         new ArrayMembershipExpression(index, arrayName);
 
@@ -91,12 +83,6 @@ internal abstract partial class AwkExpression
         AwkExpression whenTrue,
         AwkExpression whenFalse) =>
         new TernaryExpression(condition, whenTrue, whenFalse);
-
-    public static AwkExpression FunctionCall(string name, IReadOnlyList<AwkExpression> arguments) =>
-        AwkBuiltins.TryGetCallable(name, out var definition) &&
-            definition.Kind == AwkCallableKind.Function
-            ? BuiltinCall(definition, arguments)
-            : FunctionCall(AwkFunctionName.FromText(name), arguments);
 
     public static AwkExpression FunctionCall(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments) =>
         new FunctionCallExpression(name, AwkExecutableCollections.Copy(arguments));
@@ -121,27 +107,14 @@ internal abstract partial class AwkExpression
     public static AwkExpression TypeOf(AwkExpression value, AwkOptionalIdentifier variableName) =>
         new TypeOfExpression(value, variableName);
 
-    public static AwkExpression TypeOfArrayElement(string variableName, AwkArrayIndex index) =>
-        TypeOfArrayElement(AwkArrayName.FromText(variableName), index);
-
     public static AwkExpression TypeOfArrayElement(AwkArrayName variableName, AwkArrayIndex index) =>
         new TypeOfArrayElementExpression(variableName, index);
 
     public static AwkExpression Match(AwkExpression value, AwkExpression pattern, AwkOptionalIdentifier captureArrayName) =>
         new MatchExpression(value, pattern, captureArrayName);
 
-    public static AwkExpression Split(AwkExpression value, string arrayName, AwkExpression separator) =>
-        Split(value, AwkArrayName.FromText(arrayName), separator);
-
     public static AwkExpression Split(AwkExpression value, AwkArrayName arrayName, AwkExpression separator) =>
         new SplitExpression(value, arrayName, separator, AwkOptionalIdentifier.None);
-
-    public static AwkExpression Split(
-        AwkExpression value,
-        string arrayName,
-        AwkExpression separator,
-        AwkOptionalIdentifier separatorArrayName) =>
-        Split(value, AwkArrayName.FromText(arrayName), separator, separatorArrayName);
 
     public static AwkExpression Split(
         AwkExpression value,
@@ -150,18 +123,8 @@ internal abstract partial class AwkExpression
         AwkOptionalIdentifier separatorArrayName) =>
         new SplitExpression(value, arrayName, separator, separatorArrayName);
 
-    public static AwkExpression Patsplit(AwkExpression value, string arrayName, AwkExpression pattern) =>
-        Patsplit(value, AwkArrayName.FromText(arrayName), pattern);
-
     public static AwkExpression Patsplit(AwkExpression value, AwkArrayName arrayName, AwkExpression pattern) =>
         new PatsplitExpression(value, arrayName, pattern, AwkOptionalIdentifier.None);
-
-    public static AwkExpression Patsplit(
-        AwkExpression value,
-        string arrayName,
-        AwkExpression pattern,
-        AwkOptionalIdentifier separatorArrayName) =>
-        Patsplit(value, AwkArrayName.FromText(arrayName), pattern, separatorArrayName);
 
     public static AwkExpression Patsplit(
         AwkExpression value,
@@ -170,14 +133,8 @@ internal abstract partial class AwkExpression
         AwkOptionalIdentifier separatorArrayName) =>
         new PatsplitExpression(value, arrayName, pattern, separatorArrayName);
 
-    public static AwkExpression Asort(string sourceArrayName, string destinationArrayName, AwkExpression order) =>
-        Asort(AwkArrayName.FromText(sourceArrayName), AwkArrayName.FromText(destinationArrayName), order);
-
     public static AwkExpression Asort(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkExpression order) =>
         new AsortExpression(sourceArrayName, destinationArrayName, order);
-
-    public static AwkExpression Asorti(string sourceArrayName, string destinationArrayName, AwkExpression order) =>
-        Asorti(AwkArrayName.FromText(sourceArrayName), AwkArrayName.FromText(destinationArrayName), order);
 
     public static AwkExpression Asorti(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkExpression order) =>
         new AsortiExpression(sourceArrayName, destinationArrayName, order);

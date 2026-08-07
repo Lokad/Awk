@@ -123,7 +123,9 @@ internal static partial class AwkExpressionLowerer
                 return false;
             }
 
-            lowered = AwkExpression.ArrayMembership(membershipIndex, arrayName.Name);
+            lowered = AwkExpression.ArrayMembership(
+                membershipIndex,
+                new AwkArrayName(arrayName.Identifier));
             return true;
         }
 

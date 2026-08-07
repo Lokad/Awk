@@ -77,32 +77,6 @@ internal abstract partial class AwkStatement
     public static AwkStatement Sub(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) =>
         Expression(AwkExpression.Sub(pattern, replacement, target));
 
-    public static AwkStatement Split(AwkExpression value, string arrayName, AwkExpression separator) =>
-        Expression(AwkExpression.Split(value, arrayName, separator));
-
-    public static AwkStatement Split(
-        AwkExpression value,
-        string arrayName,
-        AwkExpression separator,
-        string separatorArrayName) =>
-        Expression(AwkExpression.Split(value, arrayName, separator, AwkOptionalIdentifier.FromText(separatorArrayName)));
-
-    public static AwkStatement Patsplit(AwkExpression value, string arrayName, AwkExpression pattern) =>
-        Expression(AwkExpression.Patsplit(value, arrayName, pattern));
-
-    public static AwkStatement Patsplit(
-        AwkExpression value,
-        string arrayName,
-        AwkExpression pattern,
-        string separatorArrayName) =>
-        Expression(AwkExpression.Patsplit(value, arrayName, pattern, AwkOptionalIdentifier.FromText(separatorArrayName)));
-
-    public static AwkStatement Asorti(string sourceArrayName, string destinationArrayName, AwkExpression order) =>
-        Expression(AwkExpression.Asorti(sourceArrayName, destinationArrayName, order));
-
-    public static AwkStatement Asort(string sourceArrayName, string destinationArrayName, AwkExpression order) =>
-        Expression(AwkExpression.Asort(sourceArrayName, destinationArrayName, order));
-
     public static AwkStatement DeleteArrayElement(AwkArrayName arrayName, AwkArrayIndex index) =>
         new DeleteArrayElementStatement(arrayName, index);
 
