@@ -416,6 +416,25 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task Awk_RuntimeCounterEvidenceBoundsRepeatedUtf8RuneSlicing()
+    {
+        const int runeCount = 4_096;
+        var input = new string('\u00e9', runeCount) + "\n";
+        var (exitCode, fileSystem, counters) = await RunAsync(
+            ["{for(i=1;i<=length($0);i++) last=substr($0,i,1)} END{print last}"],
+            input);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("\u00e9\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(1, counters.RuneSliceIndexAllocations);
+        Assert.True(counters.RuneSliceIndexBytes < Encoding.UTF8.GetByteCount(input) / 8);
+        Assert.InRange(
+            counters.RuneSliceBytesScanned,
+            Encoding.UTF8.GetByteCount(input) - 1,
+            (Encoding.UTF8.GetByteCount(input) - 1) * 80L);
+    }
+
+    [Fact]
     public async Task Awk_RuntimeCounterEvidenceCoversLargeSplitAndFieldWorkloads()
     {
         const int rowCount = 32;

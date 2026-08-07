@@ -68,12 +68,12 @@ These names are not public embedding policy unless a concrete host need appears:
   buffers check this limit and, when the memory governor is enabled, reserve/commit/release the
   same estimated bytes through the governor.
 
-Runtime-owned `AwkText` byte arrays and builder materialization are preflighted with the governor;
-APIs accepting an already-created owned array account it at their boundary. The transient charge is
-released after construction. Retained ordinary array entries are charged separately with an
-estimate that includes key/value payloads and small-object overhead. Read-only built-in special
-arrays such as `FUNCTAB` are static runtime metadata and are not charged against the execution
-memory budget.
+Runtime-owned `AwkText` byte arrays, sparse rune checkpoints, and builder materialization are
+preflighted with the governor; APIs accepting an already-created owned array account it at their
+boundary. The transient charge is released after construction. Retained ordinary array entries are
+charged separately with an estimate that includes key/value payloads and small-object overhead.
+Read-only built-in special arrays such as `FUNCTAB` are static runtime metadata and are not charged
+against the execution memory budget.
 
 ## Mutation Semantics
 

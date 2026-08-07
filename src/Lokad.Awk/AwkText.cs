@@ -8,12 +8,18 @@ namespace Lokad.Awk;
 
 internal sealed class AwkText : IEquatable<AwkText>
 {
+    private const int UnknownTextFacts = 0;
+    private const int KnownNonAsciiWithoutRuneCount = -1;
+    private const int RuneCheckpointStride = 64;
     private readonly byte[] _bytes;
     private readonly int _byteOffset;
     private readonly int _byteLength;
     private readonly bool _isBorrowed;
     private string? _cachedString;
+    // Zero means unclassified, -1 means non-ASCII with an unknown rune count,
+    // and positive values store the rune count plus one.
     private int _textFacts;
+    private int[]? _runeByteCheckpoints;
 
     private AwkText(byte[] bytes)
         : this(bytes, 0, bytes.Length, isBorrowed: false)
@@ -37,7 +43,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         get
         {
             var cached = Volatile.Read(ref _textFacts);
-            if (cached > 0)
+            if (cached > UnknownTextFacts)
                 return cached - 1;
 
             var runeLength = CountRunes(AsSpan());
@@ -52,27 +58,9 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public bool ContainsNonAscii(AwkRuntimeCounters counters)
     {
-        var cached = Volatile.Read(ref _textFacts);
-        if (cached > 0)
-            return cached - 1 != ByteLength;
-
-        if (cached < 0)
-            return true;
-
-        var span = AsSpan();
-        for (var index = 0; index < span.Length; index++)
-        {
-            if (span[index] <= 0x7F)
-                continue;
-
-            counters.RecordRegexPolicyInputBytesInspected(index + 1);
-            _ = Interlocked.CompareExchange(ref _textFacts, -1, comparand: 0);
-            return true;
-        }
-
-        counters.RecordRegexPolicyInputBytesInspected(span.Length);
-        Volatile.Write(ref _textFacts, ByteLength + 1);
-        return false;
+        var isAscii = IsAscii(out var inspectedByteCount);
+        counters.RecordRegexPolicyInputBytesInspected(inspectedByteCount);
+        return !isAscii;
     }
 
     public static AwkText FromSourceLiteralString(string text) =>
@@ -354,7 +342,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        ResolveRuneByteRange(start, length, out var byteStart, out var byteEnd);
+        ResolveRuneByteRange(start, length, counters, governor, out var byteStart, out var byteEnd);
 
         if (length == 0)
             return Empty;
@@ -446,7 +434,13 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public override string ToString() => AsString();
 
-    private void ResolveRuneByteRange(int start, int length, out int byteStart, out int byteEnd)
+    private void ResolveRuneByteRange(
+        int start,
+        int length,
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor,
+        out int byteStart,
+        out int byteEnd)
     {
         if (start < 0)
             throw new ArgumentOutOfRangeException(nameof(start));
@@ -454,38 +448,126 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (length < 0)
             throw new ArgumentOutOfRangeException(nameof(length));
 
-        var span = AsSpan();
-        var offset = 0;
-        var runeIndex = 0;
         var endRuneIndex = (long)start + length;
-        byteStart = -1;
-        byteEnd = -1;
-        while (true)
+        if (IsAscii(out var inspectedByteCount))
         {
-            if (runeIndex == start)
-                byteStart = offset;
+            counters.RecordRuneSliceBytesScanned(inspectedByteCount);
+            if (start > ByteLength)
+                throw new ArgumentOutOfRangeException(nameof(start));
 
-            if (runeIndex == endRuneIndex)
-            {
-                byteEnd = offset;
-                return;
-            }
+            if (endRuneIndex > ByteLength)
+                throw new ArgumentOutOfRangeException(nameof(length));
 
-            if (offset == span.Length)
-                break;
+            byteStart = start;
+            byteEnd = (int)endRuneIndex;
+            return;
+        }
 
-            var status = Rune.DecodeFromUtf8(span[offset..], out _, out var consumed);
+        counters.RecordRuneSliceBytesScanned(inspectedByteCount);
+        var checkpoints = GetRuneByteCheckpoints(counters, governor);
+        var runeLength = RuneLength;
+        if (start > runeLength)
+            throw new ArgumentOutOfRangeException(nameof(start));
+
+        if (endRuneIndex > runeLength)
+            throw new ArgumentOutOfRangeException(nameof(length));
+
+        byteStart = ResolveRuneByteOffset(start, checkpoints, counters);
+        byteEnd = ResolveRuneByteOffset((int)endRuneIndex, checkpoints, counters);
+    }
+
+    private bool IsAscii(out int inspectedByteCount)
+    {
+        var cached = Volatile.Read(ref _textFacts);
+        if (cached > UnknownTextFacts)
+        {
+            inspectedByteCount = 0;
+            return cached - 1 == ByteLength;
+        }
+
+        if (cached == KnownNonAsciiWithoutRuneCount)
+        {
+            inspectedByteCount = 0;
+            return false;
+        }
+
+        var span = AsSpan();
+        for (var index = 0; index < span.Length; index++)
+        {
+            if (span[index] <= 0x7F)
+                continue;
+
+            inspectedByteCount = index + 1;
+            _ = Interlocked.CompareExchange(
+                ref _textFacts,
+                KnownNonAsciiWithoutRuneCount,
+                comparand: UnknownTextFacts);
+            return false;
+        }
+
+        inspectedByteCount = span.Length;
+        Volatile.Write(ref _textFacts, ByteLength + 1);
+        return true;
+    }
+
+    private int[] GetRuneByteCheckpoints(
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor)
+    {
+        var cached = Volatile.Read(ref _runeByteCheckpoints);
+        if (cached is not null)
+            return cached;
+
+        var checkpointCount = checked((ByteLength / RuneCheckpointStride) + 2);
+        var checkpointBytes = checked(checkpointCount * sizeof(int));
+        int[] created;
+        using (governor.ReserveTransient(checkpointBytes))
+            created = new int[checkpointCount];
+
+        var span = AsSpan();
+        var byteOffset = 0;
+        var runeIndex = 0;
+        while (byteOffset < span.Length)
+        {
+            var status = Rune.DecodeFromUtf8(span[byteOffset..], out _, out var consumed);
             if (status != OperationStatus.Done)
                 throw new InvalidOperationException("AwkText contains invalid UTF-8.");
 
-            offset += consumed;
+            byteOffset += consumed;
             runeIndex++;
+            if (runeIndex % RuneCheckpointStride == 0)
+                created[runeIndex / RuneCheckpointStride] = byteOffset;
         }
 
-        if (byteStart < 0)
-            throw new ArgumentOutOfRangeException(nameof(start));
+        counters.RecordRuneSliceBytesScanned(span.Length);
+        counters.RecordRuneSliceIndexAllocation(checkpointBytes);
+        Volatile.Write(ref _textFacts, runeIndex + 1);
+        return Interlocked.CompareExchange(ref _runeByteCheckpoints, created, null) ?? created;
+    }
 
-        throw new ArgumentOutOfRangeException(nameof(length));
+    private int ResolveRuneByteOffset(
+        int runeIndex,
+        int[] checkpoints,
+        AwkRuntimeCounters counters)
+    {
+        var checkpointIndex = runeIndex / RuneCheckpointStride;
+        var currentRuneIndex = checkpointIndex * RuneCheckpointStride;
+        var byteOffset = checkpoints[checkpointIndex];
+        var span = AsSpan();
+        var scannedByteCount = 0;
+        while (currentRuneIndex < runeIndex)
+        {
+            var status = Rune.DecodeFromUtf8(span[byteOffset..], out _, out var consumed);
+            if (status != OperationStatus.Done)
+                throw new InvalidOperationException("AwkText contains invalid UTF-8.");
+
+            byteOffset += consumed;
+            scannedByteCount += consumed;
+            currentRuneIndex++;
+        }
+
+        counters.RecordRuneSliceBytesScanned(scannedByteCount);
+        return byteOffset;
     }
 
     private static AwkText CreateTrustedOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)

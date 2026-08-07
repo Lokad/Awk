@@ -143,6 +143,23 @@ public sealed class AwkTextTests
     }
 
     [Fact]
+    public void AwkText_GovernedRuneIndexFailsBeforeAllocation()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var governor = AwkMemoryGovernor.Create(
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4),
+            counters);
+        var source = AwkText.FromString(new string('\u00e9', 128));
+
+        var exception = Assert.Throws<AwkRuntimeException>(
+            () => source.CopyRuneSlice(1, 1, counters, governor));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+        Assert.Equal(0, counters.RuneSliceIndexAllocations);
+        Assert.Equal(0, counters.AwkTextAllocations);
+    }
+
+    [Fact]
     public void AwkText_AllocationCountersTrackSmallPayloadDensity()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();

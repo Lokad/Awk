@@ -763,8 +763,8 @@ internal static class BenchmarkCounterReport
         Console.WriteLine("OS: " + Environment.OSVersion);
         Console.WriteLine(".NET: " + Environment.Version);
         Console.WriteLine();
-        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex policy bytes | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | VM instructions | VM fallbacks | Memory peak |");
-        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex policy bytes | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | VM instructions | VM fallbacks | Memory peak |");
+        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
 
         for (var index = 0; index < Scenarios.Length; index++)
         {
@@ -836,6 +836,9 @@ internal static class BenchmarkCounterReport
                 counters.StringInteropFallbacks.ToString(CultureInfo.InvariantCulture),
                 counters.ByteTextComparisons.ToString(CultureInfo.InvariantCulture),
                 counters.ConcatenationBytesCopied.ToString(CultureInfo.InvariantCulture),
+                counters.RuneSliceBytesScanned.ToString(CultureInfo.InvariantCulture),
+                counters.RuneSliceIndexAllocations.ToString(CultureInfo.InvariantCulture),
+                counters.RuneSliceIndexBytes.ToString(CultureInfo.InvariantCulture),
                 counters.VmInstructions.ToString(CultureInfo.InvariantCulture),
                 counters.VmFallbackCalls.ToString(CultureInfo.InvariantCulture),
                 counters.MemoryPeakLiveBytes.ToString(CultureInfo.InvariantCulture) + " |"));
@@ -1002,6 +1005,13 @@ internal static class BenchmarkCounterReport
             ["function add(x,y){return x+y} BEGIN{for(i=1;i<=80;i++) total=add(total,i); print total}"],
             [],
             recordCount: 0,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+        new(
+            "counter UTF-8 rune slicing",
+            "{for(i=1;i<=length($0);i++) last=substr($0,i,1)} END{print last}",
+            ["{for(i=1;i<=length($0);i++) last=substr($0,i,1)} END{print last}", "/runes.txt"],
+            [new BenchmarkFile("/runes.txt", new string('\u00e9', 4_096) + "\n")],
+            recordCount: 1,
             counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
             "counter byte concat",

@@ -99,6 +99,12 @@ internal sealed class AwkRuntimeCounters
 
     public long ConcatenationBytesCopied { get; private set; }
 
+    public long RuneSliceBytesScanned { get; private set; }
+
+    public long RuneSliceIndexAllocations { get; private set; }
+
+    public long RuneSliceIndexBytes { get; private set; }
+
     public long MemoryReserveCalls { get; private set; }
 
     public long MemoryCommitCalls { get; private set; }
@@ -481,6 +487,27 @@ internal sealed class AwkRuntimeCounters
 
         lock (_sync)
             ConcatenationBytesCopied += byteCount;
+    }
+
+    public void RecordRuneSliceBytesScanned(int byteCount)
+    {
+        if (!_enabled || byteCount <= 0)
+            return;
+
+        lock (_sync)
+            RuneSliceBytesScanned += byteCount;
+    }
+
+    public void RecordRuneSliceIndexAllocation(int byteCount)
+    {
+        if (!_enabled || byteCount <= 0)
+            return;
+
+        lock (_sync)
+        {
+            RuneSliceIndexAllocations++;
+            RuneSliceIndexBytes += byteCount;
+        }
     }
 
     public void RecordMemoryReserve(long byteCount, long liveBytes)

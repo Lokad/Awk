@@ -17,10 +17,10 @@ dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benc
 ```
 
 The counter report prints runtime, date, command, record and byte counts, execution steps, output
-size, and the key decode, regex, formatting, VM, byte-comparison, concatenation, record-separator,
-and memory counters for curated scenarios. Counter runs enable a one-gibibyte execution-memory
-ceiling so the memory peak column reports governed live bytes instead of the disabled governor's
-zero. Record-separator resolutions count effective separator plan rebuilds, bytes scanned measure
+size, and the key decode, regex, formatting, VM, byte-comparison, concatenation, rune-slicing,
+record-separator, and memory counters for curated scenarios. Counter runs enable a one-gibibyte
+execution-memory ceiling so the memory peak column reports governed live bytes instead of the
+disabled governor's zero. Record-separator resolutions count effective separator plan rebuilds, bytes scanned measure
 separator search work, and tail bytes moved measure buffer compaction copies. The grouped
 byte-run row deliberately spans multiple host batches without a separator and should scan each
 input byte once. Single-byte, byte-set, literal, paragraph, and recognized punctuation byte-run
@@ -32,7 +32,9 @@ cursor buffer rather than copying an accumulated snapshot, and focused batched-h
 that correctness fallback distinct from the incremental plans. Regex policy bytes inspected and
 capture groups materialized distinguish routing work from capture work. Its streaming projection,
 three-key filter, associative aggregation, and two-file comparison rows are deterministic
-calibration shapes for execution-budget decisions. Divide their
+calibration shapes for execution-budget decisions. The UTF-8 rune-slicing row reports bytes
+inspected plus the count and size of sparse indexes, making repeated `substr` complexity visible
+without timing noise. Divide the calibration rows'
 execution steps by records to compare per-record costs; use the raw counts, rather than elapsed
 time, when estimating how much input a step ceiling permits. Use the report in handoffs when a
 change affects resource or fallback accounting but does not require a full timing baseline.
@@ -45,7 +47,7 @@ allocation, regex, VM, record/field splitting, or counter behavior. A snapshot r
 - median time, allocation, throughput, and GC counts;
 - runtime counters relevant to the change, especially string decode, formatting fallback,
   regex policy bytes/groups, record-separator resolutions/scanned bytes/tail movement,
-  concatenation bytes, VM, and memory-governor counters;
+  concatenation and rune-slicing bytes, VM, and memory-governor counters;
 - a short explanation for material regressions or improvements.
 
 Do not commit raw `BenchmarkDotNet.Artifacts/` output. If a stable baseline is needed, copy the
