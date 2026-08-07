@@ -69,6 +69,22 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(1_001, counters.RegexMatches);
     }
 
+    [Fact]
+    public async Task Awk_SubstitutionMaterializesGroupsOnlyForGensub()
+    {
+        var substitution = await RunAsync(
+            ["BEGIN{s=\"xx\"; gsub(/(x)/,\"<&>\",s); print s}"]);
+        var gensub = await RunAsync(
+            ["BEGIN{print gensub(/(x)/,\"<\\\\1>\",\"g\",\"xx\")}"]);
+
+        Assert.Equal(0, substitution.ExitCode);
+        Assert.Equal(0, gensub.ExitCode);
+        Assert.Equal("<x><x>\n", substitution.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("<x><x>\n", gensub.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(0, substitution.Counters.RegexGroupsMaterialized);
+        Assert.True(gensub.Counters.RegexGroupsMaterialized > 0);
+    }
+
     [Theory]
     [InlineData("BEGIN{FS=\"[,;]\"} {print NF}", "a,b;c\n", "3\n")]
     [InlineData("BEGIN{FIELDWIDTHS=\"2 3\"} {print NF}", "abcdef\n", "2\n")]

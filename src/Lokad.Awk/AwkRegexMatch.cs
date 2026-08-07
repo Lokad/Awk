@@ -29,6 +29,7 @@ internal readonly record struct AwkRegexMatch(
             return NoMatch;
 
         var groups = new AwkRegexGroup[match.Groups.Count];
+        counters.RecordRegexGroupsMaterialized(groups.Length);
         for (var index = 0; index < groups.Length; index++)
         {
             groups[index] = FromGroup(
@@ -64,6 +65,7 @@ internal readonly record struct AwkRegexMatch(
             return NoMatch;
 
         var groups = new AwkRegexGroup[match.GroupCount];
+        counters.RecordRegexGroupsMaterialized(groups.Length);
         for (var index = 0; index < groups.Length; index++)
         {
             groups[index] = FromUtf8Group(match.GetGroup(index), useByteOffsets, counters, governor);

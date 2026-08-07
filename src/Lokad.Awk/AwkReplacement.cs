@@ -2,19 +2,26 @@ namespace Lokad.Awk;
 
 internal static class AwkReplacement
 {
-    public static void AppendExpanded(
-        AwkRegexMatch match,
+    public static void AppendSubstitution(
+        ReadOnlySpan<byte> match,
         AwkText replacement,
-        AwkReplacementMode mode,
         AwkUtf8Builder builder)
     {
         if (replacement.ByteLength == 0)
             return;
 
-        if (mode == AwkReplacementMode.Substitution)
-            AppendSubstitution(match, replacement.AsSpan(), builder);
-        else
-            AppendGensub(match, replacement.AsSpan(), builder);
+        AppendSubstitution(match, replacement.AsSpan(), builder);
+    }
+
+    public static void AppendGensub(
+        AwkRegexMatch match,
+        AwkText replacement,
+        AwkUtf8Builder builder)
+    {
+        if (replacement.ByteLength == 0)
+            return;
+
+        AppendGensub(match, replacement.AsSpan(), builder);
     }
 
     private static void AppendGensub(
@@ -78,7 +85,7 @@ internal static class AwkReplacement
     }
 
     private static void AppendSubstitution(
-        AwkRegexMatch match,
+        ReadOnlySpan<byte> match,
         ReadOnlySpan<byte> replacement,
         AwkUtf8Builder builder)
     {
@@ -87,7 +94,7 @@ internal static class AwkReplacement
             var current = replacement[index];
             if (current == (byte)'&')
             {
-                builder.Append(match.Value);
+                builder.Append(match);
                 continue;
             }
 
@@ -113,7 +120,7 @@ internal static class AwkReplacement
             {
                 builder.Append((byte)'\\', slashCount / 2);
                 if (slashCount % 2 == 0)
-                    builder.Append(match.Value);
+                    builder.Append(match);
                 else
                     builder.Append((byte)'&');
 
