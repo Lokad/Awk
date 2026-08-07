@@ -180,7 +180,9 @@ internal sealed class AwkUtf8Builder : IDisposable
         if (Length == 0)
             return AwkText.Empty;
 
-        return AwkText.FromOwnedBytes(AsSpan().ToArray(), counters, _governor);
+        var bytes = AwkText.AllocateOwnedBytes(Length, _governor);
+        AsSpan().CopyTo(bytes);
+        return AwkText.FromTrustedOwnedBytes(bytes, counters);
     }
 
     public byte[] ToArray()

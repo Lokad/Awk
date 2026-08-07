@@ -184,6 +184,37 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.True(counters.RegexMatches > 0);
     }
 
+    [Fact]
+    public void Awk_DeletionHeavySubstitutionDoesNotReserveInputSizedOutput()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(512);
+        var options = new AwkRuntimeOptions(
+            () => new AwkUnixTimestampSeconds(0),
+            TimeZoneInfo.Utc,
+            new AwkRandomGenerator(),
+            counters,
+            limits,
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
+        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var regex = state.CreateRegex(new AwkRegexPattern("a"));
+        var input = AwkText.FromString(new string('a', 4_096), counters);
+
+        var result = AwkRegexSubstitution.ReplaceAll(
+            state,
+            regex,
+            input,
+            AwkText.Empty,
+            AwkReplacementMode.Substitution,
+            maxReplacements: 0,
+            out var replacementCount);
+
+        Assert.Same(AwkText.Empty, result);
+        Assert.Equal(4_096, replacementCount);
+        Assert.True(state.MemoryGovernor.PeakLiveBytes <= 512);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

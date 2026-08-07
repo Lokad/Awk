@@ -107,4 +107,25 @@ public sealed class AwkUtf8BuilderTests
         Assert.Equal(4, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
     }
+
+    [Fact]
+    public void AwkUtf8Builder_MaterializationPreflightsBeforeCreatingOwnedText()
+    {
+        var limits = AwkRuntimeLimits.CreateDefault()
+            .WithMaxBuilderBytes(64)
+            .WithMaxExecutionMemoryBytes(7);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var governor = AwkMemoryGovernor.Create(limits, counters);
+        using var builder = new AwkUtf8Builder(limits, governor, capacity: 4);
+        builder.Append("abcd"u8);
+        var baselineTextAllocations = counters.AwkTextAllocations;
+
+        var exception = Assert.Throws<AwkRuntimeException>(() => builder.CopyToAwkText(counters));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+        Assert.Equal(baselineTextAllocations, counters.AwkTextAllocations);
+        Assert.Equal("abcd"u8.ToArray(), builder.AsSpan().ToArray());
+        Assert.Equal(4, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.CurrentReservedBytes);
+    }
 }
