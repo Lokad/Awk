@@ -109,6 +109,8 @@ internal sealed class AwkRuntimeState
     private readonly AwkRangePatternRuntime _rangePatterns = new();
     private readonly AwkExecutionControlRuntime _executionControl = new();
     private readonly Dictionary<AwkExecutableTables, AwkExecutableRuntimeBindings> _executableBindings = new();
+    private AwkText _recordSeparatorText = AwkText.Empty;
+    private bool _recordSeparatorIgnoresCase;
     private long _recordSeparatorVersion;
 
     public AwkRuntimeState(AwkFieldSeparatorSpec fieldSeparator, CancellationToken cancellationToken)
@@ -186,6 +188,8 @@ internal sealed class AwkRuntimeState
         _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables);
         _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
         _specialVariables.InitializeScalars(plan.FieldSeparator);
+        _recordSeparatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
+        _recordSeparatorIgnoresCase = IsIgnoreCaseEnabled();
         _variables.CaptureScalarMemoryBaseline();
     }
 
@@ -548,8 +552,20 @@ internal sealed class AwkRuntimeState
 
     private void RecordSpecialVariableAssignment(AwkSpecialVariableId id)
     {
-        if (id == AwkSpecialVariableId.RecordSeparator)
-            _recordSeparatorVersion++;
+        if (id is not (AwkSpecialVariableId.RecordSeparator or AwkSpecialVariableId.IgnoreCase))
+            return;
+
+        var separatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
+        var ignoresCase = IsIgnoreCaseEnabled();
+        if (_recordSeparatorText.Equals(separatorText) &&
+            _recordSeparatorIgnoresCase == ignoresCase)
+        {
+            return;
+        }
+
+        _recordSeparatorText = separatorText;
+        _recordSeparatorIgnoresCase = ignoresCase;
+        _recordSeparatorVersion++;
     }
 
     public AwkValue ResolveSpecialVariableValue(AwkSpecialVariableId id) =>

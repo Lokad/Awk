@@ -304,6 +304,32 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     }
 
     [Fact]
+    public async Task Awk_UnchangedRecordSeparatorAssignmentsReuseTheCompiledPlan()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(
+            () => new AwkUnixTimestampSeconds(0),
+            TimeZoneInfo.Utc,
+            new AwkRandomGenerator(),
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        var compiled = await AwkExecutor.CompileAsync(
+            new MockFileSystem(),
+            BuildInvocation("awk", "BEGIN{RS=1} {RS=(NR%2 ? \"1\" : 1); count++} END{print count}"),
+            CancellationToken.None);
+        var fileSystem = new MockFileSystem();
+        fileSystem.SetStandardInput(string.Join("1", Enumerable.Repeat("record", 64)));
+
+        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("64\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(1, counters.RecordSeparatorResolutions);
+    }
+
+    [Fact]
     public async Task Awk_FieldSplittingIsLazyWhenOnlyCurrentRecordIsUsed()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();

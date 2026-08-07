@@ -647,6 +647,7 @@ internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
 
         if (separatorText.Length == 1 &&
             separatorText[0] <= 0x7F &&
+            !IsAsciiLetter(separatorText[0]) &&
             !IsRegexMetacharacter(separatorText[0]))
         {
             membership = ByteMembership.Single((byte)separatorText[0]);

@@ -66,6 +66,13 @@ internal static partial class AwkGoldenCorpus
             "a--b---c"),
 
         Passing(
+            "regex-record-separator-rebuilds-when-ignorecase-changes",
+            ["BEGIN{RS=\"x+\"} {print $0 \"[\" RT \"]\"; IGNORECASE=1}"],
+            [],
+            "a[xx]\nb[XX]\nc[]\n",
+            "axxbXXc"),
+
+        Passing(
             "regex-record-separator-start-anchor-only-matches-input-start",
             ["BEGIN{RS=\"^.\"} {print NR \":\" $0 \"[\" RT \"]\"}"],
             [],
