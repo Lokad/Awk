@@ -36,36 +36,6 @@ internal sealed class AwkRecordDescriptorReader
         return AwkRecordReadBatch.Success(result.Content, result.ReachedEof);
     }
 
-    public async Task<AwkText> ReadToEndTextAsync(
-        AwkFileDescriptor descriptor,
-        AwkRuntimeLimits limits,
-        AwkMemoryGovernor governor)
-    {
-        using var builder = new AwkUtf8Builder(limits, governor, AwkIo.InputReadBatchLineCount);
-        await AppendToEndAsync(descriptor, builder).ConfigureAwait(false);
-        return builder.CopyToAwkText(_counters);
-    }
-
-    public async Task AppendToEndAsync(
-        AwkFileDescriptor descriptor,
-        AwkUtf8Builder builder)
-    {
-        while (true)
-        {
-            _counters.RecordCancellationCheck();
-            _cancellationToken.ThrowIfCancellationRequested();
-            _resources.RecordHostCall();
-            var result = await _host.ReadLinesAsync(descriptor, AwkIo.InputReadBatchLineCount, _cancellationToken)
-                .ConfigureAwait(false);
-            if (result.Failed)
-                throw new AwkHostReadException(descriptor, result.Error);
-
-            _resources.RecordBytesRead(result.Content.Length);
-            builder.Append(result.Content);
-            if (result.ReachedEof)
-                return;
-        }
-    }
 }
 
 internal readonly struct AwkRecordReadBatch(ReadOnlyMemory<byte> content, bool reachedEof)
