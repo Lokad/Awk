@@ -96,7 +96,7 @@ internal readonly struct AwkResolvedFunctionLocal
         AwkFunctionLocalSlotKind kind,
         string text,
         AwkValue value,
-        string arrayName)
+        AwkArrayName arrayName)
     {
         Kind = kind;
         Text = text;
@@ -110,23 +110,23 @@ internal readonly struct AwkResolvedFunctionLocal
 
     public AwkValue Value { get; }
 
-    public string ArrayName { get; }
+    public AwkArrayName ArrayName { get; }
 
     public static AwkResolvedFunctionLocal Scalar() =>
-        new(AwkFunctionLocalSlotKind.Scalar, string.Empty, AwkValue.Unassigned(), string.Empty);
+        new(AwkFunctionLocalSlotKind.Scalar, string.Empty, AwkValue.Unassigned(), default);
 
     public static AwkResolvedFunctionLocal ScalarText(string text) =>
-        new(AwkFunctionLocalSlotKind.Scalar, text, AwkValue.Unassigned(), string.Empty);
+        new(AwkFunctionLocalSlotKind.Scalar, text, AwkValue.Unassigned(), default);
 
     public static AwkResolvedFunctionLocal ScalarValue(AwkValue value) =>
-        new(AwkFunctionLocalSlotKind.Scalar, string.Empty, value, string.Empty);
+        new(AwkFunctionLocalSlotKind.Scalar, string.Empty, value, default);
 
-    public static AwkResolvedFunctionLocal ArrayAlias(string arrayName) =>
+    public static AwkResolvedFunctionLocal ArrayAlias(AwkArrayName arrayName) =>
         new(AwkFunctionLocalSlotKind.ArrayAlias, string.Empty, AwkValue.Unassigned(), arrayName);
 
-    public static AwkResolvedFunctionLocal PotentialArrayAlias(string arrayName) =>
+    public static AwkResolvedFunctionLocal PotentialArrayAlias(AwkArrayName arrayName) =>
         new(AwkFunctionLocalSlotKind.PotentialArrayAlias, string.Empty, AwkValue.Unassigned(), arrayName);
 
     public static AwkResolvedFunctionLocal Missing { get; } =
-        new(AwkFunctionLocalSlotKind.Scalar, string.Empty, AwkValue.Unassigned(), string.Empty);
+        new(AwkFunctionLocalSlotKind.Scalar, string.Empty, AwkValue.Unassigned(), default);
 }

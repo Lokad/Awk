@@ -88,7 +88,7 @@ internal sealed class AwkFunctionRuntime
     public bool TryResolveLocalValue(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocalValue(slotId, out local);
 
-    public bool TryPromotePotentialArrayAlias(string name, [NotNullWhen(true)] out string? arrayName) =>
+    public bool TryPromotePotentialArrayAlias(AwkVariableName name, out AwkArrayName arrayName) =>
         _calls.TryPromotePotentialArrayAlias(name, out arrayName);
 
     public bool TryAssignLocal(string name, string value) =>

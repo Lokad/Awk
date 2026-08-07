@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
@@ -200,16 +199,11 @@ internal sealed class AwkFunctionCallStack(
         return false;
     }
 
-    public bool TryPromotePotentialArrayAlias(string name, [NotNullWhen(true)] out string? arrayName)
-    {
-        return TryPromotePotentialArrayAlias(AwkVariableName.FromText(name), out arrayName);
-    }
-
-    private bool TryPromotePotentialArrayAlias(AwkVariableName name, [NotNullWhen(true)] out string? arrayName)
+    public bool TryPromotePotentialArrayAlias(AwkVariableName name, out AwkArrayName arrayName)
     {
         if (_frames.Count == 0)
         {
-            arrayName = null;
+            arrayName = default;
             return false;
         }
 
@@ -217,11 +211,11 @@ internal sealed class AwkFunctionCallStack(
         if (!TryGetLocalSlot(frame, name, out var slotId, out var slot) ||
             slot.Kind != AwkFunctionLocalSlotKind.PotentialArrayAlias)
         {
-            arrayName = null;
+            arrayName = default;
             return false;
         }
 
-        arrayName = slot.ArrayName.Text;
+        arrayName = slot.ArrayName;
         frame.Slots[slotId.Index] = AwkFunctionLocalSlot.ArrayAlias(slot.ArrayName);
         return true;
     }
@@ -359,10 +353,10 @@ internal sealed class AwkFunctionCallStack(
     private static AwkResolvedFunctionLocal ResolveLocalKind(AwkFunctionLocalSlot slot)
     {
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
-            return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName.Text);
+            return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName);
 
         if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
-            return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName.Text);
+            return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName);
 
         return AwkResolvedFunctionLocal.Scalar();
     }
@@ -370,10 +364,10 @@ internal sealed class AwkFunctionCallStack(
     private AwkResolvedFunctionLocal ResolveLocalText(AwkFunctionLocalSlot slot)
     {
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
-            return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName.Text);
+            return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName);
 
         if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
-            return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName.Text);
+            return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName);
 
         return AwkResolvedFunctionLocal.ScalarText(slot.Value.StringValue);
     }
@@ -381,10 +375,10 @@ internal sealed class AwkFunctionCallStack(
     private AwkResolvedFunctionLocal ResolveLocalValue(AwkFunctionLocalSlot slot)
     {
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
-            return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName.Text);
+            return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName);
 
         if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
-            return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName.Text);
+            return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName);
 
         return AwkResolvedFunctionLocal.ScalarValue(
             slot.Value.ToValue(createByteTextValue, createNumericStringValue, createNumberFromText));

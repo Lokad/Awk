@@ -40,7 +40,7 @@ internal sealed class AwkVariableRuntime(
     {
         var resolved = ResolveName(name.Text);
         if (resolved.Kind == AwkVariableNameResolutionKind.LocalArrayAlias)
-            return TryGetExistingArrayCount(AwkArrayName.FromText(resolved.ArrayName), out count);
+            return TryGetExistingArrayCount(resolved.ArrayName, out count);
 
         return variables.TryGetArrayCount(name, out count);
     }
@@ -267,11 +267,11 @@ internal sealed class AwkVariableRuntime(
     {
         var resolved = ResolveName(name.Text);
         if (resolved.Kind == AwkVariableNameResolutionKind.LocalArrayAlias)
-            return ResolveOrPromoteArrayName(AwkArrayName.FromText(resolved.ArrayName));
+            return ResolveOrPromoteArrayName(resolved.ArrayName);
 
-        if (functions.TryPromotePotentialArrayAlias(name.Text, out var alias))
+        if (functions.TryPromotePotentialArrayAlias(new AwkVariableName(name.Identifier), out var alias))
         {
-            return ResolveOrPromoteArrayName(AwkArrayName.FromText(alias));
+            return ResolveOrPromoteArrayName(alias);
         }
 
         if (!string.Equals(name.Text, AwkVariables.SymbolTableName, StringComparison.Ordinal))
@@ -306,7 +306,7 @@ internal sealed class AwkVariableRuntime(
             {
                 AwkFunctionLocalSlotKind.ArrayAlias => AwkVariableNameResolution.LocalArrayAlias(local.ArrayName),
                 AwkFunctionLocalSlotKind.PotentialArrayAlias => AwkVariableNameResolution.PotentialArrayAlias(local.ArrayName),
-                _ => AwkVariableNameResolution.LocalScalar()
+                _ => AwkVariableNameResolution.LocalScalar
             };
         }
 
@@ -333,48 +333,30 @@ internal sealed class AwkVariableRuntime(
         }
     }
 
-    private readonly struct AwkVariableNameResolution
+    private readonly record struct AwkVariableNameResolution(
+        AwkVariableNameResolutionKind Kind,
+        AwkArrayName ArrayName)
     {
-        private AwkVariableNameResolution(
-            AwkVariableNameResolutionKind kind,
-            string text,
-            AwkValue value,
-            string arrayName)
-        {
-            Kind = kind;
-            Text = text;
-            Value = value;
-            ArrayName = arrayName;
-        }
+        public static AwkVariableNameResolution LocalScalar { get; } =
+            new(AwkVariableNameResolutionKind.LocalScalar, default);
 
-        public AwkVariableNameResolutionKind Kind { get; }
+        public static AwkVariableNameResolution LocalArrayAlias(AwkArrayName arrayName) =>
+            new(AwkVariableNameResolutionKind.LocalArrayAlias, arrayName);
 
-        public string Text { get; }
-
-        public AwkValue Value { get; }
-
-        public string ArrayName { get; }
-
-        public static AwkVariableNameResolution LocalScalar() =>
-            new(AwkVariableNameResolutionKind.LocalScalar, string.Empty, AwkValue.Unassigned(), string.Empty);
-
-        public static AwkVariableNameResolution LocalArrayAlias(string arrayName) =>
-            new(AwkVariableNameResolutionKind.LocalArrayAlias, string.Empty, AwkValue.Unassigned(), arrayName);
-
-        public static AwkVariableNameResolution PotentialArrayAlias(string arrayName) =>
-            new(AwkVariableNameResolutionKind.PotentialArrayAlias, string.Empty, AwkValue.Unassigned(), arrayName);
+        public static AwkVariableNameResolution PotentialArrayAlias(AwkArrayName arrayName) =>
+            new(AwkVariableNameResolutionKind.PotentialArrayAlias, arrayName);
 
         public static AwkVariableNameResolution SymbolTableArray { get; } =
-            new(AwkVariableNameResolutionKind.SymbolTableArray, string.Empty, AwkValue.Unassigned(), string.Empty);
+            new(AwkVariableNameResolutionKind.SymbolTableArray, default);
 
         public static AwkVariableNameResolution GlobalArray { get; } =
-            new(AwkVariableNameResolutionKind.GlobalArray, string.Empty, AwkValue.Unassigned(), string.Empty);
+            new(AwkVariableNameResolutionKind.GlobalArray, default);
 
         public static AwkVariableNameResolution GlobalScalar { get; } =
-            new(AwkVariableNameResolutionKind.GlobalScalar, string.Empty, AwkValue.Unassigned(), string.Empty);
+            new(AwkVariableNameResolutionKind.GlobalScalar, default);
 
         public static AwkVariableNameResolution Missing { get; } =
-            new(AwkVariableNameResolutionKind.Missing, string.Empty, AwkValue.Unassigned(), string.Empty);
+            new(AwkVariableNameResolutionKind.Missing, default);
     }
 
     private enum AwkVariableNameResolutionKind
