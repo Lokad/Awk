@@ -204,7 +204,7 @@ internal sealed class AwkGoldenCaseBuilder
             _tags,
             _nondeterminismNote);
 
-    private static IReadOnlyList<AwkGoldenPath> ToGoldenPaths(IReadOnlyList<string> paths)
+    private static AwkGoldenPath[] ToGoldenPaths(IReadOnlyList<string> paths)
     {
         if (paths.Count == 0)
             return [];

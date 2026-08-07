@@ -21,7 +21,7 @@ internal static class AwkOracleCapture
 
         var cases = GetCapturableCases(limit);
         var mismatches = new List<string>();
-        for (var index = 0; index < cases.Count; index++)
+        for (var index = 0; index < cases.Length; index++)
         {
             var testCase = cases[index];
             var result = await runner.RunAsync(testCase);
@@ -51,7 +51,7 @@ internal static class AwkOracleCapture
         {
             Console.WriteLine(
                 "Awk oracle compare matched " +
-                cases.Count.ToString(CultureInfo.InvariantCulture) +
+                cases.Length.ToString(CultureInfo.InvariantCulture) +
                 " cases with " +
                 runner.DisplayCommand +
                 " (" +
@@ -88,8 +88,8 @@ internal static class AwkOracleCapture
         builder.AppendLine("- LC_ALL: `" + Locale + "`");
         builder.AppendLine("- TZ: `" + TimeZone + "`");
         builder.AppendLine("- Normalization: none; stdout and stderr are compared byte-for-byte after .NET text decoding");
-        builder.AppendLine("- Captured cases: " + cases.Count.ToString(CultureInfo.InvariantCulture));
-        builder.AppendLine("- Skipped cases: " + (AwkGoldenCorpus.DirectCases.Count - cases.Count).ToString(CultureInfo.InvariantCulture));
+        builder.AppendLine("- Captured cases: " + cases.Length.ToString(CultureInfo.InvariantCulture));
+        builder.AppendLine("- Skipped cases: " + (AwkGoldenCorpus.DirectCases.Count - cases.Length).ToString(CultureInfo.InvariantCulture));
         builder.AppendLine();
 
         var mismatchCount = 0;
@@ -122,7 +122,7 @@ internal static class AwkOracleCapture
         Console.WriteLine("Wrote " + outputPath);
     }
 
-    private static IReadOnlyList<AwkGoldenCase> GetCapturableCases(int? limit)
+    private static AwkGoldenCase[] GetCapturableCases(int? limit)
     {
         var query = AwkGoldenCorpus.DirectCases.Where(CanCaptureWithoutPathMapping);
         if (limit.HasValue)

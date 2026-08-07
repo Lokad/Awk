@@ -176,7 +176,7 @@ internal sealed class MockFileTree
         return true;
     }
 
-    private static IReadOnlyList<AwkPathSegment> SplitPath(AwkPath path)
+    private static AwkPathSegment[] SplitPath(AwkPath path)
     {
         if (path.IsRoot)
             return [];
@@ -211,7 +211,7 @@ internal sealed class MockFileTree
         return true;
     }
 
-    private static MockWriteOpenResult OperationFailedWrite() =>
+    private static MockWriteOpenResult.Failure OperationFailedWrite() =>
         new MockWriteOpenResult.Failure(new AwkOperationError("Operation failed."));
 
     private abstract class Node;

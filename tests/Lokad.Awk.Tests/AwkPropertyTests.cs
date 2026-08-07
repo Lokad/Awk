@@ -145,7 +145,7 @@ public sealed class AwkPropertyTests
         };
     }
 
-    private static IReadOnlyList<string> GenerateFields(Random random)
+    private static List<string> GenerateFields(Random random)
     {
         var count = 1 + random.Next(6);
         var fields = new List<string>(count);
@@ -157,7 +157,7 @@ public sealed class AwkPropertyTests
         return fields;
     }
 
-    private static string JoinWithRandomWhitespace(Random random, IReadOnlyList<string> fields)
+    private static string JoinWithRandomWhitespace(Random random, List<string> fields)
     {
         var builder = new StringBuilder();
         builder.Append(RandomWhitespace(random));

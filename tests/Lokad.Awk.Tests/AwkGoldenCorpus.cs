@@ -99,10 +99,10 @@ internal static partial class AwkGoldenCorpus
     private static AwkGoldenCase CompilerDiagnostic(AwkGoldenCase testCase) =>
         WithTags(testCase, [AwkGoldenTag.CompilerDiagnostic]);
 
-    private static AwkGoldenCase WithTags(AwkGoldenCase testCase, IReadOnlyList<AwkGoldenTag> tags)
+    private static AwkGoldenCase WithTags(AwkGoldenCase testCase, AwkGoldenTag[] tags)
     {
         var mergedTags = new List<AwkGoldenTag>(testCase.Tags);
-        for (var index = 0; index < tags.Count; index++)
+        for (var index = 0; index < tags.Length; index++)
         {
             if (!mergedTags.Contains(tags[index]))
                 mergedTags.Add(tags[index]);
