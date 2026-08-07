@@ -8,7 +8,7 @@ namespace Lokad.Awk.Tests;
 internal sealed class MockFileDescriptorTable
 {
     private readonly Dictionary<AwkFileDescriptor, MockOpenFileState> _openFiles = new();
-    private readonly Dictionary<AwkFileDescriptor, AwkHostByteBuffer> _outputs = new();
+    private readonly Dictionary<AwkFileDescriptor, MockHostByteBuffer> _outputs = new();
     private MockOpenFileState? _stdinState;
     private int _nextDescriptor = 3;
 
@@ -56,7 +56,7 @@ internal sealed class MockFileDescriptorTable
 
         if (!_outputs.TryGetValue(descriptor, out var bytes))
         {
-            bytes = new AwkHostByteBuffer();
+            bytes = new MockHostByteBuffer();
             _outputs[descriptor] = bytes;
         }
 
@@ -108,11 +108,11 @@ internal readonly record struct MockDescriptorReadResult(AwkReadResult Result, b
 internal sealed class MockOpenFileState
 {
     private readonly byte[] _content;
-    private readonly AwkHostByteBuffer? _writeBuffer;
+    private readonly MockHostByteBuffer? _writeBuffer;
     private readonly Action<byte[]>? _onClose;
     private int _offset;
 
-    private MockOpenFileState(byte[] content, AwkHostByteBuffer? writeBuffer, Action<byte[]>? onClose)
+    private MockOpenFileState(byte[] content, MockHostByteBuffer? writeBuffer, Action<byte[]>? onClose)
     {
         _content = content ?? [];
         _writeBuffer = writeBuffer;
@@ -123,7 +123,7 @@ internal sealed class MockOpenFileState
 
     public static MockOpenFileState ForWrite(ReadOnlyMemory<byte> initialContent, Action<byte[]> onClose)
     {
-        var builder = new AwkHostByteBuffer(initialContent.Length);
+        var builder = new MockHostByteBuffer(initialContent.Length);
         builder.Append(initialContent);
         return new MockOpenFileState([], builder, onClose);
     }
