@@ -131,6 +131,12 @@ internal static partial class AwkGoldenCorpus
             "0.3333ab\n"),
 
         Passing(
+            "implicit-string-conversions-use-convfmt",
+            ["BEGIN{CONVFMT=\"%.2f\"; x=1.2345; print length(x), index(x,\"23\"), substr(x,1,4), (x ~ /^1\\.23$/), match(x,/^1\\.23$/), tolower(x)}"],
+            [],
+            "4 3 1.23 1 1 1.23\n"),
+
+        Passing(
             "comparison-logical-and-ternary-expressions",
             ["BEGIN{x=1; print (\"b\" > \"a\"), (2 <= 2), (2 != 3); print (0 && ++x), x; print (1 || ++x), x; print (x ? \"yes\" : ++y), y+0}"],
             [],

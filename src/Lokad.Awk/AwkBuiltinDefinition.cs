@@ -52,12 +52,15 @@ internal readonly struct AwkBuiltinContext
             ? ValueTask.FromResult(_values[index])
             : _expressions[index].EvaluateAsync(Evaluation);
 
-    public string GetString(int index) => GetValue(index).AsString(State.Counters);
+    public string GetString(int index) =>
+        State.FormatStringByteText(GetValue(index)).AsString(State.Counters);
 
     public async ValueTask<string> GetStringAsync(int index) =>
-        (await GetValueAsync(index).ConfigureAwait(false)).AsString(State.Counters);
+        State.FormatStringByteText(
+                await GetValueAsync(index).ConfigureAwait(false))
+            .AsString(State.Counters);
 
-    public AwkText GetByteText(int index) => GetValue(index).ByteText;
+    public AwkText GetByteText(int index) => State.FormatStringByteText(GetValue(index));
 
     public double GetNumber(int index) => GetValue(index).AsNumber();
 

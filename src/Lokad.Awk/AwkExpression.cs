@@ -157,10 +157,13 @@ internal abstract partial class AwkExpression
     public static AwkExpression PostDecrement(AwkReference target) => new PostDecrementExpression(target);
 
     public async ValueTask<string> ResolveStringAsync(AwkEvaluationContext context) =>
-        (await EvaluateAsync(context).ConfigureAwait(false)).AsString(context.State.Counters);
+        context.State.FormatStringByteText(
+                await EvaluateAsync(context).ConfigureAwait(false))
+            .AsString(context.State.Counters);
 
     public async ValueTask<AwkText> ResolveByteTextAsync(AwkEvaluationContext context) =>
-        (await EvaluateAsync(context).ConfigureAwait(false)).ByteText;
+        context.State.FormatStringByteText(
+            await EvaluateAsync(context).ConfigureAwait(false));
 
     public async ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context) =>
         (await EvaluateAsync(context).ConfigureAwait(false)).AsNumber();
