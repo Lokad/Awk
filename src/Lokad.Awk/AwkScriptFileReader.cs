@@ -140,7 +140,14 @@ internal static class AwkScriptFileReader
         try
         {
             var builder = new StringBuilder();
-            var reader = new AsyncLineReader(host, descriptor, cancellationToken);
+            var counters = AwkRuntimeCounters.Disabled;
+            var reader = new AsyncLineReader(
+                host,
+                descriptor,
+                cancellationToken,
+                int.MaxValue,
+                counters,
+                new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters));
             while (!await reader.ReachedEof().ConfigureAwait(false))
             {
                 var line = reader.ReadLine();

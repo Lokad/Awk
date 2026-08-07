@@ -23,7 +23,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkFileDescriptor.StdIn,
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
-            cancellation.Token);
+            cancellation.Token,
+            AwkRuntimeCounters.Disabled,
+            AwkRuntimeLimits.CreateDefault(),
+            static () => []);
         var statement = AwkStatement.For(
             AwkStatement.Assignment(AwkReference.Scalar("i"), AwkExpression.Number("0", 0)),
             new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]),
@@ -213,7 +216,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkFileDescriptor.StdIn,
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
-            CancellationToken.None);
+            CancellationToken.None,
+            AwkRuntimeCounters.Disabled,
+            AwkRuntimeLimits.CreateDefault(),
+            static () => []);
 
         var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
             () => io.WriteAsync(new AwkRedirectedOutput("/out.txt", AwkOutputRedirectionKind.Write, "x\n")));
@@ -669,7 +675,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkFileDescriptor.StdIn,
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
-            cancellation.Token);
+            cancellation.Token,
+            AwkRuntimeCounters.Disabled,
+            AwkRuntimeLimits.CreateDefault(),
+            static () => []);
         using var context = state.PushExecutionContext(new AwkOutputSink(), io);
 
         cancellation.Cancel();
@@ -930,7 +939,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkFileDescriptor.StdIn,
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
-            CancellationToken.None);
+            CancellationToken.None,
+            AwkRuntimeCounters.Disabled,
+            AwkRuntimeLimits.CreateDefault(),
+            static () => []);
 
         await output.FlushAsync(io);
 
@@ -1166,7 +1178,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
             CancellationToken.None,
-            maxOutputFiles: 2);
+            AwkRuntimeCounters.Disabled,
+            AwkRuntimeLimits.CreateDefault().WithMaxOutputFiles(2),
+            static () => []);
 
         await io.WriteAsync(new AwkRedirectedOutput("/one.txt", AwkOutputRedirectionKind.Write, "one\n"));
         await io.WriteAsync(new AwkRedirectedOutput("/two.txt", AwkOutputRedirectionKind.Write, "two\n"));

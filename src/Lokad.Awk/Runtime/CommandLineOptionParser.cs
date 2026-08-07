@@ -12,14 +12,10 @@ internal sealed class CommandLineOptionParser
     private string _shortGroup = string.Empty;
     private int _shortIndex;
 
-    public CommandLineOptionParser(IReadOnlyList<string> arguments)
-        : this(arguments, allowSingleDashLongOptions: false)
-    {
-    }
-
     public CommandLineOptionParser(IReadOnlyList<string> arguments, bool allowSingleDashLongOptions)
     {
-        _arguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
+        ArgumentNullException.ThrowIfNull(arguments);
+        _arguments = arguments;
         _allowSingleDashLongOptions = allowSingleDashLongOptions;
     }
 

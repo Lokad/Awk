@@ -108,12 +108,18 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkFileDescriptor.StdIn,
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
-            CancellationToken.None);
+            CancellationToken.None,
+            AwkRuntimeCounters.Disabled,
+            AwkRuntimeLimits.CreateDefault(),
+            static () => []);
+        var counters = AwkRuntimeCounters.Disabled;
         var reader = new AsyncLineReader(
             fileSystem,
             AwkFileDescriptor.StdIn,
             CancellationToken.None,
-            AwkIo.InputReadBatchLineCount);
+            AwkIo.InputReadBatchLineCount,
+            counters,
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters));
         var recordReader = new AwkRecordReader(fileSystem, state, io, CancellationToken.None);
         var invoked = false;
 

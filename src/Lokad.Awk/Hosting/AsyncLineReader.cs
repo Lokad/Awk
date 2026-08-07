@@ -18,39 +18,6 @@ internal sealed class AsyncLineReader
     private int _lineStart;
     private bool _reachedEof;
 
-    public AsyncLineReader(
-        IAwkHost host,
-        AwkFileDescriptor descriptor,
-        CancellationToken cancellationToken)
-        : this(host, descriptor, cancellationToken, int.MaxValue)
-    {
-    }
-
-    public AsyncLineReader(
-        IAwkHost host,
-        AwkFileDescriptor descriptor,
-        CancellationToken cancellationToken,
-        int maxLineCount)
-        : this(host, descriptor, cancellationToken, maxLineCount, AwkRuntimeCounters.Disabled)
-    {
-    }
-
-    internal AsyncLineReader(
-        IAwkHost host,
-        AwkFileDescriptor descriptor,
-        CancellationToken cancellationToken,
-        int maxLineCount,
-        AwkRuntimeCounters counters)
-        : this(
-            host,
-            descriptor,
-            cancellationToken,
-            maxLineCount,
-            counters,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters))
-    {
-    }
-
     internal AsyncLineReader(
         IAwkHost host,
         AwkFileDescriptor descriptor,
@@ -64,12 +31,14 @@ internal sealed class AsyncLineReader
             throw new ArgumentOutOfRangeException(nameof(maxLineCount));
         }
 
-        _host = host ?? throw new ArgumentNullException(nameof(host));
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(resources);
+        _host = host;
         _descriptor = descriptor;
         _cancellationToken = cancellationToken;
         _maxLineCount = maxLineCount;
         _counters = counters;
-        _resources = resources ?? throw new ArgumentNullException(nameof(resources));
+        _resources = resources;
         _content = ReadOnlyMemory<byte>.Empty;
         _lineStartOffsets = ReadOnlyMemory<int>.Empty;
     }

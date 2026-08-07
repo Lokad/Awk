@@ -19,47 +19,6 @@ internal sealed class AwkIo
     private AsyncLineReader? _standardInputReader;
     private MainInputReaderBinding _mainInputReader = MainInputReaderBinding.Unbound;
 
-    public AwkIo(
-        IAwkHost host,
-        AwkPath currentDirectory,
-        AwkFileDescriptor stdIn,
-        AwkFileDescriptor stdOut,
-        AwkFileDescriptor stdErr,
-        CancellationToken cancellationToken)
-        : this(
-            host,
-            currentDirectory,
-            stdIn,
-            stdOut,
-            stdErr,
-            cancellationToken,
-            AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault())
-    {
-    }
-
-    internal AwkIo(
-        IAwkHost host,
-        AwkPath currentDirectory,
-        AwkFileDescriptor stdIn,
-        AwkFileDescriptor stdOut,
-        AwkFileDescriptor stdErr,
-        CancellationToken cancellationToken,
-        AwkRuntimeCounters counters,
-        AwkRuntimeLimits limits)
-        : this(
-            host,
-            currentDirectory,
-            stdIn,
-            stdOut,
-            stdErr,
-            cancellationToken,
-            counters,
-            limits,
-            static () => Array.Empty<AwkEnvironmentVariable>())
-    {
-    }
-
     internal AwkIo(
         IAwkHost host,
         AwkPath currentDirectory,
@@ -85,47 +44,6 @@ internal sealed class AwkIo
         _pipes = new AwkPipeRuntime(_host, _maxOutputFiles, () => _descriptors.OutputFileCount);
         _specialPaths = new AwkSpecialPathPolicy(stdIn, stdOut, stdErr);
         _counters = counters;
-    }
-
-    internal AwkIo(
-        IAwkHost host,
-        AwkPath currentDirectory,
-        AwkFileDescriptor stdIn,
-        AwkFileDescriptor stdOut,
-        AwkFileDescriptor stdErr,
-        CancellationToken cancellationToken,
-        int maxOutputFiles)
-        : this(
-            host,
-            currentDirectory,
-            stdIn,
-            stdOut,
-            stdErr,
-            cancellationToken,
-            maxOutputFiles,
-            AwkRuntimeCounters.Disabled)
-    {
-    }
-
-    internal AwkIo(
-        IAwkHost host,
-        AwkPath currentDirectory,
-        AwkFileDescriptor stdIn,
-        AwkFileDescriptor stdOut,
-        AwkFileDescriptor stdErr,
-        CancellationToken cancellationToken,
-        int maxOutputFiles,
-        AwkRuntimeCounters counters)
-        : this(
-            host,
-            currentDirectory,
-            stdIn,
-            stdOut,
-            stdErr,
-            cancellationToken,
-            counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxOutputFiles(maxOutputFiles))
-    {
     }
 
     public Task WriteStandardOutputAsync(string content)

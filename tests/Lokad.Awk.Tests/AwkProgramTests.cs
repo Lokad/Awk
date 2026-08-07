@@ -157,7 +157,10 @@ public sealed class AwkProgramTests
             AwkFileDescriptor.StdIn,
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
-            CancellationToken.None);
+            CancellationToken.None,
+            AwkRuntimeCounters.Disabled,
+            AwkRuntimeLimits.CreateDefault(),
+            static () => []);
         var statement = AwkStatement.Print(
             [new AwkExpressionPart(AwkExpression.Literal("x"), leadingSpace: false)],
             new AwkOutputRedirection(AwkExpression.Literal("/out.txt"), AwkOutputRedirectionKind.Write));
@@ -182,5 +185,8 @@ public sealed class AwkProgramTests
             AwkFileDescriptor.StdIn,
             AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr,
-            CancellationToken.None);
+            CancellationToken.None,
+            AwkRuntimeCounters.Disabled,
+            AwkRuntimeLimits.CreateDefault(),
+            static () => []);
 }
