@@ -68,22 +68,13 @@ internal abstract partial class AwkStatement
             builder.Append(ResolveSpecialVariableText(
                 state,
                 AwkSpecialVariableId.OutputRecordSeparator));
-            var outputCopyLease = state.MemoryGovernor.ReserveTransient(
-                AwkRuntimeMemory.EstimateByteArrayBytes(builder.Length));
-            try
-            {
-                await EmitOutputAsync(
-                        output,
-                        execution.Io,
-                        target,
-                        builder.ToArray(),
-                        context)
-                    .ConfigureAwait(false);
-            }
-            finally
-            {
-                outputCopyLease.Dispose();
-            }
+            await EmitOutputAsync(
+                    output,
+                    execution.Io,
+                    target,
+                    builder.AsMemory(),
+                    context)
+                .ConfigureAwait(false);
 
             return AwkStatementFlow.Continue;
         }

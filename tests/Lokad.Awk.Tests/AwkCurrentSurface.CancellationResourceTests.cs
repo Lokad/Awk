@@ -940,6 +940,30 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
+    public async Task Awk_RedirectedPrintAvoidsCopyingBuffer()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(
+            () => new AwkUnixTimestampSeconds(0),
+            TimeZoneInfo.Utc,
+            new AwkRandomGenerator(),
+            counters,
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(950));
+        var content = new string('x', 80);
+        var compiled = await AwkExecutor.CompileAsync(
+            new MockFileSystem(),
+            BuildInvocation("awk", $"BEGIN{{print \"{content}\" > \"/out.txt\"}}"),
+            CancellationToken.None);
+        var fileSystem = new MockFileSystem();
+
+        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(content + "\n", fileSystem.ReadFile("/out.txt"));
+        Assert.InRange(counters.MemoryPeakLiveBytes, 1, 950);
+    }
+
+    [Fact]
     public void Awk_RedirectedOutputMemoryLimitFailsBeforeQueueingWrite()
     {
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(300);
