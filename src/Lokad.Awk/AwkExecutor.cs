@@ -170,15 +170,15 @@ internal static class AwkExecutor
 
         public IReadOnlyList<AwkDiagnostic> Warnings { get; }
 
-        public static AwkProgramResolution Success(
+        public static ResolvedProgram Success(
             AwkProgram program,
             IReadOnlyList<AwkDiagnostic> warnings) =>
             new ResolvedProgram(program, warnings);
 
-        public static AwkProgramResolution Fail(AwkFailureDiagnostic failure) =>
+        public static Failed Fail(AwkFailureDiagnostic failure) =>
             new Failed(failure, []);
 
-        public static AwkProgramResolution Fail(
+        public static Failed Fail(
             AwkFailureDiagnostic failure,
             IReadOnlyList<AwkDiagnostic> warnings) =>
             new Failed(failure, warnings);

@@ -1203,7 +1203,7 @@ internal sealed class AwkStatementSyntaxParser
                 AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(targetTokens))));
     }
 
-    private IReadOnlyList<AwkExpressionSlotSyntax> ParseExpressionSlots(
+    private AwkExpressionSlotSyntax[] ParseExpressionSlots(
         IReadOnlyList<IReadOnlyList<AwkToken>> segments)
     {
         var slots = new AwkExpressionSlotSyntax[segments.Count];
@@ -1220,7 +1220,7 @@ internal sealed class AwkStatementSyntaxParser
     private AwkExpressionSlotSyntax ParseExpressionSlot(IReadOnlyList<AwkToken> tokens) =>
         new(tokens, AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(tokens)));
 
-    private static IReadOnlyList<AwkExpressionSyntax> ExpressionsFromSlots(
+    private static List<AwkExpressionSyntax> ExpressionsFromSlots(
         IReadOnlyList<AwkExpressionSlotSyntax> slots)
     {
         var expressions = new List<AwkExpressionSyntax>();
@@ -1239,7 +1239,7 @@ internal sealed class AwkStatementSyntaxParser
         body.Statements[0].ElseStatements.Count == 0 &&
         FindFirstSignificant(body.Tokens)?.Kind == AwkTokenKind.If;
 
-    private static IReadOnlyList<AwkToken> CopyStatementTokens(
+    private static List<AwkToken> CopyStatementTokens(
         IReadOnlyList<AwkToken> tokens,
         bool preserveNewLines)
     {
@@ -1254,11 +1254,11 @@ internal sealed class AwkStatementSyntaxParser
         return result;
     }
 
-    private static IReadOnlyList<AwkStatementSyntax> StatementsFrom(IReadOnlyList<StatementListItem> items)
+    private static List<AwkStatementSyntax> StatementsFrom(StatementListItem[] items)
     {
         var statements = new List<AwkStatementSyntax>();
         var pendingSeparators = new List<AwkToken>();
-        for (var index = 0; index < items.Count; index++)
+        for (var index = 0; index < items.Length; index++)
         {
             var item = items[index];
             if (item.Statement != null)
@@ -1322,7 +1322,7 @@ internal sealed class AwkStatementSyntaxParser
     private static AwkStatementSyntax AddDiagnostic(AwkStatementSyntax statement, AwkDiagnostic diagnostic) =>
         statement.WithDiagnostics([.. statement.Diagnostics, diagnostic]);
 
-    private static IReadOnlyList<AwkDiagnostic> CollectParseDiagnostics(
+    private static List<AwkDiagnostic> CollectParseDiagnostics(
         IReadOnlyList<AwkStatementSyntax> statements,
         IReadOnlyList<AwkToken> tokens)
     {

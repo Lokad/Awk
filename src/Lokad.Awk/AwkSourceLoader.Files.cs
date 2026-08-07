@@ -57,10 +57,10 @@ internal static partial class AwkSourceLoader
 
     private abstract record SourceExpansionResult
     {
-        public static SourceExpansionResult FromSource(AwkExpandedSource source) =>
+        public static Loaded FromSource(AwkExpandedSource source) =>
             new Loaded(source);
 
-        public static SourceExpansionResult Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
+        public static Failed Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>
             new Failed(errorMessage, id);
 
         internal sealed record Loaded(AwkExpandedSource Source) : SourceExpansionResult;

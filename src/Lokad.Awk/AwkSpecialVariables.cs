@@ -42,7 +42,7 @@ internal static class AwkSpecialVariables
             [AwkSpecialVariableId.SymbolTable] = Array(AwkSpecialVariableId.SymbolTable, "SYMTAB", readOnly: false, nonReplaceable: true)
         };
 
-    private static readonly IReadOnlyDictionary<string, AwkSpecialVariableDefinition> DefinitionsByName =
+    private static readonly Dictionary<string, AwkSpecialVariableDefinition> DefinitionsByName =
         DefinitionsById.Values.ToDictionary(definition => definition.Name, StringComparer.Ordinal);
 
     public static IEnumerable<AwkSpecialVariableDefinition> All => DefinitionsById.Values;

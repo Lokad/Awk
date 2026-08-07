@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using Lokad.Parsing.Parser;
 
@@ -95,7 +96,7 @@ internal sealed class AwkTopLevelPatternLeafAttribute : AwkTokenSetAttribute
 
 internal static class AwkGrammarTokenSets
 {
-    private static IReadOnlyList<AwkTokenKind> ReadOnly(AwkTokenKind[] tokens) =>
+    private static ReadOnlyCollection<AwkTokenKind> ReadOnly(AwkTokenKind[] tokens) =>
         Array.AsReadOnly(tokens);
 
     private static readonly AwkTokenKind[] LiteralTokens =

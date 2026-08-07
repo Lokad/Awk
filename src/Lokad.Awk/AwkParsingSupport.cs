@@ -249,7 +249,7 @@ internal static class AwkParsingSupport
     private static bool TextEquals(ReadOnlySpan<char> text, string value) =>
         text.SequenceEqual(value.AsSpan());
 
-    private static IReadOnlyList<int> FindNewLines(string source)
+    private static List<int> FindNewLines(string source)
     {
         var newLines = new List<int>();
         var position = 0;

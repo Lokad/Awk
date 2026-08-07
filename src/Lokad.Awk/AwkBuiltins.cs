@@ -7,7 +7,7 @@ namespace Lokad.Awk;
 
 internal static partial class AwkBuiltins
 {
-    private static readonly IReadOnlyDictionary<AwkBuiltinId, string> NamesById =
+    private static readonly Dictionary<AwkBuiltinId, string> NamesById =
         new Dictionary<AwkBuiltinId, string>
         {
             [AwkBuiltinId.Length] = "length",
@@ -163,10 +163,10 @@ internal static partial class AwkBuiltins
                 AwkStatementKind.Getline)
         };
 
-    private static readonly IReadOnlyDictionary<AwkStatementKind, AwkBuiltinDefinition> StatementDefinitions =
+    private static readonly Dictionary<AwkStatementKind, AwkBuiltinDefinition> StatementDefinitions =
         BuildStatementDefinitions();
 
-    private static IReadOnlyDictionary<AwkStatementKind, AwkBuiltinDefinition> BuildStatementDefinitions()
+    private static Dictionary<AwkStatementKind, AwkBuiltinDefinition> BuildStatementDefinitions()
     {
         var definitions = new Dictionary<AwkStatementKind, AwkBuiltinDefinition>();
         AddStatementDefinitions(definitions, Definitions.Values);

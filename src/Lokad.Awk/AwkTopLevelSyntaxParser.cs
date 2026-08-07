@@ -244,7 +244,7 @@ internal sealed class AwkTopLevelSyntaxParser
     public PatternPart PatternLeaf([AwkTopLevelPatternLeaf] Pos<string> token) =>
         new([AwkParsingSupport.ToToken(token)]);
 
-    private static IReadOnlyList<AwkToken> PatternTokens(IReadOnlyList<PatternPart> pattern) =>
+    private static AwkToken[] PatternTokens(IReadOnlyList<PatternPart> pattern) =>
         Flatten(pattern.Select(part => part.Tokens))
             .Where(token => token.Kind != AwkTokenKind.Comment)
             .ToArray();

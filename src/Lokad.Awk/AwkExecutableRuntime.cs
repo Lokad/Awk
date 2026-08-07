@@ -73,7 +73,7 @@ internal sealed class AwkExecutableProgram
         return executable;
     }
 
-    private static IReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction> CompileFunctions(
+    private static ReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction> CompileFunctions(
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
         AwkExecutableTableBuilder tables)
     {

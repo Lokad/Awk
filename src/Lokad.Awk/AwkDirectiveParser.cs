@@ -94,7 +94,7 @@ internal static class AwkDirectiveParser
         return true;
     }
 
-    private static IReadOnlyList<AwkToken> ReadDirectiveArguments(
+    private static List<AwkToken> ReadDirectiveArguments(
         IReadOnlyList<AwkToken> tokens,
         int startIndex)
     {

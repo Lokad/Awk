@@ -171,7 +171,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         _fieldsAreSplit = true;
     }
 
-    private AwkText ComposeRecordText(string outputFieldSeparator, IReadOnlyList<AwkFieldText> fieldTexts)
+    private AwkText ComposeRecordText(string outputFieldSeparator, List<AwkFieldText> fieldTexts)
     {
         if (fieldTexts.Count == 0)
             return AwkText.Empty;
@@ -345,7 +345,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
             fieldListCount: 2,
             includeSeparatorBoundaryList: false);
 
-    private static int EstimateComposedRecordByteLength(int separatorLength, IReadOnlyList<AwkFieldText> fieldTexts)
+    private static int EstimateComposedRecordByteLength(int separatorLength, List<AwkFieldText> fieldTexts)
     {
         var byteLength = AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedMultiply(
             separatorLength,

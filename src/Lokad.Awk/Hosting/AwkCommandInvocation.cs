@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace Lokad.Awk;
 
@@ -124,7 +125,7 @@ public sealed class AwkCommandInvocation
         return environment;
     }
 
-    private static IReadOnlyList<string> CopyArguments(IReadOnlyList<string> arguments)
+    private static ReadOnlyCollection<string> CopyArguments(IReadOnlyList<string> arguments)
     {
         var copy = new string[arguments.Count];
         for (var index = 0; index < copy.Length; index++)
@@ -137,7 +138,7 @@ public sealed class AwkCommandInvocation
         return Array.AsReadOnly(copy);
     }
 
-    private static IReadOnlyList<AwkEnvironmentVariable> CopyEnvironment(
+    private static ReadOnlyCollection<AwkEnvironmentVariable> CopyEnvironment(
         IReadOnlyList<AwkEnvironmentVariable> environment)
     {
         var copy = new AwkEnvironmentVariable[environment.Count];

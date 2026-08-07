@@ -71,7 +71,7 @@ internal readonly struct AwkProgram
 
     public IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> Functions { get; }
 
-    private static IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> CopyFunctions(
+    private static ReadOnlyDictionary<AwkFunctionName, AwkUserFunction> CopyFunctions(
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
     {
         var copy = new Dictionary<AwkFunctionName, AwkUserFunction>();

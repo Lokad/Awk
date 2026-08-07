@@ -72,7 +72,7 @@ internal sealed class AwkExpressionSyntax(
             ? FirstChild
             : null;
 
-    private IReadOnlyList<AwkToken> BuildTokens()
+    private AwkToken[] BuildTokens()
     {
         var nodes = new Stack<AwkExpressionSyntax>();
         nodes.Push(this);

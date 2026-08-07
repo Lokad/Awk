@@ -280,7 +280,7 @@ internal sealed class AwkArrayRuntime
         return CopyKeyValues(await SortUserEntriesAsync(values, order, context).ConfigureAwait(false));
     }
 
-    private IReadOnlyList<AwkArrayKey> SnapshotKeyValues(
+    private AwkArrayKey[] SnapshotKeyValues(
         IReadOnlyDictionary<AwkArrayKey, AwkText> values,
         AwkArraySortOrder order)
     {

@@ -233,7 +233,7 @@ internal sealed class AwkByteFieldSplitter(
         return new AwkTextSplitResult(fields, separators);
     }
 
-    private IReadOnlyList<AwkFieldText> SplitSingleByteLiteralRecordFields(AwkText line, byte separator)
+    private AwkFieldText[] SplitSingleByteLiteralRecordFields(AwkText line, byte separator)
     {
         var content = line.AsSpan();
         var fieldCount = CountSingleByteFields(content, separator);
@@ -246,7 +246,7 @@ internal sealed class AwkByteFieldSplitter(
         return fields;
     }
 
-    private static IReadOnlyList<AwkFieldText> SplitSingleByteParagraphRecordFields(AwkText line, byte separator)
+    private static List<AwkFieldText> SplitSingleByteParagraphRecordFields(AwkText line, byte separator)
     {
         var content = line.AsSpan();
         var fields = new List<AwkFieldText>();
@@ -303,7 +303,7 @@ internal sealed class AwkByteFieldSplitter(
             separator,
             new RecordListFieldSink());
 
-    private IReadOnlyList<AwkFieldText> SplitRegexParagraphRecordFields(AwkText line, AwkRegex separator)
+    private List<AwkFieldText> SplitRegexParagraphRecordFields(AwkText line, AwkRegex separator)
     {
         var content = line.AsSpan();
         var fields = new List<AwkFieldText>();

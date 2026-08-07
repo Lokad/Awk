@@ -630,7 +630,7 @@ internal sealed class AwkVariables
     private static bool ShouldGovernArray(AwkArrayName name) =>
         !AwkSpecialArrayPolicy.IsElementReadOnly(name.Text);
 
-    private void ThrowIfArrayWouldGrowPastLimit(IReadOnlyDictionary<AwkArrayKey, AwkVariableSlot> values, AwkArrayKey index)
+    private void ThrowIfArrayWouldGrowPastLimit(Dictionary<AwkArrayKey, AwkVariableSlot> values, AwkArrayKey index)
     {
         if (values.ContainsKey(index))
             return;

@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 
 internal static class AwkLexer
 {
-    public static IReadOnlyList<AwkToken> Tokenize(string source)
+    public static List<AwkToken> Tokenize(string source)
     {
         var lexer = new Lexer(source);
         return lexer.Tokenize();
@@ -14,7 +14,7 @@ internal static class AwkLexer
     private sealed class Lexer
     {
         private readonly string _source;
-        private readonly IReadOnlyList<AwkToken> _lexemes;
+        private readonly List<AwkToken> _lexemes;
         private readonly List<AwkToken> _tokens = [];
         private int _position;
         private int _lexemeIndex;
@@ -26,7 +26,7 @@ internal static class AwkLexer
             _lexemes = ReadContextFreeLexemes(source);
         }
 
-        public IReadOnlyList<AwkToken> Tokenize()
+        public List<AwkToken> Tokenize()
         {
             while (true)
             {
@@ -264,7 +264,7 @@ internal static class AwkLexer
             }
         }
 
-        private static IReadOnlyList<AwkToken> ReadContextFreeLexemes(string source)
+        private static List<AwkToken> ReadContextFreeLexemes(string source)
         {
             var reader = new ReflectionTokenReader<AwkTokenKind>();
             var result = reader.ReadAllTokens(source);

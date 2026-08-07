@@ -7,7 +7,7 @@ namespace Lokad.Awk;
 internal sealed class AwkFunctionRuntime
 {
     private readonly AwkFunctionCallStack _calls;
-    private IReadOnlyDictionary<AwkFunctionName, IAwkUserFunction> _functions =
+    private Dictionary<AwkFunctionName, IAwkUserFunction> _functions =
         new Dictionary<AwkFunctionName, IAwkUserFunction>();
 
     public AwkFunctionRuntime(
