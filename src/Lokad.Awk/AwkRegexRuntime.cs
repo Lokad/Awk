@@ -355,22 +355,6 @@ internal sealed class AwkRegexRuntime
 
     private AwkRegexExecutionPolicy ResolveExecutionPolicy(AwkRegex regex, AwkText input)
     {
-        bool InputContainsNonAscii()
-        {
-            var span = input.AsSpan();
-            for (var index = 0; index < span.Length; index++)
-            {
-                if (span[index] > 0x7F)
-                {
-                    _counters.RecordRegexPolicyInputBytesInspected(index + 1);
-                    return true;
-                }
-            }
-
-            _counters.RecordRegexPolicyInputBytesInspected(span.Length);
-            return false;
-        }
-
         var charactersAsBytes = _charactersAsBytes();
         var coordinatePolicy = charactersAsBytes
             ? AwkRegexCoordinatePolicy.Byte
@@ -385,7 +369,7 @@ internal sealed class AwkRegexRuntime
         }
 
         if (_engineKind == AwkRegexEngineKind.Utf8Adapter ||
-            (charactersAsBytes && InputContainsNonAscii()))
+            (charactersAsBytes && input.ContainsNonAscii(_counters)))
         {
             return new AwkRegexExecutionPolicy(
                 AwkRegexExecutionEngine.Utf8Adapter,

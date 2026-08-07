@@ -123,6 +123,25 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
     }
 
+    [Fact]
+    public void Awk_RegexPolicyCachesAsciiClassificationOnImmutableText()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var runtime = new AwkRegexRuntime(
+            static () => false,
+            static () => true,
+            static () => { },
+            counters,
+            AwkRegexEngineKind.DotNetCompatibility);
+        var regex = runtime.Create(new AwkRegexPattern("z"));
+        var input = AwkText.FromString(new string('a', 4_096), counters);
+
+        Assert.False(runtime.IsMatch(regex, input));
+        Assert.False(runtime.IsMatch(regex, input));
+
+        Assert.Equal(input.ByteLength, counters.RegexPolicyInputBytesInspected);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

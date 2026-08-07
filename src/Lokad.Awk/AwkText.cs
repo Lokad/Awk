@@ -13,6 +13,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     private readonly int _byteLength;
     private readonly bool _isBorrowed;
     private string? _cachedString;
+    private int _asciiState;
 
     private AwkText(byte[] bytes)
         : this(bytes, 0, bytes.Length, isBorrowed: false)
@@ -36,6 +37,28 @@ internal sealed class AwkText : IEquatable<AwkText>
     public ReadOnlySpan<byte> AsSpan() => _bytes.AsSpan(_byteOffset, _byteLength);
 
     public ReadOnlyMemory<byte> AsMemory() => _bytes.AsMemory(_byteOffset, _byteLength);
+
+    public bool ContainsNonAscii(AwkRuntimeCounters counters)
+    {
+        var cached = Volatile.Read(ref _asciiState);
+        if (cached != 0)
+            return cached == 2;
+
+        var span = AsSpan();
+        for (var index = 0; index < span.Length; index++)
+        {
+            if (span[index] <= 0x7F)
+                continue;
+
+            counters.RecordRegexPolicyInputBytesInspected(index + 1);
+            Volatile.Write(ref _asciiState, 2);
+            return true;
+        }
+
+        counters.RecordRegexPolicyInputBytesInspected(span.Length);
+        Volatile.Write(ref _asciiState, 1);
+        return false;
+    }
 
     public static AwkText FromSourceLiteralString(string text) =>
         FromString(text, AwkRuntimeCounters.Disabled);
