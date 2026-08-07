@@ -152,6 +152,28 @@ internal sealed class AwkText : IEquatable<AwkText>
         return CreateTrustedOwnedBytes(bytes, counters);
     }
 
+    internal static AwkText CopyTrustedBytes(
+        ReadOnlySpan<byte> bytes,
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor)
+    {
+        if (bytes.IsEmpty)
+            return Empty;
+
+        var ownedBytes = AllocateOwnedBytes(bytes.Length, governor);
+        bytes.CopyTo(ownedBytes);
+        return FromTrustedOwnedBytes(ownedBytes, counters);
+    }
+
+    internal static AwkText CopyHostBytes(
+        ReadOnlySpan<byte> bytes,
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor)
+    {
+        ThrowIfInvalidUtf8(bytes);
+        return CopyTrustedBytes(bytes, counters, governor);
+    }
+
     internal static AwkText FromTrustedBorrowedBytes(
         byte[] bytes,
         int byteOffset,

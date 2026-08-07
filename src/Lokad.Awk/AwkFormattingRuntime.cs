@@ -24,9 +24,12 @@ internal sealed class AwkFormattingRuntime(
             return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor);
 
         counters.RecordFormattingFallback();
-        return AwkText.FromTrustedOwnedBytes(PrintfEvaluation.Format(
-            ResolveFormatString(AwkFormattingVariable.OutputFormat),
-            [FormatStringInput(value)]).ToArray(), counters, governor);
+        return AwkText.FromString(
+            PrintfEvaluation.Format(
+                ResolveFormatString(AwkFormattingVariable.OutputFormat),
+                [FormatStringInput(value)]),
+            counters,
+            governor);
     }
 
     public AwkText FormatStringByteText(AwkValue value)
@@ -41,9 +44,12 @@ internal sealed class AwkFormattingRuntime(
             return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor);
 
         counters.RecordFormattingFallback();
-        return AwkText.FromTrustedOwnedBytes(PrintfEvaluation.Format(
-            ResolveFormatString(AwkFormattingVariable.ConversionFormat),
-            [FormatStringInput(value)]).ToArray(), counters, governor);
+        return AwkText.FromString(
+            PrintfEvaluation.Format(
+                ResolveFormatString(AwkFormattingVariable.ConversionFormat),
+                [FormatStringInput(value)]),
+            counters,
+            governor);
     }
 
     public static string FormatPrintfStrict(string formatText, IReadOnlyList<string> arguments)
@@ -54,10 +60,11 @@ internal sealed class AwkFormattingRuntime(
     public static string FormatPrintfStrict(
         string formatText,
         IReadOnlyList<string> arguments,
-        AwkRuntimeCounters counters)
-    {
-        return FormatPrintfStrictByteText(formatText, arguments, counters).AsString(counters);
-    }
+        AwkRuntimeCounters counters) =>
+        FormatPrintfStrict(
+            formatText,
+            new PrintfStringListArguments(arguments, counters),
+            counters);
 
     public static AwkText FormatPrintfStrictByteText(
         string formatText,
@@ -85,14 +92,23 @@ internal sealed class AwkFormattingRuntime(
         AwkMemoryGovernor governor)
         where TArguments : IPrintfArguments
     {
+        return AwkText.FromString(
+            FormatPrintfStrict(formatText, arguments, counters),
+            counters,
+            governor);
+    }
+
+    private static string FormatPrintfStrict<TArguments>(
+        string formatText,
+        TArguments arguments,
+        AwkRuntimeCounters counters)
+        where TArguments : IPrintfArguments
+    {
         try
         {
             counters.RecordFormattingFallback();
             counters.RecordFormattingStringInteropInput();
-            return AwkText.FromTrustedOwnedBytes(
-                PrintfEvaluation.Format(formatText, arguments, strictMissingArguments: true).ToArray(),
-                counters,
-                governor);
+            return PrintfEvaluation.Format(formatText, arguments, strictMissingArguments: true);
         }
         catch (FormatException)
         {

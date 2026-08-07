@@ -134,12 +134,12 @@ internal readonly record struct AwkRegexMatch(
 
     private static AwkText CreateText(Utf8MatchContext match, AwkRuntimeCounters counters, AwkMemoryGovernor governor) =>
         match.TryGetValueBytes(out var bytes)
-            ? AwkText.FromTrustedOwnedBytes(bytes.ToArray(), counters, governor)
+            ? AwkText.CopyTrustedBytes(bytes, counters, governor)
             : AwkText.FromString(match.GetValueString(), counters, governor);
 
     private static AwkText CreateText(Utf8GroupContext group, AwkRuntimeCounters counters, AwkMemoryGovernor governor) =>
         group.TryGetValueBytes(out var bytes)
-            ? AwkText.FromTrustedOwnedBytes(bytes.ToArray(), counters, governor)
+            ? AwkText.CopyTrustedBytes(bytes, counters, governor)
             : AwkText.FromString(group.GetValueString(), counters, governor);
 
 }

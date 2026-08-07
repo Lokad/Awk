@@ -7,18 +7,18 @@ namespace Lokad.Awk;
 
 internal static class PrintfEvaluation
 {
-    public static ReadOnlyMemory<byte> Format(
+    public static string Format(
         string format,
         IReadOnlyList<string> arguments) =>
         Format(format, arguments, strictMissingArguments: false);
 
-    public static ReadOnlyMemory<byte> Format(
+    public static string Format(
         string format,
         IReadOnlyList<string> arguments,
         bool strictMissingArguments) =>
         Format(format, new PrintfStringListArguments(arguments, AwkRuntimeCounters.Disabled), strictMissingArguments);
 
-    public static ReadOnlyMemory<byte> Format<TArguments>(
+    public static string Format<TArguments>(
         string format,
         TArguments arguments,
         bool strictMissingArguments)
@@ -26,7 +26,7 @@ internal static class PrintfEvaluation
     {
         if (string.IsNullOrEmpty(format))
         {
-            return ReadOnlyMemory<byte>.Empty;
+            return string.Empty;
         }
 
         var output = new StringBuilder(format.Length);
@@ -146,7 +146,7 @@ internal static class PrintfEvaluation
             output.Append(directive.Specifier);
         }
 
-        return AwkUtf8Codec.Encode(output.ToString());
+        return output.ToString();
     }
 
     private static bool TryReadDirective(string format, ref int index, out PrintfDirective directive)

@@ -534,7 +534,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private AwkText CreateText(ReadOnlySpan<byte> content) =>
         content.IsEmpty
             ? AwkText.Empty
-            : AwkText.FromOwnedBytes(content.ToArray(), _state.Counters, _state.MemoryGovernor);
+            : AwkText.CopyHostBytes(content, _state.Counters, _state.MemoryGovernor);
 
     private AwkText GetRegexInput(AwkUtf8Builder buffer)
     {

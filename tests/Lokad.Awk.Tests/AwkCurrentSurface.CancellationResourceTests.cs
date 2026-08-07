@@ -448,6 +448,11 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             4096
         },
         {
+            "BEGIN{x=sprintf(\"%05000d\", 1); print x}",
+            string.Empty,
+            4096
+        },
+        {
             "{$2=$2; print $0}",
             new string('a', 5000) + " " + new string('b', 5000) + "\n",
             8192

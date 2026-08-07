@@ -633,6 +633,6 @@ internal sealed class AwkByteFieldSplitter(
         if (length == 0)
             return AwkText.Empty;
 
-        return AwkText.FromTrustedOwnedBytes(content.Slice(start, length).ToArray(), counters, memoryGovernor);
+        return AwkText.CopyTrustedBytes(content.Slice(start, length), counters, memoryGovernor);
     }
 }

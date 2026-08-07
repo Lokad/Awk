@@ -104,6 +104,23 @@ public sealed class AwkTextTests
     }
 
     [Fact]
+    public void AwkText_GovernedCopyFailsBeforeCreatingText()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var governor = AwkMemoryGovernor.Create(
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(3),
+            counters);
+
+        var exception = Assert.Throws<AwkRuntimeException>(() =>
+            AwkText.CopyTrustedBytes("abcd"u8, counters, governor));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(0, governor.CurrentCommittedBytes);
+    }
+
+    [Fact]
     public void AwkText_AllocationCountersTrackSmallPayloadDensity()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
