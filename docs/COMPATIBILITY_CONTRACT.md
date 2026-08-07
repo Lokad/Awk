@@ -58,6 +58,10 @@ Line-start offsets are snapshotted by `AwkReadResult`. Successful content is bor
 keeps it unchanged and alive until the next read begins on the same descriptor or that descriptor
 is closed. Reads on other descriptors do not end that lifetime.
 
+Main input and every `getline` source use the current `RS`, including paragraph and regex modes.
+Changing `RS` preserves already-buffered bytes and continues pulling batches only as the next
+record requires; a separator change never drains the descriptor to EOF merely to hand off state.
+
 ## Public API
 
 The executable runtime, regex adapter choice, and resource governors remain internal rollout

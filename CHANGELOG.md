@@ -2,6 +2,14 @@
 
 ## 0.1.0
 
+- Route main input and all `getline` sources through one streaming, `RS`-aware record cursor;
+  preserve unread buffered bytes across separator changes without draining descriptors to EOF,
+  and retain paragraph field-splitting semantics when `getline` assigns `$0`.
+- Snapshot host-provided line offsets and document borrowed read-content lifetimes per descriptor,
+  while keeping independent compiled executions safe to run concurrently against separate hosts.
+- Replace nullable regex backend state and flush-all sentinels with explicit variants, keep lowered
+  identifiers strongly typed, consolidate substitution traversal, and remove dead runtime helpers
+  and the forwarding frontend classifier.
 - Match awk paragraph-mode record semantics for whitespace-only lines, lone carriage returns, and
   single-character field separators, with GNU awk oracle coverage for the corrected edge cases.
 - Keep `FS=""`, `FPAT`, and `FIELDWIDTHS` record fields as lazy byte slices until a value actually
@@ -14,8 +22,8 @@
   validation, and keep one-use parsing, sizing, and UTF-8 details scoped to their callers.
 - Make case-insensitive regex matching independent of the ambient .NET culture, consistently with
   the runtime's C-locale-oriented compatibility policy.
-- Preserve record boundaries and `RT` when a running program changes `RS` from a custom separator
-  to the default newline separator.
+- Preserve record boundaries and `RT` for every running-program `RS` transition, including newline
+  to custom, custom to newline, paragraph, literal, byte-set, non-ASCII, and regex separators.
 - Separate host read failures from EOF through structured `AwkReadResult` outcomes; main input,
   `getline`, and source loading now surface failed reads instead of silently truncating input.
 - Close prepared inputs, explicit inputs, redirections, pipes, and source descriptors after runtime
@@ -26,8 +34,8 @@
   as `AwkExitCode`, reject malformed command result batches, and diagnose failed descriptor closes.
 - Make governed regex enumerations and array-key snapshots return explicit disposable leases, and
   reject access after the reservation has been released.
-- Share buffered-tail handling and byte-oriented scanning across record-separator strategies while
-  retaining bounded cancellation checks and separator-specific matching.
+- Share byte-oriented scanning through a pull-style record cursor while retaining bounded
+  cancellation checks, separator-specific matching, and the batched default-newline path.
 - Remove the duplicate runtime-facade layer and dead string-based replacement helpers so variable,
   array, record, formatting, and regex operations have one resource-checked state boundary.
 - Replace boxed source-loading and lowering outcomes with typed success, missing, and failure cases

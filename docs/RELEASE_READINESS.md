@@ -30,10 +30,15 @@ dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benc
 - Tests: include the exact `dotnet test` command, result, date, and commit.
 - Byte-native counters: include `StringDecodes`, `AwkTextAsStringCalls`,
   `AwkTextAsStringDecodeMisses`, `Utf8Encodes`, `ByteTextComparisons`, and formatting/string
-  interop fallback counts for representative hot-path tests or benchmarks.
+  interop fallback counts for representative hot-path tests or benchmarks. Include
+  `ConcatenationBytesCopied` when concatenation or formatting changed.
 - Regex compatibility: include the tested regex engine mode, corpus status, unsupported cases,
   `RegexDotNetTextMatches`, `RegexPatternGapFallbacks`, `RegexStringAdapterMatches`,
-  byte-mode valid UTF-8 behavior, and any `RSTART`/`RLENGTH` offset policy evidence.
+  `RegexPolicyInputBytesInspected`, `RegexGroupsMaterialized`, byte-mode valid UTF-8 behavior,
+  and any `RSTART`/`RLENGTH` offset policy evidence.
+- Record streaming: include `RecordSeparatorTailBytesMoved` and batched-host coverage when record
+  separators, `getline`, or input cursor behavior changed. Dynamic `RS` evidence must cover unread
+  buffered bytes without requiring the descriptor to reach EOF.
 - VM coverage: include execution engine mode, `VmInstructions`, `VmBasicBlockEntries`,
   `VmFallbackCalls`, `VmOpcodeKindsExecuted`, `VmBudgetChecks`, and `VmMaxStackDepth`.
 - Executable default gate: keep `AwkExecutionEngineKind.Interpreter` as the default unless the

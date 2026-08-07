@@ -55,7 +55,7 @@ These names are not public embedding policy unless a concrete host need appears:
 
 - `DefaultInputReadBatchBytes`: streaming read batch size.
 - `DefaultUtf8BuilderInitialCapacity`: initial byte-builder capacity.
-- `DefaultRegexCacheSize`: compiled regex cache capacity before clearing.
+- `DefaultRegexCacheSize`: compiled regex least-recently-used cache capacity.
 - `DefaultRegexMatchTimeoutSeconds`: .NET regex timeout guard.
 - `MaxVmStackBytes`: executable runtime stack bytes. Fallback frames and opcode operand-stack
   buffers check this limit and, when the memory governor is enabled, reserve/commit/release the
