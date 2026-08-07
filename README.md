@@ -43,8 +43,10 @@ Release notes are tracked in [CHANGELOG.md](CHANGELOG.md).
 
 This repository preserves command-line awk behavior for common valid-UTF-8 workflows while the
 runtime is being migrated toward byte-native text execution, explicit resource limits, and an
-internal executable representation. The executable engine currently has a fallback dispatcher and
-metrics; real opcode lowering remains an internal rollout item.
+internal executable representation. The interpreter remains the default engine. The opt-in
+executable engine runs its supported expression and statement shapes as opcodes, represents every
+unsupported shape as an explicit interpreter fallback, and reports both paths through runtime
+counters. Its default-engine gate is defined in [docs/VM_ROLLOUT.md](docs/VM_ROLLOUT.md).
 
 Compatibility note: `--characters-as-bytes` keeps awk string units in UTF-8 bytes for valid text,
 but `FS=""` in byte mode is intentionally limited to ASCII input. Non-ASCII valid UTF-8 would

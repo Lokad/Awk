@@ -3,7 +3,8 @@
 The executable runtime starts as a second compiled form beside the existing interpreter. It
 is compiled from the bound `AwkProgram`, not syntax. Executable mode now dispatches
 fallback actions and fallback user functions through the executable representation; non-fallback
-opcode coverage remains disabled until golden tests, counters, and benchmarks prove parity.
+opcode coverage is deliberately limited and remains opt-in until golden tests, counters, and
+benchmarks prove parity.
 Fallback dispatch is counted through VM counters and charges an executable fallback frame against
 the VM stack byte limit and memory governor. The default execution engine remains the interpreter.
 `AwkExecutor.CompileAsync` owns both the interpreter program and the executable artifact; runtime

@@ -2,6 +2,16 @@
 
 ## 0.1.0
 
+- Match awk paragraph-mode record semantics for whitespace-only lines, lone carriage returns, and
+  single-character field separators, with GNU awk oracle coverage for the corrected edge cases.
+- Keep `FS=""`, `FPAT`, and `FIELDWIDTHS` record fields as lazy byte slices until a value actually
+  escapes the record, pass redirected print buffers directly to the host boundary, and materialize
+  ordinal array keys once per snapshot.
+- Retain typed array names through local and global resolution, centralize shared sort and numeric
+  classification rules, and remove dead string runtime adapters, queued-IO variants, separator
+  state, and production-only test buffers.
+- Make helper defaults explicit at call sites, trust internal non-nullable contracts after public
+  validation, and keep one-use parsing, sizing, and UTF-8 details scoped to their callers.
 - Make case-insensitive regex matching independent of the ambient .NET culture, consistently with
   the runtime's C-locale-oriented compatibility policy.
 - Preserve record boundaries and `RT` when a running program changes `RS` from a custom separator
