@@ -32,6 +32,28 @@ internal sealed class AwkRecordSeparatorEngine
             .ProcessDescriptorAsync(descriptor, processRecordAsync)
             .ConfigureAwait(false);
     }
+
+    public async ValueTask<AwkStatementFlow> ProcessBufferedDescriptorTailAsync(
+        AwkFileDescriptor descriptor,
+        AwkBufferedInputTail tail,
+        Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
+    {
+        using var buffer = new AwkUtf8Builder(
+            _context.State.Limits,
+            _context.State.MemoryGovernor,
+            tail.Content.Length);
+        buffer.Append(tail.Content);
+        if (!tail.DescriptorReachedEof)
+        {
+            await _context.DescriptorReader.AppendToEndAsync(descriptor, buffer)
+                .ConfigureAwait(false);
+        }
+
+        return await _context.ProcessUnreadTailWithCurrentSeparatorAsync(
+                buffer.CopyToAwkText(_context.State.Counters),
+                processRecordAsync)
+            .ConfigureAwait(false);
+    }
 }
 
 internal sealed class AwkRecordSeparatorContext(
@@ -142,14 +164,10 @@ internal abstract class AwkRecordSeparatorStrategy
         AwkFileDescriptor descriptor,
         bool reachedEof)
     {
-        var buffered = buffer.CopyToAwkText(Context.State.Counters);
-        if (reachedEof)
-            return buffered;
+        if (!reachedEof)
+            await Context.DescriptorReader.AppendToEndAsync(descriptor, buffer).ConfigureAwait(false);
 
-        var tail = await Context.DescriptorReader
-            .ReadToEndTextAsync(descriptor, Context.State.Limits, Context.State.MemoryGovernor)
-            .ConfigureAwait(false);
-        return buffered.Concat(tail, Context.State.Counters, Context.State.MemoryGovernor);
+        return buffer.CopyToAwkText(Context.State.Counters);
     }
 
     protected async Task<bool> AppendNextByteBatchAsync(

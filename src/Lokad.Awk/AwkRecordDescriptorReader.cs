@@ -42,6 +42,14 @@ internal sealed class AwkRecordDescriptorReader
         AwkMemoryGovernor governor)
     {
         using var builder = new AwkUtf8Builder(limits, governor, AwkIo.InputReadBatchLineCount);
+        await AppendToEndAsync(descriptor, builder).ConfigureAwait(false);
+        return builder.CopyToAwkText(_counters);
+    }
+
+    public async Task AppendToEndAsync(
+        AwkFileDescriptor descriptor,
+        AwkUtf8Builder builder)
+    {
         while (true)
         {
             _counters.RecordCancellationCheck();
@@ -55,7 +63,7 @@ internal sealed class AwkRecordDescriptorReader
             _resources.RecordBytesRead(result.Content.Length);
             builder.Append(result.Content);
             if (result.ReachedEof)
-                return builder.CopyToAwkText(_counters);
+                return;
         }
     }
 }

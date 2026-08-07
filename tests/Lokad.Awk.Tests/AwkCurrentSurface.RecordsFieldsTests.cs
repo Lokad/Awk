@@ -207,6 +207,28 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     }
 
     [Fact]
+    public async Task Awk_DynamicCustomRecordSeparatorKeepsBufferedAndUnreadInput()
+    {
+        var host = new TestOperationVisitor([]);
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent("a\nb|"u8.ToArray(), [2], reachedEof: false));
+        host.EnqueueAppendExitCode(0);
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent("c\n"u8.ToArray(), [], reachedEof: true));
+        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendExitCode(0);
+
+        var program = "{record=$0; terminator=RT; gsub(/\\n/,\"N\",record); gsub(/\\n/,\"N\",terminator); " +
+            "print NR \":\" record \"[\" terminator \"]\"; if(NR==1) RS=\"|\"}";
+        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", program)));
+        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(
+            [AwkIo.InputReadBatchLineCount, AwkIo.InputReadBatchLineCount],
+            host.ReadLineBatchLineCounts);
+        Assert.Equal("1:a[N]\n2:b[|]\n3:cN[]\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+    }
+
+    [Fact]
     public async Task Awk_SingleCharacterCustomRecordSeparatorReadsInputInBatches()
     {
         var host = new TestOperationVisitor([]);

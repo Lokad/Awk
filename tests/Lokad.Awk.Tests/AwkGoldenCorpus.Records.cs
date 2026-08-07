@@ -39,6 +39,12 @@ internal static partial class AwkGoldenCorpus
             "a,b\nc\n"),
 
         Passing(
+            "dynamic-record-separator-newline-to-custom",
+            ["{record=$0; terminator=RT; gsub(/\\n/,\"N\",record); gsub(/\\n/,\"N\",terminator); print NR \":\" record \"[\" terminator \"]\"; if(NR==1) RS=\"|\"}", "/file.txt"],
+            [File("/file.txt", "a\nb|c\n")],
+            "1:a[N]\n2:b[|]\n3:cN[]\n"),
+
+        Passing(
             "dynamic-record-separator-redirects-only-unread-tail",
             ["BEGIN{RS=\",\"} {print NR \":\" $0; if(NR==1) RS=\"\\n\"; else if(NR==2) RS=\"|\"}"],
             [],

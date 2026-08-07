@@ -84,5 +84,21 @@ internal sealed class AsyncLineReader
         return line;
     }
 
+    public AwkBufferedInputTail TakeBufferedTail()
+    {
+        var content = _lineIndex < BufferedLineCount
+            ? _content[_lineStart..]
+            : ReadOnlyMemory<byte>.Empty;
+        _lineStart = _content.Length;
+        _lineIndex = BufferedLineCount;
+        return new AwkBufferedInputTail(content, _reachedEof);
+    }
+
+    public AwkFileDescriptor Descriptor => _descriptor;
+
     private int BufferedLineCount => _content.IsEmpty ? 0 : _lineStartOffsets.Length + 1;
 }
+
+internal readonly record struct AwkBufferedInputTail(
+    ReadOnlyMemory<byte> Content,
+    bool DescriptorReachedEof);

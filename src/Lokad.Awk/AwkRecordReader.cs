@@ -43,7 +43,6 @@ internal sealed class AwkRecordReader
 
         // Default newline records stay on AsyncLineReader and stream one host batch at a time.
         var reader = _descriptorReader.CreateLineReader(descriptor);
-        _io.BindMainInputReader(reader);
         return await ProcessReaderAsync(reader, processRecordAsync).ConfigureAwait(false);
     }
 
@@ -52,6 +51,7 @@ internal sealed class AwkRecordReader
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
     {
         _io.BindMainInputReader(reader);
+        var separatorVersion = _state.RecordSeparatorVersion;
         while (!await reader.ReachedEof().ConfigureAwait(false))
         {
             _state.ThrowIfCancellationRequested();
@@ -63,6 +63,20 @@ internal sealed class AwkRecordReader
             {
                 _io.ClearMainInputReader();
                 return flow;
+            }
+
+            if (_state.RecordSeparatorVersion == separatorVersion)
+                continue;
+
+            separatorVersion = _state.RecordSeparatorVersion;
+            if (_state.ResolveRecordSeparator() != "\n")
+            {
+                _io.ClearMainInputReader();
+                return await _separatorEngine.ProcessBufferedDescriptorTailAsync(
+                        reader.Descriptor,
+                        reader.TakeBufferedTail(),
+                        processRecordAsync)
+                    .ConfigureAwait(false);
             }
         }
 
