@@ -2,7 +2,7 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
-internal interface AwkInputRecordReader
+internal interface IAwkInputRecordReader
 {
     ValueTask<AwkInputRecordResult> ReadAsync();
 }

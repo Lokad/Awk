@@ -163,7 +163,7 @@ internal sealed class AwkIo
         return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
     }
 
-    public void BindMainInputReader(AwkInputRecordReader reader) =>
+    public void BindMainInputReader(IAwkInputRecordReader reader) =>
         _mainInputReader = MainInputReaderBinding.Bind(reader);
 
     public void ClearMainInputReader() =>
@@ -177,7 +177,7 @@ internal sealed class AwkIo
         return await ReadGetlineRecordAsync(boundReader.Reader).ConfigureAwait(false);
     }
 
-    private async Task<AwkGetlineResult> ReadGetlineRecordAsync(AwkInputRecordReader reader)
+    private async Task<AwkGetlineResult> ReadGetlineRecordAsync(IAwkInputRecordReader reader)
     {
         try
         {
@@ -340,15 +340,15 @@ internal sealed class AwkIo
     {
         public static MainInputReaderBinding Unbound { get; } = new Empty();
 
-        public static Bound Bind(AwkInputRecordReader reader) => new(reader);
+        public static Bound Bind(IAwkInputRecordReader reader) => new(reader);
 
         public sealed class Empty : MainInputReaderBinding
         {
         }
 
-        public sealed class Bound(AwkInputRecordReader reader) : MainInputReaderBinding
+        public sealed class Bound(IAwkInputRecordReader reader) : MainInputReaderBinding
         {
-            public AwkInputRecordReader Reader { get; } = reader;
+            public IAwkInputRecordReader Reader { get; } = reader;
         }
     }
 }

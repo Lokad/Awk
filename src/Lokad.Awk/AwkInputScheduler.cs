@@ -16,7 +16,7 @@ internal sealed class AwkInputScheduler(
     AwkRuntimeActionExecutor actionExecutor,
     AwkRuntimeState state,
     AwkIo io,
-    CancellationToken cancellationToken) : AwkInputRecordReader
+    CancellationToken cancellationToken) : IAwkInputRecordReader
 {
     private readonly HashSet<AwkFileDescriptor> _ownedDescriptors = [];
     private readonly AwkRecordProcessor _recordProcessor = new(state);

@@ -7,7 +7,7 @@ namespace Lokad.Awk;
 /// <summary>
 /// Pulls records from one descriptor while preserving unread input across <c>RS</c> changes.
 /// </summary>
-internal sealed class AwkRecordCursor : AwkInputRecordReader, IDisposable
+internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 {
     private readonly AwkRuntimeState _state;
     private readonly AwkRecordDescriptorReader _descriptorReader;
