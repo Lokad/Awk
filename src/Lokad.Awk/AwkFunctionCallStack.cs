@@ -110,96 +110,50 @@ internal sealed class AwkFunctionCallStack(
         return false;
     }
 
-    public bool TryResolveLocal(AwkVariableName name, out AwkResolvedFunctionLocal local)
+    public bool TryResolveLocal(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
+        TryResolveLocal(name, AwkFunctionLocalProjection.Kind, out local);
+
+    public bool TryResolveLocal(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
+        TryResolveLocal(slotId, AwkFunctionLocalProjection.Kind, out local);
+
+    public bool TryResolveLocalText(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
+        TryResolveLocal(name, AwkFunctionLocalProjection.Text, out local);
+
+    public bool TryResolveLocalText(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
+        TryResolveLocal(slotId, AwkFunctionLocalProjection.Text, out local);
+
+    public bool TryResolveLocalValue(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
+        TryResolveLocal(name, AwkFunctionLocalProjection.Value, out local);
+
+    public bool TryResolveLocalValue(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
+        TryResolveLocal(slotId, AwkFunctionLocalProjection.Value, out local);
+
+    private bool TryResolveLocal(
+        AwkVariableName name,
+        AwkFunctionLocalProjection projection,
+        out AwkResolvedFunctionLocal local)
     {
-        if (_frames.Count > 0)
+        if (_frames.Count > 0 &&
+            TryGetLocalSlot(_frames.Peek(), name, out _, out var slot))
         {
-            var frame = _frames.Peek();
-            if (TryGetLocalSlot(frame, name, out _, out var slot))
-            {
-                local = ResolveLocalKind(slot);
-                return true;
-            }
+            local = ResolveLocal(slot, projection);
+            return true;
         }
 
         local = AwkResolvedFunctionLocal.Missing;
         return false;
     }
 
-    public bool TryResolveLocal(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local)
+    private bool TryResolveLocal(
+        AwkFunctionLocalSlotId slotId,
+        AwkFunctionLocalProjection projection,
+        out AwkResolvedFunctionLocal local)
     {
-        if (_frames.Count > 0)
+        if (_frames.Count > 0 &&
+            TryGetLocalSlot(_frames.Peek(), slotId, out var slot))
         {
-            var frame = _frames.Peek();
-            if (TryGetLocalSlot(frame, slotId, out var slot))
-            {
-                local = ResolveLocalKind(slot);
-                return true;
-            }
-        }
-
-        local = AwkResolvedFunctionLocal.Missing;
-        return false;
-    }
-
-    public bool TryResolveLocalText(AwkVariableName name, out AwkResolvedFunctionLocal local)
-    {
-        if (_frames.Count > 0)
-        {
-            var frame = _frames.Peek();
-            if (TryGetLocalSlot(frame, name, out _, out var slot))
-            {
-                local = ResolveLocalText(slot);
-                return true;
-            }
-        }
-
-        local = AwkResolvedFunctionLocal.Missing;
-        return false;
-    }
-
-    public bool TryResolveLocalText(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local)
-    {
-        if (_frames.Count > 0)
-        {
-            var frame = _frames.Peek();
-            if (TryGetLocalSlot(frame, slotId, out var slot))
-            {
-                local = ResolveLocalText(slot);
-                return true;
-            }
-        }
-
-        local = AwkResolvedFunctionLocal.Missing;
-        return false;
-    }
-
-    public bool TryResolveLocalValue(AwkVariableName name, out AwkResolvedFunctionLocal local)
-    {
-        if (_frames.Count > 0)
-        {
-            var frame = _frames.Peek();
-            if (TryGetLocalSlot(frame, name, out _, out var slot))
-            {
-                local = ResolveLocalValue(slot);
-                return true;
-            }
-        }
-
-        local = AwkResolvedFunctionLocal.Missing;
-        return false;
-    }
-
-    public bool TryResolveLocalValue(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local)
-    {
-        if (_frames.Count > 0)
-        {
-            var frame = _frames.Peek();
-            if (TryGetLocalSlot(frame, slotId, out var slot))
-            {
-                local = ResolveLocalValue(slot);
-                return true;
-            }
+            local = ResolveLocal(slot, projection);
+            return true;
         }
 
         local = AwkResolvedFunctionLocal.Missing;
@@ -341,7 +295,9 @@ internal sealed class AwkFunctionCallStack(
         _recycledFrames.Push(frame);
     }
 
-    private static AwkResolvedFunctionLocal ResolveLocalKind(AwkFunctionLocalSlot slot)
+    private AwkResolvedFunctionLocal ResolveLocal(
+        AwkFunctionLocalSlot slot,
+        AwkFunctionLocalProjection projection)
     {
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
             return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName);
@@ -349,30 +305,14 @@ internal sealed class AwkFunctionCallStack(
         if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
             return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName);
 
-        return AwkResolvedFunctionLocal.Scalar();
-    }
-
-    private AwkResolvedFunctionLocal ResolveLocalText(AwkFunctionLocalSlot slot)
-    {
-        if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
-            return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName);
-
-        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
-            return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName);
-
-        return AwkResolvedFunctionLocal.ScalarText(slot.Value.StringValue);
-    }
-
-    private AwkResolvedFunctionLocal ResolveLocalValue(AwkFunctionLocalSlot slot)
-    {
-        if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
-            return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName);
-
-        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
-            return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName);
-
-        return AwkResolvedFunctionLocal.ScalarValue(
-            slot.Value.ToValue(createByteTextValue, createNumericStringValue));
+        return projection switch
+        {
+            AwkFunctionLocalProjection.Kind => AwkResolvedFunctionLocal.Scalar(),
+            AwkFunctionLocalProjection.Text => AwkResolvedFunctionLocal.ScalarText(slot.Value.StringValue),
+            AwkFunctionLocalProjection.Value => AwkResolvedFunctionLocal.ScalarValue(
+                slot.Value.ToValue(createByteTextValue, createNumericStringValue)),
+            _ => throw new InvalidOperationException("Unknown function-local projection.")
+        };
     }
 
     private static bool TryGetLocalSlot(
@@ -408,5 +348,12 @@ internal sealed class AwkFunctionCallStack(
 
     private static long EstimateLocalSlotBytes(AwkFunctionLocalSlot slot) =>
         AwkRuntimeMemory.EstimateFunctionLocalSlotBytes(slot);
+
+    private enum AwkFunctionLocalProjection
+    {
+        Kind,
+        Text,
+        Value
+    }
 
 }
