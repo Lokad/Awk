@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Linq;
 using Lokad.Awk;
 
@@ -32,6 +33,31 @@ public sealed class AwkSyntaxParserTests
         Assert.Equal(0, tokens[0].Span.Start);
         Assert.Equal(2_047, tokens[^1].Span.Start);
         Assert.True(allocatedBytes < 1_000_000, "Allocated bytes: " + allocatedBytes);
+    }
+
+    [Fact]
+    public void AwkTokenNavigation_IndexesDeepTokenListsInLinearTime()
+    {
+        _ = ReadIndexedTokens(ComposeTokenLists(8));
+        var tokens = ComposeTokenLists(32_768);
+
+        var stopwatch = Stopwatch.StartNew();
+        var finalStart = ReadIndexedTokens(tokens);
+        stopwatch.Stop();
+
+        Assert.Equal(32_767, finalStart);
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(2),
+            "Indexed token traversal took " + stopwatch.Elapsed + ".");
+
+        static int ReadIndexedTokens(IReadOnlyList<AwkToken> tokens)
+        {
+            var finalStart = -1;
+            for (var index = 0; index < tokens.Count; index++)
+                finalStart = tokens[index].Span.Start;
+
+            return finalStart;
+        }
     }
 
     [Fact]

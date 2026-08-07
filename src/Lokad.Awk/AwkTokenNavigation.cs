@@ -236,6 +236,7 @@ internal static class AwkTokenNavigation
     private sealed class CompositeTokenList : IReadOnlyList<AwkToken>
     {
         private readonly IReadOnlyList<AwkToken>[] _groups;
+        private AwkToken[]? _indexedTokens;
 
         public CompositeTokenList(List<IReadOnlyList<AwkToken>> groups)
         {
@@ -253,23 +254,21 @@ internal static class AwkTokenNavigation
                 if ((uint)index >= (uint)Count)
                     throw new ArgumentOutOfRangeException(nameof(index));
 
-                IReadOnlyList<AwkToken> current = this;
-                while (current is CompositeTokenList composite)
+                var indexedTokens = Volatile.Read(ref _indexedTokens);
+                if (indexedTokens == null)
                 {
-                    for (var groupIndex = 0; groupIndex < composite._groups.Length; groupIndex++)
-                    {
-                        var group = composite._groups[groupIndex];
-                        if (index < group.Count)
-                        {
-                            current = group;
-                            break;
-                        }
+                    var materialized = new AwkToken[Count];
+                    var materializedIndex = 0;
+                    foreach (var token in this)
+                        materialized[materializedIndex++] = token;
 
-                        index -= group.Count;
-                    }
+                    indexedTokens = Interlocked.CompareExchange(
+                        ref _indexedTokens,
+                        materialized,
+                        comparand: null) ?? materialized;
                 }
 
-                return current[index];
+                return indexedTokens[index];
             }
         }
 
