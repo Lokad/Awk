@@ -14,7 +14,7 @@ Use host-facing tests when the risk includes command quoting, pipelines, command
 
 ## Lexer, Syntax, Parser, and Binder Tests
 
-Use lexer, syntax parser, parser, and binder tests for internal structure: token classification, source spans, statement outlines, expression outlines, symbol discovery, parser acceptance, and future semantic diagnostics. These tests should not become a second behavior corpus for ordinary awk execution.
+Use lexer, syntax parser, parser, and binder tests for internal structure: token classification, source spans, statement outlines, expression outlines, symbol discovery, parser acceptance, and semantic diagnostics. These tests should not become a second behavior corpus for ordinary awk execution.
 
 ## Source Loader Tests
 
@@ -30,7 +30,7 @@ Current-surface tests are for internals that are hard to observe through a golde
 
 ## Benchmarks
 
-`AwkBenchmark` is not a correctness suite. Benchmark scripts should either reference canonical golden scenarios or document generated workloads, and benchmark smoke checks should not create independent behavior expectations.
+`Lokad.Awk.Benchmarks` is not a correctness suite. Benchmark scripts should either reference canonical golden scenarios or document generated workloads, and benchmark smoke checks should not create independent behavior expectations. Use `AwkBenchmarkCounterTests` for deterministic counter invariants that belong in the correctness suite.
 
 ## Oracle Workflow
 
