@@ -157,8 +157,25 @@ internal sealed class AwkLineContinuationMap
 
     public AwkLineContinuationMap Append(AwkLineContinuationMap next, int nextOffset)
     {
+        static AwkLineContinuationMap Shift(
+            AwkLineContinuationMap map,
+            int offset)
+        {
+            if (map.IsEmpty || offset == 0)
+                return map;
+
+            var shiftedPoints = new List<AwkLineContinuationPoint>(map.Count);
+            for (var index = 0; index < map.Count; index++)
+            {
+                shiftedPoints.Add(new AwkLineContinuationPoint(
+                    offset + map[index].NormalizedOffset));
+            }
+
+            return new AwkLineContinuationMap(shiftedPoints);
+        }
+
         if (IsEmpty)
-            return next.Shift(nextOffset);
+            return Shift(next, nextOffset);
 
         if (next.IsEmpty)
             return this;
@@ -169,18 +186,6 @@ internal sealed class AwkLineContinuationMap
 
         for (var index = 0; index < next.Count; index++)
             points.Add(new AwkLineContinuationPoint(nextOffset + next[index].NormalizedOffset));
-
-        return new AwkLineContinuationMap(points);
-    }
-
-    private AwkLineContinuationMap Shift(int offset)
-    {
-        if (IsEmpty || offset == 0)
-            return this;
-
-        var points = new List<AwkLineContinuationPoint>(Count);
-        for (var index = 0; index < Count; index++)
-            points.Add(new AwkLineContinuationPoint(offset + this[index].NormalizedOffset));
 
         return new AwkLineContinuationMap(points);
     }

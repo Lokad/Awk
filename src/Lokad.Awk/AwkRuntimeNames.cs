@@ -30,13 +30,6 @@ internal readonly record struct AwkFunctionName(AwkIdentifier Identifier)
     public override string ToString() => Text;
 }
 
-internal readonly record struct AwkBuiltinName(AwkBuiltinId Id)
-{
-    public string Text => AwkBuiltins.Name(Id);
-
-    public override string ToString() => Text;
-}
-
 internal readonly record struct AwkSpecialVariableName(AwkSpecialVariableId Id)
 {
     public string Text => AwkSpecialVariables.Name(Id);

@@ -90,12 +90,36 @@ internal readonly record struct AwkRegexMatch(
         int matchUtf16Index,
         int matchByteIndex,
         bool useByteOffsets,
-        AwkRuntimeCounters counters) =>
-        new(
+        AwkRuntimeCounters counters)
+    {
+        static int ResolveGroupIndex(
+            Group group,
+            string input,
+            int matchUtf16Index,
+            int matchByteIndex,
+            bool useByteOffsets)
+        {
+            if (!useByteOffsets)
+                return group.Index;
+
+            if (!group.Success)
+                return 0;
+
+            return matchByteIndex + Encoding.UTF8.GetByteCount(
+                input.AsSpan(matchUtf16Index, group.Index - matchUtf16Index));
+        }
+
+        static int ResolveGroupLength(Group group, string input, bool useByteOffsets) =>
+            useByteOffsets
+                ? Encoding.UTF8.GetByteCount(input.AsSpan(group.Index, group.Length))
+                : group.Length;
+
+        return new AwkRegexGroup(
             group.Success,
             ResolveGroupIndex(group, input, matchUtf16Index, matchByteIndex, useByteOffsets),
             ResolveGroupLength(group, input, useByteOffsets),
             AwkText.FromString(group.Value, counters));
+    }
 
     private static AwkRegexGroup FromUtf8Group(
         Utf8GroupContext group,
@@ -117,28 +141,6 @@ internal readonly record struct AwkRegexMatch(
         group.TryGetValueBytes(out var bytes)
             ? AwkText.FromTrustedOwnedBytes(bytes.ToArray(), counters, governor)
             : AwkText.FromString(group.GetValueString(), counters, governor);
-
-    private static int ResolveGroupIndex(
-        Group group,
-        string input,
-        int matchUtf16Index,
-        int matchByteIndex,
-        bool useByteOffsets)
-    {
-        if (!useByteOffsets)
-            return group.Index;
-
-        if (!group.Success)
-            return 0;
-
-        return matchByteIndex + Encoding.UTF8.GetByteCount(
-            input.AsSpan(matchUtf16Index, group.Index - matchUtf16Index));
-    }
-
-    private static int ResolveGroupLength(Group group, string input, bool useByteOffsets) =>
-        useByteOffsets
-            ? Encoding.UTF8.GetByteCount(input.AsSpan(group.Index, group.Length))
-            : group.Length;
 
 }
 

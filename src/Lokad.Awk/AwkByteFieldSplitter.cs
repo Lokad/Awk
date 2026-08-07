@@ -269,7 +269,13 @@ internal sealed class AwkByteFieldSplitter(
         AwkRuntimeCounters counters)
     {
         if (!captureSeparators)
-            return SplitRegexBySpans(line, separator, counters);
+        {
+            var spanFields = ScanRegexFields<OwnedListFieldSink, IReadOnlyList<AwkText>>(
+                line,
+                separator,
+                new OwnedListFieldSink(line, counters, memoryGovernor));
+            return new AwkTextSplitResult(spanFields, []);
+        }
 
         var fields = new List<AwkText>();
         var separators = new List<AwkText> { AwkText.Empty };
@@ -330,18 +336,6 @@ internal sealed class AwkByteFieldSplitter(
 
         fields.Add(AwkFieldText.FromRecordSlice(position, content.Length - position));
         return fields;
-    }
-
-    private AwkTextSplitResult SplitRegexBySpans(
-        AwkText line,
-        AwkRegex separator,
-        AwkRuntimeCounters counters)
-    {
-        var fields = ScanRegexFields<OwnedListFieldSink, IReadOnlyList<AwkText>>(
-            line,
-            separator,
-            new OwnedListFieldSink(line, counters, memoryGovernor));
-        return new AwkTextSplitResult(fields, []);
     }
 
     private static TFields ScanWhitespaceFields<TSink, TFields>(AwkText line, TSink sink)

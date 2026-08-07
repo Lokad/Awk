@@ -46,15 +46,25 @@ public sealed class AwkTextTests
         var source = AwkText.FromString("Alpha caf\u00e9");
         var suffix = AwkText.FromString("!");
 
-        Assert.Equal("Alpha caf\u00e9!", source.Concat(suffix).AsString());
-        Assert.Equal("Alpha caf\u00e9Alpha caf\u00e9", source.Repeat(2).AsString());
-        Assert.Equal("ha", source.CopyByteSlice(3, 2).AsString());
+        Assert.Equal(
+            "Alpha caf\u00e9!",
+            source.Concat(suffix, AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
+        Assert.Equal(
+            "Alpha caf\u00e9Alpha caf\u00e9",
+            source.Repeat(2, AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
+        Assert.Equal(
+            "ha",
+            source.CopyByteSlice(3, 2, AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
         Assert.Equal("caf\u00e9", source.CopyRuneSlice(6, 4).AsString());
         Assert.Equal(6, source.IndexOf(AwkText.FromString("caf\u00e9")));
         Assert.True(source.StartsWith(AwkText.FromString("Alpha")));
         Assert.True(source.EndsWith(AwkText.FromString("caf\u00e9")));
         Assert.True(source.Contains(AwkText.FromString("ha c")));
-        Assert.Throws<AwkRuntimeException>(() => source.CopyByteSlice(10, 1));
+        Assert.Throws<AwkRuntimeException>(() => source.CopyByteSlice(
+            10,
+            1,
+            AwkRuntimeCounters.Disabled,
+            AwkMemoryGovernor.Disabled));
     }
 
     [Fact]

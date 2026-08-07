@@ -46,6 +46,17 @@ internal static class AwkDiagnostics
 
     public static AwkFailureDiagnostic Parse(IReadOnlyList<AwkDiagnostic> diagnostics)
     {
+        static AwkDiagnostic? ResolveFirstFailure(IReadOnlyList<AwkDiagnostic> diagnostics)
+        {
+            for (var index = 0; index < diagnostics.Count; index++)
+            {
+                if (!diagnostics[index].IsWarning)
+                    return diagnostics[index];
+            }
+
+            return null;
+        }
+
         for (var index = 0; index < diagnostics.Count; index++)
         {
             if (!diagnostics[index].IsWarning &&
@@ -67,17 +78,6 @@ internal static class AwkDiagnostics
 
     public static ReadOnlyMemory<byte> Warning(AwkDiagnostic diagnostic) =>
         FormatDiagnosticMessage(diagnostic);
-
-    private static AwkDiagnostic? ResolveFirstFailure(IReadOnlyList<AwkDiagnostic> diagnostics)
-    {
-        for (var index = 0; index < diagnostics.Count; index++)
-        {
-            if (!diagnostics[index].IsWarning)
-                return diagnostics[index];
-        }
-
-        return null;
-    }
 
     private static ReadOnlyMemory<byte> FormatDiagnosticMessage(AwkDiagnostic diagnostic)
     {

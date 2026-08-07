@@ -207,25 +207,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         return true;
     }
 
-    public AwkText Concat(AwkText other) =>
-        Concat(other, AwkRuntimeCounters.Disabled);
-
-    public AwkText Concat(AwkText other, AwkRuntimeCounters counters)
-    {
-        if (ByteLength == 0)
-            return other;
-
-        if (other.ByteLength == 0)
-            return this;
-
-        var length = AwkRuntimeMemory.CheckedAdd(ByteLength, other.ByteLength);
-        var bytes = new byte[length];
-        AsSpan().CopyTo(bytes);
-        other.AsSpan().CopyTo(bytes.AsSpan(ByteLength));
-        counters.RecordConcatenationBytesCopied(length);
-        return FromTrustedOwnedBytes(bytes, counters);
-    }
-
     public AwkText Concat(
         AwkText other,
         AwkRuntimeCounters counters,
@@ -288,28 +269,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         return FromTrustedOwnedBytes(bytes, counters);
     }
 
-    public AwkText Repeat(int count) =>
-        Repeat(count, AwkRuntimeCounters.Disabled);
-
-    public AwkText Repeat(int count, AwkRuntimeCounters counters)
-    {
-        if (count <= 0 || ByteLength == 0)
-            return Empty;
-
-        if (count == 1)
-            return this;
-
-        var length = AwkRuntimeMemory.CheckedMultiplyToInt32(ByteLength, count);
-        var bytes = new byte[length];
-        var destination = bytes.AsSpan();
-        for (var index = 0; index < count; index++)
-        {
-            AsSpan().CopyTo(destination[(index * ByteLength)..]);
-        }
-
-        return FromTrustedOwnedBytes(bytes, counters);
-    }
-
     public AwkText Repeat(
         int count,
         AwkRuntimeCounters counters,
@@ -330,23 +289,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         }
 
         return FromTrustedOwnedBytes(bytes, counters);
-    }
-
-    public AwkText CopyByteSlice(int start, int length)
-    {
-        if (start < 0 || start > ByteLength)
-            throw new ArgumentOutOfRangeException(nameof(start));
-
-        if (length < 0 || start > ByteLength - length)
-            throw new ArgumentOutOfRangeException(nameof(length));
-
-        if (length == 0)
-            return Empty;
-
-        if (!_isBorrowed && start == 0 && length == ByteLength)
-            return this;
-
-        return FromOwnedBytes(AsSpan().Slice(start, length).ToArray());
     }
 
     public AwkText CopyByteSlice(

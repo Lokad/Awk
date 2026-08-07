@@ -50,7 +50,11 @@ public sealed class AwkUtf8BuilderTests
 
         var inputStart = builder.BorrowAsAwkText(includeReservedPrefix: false);
         var continuedInput = builder.BorrowAsAwkText(includeReservedPrefix: true);
-        var ownedCopy = continuedInput.CopyByteSlice(0, continuedInput.ByteLength);
+        var ownedCopy = continuedInput.CopyByteSlice(
+            0,
+            continuedInput.ByteLength,
+            AwkRuntimeCounters.Disabled,
+            AwkMemoryGovernor.Disabled);
 
         Assert.Equal("abc"u8.ToArray(), inputStart.AsSpan().ToArray());
         Assert.Equal([0x01, (byte)'a', (byte)'b', (byte)'c'], continuedInput.AsSpan().ToArray());
