@@ -208,11 +208,11 @@ internal abstract partial class AwkStatement
             return await ExecuteSelectedAsync(defaultBody, context).ConfigureAwait(false);
         }
 
-        private static async ValueTask<bool> MatchesAsync(
+        private static ValueTask<bool> MatchesAsync(
             AwkSwitchCase candidate,
             AwkValue value,
             AwkEvaluationContext context) =>
-            await candidate.Pattern.MatchesAsync(value, context).ConfigureAwait(false);
+            candidate.Pattern.MatchesAsync(value, context);
 
         private static async ValueTask<AwkStatementFlow> ExecuteSelectedAsync(
             IReadOnlyList<AwkStatement> body,
@@ -227,8 +227,8 @@ internal abstract partial class AwkStatement
     {
         public static readonly BreakStatement Instance = new();
 
-        public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
-            AwkStatementFlow.BreakLoop;
+        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
+            ValueTask.FromResult(AwkStatementFlow.BreakLoop);
 
         internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
         {
@@ -241,8 +241,8 @@ internal abstract partial class AwkStatement
     {
         public static readonly ContinueStatement Instance = new();
 
-        public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
-            AwkStatementFlow.ContinueLoop;
+        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
+            ValueTask.FromResult(AwkStatementFlow.ContinueLoop);
 
         internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
         {
@@ -255,8 +255,8 @@ internal abstract partial class AwkStatement
     {
         public static readonly NextStatement Instance = new();
 
-        public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
-            AwkStatementFlow.NextRecord;
+        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
+            ValueTask.FromResult(AwkStatementFlow.NextRecord);
 
         internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
         {
@@ -269,8 +269,8 @@ internal abstract partial class AwkStatement
     {
         public static readonly NextFileStatement Instance = new();
 
-        public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
-            AwkStatementFlow.NextFile;
+        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
+            ValueTask.FromResult(AwkStatementFlow.NextFile);
 
         internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
         {

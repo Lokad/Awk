@@ -5,29 +5,27 @@ namespace Lokad.Awk;
 
 internal sealed class AwkRecordProcessor(AwkRuntimeState state)
 {
-    public async ValueTask<AwkStatementFlow> ProcessAsync(
+    public ValueTask<AwkStatementFlow> ProcessAsync(
         AwkText record,
         AwkRecordTerminator terminator,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync) =>
-        await ProcessAsync(
-                record,
-                terminator,
-                AwkRecordFieldSplittingMode.Ordinary,
-                processRecordAsync)
-            .ConfigureAwait(false);
+        ProcessAsync(
+            record,
+            terminator,
+            AwkRecordFieldSplittingMode.Ordinary,
+            processRecordAsync);
 
-    public async ValueTask<AwkStatementFlow> ProcessParagraphAsync(
+    public ValueTask<AwkStatementFlow> ProcessParagraphAsync(
         AwkText record,
         AwkRecordTerminator terminator,
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync) =>
-        await ProcessAsync(
-                record,
-                terminator,
-                AwkRecordFieldSplittingMode.Paragraph,
-                processRecordAsync)
-            .ConfigureAwait(false);
+        ProcessAsync(
+            record,
+            terminator,
+            AwkRecordFieldSplittingMode.Paragraph,
+            processRecordAsync);
 
-    private async ValueTask<AwkStatementFlow> ProcessAsync(
+    private ValueTask<AwkStatementFlow> ProcessAsync(
         AwkText record,
         AwkRecordTerminator terminator,
         AwkRecordFieldSplittingMode fieldSplittingMode,
@@ -37,7 +35,7 @@ internal sealed class AwkRecordProcessor(AwkRuntimeState state)
         state.Counters.RecordRecordRead();
         state.AdvanceMainInputRecord(terminator);
         state.SetRecordFieldSplittingMode(fieldSplittingMode);
-        return await processRecordAsync(record).ConfigureAwait(false);
+        return processRecordAsync(record);
     }
 
 }

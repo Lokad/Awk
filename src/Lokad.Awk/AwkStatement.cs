@@ -204,8 +204,8 @@ internal abstract partial class AwkStatement
     {
         public static readonly NoOpStatement Instance = new();
 
-        public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
-            AwkStatementFlow.Continue;
+        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
+            ValueTask.FromResult(AwkStatementFlow.Continue);
 
         internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
         {

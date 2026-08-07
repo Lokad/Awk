@@ -58,31 +58,31 @@ internal abstract partial class AwkExpression
         AwkExpression valueExpression,
         AwkCompoundAssignmentOperation operation) : AwkExpression
     {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            await target.ApplyCompoundAssignmentAsync(context, valueExpression, operation).ConfigureAwait(false);
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            target.ApplyCompoundAssignmentAsync(context, valueExpression, operation);
     }
 
     private sealed class PreIncrementExpression(AwkReference target) : AwkExpression
     {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            await target.ApplyIncrementAsync(context).ConfigureAwait(false);
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            target.ApplyIncrementAsync(context);
     }
 
     private sealed class PreDecrementExpression(AwkReference target) : AwkExpression
     {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            await target.ApplyDecrementAsync(context).ConfigureAwait(false);
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            target.ApplyDecrementAsync(context);
     }
 
     private sealed class PostIncrementExpression(AwkReference target) : AwkExpression
     {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            await target.ApplyPostIncrementAsync(context).ConfigureAwait(false);
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            target.ApplyPostIncrementAsync(context);
     }
 
     private sealed class PostDecrementExpression(AwkReference target) : AwkExpression
     {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            await target.ApplyPostDecrementAsync(context).ConfigureAwait(false);
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            target.ApplyPostDecrementAsync(context);
     }
 }

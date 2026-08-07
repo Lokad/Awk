@@ -18,13 +18,10 @@ internal readonly struct AwkAction
 
     internal IReadOnlyList<AwkStatement> Statements => _statements;
 
-    public async ValueTask<bool> MatchesAsync(AwkRuntimeState state)
-    {
-        if (_pattern == null)
-            return true;
-
-        return await _pattern.MatchesAsync(state).ConfigureAwait(false);
-    }
+    public ValueTask<bool> MatchesAsync(AwkRuntimeState state) =>
+        _pattern == null
+            ? ValueTask.FromResult(true)
+            : _pattern.MatchesAsync(state);
 
     public async ValueTask<AwkStatementFlow> ExecuteAsync(
         AwkRuntimeState state,

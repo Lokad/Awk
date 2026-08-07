@@ -22,45 +22,41 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
 
     public bool HasBeginFileActions => _program.BeginFileActions.Count > 0;
 
-    public async ValueTask<AwkStatementFlow> ExecuteBeginActionsAsync(AwkRuntimeState state, AwkIo io) =>
-        await ExecutePhaseActionsAsync(
-                _program.BeginActions,
-                _executableProgram?.BeginActions,
-                _executableProgram?.Tables,
-                AwkActionPhase.Begin,
-                state,
-                io)
-            .ConfigureAwait(false);
+    public ValueTask<AwkStatementFlow> ExecuteBeginActionsAsync(AwkRuntimeState state, AwkIo io) =>
+        ExecutePhaseActionsAsync(
+            _program.BeginActions,
+            _executableProgram?.BeginActions,
+            _executableProgram?.Tables,
+            AwkActionPhase.Begin,
+            state,
+            io);
 
-    public async ValueTask<AwkStatementFlow> ExecuteEndActionsAsync(AwkRuntimeState state, AwkIo io) =>
-        await ExecutePhaseActionsAsync(
-                _program.EndActions,
-                _executableProgram?.EndActions,
-                _executableProgram?.Tables,
-                AwkActionPhase.End,
-                state,
-                io)
-            .ConfigureAwait(false);
+    public ValueTask<AwkStatementFlow> ExecuteEndActionsAsync(AwkRuntimeState state, AwkIo io) =>
+        ExecutePhaseActionsAsync(
+            _program.EndActions,
+            _executableProgram?.EndActions,
+            _executableProgram?.Tables,
+            AwkActionPhase.End,
+            state,
+            io);
 
-    public async ValueTask<AwkStatementFlow> ExecuteBeginFileActionsAsync(AwkRuntimeState state, AwkIo io) =>
-        await ExecutePhaseActionsAsync(
-                _program.BeginFileActions,
-                _executableProgram?.BeginFileActions,
-                _executableProgram?.Tables,
-                AwkActionPhase.BeginFile,
-                state,
-                io)
-            .ConfigureAwait(false);
+    public ValueTask<AwkStatementFlow> ExecuteBeginFileActionsAsync(AwkRuntimeState state, AwkIo io) =>
+        ExecutePhaseActionsAsync(
+            _program.BeginFileActions,
+            _executableProgram?.BeginFileActions,
+            _executableProgram?.Tables,
+            AwkActionPhase.BeginFile,
+            state,
+            io);
 
-    public async ValueTask<AwkStatementFlow> ExecuteEndFileActionsAsync(AwkRuntimeState state, AwkIo io) =>
-        await ExecutePhaseActionsAsync(
-                _program.EndFileActions,
-                _executableProgram?.EndFileActions,
-                _executableProgram?.Tables,
-                AwkActionPhase.EndFile,
-                state,
-                io)
-            .ConfigureAwait(false);
+    public ValueTask<AwkStatementFlow> ExecuteEndFileActionsAsync(AwkRuntimeState state, AwkIo io) =>
+        ExecutePhaseActionsAsync(
+            _program.EndFileActions,
+            _executableProgram?.EndFileActions,
+            _executableProgram?.Tables,
+            AwkActionPhase.EndFile,
+            state,
+            io);
 
     public async ValueTask<AwkStatementFlow> ProcessRecordAsync(AwkRuntimeState state, AwkIo io, AwkText record)
     {

@@ -118,10 +118,10 @@ internal sealed record AwkMainInputGetlineSource : AwkGetlineSource
 {
     public override bool ReadsMainInput => true;
 
-    public override async ValueTask<AwkGetlineResult> ReadAsync(
+    public override ValueTask<AwkGetlineResult> ReadAsync(
         AwkEvaluationContext context,
         AwkExecutionContext execution) =>
-        await execution.Io.ReadMainRecordAsync().ConfigureAwait(false);
+        new(execution.Io.ReadMainRecordAsync());
 }
 
 internal sealed record AwkRedirectionGetlineSource(AwkExpression Expression) : AwkGetlineSource
@@ -163,10 +163,10 @@ internal abstract record AwkFflushTarget
 
 internal sealed record AwkAllFflushTarget : AwkFflushTarget
 {
-    public override async ValueTask<AwkIoOperationResult> FlushAsync(
+    public override ValueTask<AwkIoOperationResult> FlushAsync(
         AwkEvaluationContext context,
         AwkIo io) =>
-        await io.FlushAllAsync().ConfigureAwait(false);
+        new(io.FlushAllAsync());
 }
 
 internal sealed record AwkExpressionFflushTarget(AwkExpression Expression) : AwkFflushTarget

@@ -792,13 +792,12 @@ internal sealed class AwkRuntimeState
         AwkArraySortOrder order) =>
         _arrayRuntime.SortArrayValues(sourceArrayName, destinationArrayName, order);
 
-    public async ValueTask<int> SortArrayValuesAsync(
+    public ValueTask<int> SortArrayValuesAsync(
         AwkArrayName sourceArrayName,
         AwkArrayName destinationArrayName,
         AwkArraySortOrder order,
         AwkEvaluationContext context) =>
-        await _arrayRuntime.SortArrayValuesAsync(sourceArrayName, destinationArrayName, order, context)
-            .ConfigureAwait(false);
+        _arrayRuntime.SortArrayValuesAsync(sourceArrayName, destinationArrayName, order, context);
 
     public int SortArrayKeys(
         AwkArrayName sourceArrayName,
@@ -806,20 +805,19 @@ internal sealed class AwkRuntimeState
         AwkArraySortOrder order) =>
         _arrayRuntime.SortArrayKeys(sourceArrayName, destinationArrayName, order);
 
-    public async ValueTask<int> SortArrayKeysAsync(
+    public ValueTask<int> SortArrayKeysAsync(
         AwkArrayName sourceArrayName,
         AwkArrayName destinationArrayName,
         AwkArraySortOrder order,
         AwkEvaluationContext context) =>
-        await _arrayRuntime.SortArrayKeysAsync(sourceArrayName, destinationArrayName, order, context)
-            .ConfigureAwait(false);
+        _arrayRuntime.SortArrayKeysAsync(sourceArrayName, destinationArrayName, order, context);
 
     public void ClearArray(AwkArrayName name) =>
         _arrayRuntime.Clear(name);
 
-    public async ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(
+    public ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(
         AwkArrayName name,
         AwkEvaluationContext context) =>
-        await _arrayRuntime.SnapshotKeyValuesAsync(name, context).ConfigureAwait(false);
+        _arrayRuntime.SnapshotKeyValuesAsync(name, context);
 
 }

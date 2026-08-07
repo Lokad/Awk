@@ -7,33 +7,31 @@ namespace Lokad.Awk;
 
 internal static class AwkRuntime
 {
-    public static async Task<AwkExitCode> ExecuteAsync(
+    public static Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         AwkInvocation invocation,
         AwkProgram program,
         CancellationToken cancellationToken) =>
-        await ExecuteAsync(
-                host,
-                invocation,
-                program,
-                cancellationToken,
-                AwkRuntimeOptions.CreateSystemDefault())
-            .ConfigureAwait(false);
+        ExecuteAsync(
+            host,
+            invocation,
+            program,
+            cancellationToken,
+            AwkRuntimeOptions.CreateSystemDefault());
 
-    public static async Task<AwkExitCode> ExecuteAsync(
+    public static Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         AwkInvocation invocation,
         AwkProgram program,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions) =>
-        await ExecuteAsync(
-                host,
-                invocation,
-                program,
-                cancellationToken,
-                runtimeOptions,
-                executableProgram: null)
-            .ConfigureAwait(false);
+        ExecuteAsync(
+            host,
+            invocation,
+            program,
+            cancellationToken,
+            runtimeOptions,
+            executableProgram: null);
 
     internal static async Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,

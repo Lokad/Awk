@@ -12,8 +12,8 @@ internal abstract partial class AwkExpression
 
     private sealed class BuiltinCallExpression(AwkBuiltinDefinition definition, IReadOnlyList<AwkExpression> arguments) : AwkExpression
     {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            await AwkBuiltins.EvaluateAsync(definition, arguments, context).ConfigureAwait(false);
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            AwkBuiltins.EvaluateAsync(definition, arguments, context);
     }
 
     private sealed class FunctionCallExpression(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments) : AwkExpression
