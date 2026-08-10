@@ -9,25 +9,10 @@ namespace Lokad.Awk;
 
 internal static class AwkParsingSupport
 {
-    public static LexerResult<AwkTokenKind> ToLexerResult(string source, IReadOnlyList<AwkToken> tokens)
+    public static LexerResult<AwkTokenKind> ToLexerResult(
+        AwkParsingSource source,
+        IReadOnlyList<AwkToken> tokens)
     {
-        static List<int> FindNewLines(string source)
-        {
-            var newLines = new List<int>();
-            var position = 0;
-            while (position < source.Length)
-            {
-                var newline = source.IndexOf('\n', position);
-                if (newline < 0)
-                    break;
-
-                newLines.Add(newline);
-                position = newline + 1;
-            }
-
-            return newLines;
-        }
-
         var lexerTokens = new LexerToken<AwkTokenKind>[tokens.Count];
         var hasInvalidTokens = false;
         for (var index = 0; index < tokens.Count; index++)
@@ -38,14 +23,14 @@ internal static class AwkParsingSupport
         }
 
         return new LexerResult<AwkTokenKind>(
-            source,
+            source.Text,
             lexerTokens,
-            FindNewLines(source),
+            source.NewLines,
             hasInvalidTokens);
     }
 
     public static LexerResult<AwkTokenKind> ToLexerResult(
-        string source,
+        AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
         bool includeEndOfFile)
     {
@@ -59,7 +44,7 @@ internal static class AwkParsingSupport
     }
 
     public static LexerResult<AwkTokenKind> ToLexerResultWithEndOfFile(
-        string source,
+        AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens)
     {
         if (tokens.Count > 0 && tokens[^1].Kind == AwkTokenKind.EndOfFile)
@@ -92,7 +77,7 @@ internal static class AwkParsingSupport
         var withEnd = new AwkToken[tokenList.Length + 1];
         Array.Copy(tokenList, withEnd, tokenList.Length);
         withEnd[^1] = new AwkToken(AwkTokenKind.EndOfFile, string.Empty, new AwkTextSpan(end, 0));
-        return ToLexerResult(new string(buffer), withEnd);
+        return ToLexerResult(AwkParsingSource.Create(new string(buffer)), withEnd);
     }
 
     public static AwkToken ToToken(AwkTokenKind kind, Pos<string> value) =>
@@ -278,6 +263,39 @@ internal static class AwkParsingSupport
         }
 
         return true;
+    }
+}
+
+internal sealed class AwkParsingSource
+{
+    private AwkParsingSource(string text, IReadOnlyList<int> newLines)
+    {
+        Text = text;
+        NewLines = newLines;
+    }
+
+    public string Text { get; }
+
+    // Lokad.Parsing needs absolute newline offsets for diagnostics. Keeping the
+    // immutable source metadata here prevents each nested grammar parse from
+    // rescanning the complete program.
+    public IReadOnlyList<int> NewLines { get; }
+
+    public static AwkParsingSource Create(string text)
+    {
+        var newLines = new List<int>();
+        var position = 0;
+        while (position < text.Length)
+        {
+            var newline = text.IndexOf('\n', position);
+            if (newline < 0)
+                break;
+
+            newLines.Add(newline);
+            position = newline + 1;
+        }
+
+        return new AwkParsingSource(text, newLines);
     }
 }
 

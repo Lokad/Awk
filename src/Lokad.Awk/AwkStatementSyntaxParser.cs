@@ -10,16 +10,16 @@ namespace Lokad.Awk;
 internal sealed class AwkStatementSyntaxParser
     : GrammarParser<AwkStatementSyntaxParser, AwkTokenKind, AwkStatementSyntaxParser.ParseResult>
 {
-    private readonly string? _source;
+    private readonly AwkParsingSource? _source;
 
-    private AwkStatementSyntaxParser(string? source)
+    private AwkStatementSyntaxParser(AwkParsingSource? source)
         : base(AwkTokenNamer.Instance)
     {
         _source = source;
     }
 
     public static bool TryParse(
-        string source,
+        AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics,
         [NotNullWhen(true)] out IReadOnlyList<AwkStatementSyntax>? statements) =>
@@ -32,7 +32,7 @@ internal sealed class AwkStatementSyntaxParser
         TryProjectParseResult(ParseCore(null, tokens), diagnostics, out statements);
 
     private static AwkStatementParseResult ParseCore(
-        string? source,
+        AwkParsingSource? source,
         IReadOnlyList<AwkToken> tokens)
     {
         var parser = new AwkStatementSyntaxParser(source);
@@ -69,7 +69,7 @@ internal sealed class AwkStatementSyntaxParser
     }
 
     public static IReadOnlyList<AwkStatementSyntax> ParseStatements(
-        string source,
+        AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics,
         string invalidMessage)

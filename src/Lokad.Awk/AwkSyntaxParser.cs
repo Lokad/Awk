@@ -6,20 +6,20 @@ internal static class AwkSyntaxParser
 {
     public static AwkSyntaxProgram Parse(string source)
     {
-        var parser = new Parser(source, AwkLexer.Tokenize(source));
+        var parser = new Parser(AwkParsingSource.Create(source), AwkLexer.Tokenize(source));
         return parser.ParseProgram();
     }
 
     private sealed class Parser
     {
-        private readonly string _source;
+        private readonly AwkParsingSource _source;
         private readonly IReadOnlyList<AwkToken> _tokens;
         private readonly List<AwkRuleSyntax> _rules = [];
         private readonly List<AwkFunctionSyntax> _functions = [];
         private readonly List<AwkDirectiveSyntax> _directives = [];
         private readonly List<AwkDiagnostic> _diagnostics = [];
 
-        public Parser(string source, IReadOnlyList<AwkToken> tokens)
+        public Parser(AwkParsingSource source, IReadOnlyList<AwkToken> tokens)
         {
             _source = source;
             _tokens = tokens;
@@ -32,11 +32,11 @@ internal static class AwkSyntaxParser
             if (AwkTopLevelSyntaxParser.TryParse(_source, _tokens, out var parsedProgram))
             {
                 AddTopLevelItems(parsedProgram.Items);
-                return new AwkSyntaxProgram(_source, _rules, _functions, _directives, _diagnostics);
+                return new AwkSyntaxProgram(_source.Text, _rules, _functions, _directives, _diagnostics);
             }
 
             AddTopLevelParseFailureDiagnostic();
-            return new AwkSyntaxProgram(_source, _rules, _functions, _directives, _diagnostics);
+            return new AwkSyntaxProgram(_source.Text, _rules, _functions, _directives, _diagnostics);
         }
 
         private void AddTopLevelParseFailureDiagnostic()
@@ -166,6 +166,6 @@ internal static class AwkSyntaxParser
         }
 
         private void AddLexicalDiagnostics() =>
-            AwkFrontendDiagnosticPolicy.AddLexicalDiagnostics(_source, _tokens, _diagnostics);
+            AwkFrontendDiagnosticPolicy.AddLexicalDiagnostics(_source.Text, _tokens, _diagnostics);
     }
 }

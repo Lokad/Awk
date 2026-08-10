@@ -14,19 +14,19 @@ internal sealed class AwkExpressionSyntaxParser
     {
     }
 
-    public static AwkExpressionSyntax? Parse(string source, IReadOnlyList<AwkToken> tokens) =>
+    public static AwkExpressionSyntax? Parse(AwkParsingSource source, IReadOnlyList<AwkToken> tokens) =>
         SingleExpressionOrNull(ParseCore(source, tokens));
 
     public static AwkExpressionSyntax? Parse(IReadOnlyList<AwkToken> tokens) =>
         SingleExpressionOrNull(ParseCore(null, tokens));
 
-    public static AwkExpressionSyntax? ParseList(string source, IReadOnlyList<AwkToken> tokens) =>
+    public static AwkExpressionSyntax? ParseList(AwkParsingSource source, IReadOnlyList<AwkToken> tokens) =>
         ParsedExpressionOrNull(ParseCore(source, tokens));
 
     public static AwkExpressionSyntax? ParseList(IReadOnlyList<AwkToken> tokens) =>
         ParsedExpressionOrNull(ParseCore(null, tokens));
 
-    private static AwkExpressionParseResult ParseCore(string? source, IReadOnlyList<AwkToken> tokens)
+    private static AwkExpressionParseResult ParseCore(AwkParsingSource? source, IReadOnlyList<AwkToken> tokens)
     {
         var significantTokens = tokens
             .Where(token => token.Kind is not AwkTokenKind.Comment and not AwkTokenKind.NewLine and not AwkTokenKind.Semicolon)

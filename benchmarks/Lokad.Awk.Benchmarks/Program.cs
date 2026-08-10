@@ -586,6 +586,48 @@ public class FrontendLayerBenchmarks
 
 [Config(typeof(AwkBenchmarkConfig))]
 [MemoryDiagnoser]
+public class FrontendScalingBenchmarks
+{
+    private BenchmarkScenario _scenario = BenchmarkScenario.Empty;
+
+    [Params(10, 100, 1_000)]
+    public int RuleCount { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var source = new StringBuilder();
+        for (var index = 0; index < RuleCount; index++)
+        {
+            source.Append("$1 == ");
+            source.Append(index);
+            source.Append(" { value");
+            source.Append(index);
+            source.Append(" = $2 + ");
+            source.Append(index);
+            source.AppendLine("; print value" + index + " }");
+        }
+
+        var programSource = source.ToString();
+        _scenario = new BenchmarkScenario(
+            "frontend scaling",
+            programSource,
+            [programSource],
+            [],
+            recordCount: RuleCount,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+        _ = BenchmarkExecution.Parse(_scenario);
+    }
+
+    [Benchmark]
+    public void ParseOnly()
+    {
+        _ = BenchmarkExecution.Parse(_scenario);
+    }
+}
+
+[Config(typeof(AwkBenchmarkConfig))]
+[MemoryDiagnoser]
 public class ExecutableLayerBenchmarks
 {
     private BenchmarkScenario _vmScenario = BenchmarkScenarioCatalog.ColumnExtraction();

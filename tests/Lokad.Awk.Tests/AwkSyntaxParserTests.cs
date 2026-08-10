@@ -168,7 +168,7 @@ public sealed class AwkSyntaxParserTests
 
         var tokens = AwkLexer.Tokenize(source);
 
-        Assert.True(AwkTopLevelSyntaxParser.TryParse(source, tokens, out var parsed));
+        Assert.True(AwkTopLevelSyntaxParser.TryParse(AwkParsingSource.Create(source), tokens, out var parsed));
         Assert.Equal(
             [
                 AwkTopLevelSyntaxParser.TopLevelItemKind.Directive,

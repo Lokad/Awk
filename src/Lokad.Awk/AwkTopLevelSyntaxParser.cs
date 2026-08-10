@@ -10,16 +10,16 @@ namespace Lokad.Awk;
 internal sealed class AwkTopLevelSyntaxParser
     : GrammarParser<AwkTopLevelSyntaxParser, AwkTokenKind, AwkTopLevelSyntaxParser.ParseResult>
 {
-    private readonly string _source;
+    private readonly AwkParsingSource _source;
 
-    private AwkTopLevelSyntaxParser(string source)
+    private AwkTopLevelSyntaxParser(AwkParsingSource source)
         : base(AwkTokenNamer.Instance)
     {
         _source = source;
     }
 
     public static bool TryParse(
-        string source,
+        AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
         [NotNullWhen(true)] out ParseResult? result)
     {
