@@ -47,14 +47,14 @@ internal abstract partial class AwkStatement
 {
     public static AwkStatement NoOp() => NoOpStatement.Instance;
 
-    public static AwkStatement Print(IReadOnlyList<AwkExpressionPart> parts) =>
-        Print(parts, AwkOutputTarget.Standard);
+    public static AwkStatement Print(IReadOnlyList<AwkExpression> expressions) =>
+        Print(expressions, AwkOutputTarget.Standard);
 
-    public static AwkStatement Print(IReadOnlyList<AwkExpressionPart> parts, AwkOutputRedirection redirection) =>
-        Print(parts, AwkOutputTarget.Redirected(redirection));
+    public static AwkStatement Print(IReadOnlyList<AwkExpression> expressions, AwkOutputRedirection redirection) =>
+        Print(expressions, AwkOutputTarget.Redirected(redirection));
 
-    public static AwkStatement Print(IReadOnlyList<AwkExpressionPart> parts, AwkOutputTarget target) =>
-        new PrintStatement(AwkCollectionSnapshots.Copy(parts), target);
+    public static AwkStatement Print(IReadOnlyList<AwkExpression> expressions, AwkOutputTarget target) =>
+        new PrintStatement(AwkCollectionSnapshots.Copy(expressions), target);
 
     public static AwkStatement Printf(AwkExpression format, IReadOnlyList<AwkExpression> arguments) =>
         Printf(format, arguments, AwkOutputTarget.Standard);

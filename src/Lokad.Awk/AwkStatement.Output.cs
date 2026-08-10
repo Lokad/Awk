@@ -8,12 +8,12 @@ namespace Lokad.Awk;
 internal abstract partial class AwkStatement
 {
     private sealed class PrintStatement(
-        AwkExpressionPart[] parts,
+        AwkExpression[] expressions,
         AwkOutputTarget target) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
-            if (parts.Length == 0)
+            if (expressions.Length == 0)
                 return AwkStatementFlow.Continue;
 
             var state = context.State;
@@ -21,14 +21,13 @@ internal abstract partial class AwkStatement
             var output = execution.Output;
             if (!target.IsRedirected)
             {
-                var segments = ArrayPool<AwkText>.Shared.Rent((parts.Length * 2) + 1);
+                var segments = ArrayPool<AwkText>.Shared.Rent((expressions.Length * 2) + 1);
                 var segmentCount = 0;
                 try
                 {
-                    for (var i = 0; i < parts.Length; i++)
+                    for (var i = 0; i < expressions.Length; i++)
                     {
-                        var part = parts[i];
-                        if (part.LeadingSpace && i > 0)
+                        if (i > 0)
                         {
                             segments[segmentCount++] = ResolveSpecialVariableText(
                                 state,
@@ -36,7 +35,7 @@ internal abstract partial class AwkStatement
                         }
 
                         segments[segmentCount++] =
-                            state.FormatPrintByteText(await part.Expression.EvaluateAsync(context).ConfigureAwait(false));
+                            state.FormatPrintByteText(await expressions[i].EvaluateAsync(context).ConfigureAwait(false));
                     }
 
                     segments[segmentCount++] = ResolveSpecialVariableText(
@@ -54,15 +53,15 @@ internal abstract partial class AwkStatement
             }
 
             using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor);
-            for (var i = 0; i < parts.Length; i++)
+            for (var i = 0; i < expressions.Length; i++)
             {
-                var part = parts[i];
-                if (part.LeadingSpace && i > 0)
+                if (i > 0)
                     builder.Append(ResolveSpecialVariableText(
                         state,
                         AwkSpecialVariableId.OutputFieldSeparator));
 
-                builder.Append(state.FormatPrintByteText(await part.Expression.EvaluateAsync(context).ConfigureAwait(false)));
+                builder.Append(state.FormatPrintByteText(
+                    await expressions[i].EvaluateAsync(context).ConfigureAwait(false)));
             }
 
             builder.Append(ResolveSpecialVariableText(
@@ -81,19 +80,14 @@ internal abstract partial class AwkStatement
 
         internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
         {
-            if (target.IsRedirected || parts.Length == 0)
+            if (target.IsRedirected || expressions.Length == 0)
                 return false;
 
-            for (var index = 0; index < parts.Length; index++)
-            {
-                if (parts[index].LeadingSpace != (index > 0))
-                    return false;
+            for (var index = 0; index < expressions.Length; index++)
+                compiler.EmitExpressionOrFallback(expressions[index]);
 
-                compiler.EmitExpressionOrFallback(parts[index].Expression);
-            }
-
-            compiler.EmitCounted(AwkOpcode.Print, parts.Length);
-            compiler.Pop(parts.Length);
+            compiler.EmitCounted(AwkOpcode.Print, expressions.Length);
+            compiler.Pop(expressions.Length);
             return true;
         }
 

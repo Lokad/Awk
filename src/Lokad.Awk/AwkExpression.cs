@@ -5,13 +5,6 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
-internal readonly struct AwkExpressionPart(AwkExpression expression, bool leadingSpace)
-{
-    public AwkExpression Expression { get; } = expression;
-
-    public bool LeadingSpace { get; } = leadingSpace;
-}
-
 internal abstract partial class AwkExpression
 {
     public static AwkExpression FieldIndex(int index) => new FieldIndexExpression(index);

@@ -158,12 +158,12 @@ public sealed class AwkProgramTests
     [Fact]
     public async Task AwkStatement_CopiesCallerOwnedPrintParts()
     {
-        var parts = new List<AwkExpressionPart>
+        var expressions = new List<AwkExpression>
         {
-            new(AwkExpression.Literal("x"), leadingSpace: false)
+            AwkExpression.Literal("x")
         };
-        var statement = AwkStatement.Print(parts);
-        parts.Clear();
+        var statement = AwkStatement.Print(expressions);
+        expressions.Clear();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var output = AwkTestHarness.CreateOutputSink();
 
@@ -193,7 +193,7 @@ public sealed class AwkProgramTests
             state,
             static () => []);
         var statement = AwkStatement.Print(
-            [new AwkExpressionPart(AwkExpression.Literal("x"), leadingSpace: false)],
+            [AwkExpression.Literal("x")],
             new AwkOutputRedirection(AwkExpression.Literal("/out.txt"), AwkOutputRedirectionKind.Write));
         var flow = await statement.ExecuteAsync(state, output, io);
 

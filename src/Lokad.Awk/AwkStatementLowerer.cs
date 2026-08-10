@@ -199,8 +199,7 @@ internal static class AwkStatementLowerer
 
         if (output.Output.IsEmpty)
         {
-            var defaultParts = new AwkExpressionPart[] { new(AwkExpression.FieldZero(), false) };
-            statement = AwkStatement.Print(defaultParts, redirection);
+            statement = AwkStatement.Print([AwkExpression.FieldZero()], redirection);
             return true;
         }
 
@@ -210,11 +209,7 @@ internal static class AwkStatementLowerer
             return false;
         }
 
-        var parts = new AwkExpressionPart[expressions.Count];
-        for (var index = 0; index < expressions.Count; index++)
-            parts[index] = new AwkExpressionPart(expressions[index], index > 0);
-
-        statement = AwkStatement.Print(parts, redirection);
+        statement = AwkStatement.Print(expressions, redirection);
         return true;
     }
 

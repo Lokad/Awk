@@ -168,5 +168,5 @@ internal static partial class AwkProgramLowerer
     }
 
     private static IReadOnlyList<AwkStatement> DefaultPrintStatements() =>
-        [AwkStatement.Print([new AwkExpressionPart(AwkExpression.FieldZero(), false)])];
+        [AwkStatement.Print([AwkExpression.FieldZero()])];
 }
