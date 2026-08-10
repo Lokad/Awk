@@ -107,6 +107,17 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (string.IsNullOrEmpty(text))
             return Empty;
 
+        return FromUtf16(text.AsSpan(), counters, governor);
+    }
+
+    internal static AwkText FromUtf16(
+        ReadOnlySpan<char> text,
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor)
+    {
+        if (text.IsEmpty)
+            return Empty;
+
         var bytes = AllocateOwnedBytes(AwkUtf8Codec.GetEncodedByteCount(text), governor);
         AwkUtf8Codec.Encode(text, bytes, counters);
         counters.RecordValueCreated();

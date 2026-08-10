@@ -22,8 +22,10 @@ internal readonly record struct AwkRegexMatch(
         Match match,
         string input,
         int byteIndex,
+        int byteLength,
         bool useByteOffsets,
-        AwkRuntimeCounters counters)
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor)
     {
         if (!match.Success)
             return NoMatch;
@@ -32,19 +34,25 @@ internal readonly record struct AwkRegexMatch(
         counters.RecordRegexGroupsMaterialized(groups.Length);
         for (var index = 0; index < groups.Length; index++)
         {
-            groups[index] = FromGroup(
-                match.Groups[index],
-                input,
-                match.Index,
-                byteIndex,
-                useByteOffsets,
-                counters);
+            groups[index] = index == 0
+                ? new AwkRegexGroup(
+                    true,
+                    useByteOffsets ? byteIndex : match.Index,
+                    useByteOffsets ? byteLength : match.Length,
+                    AwkText.FromUtf16(match.ValueSpan, counters, governor))
+                : FromGroup(
+                    match.Groups[index],
+                    input,
+                    match.Index,
+                    byteIndex,
+                    useByteOffsets,
+                    counters,
+                    governor);
         }
 
         var value = groups.Length == 0
-            ? AwkText.FromString(match.Value, counters)
+            ? AwkText.FromUtf16(match.ValueSpan, counters, governor)
             : groups[0].Value;
-        var byteLength = Encoding.UTF8.GetByteCount(input.AsSpan(match.Index, match.Length));
         return new AwkRegexMatch(
             true,
             useByteOffsets ? byteIndex : match.Index,
@@ -90,7 +98,8 @@ internal readonly record struct AwkRegexMatch(
         int matchUtf16Index,
         int matchByteIndex,
         bool useByteOffsets,
-        AwkRuntimeCounters counters)
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor)
     {
         static int ResolveGroupIndex(
             Group group,
@@ -118,7 +127,7 @@ internal readonly record struct AwkRegexMatch(
             group.Success,
             ResolveGroupIndex(group, input, matchUtf16Index, matchByteIndex, useByteOffsets),
             ResolveGroupLength(group, input, useByteOffsets),
-            AwkText.FromString(group.Value, counters));
+            AwkText.FromUtf16(group.ValueSpan, counters, governor));
     }
 
     private static AwkRegexGroup FromUtf8Group(

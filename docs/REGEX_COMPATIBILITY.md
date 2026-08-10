@@ -16,6 +16,8 @@ default or a compatibility fallback. `RegexPatternGapFallbacks` counts translate
 GNU buffer anchors that force that route in UTF-8 adapter mode, and `RegexStringAdapterMatches`
 counts .NET string-engine match calls after a caller has crossed the string boundary. These counters
 are separate from `AwkTextAsStringCalls` and decode misses.
+Multi-match operations adapt an input to a .NET string once and reuse that string for the complete
+scan; `RegexStringAdapterMatches` continues to count the individual backend match calls.
 Runtime routing keeps the selected engine, fallback reason, and byte-vs-UTF-16 coordinate policy as
 separate decisions so a compatibility fallback cannot silently change offset units or counter
 classification.

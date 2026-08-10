@@ -351,7 +351,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.True(counters.RegexMatches > 0);
         Assert.True(counters.RegexDotNetTextMatches > 0);
         Assert.True(counters.RegexStringAdapterMatches > 0);
-        Assert.True(counters.AwkTextAsStringCalls >= counters.RegexDotNetTextMatches);
+        Assert.True(counters.AwkTextAsStringCalls > 0);
         Assert.True(counters.AwkTextAsStringDecodeMisses <= counters.AwkTextAsStringCalls);
     }
 

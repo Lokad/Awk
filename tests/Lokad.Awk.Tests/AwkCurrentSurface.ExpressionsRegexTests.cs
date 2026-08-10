@@ -120,6 +120,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
 
         Assert.Equal(128, count);
         Assert.Equal(1, counters.StringDecodes);
+        Assert.Equal(1, counters.AwkTextAsStringCalls);
         Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
     }
 

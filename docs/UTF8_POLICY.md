@@ -44,6 +44,7 @@ call is the low-level interop request, `AwkTextAsStringDecodeMisses` records cac
 higher-level counters such as `FormattingFallbacks`, `StringInteropFallbacks`,
 `RegexDotNetTextMatches` and `RegexStringAdapterMatches` identify .NET string-engine work, while
 `RegexPatternGapFallbacks` identifies the subset forced across the boundary by an adapter gap.
+Multi-match scans decode each `AwkText` input once and reuse the resulting compatibility string.
 
 Some builtins intentionally remain .NET string operations. `printf`, `sprintf`, numeric print
 formatting, `strftime`, `mktime`, GNU date-format directive handling, and non-ASCII

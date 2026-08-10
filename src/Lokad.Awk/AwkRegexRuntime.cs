@@ -88,11 +88,11 @@ internal sealed class AwkRegexRuntime
         }
 
         _throwIfCancellationRequested();
-        var policy = ResolveExecutionPolicy(regex, input);
-        if (!policy.UsesUtf8Adapter)
+        var inputContext = CaptureInputContext(regex, input);
+        if (!inputContext.UsesUtf8Adapter)
         {
-            RecordDotNetTextRoute(policy);
-            return IsTextMatch(input.AsString(_counters));
+            RecordDotNetTextRoute(inputContext.ExecutionPolicy);
+            return IsTextMatch(inputContext.DotNetText);
         }
 
         try
@@ -123,8 +123,8 @@ internal sealed class AwkRegexRuntime
         AwkRegexSearchOffset searchOffset,
         out AwkRegexMatchSpan matchSpan)
     {
-        var policy = ResolveExecutionPolicy(regex, input);
-        return MatchValue(regex, input, governor, searchOffset, policy, out matchSpan);
+        var inputContext = CaptureInputContext(regex, input);
+        return MatchValue(regex, input, governor, searchOffset, inputContext, out matchSpan);
     }
 
     internal AwkRegexMatch MatchValue(
@@ -132,14 +132,14 @@ internal sealed class AwkRegexRuntime
         AwkText input,
         AwkMemoryGovernor governor,
         AwkRegexSearchOffset searchOffset,
-        AwkRegexExecutionPolicy policy,
+        AwkRegexInputContext inputContext,
         out AwkRegexMatchSpan matchSpan)
     {
         _throwIfCancellationRequested();
-        if (!policy.UsesUtf8Adapter)
+        if (!inputContext.UsesUtf8Adapter)
         {
-            RecordDotNetTextRoute(policy);
-            var text = input.AsString(_counters);
+            RecordDotNetTextRoute(inputContext.ExecutionPolicy);
+            var text = inputContext.DotNetText;
             var match = Match(regex, text, searchOffset.Utf16Index);
             if (!match.Success)
             {
@@ -152,8 +152,10 @@ internal sealed class AwkRegexRuntime
                 match,
                 text,
                 matchSpan.ByteIndex,
-                policy.UseByteOffsets,
-                _counters);
+                matchSpan.ByteLength,
+                inputContext.ExecutionPolicy.UseByteOffsets,
+                _counters,
+                governor);
         }
 
         try
@@ -174,7 +176,7 @@ internal sealed class AwkRegexRuntime
                 match.LengthInUtf16);
             return AwkRegexMatch.FromUtf8Match(
                 match,
-                policy.UseByteOffsets,
+                inputContext.ExecutionPolicy.UseByteOffsets,
                 _counters,
                 governor);
         }
@@ -192,21 +194,21 @@ internal sealed class AwkRegexRuntime
         AwkText input,
         AwkRegexSearchOffset searchOffset)
     {
-        var policy = ResolveExecutionPolicy(regex, input);
-        return MatchSpan(regex, input, searchOffset, policy);
+        var inputContext = CaptureInputContext(regex, input);
+        return MatchSpan(regex, input, searchOffset, inputContext);
     }
 
     internal AwkRegexMatchSpan MatchSpan(
         AwkRegex regex,
         AwkText input,
         AwkRegexSearchOffset searchOffset,
-        AwkRegexExecutionPolicy policy)
+        AwkRegexInputContext inputContext)
     {
         _throwIfCancellationRequested();
-        if (!policy.UsesUtf8Adapter)
+        if (!inputContext.UsesUtf8Adapter)
         {
-            RecordDotNetTextRoute(policy);
-            var text = input.AsString(_counters);
+            RecordDotNetTextRoute(inputContext.ExecutionPolicy);
+            var text = inputContext.DotNetText;
             var match = Match(regex, text, searchOffset.Utf16Index);
             return match.Success
                 ? CreateMatchSpan(text, match, searchOffset)
@@ -247,8 +249,13 @@ internal sealed class AwkRegexRuntime
         return new AwkRegexMatchSpanEnumerator(this, regex, input);
     }
 
-    internal AwkRegexExecutionPolicy CaptureExecutionPolicy(AwkRegex regex, AwkText input) =>
-        ResolveExecutionPolicy(regex, input);
+    internal AwkRegexInputContext CaptureInputContext(AwkRegex regex, AwkText input)
+    {
+        var executionPolicy = ResolveExecutionPolicy(regex, input);
+        return new AwkRegexInputContext(
+            executionPolicy,
+            executionPolicy.UsesUtf8Adapter ? string.Empty : input.AsString(_counters));
+    }
 
     private Match Match(AwkRegex regex, string input, int startAt)
     {
@@ -444,6 +451,13 @@ internal sealed class AwkRegexRuntime
         public bool UseByteOffsets => CoordinatePolicy == AwkRegexCoordinatePolicy.Byte;
     }
 
+    internal readonly record struct AwkRegexInputContext(
+        AwkRegexExecutionPolicy ExecutionPolicy,
+        string DotNetText)
+    {
+        public bool UsesUtf8Adapter => ExecutionPolicy.UsesUtf8Adapter;
+    }
+
     internal enum AwkRegexExecutionEngine
     {
         DotNet,
@@ -470,7 +484,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
     private readonly AwkRegex _regex;
     private readonly AwkText _input;
     private readonly AwkMemoryGovernor _governor;
-    private readonly AwkRegexRuntime.AwkRegexExecutionPolicy _executionPolicy;
+    private readonly AwkRegexRuntime.AwkRegexInputContext _inputContext;
     private readonly IDisposable _matchLease;
     private AwkRegexSearchOffset _nextOffset = AwkRegexSearchOffset.Start;
     private bool _completed;
@@ -486,7 +500,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
         _regex = regex;
         _input = input;
         _governor = governor;
-        _executionPolicy = runtime.CaptureExecutionPolicy(regex, input);
+        _inputContext = runtime.CaptureInputContext(regex, input);
         _matchLease = governor.ReserveTransient(
             AwkRuntimeMemory.EstimateRegexMatchBytes(regex.GroupCount));
     }
@@ -505,7 +519,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
             _input,
             _governor,
             _nextOffset,
-            _executionPolicy,
+            _inputContext,
             out var matchSpan);
         if (!match.Success)
         {
@@ -536,8 +550,8 @@ internal sealed class AwkRegexMatchSpanEnumerator(
     AwkRegex regex,
     AwkText input) : IDisposable
 {
-    private readonly AwkRegexRuntime.AwkRegexExecutionPolicy _executionPolicy =
-        runtime.CaptureExecutionPolicy(regex, input);
+    private readonly AwkRegexRuntime.AwkRegexInputContext _inputContext =
+        runtime.CaptureInputContext(regex, input);
     private AwkRegexSearchOffset _nextOffset = AwkRegexSearchOffset.Start;
     private bool _completed;
     private bool _disposed;
@@ -551,7 +565,7 @@ internal sealed class AwkRegexMatchSpanEnumerator(
             return false;
         }
 
-        match = runtime.MatchSpan(regex, input, _nextOffset, _executionPolicy);
+        match = runtime.MatchSpan(regex, input, _nextOffset, _inputContext);
         if (!match.Success)
         {
             _completed = true;
