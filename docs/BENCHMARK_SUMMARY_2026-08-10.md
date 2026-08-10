@@ -1,13 +1,13 @@
 # Benchmark Summary - 2026-08-10
 
 This smoke baseline covers the formatting, UTF-8 separator, array sorting, allocation, frontend,
-and runtime-state cleanup completed through commit `fba9d50`. It supersedes the previous summary,
-whose recorded commit was not present in the repository history.
+and runtime-state cleanup completed through source commit `c08a8c2`. It supersedes the previous
+summary, whose recorded commit was not present in the repository history.
 
 ## Environment
 
-- Commit: `fba9d50` (`refactor: tighten internal helper and API scopes`)
-- Counter report: `2026-08-10T08:33:08.8521870+00:00`
+- Source commit: `c08a8c2` (`fix: materialize arrays referenced by typeof`)
+- Counter report: `2026-08-10T08:54:05.4046087+00:00`
 - Machine: `LOKAD-0399`
 - OS: Windows 11 `10.0.26200.8893` (25H2)
 - CPU: Intel Core i7-14700KF, 20 physical cores, 28 logical cores
@@ -32,13 +32,13 @@ smoke baseline, not a statistically stable release comparison.
 
 | Benchmark | Mean | Median | Allocated | MiB/s | Records/s | Gen0/1 per 1000 ops |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `FullInvocationBenchmarks.ColumnExtraction` | 10.399 ms | 10.425 ms | 20.13 MB | 40.98 | 1,923,324.47 | 1,218.7500 / 109.3750 |
-| `FullInvocationBenchmarks.NonAsciiRecordSeparator` | 10.720 ms | 10.689 ms | 7.60 MB | 27.57 | 1,305,947.56 | 453.1250 / 62.5000 |
-| `FullInvocationBenchmarks.FieldWidthsUtf8` | 8.183 ms | 8.096 ms | 13.11 MB | 16.32 | 1,222,000.75 | 796.8750 / 78.1250 |
-| `FullInvocationBenchmarks.SmallTextSplitArrays` | 22.519 ms | 22.341 ms | 42.66 MB | 8.13 | 532,876.34 | 2,625.0000 / 156.2500 |
-| `FullInvocationBenchmarks.RegexReplacementExpansion` | 15.243 ms | 15.358 ms | 15.02 MB | 13.62 | 656,059.71 | 906.2500 / 109.3750 |
-| `ExecutableLayerBenchmarks.ExecutePrecompiledExecutableVmProgram` | 9.852 ms | 9.828 ms | 20.86 MB | 43.25 | 2,030,010.32 | 1,265.6250 / 93.7500 |
-| `ExecutableLayerBenchmarks.ExecuteExecutableFallbackDispatch` | 17.875 ms | 17.526 ms | 22.54 MB | 23.84 | 1,118,891.49 | 1,343.7500 / 93.7500 |
+| `FullInvocationBenchmarks.ColumnExtraction` | 10.534 ms | 10.533 ms | 20.13 MB | 40.45 | 1,898,541.26 | 1,218.7500 / 109.3750 |
+| `FullInvocationBenchmarks.NonAsciiRecordSeparator` | 11.236 ms | 11.158 ms | 7.60 MB | 26.30 | 1,245,967.06 | 453.1250 / 62.5000 |
+| `FullInvocationBenchmarks.FieldWidthsUtf8` | 7.771 ms | 7.663 ms | 13.11 MB | 17.18 | 1,286,831.14 | 796.8750 / 85.9375 |
+| `FullInvocationBenchmarks.SmallTextSplitArrays` | 20.898 ms | 20.978 ms | 42.66 MB | 8.76 | 574,222.41 | 2,562.5000 / 156.2500 |
+| `FullInvocationBenchmarks.RegexReplacementExpansion` | 14.658 ms | 14.672 ms | 15.02 MB | 14.17 | 682,205.31 | 906.2500 / 109.3750 |
+| `ExecutableLayerBenchmarks.ExecutePrecompiledExecutableVmProgram` | 10.506 ms | 10.469 ms | 20.86 MB | 40.56 | 1,903,740.16 | 1,265.6250 / 93.7500 |
+| `ExecutableLayerBenchmarks.ExecuteExecutableFallbackDispatch` | 16.718 ms | 16.652 ms | 22.54 MB | 25.49 | 1,196,302.01 | 1,343.7500 / 93.7500 |
 
 The previous summary used a different SDK/runtime and omitted host details, so its timings are not a
 controlled before/after comparison. This table is the reproducible baseline for future deltas.
@@ -52,6 +52,7 @@ Selected rows from the counter report run against the same source state:
 | `counter column extraction` | 3 | 51 | 21 | 9 | 0 | 0 | 6 | 0 | 0 | 0 | 0 / 0 | 1,341 |
 | `counter streaming projection calibration` | 10,000 | 243,978 | 80,909 | 30,000 | 0 | 0 | 20,000 | 0 | 0 | 0 | 0 / 0 | 1,504 |
 | `counter three-key filter calibration` | 10,000 | 243,978 | 5 | 155,004 | 0 | 0 | 40,001 | 0 | 0 | 30,000 | 0 / 0 | 1,528 |
+| `counter regex field separator` | 3 | 39 | 3 | 26 | 4 | 12 | 7 | 9 | 0 | 0 | 0 / 0 | 1,317 |
 | `counter grouped byte-run record separator` | 1 | 243,978 | 7 | 7 | 0 | 0 | 2 | 0 | 243,978 | 0 | 0 / 0 | 507,021 |
 | `counter non-ASCII record separator` | 3 | 19 | 4 | 31 | 0 | 0 | 7 | 0 | 19 | 0 | 0 / 0 | 1,228 |
 | `counter UTF-8 FIELDWIDTHS` | 2 | 27 | 3 | 27 | 0 | 0 | 7 | 0 | 0 | 0 | 0 / 0 | 1,398 |

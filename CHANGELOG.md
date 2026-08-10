@@ -4,9 +4,13 @@
 
 - Preserve numeric values and full precision through `printf`, custom `OFMT`/`CONVFMT`, `asort`,
   user sort comparators, and host environment snapshots instead of formatting and reparsing them.
+- Preserve scalar type and missing-value state when forwarding function locals, and match GNU awk
+  when `typeof(array[index])` materializes the array without inserting the element.
 - Apply `CONVFMT` consistently at comparison, regex, substitution, switch, record, field, separator,
   array-order, and host string boundaries while keeping record and field separator classification
   byte-native.
+- Track intentional field-separator and `SYMTAB` string crossings while avoiding symbol-table
+  encode/decode round trips during value snapshots.
 - Avoid allocations on missing-array probes, parse unsupported frontend directives once, remove
   forwarding async state machines, and model action-flow, input-record, and separator-cache states
   explicitly.
