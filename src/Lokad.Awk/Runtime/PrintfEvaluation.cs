@@ -100,10 +100,8 @@ internal static class PrintfEvaluation
                 if (TryReadArgumentIndex(arguments, strictMissingArguments, ref argIndex, out var argumentIndex))
                 {
                     var value = arguments.GetString(argumentIndex);
-                    if (precision.HasValue && value.Length > precision.Value)
-                    {
-                        value = value[..precision.Value];
-                    }
+                    if (precision.HasValue)
+                        value = TruncateToRuneCount(value, precision.Value);
 
                     AppendWithWidth(output, value, width.Value, flags.LeftJustify, zeroPad: false);
                 }
@@ -381,7 +379,8 @@ internal static class PrintfEvaluation
 
     private static void AppendWithWidth(StringBuilder output, string text, int width, bool leftJustify, bool zeroPad)
     {
-        if (width <= 0 || text.Length >= width)
+        var textWidth = CountRunes(text);
+        if (width <= 0 || textWidth >= width)
         {
             output.Append(text);
             return;
@@ -390,7 +389,7 @@ internal static class PrintfEvaluation
         if (leftJustify)
         {
             output.Append(text);
-            output.Append(' ', width - text.Length);
+            output.Append(' ', width - textWidth);
             return;
         }
 
@@ -399,13 +398,41 @@ internal static class PrintfEvaluation
             text.StartsWith(' ')))
         {
             output.Append(text[0]);
-            output.Append('0', width - text.Length);
+            output.Append('0', width - textWidth);
             output.Append(text[1..]);
             return;
         }
 
-        output.Append(zeroPad ? '0' : ' ', width - text.Length);
+        output.Append(zeroPad ? '0' : ' ', width - textWidth);
         output.Append(text);
+    }
+
+    private static string TruncateToRuneCount(string text, int maximumRuneCount)
+    {
+        if (maximumRuneCount <= 0 || text.Length == 0)
+            return string.Empty;
+
+        var runeCount = 0;
+        var utf16Length = 0;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            if (runeCount == maximumRuneCount)
+                break;
+
+            runeCount++;
+            utf16Length += rune.Utf16SequenceLength;
+        }
+
+        return utf16Length == text.Length ? text : text[..utf16Length];
+    }
+
+    private static int CountRunes(string text)
+    {
+        var count = 0;
+        foreach (var _ in text.EnumerateRunes())
+            count++;
+
+        return count;
     }
 
     internal static double ParseDouble(string value) =>
@@ -571,13 +598,13 @@ internal static class PrintfEvaluation
         if (arguments.IsNumeric(index))
         {
             var code = (long)arguments.GetNumber(index);
-            return code >= char.MinValue && code <= char.MaxValue
-                ? ((char)code).ToString()
+            return code >= 0 && code <= int.MaxValue && Rune.IsValid((int)code)
+                ? new Rune((int)code).ToString()
                 : string.Empty;
         }
 
         var value = arguments.GetString(index);
-        return value.Length == 0 ? string.Empty : value[0].ToString();
+        return value.Length == 0 ? string.Empty : Rune.GetRuneAt(value, 0).ToString();
     }
 }
 

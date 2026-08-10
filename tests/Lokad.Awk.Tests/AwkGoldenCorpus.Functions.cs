@@ -93,6 +93,12 @@ internal static partial class AwkGoldenCorpus
             "0.333333333333 1.23456789012 [6] [A]\n"),
 
         Passing(
+            "printf-counts-unicode-scalar-values",
+            ["BEGIN{printf \"[%3s][%-3s][%.1s][%c][%c]\\n\", \"😀\", \"😀\", \"😀x\", \"😀x\", 128512}"],
+            [],
+            "[  😀][😀  ][😀][😀][😀]\n"),
+
+        Passing(
             "printf-empty-and-numeric-string-conversions",
             ["BEGIN{printf \"[%d][%g][%s]\\n\", \"\", \"\", \"\"; split(\"00 1.5 x\", a); printf \"[%d][%.1f][%d][%s]\\n\", a[1], a[2], a[3], a[3]}"],
             [],
