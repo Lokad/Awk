@@ -62,7 +62,8 @@ These names are not public embedding policy unless a concrete host need appears:
 
 - `DefaultInputReadBatchLineCount`: maximum lines requested per streaming host read.
 - `DefaultUtf8BuilderInitialCapacity`: initial byte-builder capacity.
-- `DefaultRegexCacheSize`: compiled regex least-recently-used cache capacity.
+- `DefaultRegexCacheSize`: capacity of each compiled-regex least-recently-used cache. The runtime
+  maintains independent caches for awk regex wrappers, .NET regex instances, and UTF-8 engines.
 - `DefaultRegexMatchTimeoutSeconds`: .NET regex timeout guard.
 - `MaxVmStackBytes`: executable runtime stack bytes. Fallback frames and opcode operand-stack
   buffers check this limit and, when the memory governor is enabled, reserve/commit/release the

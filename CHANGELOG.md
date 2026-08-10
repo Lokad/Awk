@@ -3,17 +3,18 @@
 ## 0.1.0
 
 - Preserve numeric values and full precision through `printf`, custom `OFMT`/`CONVFMT`, `asort`,
-  user sort comparators, and host environment snapshots instead of formatting and reparsing them.
-- Preserve scalar type and missing-value state when forwarding function locals, and match GNU awk
-  when `typeof(array[index])` materializes the array without inserting the element.
+  user sort comparators, and host environment snapshots instead of formatting and reparsing them;
+  project array values to text only for value-string sort modes that consume that projection.
+- Preserve scalar type, missing-value state, and array-storage identity when forwarding function
+  locals; let omitted parameters become frame-owned arrays; and match GNU awk when
+  `typeof(array[index])` materializes the array without inserting the element.
 - Apply `CONVFMT` consistently at comparison, regex, substitution, switch, record, field, separator,
   array-order, and host string boundaries while keeping record and field separator classification
   byte-native.
 - Track intentional field-separator and `SYMTAB` string crossings while avoiding symbol-table
   encode/decode round trips during value snapshots.
-- Avoid allocations on missing-array probes, parse unsupported frontend directives once, remove
-  forwarding async state machines, and model action-flow, input-record, and separator-cache states
-  explicitly.
+- Avoid allocations on missing-array probes, parse unsupported frontend directives once, and model
+  action-flow, input-record, and separator-cache states explicitly.
 - Refresh the checked-in ShortRun and deterministic runtime-counter baseline on .NET 10.0.8 with
   reproducible host, SDK, command, timing, allocation, and memory-governor evidence.
 - Enforce `MaxHostCalls` once across every input and output path, retain source-open failures rather
@@ -29,8 +30,8 @@
 - Remove forwarding async state machines, read-only collection wrappers, zero-argument pool rents,
   and unused runtime conveniences; cache rune counts alongside ASCII classification without adding
   per-value storage.
-- Scope single-caller helpers to their callers and rename the shared collection snapshot utility to
-  match its use across syntax, source planning, and runtime code.
+- Share postfix trailing-token scanning, function-local assignment, pooled argument-buffer handling,
+  and async array-sort entry selection; keep single-purpose numeric sort parsing scoped to its caller.
 - Recognize capture-group and noncapturing-group wrappers and equivalent punctuation-only
   alternations around byte-run record separators, preserving greedy cross-batch `RT` while
   scanning the adversarial counter workloads once instead of invoking the general regex backend.
@@ -38,14 +39,16 @@
   single/all traversal engines without allocating on the single-match route, return the original
   input before building output when a requested numbered occurrence is absent, and reuse pooled
   argument, frame, and slot storage for interpreted user-function calls.
-- Bypass per-line include parsing for ordinary source files, append contiguous expanded-source
-  chunks in batches, binary-search continuation slices and diagnostic source segments, and defer
-  physical-line indexing until a diagnostic actually needs source mapping.
+- Bypass per-line include parsing for ordinary source files, cache successful canonical include
+  reads, compose continuation maps without copying their existing offsets on every append, append
+  contiguous expanded-source chunks in batches, binary-search source maps, and defer physical-line
+  indexing until a diagnostic actually needs it.
 - Share owned and record-slice field traversal, preserve source names and coordinates as value
   types, follow interface naming conventions, and remove dead text-conversion and source
   projection plumbing.
-- Remove the duplicate test-only benchmark harness and forwarding-only runtime conveniences,
-  centralize getline read-failure conversion, and document buffered record-cursor invariants.
+- Remove the duplicate test-only benchmark harness, test-only synchronous sort facade,
+  zero-consumer metadata properties, and forwarding-only runtime conveniences; centralize getline
+  read-failure conversion; and document buffered record-cursor invariants.
 - Route main input and all `getline` sources through one streaming, `RS`-aware record cursor;
   preserve unread buffered bytes across separator changes without draining descriptors to EOF,
   and retain paragraph field-splitting semantics when `getline` assigns `$0`.

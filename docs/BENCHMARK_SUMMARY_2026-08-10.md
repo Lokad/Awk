@@ -1,13 +1,13 @@
 # Benchmark Summary - 2026-08-10
 
 This smoke baseline covers the formatting, UTF-8 separator, array sorting, allocation, frontend,
-and runtime-state cleanup completed through source commit `c08a8c2`. It supersedes the previous
+and runtime-state cleanup completed through source commit `94b4f79`. It supersedes the previous
 summary, whose recorded commit was not present in the repository history.
 
 ## Environment
 
-- Source commit: `c08a8c2` (`fix: materialize arrays referenced by typeof`)
-- Counter report: `2026-08-10T08:54:05.4046087+00:00`
+- Source commit: `94b4f79` (`refactor: remove unused runtime surface`)
+- Counter report: `2026-08-10T09:48:48.6997110+00:00`
 - Machine: `LOKAD-0399`
 - OS: Windows 11 `10.0.26200.8893` (25H2)
 - CPU: Intel Core i7-14700KF, 20 physical cores, 28 logical cores
@@ -58,7 +58,7 @@ Selected rows from the counter report run against the same source state:
 | `counter UTF-8 FIELDWIDTHS` | 2 | 27 | 3 | 27 | 0 | 0 | 7 | 0 | 0 | 0 | 0 / 0 | 1,398 |
 | `counter large split fields` | 32 | 1,568 | 4 | 770 | 1 | 32 | 865 | 0 | 0 | 0 | 0 / 0 | 5,380 |
 | `counter regex replacement expansion` | 2 | 24 | 3 | 24 | 3 | 8 | 5 | 6 | 0 | 0 | 0 / 0 | 1,106 |
-| `counter array sorting` | 3 | 12 | 8 | 33 | 1 | 1 | 13 | 0 | 0 | 0 | 0 / 0 | 2,753 |
+| `counter array sorting` | 3 | 12 | 8 | 33 | 1 | 1 | 11 | 0 | 0 | 0 | 0 / 0 | 2,753 |
 | `counter user-function loop` | 0 | 0 | 5 | 1,127 | 0 | 0 | 1 | 0 | 0 | 0 | 0 / 0 | 931 |
 | `counter executable opcode execution` | 2 | 34 | 14 | 4 | 0 | 0 | 4 | 0 | 0 | 0 | 6 / 0 | 1,413 |
 | `counter executable mixed fallback dispatch` | 2 | 24 | 4 | 20 | 0 | 0 | 6 | 0 | 0 | 0 | 8 / 4 | 1,434 |
