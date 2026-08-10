@@ -541,15 +541,22 @@ internal sealed class AwkArrayRuntime
         static double ResolveNumericSortKey(
             AwkText key,
             AwkValue value,
-            AwkArraySortMode sortMode) =>
-            sortMode switch
-            {
-                AwkArraySortMode.IndexNumberAscending or AwkArraySortMode.IndexNumberDescending =>
-                    ResolveNumber(key),
-                AwkArraySortMode.ValueNumberAscending or AwkArraySortMode.ValueNumberDescending =>
-                    value.AsNumber(),
-                _ => 0
-            };
+            AwkArraySortMode sortMode)
+        {
+            if (sortMode is AwkArraySortMode.ValueNumberAscending or AwkArraySortMode.ValueNumberDescending)
+                return value.AsNumber();
+
+            if (sortMode is not (AwkArraySortMode.IndexNumberAscending or AwkArraySortMode.IndexNumberDescending))
+                return 0;
+
+            return key.TryParseAwkNumber(
+                    AwkNumberParsingMode.Decimal,
+                    out var number,
+                    out var consumedAll) &&
+                consumedAll
+                    ? number
+                    : 0;
+        }
 
         var entries = new AwkArraySortEntry[values.Count];
         var index = 0;
@@ -616,12 +623,6 @@ internal sealed class AwkArrayRuntime
 
         return result;
     }
-
-    private static double ResolveNumber(AwkText value) =>
-        value.TryParseAwkNumber(AwkNumberParsingMode.Decimal, out var number, out var consumedAll) &&
-        consumedAll
-            ? number
-            : 0;
 
     private static long EstimateSplitBuffers(int inputByteLength, bool captureSeparators)
         => AwkRuntimeMemory.EstimateSplitBufferBytes(
