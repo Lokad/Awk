@@ -526,7 +526,7 @@ internal sealed class AwkArrayRuntime
             if (!_state.TryGetUserFunction(userFunctionOrder.FunctionName, out var function))
                 throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(userFunctionOrder.FunctionName.Text));
 
-            var entries = CopySortEntries(values, AwkArraySortMode.ValueStringAscending);
+            var entries = CopySortEntries(values, AwkArraySortMode.UserFunction);
             await SortWithUserFunctionAsync(entries, function, context).ConfigureAwait(false);
             return entries;
         }
@@ -556,7 +556,11 @@ internal sealed class AwkArrayRuntime
         foreach (var pair in values)
         {
             var keyText = pair.Key.ToByteText(_state.Counters, _state.MemoryGovernor);
-            var valueText = _state.FormatStringByteText(pair.Value);
+            var valueText = sortMode is
+                AwkArraySortMode.ValueStringAscending or
+                AwkArraySortMode.ValueStringDescending
+                    ? _state.FormatStringByteText(pair.Value)
+                    : AwkText.Empty;
             entries[index++] = new AwkArraySortEntry(
                 pair.Key,
                 keyText,
@@ -644,6 +648,7 @@ internal sealed class AwkArrayRuntime
 
     private enum AwkArraySortMode
     {
+        UserFunction,
         ValueStringAscending,
         ValueStringDescending,
         ValueNumberAscending,

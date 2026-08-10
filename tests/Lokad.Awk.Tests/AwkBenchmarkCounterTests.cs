@@ -166,6 +166,28 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task Awk_ArraySortProjectsTextOnlyForValueStringOrder()
+    {
+        const int entryCount = 32;
+
+        static string Program(string order) =>
+            "function cmp(i1,v1,i2,v2){return v1-v2} " +
+            "BEGIN{for(i=32;i>=1;i--)a[i]=i; n=asort(a,b,\"" + order + "\"); print n}";
+
+        var numeric = await RunAsync([Program("@val_num_asc")]);
+        var valueString = await RunAsync([Program("@val_str_asc")]);
+        var userFunction = await RunAsync([Program("cmp")]);
+
+        Assert.Equal("32\n", numeric.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("32\n", valueString.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("32\n", userFunction.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(
+            numeric.Counters.AwkTextAllocations + entryCount,
+            valueString.Counters.AwkTextAllocations);
+        Assert.Equal(numeric.Counters.AwkTextAllocations, userFunction.Counters.AwkTextAllocations);
+    }
+
+    [Fact]
     public async Task Awk_RegexReplacementEncodingDoesNotScaleWithLiteralLength()
     {
         var shortRun = await RunAsync(["BEGIN{s=\"x\"; gsub(/x/,\"é&\",s); print s}"]);
