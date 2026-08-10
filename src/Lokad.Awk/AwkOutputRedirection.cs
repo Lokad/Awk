@@ -80,3 +80,30 @@ internal readonly struct AwkRedirectedOutput
 
     public ReadOnlyMemory<byte> Content { get; }
 }
+
+internal readonly record struct AwkResolvedOutputRedirection(
+    AwkRedirectionPath Path,
+    AwkOutputRedirectionKind Kind);
+
+internal readonly record struct AwkOptionalResolvedOutputRedirection
+{
+    private readonly AwkResolvedOutputRedirection _value;
+
+    private AwkOptionalResolvedOutputRedirection(AwkResolvedOutputRedirection value)
+    {
+        _value = value;
+        HasValue = true;
+    }
+
+    public static AwkOptionalResolvedOutputRedirection None => default;
+
+    public bool HasValue { get; }
+
+    public static AwkOptionalResolvedOutputRedirection Specified(AwkResolvedOutputRedirection value) => new(value);
+
+    public bool TryGetValue(out AwkResolvedOutputRedirection value)
+    {
+        value = _value;
+        return HasValue;
+    }
+}

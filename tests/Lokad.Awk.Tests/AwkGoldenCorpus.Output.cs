@@ -16,6 +16,12 @@ internal static partial class AwkGoldenCorpus
             [File("/file.txt", "a b\nc d\n")],
             "a|b;c|d;")),
 
+        Posix(Passing(
+            "print-evaluates-values-before-resolving-output-formats",
+            ["BEGIN{OFS=\" \"; OFMT=\"%.1f\"; print (OFS=\"x\"), (OFS=\"y\"), \"z\"; OFS=\" \"; print 1.23, (OFMT=\"%.3f\"), 4.56}"],
+            [],
+            "xyyyz\n1.230 %.3f 4.560\n")),
+
         Passing(
             "print-uses-ofs-from-variable-option",
             ["-v", "OFS=:", "{print $1, $2}", "/file.txt"],
@@ -78,6 +84,13 @@ internal static partial class AwkGoldenCorpus
             ["BEGIN{printf(\"%s\", \"file-output\") > \"/out.txt\"}"],
             [],
             string.Empty,
-            [File("/out.txt", "file-output")])
+            [File("/out.txt", "file-output")]),
+
+        Posix(PassingWithExpectedFiles(
+            "redirection-target-is-evaluated-before-print-values",
+            ["BEGIN{x=\"a\"; print (x=\"v\") > (x=\"/print.txt\"); printf \"[%s]\", (x=\"w\") > (x=\"/printf.txt\"); print x}"],
+            [],
+            "w\n",
+            [File("/print.txt", "v\n"), File("/printf.txt", "[w]")]))
     ];
 }

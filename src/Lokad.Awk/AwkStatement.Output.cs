@@ -18,62 +18,26 @@ internal abstract partial class AwkStatement
 
             var state = context.State;
             var execution = RequireExecutionContext(context);
-            var output = execution.Output;
-            if (!target.IsRedirected)
+            var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
+            var values = ArrayPool<AwkValue>.Shared.Rent(expressions.Length);
+            try
             {
-                var segments = ArrayPool<AwkText>.Shared.Rent((expressions.Length * 2) + 1);
-                var segmentCount = 0;
-                try
-                {
-                    for (var i = 0; i < expressions.Length; i++)
-                    {
-                        if (i > 0)
-                        {
-                            segments[segmentCount++] = ResolveSpecialVariableText(
-                                state,
-                                AwkSpecialVariableId.OutputFieldSeparator);
-                        }
+                for (var index = 0; index < expressions.Length; index++)
+                    values[index] = await expressions[index].EvaluateAsync(context).ConfigureAwait(false);
 
-                        segments[segmentCount++] =
-                            state.FormatPrintByteText(await expressions[i].EvaluateAsync(context).ConfigureAwait(false));
-                    }
-
-                    segments[segmentCount++] = ResolveSpecialVariableText(
-                        state,
-                        AwkSpecialVariableId.OutputRecordSeparator);
-                    for (var index = 0; index < segmentCount; index++)
-                        output.Append(segments[index]);
-                }
-                finally
-                {
-                    ArrayPool<AwkText>.Shared.Return(segments, clearArray: true);
-                }
-
-                return AwkStatementFlow.Continue;
+                await EmitPrintAsync(
+                        execution.Output,
+                        execution.Io,
+                        resolvedTarget,
+                        values,
+                        expressions.Length,
+                        state)
+                    .ConfigureAwait(false);
             }
-
-            using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor);
-            for (var i = 0; i < expressions.Length; i++)
+            finally
             {
-                if (i > 0)
-                    builder.Append(ResolveSpecialVariableText(
-                        state,
-                        AwkSpecialVariableId.OutputFieldSeparator));
-
-                builder.Append(state.FormatPrintByteText(
-                    await expressions[i].EvaluateAsync(context).ConfigureAwait(false)));
+                ArrayPool<AwkValue>.Shared.Return(values, clearArray: true);
             }
-
-            builder.Append(ResolveSpecialVariableText(
-                state,
-                AwkSpecialVariableId.OutputRecordSeparator));
-            await EmitOutputAsync(
-                    output,
-                    execution.Io,
-                    target,
-                    builder.AsMemory(),
-                    context)
-                .ConfigureAwait(false);
 
             return AwkStatementFlow.Continue;
         }
@@ -91,8 +55,6 @@ internal abstract partial class AwkStatement
             return true;
         }
 
-        private static AwkText ResolveSpecialVariableText(AwkRuntimeState state, AwkSpecialVariableId id) =>
-            state.ResolveSpecialVariableText(id);
     }
 
     private sealed class PrintfStatement(
@@ -104,7 +66,7 @@ internal abstract partial class AwkStatement
         {
             var state = context.State;
             var execution = RequireExecutionContext(context);
-            var output = execution.Output;
+            var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
             var formatText = await format.ResolveStringAsync(context).ConfigureAwait(false);
             var resolvedArguments = ArrayPool<AwkValue>.Shared.Rent(arguments.Length);
             AwkText formatted;
@@ -124,39 +86,91 @@ internal abstract partial class AwkStatement
                 ArrayPool<AwkValue>.Shared.Return(resolvedArguments, clearArray: true);
             }
 
-            await EmitOutputAsync(output, execution.Io, target, formatted, context).ConfigureAwait(false);
+            await EmitOutputAsync(execution.Output, execution.Io, resolvedTarget, formatted).ConfigureAwait(false);
 
             return AwkStatementFlow.Continue;
         }
     }
 
-    private static async Task EmitOutputAsync(
+    private static async Task EmitPrintAsync(
         AwkOutputSink output,
         AwkIo io,
-        AwkOutputTarget target,
-        AwkText content,
-        AwkEvaluationContext context)
+        AwkOptionalResolvedOutputRedirection target,
+        AwkValue[] values,
+        int valueCount,
+        AwkRuntimeState state)
     {
-        await EmitOutputAsync(output, io, target, content.AsMemory(), context).ConfigureAwait(false);
+        var segments = ArrayPool<AwkText>.Shared.Rent((valueCount * 2) + 1);
+        var segmentCount = 0;
+        try
+        {
+            var outputFieldSeparator = valueCount > 1
+                ? state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator)
+                : AwkText.Empty;
+            for (var index = 0; index < valueCount; index++)
+            {
+                if (index > 0)
+                    segments[segmentCount++] = outputFieldSeparator;
+
+                segments[segmentCount++] = state.FormatPrintByteText(values[index]);
+            }
+
+            segments[segmentCount++] = state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputRecordSeparator);
+            if (!target.HasValue)
+            {
+                for (var index = 0; index < segmentCount; index++)
+                    output.Append(segments[index]);
+
+                return;
+            }
+
+            using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor);
+            for (var index = 0; index < segmentCount; index++)
+                builder.Append(segments[index]);
+
+            await EmitOutputAsync(output, io, target, builder.AsMemory()).ConfigureAwait(false);
+        }
+        finally
+        {
+            ArrayPool<AwkText>.Shared.Return(segments, clearArray: true);
+        }
     }
 
     private static async Task EmitOutputAsync(
         AwkOutputSink output,
         AwkIo io,
-        AwkOutputTarget target,
-        ReadOnlyMemory<byte> content,
-        AwkEvaluationContext context)
+        AwkOptionalResolvedOutputRedirection target,
+        AwkText content)
     {
-        if (!target.TryGetRedirection(out var redirection))
+        await EmitOutputAsync(output, io, target, content.AsMemory()).ConfigureAwait(false);
+    }
+
+    private static async Task EmitOutputAsync(
+        AwkOutputSink output,
+        AwkIo io,
+        AwkOptionalResolvedOutputRedirection target,
+        ReadOnlyMemory<byte> content)
+    {
+        if (!target.TryGetValue(out var redirection))
         {
             output.Append(content);
             return;
         }
 
+        await io.WriteAsync(new AwkRedirectedOutput(redirection.Path, redirection.Kind, content)).ConfigureAwait(false);
+    }
+
+    private static async ValueTask<AwkOptionalResolvedOutputRedirection> ResolveOutputTargetAsync(
+        AwkOutputTarget target,
+        AwkEvaluationContext context)
+    {
+        if (!target.TryGetRedirection(out var redirection))
+            return AwkOptionalResolvedOutputRedirection.None;
+
         var path = new AwkRedirectionPath(await redirection.Target.ResolveStringAsync(context).ConfigureAwait(false));
         if (redirection.Kind == AwkOutputRedirectionKind.Coprocess)
             throw new AwkRuntimeException(AwkMessages.ErrorUnsupportedCoprocess, AwkDiagnosticId.UnsupportedPolicy);
 
-        await io.WriteAsync(new AwkRedirectedOutput(path, redirection.Kind, content)).ConfigureAwait(false);
+        return AwkOptionalResolvedOutputRedirection.Specified(new AwkResolvedOutputRedirection(path, redirection.Kind));
     }
 }
