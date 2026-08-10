@@ -7,7 +7,7 @@ namespace Lokad.Awk;
 internal sealed class AwkSourceLoadPlan
 {
     private readonly IReadOnlyList<AwkSourceReference> _sources;
-    private readonly IReadOnlyList<AwkEnvironmentVariable> _environment;
+    private readonly IReadOnlyList<string> _awkPathEntries;
     private readonly AwkPath _currentDirectory;
     private readonly HashSet<AwkSourceIdentity> _includedIdentities = [];
     private readonly Dictionary<AwkPath, AwkScriptTextReadResult> _scriptTextByPath = [];
@@ -18,11 +18,13 @@ internal sealed class AwkSourceLoadPlan
         AwkPath currentDirectory)
     {
         _sources = sources;
-        _environment = environment;
+        _awkPathEntries = ParseAwkPathEntries(environment);
         _currentDirectory = currentDirectory;
     }
 
     public int SourceCount => _sources.Count;
+
+    public IReadOnlyList<string> AwkPathEntries => _awkPathEntries;
 
     public static AwkSourceLoadPlan FromInvocation(AwkInvocation invocation) =>
         new(
@@ -49,18 +51,29 @@ internal sealed class AwkSourceLoadPlan
             _scriptTextByPath[path] = result;
     }
 
-    public bool TryGetEnvironmentValue(string name, out string value)
+    private static IReadOnlyList<string> ParseAwkPathEntries(
+        IReadOnlyList<AwkEnvironmentVariable> environment)
     {
-        for (var index = 0; index < _environment.Count; index++)
+        for (var index = 0; index < environment.Count; index++)
         {
-            if (string.Equals(_environment[index].Name, name, StringComparison.Ordinal))
+            if (!string.Equals(environment[index].Name, "AWKPATH", StringComparison.Ordinal))
+                continue;
+
+            var awkPath = environment[index].Value;
+            if (awkPath.Length == 0)
+                return [];
+
+            var entries = awkPath.Split(':', StringSplitOptions.None);
+            for (var entryIndex = 0; entryIndex < entries.Length; entryIndex++)
             {
-                value = _environment[index].Value;
-                return true;
+                entries[entryIndex] = entries[entryIndex].Length == 0
+                    ? "."
+                    : entries[entryIndex].TrimEnd('/');
             }
+
+            return entries;
         }
 
-        value = string.Empty;
-        return false;
+        return [];
     }
 }

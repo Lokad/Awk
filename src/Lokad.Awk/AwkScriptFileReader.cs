@@ -43,16 +43,13 @@ internal static class AwkScriptFileReader
         string rawPath,
         CancellationToken cancellationToken)
     {
-        if (!plan.TryGetEnvironmentValue("AWKPATH", out var awkPath) || awkPath.Length == 0)
-            return AwkScriptFileReadResult.MissingFile;
-
-        var entries = awkPath.Split(':', StringSplitOptions.None);
-        for (var index = 0; index < entries.Length; index++)
+        var entries = plan.AwkPathEntries;
+        for (var index = 0; index < entries.Count; index++)
         {
-            var entry = entries[index].Length == 0 ? "." : entries[index];
+            var entry = entries[index];
             var candidate = entry == "."
                 ? rawPath
-                : entry.TrimEnd('/') + "/" + rawPath;
+                : entry + "/" + rawPath;
             var resolved = plan.ResolvePath(candidate);
             var script = await TryReadResolvedAsync(host, plan, resolved, cancellationToken)
                 .ConfigureAwait(false);
