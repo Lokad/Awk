@@ -5,30 +5,12 @@ namespace Lokad.Awk;
 internal sealed class AwkFunctionParameterBinding
 {
     public AwkFunctionParameterBinding(
-        IReadOnlyList<AwkIdentifier> parameters,
+        IReadOnlyList<AwkVariableName> parameters,
         IReadOnlyList<AwkDiagnostic> diagnostics)
     {
-        static IReadOnlyList<AwkVariableName> ToNames(
-            IReadOnlyList<AwkIdentifier> identifiers)
-        {
-            if (identifiers.Count == 0)
-                return [];
-
-            var names = new AwkVariableName[identifiers.Count];
-            for (var index = 0; index < identifiers.Count; index++)
-            {
-                names[index] = new AwkVariableName(identifiers[index]);
-            }
-
-            return names;
-        }
-
-        ParameterIdentifiers = parameters;
-        Parameters = ToNames(parameters);
+        Parameters = parameters;
         Diagnostics = diagnostics;
     }
-
-    public IReadOnlyList<AwkIdentifier> ParameterIdentifiers { get; }
 
     public IReadOnlyList<AwkVariableName> Parameters { get; }
 
@@ -49,7 +31,7 @@ internal static class AwkFunctionParameters
             diagnostics.Add(new AwkDiagnostic(span, message, AwkDiagnosticId.BindInvalidProgram));
         }
 
-        var parameters = new List<AwkIdentifier>();
+        var parameters = new List<AwkVariableName>();
         var diagnostics = new List<AwkDiagnostic>();
         var seen = new HashSet<string>(System.StringComparer.Ordinal);
         var expectParameter = true;
@@ -94,7 +76,7 @@ internal static class AwkFunctionParameters
                     return new AwkFunctionParameterBinding(parameters, diagnostics);
                 }
 
-                parameters.Add(identifier);
+                parameters.Add(new AwkVariableName(identifier));
                 expectParameter = false;
                 continue;
             }

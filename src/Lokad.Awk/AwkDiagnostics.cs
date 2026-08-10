@@ -6,16 +6,6 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkFailureDiagnostic
 {
-    public AwkFailureDiagnostic(ReadOnlyMemory<byte> message, int exitCode)
-        : this(message, new AwkExitCode(exitCode), AwkDiagnosticId.RuntimeError)
-    {
-    }
-
-    public AwkFailureDiagnostic(ReadOnlyMemory<byte> message, int exitCode, AwkDiagnosticId id)
-        : this(message, new AwkExitCode(exitCode), id)
-    {
-    }
-
     public AwkFailureDiagnostic(ReadOnlyMemory<byte> message, AwkExitCode exitCode, AwkDiagnosticId id)
     {
         Message = message;

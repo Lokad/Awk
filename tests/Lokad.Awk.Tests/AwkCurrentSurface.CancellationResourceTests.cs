@@ -35,7 +35,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             [AwkStatement.PostIncrement(AwkReference.Scalar("x"))]);
 
         await Assert.ThrowsAsync<OperationCanceledException>(
-            async () => await statement.ExecuteAsync(state, new AwkOutputSink(), io));
+            async () => await statement.ExecuteAsync(state, AwkTestHarness.CreateOutputSink(), io));
     }
 
     [Fact]
@@ -225,7 +225,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             static () => []);
 
         var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
-            () => io.WriteAsync(new AwkRedirectedOutput("/out.txt", AwkOutputRedirectionKind.Write, "x\n")));
+            () => io.WriteAsync(AwkTestHarness.CreateRedirectedOutput(
+                "/out.txt",
+                AwkOutputRedirectionKind.Write,
+                "x\n")));
 
         Assert.Equal(
             "awk: file descriptor 3: append failed with status 9\n",
@@ -736,12 +739,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeLimits.CreateDefault(),
             state,
             static () => []);
-        using var context = state.PushExecutionContext(new AwkOutputSink(), io);
+        using var context = state.PushExecutionContext(AwkTestHarness.CreateOutputSink(), io);
 
         cancellation.Cancel();
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => function
-            .InvokeAsync([], new AwkEvaluationContext(0, state, new AwkOutputSink(), io))
+            .InvokeAsync([], new AwkEvaluationContext(0, state, AwkTestHarness.CreateOutputSink(), io))
             .AsTask());
     }
 
@@ -1080,7 +1083,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(300);
         var governor = AwkMemoryGovernor.Create(limits);
         using var output = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
-        output.Append(new string('x', 80));
+        output.Append(AwkText.FromString(new string('x', 80)));
         var fileSystem = new MockFileSystem();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var io = new AwkIo(
@@ -1361,10 +1364,19 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             state,
             static () => []);
 
-        await io.WriteAsync(new AwkRedirectedOutput("/one.txt", AwkOutputRedirectionKind.Write, "one\n"));
-        await io.WriteAsync(new AwkRedirectedOutput("/two.txt", AwkOutputRedirectionKind.Write, "two\n"));
+        await io.WriteAsync(AwkTestHarness.CreateRedirectedOutput(
+            "/one.txt",
+            AwkOutputRedirectionKind.Write,
+            "one\n"));
+        await io.WriteAsync(AwkTestHarness.CreateRedirectedOutput(
+            "/two.txt",
+            AwkOutputRedirectionKind.Write,
+            "two\n"));
         var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
-            () => io.WriteAsync(new AwkRedirectedOutput("/three.txt", AwkOutputRedirectionKind.Write, "three\n")));
+            () => io.WriteAsync(AwkTestHarness.CreateRedirectedOutput(
+                "/three.txt",
+                AwkOutputRedirectionKind.Write,
+                "three\n")));
 
         Assert.Equal("awk: output file limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.False(fileSystem.FileExists("/three.txt"));

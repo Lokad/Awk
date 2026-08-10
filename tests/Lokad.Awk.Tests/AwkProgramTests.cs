@@ -36,7 +36,7 @@ public sealed class AwkProgramTests
         var action = new AwkAction(null, statements);
         statements.Clear();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        using var output = new AwkOutputSink();
+        using var output = AwkTestHarness.CreateOutputSink();
 
         var flow = await action.ExecuteAsync(state, CreateIo(), output);
 
@@ -57,11 +57,11 @@ public sealed class AwkProgramTests
         statements.Clear();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var io = CreateIo();
-        using var context = state.PushExecutionContext(new AwkOutputSink(), io);
+        using var context = state.PushExecutionContext(AwkTestHarness.CreateOutputSink(), io);
 
         var value = await function.InvokeValuesAsync(
             [],
-            new AwkEvaluationContext(0, state, new AwkOutputSink(), io));
+            new AwkEvaluationContext(0, state, AwkTestHarness.CreateOutputSink(), io));
 
         Assert.Equal(["value"], function.Parameters.Select(static parameter => parameter.Text));
         Assert.Equal(1, value.AsNumber());
@@ -75,7 +75,7 @@ public sealed class AwkProgramTests
         body.Clear();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
 
-        var flow = await statement.ExecuteAsync(state, new AwkOutputSink(), CreateIo());
+        var flow = await statement.ExecuteAsync(state, AwkTestHarness.CreateOutputSink(), CreateIo());
 
         Assert.Equal(AwkStatementFlow.ExitProgram, flow);
     }
@@ -93,7 +93,7 @@ public sealed class AwkProgramTests
         cases.Clear();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
 
-        var flow = await statement.ExecuteAsync(state, new AwkOutputSink(), CreateIo());
+        var flow = await statement.ExecuteAsync(state, AwkTestHarness.CreateOutputSink(), CreateIo());
 
         Assert.Equal(AwkStatementFlow.ExitProgram, flow);
     }
@@ -165,7 +165,7 @@ public sealed class AwkProgramTests
         var statement = AwkStatement.Print(parts);
         parts.Clear();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        var output = new AwkOutputSink();
+        var output = AwkTestHarness.CreateOutputSink();
 
         var flow = await statement.ExecuteAsync(state, output, CreateIo());
 
@@ -176,7 +176,7 @@ public sealed class AwkProgramTests
     [Fact]
     public async Task AwkStatement_RedirectedPrintWritesDirectlyToIo()
     {
-        var output = new AwkOutputSink();
+        var output = AwkTestHarness.CreateOutputSink();
         var host = new TestOperationVisitor([]);
         host.EnqueueOpenAwkFileDescriptor(3);
         host.EnqueueAppendExitCode(0);

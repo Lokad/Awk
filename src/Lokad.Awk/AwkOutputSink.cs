@@ -8,15 +8,6 @@ internal sealed class AwkOutputSink : IDisposable
 {
     private readonly AwkUtf8Builder _standardOutput;
     private readonly List<AwkDiagnostic> _diagnostics = [];
-    private readonly AwkRuntimeCounters _counters;
-
-    public AwkOutputSink()
-        : this(
-            AwkRuntimeLimits.CreateDefault(),
-            AwkMemoryGovernor.Disabled,
-            AwkRuntimeCounters.Disabled)
-    {
-    }
 
     public AwkOutputSink(
         AwkRuntimeLimits limits,
@@ -24,16 +15,7 @@ internal sealed class AwkOutputSink : IDisposable
         AwkRuntimeCounters counters)
     {
         _standardOutput = new AwkUtf8Builder(limits, governor);
-        _counters = counters;
         counters.RecordOutputSinkCreation();
-    }
-
-    public void Append(string value)
-    {
-        if (value.Length == 0)
-            return;
-
-        Append(AwkUtf8Codec.Encode(value, _counters));
     }
 
     public void Append(AwkText value)

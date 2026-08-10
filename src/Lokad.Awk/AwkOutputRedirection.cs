@@ -67,21 +67,6 @@ internal abstract record AwkOutputTarget
 
 internal readonly struct AwkRedirectedOutput
 {
-    public AwkRedirectedOutput(string path, AwkOutputRedirectionKind kind, string content)
-        : this(new AwkRedirectionPath(path), kind, content)
-    {
-    }
-
-    public AwkRedirectedOutput(AwkRedirectionPath path, AwkOutputRedirectionKind kind, string content)
-        : this(path, kind, AwkUtf8Codec.Encode(content))
-    {
-    }
-
-    public AwkRedirectedOutput(string path, AwkOutputRedirectionKind kind, ReadOnlyMemory<byte> content)
-        : this(new AwkRedirectionPath(path), kind, content)
-    {
-    }
-
     public AwkRedirectedOutput(AwkRedirectionPath path, AwkOutputRedirectionKind kind, ReadOnlyMemory<byte> content)
     {
         RedirectionPath = path;
@@ -90,8 +75,6 @@ internal readonly struct AwkRedirectedOutput
     }
 
     public AwkRedirectionPath RedirectionPath { get; }
-
-    public string Path => RedirectionPath.Text;
 
     public AwkOutputRedirectionKind Kind { get; }
 

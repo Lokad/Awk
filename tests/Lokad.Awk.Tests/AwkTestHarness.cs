@@ -19,6 +19,18 @@ internal static class AwkTestHarness
         AwkRuntimeOptions runtimeOptions) =>
         new(fieldSeparator, cancellationToken, runtimeOptions, AwkCompatibilityProfile.Default);
 
+    public static AwkOutputSink CreateOutputSink() =>
+        new(
+            AwkRuntimeLimits.CreateDefault(),
+            AwkMemoryGovernor.Disabled,
+            AwkRuntimeCounters.Disabled);
+
+    public static AwkRedirectedOutput CreateRedirectedOutput(
+        string path,
+        AwkOutputRedirectionKind kind,
+        string content) =>
+        new(new AwkRedirectionPath(path), kind, AwkUtf8Codec.Encode(content));
+
     public static AwkCommandInvocation BuildInvocation(string command, params string[] arguments)
     {
         return BuildInvocation(command, arguments, []);

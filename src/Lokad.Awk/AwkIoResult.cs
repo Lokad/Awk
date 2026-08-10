@@ -133,15 +133,6 @@ internal readonly struct AwkGetlineResult(
             AwkRecordFieldSplittingMode.Ordinary,
             error);
 
-    public static AwkGetlineResult Record(string line, AwkRecordTerminator terminator) =>
-        Record(
-            AwkText.FromString(line),
-            terminator,
-            AwkRecordFieldSplittingMode.Ordinary);
-
-    public static AwkGetlineResult Record(AwkText line, AwkRecordTerminator terminator) =>
-        Record(line, terminator, AwkRecordFieldSplittingMode.Ordinary);
-
     public static AwkGetlineResult Record(
         AwkText record,
         AwkRecordTerminator terminator,
@@ -151,8 +142,6 @@ internal readonly struct AwkGetlineResult(
     public AwkGetlineStatus Status { get; } = status;
 
     public AwkText RecordText { get; } = record;
-
-    public string Line => RecordText.AsString();
 
     public AwkRecordTerminator Terminator { get; } = terminator;
 

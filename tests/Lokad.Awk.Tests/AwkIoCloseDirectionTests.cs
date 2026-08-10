@@ -27,9 +27,12 @@ public sealed class AwkIoCloseDirectionTests
     public void AwkRedirectedOutput_StoresTypedPath()
     {
         var path = new AwkRedirectionPath("/out.txt");
-        var output = new AwkRedirectedOutput(path, AwkOutputRedirectionKind.Write, "content");
+        var output = AwkTestHarness.CreateRedirectedOutput(
+            path.Text,
+            AwkOutputRedirectionKind.Write,
+            "content");
 
         Assert.Equal(path, output.RedirectionPath);
-        Assert.Equal("/out.txt", output.Path);
+        Assert.Equal("/out.txt", output.RedirectionPath.Text);
     }
 }
