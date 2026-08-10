@@ -87,7 +87,10 @@ internal readonly struct AwkFunctionLocalSlot
         new(AwkFunctionLocalSlotKind.Scalar, value, default);
 
     public static AwkFunctionLocalSlot MissingScalar() =>
-        Scalar(new AwkVariableSlot(string.Empty, AwkVariableSlotKind.Unassigned));
+        new(
+            AwkFunctionLocalSlotKind.MissingScalar,
+            new AwkVariableSlot(string.Empty, AwkVariableSlotKind.Unassigned),
+            default);
 
     public static AwkFunctionLocalSlot ArrayAlias(AwkArrayName arrayName) =>
         new(AwkFunctionLocalSlotKind.ArrayAlias, default, arrayName);
@@ -99,6 +102,7 @@ internal readonly struct AwkFunctionLocalSlot
 internal enum AwkFunctionLocalSlotKind
 {
     Scalar,
+    MissingScalar,
     ArrayAlias,
     PotentialArrayAlias
 }
@@ -127,12 +131,15 @@ internal readonly struct AwkResolvedFunctionLocal
     public static AwkResolvedFunctionLocal ScalarValue(AwkValue value) =>
         new(AwkFunctionLocalSlotKind.Scalar, value, default);
 
+    public static AwkResolvedFunctionLocal MissingScalar() =>
+        new(AwkFunctionLocalSlotKind.MissingScalar, AwkValue.Unassigned(), default);
+
     public static AwkResolvedFunctionLocal ArrayAlias(AwkArrayName arrayName) =>
         new(AwkFunctionLocalSlotKind.ArrayAlias, AwkValue.Unassigned(), arrayName);
 
     public static AwkResolvedFunctionLocal PotentialArrayAlias(AwkArrayName arrayName) =>
         new(AwkFunctionLocalSlotKind.PotentialArrayAlias, AwkValue.Unassigned(), arrayName);
 
-    public static AwkResolvedFunctionLocal Missing { get; } =
+    public static AwkResolvedFunctionLocal NotFound { get; } =
         new(AwkFunctionLocalSlotKind.Scalar, AwkValue.Unassigned(), default);
 }

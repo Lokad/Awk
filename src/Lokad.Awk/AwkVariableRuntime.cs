@@ -11,7 +11,9 @@ internal sealed class AwkVariableRuntime(
         HasScalar(new AwkVariableName(identifier));
 
     public bool HasScalar(AwkVariableName name) =>
-        ResolveName(name).Kind == AwkVariableNameResolutionKind.GlobalScalar;
+        ResolveName(name).Kind is
+            AwkVariableNameResolutionKind.LocalScalar or
+            AwkVariableNameResolutionKind.GlobalScalar;
 
     public bool IsArray(AwkIdentifier identifier) =>
         IsArray(new AwkArrayName(identifier));
@@ -161,7 +163,9 @@ internal sealed class AwkVariableRuntime(
 
     public bool IsLocalScalar(AwkVariableName name) =>
         functions.TryResolveLocal(name, out var local) &&
-        local.Kind != AwkFunctionLocalSlotKind.ArrayAlias;
+        local.Kind is
+            AwkFunctionLocalSlotKind.Scalar or
+            AwkFunctionLocalSlotKind.MissingScalar;
 
     public AwkArrayName ResolveOrPromoteArrayName(AwkArrayName name)
     {
@@ -186,6 +190,9 @@ internal sealed class AwkVariableRuntime(
         if (resolved.Kind == AwkVariableNameResolutionKind.LocalScalar)
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
+        if (resolved.Kind == AwkVariableNameResolutionKind.MissingLocalScalar)
+            throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
+
         if (resolved.Kind == AwkVariableNameResolutionKind.GlobalScalar)
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
     }
@@ -198,6 +205,7 @@ internal sealed class AwkVariableRuntime(
             {
                 AwkFunctionLocalSlotKind.ArrayAlias => AwkVariableNameResolution.LocalArrayAlias(local.ArrayName),
                 AwkFunctionLocalSlotKind.PotentialArrayAlias => AwkVariableNameResolution.PotentialArrayAlias(local.ArrayName),
+                AwkFunctionLocalSlotKind.MissingScalar => AwkVariableNameResolution.MissingLocalScalar,
                 _ => AwkVariableNameResolution.LocalScalar
             };
         }
@@ -232,6 +240,9 @@ internal sealed class AwkVariableRuntime(
         public static AwkVariableNameResolution LocalScalar { get; } =
             new(AwkVariableNameResolutionKind.LocalScalar, default);
 
+        public static AwkVariableNameResolution MissingLocalScalar { get; } =
+            new(AwkVariableNameResolutionKind.MissingLocalScalar, default);
+
         public static AwkVariableNameResolution LocalArrayAlias(AwkArrayName arrayName) =>
             new(AwkVariableNameResolutionKind.LocalArrayAlias, arrayName);
 
@@ -255,6 +266,7 @@ internal sealed class AwkVariableRuntime(
     {
         Missing,
         LocalScalar,
+        MissingLocalScalar,
         LocalArrayAlias,
         PotentialArrayAlias,
         SymbolTableArray,

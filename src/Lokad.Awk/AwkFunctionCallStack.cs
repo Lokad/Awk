@@ -128,13 +128,14 @@ internal sealed class AwkFunctionCallStack(
         out AwkResolvedFunctionLocal local)
     {
         if (_frames.Count > 0 &&
-            TryGetLocalSlot(_frames.Peek(), name, out _, out var slot))
+            TryGetLocalSlot(_frames.Peek(), name, out var slotId, out var slot))
         {
+            slot = PromoteMissingScalar(_frames.Peek(), slotId, slot, projection);
             local = ResolveLocal(slot, projection);
             return true;
         }
 
-        local = AwkResolvedFunctionLocal.Missing;
+        local = AwkResolvedFunctionLocal.NotFound;
         return false;
     }
 
@@ -146,11 +147,12 @@ internal sealed class AwkFunctionCallStack(
         if (_frames.Count > 0 &&
             TryGetLocalSlot(_frames.Peek(), slotId, out var slot))
         {
+            slot = PromoteMissingScalar(_frames.Peek(), slotId, slot, projection);
             local = ResolveLocal(slot, projection);
             return true;
         }
 
-        local = AwkResolvedFunctionLocal.Missing;
+        local = AwkResolvedFunctionLocal.NotFound;
         return false;
     }
 
@@ -299,6 +301,9 @@ internal sealed class AwkFunctionCallStack(
         if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
             return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName);
 
+        if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
+            return AwkResolvedFunctionLocal.MissingScalar();
+
         return projection switch
         {
             AwkFunctionLocalProjection.Kind => AwkResolvedFunctionLocal.Scalar(),
@@ -306,6 +311,23 @@ internal sealed class AwkFunctionCallStack(
                 slot.Value.ToValue(createByteTextValue, createNumericStringValue)),
             _ => throw new InvalidOperationException("Unknown function-local projection.")
         };
+    }
+
+    private static AwkFunctionLocalSlot PromoteMissingScalar(
+        AwkFunctionFrame frame,
+        AwkFunctionLocalSlotId slotId,
+        AwkFunctionLocalSlot slot,
+        AwkFunctionLocalProjection projection)
+    {
+        if (projection != AwkFunctionLocalProjection.Value ||
+            slot.Kind != AwkFunctionLocalSlotKind.MissingScalar)
+        {
+            return slot;
+        }
+
+        var promoted = AwkFunctionLocalSlot.Scalar(slot.Value);
+        frame.Slots[slotId.Index] = promoted;
+        return promoted;
     }
 
     private static bool TryGetLocalSlot(

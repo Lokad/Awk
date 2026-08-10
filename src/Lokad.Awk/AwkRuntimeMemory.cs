@@ -45,7 +45,7 @@ internal static class AwkRuntimeMemory
         FunctionFrameBytes;
 
     public static long EstimateFunctionLocalSlotBytes(AwkFunctionLocalSlot slot) =>
-        slot.Kind == AwkFunctionLocalSlotKind.Scalar
+        slot.Kind is AwkFunctionLocalSlotKind.Scalar or AwkFunctionLocalSlotKind.MissingScalar
             ? CheckedAdd(FunctionLocalEntryBytes, EstimateVariableSlotBytes(slot.Value))
             : FunctionLocalEntryBytes;
 

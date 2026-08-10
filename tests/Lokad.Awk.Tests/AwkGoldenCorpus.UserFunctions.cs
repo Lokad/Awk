@@ -19,6 +19,18 @@ internal static partial class AwkGoldenCorpus
             "11 10\n");
 
         yield return Passing(
+            "user-function-nested-scalar-parameter-retains-type",
+            ["function inner(x){print typeof(x), x} function outer(x){inner(x)} BEGIN{outer(7)}"],
+            [],
+            "number 7\n");
+
+        yield return Passing(
+            "user-function-missing-parameter-becomes-unassigned-after-read",
+            ["function inspect(x, copy){print typeof(x); copy=x; print typeof(x)} BEGIN{inspect()}"],
+            [],
+            "untyped\nunassigned\n");
+
+        yield return Passing(
             "user-function-extra-parameter-is-uninitialized-local",
             ["function probe(x, local){return (local==0) \",\" (local==\"\") \",\" (local+2)} BEGIN{print probe(1); print probe(1, \"\")}"],
             [],
