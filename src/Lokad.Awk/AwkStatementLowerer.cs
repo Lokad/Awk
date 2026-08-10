@@ -60,6 +60,14 @@ internal static class AwkStatementLowerer
 
     private static AwkDiagnostic CreateFailureDiagnostic(AwkStatementSyntax syntax)
     {
+        static string FormatFailureDiagnostic(AwkStatementSyntax syntax)
+        {
+            if (AwkStatementNames.TryGetKeyword(syntax.Kind, out var keyword))
+                return "Invalid `" + keyword + "' statement.";
+
+            return "Invalid statement.";
+        }
+
         if (syntax.Kind == AwkStatementKind.Getline)
             return AwkGetlineLowerer.CreateFailureDiagnostic(syntax);
 
@@ -87,14 +95,6 @@ internal static class AwkStatementLowerer
         }
 
         return new AwkDiagnostic(syntax.Span, FormatFailureDiagnostic(syntax), AwkDiagnosticId.BindInvalidProgram);
-    }
-
-    private static string FormatFailureDiagnostic(AwkStatementSyntax syntax)
-    {
-        if (AwkStatementNames.TryGetKeyword(syntax.Kind, out var keyword))
-            return "Invalid `" + keyword + "' statement.";
-
-        return "Invalid statement.";
     }
 
     private static bool TryLower(
@@ -134,6 +134,41 @@ internal static class AwkStatementLowerer
         AwkLoweringScope scope,
         [NotNullWhen(true)] out AwkStatement? statement)
     {
+        static bool TryLowerInputPipeGetlineStatement(
+            AwkInputPipeGetlineSyntax syntax,
+            AwkLoweringScope scope,
+            [NotNullWhen(true)] out AwkStatement? statement)
+        {
+            statement = null;
+            if (syntax.IsCoprocess)
+            {
+                statement = AwkStatement.UnsupportedCoprocess();
+                return true;
+            }
+
+            if (!AwkStatementLoweringShapes.RequiredExpression(syntax.Command).TryGetValue(out var commandSyntax) ||
+                !AwkExpressionLowerer.TryLower(commandSyntax, scope, out var command))
+            {
+                return false;
+            }
+
+            var target = AwkGetlineTarget.CurrentRecord;
+            if (!syntax.Target.IsEmpty)
+            {
+                if (!AwkStatementLoweringShapes.RequiredExpression(syntax.Target).TryGetValue(out var targetSyntax))
+                    return false;
+
+                var targetResult = AwkLValueLowerer.Lower(targetSyntax, scope);
+                if (!targetResult.Succeeded)
+                    return false;
+
+                target = AwkGetlineTarget.ReferenceTarget(targetResult.Reference);
+            }
+
+            statement = AwkStatement.Getline(target, AwkGetlineSource.InputPipe(command));
+            return true;
+        }
+
         statement = null;
         if (syntax.Payload is AwkInputPipeExpressionStatementSyntaxPayload inputPipePayload)
         {
@@ -147,41 +182,6 @@ internal static class AwkStatementLowerer
         }
 
         statement = AwkStatement.Expression(expression);
-        return true;
-    }
-
-    private static bool TryLowerInputPipeGetlineStatement(
-        AwkInputPipeGetlineSyntax syntax,
-        AwkLoweringScope scope,
-        [NotNullWhen(true)] out AwkStatement? statement)
-    {
-        statement = null;
-        if (syntax.IsCoprocess)
-        {
-            statement = AwkStatement.UnsupportedCoprocess();
-            return true;
-        }
-
-        if (!AwkStatementLoweringShapes.RequiredExpression(syntax.Command).TryGetValue(out var commandSyntax) ||
-            !AwkExpressionLowerer.TryLower(commandSyntax, scope, out var command))
-        {
-            return false;
-        }
-
-        var target = AwkGetlineTarget.CurrentRecord;
-        if (!syntax.Target.IsEmpty)
-        {
-            if (!AwkStatementLoweringShapes.RequiredExpression(syntax.Target).TryGetValue(out var targetSyntax))
-                return false;
-
-            var targetResult = AwkLValueLowerer.Lower(targetSyntax, scope);
-            if (!targetResult.Succeeded)
-                return false;
-
-            target = AwkGetlineTarget.ReferenceTarget(targetResult.Reference);
-        }
-
-        statement = AwkStatement.Getline(target, AwkGetlineSource.InputPipe(command));
         return true;
     }
 
@@ -381,6 +381,34 @@ internal static class AwkStatementLowerer
         AwkLoweringScope scope,
         [NotNullWhen(true)] out AwkStatement? statement)
     {
+        static bool TryLowerDanglingElseStatement(
+            AwkStatementSyntax syntax,
+            AwkLoweringScope scope,
+            [NotNullWhen(true)] out AwkStatement? statement)
+        {
+            statement = null;
+            if (!AwkStatementLoweringShapes.Control(syntax).TryGetValue(out var outer) ||
+                syntax.BodyStatements.Count != 1 ||
+                !AwkStatementLoweringShapes.Control(syntax.BodyStatements[0]).TryGetValue(out var inner))
+            {
+                return false;
+            }
+
+            if (syntax.BodyStatements[0].Kind != AwkStatementKind.If ||
+                syntax.BodyStatements[0].ElseStatements.Count != 0 ||
+                !TryLowerConditionSlot(outer.Header, scope, out var outerCondition) ||
+                !TryLowerConditionSlot(inner.Header, scope, out var innerCondition) ||
+                !TryLowerList(syntax.BodyStatements[0].BodyStatements, scope, out var innerBody) ||
+                !TryLowerList(syntax.ElseStatements, scope, out var nearestElseBody))
+            {
+                return false;
+            }
+
+            var innerStatement = AwkStatement.If(innerCondition, innerBody, nearestElseBody);
+            statement = AwkStatement.If(outerCondition, [innerStatement]);
+            return true;
+        }
+
         statement = null;
         if (!AwkStatementLoweringShapes.Control(syntax).TryGetValue(out var control))
             return false;
@@ -396,34 +424,6 @@ internal static class AwkStatementLowerer
         }
 
         statement = AwkStatement.If(condition, body, elseBody);
-        return true;
-    }
-
-    private static bool TryLowerDanglingElseStatement(
-        AwkStatementSyntax syntax,
-        AwkLoweringScope scope,
-        [NotNullWhen(true)] out AwkStatement? statement)
-    {
-        statement = null;
-        if (!AwkStatementLoweringShapes.Control(syntax).TryGetValue(out var outer) ||
-            syntax.BodyStatements.Count != 1 ||
-            !AwkStatementLoweringShapes.Control(syntax.BodyStatements[0]).TryGetValue(out var inner))
-        {
-            return false;
-        }
-
-        if (syntax.BodyStatements[0].Kind != AwkStatementKind.If ||
-            syntax.BodyStatements[0].ElseStatements.Count != 0 ||
-            !TryLowerConditionSlot(outer.Header, scope, out var outerCondition) ||
-            !TryLowerConditionSlot(inner.Header, scope, out var innerCondition) ||
-            !TryLowerList(syntax.BodyStatements[0].BodyStatements, scope, out var innerBody) ||
-            !TryLowerList(syntax.ElseStatements, scope, out var nearestElseBody))
-        {
-            return false;
-        }
-
-        var innerStatement = AwkStatement.If(innerCondition, innerBody, nearestElseBody);
-        statement = AwkStatement.If(outerCondition, [innerStatement]);
         return true;
     }
 
@@ -466,6 +466,67 @@ internal static class AwkStatementLowerer
         AwkLoweringScope scope,
         [NotNullWhen(true)] out AwkStatement? statement)
     {
+        static bool TryLowerForInStatement(
+            AwkForHeaderSyntax header,
+            IReadOnlyList<AwkStatement> body,
+            [NotNullWhen(true)] out AwkStatement? statement)
+        {
+            statement = null;
+            if (header.Parts.Count != 2 ||
+                !TryGetIdentifierExpression(header.Parts[0], out var loopVariable) ||
+                !TryGetIdentifierExpression(header.Parts[1], out var arrayVariable) ||
+                AwkIdentifiers.IsReservedName(loopVariable.Text) ||
+                AwkIdentifiers.IsReservedName(arrayVariable.Text))
+            {
+                return false;
+            }
+
+            statement = AwkStatement.ForIn(
+                new AwkVariableName(loopVariable),
+                new AwkArrayName(arrayVariable),
+                body);
+            return true;
+        }
+
+        static bool TryLowerClassicForStatement(
+            AwkForHeaderSyntax header,
+            AwkLoweringScope scope,
+            IReadOnlyList<AwkStatement> body,
+            [NotNullWhen(true)] out AwkStatement? statement)
+        {
+            static bool TryLowerForCondition(
+                AwkExpressionSlotSyntax slot,
+                AwkLoweringScope scope,
+                out AwkCondition condition)
+            {
+                condition = default;
+                if (slot.IsEmpty)
+                {
+                    condition = new AwkCondition(
+                        [[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+                    return true;
+                }
+
+                if (!TryLowerExpressionSlot(slot, scope, out var expression))
+                    return false;
+
+                condition = new AwkCondition([[AwkConditionClause.Truthy(expression)]]);
+                return true;
+            }
+
+            statement = null;
+            if (header.Parts.Count != 3 ||
+                !TryLowerForComponent(header.Parts[0], scope, out var initializer) ||
+                !TryLowerForCondition(header.Parts[1], scope, out var condition) ||
+                !TryLowerForComponent(header.Parts[2], scope, out var increment))
+            {
+                return false;
+            }
+
+            statement = AwkStatement.For(initializer, condition, increment, body);
+            return true;
+        }
+
         statement = null;
         if (!AwkStatementLoweringShapes.For(syntax).TryGetValue(out var forShape) ||
             !TryLowerList(forShape.BodyStatements, scope, out var body))
@@ -525,44 +586,6 @@ internal static class AwkStatementLowerer
         return true;
     }
 
-    private static bool TryLowerForInStatement(
-        AwkForHeaderSyntax header,
-        IReadOnlyList<AwkStatement> body,
-        [NotNullWhen(true)] out AwkStatement? statement)
-    {
-        statement = null;
-        if (header.Parts.Count != 2 ||
-            !TryGetIdentifierExpression(header.Parts[0], out var loopVariable) ||
-            !TryGetIdentifierExpression(header.Parts[1], out var arrayVariable) ||
-            AwkIdentifiers.IsReservedName(loopVariable.Text) ||
-            AwkIdentifiers.IsReservedName(arrayVariable.Text))
-        {
-            return false;
-        }
-
-        statement = AwkStatement.ForIn(new AwkVariableName(loopVariable), new AwkArrayName(arrayVariable), body);
-        return true;
-    }
-
-    private static bool TryLowerClassicForStatement(
-        AwkForHeaderSyntax header,
-        AwkLoweringScope scope,
-        IReadOnlyList<AwkStatement> body,
-        [NotNullWhen(true)] out AwkStatement? statement)
-    {
-        statement = null;
-        if (header.Parts.Count != 3 ||
-            !TryLowerForComponent(header.Parts[0], scope, out var initializer) ||
-            !TryLowerForCondition(header.Parts[1], scope, out var condition) ||
-            !TryLowerForComponent(header.Parts[2], scope, out var increment))
-        {
-            return false;
-        }
-
-        statement = AwkStatement.For(initializer, condition, increment, body);
-        return true;
-    }
-
     private static bool TryLowerForComponent(
         AwkExpressionSlotSyntax slot,
         AwkLoweringScope scope,
@@ -582,25 +605,6 @@ internal static class AwkStatementLowerer
         return true;
     }
 
-    private static bool TryLowerForCondition(
-        AwkExpressionSlotSyntax slot,
-        AwkLoweringScope scope,
-        out AwkCondition condition)
-    {
-        condition = default;
-        if (slot.IsEmpty)
-        {
-            condition = TrueCondition();
-            return true;
-        }
-
-        if (!TryLowerExpressionSlot(slot, scope, out var expression))
-            return false;
-
-        condition = new AwkCondition([[AwkConditionClause.Truthy(expression)]]);
-        return true;
-    }
-
     private static bool TryLowerConditionSlot(
         AwkExpressionSlotSyntax slot,
         AwkLoweringScope scope,
@@ -616,9 +620,6 @@ internal static class AwkStatementLowerer
         condition = new AwkCondition([[AwkConditionClause.Truthy(lowered)]]);
         return true;
     }
-
-    private static AwkCondition TrueCondition() =>
-        new([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
 
     private static bool TryLowerOutputRedirection(
         AwkSyntaxOptional<AwkOutputRedirectionSyntax> syntax,

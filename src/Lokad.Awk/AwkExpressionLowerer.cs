@@ -18,6 +18,97 @@ internal static partial class AwkExpressionLowerer
         AwkLoweringScope scope,
         [NotNullWhen(true)] out AwkExpression? lowered)
     {
+        static bool TryLowerVariable(
+            AwkExpressionSyntax expression,
+            AwkLoweringScope scope,
+            [NotNullWhen(true)] out AwkExpression? lowered)
+        {
+            lowered = null;
+            if (!AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var token))
+                return false;
+
+            var identifier = token.Name;
+            if (AwkSpecialVariables.IsName(identifier, AwkSpecialVariableId.RecordNumber))
+            {
+                lowered = AwkExpression.RecordNumber();
+                return true;
+            }
+
+            if (AwkSpecialVariables.IsName(identifier, AwkSpecialVariableId.FileRecordNumber))
+            {
+                lowered = AwkExpression.FileRecordNumber();
+                return true;
+            }
+
+            if (AwkSpecialVariables.IsName(identifier, AwkSpecialVariableId.FileName))
+            {
+                lowered = AwkExpression.FileName();
+                return true;
+            }
+
+            if (AwkSpecialVariables.IsName(identifier, AwkSpecialVariableId.FieldCount))
+            {
+                lowered = AwkExpression.FieldCount();
+                return true;
+            }
+
+            if (AwkBuiltins.IsName(identifier, AwkBuiltinId.Length))
+            {
+                lowered = AwkExpression.Length(AwkExpression.FieldZero(), AwkOptionalIdentifier.None);
+                return true;
+            }
+
+            if (AwkIdentifiers.IsReservedName(identifier))
+                return false;
+
+            var variableName = new AwkVariableName(token.Identifier);
+            lowered = scope.TryGetFunctionLocalSlot(variableName, out var slotId)
+                ? AwkExpression.LocalVariable(variableName, slotId)
+                : AwkExpression.Variable(variableName);
+            return true;
+        }
+
+        static bool TryLowerField(
+            AwkExpressionSyntax expression,
+            AwkLoweringScope scope,
+            [NotNullWhen(true)] out AwkExpression? lowered)
+        {
+            lowered = null;
+            if (expression.Children.Count != 1)
+                return false;
+
+            if (AwkExpressionSyntaxFacts.IsFieldCountExpression(expression.Children[0]))
+            {
+                lowered = AwkExpression.FieldNf();
+                return true;
+            }
+
+            if (!TryLower(expression.Children[0], scope, out var index))
+                return false;
+
+            lowered = AwkExpression.FieldIndex(index);
+            return true;
+        }
+
+        static bool TryLowerArrayElement(
+            AwkExpressionSyntax expression,
+            AwkLoweringScope scope,
+            [NotNullWhen(true)] out AwkExpression? lowered)
+        {
+            lowered = null;
+            if (expression.Children.Count < 2 ||
+                !AwkExpressionSyntaxFacts.TryGetArrayElementTarget(expression, out var target))
+            {
+                return false;
+            }
+
+            if (!TryLowerArrayIndex(expression.Children, scope, out var index))
+                return false;
+
+            lowered = AwkExpression.ArrayElement(new AwkArrayName(target.Identifier), index);
+            return true;
+        }
+
         lowered = null;
 
         switch (expression.Kind)
@@ -81,6 +172,35 @@ internal static partial class AwkExpressionLowerer
 
     public static AwkDiagnostic CreateFailureDiagnostic(AwkExpressionSyntax expression)
     {
+        static AwkDiagnostic CreateCallFailureDiagnostic(AwkExpressionSyntax expression)
+        {
+            if (AwkBuiltinCallShape.TryCreateKnownCallable(expression, out var call))
+            {
+                if (!AwkBuiltinCallShape.AcceptsArgumentCount(call.Definition, call.ArgumentCount))
+                {
+                    return InvalidExpression(
+                        expression,
+                        "Invalid number of arguments for " + call.Target.Name + ".");
+                }
+
+                if (AwkBuiltinCallShape.TryGetArgumentRoleFailure(call, out var failure))
+                {
+                    return InvalidExpression(
+                        failure.Argument,
+                        AwkBuiltinCallShape.FormatArgumentRoleFailure(call, failure));
+                }
+            }
+
+            if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
+                AwkBuiltins.TryGetSpecialSyntax(target.Name, out var specialSyntax) &&
+                specialSyntax.Id == AwkBuiltinId.Getline)
+            {
+                return AwkGetlineLowerer.CreateFailureDiagnostic(expression);
+            }
+
+            return InvalidExpression(expression, "Invalid function call.");
+        }
+
         if (expression.Kind == AwkExpressionKind.Group &&
             expression.FirstChild is { } groupedExpression)
         {
@@ -122,124 +242,8 @@ internal static partial class AwkExpressionLowerer
         return InvalidExpression(expression, "Invalid expression.");
     }
 
-    private static AwkDiagnostic CreateCallFailureDiagnostic(AwkExpressionSyntax expression)
-    {
-        if (AwkBuiltinCallShape.TryCreateKnownCallable(expression, out var call))
-        {
-            if (!AwkBuiltinCallShape.AcceptsArgumentCount(call.Definition, call.ArgumentCount))
-            {
-                return InvalidExpression(
-                    expression,
-                    "Invalid number of arguments for " + call.Target.Name + ".");
-            }
-
-            if (AwkBuiltinCallShape.TryGetArgumentRoleFailure(call, out var failure))
-                return InvalidExpression(failure.Argument, AwkBuiltinCallShape.FormatArgumentRoleFailure(call, failure));
-        }
-
-        if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
-            AwkBuiltins.TryGetSpecialSyntax(target.Name, out var specialSyntax) &&
-            specialSyntax.Id == AwkBuiltinId.Getline)
-        {
-            return AwkGetlineLowerer.CreateFailureDiagnostic(expression);
-        }
-
-        return InvalidExpression(expression, "Invalid function call.");
-    }
-
     private static AwkDiagnostic InvalidExpression(AwkExpressionSyntax expression, string message) =>
         new(expression.Span, message, AwkDiagnosticId.BindInvalidProgram);
-
-    private static bool TryLowerVariable(
-        AwkExpressionSyntax expression,
-        AwkLoweringScope scope,
-        [NotNullWhen(true)] out AwkExpression? lowered)
-    {
-        lowered = null;
-        if (!AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var token))
-            return false;
-
-        var identifier = token.Name;
-        if (AwkSpecialVariables.IsName(identifier, AwkSpecialVariableId.RecordNumber))
-        {
-            lowered = AwkExpression.RecordNumber();
-            return true;
-        }
-
-        if (AwkSpecialVariables.IsName(identifier, AwkSpecialVariableId.FileRecordNumber))
-        {
-            lowered = AwkExpression.FileRecordNumber();
-            return true;
-        }
-
-        if (AwkSpecialVariables.IsName(identifier, AwkSpecialVariableId.FileName))
-        {
-            lowered = AwkExpression.FileName();
-            return true;
-        }
-
-        if (AwkSpecialVariables.IsName(identifier, AwkSpecialVariableId.FieldCount))
-        {
-            lowered = AwkExpression.FieldCount();
-            return true;
-        }
-
-        if (AwkBuiltins.IsName(identifier, AwkBuiltinId.Length))
-        {
-            lowered = AwkExpression.Length(AwkExpression.FieldZero(), AwkOptionalIdentifier.None);
-            return true;
-        }
-
-        if (AwkIdentifiers.IsReservedName(identifier))
-            return false;
-
-        var variableName = new AwkVariableName(token.Identifier);
-        lowered = scope.TryGetFunctionLocalSlot(variableName, out var slotId)
-            ? AwkExpression.LocalVariable(variableName, slotId)
-            : AwkExpression.Variable(variableName);
-        return true;
-    }
-
-    private static bool TryLowerField(
-        AwkExpressionSyntax expression,
-        AwkLoweringScope scope,
-        [NotNullWhen(true)] out AwkExpression? lowered)
-    {
-        lowered = null;
-        if (expression.Children.Count != 1)
-            return false;
-
-        if (AwkExpressionSyntaxFacts.IsFieldCountExpression(expression.Children[0]))
-        {
-            lowered = AwkExpression.FieldNf();
-            return true;
-        }
-
-        if (!TryLower(expression.Children[0], scope, out var index))
-            return false;
-
-        lowered = AwkExpression.FieldIndex(index);
-        return true;
-    }
-
-    private static bool TryLowerArrayElement(
-        AwkExpressionSyntax expression,
-        AwkLoweringScope scope,
-        [NotNullWhen(true)] out AwkExpression? lowered)
-    {
-        lowered = null;
-        if (expression.Children.Count < 2 ||
-            !AwkExpressionSyntaxFacts.TryGetArrayElementTarget(expression, out var target))
-        {
-            return false;
-        }
-
-        if (!TryLowerArrayIndex(expression.Children, scope, out var index))
-            return false;
-
-        lowered = AwkExpression.ArrayElement(new AwkArrayName(target.Identifier), index);
-        return true;
-    }
 
     public static bool TryLowerArrayIndex(
         IReadOnlyList<AwkExpressionSyntax> children,

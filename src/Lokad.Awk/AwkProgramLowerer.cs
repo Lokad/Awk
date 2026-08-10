@@ -120,6 +120,9 @@ internal static partial class AwkProgramLowerer
 
     private static AwkLoweringOutcome<AwkAction> LowerRule(AwkRuleSyntax rule)
     {
+        static IReadOnlyList<AwkStatement> DefaultPrintStatements() =>
+            [AwkStatement.Print([AwkExpression.FieldZero()])];
+
         IReadOnlyList<AwkStatement> statements;
         if (rule.HasExplicitAction)
         {
@@ -167,6 +170,4 @@ internal static partial class AwkProgramLowerer
             AwkDiagnosticId.BindInvalidProgram));
     }
 
-    private static IReadOnlyList<AwkStatement> DefaultPrintStatements() =>
-        [AwkStatement.Print([AwkExpression.FieldZero()])];
 }
