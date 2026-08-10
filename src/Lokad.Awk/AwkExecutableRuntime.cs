@@ -49,6 +49,17 @@ internal sealed class AwkExecutableProgram
 
     public static AwkExecutableProgram Compile(AwkProgram program)
     {
+        static ReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction> CompileFunctions(
+            IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
+            AwkExecutableTableBuilder tables)
+        {
+            var executable = new Dictionary<AwkFunctionName, AwkExecutableFunction>();
+            foreach (var function in functions.Values)
+                executable[function.FunctionName] = AwkExecutableFunction.FromFallback(function, tables);
+
+            return new ReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction>(executable);
+        }
+
         var tables = new AwkExecutableTableBuilder();
         return new AwkExecutableProgram(
             CompileActions(program.BeginActions, tables),
@@ -71,17 +82,6 @@ internal sealed class AwkExecutableProgram
         }
 
         return executable;
-    }
-
-    private static ReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction> CompileFunctions(
-        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
-        AwkExecutableTableBuilder tables)
-    {
-        var executable = new Dictionary<AwkFunctionName, AwkExecutableFunction>();
-        foreach (var function in functions.Values)
-            executable[function.FunctionName] = AwkExecutableFunction.FromFallback(function, tables);
-
-        return new ReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction>(executable);
     }
 
     private static bool AreFallbackOnly(AwkExecutableAction[] actions)

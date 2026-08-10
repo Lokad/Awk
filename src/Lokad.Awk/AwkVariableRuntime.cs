@@ -105,25 +105,6 @@ internal sealed class AwkVariableRuntime(
         return ResolveVariableValue(name);
     }
 
-    public string ResolveVariable(AwkVariableName name, string fallback)
-    {
-        if (functions.TryResolveLocalText(name, out var local))
-        {
-            if (local.Kind == AwkFunctionLocalSlotKind.Scalar)
-                return local.Text;
-
-            if (local.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
-                return string.Empty;
-
-            ThrowIfArrayAsScalar(name.Text, AwkVariableNameResolution.LocalArrayAlias(local.ArrayName));
-        }
-
-        var resolved = ResolveName(name);
-        ThrowIfArrayAsScalar(name.Text, resolved);
-
-        return variables.GetOrCreateScalarString(name, fallback);
-    }
-
     public void AssignVariable(AwkIdentifier identifier, string value) =>
         AssignVariable(new AwkVariableName(identifier), value);
 

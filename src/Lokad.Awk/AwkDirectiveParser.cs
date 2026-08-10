@@ -67,6 +67,22 @@ internal static class AwkDirectiveParser
         int atIndex,
         out AwkParsedDirective directive)
     {
+        static List<AwkToken> ReadDirectiveArguments(
+            IReadOnlyList<AwkToken> tokens,
+            int startIndex)
+        {
+            var arguments = new List<AwkToken>();
+            for (var index = startIndex; index < tokens.Count; index++)
+            {
+                if (tokens[index].Kind is AwkTokenKind.EndOfFile or AwkTokenKind.NewLine or AwkTokenKind.Semicolon)
+                    break;
+
+                arguments.Add(tokens[index]);
+            }
+
+            return arguments;
+        }
+
         var atToken = tokens[atIndex];
         var nameIndex = FindNextSignificantIndex(tokens, atIndex + 1);
         if (nameIndex < 0 ||
@@ -92,22 +108,6 @@ internal static class AwkDirectiveParser
             arguments,
             new AwkTextSpan(atToken.Span.Start, endToken.Span.End - atToken.Span.Start));
         return true;
-    }
-
-    private static List<AwkToken> ReadDirectiveArguments(
-        IReadOnlyList<AwkToken> tokens,
-        int startIndex)
-    {
-        var arguments = new List<AwkToken>();
-        for (var index = startIndex; index < tokens.Count; index++)
-        {
-            if (tokens[index].Kind is AwkTokenKind.EndOfFile or AwkTokenKind.NewLine or AwkTokenKind.Semicolon)
-                break;
-
-            arguments.Add(tokens[index]);
-        }
-
-        return arguments;
     }
 
     private static bool IsDirectivePosition(IReadOnlyList<AwkToken> tokens, int index)

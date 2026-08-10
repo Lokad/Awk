@@ -483,11 +483,6 @@ internal sealed class AwkRuntimeState
         AwkVariableName name) =>
         _variableRuntime.ResolveFunctionLocalValue(slotId, name);
 
-    public string ResolveVariable(AwkVariableName name, string fallback) =>
-        _variableRuntime.HasScalar(name)
-            ? FormatString(ResolveVariableValue(name))
-            : fallback;
-
     private AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable) =>
         new(ResolveSpecialVariableText(AwkFormattingVariableFacts.SpecialVariableId(variable)));
 

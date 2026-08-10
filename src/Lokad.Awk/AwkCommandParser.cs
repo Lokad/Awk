@@ -200,7 +200,7 @@ internal static class AwkCommandParser
             return ApplyOption(spec, valueResult.Value, spelling);
         }
 
-        private AwkOptionValueResult ReadLongOptionValue(
+        private static AwkOptionValueResult ReadLongOptionValue(
             CommandLineOptionParser parser,
             CommandLineOptionItem.LongOption item,
             AwkOptionSpec spec,
@@ -345,7 +345,7 @@ internal static class AwkCommandParser
             return ApplyOption(spec, valueResult.Value, spelling);
         }
 
-        private AwkOptionValueResult ReadWOptionValue(
+        private static AwkOptionValueResult ReadWOptionValue(
             CommandLineOptionParser parser,
             AwkOptionSpec spec,
             CommandLineOptionValue inlineValue,
@@ -361,7 +361,7 @@ internal static class AwkCommandParser
                     out requiredValue));
         }
 
-        private AwkOptionValueResult ReadNamedOptionValue(
+        private static AwkOptionValueResult ReadNamedOptionValue(
             AwkOptionSpec spec,
             CommandLineOptionValue inlineValue,
             string optionName,

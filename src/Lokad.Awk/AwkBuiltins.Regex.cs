@@ -5,6 +5,48 @@ internal static partial class AwkBuiltins
 {
     private static AwkValue EvaluateGensub(AwkBuiltinContext context)
     {
+        static AwkText ApplyGensub(
+            AwkBuiltinContext context,
+            AwkRegex regex,
+            AwkText replacement,
+            AwkValue how,
+            string selector,
+            AwkText input)
+        {
+            if (selector.StartsWith("g", StringComparison.OrdinalIgnoreCase))
+            {
+                return AwkRegexSubstitution.ReplaceAll(
+                    context.State,
+                    regex,
+                    input,
+                    replacement,
+                    AwkReplacementMode.Gensub,
+                    maxReplacements: 0,
+                    out _);
+            }
+
+            var selectorNumber = how.AsNumber();
+            if (selectorNumber <= 0 &&
+                context.TryGetExecutionContext(out var execution))
+            {
+                execution.Output.ReportDiagnostic(new AwkDiagnostic(
+                    new AwkTextSpan(0, 0),
+                    AwkMessages.FormatGensubThirdArgumentWarningText(selector),
+                    AwkDiagnosticId.WarningRuntime));
+            }
+
+            var occurrence = Math.Max(1, (int)selectorNumber);
+
+            return AwkRegexSubstitution.ReplaceOccurrence(
+                context.State,
+                regex,
+                input,
+                replacement,
+                AwkReplacementMode.Gensub,
+                occurrence,
+                out _);
+        }
+
         if (context.ArgumentCount is < 3 or > 4)
             return AwkValue.FromText(string.Empty);
 
@@ -20,47 +62,5 @@ internal static partial class AwkBuiltins
             how,
             selector,
             input));
-    }
-
-    private static AwkText ApplyGensub(
-        AwkBuiltinContext context,
-        AwkRegex regex,
-        AwkText replacement,
-        AwkValue how,
-        string selector,
-        AwkText input)
-    {
-        if (selector.StartsWith("g", StringComparison.OrdinalIgnoreCase))
-        {
-            return AwkRegexSubstitution.ReplaceAll(
-                context.State,
-                regex,
-                input,
-                replacement,
-                AwkReplacementMode.Gensub,
-                maxReplacements: 0,
-                out _);
-        }
-
-        var selectorNumber = how.AsNumber();
-        if (selectorNumber <= 0 &&
-            context.TryGetExecutionContext(out var execution))
-        {
-            execution.Output.ReportDiagnostic(new AwkDiagnostic(
-                new AwkTextSpan(0, 0),
-                AwkMessages.FormatGensubThirdArgumentWarningText(selector),
-                AwkDiagnosticId.WarningRuntime));
-        }
-
-        var occurrence = Math.Max(1, (int)selectorNumber);
-
-        return AwkRegexSubstitution.ReplaceOccurrence(
-            context.State,
-            regex,
-            input,
-            replacement,
-            AwkReplacementMode.Gensub,
-            occurrence,
-            out _);
     }
 }

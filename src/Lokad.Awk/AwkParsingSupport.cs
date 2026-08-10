@@ -11,6 +11,23 @@ internal static class AwkParsingSupport
 {
     public static LexerResult<AwkTokenKind> ToLexerResult(string source, IReadOnlyList<AwkToken> tokens)
     {
+        static List<int> FindNewLines(string source)
+        {
+            var newLines = new List<int>();
+            var position = 0;
+            while (position < source.Length)
+            {
+                var newline = source.IndexOf('\n', position);
+                if (newline < 0)
+                    break;
+
+                newLines.Add(newline);
+                position = newline + 1;
+            }
+
+            return newLines;
+        }
+
         var lexerTokens = new LexerToken<AwkTokenKind>[tokens.Count];
         var hasInvalidTokens = false;
         for (var index = 0; index < tokens.Count; index++)
@@ -248,23 +265,6 @@ internal static class AwkParsingSupport
 
     private static bool TextEquals(ReadOnlySpan<char> text, string value) =>
         text.SequenceEqual(value.AsSpan());
-
-    private static List<int> FindNewLines(string source)
-    {
-        var newLines = new List<int>();
-        var position = 0;
-        while (position < source.Length)
-        {
-            var newline = source.IndexOf('\n', position);
-            if (newline < 0)
-                break;
-
-            newLines.Add(newline);
-            position = newline + 1;
-        }
-
-        return newLines;
-    }
 
     private static bool IsIdentifierText(ReadOnlySpan<char> text)
     {

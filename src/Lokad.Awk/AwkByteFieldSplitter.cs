@@ -225,7 +225,7 @@ internal sealed class AwkByteFieldSplitter(
         return new AwkTextSplitResult(fields, separators);
     }
 
-    private AwkFieldText[] SplitSingleByteLiteralRecordFields(AwkText line, byte separator)
+    private static AwkFieldText[] SplitSingleByteLiteralRecordFields(AwkText line, byte separator)
     {
         var content = line.AsSpan();
         var fieldCount = CountSingleByteFields(content, separator);

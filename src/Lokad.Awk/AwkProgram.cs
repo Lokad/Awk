@@ -51,6 +51,16 @@ internal readonly struct AwkProgram
         IReadOnlyList<AwkAction> endFileActions,
         IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
     {
+        static ReadOnlyDictionary<AwkFunctionName, AwkUserFunction> CopyFunctions(
+            IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
+        {
+            var copy = new Dictionary<AwkFunctionName, AwkUserFunction>();
+            foreach (var function in functions.Values)
+                copy[function.FunctionName] = function;
+
+            return new ReadOnlyDictionary<AwkFunctionName, AwkUserFunction>(copy);
+        }
+
         BeginActions = AwkCollectionSnapshots.Copy(beginActions);
         MainActions = AwkCollectionSnapshots.Copy(mainActions);
         EndActions = AwkCollectionSnapshots.Copy(endActions);
@@ -71,15 +81,4 @@ internal readonly struct AwkProgram
 
     public IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> Functions { get; }
 
-    private static ReadOnlyDictionary<AwkFunctionName, AwkUserFunction> CopyFunctions(
-        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
-    {
-        var copy = new Dictionary<AwkFunctionName, AwkUserFunction>();
-        foreach (var function in functions.Values)
-        {
-            copy[function.FunctionName] = function;
-        }
-
-        return new ReadOnlyDictionary<AwkFunctionName, AwkUserFunction>(copy);
-    }
 }

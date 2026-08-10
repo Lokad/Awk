@@ -47,7 +47,76 @@ internal sealed class AwkExpressionSyntax(
 
     public AwkExpressionKind Kind { get; } = kind;
 
-    public IReadOnlyList<AwkToken> Tokens => _tokens ??= BuildTokens();
+    public IReadOnlyList<AwkToken> Tokens
+    {
+        get
+        {
+            static int CopyTo(IReadOnlyList<AwkToken> source, AwkToken[] destination, int offset)
+            {
+                for (var index = 0; index < source.Count; index++)
+                    destination[offset++] = source[index];
+
+                return offset;
+            }
+
+            static AwkToken[] BuildTokens(AwkExpressionSyntax root)
+            {
+                var nodes = new Stack<AwkExpressionSyntax>();
+                nodes.Push(root);
+                var count = 0;
+                while (nodes.Count > 0)
+                {
+                    var node = nodes.Pop();
+                    if (node._tokens is { } materializedTokens)
+                    {
+                        count = checked(count + materializedTokens.Count);
+                        continue;
+                    }
+
+                    count = checked(
+                        count +
+                        node.OperatorTokens.Count +
+                        node.DelimiterTokens.Count +
+                        node.SeparatorTokens.Count);
+                    for (var index = 0; index < node.Children.Count; index++)
+                        nodes.Push(node.Children[index]);
+                }
+
+                if (count == 0)
+                    return [];
+
+                var result = new AwkToken[count];
+                var offset = 0;
+                nodes.Push(root);
+                while (nodes.Count > 0)
+                {
+                    var node = nodes.Pop();
+                    if (node._tokens is { } materializedTokens)
+                    {
+                        offset = CopyTo(materializedTokens, result, offset);
+                        continue;
+                    }
+
+                    offset = CopyTo(node.OperatorTokens, result, offset);
+                    offset = CopyTo(node.DelimiterTokens, result, offset);
+                    offset = CopyTo(node.SeparatorTokens, result, offset);
+                    for (var index = 0; index < node.Children.Count; index++)
+                        nodes.Push(node.Children[index]);
+                }
+
+                System.Array.Sort(
+                    result,
+                    static (left, right) =>
+                    {
+                        var start = left.Span.Start.CompareTo(right.Span.Start);
+                        return start != 0 ? start : left.Span.Length.CompareTo(right.Span.Length);
+                    });
+                return result;
+            }
+
+            return _tokens ??= BuildTokens(this);
+        }
+    }
 
     public IReadOnlyList<AwkToken> OperatorTokens { get; } = operatorTokens;
 
@@ -72,66 +141,4 @@ internal sealed class AwkExpressionSyntax(
             ? FirstChild
             : null;
 
-    private AwkToken[] BuildTokens()
-    {
-        var nodes = new Stack<AwkExpressionSyntax>();
-        nodes.Push(this);
-        var count = 0;
-        while (nodes.Count > 0)
-        {
-            var node = nodes.Pop();
-            if (node._tokens is { } materializedTokens)
-            {
-                count = checked(count + materializedTokens.Count);
-                continue;
-            }
-
-            count = checked(
-                count +
-                node.OperatorTokens.Count +
-                node.DelimiterTokens.Count +
-                node.SeparatorTokens.Count);
-            for (var index = 0; index < node.Children.Count; index++)
-                nodes.Push(node.Children[index]);
-        }
-
-        if (count == 0)
-            return [];
-
-        var result = new AwkToken[count];
-        var offset = 0;
-        nodes.Push(this);
-        while (nodes.Count > 0)
-        {
-            var node = nodes.Pop();
-            if (node._tokens is { } materializedTokens)
-            {
-                offset = CopyTo(materializedTokens, result, offset);
-                continue;
-            }
-
-            offset = CopyTo(node.OperatorTokens, result, offset);
-            offset = CopyTo(node.DelimiterTokens, result, offset);
-            offset = CopyTo(node.SeparatorTokens, result, offset);
-            for (var index = 0; index < node.Children.Count; index++)
-                nodes.Push(node.Children[index]);
-        }
-
-        System.Array.Sort(
-            result,
-            static (left, right) =>
-            {
-                var start = left.Span.Start.CompareTo(right.Span.Start);
-                return start != 0 ? start : left.Span.Length.CompareTo(right.Span.Length);
-            });
-        return result;
-    }
-
-    private static int CopyTo(IReadOnlyList<AwkToken> source, AwkToken[] destination, int offset)
-    {
-        for (var index = 0; index < source.Count; index++)
-            destination[offset++] = source[index];
-
-        return offset;
-    }
 }

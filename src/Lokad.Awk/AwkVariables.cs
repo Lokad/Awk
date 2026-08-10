@@ -138,15 +138,6 @@ internal sealed class AwkVariables
         return string.Empty;
     }
 
-    public string GetOrCreateScalarString(AwkVariableName name, string fallback)
-    {
-        if (TryGetScalarState(name, out var state))
-            return state.Slot.StringValue;
-
-        SetScalarSlot(name, AwkVariableSlot.FromText(fallback));
-        return fallback;
-    }
-
     public AwkValue GetOrCreateScalarValue(AwkVariableName name)
     {
         if (TryGetScalarState(name, out var state))
@@ -175,26 +166,6 @@ internal sealed class AwkVariables
     public void SetArrayExternalStringValues(AwkArrayName name, IReadOnlyDictionary<AwkArrayKey, string> values)
     {
         ReplaceArraySlots(name, CreateArraySlots(values, AwkVariableSlot.FromExternalText));
-    }
-
-    public string GetArrayString(AwkArrayName name, AwkArrayKey index) =>
-        GetArrayByteText(name, index).AsString(_counters);
-
-    public AwkText GetArrayByteText(AwkArrayName name, AwkArrayKey index)
-    {
-        if (_symbolTable.IsName(name.Text))
-            return _symbolTable.GetValue(index.StringValue).ByteText;
-
-        var values = GetOrCreateArraySlots(name);
-        if (values.TryGetValue(index, out var slot))
-            return slot.ByteText;
-
-        if (AwkSpecialArrayPolicy.IsElementReadOnly(name.Text))
-            return AwkText.Empty;
-
-        ThrowIfArrayWouldGrowPastLimit(values, index);
-        SetArraySlot(values, index, new AwkVariableSlot(string.Empty, AwkVariableSlotKind.Unassigned));
-        return AwkText.Empty;
     }
 
     public AwkValue GetArrayValue(AwkArrayName name, AwkArrayKey index)
@@ -431,24 +402,6 @@ internal sealed class AwkVariables
         var writeIndex = 0;
         foreach (var key in slots.Keys)
             destination[writeIndex++] = key;
-    }
-
-    public bool TryGetArrayByteText(AwkArrayName name, AwkArrayKey index, out AwkText value)
-    {
-        if (!_arrays.TryGetSlots(name, out var values))
-        {
-            value = AwkText.Empty;
-            return false;
-        }
-
-        if (!values.TryGetValue(index, out var slot))
-        {
-            value = AwkText.Empty;
-            return false;
-        }
-
-        value = slot.ByteText;
-        return true;
     }
 
     private AwkValue CreateValue(AwkVariableSlot slot) =>
