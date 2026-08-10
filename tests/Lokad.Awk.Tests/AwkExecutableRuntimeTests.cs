@@ -28,7 +28,11 @@ public sealed class AwkExecutableRuntimeTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => AwkInstruction.WithoutOperand(AwkOpcode.LoadConstant));
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => AwkInstruction.Counted(AwkOpcode.Jump, new AwkStackValueCount(1)));
+            () => AwkInstruction.FormatString(new AwkStackValueCount(-1)));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => AwkInstruction.StoreScalar(
+                new AwkScalarIndex(0),
+                (AwkStoredValueRetention)int.MaxValue));
         Assert.Throws<InvalidOperationException>(
             () => AwkInstruction.WithoutOperand(AwkOpcode.NoOp)
                 .WithJumpTarget(new AwkInstructionOffset(1)));

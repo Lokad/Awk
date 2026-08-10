@@ -50,7 +50,7 @@ internal abstract partial class AwkStatement
             for (var index = 0; index < expressions.Length; index++)
                 compiler.EmitExpressionOrFallback(expressions[index]);
 
-            compiler.EmitCounted(AwkOpcode.Print, expressions.Length);
+            compiler.EmitPrint(expressions.Length);
             compiler.Pop(expressions.Length);
             return true;
         }

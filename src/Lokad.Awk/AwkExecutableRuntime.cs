@@ -346,7 +346,7 @@ internal static class AwkExecutableDispatcher
                             {
                                 var value = stack[--stackCount];
                                 bindings.StoreScalar(instruction.ScalarIndex, state, value);
-                                if (instruction.RetainsStoredValue)
+                                if (instruction.StoredValueRetention == AwkStoredValueRetention.Retain)
                                     stack[stackCount++] = value;
 
                                 pc++;
@@ -361,7 +361,7 @@ internal static class AwkExecutableDispatcher
                                     tables.ArrayNames[instruction.ArrayNameIndex.Value],
                                     key,
                                     value);
-                                if (instruction.RetainsStoredValue)
+                                if (instruction.StoredValueRetention == AwkStoredValueRetention.Retain)
                                     stack[stackCount++] = value;
 
                                 pc++;
@@ -500,7 +500,7 @@ internal static class AwkExecutableDispatcher
                         case AwkOpcode.Exit:
                             {
                                 var exitCode = AwkOptionalExitCode.None;
-                                if (instruction.HasValue)
+                                if (instruction.ExitStatusPresence == AwkExitStatusPresence.Specified)
                                     exitCode = AwkOptionalExitCode.Specified(new AwkExitCode(
                                         (int)Math.Truncate(stack[--stackCount].AsNumber())));
 
@@ -948,6 +948,18 @@ internal readonly record struct AwkInstructionOffset(int Value);
 
 internal readonly record struct AwkStackValueCount(int Value);
 
+internal enum AwkStoredValueRetention
+{
+    Discard,
+    Retain
+}
+
+internal enum AwkExitStatusPresence
+{
+    None,
+    Specified
+}
+
 internal readonly record struct AwkInstruction
 {
     private readonly int _encodedValue;
@@ -980,9 +992,11 @@ internal readonly record struct AwkInstruction
 
     public AwkComparison Comparison => (AwkComparison)_encodedValue;
 
-    public bool RetainsStoredValue => _encodedFlag;
+    public AwkStoredValueRetention StoredValueRetention =>
+        _encodedFlag ? AwkStoredValueRetention.Retain : AwkStoredValueRetention.Discard;
 
-    public bool HasValue => _encodedFlag;
+    public AwkExitStatusPresence ExitStatusPresence =>
+        _encodedFlag ? AwkExitStatusPresence.Specified : AwkExitStatusPresence.None;
 
     public static AwkInstruction WithoutOperand(AwkOpcode opcode)
     {
@@ -1022,59 +1036,49 @@ internal readonly record struct AwkInstruction
     public static AwkInstruction LoadField(AwkFieldIndex index) =>
         new(AwkOpcode.LoadField, index.Value, false);
 
-    public static AwkInstruction Scalar(AwkOpcode opcode, AwkScalarIndex index, bool retainStoredValue)
-    {
-        if (opcode is not (AwkOpcode.LoadScalar or AwkOpcode.StoreScalar))
-            throw new ArgumentOutOfRangeException(nameof(opcode));
-        if (retainStoredValue && opcode != AwkOpcode.StoreScalar)
-            throw new ArgumentException("Only scalar stores can retain their value.", nameof(retainStoredValue));
+    public static AwkInstruction LoadScalar(AwkScalarIndex index) =>
+        new(AwkOpcode.LoadScalar, index.Value, false);
 
-        return new AwkInstruction(opcode, index.Value, retainStoredValue);
-    }
+    public static AwkInstruction StoreScalar(AwkScalarIndex index, AwkStoredValueRetention retention) =>
+        new(AwkOpcode.StoreScalar, index.Value, EncodeRetention(retention));
 
-    public static AwkInstruction Array(AwkOpcode opcode, AwkArrayNameIndex index, bool retainStoredValue)
-    {
-        if (opcode is not (
-            AwkOpcode.LoadArrayElement or
-            AwkOpcode.StoreArrayElement or
-            AwkOpcode.DeleteArrayElement or
-            AwkOpcode.ArrayContains))
-        {
-            throw new ArgumentOutOfRangeException(nameof(opcode));
-        }
-        if (retainStoredValue && opcode != AwkOpcode.StoreArrayElement)
-            throw new ArgumentException("Only array stores can retain their value.", nameof(retainStoredValue));
+    public static AwkInstruction LoadArrayElement(AwkArrayNameIndex index) =>
+        new(AwkOpcode.LoadArrayElement, index.Value, false);
 
-        return new AwkInstruction(opcode, index.Value, retainStoredValue);
-    }
+    public static AwkInstruction StoreArrayElement(AwkArrayNameIndex index, AwkStoredValueRetention retention) =>
+        new(AwkOpcode.StoreArrayElement, index.Value, EncodeRetention(retention));
 
-    public static AwkInstruction Counted(AwkOpcode opcode, AwkStackValueCount valueCount)
-    {
-        if (opcode is not (AwkOpcode.FormatString or AwkOpcode.Concat or AwkOpcode.Print))
-            throw new ArgumentOutOfRangeException(nameof(opcode));
-        ArgumentOutOfRangeException.ThrowIfNegative(valueCount.Value);
+    public static AwkInstruction DeleteArrayElement(AwkArrayNameIndex index) =>
+        new(AwkOpcode.DeleteArrayElement, index.Value, false);
 
-        return new AwkInstruction(opcode, valueCount.Value, false);
-    }
+    public static AwkInstruction ArrayContains(AwkArrayNameIndex index) =>
+        new(AwkOpcode.ArrayContains, index.Value, false);
+
+    public static AwkInstruction FormatString(AwkStackValueCount valueCount) =>
+        Counted(AwkOpcode.FormatString, valueCount);
+
+    public static AwkInstruction Concat(AwkStackValueCount valueCount) =>
+        Counted(AwkOpcode.Concat, valueCount);
+
+    public static AwkInstruction Print(AwkStackValueCount valueCount) =>
+        Counted(AwkOpcode.Print, valueCount);
 
     public static AwkInstruction Compare(AwkComparison comparison) =>
         new(AwkOpcode.Compare, (int)comparison, false);
 
-    public static AwkInstruction Jump(AwkOpcode opcode, AwkInstructionOffset target)
-    {
-        if (opcode is not (AwkOpcode.Jump or AwkOpcode.JumpIfFalse))
-            throw new ArgumentOutOfRangeException(nameof(opcode));
+    public static AwkInstruction Jump(AwkInstructionOffset target) =>
+        new(AwkOpcode.Jump, target.Value, false);
 
-        return new AwkInstruction(opcode, target.Value, false);
-    }
+    public static AwkInstruction JumpIfFalse(AwkInstructionOffset target) =>
+        new(AwkOpcode.JumpIfFalse, target.Value, false);
 
-    public static AwkInstruction OptionalValue(AwkOpcode opcode, bool hasValue)
-    {
-        if (opcode != AwkOpcode.Exit)
-            throw new ArgumentOutOfRangeException(nameof(opcode));
-
-        return new AwkInstruction(opcode, 0, hasValue);
-    }
+    public static AwkInstruction Exit(AwkExitStatusPresence statusPresence) =>
+        new(AwkOpcode.Exit, 0, statusPresence switch
+        {
+            AwkExitStatusPresence.None => false,
+            AwkExitStatusPresence.Specified => true,
+            _ => throw new ArgumentOutOfRangeException(nameof(statusPresence))
+        });
 
     public static AwkInstruction FallbackStatement(AwkFallbackStatementIndex index) =>
         new(AwkOpcode.FallbackStatement, index.Value, false);
@@ -1086,6 +1090,20 @@ internal readonly record struct AwkInstruction
         Opcode is AwkOpcode.Jump or AwkOpcode.JumpIfFalse
             ? new AwkInstruction(Opcode, target.Value, _encodedFlag)
             : throw new InvalidOperationException("Only jump instructions have patchable targets.");
+
+    private static AwkInstruction Counted(AwkOpcode opcode, AwkStackValueCount valueCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(valueCount.Value);
+        return new AwkInstruction(opcode, valueCount.Value, false);
+    }
+
+    private static bool EncodeRetention(AwkStoredValueRetention retention) =>
+        retention switch
+        {
+            AwkStoredValueRetention.Discard => false,
+            AwkStoredValueRetention.Retain => true,
+            _ => throw new ArgumentOutOfRangeException(nameof(retention))
+        };
 }
 
 internal enum AwkOpcode

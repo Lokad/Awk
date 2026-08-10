@@ -53,27 +53,42 @@ internal sealed class AwkExecutableCompiler
     public int EmitLoadField(AwkFieldIndex index) => Add(AwkInstruction.LoadField(index));
 
     public int EmitLoadScalar(AwkVariableName name) =>
-        Add(AwkInstruction.Scalar(AwkOpcode.LoadScalar, Tables.InternName(name), retainStoredValue: false));
+        Add(AwkInstruction.LoadScalar(Tables.InternName(name)));
 
-    public int EmitArrayOperation(AwkOpcode opcode, AwkArrayName name) =>
-        Add(AwkInstruction.Array(opcode, Tables.InternArrayName(name), retainStoredValue: false));
+    public int EmitLoadArrayElement(AwkArrayName name) =>
+        Add(AwkInstruction.LoadArrayElement(Tables.InternArrayName(name)));
 
-    public int EmitStoreScalar(AwkVariableName name, bool retainStoredValue) =>
-        Add(AwkInstruction.Scalar(AwkOpcode.StoreScalar, Tables.InternName(name), retainStoredValue));
+    public int EmitStoreScalar(AwkVariableName name, AwkStoredValueRetention retention) =>
+        Add(AwkInstruction.StoreScalar(Tables.InternName(name), retention));
 
-    public int EmitStoreArrayElement(AwkArrayName name, bool retainStoredValue) =>
-        Add(AwkInstruction.Array(AwkOpcode.StoreArrayElement, Tables.InternArrayName(name), retainStoredValue));
+    public int EmitStoreArrayElement(AwkArrayName name, AwkStoredValueRetention retention) =>
+        Add(AwkInstruction.StoreArrayElement(Tables.InternArrayName(name), retention));
 
-    public int EmitCounted(AwkOpcode opcode, int valueCount) =>
-        Add(AwkInstruction.Counted(opcode, new AwkStackValueCount(valueCount)));
+    public int EmitDeleteArrayElement(AwkArrayName name) =>
+        Add(AwkInstruction.DeleteArrayElement(Tables.InternArrayName(name)));
+
+    public int EmitArrayContains(AwkArrayName name) =>
+        Add(AwkInstruction.ArrayContains(Tables.InternArrayName(name)));
+
+    public int EmitFormatString(int valueCount) =>
+        Add(AwkInstruction.FormatString(new AwkStackValueCount(valueCount)));
+
+    public int EmitConcat(int valueCount) =>
+        Add(AwkInstruction.Concat(new AwkStackValueCount(valueCount)));
+
+    public int EmitPrint(int valueCount) =>
+        Add(AwkInstruction.Print(new AwkStackValueCount(valueCount)));
 
     public int EmitComparison(AwkComparison comparison) => Add(AwkInstruction.Compare(comparison));
 
-    public int EmitJump(AwkOpcode opcode) =>
-        Add(AwkInstruction.Jump(opcode, new AwkInstructionOffset(0)));
+    public int EmitJump() =>
+        Add(AwkInstruction.Jump(new AwkInstructionOffset(0)));
 
-    public int EmitOptionalValue(AwkOpcode opcode, bool hasValue) =>
-        Add(AwkInstruction.OptionalValue(opcode, hasValue));
+    public int EmitJumpIfFalse() =>
+        Add(AwkInstruction.JumpIfFalse(new AwkInstructionOffset(0)));
+
+    public int EmitExit(AwkExitStatusPresence statusPresence) =>
+        Add(AwkInstruction.Exit(statusPresence));
 
     public void PatchJumpTarget(int instructionIndex, int target)
     {

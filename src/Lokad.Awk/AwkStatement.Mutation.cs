@@ -21,7 +21,7 @@ internal abstract partial class AwkStatement
             if (!indexExpression.TryEmitExecutableKey(compiler))
                 return false;
 
-            compiler.EmitArrayOperation(AwkOpcode.DeleteArrayElement, arrayName);
+            compiler.EmitDeleteArrayElement(arrayName);
             compiler.Pop();
             return true;
         }

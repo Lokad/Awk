@@ -17,21 +17,21 @@ internal abstract partial class AwkExpression
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler) =>
-            TryEmitStoreScalar(compiler, keepValue: true);
+            TryEmitStore(compiler, AwkStoredValueRetention.Retain);
 
         internal override bool TryEmitExecutableStatement(AwkExecutableCompiler compiler) =>
-            TryEmitStoreScalar(compiler, keepValue: false);
+            TryEmitStore(compiler, AwkStoredValueRetention.Discard);
 
-        private bool TryEmitStoreScalar(AwkExecutableCompiler compiler, bool keepValue)
+        private bool TryEmitStore(AwkExecutableCompiler compiler, AwkStoredValueRetention retention)
         {
             if (target.TryGetScalarName(out var variable))
             {
                 if (!compiler.TryEmitExpression(valueExpression))
                     return false;
 
-                compiler.EmitStoreScalar(variable, keepValue);
+                compiler.EmitStoreScalar(variable, retention);
                 compiler.Pop();
-                if (keepValue)
+                if (retention == AwkStoredValueRetention.Retain)
                     compiler.Push();
 
                 return true;
@@ -44,9 +44,9 @@ internal abstract partial class AwkExpression
                 return false;
             }
 
-            compiler.EmitStoreArrayElement(array, keepValue);
+            compiler.EmitStoreArrayElement(array, retention);
             compiler.Pop(2);
-            if (keepValue)
+            if (retention == AwkStoredValueRetention.Retain)
                 compiler.Push();
 
             return true;

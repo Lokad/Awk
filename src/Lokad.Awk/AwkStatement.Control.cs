@@ -25,7 +25,7 @@ internal abstract partial class AwkStatement
             if (!condition.TryEmitExecutable(compiler))
                 return false;
 
-            var jumpIfFalseIndex = compiler.EmitJump(AwkOpcode.JumpIfFalse);
+            var jumpIfFalseIndex = compiler.EmitJumpIfFalse();
             compiler.Pop();
             for (var index = 0; index < body.Length; index++)
             {
@@ -39,7 +39,7 @@ internal abstract partial class AwkStatement
                 return true;
             }
 
-            var jumpOverElseIndex = compiler.EmitJump(AwkOpcode.Jump);
+            var jumpOverElseIndex = compiler.EmitJump();
             compiler.PatchJumpTarget(jumpIfFalseIndex, compiler.CurrentOffset);
             for (var index = 0; index < elseBody.Length; index++)
             {
@@ -315,7 +315,9 @@ internal abstract partial class AwkStatement
             if (statusExpression.HasValue && !compiler.TryEmitExpression(statusExpression.Value))
                 return false;
 
-            compiler.EmitOptionalValue(AwkOpcode.Exit, statusExpression.HasValue);
+            compiler.EmitExit(statusExpression.HasValue
+                ? AwkExitStatusPresence.Specified
+                : AwkExitStatusPresence.None);
             if (statusExpression.HasValue)
                 compiler.Pop();
 

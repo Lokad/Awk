@@ -215,7 +215,7 @@ internal abstract partial class AwkExpression
             if (!indexExpression.TryEmitExecutableKey(compiler))
                 return false;
 
-            compiler.EmitArrayOperation(AwkOpcode.LoadArrayElement, name);
+            compiler.EmitLoadArrayElement(name);
             return true;
         }
     }
