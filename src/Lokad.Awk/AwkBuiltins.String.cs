@@ -47,47 +47,40 @@ internal static partial class AwkBuiltins
         return context.State.CreateByteTextValue(context.State.SubstringByStringUnits(source, zeroBasedStart, boundedLength));
     }
 
-    private static AwkValue EvaluateToLower(AwkBuiltinContext context)
+    private static AwkValue EvaluateToLower(AwkBuiltinContext context) =>
+        EvaluateCaseConversion(context, AwkCaseConversion.Lower);
+
+    private static AwkValue EvaluateToUpper(AwkBuiltinContext context) =>
+        EvaluateCaseConversion(context, AwkCaseConversion.Upper);
+
+    private static AwkValue EvaluateCaseConversion(
+        AwkBuiltinContext context,
+        AwkCaseConversion conversion)
     {
         if (context.ArgumentCount != 1)
             return AwkValue.FromText(string.Empty);
 
+        var source = context.GetByteText(0);
         if (TryConvertAsciiCase(
-            context.GetByteText(0),
-            toUpper: false,
+            source,
+            conversion,
             context.State.Counters,
             context.State.MemoryGovernor,
-            out var asciiLower))
+            out var asciiResult))
         {
-            return context.State.CreateByteTextValue(asciiLower);
+            return context.State.CreateByteTextValue(asciiResult);
         }
 
         context.State.Counters.RecordStringInteropFallback();
-        return context.State.CreateStringValue(context.GetString(0).ToLowerInvariant());
-    }
-
-    private static AwkValue EvaluateToUpper(AwkBuiltinContext context)
-    {
-        if (context.ArgumentCount != 1)
-            return AwkValue.FromText(string.Empty);
-
-        if (TryConvertAsciiCase(
-            context.GetByteText(0),
-            toUpper: true,
-            context.State.Counters,
-            context.State.MemoryGovernor,
-            out var asciiUpper))
-        {
-            return context.State.CreateByteTextValue(asciiUpper);
-        }
-
-        context.State.Counters.RecordStringInteropFallback();
-        return context.State.CreateStringValue(context.GetString(0).ToUpperInvariant());
+        var decoded = source.AsString(context.State.Counters);
+        return context.State.CreateStringValue(conversion is AwkCaseConversion.Upper
+            ? decoded.ToUpperInvariant()
+            : decoded.ToLowerInvariant());
     }
 
     private static bool TryConvertAsciiCase(
         AwkText source,
-        bool toUpper,
+        AwkCaseConversion conversion,
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor,
         out AwkText result)
@@ -103,7 +96,7 @@ internal static partial class AwkBuiltins
                 return false;
             }
 
-            if (FoldAsciiCase(value, toUpper) != value && firstChange < 0)
+            if (FoldAsciiCase(value, conversion) != value && firstChange < 0)
                 firstChange = index;
         }
 
@@ -117,19 +110,25 @@ internal static partial class AwkBuiltins
         bytes.CopyTo(converted);
         for (var index = firstChange; index < converted.Length; index++)
         {
-            converted[index] = FoldAsciiCase(converted[index], toUpper);
+            converted[index] = FoldAsciiCase(converted[index], conversion);
         }
 
         result = AwkText.FromTrustedOwnedBytes(converted, counters);
         return true;
     }
 
-    private static byte FoldAsciiCase(byte value, bool toUpper) =>
-        toUpper
+    private static byte FoldAsciiCase(byte value, AwkCaseConversion conversion) =>
+        conversion is AwkCaseConversion.Upper
             ? value is >= (byte)'a' and <= (byte)'z'
                 ? (byte)(value - 32)
                 : value
             : value is >= (byte)'A' and <= (byte)'Z'
                 ? (byte)(value + 32)
                 : value;
+
+    private enum AwkCaseConversion
+    {
+        Lower,
+        Upper
+    }
 }
