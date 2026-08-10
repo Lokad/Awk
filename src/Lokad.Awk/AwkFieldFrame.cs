@@ -10,24 +10,11 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
 
     private AwkText _recordText = AwkText.Empty;
     private AwkValue _recordValue = AwkValue.FromText(string.Empty);
-    private string _recordString = string.Empty;
     private IReadOnlyList<AwkFieldText> _fieldTexts = [];
-    private List<string> _fields = [];
     private Dictionary<int, AwkValue> _fieldValueCache = [];
-    private bool _recordStringIsCurrent = true;
     private bool _recordValueIsCurrent = true;
     private bool _fieldsAreSplit = true;
-    private bool _fieldStringsAreCurrent = true;
     private long _retainedMemoryBytes;
-
-    public string RecordText
-    {
-        get
-        {
-            EnsureRecordString();
-            return _recordString;
-        }
-    }
 
     public AwkText RecordAwkText => _recordText;
 
@@ -40,14 +27,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         }
 
         return _recordValue;
-    }
-
-    public IReadOnlyList<string> GetFields(
-        Func<AwkText, IReadOnlyList<AwkFieldText>> splitFields)
-    {
-        EnsureFields(splitFields);
-        EnsureFieldStrings();
-        return _fields;
     }
 
     public int GetFieldCount(
@@ -73,8 +52,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
     {
         ReplaceRetainedMemory(EstimateRetainedBytes(text, [], EmptyFieldValueCache));
         _recordText = text;
-        _recordString = string.Empty;
-        _recordStringIsCurrent = false;
         _recordValue = AwkValue.FromText(string.Empty);
         _recordValueIsCurrent = false;
         ClearSplitFields();
@@ -84,8 +61,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
     {
         var text = formatStringByteText(value);
         ReplaceRetainedMemory(EstimateRetainedBytes(text, [], EmptyFieldValueCache));
-        _recordString = string.Empty;
-        _recordStringIsCurrent = false;
         _recordText = text;
         _recordValue = value;
         _recordValueIsCurrent = true;
@@ -124,7 +99,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         counters.RecordFieldsMaterialized(addedFields);
         _fieldTexts = newFieldTexts;
         _fieldValueCache = newFieldValueCache;
-        _fieldStringsAreCurrent = false;
         SetRecomposedRecord(newRecordText, createRecordValue);
     }
 
@@ -157,7 +131,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         ReplaceRetainedMemory(EstimateRetainedBytes(newRecordText, newFieldTexts, EmptyFieldValueCache));
         _fieldTexts = newFieldTexts;
         _fieldValueCache = [];
-        _fieldStringsAreCurrent = false;
         SetRecomposedRecord(newRecordText, createRecordValue);
     }
 
@@ -165,8 +138,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         AwkText recordText,
         Func<AwkText, AwkValue> createRecordValue)
     {
-        _recordString = string.Empty;
-        _recordStringIsCurrent = false;
         _recordText = recordText;
         _recordValue = createRecordValue(_recordText);
         _recordValueIsCurrent = true;
@@ -202,15 +173,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         return AwkText.FromTrustedOwnedBytes(bytes, counters);
     }
 
-    private void EnsureRecordString()
-    {
-        if (_recordStringIsCurrent)
-            return;
-
-        _recordString = _recordText.AsString(counters);
-        _recordStringIsCurrent = true;
-    }
-
     private void EnsureFields(
         Func<AwkText, IReadOnlyList<AwkFieldText>> splitFields)
     {
@@ -225,8 +187,6 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         _fieldTexts = fieldTexts;
         counters.RecordFieldsMaterialized(_fieldTexts.Count);
         _fieldValueCache = [];
-        _fields = [];
-        _fieldStringsAreCurrent = false;
         _fieldsAreSplit = true;
     }
 
@@ -258,27 +218,11 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         return value;
     }
 
-    private void EnsureFieldStrings()
-    {
-        if (_fieldStringsAreCurrent)
-            return;
-
-        _fields = new List<string>(_fieldTexts.Count);
-        for (var index = 0; index < _fieldTexts.Count; index++)
-        {
-            _fields.Add(_fieldTexts[index].AsString(_recordText, counters));
-        }
-
-        _fieldStringsAreCurrent = true;
-    }
-
     private void ClearSplitFields()
     {
         _fieldTexts = [];
-        _fields = [];
         _fieldValueCache = [];
         _fieldsAreSplit = false;
-        _fieldStringsAreCurrent = false;
     }
 
     private void ReplaceRetainedMemory(long newBytes)

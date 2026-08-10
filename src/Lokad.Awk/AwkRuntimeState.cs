@@ -105,7 +105,6 @@ internal sealed class AwkRuntimeState
             CreateStringValue,
             CreateByteTextValue,
             CreateNumericStringValue,
-            CreateNumericStringValue,
             FormatStringByteText,
             ResolveOutputFieldSeparator,
             Counters,
@@ -142,11 +141,7 @@ internal sealed class AwkRuntimeState
 
     public string FileName => _input.FileName;
 
-    public string CurrentRecordString => _recordFields.CurrentRecordString;
-
     public AwkText CurrentRecordByteText => _recordFields.CurrentRecordByteText;
-
-    public IReadOnlyList<string> CurrentFieldStrings => _recordFields.CurrentFieldStrings;
 
     public int FieldCount => _recordFields.FieldCount;
 
@@ -234,9 +229,6 @@ internal sealed class AwkRuntimeState
 
     public void RecordExecutionStep() =>
         Resources.RecordExecutionStep();
-
-    public void ThrowIfRecordBytesExceeded(string record) =>
-        Resources.ThrowIfRecordBytesExceeded(Encoding.UTF8.GetByteCount(record));
 
     public void ThrowIfRecordBytesExceeded(AwkText record) =>
         Resources.ThrowIfRecordBytesExceeded(record.ByteLength);
@@ -565,12 +557,6 @@ internal sealed class AwkRuntimeState
         _input.BeginFile(fileName);
         SetErrno(AwkErrno.None);
         SetArgvIndex(argvIndex);
-    }
-
-    public void SetCurrentRecord(string line)
-    {
-        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(line));
-        _recordFields.SetCurrentRecord(line);
     }
 
     public void SetCurrentRecord(AwkText line)

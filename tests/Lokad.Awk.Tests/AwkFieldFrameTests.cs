@@ -23,22 +23,6 @@ public sealed class AwkFieldFrameTests
     }
 
     [Fact]
-    public void AwkFieldFrame_CurrentFieldStringsDecodeSlicesWithoutAwkTextMaterialization()
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = CreateGovernor(counters);
-        var frame = CreateFrame(counters);
-        frame.SetRecordText(AwkText.FromString("alpha beta", counters, governor));
-        var baselineTextAllocations = counters.AwkTextAllocations;
-
-        var fields = frame.GetFields(SplitAlphaBeta);
-
-        Assert.Equal(["alpha", "beta"], fields);
-        Assert.Equal(baselineTextAllocations, counters.AwkTextAllocations);
-        Assert.Equal(2, counters.StringDecodes);
-    }
-
-    [Fact]
     public void AwkFieldFrame_CachesRecordSliceFieldValues()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace Lokad.Awk;
 
@@ -7,7 +6,6 @@ internal sealed class AwkRecordFieldRuntime(
     AwkFieldSplitter fieldSplitter,
     Func<string, AwkValue> createStringValue,
     Func<AwkText, AwkValue> createByteTextValue,
-    Func<string, AwkValue> createNumericStringValue,
     Func<AwkText, AwkValue> createNumericByteText,
     Func<AwkValue, AwkText> formatStringByteText,
     Func<AwkText> resolveOutputFieldSeparator,
@@ -17,12 +15,7 @@ internal sealed class AwkRecordFieldRuntime(
 {
     private readonly AwkFieldFrame _frame = new(counters, governor, maxFields);
 
-    public string CurrentRecordString => _frame.RecordText;
-
     public AwkText CurrentRecordByteText => _frame.RecordAwkText;
-
-    public IReadOnlyList<string> CurrentFieldStrings =>
-        _frame.GetFields(fieldSplitter.SplitRecordFields);
 
     public int FieldCount =>
         _frame.GetFieldCount(fieldSplitter.SplitRecordFields);
@@ -34,11 +27,6 @@ internal sealed class AwkRecordFieldRuntime(
 
     public AwkValue GetFieldValue(AwkFieldIndex index) =>
         _frame.GetFieldValue(index, fieldSplitter.SplitRecordFields, createNumericByteText);
-
-    public void SetCurrentRecord(string line)
-    {
-        SetCurrentRecordValue(createNumericStringValue(line));
-    }
 
     public void SetCurrentRecord(AwkText line)
     {

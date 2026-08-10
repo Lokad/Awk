@@ -1007,12 +1007,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var state = CreateStateWithMemoryLimit(300);
         var record = new string('x', 100);
-        state.SetCurrentRecord(record);
+        state.SetCurrentRecord(AwkText.FromString(record, state.Counters, state.MemoryGovernor));
 
         var exception = Assert.Throws<AwkRuntimeException>(() => state.FieldCount);
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal(record, state.CurrentRecordString);
+        Assert.Equal(record, state.CurrentRecordByteText.AsString(state.Counters));
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
 
@@ -1205,13 +1205,13 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public void Awk_CurrentRecordMemoryLimitFailsBeforeReplacingValue()
     {
         var state = CreateStateWithMemoryLimit(200);
-        state.SetCurrentRecord("keep");
+        state.SetCurrentRecord(AwkText.FromString("keep", state.Counters, state.MemoryGovernor));
 
         var exception = Assert.Throws<AwkRuntimeException>(
             () => state.AssignField(0, new string('v', 400)));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal("keep", state.CurrentRecordString);
+        Assert.Equal("keep", state.CurrentRecordByteText.AsString(state.Counters));
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
 
@@ -1219,14 +1219,14 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public void Awk_FieldAssignmentMemoryLimitFailsBeforeRecomposingRecord()
     {
         var state = CreateStateWithMemoryLimit(650);
-        state.SetCurrentRecord("a b");
+        state.SetCurrentRecord(AwkText.FromString("a b", state.Counters, state.MemoryGovernor));
         Assert.Equal(2, state.FieldCount);
 
         var exception = Assert.Throws<AwkRuntimeException>(
             () => state.AssignField(2, new string('v', 400)));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal("a b", state.CurrentRecordString);
+        Assert.Equal("a b", state.CurrentRecordByteText.AsString(state.Counters));
         Assert.Equal(2, state.FieldCount);
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
@@ -1235,12 +1235,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public void Awk_FieldCountMemoryLimitFailsBeforeExpandingFields()
     {
         var state = CreateStateWithMemoryLimit(300);
-        state.SetCurrentRecord("a");
+        state.SetCurrentRecord(AwkText.FromString("a", state.Counters, state.MemoryGovernor));
 
         var exception = Assert.Throws<AwkRuntimeException>(() => state.AssignFieldCount(30));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal("a", state.CurrentRecordString);
+        Assert.Equal("a", state.CurrentRecordByteText.AsString(state.Counters));
         Assert.Equal(1, state.FieldCount);
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
