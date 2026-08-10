@@ -29,20 +29,6 @@ internal static class AwkParsingSupport
             hasInvalidTokens);
     }
 
-    public static LexerResult<AwkTokenKind> ToLexerResult(
-        AwkParsingSource source,
-        IReadOnlyList<AwkToken> tokens,
-        bool includeEndOfFile)
-    {
-        if (includeEndOfFile)
-            return ToLexerResult(source, tokens);
-
-        var withoutEnd = tokens
-            .Where(token => token.Kind != AwkTokenKind.EndOfFile)
-            .ToArray();
-        return ToLexerResult(source, withoutEnd);
-    }
-
     public static LexerResult<AwkTokenKind> ToLexerResultWithEndOfFile(
         AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens)

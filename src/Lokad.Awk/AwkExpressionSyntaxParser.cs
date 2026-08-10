@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Lokad.Parsing.Error;
+using Lokad.Parsing.Lexer;
 using Lokad.Parsing.Parser;
 
 namespace Lokad.Awk;
@@ -28,16 +30,86 @@ internal sealed class AwkExpressionSyntaxParser
 
     private static AwkExpressionParseResult ParseCore(AwkParsingSource? source, IReadOnlyList<AwkToken> tokens)
     {
-        var significantTokens = tokens
-            .Where(token => token.Kind is not AwkTokenKind.Comment and not AwkTokenKind.NewLine and not AwkTokenKind.Semicolon)
-            .ToArray();
-        if (significantTokens.Length == 0)
-            return AwkExpressionParseResult.EmptyResult;
+        static bool TryCreateLexerResult(
+            AwkParsingSource source,
+            IReadOnlyList<AwkToken> tokens,
+            [NotNullWhen(true)] out LexerResult<AwkTokenKind>? result)
+        {
+            static bool IsExpressionToken(AwkTokenKind kind) =>
+                kind is not AwkTokenKind.Comment and
+                    not AwkTokenKind.NewLine and
+                    not AwkTokenKind.Semicolon;
+
+            var expressionTokenCount = 0;
+            var hasEndOfFile = false;
+            for (var index = 0; index < tokens.Count; index++)
+            {
+                if (!IsExpressionToken(tokens[index].Kind))
+                    continue;
+
+                expressionTokenCount++;
+                hasEndOfFile |= tokens[index].Kind == AwkTokenKind.EndOfFile;
+            }
+
+            if (expressionTokenCount == 0)
+            {
+                result = null;
+                return false;
+            }
+
+            var lexerTokens = new LexerToken<AwkTokenKind>[
+                expressionTokenCount + (hasEndOfFile ? 0 : 1)];
+            var next = 0;
+            var end = 0;
+            var hasInvalidTokens = false;
+            for (var index = 0; index < tokens.Count; index++)
+            {
+                var token = tokens[index];
+                if (!IsExpressionToken(token.Kind))
+                    continue;
+
+                lexerTokens[next++] = new LexerToken<AwkTokenKind>(
+                    token.Kind,
+                    token.Span.Start,
+                    token.Span.Length);
+                end = Math.Max(end, token.Span.End);
+                hasInvalidTokens |= token.Kind == AwkTokenKind.BadToken;
+            }
+
+            if (!hasEndOfFile)
+            {
+                lexerTokens[^1] = new LexerToken<AwkTokenKind>(
+                    AwkTokenKind.EndOfFile,
+                    end,
+                    0);
+            }
+
+            result = new LexerResult<AwkTokenKind>(
+                source.Text,
+                lexerTokens,
+                source.NewLines,
+                hasInvalidTokens);
+            return true;
+        }
 
         var parser = new AwkExpressionSyntaxParser();
-        parser.Tokens = source == null
-            ? AwkParsingSupport.ToLexerResult(significantTokens)
-            : AwkParsingSupport.ToLexerResultWithEndOfFile(source, significantTokens);
+        if (source != null)
+        {
+            if (!TryCreateLexerResult(source, tokens, out var lexerResult))
+                return AwkExpressionParseResult.EmptyResult;
+
+            parser.Tokens = lexerResult;
+        }
+        else
+        {
+            var significantTokens = tokens
+                .Where(token => token.Kind is not AwkTokenKind.Comment and not AwkTokenKind.NewLine and not AwkTokenKind.Semicolon)
+                .ToArray();
+            if (significantTokens.Length == 0)
+                return AwkExpressionParseResult.EmptyResult;
+
+            parser.Tokens = AwkParsingSupport.ToLexerResult(significantTokens);
+        }
         try
         {
             return StreamParser(parser, parser.Tokens) switch
