@@ -9,8 +9,9 @@ namespace Lokad.Awk;
 /// The additive generator, warm-up, and shuffle stage intentionally mirror gawk so
 /// explicit seeds produce stable oracle-compatible values. Runtime state receives
 /// the generator through <see cref="AwkRuntimeOptions"/> instead of constructing it
-/// at call sites. Options snapshot it and each runtime receives an independent clone,
-/// which keeps deterministic and concurrent executions isolated.
+/// at call sites. Options snapshot injected generators, while system-default options
+/// construct one generator directly for each runtime. Both paths keep deterministic
+/// and concurrent executions isolated without redundant default-state copies.
 /// </remarks>
 internal sealed class AwkRandomGenerator
 {

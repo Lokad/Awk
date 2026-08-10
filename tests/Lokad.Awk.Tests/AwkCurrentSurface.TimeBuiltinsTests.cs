@@ -78,6 +78,17 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
     }
 
     [Fact]
+    public void Awk_SystemDefaultOptionsGiveEachStateAnIndependentRandomSequence()
+    {
+        var options = AwkRuntimeOptions.CreateSystemDefault();
+        var first = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var second = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+
+        for (var index = 0; index < 32; index++)
+            Assert.Equal(first.NextRandomNumber(), second.NextRandomNumber());
+    }
+
+    [Fact]
     public async Task Awk_TimeBuiltinsUseInjectedTimeZone()
     {
         var timeZone = TimeZoneInfo.CreateCustomTimeZone(
