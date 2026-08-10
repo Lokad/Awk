@@ -899,6 +899,48 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
+    public async Task Awk_BuiltinArraySortDoesNotReserveUserComparatorBuffers()
+    {
+        var sourceArrayName = AwkArrayName.FromText("source");
+        var destinationArrayName = AwkArrayName.FromText("destination");
+        var ordinalOne = new AwkArrayKey("1");
+        var state = CreateStateWithMemoryLimit(850);
+        state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
+        state.SetArrayString(destinationArrayName, ordinalOne, "keep");
+
+        var count = await state.SortArrayValuesAsync(
+            sourceArrayName,
+            destinationArrayName,
+            AwkArraySortOrder.Default,
+            new AwkEvaluationContext(0, state));
+
+        Assert.Equal(1, count);
+        Assert.Equal("v", state.GetArrayString(destinationArrayName, ordinalOne));
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+    }
+
+    [Fact]
+    public async Task Awk_BuiltinArrayKeySortAccountsForReferenceResultBuffer()
+    {
+        var sourceArrayName = AwkArrayName.FromText("source");
+        var destinationArrayName = AwkArrayName.FromText("destination");
+        var ordinalOne = new AwkArrayKey("1");
+        var state = CreateStateWithMemoryLimit(825);
+        state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
+        state.SetArrayString(destinationArrayName, ordinalOne, "keep");
+
+        var count = await state.SortArrayKeysAsync(
+            sourceArrayName,
+            destinationArrayName,
+            AwkArraySortOrder.Default,
+            new AwkEvaluationContext(0, state));
+
+        Assert.Equal(1, count);
+        Assert.Equal("k", state.GetArrayString(destinationArrayName, ordinalOne));
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+    }
+
+    [Fact]
     public async Task Awk_RegexRecordSeparatorScanLimitFailsBeforeRunningOversizedSearch()
     {
         var options = CreateOptions(
