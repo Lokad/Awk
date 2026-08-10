@@ -200,10 +200,6 @@ internal static partial class AwkBuiltins
 
     public static IEnumerable<string> Names => Definitions.Keys;
 
-    public static IEnumerable<AwkBuiltinDefinition> SpecialForms => SpecialFormDefinitions.Values;
-
-    public static IEnumerable<AwkBuiltinDefinition> SpecialSyntax => SpecialSyntaxDefinitions.Values;
-
     public static bool TryGetCallable(string name, [NotNullWhen(true)] out AwkBuiltinDefinition? definition)
     {
         if (Definitions.TryGetValue(name, out definition))

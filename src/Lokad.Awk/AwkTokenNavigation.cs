@@ -149,30 +149,26 @@ internal static class AwkTokenNavigation
         AwkTokenKind firstKind,
         AwkTokenKind secondKind,
         int startIndex,
-        int limit) =>
-        MinimumNonNegative(
-            FindTopLevel(tokens, firstKind, startIndex, limit),
-            FindTopLevel(tokens, secondKind, startIndex, limit),
-            -1,
-            -1);
-
-    public static int MinimumNonNegative(int first, int second, int third, int fourth)
+        int limit)
     {
-        var minimum = -1;
-        Apply(first);
-        Apply(second);
-        Apply(third);
-        Apply(fourth);
-        return minimum;
-
-        void Apply(int value)
+        var parenDepth = 0;
+        var bracketDepth = 0;
+        var braceDepth = 0;
+        for (var index = startIndex; index < limit; index++)
         {
-            if (value < 0)
-                return;
+            var kind = tokens[index].Kind;
+            if ((kind == firstKind || kind == secondKind) &&
+                parenDepth == 0 &&
+                bracketDepth == 0 &&
+                braceDepth == 0)
+            {
+                return index;
+            }
 
-            if (minimum < 0 || value < minimum)
-                minimum = value;
+            UpdateDepth(kind, ref parenDepth, ref bracketDepth, ref braceDepth);
         }
+
+        return -1;
     }
 
     public static void UpdateDepth(

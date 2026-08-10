@@ -105,20 +105,16 @@ internal static class AwkCommandParser
                 .Build();
         }
 
-        private AwkInvocation BuildHelpInvocation() =>
-            CreateInvocationBuilder()
-                .WithHelp()
-                .Build();
-
-        private AwkInvocation BuildVersionInvocation() =>
-            CreateInvocationBuilder()
-                .WithVersion()
-                .Build();
-
-        private AwkInvocation BuildTerminalInvocation(AwkCommandTerminal terminal) =>
-            terminal == AwkCommandTerminal.Help
-                ? BuildHelpInvocation()
-                : BuildVersionInvocation();
+        private AwkInvocation BuildTerminalInvocation(AwkCommandTerminal terminal)
+        {
+            var builder = CreateInvocationBuilder();
+            return terminal switch
+            {
+                AwkCommandTerminal.Help => builder.WithHelp().Build(),
+                AwkCommandTerminal.Version => builder.WithVersion().Build(),
+                _ => throw new InvalidOperationException("Unknown terminal awk invocation.")
+            };
+        }
 
         private AwkInvocationBuilder CreateInvocationBuilder() => new(invocation);
 

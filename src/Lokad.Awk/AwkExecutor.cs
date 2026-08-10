@@ -92,11 +92,16 @@ internal static class AwkExecutor
         AwkInvocation invocation,
         CancellationToken cancellationToken)
     {
-        if (invocation.TerminalResult.IsHelp || invocation.TerminalResult.IsVersion)
-            throw new System.InvalidOperationException("Terminal awk invocations cannot be precompiled.");
+        if (invocation.TerminalResult.IsTerminal)
+        {
+            if (invocation.TerminalResult.IsError)
+            {
+                throw new System.InvalidOperationException(
+                    AwkUtf8Codec.Decode(invocation.TerminalResult.ErrorMessage));
+            }
 
-        if (invocation.TerminalResult.IsError)
-            throw new System.InvalidOperationException(AwkUtf8Codec.Decode(invocation.TerminalResult.ErrorMessage));
+            throw new System.InvalidOperationException("Terminal awk invocations cannot be precompiled.");
+        }
 
         var resolved = await ResolveProgramAsync(host, invocation, cancellationToken).ConfigureAwait(false);
         if (resolved is AwkProgramResolution.Failed failed)

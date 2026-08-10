@@ -1,4 +1,3 @@
-using System.Linq;
 using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
@@ -96,22 +95,14 @@ public sealed class AwkBuiltinsTests
         Assert.True(AwkBuiltins.TryGetCallable("system", out var system));
         Assert.Equal(AwkBuiltinEffects.HostPolicyRejection, system.Effects);
 
-        var specialFormNames = AwkBuiltins.SpecialForms
-            .Select(definition => definition.Name)
-            .ToHashSet(System.StringComparer.Ordinal);
-        Assert.Contains("sub", specialFormNames);
-        Assert.Contains("gsub", specialFormNames);
-        Assert.Contains("split", specialFormNames);
-        Assert.Contains("patsplit", specialFormNames);
-        Assert.Contains("asort", specialFormNames);
-        Assert.Contains("asorti", specialFormNames);
-        Assert.Contains("isarray", specialFormNames);
-        Assert.Contains("typeof", specialFormNames);
-
-        var specialSyntaxNames = AwkBuiltins.SpecialSyntax
-            .Select(definition => definition.Name)
-            .ToHashSet(System.StringComparer.Ordinal);
-        Assert.Contains("getline", specialSyntaxNames);
+        foreach (var name in new[]
+        {
+            "sub", "gsub", "split", "patsplit", "asort", "asorti", "isarray", "typeof"
+        })
+        {
+            Assert.True(AwkBuiltins.TryGetCallable(name, out var specialForm));
+            Assert.Equal(AwkCallableKind.SpecialForm, specialForm.Kind);
+        }
 
         Assert.DoesNotContain("sub", AwkBuiltins.Names);
         Assert.False(AwkBuiltins.TryGetCallable("getline", out _));
