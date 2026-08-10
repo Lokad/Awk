@@ -101,38 +101,23 @@ internal abstract partial class AwkStatement
         int valueCount,
         AwkRuntimeState state)
     {
-        var segments = ArrayPool<AwkText>.Shared.Rent((valueCount * 2) + 1);
-        var segmentCount = 0;
-        try
+        var outputFieldSeparator = valueCount > 1
+            ? state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator)
+            : AwkText.Empty;
+        using var segments = AwkPrintRuntime.Stage(
+            values.AsSpan(0, valueCount),
+            outputFieldSeparator,
+            state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputRecordSeparator),
+            state);
+        if (!target.HasValue)
         {
-            var outputFieldSeparator = valueCount > 1
-                ? state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator)
-                : AwkText.Empty;
-            for (var index = 0; index < valueCount; index++)
-            {
-                if (index > 0)
-                    segments[segmentCount++] = outputFieldSeparator;
-
-                segments[segmentCount++] = state.FormatPrintByteText(values[index]);
-            }
-
-            segments[segmentCount++] = state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputRecordSeparator);
-            if (!target.HasValue)
-            {
-                output.Append(segments.AsSpan(0, segmentCount));
-                return;
-            }
-
-            using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor);
-            for (var index = 0; index < segmentCount; index++)
-                builder.Append(segments[index]);
-
-            await EmitOutputAsync(output, io, target, builder.AsMemory()).ConfigureAwait(false);
+            output.Append(segments.Segments);
+            return;
         }
-        finally
-        {
-            ArrayPool<AwkText>.Shared.Return(segments, clearArray: true);
-        }
+
+        using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor);
+        builder.Append(segments.Segments);
+        await EmitOutputAsync(output, io, target, builder.AsMemory()).ConfigureAwait(false);
     }
 
     private static async Task EmitOutputAsync(
