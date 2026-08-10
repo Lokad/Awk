@@ -27,7 +27,7 @@ internal sealed class AwkSemanticModel
 
     public static AwkSemanticModel Create(IReadOnlyList<AwkSymbolReference> symbols)
     {
-        var semanticSymbols = new HashSet<AwkSemanticSymbol>(symbols.Count);
+        var semanticSymbols = new HashSet<AwkSemanticSymbol>();
         var declarations = new List<AwkSemanticSymbol>();
         var usages = new List<AwkSemanticSymbol>();
         var referencesFields = false;

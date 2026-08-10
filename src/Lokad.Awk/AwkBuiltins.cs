@@ -168,8 +168,7 @@ internal static partial class AwkBuiltins
 
     private static Dictionary<AwkStatementKind, AwkBuiltinDefinition> BuildStatementDefinitions()
     {
-        var definitions = new Dictionary<AwkStatementKind, AwkBuiltinDefinition>(
-            Definitions.Count + SpecialFormDefinitions.Count + SpecialSyntaxDefinitions.Count);
+        var definitions = new Dictionary<AwkStatementKind, AwkBuiltinDefinition>();
         AddStatementDefinitions(definitions, Definitions.Values);
         AddStatementDefinitions(definitions, SpecialFormDefinitions.Values);
         AddStatementDefinitions(definitions, SpecialSyntaxDefinitions.Values);

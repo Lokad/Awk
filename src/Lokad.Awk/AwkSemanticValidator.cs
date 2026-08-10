@@ -66,15 +66,16 @@ internal static class AwkSemanticValidator
         AwkLintMode lintMode,
         List<AwkDiagnostic> diagnostics)
     {
-        var reported = new HashSet<AwkIdentifier>(semanticModel.Usages.Count);
+        HashSet<AwkIdentifier>? reported = null;
         for (var index = 0; index < semanticModel.Usages.Count; index++)
         {
             var symbol = semanticModel.Usages[index];
-            if (symbol.Kind != AwkSemanticSymbolKind.UnknownFunction ||
-                !reported.Add(symbol.Identifier))
-            {
+            if (symbol.Kind != AwkSemanticSymbolKind.UnknownFunction)
                 continue;
-            }
+
+            reported ??= [];
+            if (!reported.Add(symbol.Identifier))
+                continue;
 
             diagnostics.Add(new AwkDiagnostic(
                 symbol.Span,
@@ -99,17 +100,20 @@ internal static class AwkSemanticValidator
         if (compatibilityMode == AwkCompatibilityMode.GnuDefault)
             return;
 
-        var reported = new HashSet<AwkIdentifier>(semanticModel.Usages.Count);
+        HashSet<AwkIdentifier>? reported = null;
         for (var index = 0; index < semanticModel.Usages.Count; index++)
         {
             var symbol = semanticModel.Usages[index];
             if (symbol.Kind != AwkSemanticSymbolKind.BuiltinFunction ||
-                !reported.Add(symbol.Identifier) ||
                 !AwkBuiltins.TryGetCallable(symbol.Name, out var definition) ||
                 definition.Compatibility != AwkBuiltinCompatibility.Gnu)
             {
                 continue;
             }
+
+            reported ??= [];
+            if (!reported.Add(symbol.Identifier))
+                continue;
 
             diagnostics.Add(new AwkDiagnostic(
                 symbol.Span,
