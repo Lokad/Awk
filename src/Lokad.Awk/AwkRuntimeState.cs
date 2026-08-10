@@ -346,13 +346,13 @@ internal sealed class AwkRuntimeState
     public IReadOnlyList<AwkEnvironmentVariable> SnapshotEnvironment()
     {
         Counters.RecordStringInteropFallback();
-        var values = _variables.SnapshotArrayByteTexts(EnvironmentArrayName);
+        var values = _variables.SnapshotArrayValues(EnvironmentArrayName);
         var result = new List<AwkEnvironmentVariable>(values.Count);
         foreach (var entry in values)
         {
             result.Add(new AwkEnvironmentVariable(
                 entry.Key.ToByteText(Counters, MemoryGovernor).AsString(Counters),
-                entry.Value.AsString(Counters)));
+                FormatString(entry.Value)));
         }
 
         result.Sort(static (left, right) =>

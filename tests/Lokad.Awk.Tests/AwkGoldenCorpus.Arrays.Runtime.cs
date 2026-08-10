@@ -99,6 +99,12 @@ internal static partial class AwkGoldenCorpus
             "10 3 2\n"),
 
         Passing(
+            "asort-preserves-numeric-types-and-precision",
+            ["BEGIN{a[\"zero\"]=0; a[\"value\"]=1.23456789012345; asort(a,b,\"@val_num_asc\"); printf \"%s %.15g %s %s\\n\",typeof(b[1]),b[2],typeof(b[2]),b[1]?\"true\":\"false\"}"],
+            [],
+            "number 1.23456789012345 number false\n"),
+
+        Passing(
             "asort-values-string-descending",
             ["BEGIN{a[\"x\"]=\"aa\"; a[\"y\"]=\"b\"; a[\"z\"]=\"c\"; asort(a,b,\"@val_str_desc\"); print b[1], b[2], b[3]}"],
             [],
@@ -157,6 +163,12 @@ internal static partial class AwkGoldenCorpus
             ["function cmp(i1,v1,i2,v2){return length(v1)-length(v2)} BEGIN{a[\"x\"]=\"bbb\"; a[\"y\"]=\"a\"; a[\"z\"]=\"cc\"; n=asort(a,b,\"cmp\"); print n, b[1], b[2], b[3]}"],
             [],
             "3 a cc bbb\n"),
+
+        Passing(
+            "asort-user-comparator-receives-precise-values",
+            ["function cmp(i1,v1,i2,v2){return v1-v2} BEGIN{a[\"high\"]=1.234574; a[\"low\"]=1.234565; asort(a,b,\"cmp\"); printf \"%.15g %.15g\\n\",b[1],b[2]}"],
+            [],
+            "1.234565 1.234574\n"),
 
         Passing(
             "asorti-user-comparator-by-numeric-index",

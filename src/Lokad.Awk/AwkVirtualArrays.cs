@@ -73,14 +73,14 @@ internal sealed class AwkSymbolTableArray(
     public bool ContainsValue(AwkArrayKey index) =>
         AwkIdentifiers.IsValidName(index.StringValue);
 
-    public IReadOnlyDictionary<AwkArrayKey, AwkText> SnapshotByteTexts()
+    public IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotValues()
     {
-        var values = new Dictionary<AwkArrayKey, AwkText>();
+        var values = new Dictionary<AwkArrayKey, AwkValue>();
         foreach (var key in SnapshotKeys())
         {
             values[key] = IsName(key.StringValue) || containsArray(AwkArrayName.FromText(key.StringValue))
-                ? AwkText.Empty
-                : GetValue(key.StringValue).ByteText;
+                ? AwkValue.FromText(AwkText.Empty)
+                : GetValue(key.StringValue);
         }
 
         return values;

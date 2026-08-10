@@ -14,8 +14,9 @@ internal static class AwkRuntimeMemory
     private const int AwkRegexMatchBytes = 64;
     private const int AwkRegexGroupBytes = 32;
     private const int AwkValueBytes = 32;
-    private const int KeyValuePairBytes = 32;
     private const int AwkArrayKeyBytes = 32;
+    private const int ArrayValueDictionaryEntryBytes = 80;
+    private const int ArraySortEntryBytes = 96;
     private const int FunctionFrameBytes = 64;
     private const int FunctionLocalEntryBytes = 64;
 
@@ -48,20 +49,20 @@ internal static class AwkRuntimeMemory
             ? CheckedAdd(FunctionLocalEntryBytes, EstimateVariableSlotBytes(slot.Value))
             : FunctionLocalEntryBytes;
 
-    public static long EstimateReferenceArrayBytes(int count) =>
-        EstimateArrayBufferBytes(count, ReferenceBytes);
-
     public static long EstimateDictionaryBufferBytes(int count) =>
         count <= 0 ? 0 : CheckedAdd(DictionaryObjectBytes, CheckedMultiply(DictionaryEntryBytes, count));
 
-    public static long EstimateKeyValuePairArrayBytes(int count) =>
-        EstimateArrayBufferBytes(count, KeyValuePairBytes);
+    public static long EstimateArrayValueDictionaryBytes(int count) =>
+        count <= 0 ? 0 : CheckedAdd(DictionaryObjectBytes, CheckedMultiply(ArrayValueDictionaryEntryBytes, count));
 
     public static long EstimateAwkValueArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, AwkValueBytes);
 
     public static long EstimateAwkArrayKeyArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, AwkArrayKeyBytes);
+
+    public static long EstimateArraySortEntryArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, ArraySortEntryBytes);
 
     public static long EstimateRegexMatchBytes(int groupCount) =>
         CheckedAdd(AwkRegexMatchBytes, CheckedMultiply(AwkRegexGroupBytes, groupCount));

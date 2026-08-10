@@ -289,6 +289,13 @@ internal sealed class AwkVariables
         ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, AwkVariableSlot.FromText));
     }
 
+    public void SetArrayValues(AwkArrayName name, IReadOnlyList<AwkValue> values)
+    {
+        AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
+        ThrowIfArrayReplacementWouldExceedLimit(values.Count);
+        ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, AwkVariableSlot.FromValue));
+    }
+
     public void SetArrayValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)
     {
         AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
@@ -319,17 +326,17 @@ internal sealed class AwkVariables
         ReplaceArraySlots(name, new Dictionary<AwkArrayKey, AwkVariableSlot>());
     }
 
-    public IReadOnlyDictionary<AwkArrayKey, AwkText> SnapshotArrayByteTexts(AwkArrayName name)
+    public IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotArrayValues(AwkArrayName name)
     {
         if (_symbolTable.IsName(name.Text))
-            return _symbolTable.SnapshotByteTexts();
+            return _symbolTable.SnapshotValues();
 
         if (ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
-        var snapshot = new Dictionary<AwkArrayKey, AwkText>();
+        var snapshot = new Dictionary<AwkArrayKey, AwkValue>();
         foreach (var pair in GetOrCreateArraySlots(name))
-            snapshot[pair.Key] = pair.Value.ByteText;
+            snapshot[pair.Key] = CreateValue(pair.Value);
 
         return snapshot;
     }
@@ -383,6 +390,21 @@ internal sealed class AwkVariables
         IReadOnlyList<AwkText> values,
         int firstIndex,
         Func<AwkText, AwkVariableSlot> createSlot)
+    {
+        var destination = new Dictionary<AwkArrayKey, AwkVariableSlot>();
+        for (var index = 0; index < values.Count; index++)
+        {
+            var key = AwkArrayKey.FromOrdinal(index + firstIndex);
+            destination[key] = createSlot(values[index]);
+        }
+
+        return destination;
+    }
+
+    private static Dictionary<AwkArrayKey, AwkVariableSlot> CreateIndexedArraySlots(
+        IReadOnlyList<AwkValue> values,
+        int firstIndex,
+        Func<AwkValue, AwkVariableSlot> createSlot)
     {
         var destination = new Dictionary<AwkArrayKey, AwkVariableSlot>();
         for (var index = 0; index < values.Count; index++)

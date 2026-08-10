@@ -18,6 +18,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             "awk",
             [
                 "BEGIN{ENVIRON[\"TOKEN\"]=\"child\"; ENVIRON[\"NEW\"]=\"created\"; " +
+                "CONVFMT=\"%.2f\"; ENVIRON[\"NUMBER\"]=1.234567; " +
                 "delete ENVIRON[\"DROP\"]; ENVIRON[\"PWD\"]=\"/spoof\"; " +
                 "print \"payload\" | \"consumer\"; exit}"
             ],
@@ -36,6 +37,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         Assert.Collection(
             child.Environment,
             variable => Assert.Equal(new AwkEnvironmentVariable("NEW", "created"), variable),
+            variable => Assert.Equal(new AwkEnvironmentVariable("NUMBER", "1.23"), variable),
             variable => Assert.Equal(new AwkEnvironmentVariable("PWD", "/spoof"), variable),
             variable => Assert.Equal(new AwkEnvironmentVariable("TOKEN", "child"), variable));
     }
