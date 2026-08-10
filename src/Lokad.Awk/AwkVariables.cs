@@ -247,20 +247,15 @@ internal sealed class AwkVariables
             _memoryGovernor.ReleaseCommitted(EstimateElementBytes(index, slot));
     }
 
-    public void SetArrayValues(AwkArrayName name, IReadOnlyList<AwkText> values)
+    public void SetArrayValues<TValue>(
+        AwkArrayName name,
+        IReadOnlyList<TValue> values,
+        Func<TValue, AwkVariableSlot> createSlot)
     {
         if (!name.IsFunctionLocal)
             AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
         ThrowIfArrayReplacementWouldExceedLimit(values.Count);
-        ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, AwkVariableSlot.FromText));
-    }
-
-    public void SetArrayValues(AwkArrayName name, IReadOnlyList<AwkValue> values)
-    {
-        if (!name.IsFunctionLocal)
-            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
-        ThrowIfArrayReplacementWouldExceedLimit(values.Count);
-        ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, AwkVariableSlot.FromValue));
+        ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, createSlot));
     }
 
     public void SetArrayValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)
@@ -308,6 +303,26 @@ internal sealed class AwkVariables
         var snapshot = new Dictionary<AwkArrayKey, AwkValue>();
         foreach (var pair in GetOrCreateArraySlots(name))
             snapshot[pair.Key] = CreateValue(pair.Value);
+
+        return snapshot;
+    }
+
+    public TResult[] SnapshotArrayValues<TState, TResult>(
+        AwkArrayName name,
+        TState state,
+        Func<TState, AwkArrayKey, AwkValue, TResult> project)
+    {
+        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
+            return _symbolTable.SnapshotValues(state, project);
+
+        if (!name.IsFunctionLocal && ContainsScalar(new AwkVariableName(name.Identifier)))
+            throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
+
+        var slots = GetOrCreateArraySlots(name);
+        var snapshot = new TResult[slots.Count];
+        var writeIndex = 0;
+        foreach (var pair in slots)
+            snapshot[writeIndex++] = project(state, pair.Key, CreateValue(pair.Value));
 
         return snapshot;
     }
@@ -376,6 +391,21 @@ internal sealed class AwkVariables
         IReadOnlyList<AwkValue> values,
         int firstIndex,
         Func<AwkValue, AwkVariableSlot> createSlot)
+    {
+        var destination = new Dictionary<AwkArrayKey, AwkVariableSlot>();
+        for (var index = 0; index < values.Count; index++)
+        {
+            var key = AwkArrayKey.FromOrdinal(index + firstIndex);
+            destination[key] = createSlot(values[index]);
+        }
+
+        return destination;
+    }
+
+    private static Dictionary<AwkArrayKey, AwkVariableSlot> CreateIndexedArraySlots<TValue>(
+        IReadOnlyList<TValue> values,
+        int firstIndex,
+        Func<TValue, AwkVariableSlot> createSlot)
     {
         var destination = new Dictionary<AwkArrayKey, AwkVariableSlot>();
         for (var index = 0; index < values.Count; index++)

@@ -862,7 +862,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(600);
+        var state = CreateStateWithMemoryLimit(490);
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
@@ -904,7 +904,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(850);
+        var state = CreateStateWithMemoryLimit(650);
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
@@ -920,12 +920,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public async Task Awk_BuiltinArrayKeySortAccountsForReferenceResultBuffer()
+    public async Task Awk_BuiltinArrayKeySortWritesDirectlyToDestination()
     {
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(825);
+        var state = CreateStateWithMemoryLimit(650);
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 

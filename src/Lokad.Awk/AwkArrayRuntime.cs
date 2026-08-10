@@ -88,16 +88,6 @@ internal sealed class AwkArrayRuntime
         _variables.DeleteArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
     }
 
-    public void SetValues(AwkArrayName name, IReadOnlyList<AwkText> values)
-    {
-        _variables.SetArrayValues(_variableRuntime.ResolveOrPromoteArrayName(name), values);
-    }
-
-    public void SetValues(AwkArrayName name, IReadOnlyList<AwkValue> values)
-    {
-        _variables.SetArrayValues(_variableRuntime.ResolveOrPromoteArrayName(name), values);
-    }
-
     public int SplitIntoArray(
         AwkText input,
         AwkArrayName arrayName,
@@ -160,11 +150,14 @@ internal sealed class AwkArrayRuntime
         AwkArraySortOrder order,
         AwkEvaluationContext context)
     {
-        using var lease = ReserveSortOperation(sourceArrayName, order, AwkArraySortResult.Values);
-        var entries = await SortEntriesAsync(SnapshotValues(sourceArrayName), order, context).ConfigureAwait(false);
-        var sortedValues = CopyValues(entries);
-        SetValues(destinationArrayName, sortedValues);
-        return sortedValues.Length;
+        var source = _variableRuntime.ResolveOrPromoteArrayName(sourceArrayName);
+        using var lease = ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
+        var entries = await SortEntriesAsync(source, order, context).ConfigureAwait(false);
+        _variables.SetArrayValues(
+            _variableRuntime.ResolveOrPromoteArrayName(destinationArrayName),
+            entries,
+            static entry => AwkVariableSlot.FromValue(entry.Value));
+        return entries.Length;
     }
 
     public async ValueTask<int> SortArrayKeysAsync(
@@ -173,11 +166,14 @@ internal sealed class AwkArrayRuntime
         AwkArraySortOrder order,
         AwkEvaluationContext context)
     {
-        using var lease = ReserveSortOperation(sourceArrayName, order, AwkArraySortResult.TextKeys);
-        var entries = await SortEntriesAsync(SnapshotValues(sourceArrayName), order, context).ConfigureAwait(false);
-        var sortedKeys = CopyKeys(entries);
-        SetValues(destinationArrayName, sortedKeys);
-        return sortedKeys.Length;
+        var source = _variableRuntime.ResolveOrPromoteArrayName(sourceArrayName);
+        using var lease = ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
+        var entries = await SortEntriesAsync(source, order, context).ConfigureAwait(false);
+        _variables.SetArrayValues(
+            _variableRuntime.ResolveOrPromoteArrayName(destinationArrayName),
+            entries,
+            static entry => AwkVariableSlot.FromText(entry.KeyText));
+        return entries.Length;
     }
 
     public void Clear(AwkArrayName name)
@@ -194,8 +190,7 @@ internal sealed class AwkArrayRuntime
         var lease = ReserveSortedKeySnapshot(arrayName, order);
         try
         {
-            var values = _variables.SnapshotArrayValues(arrayName);
-            return new AwkLeasedReadOnlyList<AwkArrayKey>(SnapshotKeyValues(values, order), lease);
+            return new AwkLeasedReadOnlyList<AwkArrayKey>(SnapshotKeyValues(arrayName, order), lease);
         }
         catch
         {
@@ -215,9 +210,8 @@ internal sealed class AwkArrayRuntime
         var lease = ReserveSortedKeySnapshot(arrayName, order);
         try
         {
-            var values = _variables.SnapshotArrayValues(arrayName);
             return new AwkLeasedReadOnlyList<AwkArrayKey>(
-                await SnapshotKeyValuesAsync(values, order, context).ConfigureAwait(false),
+                await SnapshotKeyValuesAsync(arrayName, order, context).ConfigureAwait(false),
                 lease);
         }
         catch
@@ -228,30 +222,25 @@ internal sealed class AwkArrayRuntime
     }
 
     private AwkArrayKey[] SnapshotKeyValues(
-        IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
+        AwkArrayName arrayName,
         AwkArraySortOrder order)
     {
-        if (values.Count == 0)
+        if (_variables.GetArraySnapshotCount(arrayName) == 0)
             return [];
 
-        return CopyKeyValues(SortEntries(values, order));
+        return CopyKeyValues(SortEntries(arrayName, order));
     }
 
     private async ValueTask<AwkArrayKey[]> SnapshotKeyValuesAsync(
-        IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
+        AwkArrayName arrayName,
         AwkArraySortOrder order,
         AwkEvaluationContext context)
     {
-        if (values.Count == 0)
+        if (_variables.GetArraySnapshotCount(arrayName) == 0)
             return [];
 
-        var entries = await SortEntriesAsync(values, order, context).ConfigureAwait(false);
+        var entries = await SortEntriesAsync(arrayName, order, context).ConfigureAwait(false);
         return CopyKeyValues(entries);
-    }
-
-    private IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotValues(AwkArrayName name)
-    {
-        return _variables.SnapshotArrayValues(_variableRuntime.ResolveOrPromoteArrayName(name));
     }
 
     private AwkLeasedReadOnlyList<AwkArrayKey> SnapshotUnsortedKeyValues(AwkArrayName arrayName)
@@ -278,18 +267,17 @@ internal sealed class AwkArrayRuntime
     private IDisposable ReserveSortOperation(
         AwkArrayName sourceArrayName,
         AwkArraySortOrder order,
-        AwkArraySortResult result)
+        AwkArraySortOutput output)
     {
-        var arrayName = _variableRuntime.ResolveOrPromoteArrayName(sourceArrayName);
-        var count = _variables.GetArraySnapshotCount(arrayName);
-        return _state.MemoryGovernor.ReserveTransient(EstimateSortOperationBytes(count, order, result));
+        var count = _variables.GetArraySnapshotCount(sourceArrayName);
+        return _state.MemoryGovernor.ReserveTransient(EstimateSortOperationBytes(count, order, output));
     }
 
     private IDisposable ReserveSortedKeySnapshot(AwkArrayName arrayName, AwkArraySortOrder order)
     {
         var count = _variables.GetArraySnapshotCount(arrayName);
         return _state.MemoryGovernor.ReserveTransient(
-            EstimateSortOperationBytes(count, order, AwkArraySortResult.ArrayKeys));
+            EstimateSortOperationBytes(count, order, AwkArraySortOutput.KeySnapshot));
     }
 
     private void SetValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)
@@ -341,15 +329,15 @@ internal sealed class AwkArrayRuntime
     }
 
     private ValueTask<AwkArraySortEntry[]> SortEntriesAsync(
-        IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
+        AwkArrayName arrayName,
         AwkArraySortOrder order,
         AwkEvaluationContext context) =>
         order is AwkArraySortOrder.UserFunctionOrder
-            ? SortUserEntriesAsync(values, order, context)
-            : ValueTask.FromResult(SortEntries(values, order));
+            ? SortUserEntriesAsync(arrayName, order, context)
+            : ValueTask.FromResult(SortEntries(arrayName, order));
 
     private AwkArraySortEntry[] SortEntries(
-        IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
+        AwkArrayName arrayName,
         AwkArraySortOrder order)
     {
         static (AwkArraySortMode Mode, IComparer<AwkArraySortEntry> Comparer) ResolveSortPlan(
@@ -385,13 +373,13 @@ internal sealed class AwkArrayRuntime
         }
 
         var plan = ResolveSortPlan(order);
-        var entries = CopySortEntries(values, plan.Mode);
+        var entries = SnapshotSortEntries(arrayName, plan.Mode);
         Array.Sort(entries, plan.Comparer);
         return entries;
     }
 
     private async ValueTask<AwkArraySortEntry[]> SortUserEntriesAsync(
-        IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
+        AwkArrayName arrayName,
         AwkArraySortOrder order,
         AwkEvaluationContext context)
     {
@@ -476,7 +464,7 @@ internal sealed class AwkArrayRuntime
             if (!_state.TryGetUserFunction(userFunctionOrder.FunctionName, out var function))
                 throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(userFunctionOrder.FunctionName.Text));
 
-            var entries = CopySortEntries(values, AwkArraySortMode.UserFunction);
+            var entries = SnapshotSortEntries(arrayName, AwkArraySortMode.UserFunction);
             await SortWithUserFunctionAsync(entries, function, context).ConfigureAwait(false);
             return entries;
         }
@@ -484,8 +472,8 @@ internal sealed class AwkArrayRuntime
         throw new InvalidOperationException("Expected a user-defined awk sort comparator.");
     }
 
-    private AwkArraySortEntry[] CopySortEntries(
-        IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
+    private AwkArraySortEntry[] SnapshotSortEntries(
+        AwkArrayName arrayName,
         AwkArraySortMode sortMode)
     {
         static double ResolveNumericSortKey(
@@ -508,47 +496,30 @@ internal sealed class AwkArrayRuntime
                     : 0;
         }
 
-        var entries = new AwkArraySortEntry[values.Count];
-        var index = 0;
-        foreach (var pair in values)
+        static AwkArraySortEntry Project(
+            AwkArraySortEntryProjection projection,
+            AwkArrayKey key,
+            AwkValue value)
         {
-            var keyText = pair.Key.ToByteText(_state.Counters, _state.MemoryGovernor);
-            var valueText = sortMode is
+            var runtime = projection.Runtime;
+            var keyText = key.ToByteText(runtime._state.Counters, runtime._state.MemoryGovernor);
+            var valueText = projection.Mode is
                 AwkArraySortMode.ValueStringAscending or
                 AwkArraySortMode.ValueStringDescending
-                    ? _state.FormatStringByteText(pair.Value)
+                    ? runtime._state.FormatStringByteText(value)
                     : AwkText.Empty;
-            entries[index++] = new AwkArraySortEntry(
-                pair.Key,
+            return new AwkArraySortEntry(
+                key,
                 keyText,
-                pair.Value,
+                value,
                 valueText,
-                ResolveNumericSortKey(keyText, pair.Value, sortMode));
+                ResolveNumericSortKey(keyText, value, projection.Mode));
         }
 
-        return entries;
-    }
-
-    private static AwkValue[] CopyValues(AwkArraySortEntry[] entries)
-    {
-        var result = new AwkValue[entries.Length];
-        for (var index = 0; index < entries.Length; index++)
-        {
-            result[index] = entries[index].Value;
-        }
-
-        return result;
-    }
-
-    private static AwkText[] CopyKeys(AwkArraySortEntry[] entries)
-    {
-        var result = new AwkText[entries.Length];
-        for (var index = 0; index < entries.Length; index++)
-        {
-            result[index] = entries[index].KeyText;
-        }
-
-        return result;
+        return _variables.SnapshotArrayValues(
+            arrayName,
+            new AwkArraySortEntryProjection(this, sortMode),
+            Project);
     }
 
     private static AwkArrayKey[] CopyKeyValues(AwkArraySortEntry[] entries)
@@ -583,10 +554,9 @@ internal sealed class AwkArrayRuntime
     private static long EstimateSortOperationBytes(
         int count,
         AwkArraySortOrder order,
-        AwkArraySortResult result)
+        AwkArraySortOutput output)
     {
-        var bytes = AwkRuntimeMemory.EstimateArrayValueDictionaryBytes(count);
-        bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count));
+        var bytes = AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count);
         if (order is AwkArraySortOrder.UserFunctionOrder && count >= 2)
         {
             bytes = AwkRuntimeMemory.CheckedAdd(
@@ -595,15 +565,13 @@ internal sealed class AwkArrayRuntime
             bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.EstimateAwkValueArrayBytes(4));
         }
 
-        bytes = AwkRuntimeMemory.CheckedAdd(
-            bytes,
-            result switch
-            {
-                AwkArraySortResult.Values => AwkRuntimeMemory.EstimateAwkValueArrayBytes(count),
-                AwkArraySortResult.TextKeys => AwkRuntimeMemory.EstimateReferenceArrayBytes(count),
-                AwkArraySortResult.ArrayKeys => AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count),
-                _ => throw new InvalidOperationException("Unknown awk array sort result shape.")
-            });
+        if (output is AwkArraySortOutput.KeySnapshot)
+        {
+            bytes = AwkRuntimeMemory.CheckedAdd(
+                bytes,
+                AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count));
+        }
+
         return bytes;
     }
 
@@ -613,6 +581,10 @@ internal sealed class AwkArrayRuntime
         AwkValue Value,
         AwkText ValueText,
         double NumericKey);
+
+    private readonly record struct AwkArraySortEntryProjection(
+        AwkArrayRuntime Runtime,
+        AwkArraySortMode Mode);
 
     private enum AwkArraySortMode
     {
@@ -627,11 +599,10 @@ internal sealed class AwkArrayRuntime
         IndexNumberDescending
     }
 
-    private enum AwkArraySortResult
+    private enum AwkArraySortOutput
     {
-        Values,
-        TextKeys,
-        ArrayKeys
+        DestinationArray,
+        KeySnapshot
     }
 
     private sealed class AwkArraySortEntryComparer(AwkArraySortMode mode) : IComparer<AwkArraySortEntry>

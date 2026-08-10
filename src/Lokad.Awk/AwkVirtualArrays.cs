@@ -92,6 +92,43 @@ internal sealed class AwkSymbolTableArray(
         return values;
     }
 
+    public TResult[] SnapshotValues<TState, TResult>(
+        TState state,
+        Func<TState, AwkArrayKey, AwkValue, TResult> project)
+    {
+        var result = new TResult[Count];
+        var index = 0;
+        result[index++] = project(
+            state,
+            new AwkArrayKey(AwkVariables.SymbolTableName),
+            AwkValue.FromText(AwkText.Empty));
+
+        foreach (var scalar in getScalars())
+        {
+            if (IsName(scalar.Name.Text))
+                continue;
+
+            var value = tryGetScalar(scalar.SlotId, out var slot)
+                ? createValue(slot)
+                : AwkValue.Unassigned();
+            result[index++] = project(state, new AwkArrayKey(scalar.Name.Text), value);
+        }
+
+        foreach (var arrayName in getArrayNames())
+        {
+            var name = arrayName.Text;
+            if (IsName(name) || tryResolveScalar(new AwkVariableName(arrayName.Identifier), out _))
+                continue;
+
+            result[index++] = project(
+                state,
+                new AwkArrayKey(name),
+                AwkValue.FromText(AwkText.Empty));
+        }
+
+        return result;
+    }
+
     public IReadOnlyList<AwkArrayKey> SnapshotKeys()
     {
         var names = SnapshotNames();
