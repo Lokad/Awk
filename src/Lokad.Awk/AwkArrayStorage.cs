@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
@@ -35,16 +36,11 @@ internal sealed class AwkArrayStorage
     public bool Contains(AwkArrayName name) =>
         SelectTable(name).ContainsKey(name);
 
-    public bool TryGetSlots(AwkArrayName name, out Dictionary<AwkArrayKey, AwkVariableSlot> slots)
+    public bool TryGetSlots(
+        AwkArrayName name,
+        [NotNullWhen(true)] out Dictionary<AwkArrayKey, AwkVariableSlot>? slots)
     {
-        if (SelectTable(name).TryGetValue(name, out var existingSlots))
-        {
-            slots = existingSlots;
-            return true;
-        }
-
-        slots = new Dictionary<AwkArrayKey, AwkVariableSlot>();
-        return false;
+        return SelectTable(name).TryGetValue(name, out slots);
     }
 
     public Dictionary<AwkArrayKey, AwkVariableSlot> ResolveSlots(AwkArrayName name)
