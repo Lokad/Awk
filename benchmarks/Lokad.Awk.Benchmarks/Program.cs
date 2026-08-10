@@ -1024,6 +1024,13 @@ internal static class BenchmarkCounterReport
             recordCount: 2,
             counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
+            "counter regex capture array",
+            "BEGIN{if(match(\"abc123\",/([a-z]+)([0-9]+)/,m)) print m[1],m[2]}",
+            ["BEGIN{if(match(\"abc123\",/([a-z]+)([0-9]+)/,m)) print m[1],m[2]}"],
+            [],
+            recordCount: 0,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+        new(
             "counter regex pattern gap",
             "BEGIN{s=\"abc\"; print match(s,/\\`a/)}",
             ["BEGIN{s=\"abc\"; print match(s,/\\`a/)}"],

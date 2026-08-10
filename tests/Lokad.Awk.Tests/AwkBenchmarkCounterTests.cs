@@ -86,6 +86,19 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task Awk_BenchmarkCountersCoverMatchCaptureMaterialization()
+    {
+        var result = await RunAsync([
+            "BEGIN{if(match(\"abc123\",/([a-z]+)([0-9]+)/,m)) print m[1],m[2]}"
+        ]);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("abc 123\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(1, result.Counters.RegexMatches);
+        Assert.Equal(3, result.Counters.RegexGroupsMaterialized);
+    }
+
+    [Fact]
     public async Task Awk_DynamicUtf8RegexCompilesOnlySelectedEngine()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(

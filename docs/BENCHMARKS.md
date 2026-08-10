@@ -30,7 +30,8 @@ buffered bytes again after another
 batch arrives because neither regex backend exposes resumable partial-match state; they borrow the
 cursor buffer rather than copying an accumulated snapshot, and focused batched-host tests keep
 that correctness fallback distinct from the incremental plans. Regex policy bytes inspected and
-capture groups materialized distinguish routing work from capture work. Its streaming projection,
+capture groups materialized distinguish routing work from capture work. The capture-array row
+keeps materialized groups and their governed memory visible in the report. Its streaming projection,
 three-key filter, associative aggregation, and two-file comparison rows are deterministic
 calibration shapes for execution-budget decisions. The UTF-8 rune-slicing row reports bytes
 inspected plus the count and size of sparse indexes, making repeated `substr` complexity visible
