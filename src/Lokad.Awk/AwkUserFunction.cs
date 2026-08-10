@@ -52,11 +52,9 @@ internal sealed class AwkUserFunction : IAwkUserFunction
     {
         context.State.ThrowIfCancellationRequested();
 
-        var values = arguments.Count == 0
-            ? []
-            : ArrayPool<AwkFunctionArgument>.Shared.Rent(arguments.Count);
-        try
+        using (var buffer = RentedFunctionArguments.Rent(arguments.Count))
         {
+            var values = buffer.Values;
             for (var index = 0; index < arguments.Count; index++)
             {
                 var argument = arguments[index];
@@ -73,11 +71,6 @@ internal sealed class AwkUserFunction : IAwkUserFunction
 
             PushArguments(values, arguments.Count, context);
         }
-        finally
-        {
-            if (arguments.Count > 0)
-                ArrayPool<AwkFunctionArgument>.Shared.Return(values, clearArray: true);
-        }
 
         return await InvokeFrameAsync(context).ConfigureAwait(false);
     }
@@ -88,20 +81,13 @@ internal sealed class AwkUserFunction : IAwkUserFunction
     {
         context.State.ThrowIfCancellationRequested();
 
-        var values = arguments.Count == 0
-            ? []
-            : ArrayPool<AwkFunctionArgument>.Shared.Rent(arguments.Count);
-        try
+        using (var buffer = RentedFunctionArguments.Rent(arguments.Count))
         {
+            var values = buffer.Values;
             for (var index = 0; index < arguments.Count; index++)
                 values[index] = AwkFunctionArgument.Scalar(arguments[index]);
 
             PushArguments(values, arguments.Count, context);
-        }
-        finally
-        {
-            if (arguments.Count > 0)
-                ArrayPool<AwkFunctionArgument>.Shared.Return(values, clearArray: true);
         }
 
         return InvokeFrameAsync(context);
@@ -155,6 +141,28 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         }
     }
 
+    private readonly struct RentedFunctionArguments : IDisposable
+    {
+        private readonly bool _isPooled;
+
+        private RentedFunctionArguments(int count)
+        {
+            _isPooled = count > 0;
+            Values = _isPooled
+                ? ArrayPool<AwkFunctionArgument>.Shared.Rent(count)
+                : [];
+        }
+
+        public AwkFunctionArgument[] Values { get; }
+
+        public static RentedFunctionArguments Rent(int count) => new(count);
+
+        public void Dispose()
+        {
+            if (_isPooled)
+                ArrayPool<AwkFunctionArgument>.Shared.Return(Values, clearArray: true);
+        }
+    }
 }
 
 internal readonly struct AwkFunctionArgument

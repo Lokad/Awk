@@ -18,6 +18,19 @@ internal sealed class AwkFunctionCallStack(
 
     public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments)
     {
+        static long EstimateFrameBytes(AwkFunctionFrame frame)
+        {
+            var bytes = AwkRuntimeMemory.EstimateFunctionFrameBytes();
+            for (var index = 0; index < frame.Layout.SlotCount; index++)
+            {
+                bytes = AwkRuntimeMemory.CheckedAdd(
+                    bytes,
+                    EstimateLocalSlotBytes(frame.Slots[index]));
+            }
+
+            return bytes;
+        }
+
         if (_frames.Count >= maxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
 
@@ -249,7 +262,13 @@ internal sealed class AwkFunctionCallStack(
         return false;
     }
 
-    public bool TryAssignLocal(AwkVariableName name, string value)
+    public bool TryAssignLocal(AwkVariableName name, string value) =>
+        TryAssignLocal(name, AwkVariableSlot.FromText(value));
+
+    public bool TryAssignLocal(AwkVariableName name, AwkValue value) =>
+        TryAssignLocal(name, AwkVariableSlot.FromValue(value));
+
+    private bool TryAssignLocal(AwkVariableName name, AwkVariableSlot value)
     {
         if (_frames.Count == 0)
             return false;
@@ -261,27 +280,17 @@ internal sealed class AwkFunctionCallStack(
             return false;
         }
 
-        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromText(value)));
+        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(value));
         return true;
     }
 
-    public bool TryAssignLocal(AwkVariableName name, AwkValue value)
-    {
-        if (_frames.Count == 0)
-            return false;
+    public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, string value) =>
+        TryAssignLocal(slotId, AwkVariableSlot.FromText(value));
 
-        var frame = _frames.Peek();
-        if (!TryGetLocalSlot(frame, name, out var slotId, out var slot) ||
-            slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
-        {
-            return false;
-        }
+    public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value) =>
+        TryAssignLocal(slotId, AwkVariableSlot.FromValue(value));
 
-        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(value)));
-        return true;
-    }
-
-    public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, string value)
+    private bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkVariableSlot value)
     {
         if (_frames.Count == 0)
             return false;
@@ -293,23 +302,7 @@ internal sealed class AwkFunctionCallStack(
             return false;
         }
 
-        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromText(value)));
-        return true;
-    }
-
-    public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value)
-    {
-        if (_frames.Count == 0)
-            return false;
-
-        var frame = _frames.Peek();
-        if (!TryGetLocalSlot(frame, slotId, out var slot) ||
-            slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
-        {
-            return false;
-        }
-
-        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(value)));
+        ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(value));
         return true;
     }
 
@@ -345,15 +338,6 @@ internal sealed class AwkFunctionCallStack(
         frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(
             frame.RetainedMemoryBytes,
             growth);
-    }
-
-    private static long EstimateFrameBytes(AwkFunctionFrame frame)
-    {
-        var bytes = AwkRuntimeMemory.EstimateFunctionFrameBytes();
-        for (var index = 0; index < frame.Layout.SlotCount; index++)
-            bytes = AwkRuntimeMemory.CheckedAdd(bytes, EstimateLocalSlotBytes(frame.Slots[index]));
-
-        return bytes;
     }
 
     private void RecycleFrame(AwkFunctionFrame frame)
