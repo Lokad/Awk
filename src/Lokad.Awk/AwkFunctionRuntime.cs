@@ -25,7 +25,7 @@ internal sealed class AwkFunctionRuntime
 
     public bool IsInsideFunction => _calls.IsInsideFunction;
 
-    public IReadOnlyDictionary<AwkArrayKey, string> InitializeFunctions<TFunction>(
+    public void InitializeFunctions<TFunction>(
         IReadOnlyDictionary<AwkFunctionName, TFunction> functions)
         where TFunction : IAwkUserFunction
     {
@@ -36,18 +36,6 @@ internal sealed class AwkFunctionRuntime
         }
 
         _functions = functionMap;
-        var functionTable = new Dictionary<AwkArrayKey, string>(AwkBuiltins.Count + functions.Count);
-        foreach (var name in AwkBuiltins.Names)
-        {
-            functionTable[new AwkArrayKey(name)] = name;
-        }
-
-        foreach (var function in functions.Values)
-        {
-            functionTable[new AwkArrayKey(function.Name)] = function.Name;
-        }
-
-        return functionTable;
     }
 
     public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out IAwkUserFunction? function) =>

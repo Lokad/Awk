@@ -79,20 +79,6 @@ internal sealed class AwkSymbolTableArray(
             tryResolveScalar(new AwkVariableName(identifier), out _);
     }
 
-    public IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotValues()
-    {
-        var names = SnapshotNames();
-        var values = new Dictionary<AwkArrayKey, AwkValue>(names.Count);
-        foreach (var name in names)
-        {
-            values[new AwkArrayKey(name)] = IsName(name) || containsArray(AwkArrayName.FromText(name))
-                ? AwkValue.FromText(AwkText.Empty)
-                : GetValue(name);
-        }
-
-        return values;
-    }
-
     public TResult[] SnapshotValues<TState, TResult>(
         TState state,
         Func<TState, AwkArrayKey, AwkValue, TResult> project)

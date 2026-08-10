@@ -149,14 +149,55 @@ internal sealed class AwkVariables
     public AwkGlobalSlotId GetOrCreateScalarSlot(AwkVariableName name) =>
         GetOrCreateScalarSlotCore(name);
 
-    public void SetArrayStringValues(AwkArrayName name, IReadOnlyDictionary<AwkArrayKey, string> values)
+    public void InitializeArrayStringValue(AwkArrayName name, AwkArrayKey key, string value)
     {
-        ReplaceArraySlots(name, CreateArraySlots(values, AwkVariableSlot.FromText));
+        ThrowIfArrayReplacementWouldExceedLimit(1);
+        ReplaceArraySlots(
+            name,
+            new Dictionary<AwkArrayKey, AwkVariableSlot>
+            {
+                [key] = AwkVariableSlot.FromText(value)
+            });
     }
 
-    public void SetArrayExternalStringValues(AwkArrayName name, IReadOnlyDictionary<AwkArrayKey, string> values)
+    public void InitializeIndexedArrayExternalStringValues(
+        AwkArrayName name,
+        IReadOnlyList<string> values,
+        int firstIndex)
     {
-        ReplaceArraySlots(name, CreateArraySlots(values, AwkVariableSlot.FromExternalText));
+        ThrowIfArrayReplacementWouldExceedLimit(values.Count);
+        ReplaceArraySlots(
+            name,
+            CreateIndexedArraySlots(values, firstIndex, AwkVariableSlot.FromExternalText));
+    }
+
+    public void InitializeArrayExternalStringValues<TValue>(
+        AwkArrayName name,
+        IReadOnlyList<TValue> values,
+        Func<TValue, AwkArrayKey> selectKey,
+        Func<TValue, string> selectValue)
+    {
+        var slots = new Dictionary<AwkArrayKey, AwkVariableSlot>(values.Count);
+        for (var index = 0; index < values.Count; index++)
+        {
+            var value = values[index];
+            slots[selectKey(value)] = AwkVariableSlot.FromExternalText(selectValue(value));
+        }
+
+        ThrowIfArrayReplacementWouldExceedLimit(slots.Count);
+        ReplaceArraySlots(name, slots);
+    }
+
+    public void InitializeArrayStringNames(
+        AwkArrayName name,
+        int count,
+        IEnumerable<string> names)
+    {
+        var slots = new Dictionary<AwkArrayKey, AwkVariableSlot>(count);
+        foreach (var value in names)
+            slots[new AwkArrayKey(value)] = AwkVariableSlot.FromText(value);
+
+        ReplaceArraySlots(name, slots);
     }
 
     public AwkValue GetArrayValue(AwkArrayName name, AwkArrayKey index)
@@ -292,22 +333,6 @@ internal sealed class AwkVariables
         ReplaceArraySlots(name, new Dictionary<AwkArrayKey, AwkVariableSlot>());
     }
 
-    public IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotArrayValues(AwkArrayName name)
-    {
-        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
-            return _symbolTable.SnapshotValues();
-
-        if (!name.IsFunctionLocal && ContainsScalar(new AwkVariableName(name.Identifier)))
-            throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
-
-        var slots = GetOrCreateArraySlots(name);
-        var snapshot = new Dictionary<AwkArrayKey, AwkValue>(slots.Count);
-        foreach (var pair in slots)
-            snapshot[pair.Key] = CreateValue(pair.Value);
-
-        return snapshot;
-    }
-
     public TResult[] SnapshotArrayValues<TState, TResult>(
         AwkArrayName name,
         TState state,
@@ -345,17 +370,6 @@ internal sealed class AwkVariables
             return values;
 
         return _arrays.ResolveSlots(name);
-    }
-
-    private static Dictionary<AwkArrayKey, AwkVariableSlot> CreateArraySlots(
-        IReadOnlyDictionary<AwkArrayKey, string> values,
-        Func<string, AwkVariableSlot> createSlot)
-    {
-        var destination = new Dictionary<AwkArrayKey, AwkVariableSlot>(values.Count);
-        foreach (var pair in values)
-            destination[pair.Key] = createSlot(pair.Value);
-
-        return destination;
     }
 
     private static Dictionary<AwkArrayKey, AwkVariableSlot> CreateIndexedArraySlots<TValue>(

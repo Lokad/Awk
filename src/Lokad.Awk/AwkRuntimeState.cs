@@ -298,63 +298,61 @@ internal sealed class AwkRuntimeState
         SetArgumentCount(arguments.Count);
         SetArgvIndex(0);
 
-        var argv = new Dictionary<AwkArrayKey, string>(arguments.Count);
-        for (var index = 0; index < arguments.Count; index++)
-        {
-            var key = AwkArrayKey.FromOrdinal(index);
-            argv[key] = arguments[index];
-        }
-
-        _variables.SetArrayExternalStringValues(
+        _variables.InitializeIndexedArrayExternalStringValues(
             ArgumentVectorArrayName,
-            argv);
+            arguments,
+            firstIndex: 0);
     }
 
     public void InitializeEnvironment(IReadOnlyList<AwkEnvironmentVariable> environment)
     {
-        var environ = new Dictionary<AwkArrayKey, string>(environment.Count);
-        for (var index = 0; index < environment.Count; index++)
-        {
-            var variable = environment[index];
-            environ[new AwkArrayKey(variable.Name)] = variable.Value;
-        }
-
-        _variables.SetArrayExternalStringValues(
+        _variables.InitializeArrayExternalStringValues(
             EnvironmentArrayName,
-            environ);
+            environment,
+            static variable => new AwkArrayKey(variable.Name),
+            static variable => variable.Value);
     }
 
     public IReadOnlyList<AwkEnvironmentVariable> SnapshotEnvironment()
     {
         Counters.RecordStringInteropFallback();
-        var values = _variables.SnapshotArrayValues(EnvironmentArrayName);
-        var result = new List<AwkEnvironmentVariable>(values.Count);
-        foreach (var entry in values)
-        {
-            result.Add(new AwkEnvironmentVariable(
-                entry.Key.ToByteText(Counters, MemoryGovernor).AsString(Counters),
-                FormatString(entry.Value)));
-        }
-
-        result.Sort(static (left, right) =>
-            StringComparer.Ordinal.Compare(left.Name, right.Name));
+        var result = _variables.SnapshotArrayValues(
+            EnvironmentArrayName,
+            this,
+            static (state, key, value) => new AwkEnvironmentVariable(
+                key.ToByteText(state.Counters, state.MemoryGovernor).AsString(state.Counters),
+                state.FormatString(value)));
+        Array.Sort(
+            result,
+            static (left, right) => StringComparer.Ordinal.Compare(left.Name, right.Name));
         return result;
     }
 
     public void InitializeProcInfo()
     {
-        _variables.SetArrayStringValues(
+        _variables.InitializeArrayStringValue(
             ProcInfoArrayName,
-            new Dictionary<AwkArrayKey, string>
-            {
-                [ProcInfoVersionKey] = "Lokad awk"
-            });
+            ProcInfoVersionKey,
+            "Lokad awk");
     }
 
     public void InitializeFunctions<TFunction>(IReadOnlyDictionary<AwkFunctionName, TFunction> functions)
         where TFunction : IAwkUserFunction
     {
-        _variables.SetArrayStringValues(FunctionTableArrayName, _functions.InitializeFunctions(functions));
+        IEnumerable<string> FunctionNames()
+        {
+            foreach (var name in AwkBuiltins.Names)
+                yield return name;
+
+            foreach (var function in functions.Values)
+                yield return function.Name;
+        }
+
+        _functions.InitializeFunctions(functions);
+        _variables.InitializeArrayStringNames(
+            FunctionTableArrayName,
+            AwkBuiltins.Count + functions.Count,
+            FunctionNames());
     }
 
     public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out IAwkUserFunction? function) =>
