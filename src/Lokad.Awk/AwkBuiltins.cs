@@ -198,8 +198,6 @@ internal static partial class AwkBuiltins
 
     public static IEnumerable<string> Names => Definitions.Keys;
 
-    public static IEnumerable<AwkBuiltinDefinition> CallableDefinitions => Definitions.Values;
-
     public static IEnumerable<AwkBuiltinDefinition> SpecialForms => SpecialFormDefinitions.Values;
 
     public static IEnumerable<AwkBuiltinDefinition> SpecialSyntax => SpecialSyntaxDefinitions.Values;

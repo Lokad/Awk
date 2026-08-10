@@ -10,8 +10,6 @@ internal abstract class AwkSpecialVariableDefinition(
 
     protected AwkIdentifier Identifier { get; } = AwkIdentifier.FromTrustedName(name);
 
-    public AwkSpecialVariableName SpecialName => new(Id);
-
     /// <summary>Gets whether this special variable occupies scalar or array storage.</summary>
     public abstract AwkSpecialVariableKind Kind { get; }
 }

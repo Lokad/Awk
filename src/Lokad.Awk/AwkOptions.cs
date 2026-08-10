@@ -28,10 +28,6 @@ internal readonly struct AwkOptionSpec
 
     public AwkShortOptionValuePlacement ShortValuePlacement { get; }
 
-    public bool HasLongName => LongName.Length > 0;
-
-    public bool HasShortName => ShortName != '\0';
-
     public bool IsUnsupportedGnuOption =>
         Action is
             AwkOptionAction.RejectDynamicLoad or

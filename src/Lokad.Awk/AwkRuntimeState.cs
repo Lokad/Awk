@@ -788,24 +788,12 @@ internal sealed class AwkRuntimeState
         AwkOptionalIdentifier separatorArrayName) =>
         _arrayRuntime.PatsplitIntoArray(input, arrayName, pattern, separatorArrayName);
 
-    public int SortArrayValues(
-        AwkArrayName sourceArrayName,
-        AwkArrayName destinationArrayName,
-        AwkArraySortOrder order) =>
-        _arrayRuntime.SortArrayValues(sourceArrayName, destinationArrayName, order);
-
     public ValueTask<int> SortArrayValuesAsync(
         AwkArrayName sourceArrayName,
         AwkArrayName destinationArrayName,
         AwkArraySortOrder order,
         AwkEvaluationContext context) =>
         _arrayRuntime.SortArrayValuesAsync(sourceArrayName, destinationArrayName, order, context);
-
-    public int SortArrayKeys(
-        AwkArrayName sourceArrayName,
-        AwkArrayName destinationArrayName,
-        AwkArraySortOrder order) =>
-        _arrayRuntime.SortArrayKeys(sourceArrayName, destinationArrayName, order);
 
     public ValueTask<int> SortArrayKeysAsync(
         AwkArrayName sourceArrayName,

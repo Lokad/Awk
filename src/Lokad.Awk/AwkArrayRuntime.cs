@@ -154,14 +154,6 @@ internal sealed class AwkArrayRuntime
         return result.Fields.Count;
     }
 
-    public int SortArrayValues(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkArraySortOrder order)
-    {
-        using var lease = ReserveSortOperation(sourceArrayName);
-        var sortedValues = SortValues(SnapshotValues(sourceArrayName), order);
-        SetValues(destinationArrayName, sortedValues);
-        return sortedValues.Length;
-    }
-
     public async ValueTask<int> SortArrayValuesAsync(
         AwkArrayName sourceArrayName,
         AwkArrayName destinationArrayName,
@@ -169,18 +161,10 @@ internal sealed class AwkArrayRuntime
         AwkEvaluationContext context)
     {
         using var lease = ReserveSortOperation(sourceArrayName);
-        var sortedValues = await SortValuesAsync(SnapshotValues(sourceArrayName), order, context)
-            .ConfigureAwait(false);
+        var entries = await SortEntriesAsync(SnapshotValues(sourceArrayName), order, context).ConfigureAwait(false);
+        var sortedValues = CopyValues(entries);
         SetValues(destinationArrayName, sortedValues);
         return sortedValues.Length;
-    }
-
-    public int SortArrayKeys(AwkArrayName sourceArrayName, AwkArrayName destinationArrayName, AwkArraySortOrder order)
-    {
-        using var lease = ReserveSortOperation(sourceArrayName);
-        var sortedKeys = SortKeys(SnapshotValues(sourceArrayName), order);
-        SetValues(destinationArrayName, sortedKeys);
-        return sortedKeys.Length;
     }
 
     public async ValueTask<int> SortArrayKeysAsync(
@@ -190,8 +174,8 @@ internal sealed class AwkArrayRuntime
         AwkEvaluationContext context)
     {
         using var lease = ReserveSortOperation(sourceArrayName);
-        var sortedKeys = await SortKeysAsync(SnapshotValues(sourceArrayName), order, context)
-            .ConfigureAwait(false);
+        var entries = await SortEntriesAsync(SnapshotValues(sourceArrayName), order, context).ConfigureAwait(false);
+        var sortedKeys = CopyKeys(entries);
         SetValues(destinationArrayName, sortedKeys);
         return sortedKeys.Length;
     }
@@ -243,48 +227,6 @@ internal sealed class AwkArrayRuntime
         }
     }
 
-    public AwkValue[] SortValues(IReadOnlyDictionary<AwkArrayKey, AwkValue> values, AwkArraySortOrder order) =>
-        CopyValues(SortEntries(values, order));
-
-    public async ValueTask<AwkValue[]> SortValuesAsync(
-        IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
-        AwkArraySortOrder order,
-        AwkEvaluationContext context)
-    {
-        if (order is not AwkArraySortOrder.UserFunctionOrder)
-            return SortValues(values, order);
-
-        return CopyValues(await SortUserEntriesAsync(values, order, context).ConfigureAwait(false));
-    }
-
-    public AwkText[] SortKeys(IReadOnlyDictionary<AwkArrayKey, AwkValue> values, AwkArraySortOrder order) =>
-        CopyKeys(SortEntries(values, order));
-
-    public async ValueTask<AwkText[]> SortKeysAsync(
-        IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
-        AwkArraySortOrder order,
-        AwkEvaluationContext context)
-    {
-        if (order is not AwkArraySortOrder.UserFunctionOrder)
-            return SortKeys(values, order);
-
-        return CopyKeys(await SortUserEntriesAsync(values, order, context).ConfigureAwait(false));
-    }
-
-    public AwkArrayKey[] SortKeyValues(IReadOnlyDictionary<AwkArrayKey, AwkValue> values, AwkArraySortOrder order) =>
-        CopyKeyValues(SortEntries(values, order));
-
-    public async ValueTask<AwkArrayKey[]> SortKeyValuesAsync(
-        IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
-        AwkArraySortOrder order,
-        AwkEvaluationContext context)
-    {
-        if (order is not AwkArraySortOrder.UserFunctionOrder)
-            return SortKeyValues(values, order);
-
-        return CopyKeyValues(await SortUserEntriesAsync(values, order, context).ConfigureAwait(false));
-    }
-
     private AwkArrayKey[] SnapshotKeyValues(
         IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
         AwkArraySortOrder order)
@@ -292,18 +234,19 @@ internal sealed class AwkArrayRuntime
         if (values.Count == 0)
             return [];
 
-        return SortKeyValues(values, order);
+        return CopyKeyValues(SortEntries(values, order));
     }
 
-    private ValueTask<AwkArrayKey[]> SnapshotKeyValuesAsync(
+    private async ValueTask<AwkArrayKey[]> SnapshotKeyValuesAsync(
         IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
         AwkArraySortOrder order,
         AwkEvaluationContext context)
     {
         if (values.Count == 0)
-            return ValueTask.FromResult<AwkArrayKey[]>([]);
+            return [];
 
-        return SortKeyValuesAsync(values, order, context);
+        var entries = await SortEntriesAsync(values, order, context).ConfigureAwait(false);
+        return CopyKeyValues(entries);
     }
 
     private IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotValues(AwkArrayName name)
@@ -397,6 +340,14 @@ internal sealed class AwkArrayRuntime
         order = AwkArraySortOrder.Parse(text.AsString(_state.Counters));
         return true;
     }
+
+    private ValueTask<AwkArraySortEntry[]> SortEntriesAsync(
+        IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
+        AwkArraySortOrder order,
+        AwkEvaluationContext context) =>
+        order is AwkArraySortOrder.UserFunctionOrder
+            ? SortUserEntriesAsync(values, order, context)
+            : ValueTask.FromResult(SortEntries(values, order));
 
     private AwkArraySortEntry[] SortEntries(
         IReadOnlyDictionary<AwkArrayKey, AwkValue> values,

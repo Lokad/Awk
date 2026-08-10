@@ -857,7 +857,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public void Awk_ArraySortMemoryLimitFailsBeforeReplacingDestination()
+    public async Task Awk_ArraySortMemoryLimitFailsBeforeReplacingDestination()
     {
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
@@ -866,8 +866,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
-        var exception = Assert.Throws<AwkRuntimeException>(
-            () => state.SortArrayValues(sourceArrayName, destinationArrayName, AwkArraySortOrder.Default));
+        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
+            () => state.SortArrayValuesAsync(
+                sourceArrayName,
+                destinationArrayName,
+                AwkArraySortOrder.Default,
+                new AwkEvaluationContext(0, state)).AsTask());
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal("keep", state.GetArrayString(destinationArrayName, ordinalOne));

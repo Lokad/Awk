@@ -73,8 +73,6 @@ internal readonly record struct AwkTerminalInvocationResult
 
     public AwkTerminalInvocationKind Kind { get; }
 
-    public bool IsNone => Kind == AwkTerminalInvocationKind.None;
-
     public bool IsHelp => Kind == AwkTerminalInvocationKind.Help;
 
     public bool IsVersion => Kind == AwkTerminalInvocationKind.Version;
