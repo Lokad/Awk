@@ -1183,15 +1183,36 @@ internal sealed class AwkStatementSyntaxParser
         IReadOnlyList<AwkToken> tokens,
         AwkStatementKind kind)
     {
+        static int FindFirstTopLevelPipe(IReadOnlyList<AwkToken> source)
+        {
+            var parenDepth = 0;
+            var bracketDepth = 0;
+            var braceDepth = 0;
+            for (var index = 0; index < source.Count; index++)
+            {
+                var tokenKind = source[index].Kind;
+                if (tokenKind is (AwkTokenKind.Pipe or AwkTokenKind.PipeAmpersand) &&
+                    parenDepth == 0 &&
+                    bracketDepth == 0 &&
+                    braceDepth == 0)
+                {
+                    return index;
+                }
+
+                AwkTokenNavigation.UpdateDepth(
+                    tokenKind,
+                    ref parenDepth,
+                    ref bracketDepth,
+                    ref braceDepth);
+            }
+
+            return -1;
+        }
+
         if (kind != AwkStatementKind.Expression)
             return AwkSyntaxOptional<AwkInputPipeGetlineSyntax>.None;
 
-        var pipeIndex = AwkTokenNavigation.FindFirstTopLevel(
-            tokens,
-            AwkTokenKind.Pipe,
-            AwkTokenKind.PipeAmpersand,
-            startIndex: 0,
-            limit: tokens.Count);
+        var pipeIndex = FindFirstTopLevelPipe(tokens);
         if (pipeIndex < 0)
             return AwkSyntaxOptional<AwkInputPipeGetlineSyntax>.None;
 

@@ -144,33 +144,6 @@ internal static class AwkTokenNavigation
         };
     }
 
-    public static int FindFirstTopLevel(
-        IReadOnlyList<AwkToken> tokens,
-        AwkTokenKind firstKind,
-        AwkTokenKind secondKind,
-        int startIndex,
-        int limit)
-    {
-        var parenDepth = 0;
-        var bracketDepth = 0;
-        var braceDepth = 0;
-        for (var index = startIndex; index < limit; index++)
-        {
-            var kind = tokens[index].Kind;
-            if ((kind == firstKind || kind == secondKind) &&
-                parenDepth == 0 &&
-                bracketDepth == 0 &&
-                braceDepth == 0)
-            {
-                return index;
-            }
-
-            UpdateDepth(kind, ref parenDepth, ref bracketDepth, ref braceDepth);
-        }
-
-        return -1;
-    }
-
     public static void UpdateDepth(
         AwkTokenKind kind,
         ref int currentParenDepth,

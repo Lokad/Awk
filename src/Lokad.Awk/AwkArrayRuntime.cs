@@ -6,6 +6,11 @@ namespace Lokad.Awk;
 
 internal sealed class AwkArrayRuntime
 {
+    private readonly record struct AwkArrayReservation(int Count, IDisposable Lease) : IDisposable
+    {
+        public void Dispose() => Lease.Dispose();
+    }
+
     private static readonly AwkArrayName ProcInfoArrayName =
         AwkArrayName.FromText(AwkSpecialVariables.Name(AwkSpecialVariableId.ProcInfo));
 
@@ -148,8 +153,7 @@ internal sealed class AwkArrayRuntime
         AwkEvaluationContext context)
     {
         var source = _variableRuntime.ResolveOrPromoteArrayName(sourceArrayName);
-        var reservation = ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
-        using var lease = reservation.Lease;
+        using var reservation = ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
         var entries = await SortEntriesAsync(source, order, reservation.Count, context).ConfigureAwait(false);
         _variables.SetArrayValues(
             _variableRuntime.ResolveOrPromoteArrayName(destinationArrayName),
@@ -165,8 +169,7 @@ internal sealed class AwkArrayRuntime
         AwkEvaluationContext context)
     {
         var source = _variableRuntime.ResolveOrPromoteArrayName(sourceArrayName);
-        var reservation = ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
-        using var lease = reservation.Lease;
+        using var reservation = ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
         var entries = await SortEntriesAsync(source, order, reservation.Count, context).ConfigureAwait(false);
         _variables.SetArrayValues(
             _variableRuntime.ResolveOrPromoteArrayName(destinationArrayName),
@@ -196,7 +199,7 @@ internal sealed class AwkArrayRuntime
         }
         catch
         {
-            lease.Dispose();
+            reservation.Dispose();
             throw;
         }
     }
@@ -219,7 +222,7 @@ internal sealed class AwkArrayRuntime
         }
         catch
         {
-            lease.Dispose();
+            reservation.Dispose();
             throw;
         }
     }
@@ -269,24 +272,24 @@ internal sealed class AwkArrayRuntime
         }
     }
 
-    private (int Count, IDisposable Lease) ReserveSortOperation(
+    private AwkArrayReservation ReserveSortOperation(
         AwkArrayName sourceArrayName,
         AwkArraySortOrder order,
         AwkArraySortOutput output)
     {
         var count = _variables.GetArraySnapshotCount(sourceArrayName);
         var lease = _state.MemoryGovernor.ReserveTransient(EstimateSortOperationBytes(count, order, output));
-        return (count, lease);
+        return new AwkArrayReservation(count, lease);
     }
 
-    private (int Count, IDisposable Lease) ReserveSortedKeySnapshot(
+    private AwkArrayReservation ReserveSortedKeySnapshot(
         AwkArrayName arrayName,
         AwkArraySortOrder order)
     {
         var count = _variables.GetArraySnapshotCount(arrayName);
         var lease = _state.MemoryGovernor.ReserveTransient(
             EstimateSortOperationBytes(count, order, AwkArraySortOutput.KeySnapshot));
-        return (count, lease);
+        return new AwkArrayReservation(count, lease);
     }
 
     private void SetValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)
