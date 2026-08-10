@@ -2,6 +2,18 @@
 
 ## 0.1.0
 
+- Bind every inline, `-f`, and `-i` source unit into one awk program namespace so declarations work
+  across files, function-only libraries are valid, and duplicate functions are diagnosed instead of
+  being overwritten during program assembly.
+- Short-circuit built-in array-sort comparisons after the first decisive key, count only comparisons
+  actually performed, and reuse the preflight element count when snapshotting ordinary and virtual
+  arrays.
+- Materialize `ARGV`, `ENVIRON`, `PROCINFO`, and `FUNCTAB` directly into runtime slots; snapshot
+  `SYMTAB` keys without temporary sets or arrays; and avoid speculative parser, binder, and validator
+  capacities whose final sizes are not known.
+- Remove no-op compatibility-option state, dormant decoded record and field caches, the runtime-state
+  plan wrapper, and test-only builtin enumerators; model string units with the existing enum and make
+  two-token top-level searches single-pass.
 - Preflight array sorting by the selected comparison and output modes, then project source entries
   and destination slots directly; built-in sorts no longer reserve user-comparator buffers or
   allocate intermediate value dictionaries and result arrays.

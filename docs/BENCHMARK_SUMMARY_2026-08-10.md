@@ -2,13 +2,14 @@
 
 This smoke baseline covers formatting, UTF-8 separators, array sorting, allocation, frontend, and
 runtime-state cleanup. The timing sample remains anchored at `94b4f79`; the deterministic counter
-evidence was refreshed through `134f954` after the array-sort snapshot cleanup.
+evidence was refreshed through `9932640` after source-binding, array-snapshot, and runtime-state
+cleanup.
 
 ## Environment
 
 - Timing source commit: `94b4f79` (`refactor: remove unused runtime surface`)
-- Counter source commit: `134f954` (`refactor: tighten C# runtime conventions`)
-- Counter report: `2026-08-10T10:43:48.5623747+00:00`
+- Counter source commit: `9932640` (`refactor: type single-use frontend and sort state`)
+- Counter report: `2026-08-10T12:37:27.3302709+00:00`
 - Machine: `LOKAD-0399`
 - OS: Windows 11 `10.0.26200.8893` (25H2)
 - CPU: Intel Core i7-14700KF, 20 physical cores, 28 logical cores
@@ -46,7 +47,7 @@ controlled before/after comparison. This table is the reproducible baseline for 
 
 ## Counter Evidence
 
-Selected rows from the counter report run at counter source commit `134f954`:
+Selected rows from the counter report run at counter source commit `9932640`:
 
 | Scenario | Records | Input bytes | Output bytes | Steps | String decodes | AsString calls | AwkText allocs | Regex matches | RS bytes scanned | Byte comparisons | VM instructions/fallbacks | Memory peak |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -59,7 +60,7 @@ Selected rows from the counter report run at counter source commit `134f954`:
 | `counter UTF-8 FIELDWIDTHS` | 2 | 27 | 3 | 27 | 0 | 0 | 7 | 0 | 0 | 0 | 0 / 0 | 1,398 |
 | `counter large split fields` | 32 | 1,568 | 4 | 770 | 1 | 32 | 865 | 0 | 0 | 0 | 0 / 0 | 5,380 |
 | `counter regex replacement expansion` | 2 | 24 | 3 | 24 | 3 | 8 | 5 | 6 | 0 | 0 | 0 / 0 | 1,106 |
-| `counter array sorting` | 3 | 12 | 8 | 33 | 1 | 1 | 11 | 0 | 0 | 0 | 0 / 0 | 2,081 |
+| `counter array sorting` | 3 | 12 | 8 | 33 | 1 | 1 | 11 | 0 | 0 | 1 | 0 / 0 | 2,081 |
 | `counter user-function loop` | 0 | 0 | 5 | 1,127 | 0 | 0 | 1 | 0 | 0 | 0 | 0 / 0 | 931 |
 | `counter executable opcode execution` | 2 | 34 | 14 | 4 | 0 | 0 | 4 | 0 | 0 | 0 | 6 / 0 | 1,413 |
 | `counter executable mixed fallback dispatch` | 2 | 24 | 4 | 20 | 0 | 0 | 6 | 0 | 0 | 0 | 8 / 4 | 1,434 |
@@ -68,4 +69,6 @@ The counter workflow uses a one-gibibyte execution-memory ceiling, so `Memory pe
 live bytes. The grouped byte-run scenario scans each input byte once, and the UTF-8 record and field
 rows stay free of string decodes at their byte-native boundaries. Direct array-sort projection
 reduces the selected sorting scenario's governed peak from 2,753 to 2,081 bytes without changing
-its behavior or other counters.
+its behavior. The one reported sort byte comparison is the only byte comparison performed for the
+selected scenario after lazy tie-break evaluation; the previous zero reflected missing sort-path
+instrumentation rather than no comparison work.
