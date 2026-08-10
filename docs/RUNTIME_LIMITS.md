@@ -19,6 +19,8 @@ These limits are host-mediated and may be changed by internal hosts/tests throug
   growth is rejected before the builder changes.
 - `MaxExecutionMemoryBytes`: live governed runtime memory across retained ordinary arrays,
   governed transient builders, VM frames, and explicit preflighted `AwkText` byte allocations.
+  Deferred concatenations charge their retained rope nodes and child text, not only the eventual
+  flattened payload.
 
 Failures use awk-shaped diagnostics and do not leak CLR exception text. Byte and memory ceilings
 use `awk: memory limit exceeded`; execution-step, host-call, and output-file ceilings use their

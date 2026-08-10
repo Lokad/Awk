@@ -60,8 +60,8 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         }
     }
 
-    public int RetainedTextByteLength =>
-        IsOrdinal ? 0 : Text.ByteLength;
+    public long RetainedTextMemoryBytes =>
+        IsOrdinal ? 0 : Text.EstimatedRetainedMemoryBytes;
 
     public bool IsOrdinal => _kind == AwkArrayKeyKind.Ordinal;
 

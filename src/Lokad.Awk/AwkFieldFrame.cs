@@ -431,7 +431,7 @@ internal sealed class AwkFieldFrame(
             {
                 bytes = AwkRuntimeMemory.CheckedAdd(
                     bytes,
-                    AwkRuntimeMemory.EstimateTextBytes(pair.Value.RetainedTextByteLength));
+                    pair.Value.RetainedTextMemoryBytes);
             }
         }
 
@@ -440,7 +440,7 @@ internal sealed class AwkFieldFrame(
 
     private static long EstimateCachedFieldPayloadBytes(AwkFieldText fieldText, AwkValue value) =>
         fieldText.Kind == AwkFieldTextKind.RecordSlice
-            ? AwkRuntimeMemory.EstimateTextBytes(value.RetainedTextByteLength)
+            ? value.RetainedTextMemoryBytes
             : 0;
 
     private static long AdjustEstimate(long currentBytes, long removedBytes, long addedBytes)

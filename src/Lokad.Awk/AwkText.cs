@@ -33,6 +33,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         _byteOffset = byteOffset;
         _byteLength = byteLength;
         _isBorrowed = isBorrowed;
+        EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateTextBytes(byteLength);
     }
 
     private AwkText(
@@ -45,11 +46,14 @@ internal sealed class AwkText : IEquatable<AwkText>
         _bytes = [];
         _byteLength = byteLength;
         _concatenation = new AwkTextConcatenation(left, right, counters, governor);
+        EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateConcatenatedTextBytes(left, right);
     }
 
     public static AwkText Empty { get; } = new([]);
 
     public int ByteLength => _byteLength;
+
+    public long EstimatedRetainedMemoryBytes { get; }
 
     public int RuneLength
     {

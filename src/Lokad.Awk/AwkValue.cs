@@ -128,8 +128,10 @@ internal readonly struct AwkValue
             ? AwkNumberFormatter.ToAwkText(_number)
             : _text ?? AwkText.Empty;
 
-    public int RetainedTextByteLength =>
-        _kind == AwkValueKind.Number ? 0 : (_text ?? AwkText.Empty).ByteLength;
+    public long RetainedTextMemoryBytes =>
+        _kind == AwkValueKind.Number
+            ? 0
+            : (_text ?? AwkText.Empty).EstimatedRetainedMemoryBytes;
 
     public double AsNumber()
     {

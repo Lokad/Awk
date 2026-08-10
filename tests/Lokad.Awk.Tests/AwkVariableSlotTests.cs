@@ -51,7 +51,7 @@ public sealed class AwkVariableSlotTests
             text => AwkValue.FromNumericString(text, AwkNumberParsingMode.Decimal),
             text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal));
 
-        Assert.Equal(0, slot.RetainedTextByteLength);
+        Assert.Equal(0, slot.RetainedTextMemoryBytes);
         Assert.True(value.IsNumberValue);
         Assert.Equal(42, value.AsNumber());
         Assert.Equal("42", value.AsString(counters));

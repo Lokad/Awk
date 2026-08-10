@@ -43,8 +43,10 @@ public sealed class AwkArrayKeyTests
             text,
             fromOrdinal.ToByteText(AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
         Assert.Equal(text.Length, fromOrdinal.ByteLength);
-        Assert.Equal(0, fromOrdinal.RetainedTextByteLength);
-        Assert.Equal(fromText.ByteLength, fromText.RetainedTextByteLength);
+        Assert.Equal(0, fromOrdinal.RetainedTextMemoryBytes);
+        Assert.Equal(
+            AwkRuntimeMemory.EstimateTextBytes(fromText.ByteLength),
+            fromText.RetainedTextMemoryBytes);
     }
 
     [Fact]

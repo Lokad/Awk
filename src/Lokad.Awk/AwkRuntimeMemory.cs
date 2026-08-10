@@ -18,11 +18,10 @@ internal static class AwkRuntimeMemory
     private const int ArraySortEntryBytes = 96;
     private const int FunctionFrameBytes = 64;
     private const int FunctionLocalEntryBytes = 64;
+    private const int ConcatenatedTextNodeBytes = 80;
 
-    public static long EstimateTextBytes(AwkText text)
-    {
-        return EstimateTextBytes(text.ByteLength);
-    }
+    public static long EstimateTextBytes(AwkText text) =>
+        text.EstimatedRetainedMemoryBytes;
 
     public static long EstimateTextBytes(int byteLength)
     {
@@ -33,12 +32,17 @@ internal static class AwkRuntimeMemory
     }
 
     public static long EstimateVariableSlotBytes(AwkVariableSlot slot) =>
-        CheckedAdd(VariableSlotBytes, EstimateTextBytes(slot.RetainedTextByteLength));
+        CheckedAdd(VariableSlotBytes, slot.RetainedTextMemoryBytes);
 
     public static long EstimateArrayElementBytes(AwkArrayKey key, AwkVariableSlot slot) =>
         CheckedAdd(
-            CheckedAdd(ArrayEntryBytes, EstimateTextBytes(key.RetainedTextByteLength)),
+            CheckedAdd(ArrayEntryBytes, key.RetainedTextMemoryBytes),
             EstimateVariableSlotBytes(slot));
+
+    public static long EstimateConcatenatedTextBytes(AwkText left, AwkText right) =>
+        CheckedAdd(
+            ConcatenatedTextNodeBytes,
+            CheckedAdd(left.EstimatedRetainedMemoryBytes, right.EstimatedRetainedMemoryBytes));
 
     public static long EstimateFunctionFrameBytes() =>
         FunctionFrameBytes;

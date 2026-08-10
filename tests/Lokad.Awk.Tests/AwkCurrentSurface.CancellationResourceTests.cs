@@ -1227,6 +1227,32 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
+    public void Awk_ConcatenationTreeMemoryLimitFailsBeforeReplacingVariable()
+    {
+        var variableName = AwkVariableName.FromText("value");
+        var state = CreateStateWithMemoryLimit(50_000);
+        state.AssignVariable(variableName, "keep");
+        var segment = AwkText.FromString("x", state.Counters, state.MemoryGovernor);
+        var concatenated = segment;
+        for (var index = 0; index < 1_024; index++)
+        {
+            concatenated = concatenated.Concat(
+                segment,
+                state.Counters,
+                state.MemoryGovernor);
+        }
+
+        var exception = Assert.Throws<AwkRuntimeException>(() =>
+            state.AssignVariableValue(
+                variableName,
+                AwkValue.FromDeferredText(concatenated, AwkNumberParsingMode.Decimal)));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+        Assert.Equal("keep", FormatVariableValue(state, variableName));
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+    }
+
+    [Fact]
     public void Awk_OmittedFunctionLocalArrayReleasesStorageWithFrame()
     {
         var localName = AwkVariableName.FromText("a");

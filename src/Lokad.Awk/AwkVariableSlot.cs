@@ -63,8 +63,10 @@ internal readonly struct AwkVariableSlot
             ? AwkNumberFormatter.ToAwkText(_number)
             : _text ?? AwkText.Empty;
 
-    public int RetainedTextByteLength =>
-        Kind == AwkVariableSlotKind.Number ? 0 : ByteText.ByteLength;
+    public long RetainedTextMemoryBytes =>
+        Kind == AwkVariableSlotKind.Number
+            ? 0
+            : (_text ?? AwkText.Empty).EstimatedRetainedMemoryBytes;
 
     public AwkVariableSlotKind Kind { get; }
 
