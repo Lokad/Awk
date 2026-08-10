@@ -338,14 +338,24 @@ internal sealed class AwkVariables
         TState state,
         Func<TState, AwkArrayKey, AwkValue, TResult> project)
     {
+        var count = GetArraySnapshotCount(name);
+        return SnapshotArrayValues(name, count, state, project);
+    }
+
+    public TResult[] SnapshotArrayValues<TState, TResult>(
+        AwkArrayName name,
+        int count,
+        TState state,
+        Func<TState, AwkArrayKey, AwkValue, TResult> project)
+    {
         if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
-            return _symbolTable.SnapshotValues(state, project);
+            return _symbolTable.SnapshotValues(count, state, project);
 
         if (!name.IsFunctionLocal && ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
         var slots = GetOrCreateArraySlots(name);
-        var snapshot = new TResult[slots.Count];
+        var snapshot = new TResult[count];
         var writeIndex = 0;
         foreach (var pair in slots)
             snapshot[writeIndex++] = project(state, pair.Key, CreateValue(pair.Value));
@@ -391,10 +401,7 @@ internal sealed class AwkVariables
     {
         if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
         {
-            var keys = _symbolTable.SnapshotKeys();
-            for (var index = 0; index < keys.Count; index++)
-                destination[index] = keys[index];
-
+            _symbolTable.CopyKeys(destination);
             return;
         }
 

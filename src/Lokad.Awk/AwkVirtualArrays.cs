@@ -80,10 +80,11 @@ internal sealed class AwkSymbolTableArray(
     }
 
     public TResult[] SnapshotValues<TState, TResult>(
+        int count,
         TState state,
         Func<TState, AwkArrayKey, AwkValue, TResult> project)
     {
-        var result = new TResult[Count];
+        var result = new TResult[count];
         var index = 0;
         result[index++] = project(
             state,
@@ -116,31 +117,23 @@ internal sealed class AwkSymbolTableArray(
         return result;
     }
 
-    public IReadOnlyList<AwkArrayKey> SnapshotKeys()
+    public void CopyKeys(AwkArrayKey[] destination)
     {
-        var names = SnapshotNames();
-        var keys = new AwkArrayKey[names.Count];
         var index = 0;
-        foreach (var name in names)
-            keys[index++] = new AwkArrayKey(name);
-
-        return keys;
-    }
-
-    private HashSet<string> SnapshotNames()
-    {
-        var names = new HashSet<string>(StringComparer.Ordinal)
-        {
-            AwkVariables.SymbolTableName
-        };
+        destination[index++] = new AwkArrayKey(AwkVariables.SymbolTableName);
 
         foreach (var scalar in getScalars())
-            names.Add(scalar.Name.Text);
+        {
+            if (!IsName(scalar.Name.Text))
+                destination[index++] = new AwkArrayKey(scalar.Name.Text);
+        }
 
-        foreach (var name in getArrayNames())
-            names.Add(name.Text);
-
-        return names;
+        foreach (var arrayName in getArrayNames())
+        {
+            var name = arrayName.Text;
+            if (!IsName(name) && !tryResolveScalar(new AwkVariableName(arrayName.Identifier), out _))
+                destination[index++] = new AwkArrayKey(name);
+        }
     }
 
     private static AwkIdentifier ParseName(string name)
