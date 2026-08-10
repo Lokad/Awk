@@ -1,7 +1,8 @@
 # Benchmark Summary - 2026-08-10
 
-This smoke baseline covers formatting, UTF-8 separators, array sorting, allocation, frontend, and
-runtime-state cleanup. The timing sample remains anchored at `94b4f79`; the deterministic counter
+This smoke baseline covers formatting, UTF-8 separators, array sorting, allocation, executable
+dispatch, and runtime-state cleanup. The recorded timing selection did not include a frontend
+benchmark. The timing sample remains anchored at `94b4f79`; the deterministic counter
 evidence was refreshed through `9932640` after source-binding, array-snapshot, and runtime-state
 cleanup.
 
@@ -25,6 +26,13 @@ dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benc
 
 ```powershell
 dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benchmarks.csproj -- --counter-report
+```
+
+Frontend scaling now has a separate generated 10/100/1,000-rule workload. It was added after this
+baseline, so this document intentionally claims no historical frontend numbers. Run it with:
+
+```powershell
+dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benchmarks.csproj -- --filter "*FrontendScalingBenchmarks*"
 ```
 
 ## Timing Baseline

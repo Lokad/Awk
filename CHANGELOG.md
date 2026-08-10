@@ -2,6 +2,18 @@
 
 ## 0.1.0
 
+- Reuse source-line metadata across nested frontend parses, build expression lexer tokens directly,
+  remove the redundant combined range-pattern parse, and add a generated rule-count scaling
+  benchmark so frontend complexity and allocation regressions are visible.
+- Give executable actions and functions one actual block, remove dormant labels, body/storage enums,
+  duplicate name/fallback tables, and unused operand storage, and replace generic integer operands
+  with opcode-checked typed indexes, counts, targets, comparisons, and flags.
+- Derive `print` separators from expression order, centralize field-separator classification without
+  adding hot-path allocations, and remove unused decoded getline, diagnostic, parameter-binding,
+  output-sink, and redirected-output conveniences.
+- Keep one complete invocation constructor and an explicitly named standard-descriptor factory,
+  align the README and internal callers with that boundary, and avoid allocating when recognizing
+  whitespace-only programs.
 - Bind every inline, `-f`, and `-i` source unit into one awk program namespace so declarations work
   across files, function-only libraries are valid, and duplicate functions are diagnosed instead of
   being overwritten during program assembly.

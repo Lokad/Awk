@@ -200,6 +200,9 @@ internal static class AwkTokenNavigation
                 var indexedTokens = Volatile.Read(ref _indexedTokens);
                 if (indexedTokens == null)
                 {
+                    // Enumeration stays allocation-light, while the first indexed access
+                    // publishes one fully initialized snapshot. Losing racers discard only
+                    // their private copy and always read the winning complete array.
                     var materialized = new AwkToken[Count];
                     var materializedIndex = 0;
                     foreach (var token in this)

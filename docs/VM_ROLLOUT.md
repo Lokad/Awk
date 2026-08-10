@@ -9,10 +9,13 @@ Fallback dispatch is counted through VM counters and charges an executable fallb
 the VM stack byte limit and memory governor. The default execution engine remains the interpreter.
 `AwkExecutor.CompileAsync` owns both the interpreter program and the executable artifact; runtime
 execution selects between those artifacts and does not compile executable form on demand.
-Current non-fallback expression coverage includes constants, fields, current record, scalars,
-scalar assignment, arithmetic, concatenation, comparisons, logical short-circuit, and ternary
-selection. Unsupported expression children lower to explicit fallback expressions inside those
-control shapes rather than forcing the whole action to fallback.
+Current non-fallback expression coverage includes constants; static and dynamic fields; `$0`,
+`NF`, `$NF`, `NR`, `FNR`, and `FILENAME`; scalars and scalar assignment; array lookup, assignment,
+membership, and element deletion; arithmetic, concatenation, comparisons, logical short-circuit,
+and ternary selection. Current statement coverage includes expression statements, `if`, `print`,
+`delete array[index]`, `next`, `nextfile`, `exit`, `break`, `continue`, and `return`. Unsupported
+statement and expression children lower to explicit fallback instructions inside supported control
+shapes rather than forcing the whole action to fallback.
 
 There is no production shadow-compare mode. Interpreter-versus-executable parity checks remain
 test harness scenarios with isolated runs and explicit output/error comparison.
@@ -70,11 +73,12 @@ action/function/statement/expression fallback opcodes.
 Function parameters and locals can use local slots once opcode lowering owns their lifetimes.
 Globals and dynamic awk facilities remain dictionary-backed where required by `SYMTAB`,
 special-variable hooks, array aliases, `PROCINFO`, and late-bound variable behavior.
-User functions are part of the executable artifact today, but their body kind is an explicit
-fallback body and their storage kind is the shared runtime function frame. That means typed
-parameter binding, scalar locals, array aliases, potential array aliases, return flow, function
-recursion limits, and fallback counters are governed by the same `AwkFunctionRuntime` path as the
-interpreter until user-function opcodes own their own local-frame layout.
+User functions are part of the executable artifact today. Each function owns its typed local layout,
+its interpreter fallback function, and one fallback instruction block; invocation still uses the
+shared runtime function frame. Typed parameter binding, scalar locals, array aliases, potential
+array aliases, return flow, function recursion limits, and fallback counters therefore remain
+governed by the same `AwkFunctionRuntime` path as the interpreter until user-function opcodes own
+their own local-frame layout.
 
 ## Inline Cache Policy
 
