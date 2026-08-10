@@ -27,7 +27,8 @@ internal sealed class AwkFormattingRuntime(
         return AwkText.FromString(
             PrintfEvaluation.Format(
                 ResolveFormatString(AwkFormattingVariable.OutputFormat),
-                [FormatStringInput(value)]),
+                new AwkSingleValuePrintfArguments(value, counters),
+                strictMissingArguments: false),
             counters,
             governor);
     }
@@ -47,7 +48,8 @@ internal sealed class AwkFormattingRuntime(
         return AwkText.FromString(
             PrintfEvaluation.Format(
                 ResolveFormatString(AwkFormattingVariable.ConversionFormat),
-                [FormatStringInput(value)]),
+                new AwkSingleValuePrintfArguments(value, counters),
+                strictMissingArguments: false),
             counters,
             governor);
     }
@@ -114,12 +116,6 @@ internal sealed class AwkFormattingRuntime(
         {
             throw new AwkRuntimeException(AwkMessages.ErrorNotEnoughPrintfArguments);
         }
-    }
-
-    private string FormatStringInput(AwkValue value)
-    {
-        counters.RecordFormattingStringInteropInput();
-        return value.AsString(counters);
     }
 
     private bool UsesDefaultFormat(AwkFormattingVariable variable)

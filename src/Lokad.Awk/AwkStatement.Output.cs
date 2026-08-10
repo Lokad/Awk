@@ -121,7 +121,7 @@ internal abstract partial class AwkStatement
 
                 formatted = AwkFormattingRuntime.FormatPrintfStrictByteText(
                     formatText,
-                    new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state.Counters),
+                    new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state),
                     state.Counters,
                     state.MemoryGovernor);
             }

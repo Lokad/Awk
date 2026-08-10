@@ -87,6 +87,12 @@ internal static partial class AwkGoldenCorpus
             "0007 3.13 ff 11 A x    !\n"),
 
         Passing(
+            "printf-preserves-number-precision-and-character-type",
+            ["BEGIN{printf \"%.12g %.12g [%c] [%c]\\n\", 1/3, 1.23456789012, \"65\", 65}"],
+            [],
+            "0.333333333333 1.23456789012 [6] [A]\n"),
+
+        Passing(
             "printf-empty-and-numeric-string-conversions",
             ["BEGIN{printf \"[%d][%g][%s]\\n\", \"\", \"\", \"\"; split(\"00 1.5 x\", a); printf \"[%d][%.1f][%d][%s]\\n\", a[1], a[2], a[3], a[3]}"],
             [],

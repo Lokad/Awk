@@ -414,7 +414,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("00073.5\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(2, counters.FormattingFallbacks);
-        Assert.Equal(4, counters.FormattingStringInteropInputs);
+        Assert.Equal(3, counters.FormattingStringInteropInputs);
         Assert.Equal(2, counters.Utf8Encodes);
         Assert.True(counters.AwkTextAsStringCalls <= counters.FormattingStringInteropInputs);
     }

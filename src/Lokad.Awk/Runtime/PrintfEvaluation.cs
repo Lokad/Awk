@@ -97,8 +97,9 @@ internal static class PrintfEvaluation
 
             if (directive.Conversion == PrintfConversion.String)
             {
-                if (TryReadArgument(arguments, strictMissingArguments, ref argIndex, out var value))
+                if (TryReadArgumentIndex(arguments, strictMissingArguments, ref argIndex, out var argumentIndex))
                 {
+                    var value = arguments.GetString(argumentIndex);
                     if (precision.HasValue && value.Length > precision.Value)
                     {
                         value = value[..precision.Value];
@@ -112,9 +113,9 @@ internal static class PrintfEvaluation
 
             if (directive.Conversion.IsInteger())
             {
-                if (TryReadArgument(arguments, strictMissingArguments, ref argIndex, out var raw))
+                if (TryReadArgumentIndex(arguments, strictMissingArguments, ref argIndex, out var argumentIndex))
                 {
-                    var formatted = FormatInteger(raw, directive.Conversion, flags);
+                    var formatted = FormatInteger(arguments.GetNumber(argumentIndex), directive.Conversion, flags);
                     AppendWithWidth(output, formatted, width.Value, flags.LeftJustify, flags.ZeroPad);
                 }
 
@@ -123,9 +124,9 @@ internal static class PrintfEvaluation
 
             if (directive.Conversion.IsFloat())
             {
-                if (TryReadArgument(arguments, strictMissingArguments, ref argIndex, out var raw))
+                if (TryReadArgumentIndex(arguments, strictMissingArguments, ref argIndex, out var argumentIndex))
                 {
-                    var formatted = FormatFloat(raw, directive.Conversion, precision, flags);
+                    var formatted = FormatFloat(arguments.GetNumber(argumentIndex), directive.Conversion, precision, flags);
                     AppendWithWidth(output, formatted, width.Value, flags.LeftJustify, flags.ZeroPad);
                 }
 
@@ -134,9 +135,14 @@ internal static class PrintfEvaluation
 
             if (directive.Conversion == PrintfConversion.Character)
             {
-                if (TryReadArgument(arguments, strictMissingArguments, ref argIndex, out var raw))
+                if (TryReadArgumentIndex(arguments, strictMissingArguments, ref argIndex, out var argumentIndex))
                 {
-                    AppendWithWidth(output, FormatCharacter(raw), width.Value, flags.LeftJustify, zeroPad: false);
+                    AppendWithWidth(
+                        output,
+                        FormatCharacter(arguments, argumentIndex),
+                        width.Value,
+                        flags.LeftJustify,
+                        zeroPad: false);
                 }
 
                 continue;
@@ -253,7 +259,7 @@ internal static class PrintfEvaluation
             }
             else
             {
-                dynamicWidth = (int)ParseLong(arguments.GetString(argIndex++));
+                dynamicWidth = (int)arguments.GetNumber(argIndex++);
             }
 
             if (dynamicWidth < 0)
@@ -284,7 +290,7 @@ internal static class PrintfEvaluation
             }
             else
             {
-                dynamicPrecision = (int)ParseLong(arguments.GetString(argIndex++));
+                dynamicPrecision = (int)arguments.GetNumber(argIndex++);
             }
 
             return dynamicPrecision < 0
@@ -297,11 +303,11 @@ internal static class PrintfEvaluation
             : PrintfPrecisionValue.None;
     }
 
-    private static bool TryReadArgument(
+    private static bool TryReadArgumentIndex(
         IPrintfArguments arguments,
         bool strictMissingArguments,
         ref int argIndex,
-        out string value)
+        out int argumentIndex)
     {
         if (argIndex >= arguments.Count)
         {
@@ -310,22 +316,22 @@ internal static class PrintfEvaluation
                 throw new FormatException("Not enough printf arguments.");
             }
 
-            value = string.Empty;
+            argumentIndex = 0;
             return false;
         }
 
-        value = arguments.GetString(argIndex++);
+        argumentIndex = argIndex++;
         return true;
     }
 
-    private static string FormatInteger(string raw, PrintfConversion conversion, PrintfFlags flags)
+    private static string FormatInteger(double number, PrintfConversion conversion, PrintfFlags flags)
     {
-        if (TryFormatInfinity(raw, conversion, out var infinity))
+        if (TryFormatInfinity(number, conversion, out var infinity))
         {
             return infinity;
         }
 
-        var value = ParseLong(raw);
+        var value = (long)number;
         var formatted = conversion switch
         {
             PrintfConversion.UnsignedDecimal => unchecked((ulong)value).ToString(CultureInfo.InvariantCulture),
@@ -348,17 +354,16 @@ internal static class PrintfEvaluation
     }
 
     private static string FormatFloat(
-        string raw,
+        double value,
         PrintfConversion conversion,
         PrintfPrecisionValue precision,
         PrintfFlags flags)
     {
-        if (TryFormatInfinity(raw, conversion, out var infinity))
+        if (TryFormatInfinity(value, conversion, out var infinity))
         {
             return infinity;
         }
 
-        var value = ParseDouble(raw);
         var digits = precision.HasValue ? precision.Value : 6;
         var formatSpecifier = conversion switch
         {
@@ -403,35 +408,20 @@ internal static class PrintfEvaluation
         output.Append(text);
     }
 
-    private static long ParseLong(string value)
-    {
-        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var integer))
-        {
-            return integer;
-        }
-
-        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
-        {
-            return (long)number;
-        }
-
-        return 0;
-    }
-
-    private static double ParseDouble(string value) =>
+    internal static double ParseDouble(string value) =>
         TryParseSignedInfinity(value, out var infinity)
             ? infinity
             : double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : 0;
 
-    private static bool TryFormatInfinity(string value, PrintfConversion conversion, out string formatted)
+    private static bool TryFormatInfinity(double value, PrintfConversion conversion, out string formatted)
     {
-        if (!TryParseSignedInfinity(value, out var number))
+        if (!double.IsInfinity(value))
         {
             formatted = string.Empty;
             return false;
         }
 
-        formatted = number < 0 ? "-inf" : "+inf";
+        formatted = value < 0 ? "-inf" : "+inf";
         if (conversion.IsUppercase())
         {
             formatted = formatted.ToUpperInvariant();
@@ -576,15 +566,17 @@ internal static class PrintfEvaluation
         return leadingSpace ? " " + formatted : formatted;
     }
 
-    private static string FormatCharacter(string value)
+    private static string FormatCharacter(IPrintfArguments arguments, int index)
     {
-        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var code) &&
-            code >= char.MinValue &&
-            code <= char.MaxValue)
+        if (arguments.IsNumeric(index))
         {
-            return ((char)code).ToString();
+            var code = (long)arguments.GetNumber(index);
+            return code >= char.MinValue && code <= char.MaxValue
+                ? ((char)code).ToString()
+                : string.Empty;
         }
 
+        var value = arguments.GetString(index);
         return value.Length == 0 ? string.Empty : value[0].ToString();
     }
 }
@@ -594,6 +586,10 @@ internal interface IPrintfArguments
     int Count { get; }
 
     string GetString(int index);
+
+    double GetNumber(int index);
+
+    bool IsNumeric(int index);
 }
 
 internal readonly struct PrintfStringListArguments(
@@ -607,20 +603,30 @@ internal readonly struct PrintfStringListArguments(
         counters.RecordFormattingStringInteropInput();
         return arguments[index];
     }
+
+    public double GetNumber(int index) => PrintfEvaluation.ParseDouble(arguments[index]);
+
+    public bool IsNumeric(int index) =>
+        long.TryParse(arguments[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
 }
 
 internal readonly struct AwkValueArrayPrintfArguments(
     AwkValue[] arguments,
     int count,
-    AwkRuntimeCounters counters) : IPrintfArguments
+    AwkRuntimeState state) : IPrintfArguments
 {
     public int Count => count;
 
     public string GetString(int index)
     {
-        counters.RecordFormattingStringInteropInput();
-        return arguments[index].AsString(counters);
+        state.Counters.RecordFormattingStringInteropInput();
+        return state.FormatStringByteText(arguments[index]).AsString(state.Counters);
     }
+
+    public double GetNumber(int index) => arguments[index].AsNumber();
+
+    public bool IsNumeric(int index) =>
+        arguments[index].IsNumberValue || arguments[index].IsNumericStringValue;
 }
 
 internal readonly struct AwkBuiltinContextPrintfArguments(
@@ -634,6 +640,38 @@ internal readonly struct AwkBuiltinContextPrintfArguments(
         context.State.Counters.RecordFormattingStringInteropInput();
         return context.GetString(index + startIndex);
     }
+
+    public double GetNumber(int index) => context.GetNumber(index + startIndex);
+
+    public bool IsNumeric(int index)
+    {
+        var value = context.GetValue(index + startIndex);
+        return value.IsNumberValue || value.IsNumericStringValue;
+    }
+}
+
+internal readonly struct AwkSingleValuePrintfArguments(
+    AwkValue value,
+    AwkRuntimeCounters counters) : IPrintfArguments
+{
+    public int Count => 1;
+
+    public string GetString(int index)
+    {
+        if (index != 0)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        counters.RecordFormattingStringInteropInput();
+        return value.AsString(counters);
+    }
+
+    public double GetNumber(int index) =>
+        index == 0 ? value.AsNumber() : throw new ArgumentOutOfRangeException(nameof(index));
+
+    public bool IsNumeric(int index) =>
+        index == 0
+            ? value.IsNumberValue || value.IsNumericStringValue
+            : throw new ArgumentOutOfRangeException(nameof(index));
 }
 
 internal readonly record struct PrintfDirective(

@@ -113,6 +113,12 @@ internal static partial class AwkGoldenCorpus
             "0.33\n1.2345\n"),
 
         Passing(
+            "custom-number-formats-preserve-source-precision",
+            ["BEGIN{OFMT=\"%.12g\"; print 1/3; CONVFMT=\"%.12g\"; print (1/3 \"\")}"],
+            [],
+            "0.333333333333\n0.333333333333\n"),
+
+        Passing(
             "concat-numbers-use-convfmt",
             ["BEGIN{CONVFMT=\"%.2f\"; print (1/3 \"\"); print (12 \"\")}"],
             [],
