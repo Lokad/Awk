@@ -133,10 +133,10 @@ internal sealed class AwkMemoryGovernor
         _counters.RecordMemoryReleaseCommitted(byteCount);
     }
 
-    public IDisposable ReserveTransient(long byteCount)
+    public AwkMemoryLease ReserveTransient(long byteCount)
     {
         if (!_enabled || byteCount <= 0)
-            return AwkNoopMemoryLease.Instance;
+            return AwkMemoryLease.Disabled;
 
         Reserve(byteCount);
         try
@@ -149,7 +149,7 @@ internal sealed class AwkMemoryGovernor
             throw;
         }
 
-        return new AwkTransientMemoryLease(this, byteCount);
+        return new AwkMemoryLease(this, byteCount);
     }
 
     private long LiveBytes => AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, CurrentCommittedBytes);
@@ -165,26 +165,45 @@ internal sealed class AwkMemoryGovernor
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
     }
 
-    private sealed class AwkNoopMemoryLease : IDisposable
-    {
-        public static AwkNoopMemoryLease Instance { get; } = new();
+}
 
-        public void Dispose()
-        {
-        }
+internal sealed class AwkMemoryLease : IDisposable
+{
+    private AwkMemoryGovernor? _governor;
+    private long _byteCount;
+
+    private AwkMemoryLease()
+    {
     }
 
-    private sealed class AwkTransientMemoryLease(AwkMemoryGovernor governor, long byteCount) : IDisposable
+    public AwkMemoryLease(AwkMemoryGovernor governor, long byteCount)
     {
-        private bool _disposed;
+        _governor = governor;
+        _byteCount = byteCount;
+    }
 
-        public void Dispose()
-        {
-            if (_disposed)
-                return;
+    public static AwkMemoryLease Disabled { get; } = new();
 
-            _disposed = true;
-            governor.ReleaseCommitted(byteCount);
-        }
+    public void Transfer(long byteCount)
+    {
+        if (_governor is null)
+            return;
+
+        if (byteCount < 0 || byteCount > _byteCount)
+            throw new InvalidOperationException("Cannot transfer more bytes than remain in the memory lease.");
+
+        _byteCount -= byteCount;
+    }
+
+    public void Dispose()
+    {
+        var governor = _governor;
+        if (governor is null)
+            return;
+
+        _governor = null;
+        if (_byteCount > 0)
+            governor.ReleaseCommitted(_byteCount);
+        _byteCount = 0;
     }
 }

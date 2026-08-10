@@ -628,10 +628,10 @@ internal sealed class AwkRuntimeState
     public bool IsRegexMatch(AwkRegex regex, AwkText input) =>
         _regexRuntime.IsMatch(regex, input);
 
-    public AwkRegexMatch MatchRegexValue(AwkRegex regex, AwkText input) =>
+    public AwkLeasedRegexMatch MatchRegexValue(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchValue(regex, input, MemoryGovernor);
 
-    public AwkRegexMatch MatchRegexCaptureValue(AwkRegex regex, AwkText input) =>
+    public AwkLeasedRegexMatch MatchRegexCaptureValue(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchCaptureValue(regex, input, MemoryGovernor, Limits.MaxRegexCaptureBytes);
 
     public AwkRegexMatchPosition MatchRegexPosition(AwkRegex regex, AwkText input) =>
@@ -721,8 +721,8 @@ internal sealed class AwkRuntimeState
     public void ClearArray(AwkArrayName name) =>
         _arrayRuntime.Clear(name);
 
-    public void ReplaceMatchCaptureArray(AwkArrayName name, IReadOnlyList<AwkRegexGroup> groups) =>
-        _arrayRuntime.ReplaceMatchCaptures(name, groups);
+    public void ReplaceMatchCaptureArray(AwkArrayName name, AwkLeasedRegexMatch match) =>
+        _arrayRuntime.ReplaceMatchCaptures(name, match);
 
     public ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(
         AwkArrayName name,

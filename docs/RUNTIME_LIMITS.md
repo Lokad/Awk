@@ -82,6 +82,9 @@ charged separately with a conservative estimate that includes its payload, curre
 layout, and capacity for both optional caches, so populating a cache cannot take retained memory
 outside the execution budget. Retained ordinary array entries additionally charge their key/value
 and small-object overhead.
+Materialized regex matches retain one governed lease for their group structures and copied text
+until the consumer advances or disposes the match. Capture-array replacement transfers the copied
+text portion of that lease into the destination array instead of dropping or double-charging it.
 Read-only built-in special arrays such as `FUNCTAB` are static runtime metadata and are not charged
 against the execution memory budget.
 

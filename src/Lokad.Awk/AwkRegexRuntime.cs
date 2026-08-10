@@ -106,7 +106,7 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-    public AwkRegexMatch MatchValue(AwkRegex regex, AwkText input, AwkMemoryGovernor governor)
+    public AwkLeasedRegexMatch MatchValue(AwkRegex regex, AwkText input, AwkMemoryGovernor governor)
     {
         return MatchValue(
             regex,
@@ -117,7 +117,7 @@ internal sealed class AwkRegexRuntime
             out _);
     }
 
-    public AwkRegexMatch MatchCaptureValue(
+    public AwkLeasedRegexMatch MatchCaptureValue(
         AwkRegex regex,
         AwkText input,
         AwkMemoryGovernor governor,
@@ -130,7 +130,7 @@ internal sealed class AwkRegexRuntime
             AwkRegexSearchOffset.Start,
             out _);
 
-    internal AwkRegexMatch MatchValue(
+    internal AwkLeasedRegexMatch MatchValue(
         AwkRegex regex,
         AwkText input,
         AwkMemoryGovernor governor,
@@ -149,7 +149,7 @@ internal sealed class AwkRegexRuntime
             out matchSpan);
     }
 
-    internal AwkRegexMatch MatchValue(
+    internal AwkLeasedRegexMatch MatchValue(
         AwkRegex regex,
         AwkText input,
         AwkMemoryGovernor governor,
@@ -167,7 +167,7 @@ internal sealed class AwkRegexRuntime
             if (!match.Success)
             {
                 matchSpan = AwkRegexMatchSpan.NoMatch;
-                return AwkRegexMatch.NoMatch;
+                return AwkLeasedRegexMatch.NoMatch;
             }
 
             matchSpan = CreateMatchSpan(text, match, searchOffset);
@@ -190,7 +190,7 @@ internal sealed class AwkRegexRuntime
             if (!match.Success)
             {
                 matchSpan = AwkRegexMatchSpan.NoMatch;
-                return AwkRegexMatch.NoMatch;
+                return AwkLeasedRegexMatch.NoMatch;
             }
 
             matchSpan = AwkRegexMatchSpan.Match(
@@ -510,7 +510,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
     private readonly AwkText _input;
     private readonly AwkMemoryGovernor _governor;
     private readonly AwkRegexRuntime.AwkRegexInputContext _inputContext;
-    private readonly IDisposable _matchLease;
+    private AwkLeasedRegexMatch _currentMatch = AwkLeasedRegexMatch.NoMatch;
     private AwkRegexSearchOffset _nextOffset = AwkRegexSearchOffset.Start;
     private bool _completed;
     private bool _disposed;
@@ -526,20 +526,20 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
         _input = input;
         _governor = governor;
         _inputContext = runtime.CaptureInputContext(regex, input);
-        _matchLease = governor.ReserveTransient(
-            AwkRuntimeMemory.EstimateRegexMatchBytes(regex.GroupCount));
     }
 
     public bool MoveNext(out AwkRegexMatch match)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        _currentMatch.Dispose();
+        _currentMatch = AwkLeasedRegexMatch.NoMatch;
         if (_completed)
         {
             match = AwkRegexMatch.NoMatch;
             return false;
         }
 
-        match = _runtime.MatchValue(
+        _currentMatch = _runtime.MatchValue(
             _regex,
             _input,
             _governor,
@@ -547,6 +547,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
             _nextOffset,
             _inputContext,
             out var matchSpan);
+        match = _currentMatch.Match;
         if (!match.Success)
         {
             _completed = true;
@@ -567,7 +568,8 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
             return;
 
         _disposed = true;
-        _matchLease.Dispose();
+        _currentMatch.Dispose();
+        _currentMatch = AwkLeasedRegexMatch.NoMatch;
     }
 }
 

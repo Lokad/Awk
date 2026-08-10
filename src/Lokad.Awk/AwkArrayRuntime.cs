@@ -189,8 +189,9 @@ internal sealed class AwkArrayRuntime
         _variables.ClearArray(_variableRuntime.ResolveOrPromoteArrayName(name));
     }
 
-    public void ReplaceMatchCaptures(AwkArrayName name, IReadOnlyList<AwkRegexGroup> groups)
+    public void ReplaceMatchCaptures(AwkArrayName name, AwkLeasedRegexMatch leasedMatch)
     {
+        var groups = leasedMatch.Match.Groups;
         var entryCount = 0;
         for (var index = 0; index < groups.Count; index++)
         {
@@ -214,7 +215,9 @@ internal sealed class AwkArrayRuntime
 
         _variables.ReplaceMutableArraySlots(
             _variableRuntime.ResolveOrPromoteArrayName(name),
-            slots);
+            slots,
+            leasedMatch.MemoryLease,
+            leasedMatch.RetainedTextMemoryBytes);
     }
 
     public AwkLeasedReadOnlyList<AwkArrayKey> SnapshotKeyValues(AwkArrayName name)

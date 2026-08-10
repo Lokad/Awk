@@ -81,9 +81,10 @@ internal abstract partial class AwkExpression
                 return AwkValue.FromNumber(position.Success ? position.Index + 1 : 0);
             }
 
-            var match = context.State.MatchRegexCaptureValue(regex, input);
+            using var leasedMatch = context.State.MatchRegexCaptureValue(regex, input);
+            var match = leasedMatch.Match;
             var arrayName = new AwkArrayName(captureArrayName.Value);
-            context.State.ReplaceMatchCaptureArray(arrayName, match.Groups);
+            context.State.ReplaceMatchCaptureArray(arrayName, leasedMatch);
             AssignMatchVariables(context.State, match.Success, match.Index, match.Length);
 
             return AwkValue.FromNumber(match.Success ? match.Index + 1 : 0);

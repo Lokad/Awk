@@ -162,7 +162,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var input = AwkText.FromString("a", counters);
         var baselineTextAllocations = counters.AwkTextAllocations;
 
-        var match = runtime.MatchValue(regex, input, AwkMemoryGovernor.Disabled);
+        using var leasedMatch = runtime.MatchValue(regex, input, AwkMemoryGovernor.Disabled);
+        var match = leasedMatch.Match;
 
         Assert.True(match.Success);
         Assert.Equal(2, match.Groups.Count);
@@ -177,7 +178,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var counters = AwkRuntimeCounters.CreateEnabled();
         var dotNetMatch = Regex.Match(input, "(?<=(\u00e9))x", RegexOptions.CultureInvariant);
 
-        var match = AwkRegexMatch.FromMatch(
+        using var leasedMatch = AwkRegexMatch.FromMatch(
             dotNetMatch,
             input,
             byteIndex: 2,
@@ -186,6 +187,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             AwkRuntimeLimits.Unlimited,
             counters,
             AwkMemoryGovernor.Disabled);
+        var match = leasedMatch.Match;
 
         Assert.True(match.Success);
         Assert.Equal(2, match.Index);

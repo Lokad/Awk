@@ -296,10 +296,13 @@ internal static class AwkRegexSubstitution
         AwkRegex regex,
         AwkText input) : IMatchSource<AwkRegexMatch>
     {
+        private AwkLeasedRegexMatch _currentMatch = AwkLeasedRegexMatch.NoMatch;
         private bool _read;
 
         public bool MoveNext(out AwkRegexMatch match)
         {
+            _currentMatch.Dispose();
+            _currentMatch = AwkLeasedRegexMatch.NoMatch;
             if (_read)
             {
                 match = AwkRegexMatch.NoMatch;
@@ -307,12 +310,15 @@ internal static class AwkRegexSubstitution
             }
 
             _read = true;
-            match = state.MatchRegexValue(regex, input);
+            _currentMatch = state.MatchRegexValue(regex, input);
+            match = _currentMatch.Match;
             return match.Success;
         }
 
-        public readonly void Dispose()
+        public void Dispose()
         {
+            _currentMatch.Dispose();
+            _currentMatch = AwkLeasedRegexMatch.NoMatch;
         }
     }
 

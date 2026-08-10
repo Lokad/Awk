@@ -744,7 +744,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public async Task Awk_RegexCaptureMemoryLimitFailsBeforeChangingMatchState()
     {
-        var state = CreateStateWithMemoryLimit(600);
+        var state = CreateStateWithMemoryLimit(1_000);
         var arrayName = AwkArrayName.FromText("a");
         state.SetArrayString(arrayName, AwkArrayKey.FromOrdinal(1), "keep");
         SetMatchState(state, start: 41, length: 42);
@@ -758,6 +758,14 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.True(state.TryGetExistingArrayCount(arrayName, out var count));
         Assert.Equal(1, count);
         AssertMatchState(state, start: 41, length: 42);
+        var retainedTextBytes = AwkRuntimeMemory.CheckedAdd(
+            AwkRuntimeMemory.EstimateTextBytes(byteLength: 4),
+            AwkRuntimeMemory.CheckedAdd(
+                AwkRuntimeMemory.EstimateTextBytes(byteLength: 2),
+                AwkRuntimeMemory.EstimateTextBytes(byteLength: 2)));
+        Assert.True(state.MemoryGovernor.PeakLiveBytes >= AwkRuntimeMemory.EstimateRegexMatchBytes(
+            groupCount: 3,
+            retainedTextBytes: retainedTextBytes));
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
 
@@ -1109,7 +1117,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_RegexEnumerationHoldsOnlyOneMatchBuffer()
     {
-        var state = CreateStateWithMemoryLimit(200);
+        var requiredBytes = AwkRuntimeMemory.EstimateRegexMatchBytes(
+            groupCount: 1,
+            retainedTextBytes: AwkRuntimeMemory.EstimateTextBytes(byteLength: 1));
+        var state = CreateStateWithMemoryLimit(checked((int)requiredBytes));
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("aaaa");
 
@@ -1117,12 +1128,16 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using (var matches = state.EnumerateRegexMatches(regex, input))
         {
             while (matches.MoveNext(out _))
+            {
+                Assert.Equal(requiredBytes, state.MemoryGovernor.CurrentCommittedBytes);
                 matchCount++;
+            }
 
-            Assert.InRange(state.MemoryGovernor.CurrentCommittedBytes, 1, 200);
+            Assert.Equal(0, state.MemoryGovernor.CurrentCommittedBytes);
         }
 
         Assert.Equal(4, matchCount);
+        Assert.Equal(requiredBytes, state.MemoryGovernor.PeakLiveBytes);
         Assert.Equal(0, state.MemoryGovernor.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
@@ -1130,14 +1145,54 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_RegexFirstMatchMemoryLimitDoesNotReserveEnumerationList()
     {
-        var state = CreateStateWithMemoryLimit(200);
+        var requiredBytes = AwkRuntimeMemory.EstimateRegexMatchBytes(
+            groupCount: 1,
+            retainedTextBytes: AwkRuntimeMemory.EstimateTextBytes(byteLength: 1));
+        var state = CreateStateWithMemoryLimit(checked((int)requiredBytes));
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("aaaa");
 
-        var match = state.MatchRegexValue(regex, input);
+        using (var leasedMatch = state.MatchRegexValue(regex, input))
+        {
+            var match = leasedMatch.Match;
 
-        Assert.True(match.Success);
-        Assert.Equal("a", match.Value.AsString());
+            Assert.True(match.Success);
+            Assert.Equal("a", match.Value.AsString());
+            Assert.Equal(requiredBytes, state.MemoryGovernor.CurrentCommittedBytes);
+        }
+
+        Assert.Equal(requiredBytes, state.MemoryGovernor.PeakLiveBytes);
+        Assert.Equal(0, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Awk_RegexFirstMatchMemoryLimitIncludesGroupPayload(bool useUtf8Adapter)
+    {
+        var requiredBytes = AwkRuntimeMemory.EstimateRegexMatchBytes(
+            groupCount: 1,
+            retainedTextBytes: AwkRuntimeMemory.EstimateTextBytes(byteLength: 1));
+        var state = AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default,
+            CancellationToken.None,
+            new AwkRuntimeOptions(
+                () => new AwkUnixTimestampSeconds(0),
+                TimeZoneInfo.Utc,
+                new AwkRandomGenerator(),
+                AwkRuntimeCounters.Disabled,
+                AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(checked((int)requiredBytes - 1)),
+                useUtf8Adapter
+                    ? AwkRegexEngineKind.Utf8Adapter
+                    : AwkRegexEngineKind.DotNetCompatibility,
+                AwkExecutionEngineKind.Interpreter));
+        var regex = state.CreateRegex(new AwkRegexPattern("a"));
+        var input = AwkText.FromString("a");
+
+        var exception = Assert.Throws<AwkRuntimeException>(() => state.MatchRegexValue(regex, input));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal(0, state.MemoryGovernor.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
