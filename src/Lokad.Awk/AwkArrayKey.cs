@@ -8,7 +8,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     private const int MaxInt32Utf8ByteLength = 11;
 
     private readonly AwkArrayKeyKind _kind;
-    private readonly AwkText _text;
+    private readonly AwkText? _text;
     private readonly int _ordinal;
     private readonly int _hashCode;
 

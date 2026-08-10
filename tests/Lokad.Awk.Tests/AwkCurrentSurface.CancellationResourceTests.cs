@@ -1325,13 +1325,11 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var limits = AwkRuntimeLimits.CreateDefault();
 
         Assert.Equal(10_000_000, AwkRuntimeLimits.DefaultMaxExecutionSteps);
-        Assert.Equal(10_000_000, AwkRuntimeOptions.DefaultMaxExecutionSteps);
         Assert.Equal(10_000_000, limits.MaxExecutionSteps);
         Assert.Equal(10_000_000, AwkRuntimeOptions.CreateSystemDefault().Limits.MaxExecutionSteps);
-        Assert.Equal(AwkRuntimeOptions.DefaultMaxExecutionSteps, limits.MaxExecutionSteps);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxArrayElements, limits.MaxArrayElements);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxFields, limits.MaxFields);
-        Assert.Equal(AwkIo.DefaultMaxOutputFiles, limits.MaxOutputFiles);
+        Assert.Equal(AwkRuntimeLimits.DefaultMaxOutputFiles, limits.MaxOutputFiles);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxBuilderBytes, limits.MaxBuilderBytes);
         Assert.Equal(
             AwkRuntimeLimits.DefaultMaxRegexRecordSeparatorBytesScanned,

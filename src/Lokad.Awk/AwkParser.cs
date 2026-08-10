@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Lokad.Awk;
 
@@ -8,13 +7,14 @@ internal static class AwkParser
     public static AwkParseResult Parse(string source)
     {
         var syntax = AwkSyntaxParser.Parse(source);
-        var warnings = syntax.Diagnostics
-            .Where(diagnostic => diagnostic.IsWarning)
-            .ToArray();
-        var errors = syntax.Diagnostics
-            .Where(diagnostic => !diagnostic.IsWarning)
-            .ToArray();
-        var phase = errors.Length == 0
+        var warnings = new List<AwkDiagnostic>();
+        var errors = new List<AwkDiagnostic>();
+        foreach (var diagnostic in syntax.Diagnostics)
+        {
+            (diagnostic.IsWarning ? warnings : errors).Add(diagnostic);
+        }
+
+        var phase = errors.Count == 0
             ? AwkPhaseResult<AwkSyntaxProgram>.SuccessResult(AwkPipelinePhase.Parse, syntax, warnings)
             : AwkPhaseResult<AwkSyntaxProgram>.Failure(AwkPipelinePhase.Parse, syntax, errors, warnings);
         return new AwkParseResult(phase);

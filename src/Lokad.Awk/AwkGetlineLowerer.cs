@@ -125,6 +125,17 @@ internal static class AwkGetlineLowerer
         AwkGetlineLoweringParts parts,
         AwkLoweringScope scope)
     {
+        static AwkTextSpan ResolveFallbackSpan(AwkGetlineLoweringParts parts)
+        {
+            if (parts.Target.TryGetValue(out var target))
+                return target.Span;
+
+            if (parts.Source.TryGetValue(out var source))
+                return source.Span;
+
+            return new AwkTextSpan(0, 0);
+        }
+
         var target = AwkGetlineTarget.CurrentRecord;
         var source = AwkGetlineSource.MainInput;
 
@@ -187,17 +198,6 @@ internal static class AwkGetlineLowerer
         }
 
         return InvalidGetline(statement.Span, "Invalid getline statement.");
-    }
-
-    private static AwkTextSpan ResolveFallbackSpan(AwkGetlineLoweringParts parts)
-    {
-        if (parts.Target.TryGetValue(out var target))
-            return target.Span;
-
-        if (parts.Source.TryGetValue(out var source))
-            return source.Span;
-
-        return new AwkTextSpan(0, 0);
     }
 
     private static AwkDiagnostic InvalidGetline(AwkTextSpan span, string message) =>

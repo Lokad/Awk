@@ -22,7 +22,7 @@ internal enum AwkValueKind
 
 internal readonly struct AwkValue
 {
-    private readonly AwkText _text;
+    private readonly AwkText? _text;
     private readonly double _number;
     private readonly AwkValueKind _kind;
 

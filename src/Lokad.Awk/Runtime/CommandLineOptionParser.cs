@@ -74,7 +74,7 @@ internal sealed class CommandLineOptionParser
 
     public bool TryReadShortGroupRemainder(out string remainder)
     {
-        if (string.IsNullOrEmpty(_shortGroup) || _shortIndex <= 0 || _shortIndex >= _shortGroup.Length)
+        if (_shortGroup.Length == 0 || _shortIndex <= 0 || _shortIndex >= _shortGroup.Length)
         {
             remainder = string.Empty;
             return false;
@@ -88,7 +88,7 @@ internal sealed class CommandLineOptionParser
 
     private bool TryReadShortGroup(out CommandLineOptionItem item)
     {
-        if (string.IsNullOrEmpty(_shortGroup))
+        if (_shortGroup.Length == 0)
         {
             item = CommandLineOptionItem.End;
             return false;

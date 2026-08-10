@@ -39,6 +39,22 @@ internal readonly record struct AwkRegexMatch(
         static int Payload(long packed) =>
             unchecked((int)packed);
 
+        static void ThrowIfCaptureBytesExceeded(long maxCaptureBytes, GroupCollection groups)
+        {
+            if (maxCaptureBytes == AwkRuntimeLimits.Unlimited)
+                return;
+
+            var captureBytes = 0L;
+            for (var index = 0; index < groups.Count; index++)
+            {
+                captureBytes = AwkRuntimeMemory.CheckedAdd(
+                    captureBytes,
+                    Encoding.UTF8.GetByteCount(groups[index].ValueSpan));
+                if (captureBytes > maxCaptureBytes)
+                    throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+            }
+        }
+
         static void ResolveByteBoundaries(
             Match match,
             string input,
@@ -150,6 +166,22 @@ internal readonly record struct AwkRegexMatch(
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
+        static void ThrowIfCaptureBytesExceeded(long maxCaptureBytes, Utf8MatchContext match)
+        {
+            if (maxCaptureBytes == AwkRuntimeLimits.Unlimited)
+                return;
+
+            var captureBytes = 0L;
+            for (var index = 0; index < match.GroupCount; index++)
+            {
+                var group = match.GetGroup(index);
+                if (group.Success)
+                    captureBytes = AwkRuntimeMemory.CheckedAdd(captureBytes, group.LengthInBytes);
+                if (captureBytes > maxCaptureBytes)
+                    throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+            }
+        }
+
         if (!match.Success)
             return NoMatch;
 
@@ -159,11 +191,21 @@ internal readonly record struct AwkRegexMatch(
         counters.RecordRegexGroupsMaterialized(groups.Length);
         for (var index = 0; index < groups.Length; index++)
         {
-            groups[index] = FromUtf8Group(match.GetGroup(index), coordinatePolicy, counters, governor);
+            var group = match.GetGroup(index);
+            var groupValue = group.TryGetValueBytes(out var groupBytes)
+                ? AwkText.CopyTrustedBytes(groupBytes, counters, governor)
+                : AwkText.FromString(group.GetValueString(), counters, governor);
+            groups[index] = new AwkRegexGroup(
+                group.Success,
+                SelectCoordinate(coordinatePolicy, group.IndexInBytes, group.IndexInUtf16),
+                SelectCoordinate(coordinatePolicy, group.LengthInBytes, group.LengthInUtf16),
+                groupValue);
         }
 
         var value = groups.Length == 0
-            ? CreateText(match, counters, governor)
+            ? match.TryGetValueBytes(out var matchBytes)
+                ? AwkText.CopyTrustedBytes(matchBytes, counters, governor)
+                : AwkText.FromString(match.GetValueString(), counters, governor)
             : groups[0].Value;
         return new AwkRegexMatch(
             true,
@@ -175,68 +217,11 @@ internal readonly record struct AwkRegexMatch(
             groups);
     }
 
-    private static AwkRegexGroup FromUtf8Group(
-        Utf8GroupContext group,
-        AwkRegexCoordinatePolicy coordinatePolicy,
-        AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor) =>
-        new(
-            group.Success,
-            SelectCoordinate(coordinatePolicy, group.IndexInBytes, group.IndexInUtf16),
-            SelectCoordinate(coordinatePolicy, group.LengthInBytes, group.LengthInUtf16),
-            CreateText(group, counters, governor));
-
-    private static AwkText CreateText(Utf8MatchContext match, AwkRuntimeCounters counters, AwkMemoryGovernor governor) =>
-        match.TryGetValueBytes(out var bytes)
-            ? AwkText.CopyTrustedBytes(bytes, counters, governor)
-            : AwkText.FromString(match.GetValueString(), counters, governor);
-
-    private static AwkText CreateText(Utf8GroupContext group, AwkRuntimeCounters counters, AwkMemoryGovernor governor) =>
-        group.TryGetValueBytes(out var bytes)
-            ? AwkText.CopyTrustedBytes(bytes, counters, governor)
-            : AwkText.FromString(group.GetValueString(), counters, governor);
-
     private static int SelectCoordinate(
         AwkRegexCoordinatePolicy coordinatePolicy,
         int byteValue,
         int utf16Value) =>
         coordinatePolicy == AwkRegexCoordinatePolicy.Byte ? byteValue : utf16Value;
-
-    private static void ThrowIfCaptureBytesExceeded(
-        long maxCaptureBytes,
-        GroupCollection groups)
-    {
-        if (maxCaptureBytes == AwkRuntimeLimits.Unlimited)
-            return;
-
-        var captureBytes = 0L;
-        for (var index = 0; index < groups.Count; index++)
-        {
-            captureBytes = AwkRuntimeMemory.CheckedAdd(
-                captureBytes,
-                Encoding.UTF8.GetByteCount(groups[index].ValueSpan));
-            if (captureBytes > maxCaptureBytes)
-                throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-        }
-    }
-
-    private static void ThrowIfCaptureBytesExceeded(
-        long maxCaptureBytes,
-        Utf8MatchContext match)
-    {
-        if (maxCaptureBytes == AwkRuntimeLimits.Unlimited)
-            return;
-
-        var captureBytes = 0L;
-        for (var index = 0; index < match.GroupCount; index++)
-        {
-            var group = match.GetGroup(index);
-            if (group.Success)
-                captureBytes = AwkRuntimeMemory.CheckedAdd(captureBytes, group.LengthInBytes);
-            if (captureBytes > maxCaptureBytes)
-                throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-        }
-    }
 
 }
 

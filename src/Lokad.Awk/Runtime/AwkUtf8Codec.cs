@@ -45,11 +45,11 @@ internal static class AwkUtf8Codec
     }
 
     public static ReadOnlyMemory<byte> Encode(string text) =>
-        string.IsNullOrEmpty(text) ? ReadOnlyMemory<byte>.Empty : StrictUtf8.GetBytes(text);
+        text.Length == 0 ? ReadOnlyMemory<byte>.Empty : StrictUtf8.GetBytes(text);
 
     public static ReadOnlyMemory<byte> Encode(string text, AwkRuntimeCounters counters)
     {
-        if (string.IsNullOrEmpty(text))
+        if (text.Length == 0)
             return ReadOnlyMemory<byte>.Empty;
 
         counters.RecordUtf8Encode();
@@ -58,7 +58,7 @@ internal static class AwkUtf8Codec
 
     public static byte[] EncodeOwned(string text)
     {
-        if (string.IsNullOrEmpty(text))
+        if (text.Length == 0)
             return [];
 
         return StrictUtf8.GetBytes(text);
@@ -66,7 +66,7 @@ internal static class AwkUtf8Codec
 
     public static byte[] EncodeOwned(string text, AwkRuntimeCounters counters)
     {
-        if (string.IsNullOrEmpty(text))
+        if (text.Length == 0)
             return [];
 
         counters.RecordUtf8Encode();

@@ -112,9 +112,6 @@ internal static class AwkRuntime
         if (state.TryGetExitCode(out var exitCode))
             return exitCode;
 
-        if (state.ExitRequested)
-            return AwkDiagnostics.SuccessExitCode;
-
         return AwkDiagnostics.SuccessExitCode;
     }
 

@@ -6,8 +6,6 @@ internal sealed class AwkRuntimeOptions
 {
     private readonly Func<AwkRandomGenerator> _createRandomGenerator;
 
-    public const int DefaultMaxExecutionSteps = AwkRuntimeLimits.DefaultMaxExecutionSteps;
-
     public AwkRuntimeOptions(
         Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
         TimeZoneInfo timeZone,

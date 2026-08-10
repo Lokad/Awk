@@ -8,7 +8,6 @@ namespace Lokad.Awk;
 internal sealed class AwkIo
 {
     internal const int InputReadBatchLineCount = AwkRuntimeLimits.DefaultInputReadBatchLineCount;
-    internal const int DefaultMaxOutputFiles = AwkRuntimeLimits.DefaultMaxOutputFiles;
 
     private readonly AwkIoDescriptorTable _descriptors = new();
     private readonly AwkIoHostAdapter _host;

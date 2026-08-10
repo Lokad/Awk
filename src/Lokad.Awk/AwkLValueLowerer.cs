@@ -11,6 +11,51 @@ internal static class AwkLValueLowerer
         AwkExpressionSyntax expression,
         AwkLoweringScope scope)
     {
+        static AwkLValueLoweringResult LowerVariable(
+            AwkExpressionSyntax expression,
+            AwkLoweringScope scope)
+        {
+            if (!AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(expression, out var identifier))
+                return AwkLValueLoweringResult.Invalid;
+
+            var variableName = new AwkVariableName(identifier.Identifier);
+            return AwkLValueLoweringResult.Valid(
+                scope.TryGetFunctionLocalSlot(variableName, out var slotId)
+                    ? AwkReference.LocalScalar(variableName, slotId)
+                    : AwkReference.Scalar(variableName));
+        }
+
+        static AwkLValueLoweringResult LowerArrayElement(
+            AwkExpressionSyntax expression,
+            AwkLoweringScope scope)
+        {
+            if (expression.Children.Count < 2 ||
+                !AwkExpressionSyntaxFacts.TryGetAssignableArrayElementTarget(expression, out var target) ||
+                !AwkExpressionLowerer.TryLowerArrayIndex(expression.Children, scope, out var index))
+            {
+                return AwkLValueLoweringResult.Invalid;
+            }
+
+            return AwkLValueLoweringResult.Valid(
+                AwkReference.ArrayElement(new AwkArrayName(target.Identifier), index));
+        }
+
+        static AwkLValueLoweringResult LowerField(
+            AwkExpressionSyntax expression,
+            AwkLoweringScope scope)
+        {
+            if (expression.Children.Count != 1)
+                return AwkLValueLoweringResult.Invalid;
+
+            if (AwkExpressionSyntaxFacts.IsFieldCountExpression(expression.Children[0]))
+                return AwkLValueLoweringResult.Valid(AwkReference.Field(AwkExpression.FieldCount()));
+
+            if (!AwkExpressionLowerer.TryLower(expression.Children[0], scope, out var index))
+                return AwkLValueLoweringResult.Invalid;
+
+            return AwkLValueLoweringResult.Valid(AwkReference.Field(index));
+        }
+
         switch (expression.Kind)
         {
             case AwkExpressionKind.Variable:
@@ -26,54 +71,6 @@ internal static class AwkLValueLowerer
 
     public static AwkDiagnostic CreateFailureDiagnostic(AwkExpressionSyntax expression, string message) =>
         new(expression.Span, message, AwkDiagnosticId.BindInvalidProgram);
-
-    private static AwkLValueLoweringResult LowerVariable(
-        AwkExpressionSyntax expression,
-        AwkLoweringScope scope)
-    {
-        if (!AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(expression, out var identifier))
-        {
-            return AwkLValueLoweringResult.Invalid;
-        }
-
-        var variableName = new AwkVariableName(identifier.Identifier);
-        return AwkLValueLoweringResult.Valid(
-            scope.TryGetFunctionLocalSlot(variableName, out var slotId)
-                ? AwkReference.LocalScalar(variableName, slotId)
-                : AwkReference.Scalar(variableName));
-    }
-
-    private static AwkLValueLoweringResult LowerArrayElement(
-        AwkExpressionSyntax expression,
-        AwkLoweringScope scope)
-    {
-        if (expression.Children.Count < 2 ||
-            !AwkExpressionSyntaxFacts.TryGetAssignableArrayElementTarget(expression, out var target) ||
-            !AwkExpressionLowerer.TryLowerArrayIndex(expression.Children, scope, out var index))
-        {
-            return AwkLValueLoweringResult.Invalid;
-        }
-
-        return AwkLValueLoweringResult.Valid(AwkReference.ArrayElement(new AwkArrayName(target.Identifier), index));
-    }
-
-    private static AwkLValueLoweringResult LowerField(
-        AwkExpressionSyntax expression,
-        AwkLoweringScope scope)
-    {
-        if (expression.Children.Count != 1)
-            return AwkLValueLoweringResult.Invalid;
-
-        if (AwkExpressionSyntaxFacts.IsFieldCountExpression(expression.Children[0]))
-        {
-            return AwkLValueLoweringResult.Valid(AwkReference.Field(AwkExpression.FieldCount()));
-        }
-
-        if (!AwkExpressionLowerer.TryLower(expression.Children[0], scope, out var index))
-            return AwkLValueLoweringResult.Invalid;
-
-        return AwkLValueLoweringResult.Valid(AwkReference.Field(index));
-    }
 }
 
 internal readonly struct AwkLValueLoweringResult

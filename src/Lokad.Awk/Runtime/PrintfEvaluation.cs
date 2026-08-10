@@ -15,7 +15,7 @@ internal static class PrintfEvaluation
         AwkMemoryGovernor governor)
         where TArguments : IPrintfArguments
     {
-        if (string.IsNullOrEmpty(format))
+        if (format.Length == 0)
             return AwkText.Empty;
 
         using var output = new PrintfByteOutput(limits, counters, governor);

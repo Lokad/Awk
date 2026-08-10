@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkVariableSlot
 {
-    private readonly AwkText _text;
+    private readonly AwkText? _text;
     private readonly double _number;
 
     public AwkVariableSlot(string text, AwkVariableSlotKind kind)
