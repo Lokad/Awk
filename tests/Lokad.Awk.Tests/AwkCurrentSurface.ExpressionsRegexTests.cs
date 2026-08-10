@@ -51,7 +51,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var ignoreCase = false;
         var runtime = new AwkRegexRuntime(
             () => ignoreCase,
-            static () => false,
+            AwkStringUnitMode.Utf8Rune,
             static () => { },
             AwkRuntimeCounters.Disabled,
             AwkRegexEngineKind.DotNetCompatibility);
@@ -74,7 +74,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
         var runtime = new AwkRegexRuntime(
             static () => false,
-            static () => false,
+            AwkStringUnitMode.Utf8Rune,
             static () => { },
             counters,
             AwkRegexEngineKind.Utf8Adapter);
@@ -102,7 +102,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(
             static () => false,
-            static () => false,
+            AwkStringUnitMode.Utf8Rune,
             static () => { },
             counters,
             AwkRegexEngineKind.DotNetCompatibility);
@@ -129,7 +129,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(
             static () => false,
-            static () => true,
+            AwkStringUnitMode.Byte,
             static () => { },
             counters,
             AwkRegexEngineKind.DotNetCompatibility);
@@ -150,7 +150,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(
             static () => false,
-            static () => false,
+            AwkStringUnitMode.Utf8Rune,
             static () => { },
             counters,
             useUtf8Adapter

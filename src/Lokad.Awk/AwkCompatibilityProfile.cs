@@ -27,6 +27,9 @@ internal readonly struct AwkCompatibilityProfile
 
     public bool CharactersAsBytes { get; }
 
+    public AwkStringUnitMode StringUnitMode =>
+        CharactersAsBytes ? AwkStringUnitMode.Byte : AwkStringUnitMode.Utf8Rune;
+
     public bool NonDecimalData { get; }
 
     public AwkLintMode LintMode { get; }
@@ -46,6 +49,12 @@ internal readonly struct AwkCompatibilityProfile
 
     public AwkCompatibilityProfile WithLintMode(AwkLintMode lintMode) =>
         new(Mode, CharactersAsBytes, NonDecimalData, lintMode);
+}
+
+internal enum AwkStringUnitMode
+{
+    Utf8Rune,
+    Byte
 }
 
 internal readonly record struct AwkAcceptedCompatibilityOptions(

@@ -10,7 +10,7 @@ internal sealed class AwkRegexRuntime
     private const int MaxCachedRegexes = AwkRuntimeLimits.DefaultRegexCacheSize;
 
     private readonly Func<bool> _isIgnoreCaseEnabled;
-    private readonly Func<bool> _charactersAsBytes;
+    private readonly AwkStringUnitMode _stringUnitMode;
     private readonly Action _throwIfCancellationRequested;
     private readonly AwkRuntimeCounters _counters;
     private readonly AwkRegexEngineKind _engineKind;
@@ -20,13 +20,13 @@ internal sealed class AwkRegexRuntime
 
     public AwkRegexRuntime(
         Func<bool> isIgnoreCaseEnabled,
-        Func<bool> charactersAsBytes,
+        AwkStringUnitMode stringUnitMode,
         Action throwIfCancellationRequested,
         AwkRuntimeCounters counters,
         AwkRegexEngineKind engineKind)
     {
         _isIgnoreCaseEnabled = isIgnoreCaseEnabled;
-        _charactersAsBytes = charactersAsBytes;
+        _stringUnitMode = stringUnitMode;
         _throwIfCancellationRequested = throwIfCancellationRequested;
         _counters = counters;
         _engineKind = engineKind;
@@ -355,8 +355,7 @@ internal sealed class AwkRegexRuntime
 
     private AwkRegexExecutionPolicy ResolveExecutionPolicy(AwkRegex regex, AwkText input)
     {
-        var charactersAsBytes = _charactersAsBytes();
-        var coordinatePolicy = charactersAsBytes
+        var coordinatePolicy = _stringUnitMode is AwkStringUnitMode.Byte
             ? AwkRegexCoordinatePolicy.Byte
             : AwkRegexCoordinatePolicy.Utf16;
 
@@ -369,7 +368,7 @@ internal sealed class AwkRegexRuntime
         }
 
         if (_engineKind == AwkRegexEngineKind.Utf8Adapter ||
-            (charactersAsBytes && input.ContainsNonAscii(_counters)))
+            (_stringUnitMode is AwkStringUnitMode.Byte && input.ContainsNonAscii(_counters)))
         {
             return new AwkRegexExecutionPolicy(
                 AwkRegexExecutionEngine.Utf8Adapter,

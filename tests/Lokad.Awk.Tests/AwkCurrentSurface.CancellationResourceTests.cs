@@ -239,7 +239,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var checks = 0;
         var runtime = new AwkRegexRuntime(
             static () => false,
-            static () => false,
+            AwkStringUnitMode.Utf8Rune,
             () =>
             {
                 checks++;
@@ -760,10 +760,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
                 AwkRuntimeLimits.CreateDefault(),
                 AwkRegexEngineKind.DotNetCompatibility,
                 AwkExecutionEngineKind.Interpreter),
-            AwkCompatibilityMode.GnuDefault,
-            AwkLintMode.Off,
-            charactersAsBytes: false,
-            nonDecimalData: false,
+            AwkCompatibilityProfile.Default,
             maxArrayElements: 2));
 
         state.SetArrayString(arrayName, new AwkArrayKey("1"), "one");

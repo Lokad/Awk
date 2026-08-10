@@ -10,7 +10,7 @@ internal sealed class AwkByteFieldSplitter(
     Func<AwkRegexLiteralText, AwkRegex> createLiteralRegex,
     Func<AwkRegex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
     Func<bool> isIgnoreCaseEnabled,
-    Func<bool> charactersAsBytes,
+    AwkStringUnitMode stringUnitMode,
     Action throwIfCancellationRequested,
     AwkMemoryGovernor memoryGovernor,
     AwkRuntimeCounters runtimeCounters)
@@ -25,7 +25,11 @@ internal sealed class AwkByteFieldSplitter(
             return SplitWhitespace(line, captureSeparators, counters);
 
         if (separator.ByteText.ByteLength == 0)
-            return SplitCharacters(line, captureSeparators, charactersAsBytes(), counters);
+            return SplitCharacters(
+                line,
+                captureSeparators,
+                stringUnitMode is AwkStringUnitMode.Byte,
+                counters);
 
         if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) && !isIgnoreCaseEnabled())
             return SplitSingleByteLiteral(line, separatorByte, captureSeparators, counters);
@@ -45,7 +49,7 @@ internal sealed class AwkByteFieldSplitter(
             return SplitWhitespaceRecordFields(line);
 
         if (separator.ByteText.ByteLength == 0)
-            return SplitCharacterRecordFields(line, charactersAsBytes());
+            return SplitCharacterRecordFields(line, stringUnitMode is AwkStringUnitMode.Byte);
 
         if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) && !isIgnoreCaseEnabled())
             return SplitSingleByteLiteralRecordFields(line, separatorByte);

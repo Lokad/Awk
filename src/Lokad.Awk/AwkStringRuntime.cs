@@ -6,16 +6,16 @@ namespace Lokad.Awk;
 
 internal sealed class AwkStringRuntime
 {
-    private readonly Func<bool> _charactersAsBytes;
+    private readonly AwkStringUnitMode _unitMode;
 
-    public AwkStringRuntime(Func<bool> charactersAsBytes)
+    public AwkStringRuntime(AwkStringUnitMode unitMode)
     {
-        _charactersAsBytes = charactersAsBytes;
+        _unitMode = unitMode;
     }
 
     public int CountUnits(AwkText value)
     {
-        return _charactersAsBytes() ? value.ByteLength : value.RuneLength;
+        return _unitMode is AwkStringUnitMode.Byte ? value.ByteLength : value.RuneLength;
     }
 
     public int IndexOfUnits(AwkText source, AwkText value)
@@ -40,7 +40,7 @@ internal sealed class AwkStringRuntime
         if (position < 0)
             return 0;
 
-        return _charactersAsBytes()
+        return _unitMode is AwkStringUnitMode.Byte
             ? position + 1
             : CountRunes(source.AsSpan()[..position]) + 1;
     }
@@ -52,7 +52,7 @@ internal sealed class AwkStringRuntime
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        return _charactersAsBytes()
+        return _unitMode is AwkStringUnitMode.Byte
             ? source.CopyByteSlice(start, length, counters, governor)
             : source.CopyRuneSlice(start, length, counters, governor);
     }

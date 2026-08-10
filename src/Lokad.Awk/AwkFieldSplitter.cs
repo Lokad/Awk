@@ -12,7 +12,7 @@ internal sealed class AwkFieldSplitter(
     Func<AwkRegexLiteralText, AwkRegex> createLiteralRegex,
     Func<AwkRegex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
     Func<bool> isIgnoreCaseEnabled,
-    Func<bool> charactersAsBytes,
+    AwkStringUnitMode stringUnitMode,
     Action throwIfCancellationRequested,
     AwkMemoryGovernor memoryGovernor,
     AwkRuntimeCounters counters)
@@ -22,7 +22,7 @@ internal sealed class AwkFieldSplitter(
         createLiteralRegex,
         enumerateMatchSpans,
         isIgnoreCaseEnabled,
-        charactersAsBytes,
+        stringUnitMode,
         throwIfCancellationRequested,
         memoryGovernor,
         counters);
@@ -210,7 +210,7 @@ internal sealed class AwkFieldSplitter(
             if (_fieldWidths.Count == 0)
                 return [];
 
-            return charactersAsBytes()
+            return stringUnitMode is AwkStringUnitMode.Byte
                 ? SplitByteFields()
                 : SplitRuneFields();
         }

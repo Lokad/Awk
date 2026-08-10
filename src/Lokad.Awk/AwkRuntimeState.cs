@@ -12,10 +12,7 @@ internal readonly record struct AwkRuntimeStatePlan(
     AwkFieldSeparatorSpec FieldSeparator,
     CancellationToken CancellationToken,
     AwkRuntimeOptions RuntimeOptions,
-    AwkCompatibilityMode CompatibilityMode,
-    AwkLintMode LintMode,
-    bool CharactersAsBytes,
-    bool NonDecimalData,
+    AwkCompatibilityProfile CompatibilityProfile,
     int MaxArrayElements)
 {
     public static AwkRuntimeStatePlan Create(
@@ -26,20 +23,14 @@ internal readonly record struct AwkRuntimeStatePlan(
             fieldSeparator,
             cancellationToken,
             runtimeOptions,
-            AwkCompatibilityMode.GnuDefault,
-            AwkLintMode.Off,
-            charactersAsBytes: false,
-            nonDecimalData: false,
+            AwkCompatibilityProfile.Default,
             runtimeOptions.Limits.MaxArrayElements);
 
     public static AwkRuntimeStatePlan Create(
         AwkFieldSeparatorSpec fieldSeparator,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions,
-        AwkCompatibilityMode compatibilityMode,
-        AwkLintMode lintMode,
-        bool charactersAsBytes,
-        bool nonDecimalData,
+        AwkCompatibilityProfile compatibilityProfile,
         int maxArrayElements)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxArrayElements);
@@ -48,15 +39,9 @@ internal readonly record struct AwkRuntimeStatePlan(
             fieldSeparator,
             cancellationToken,
             runtimeOptions,
-            compatibilityMode,
-            lintMode,
-            charactersAsBytes,
-            nonDecimalData,
+            compatibilityProfile,
             maxArrayElements);
     }
-
-    public AwkRuntimeStatePlan WithLintMode(AwkLintMode lintMode) =>
-        this with { LintMode = lintMode };
 }
 
 internal sealed class AwkRuntimeState
@@ -126,10 +111,10 @@ internal sealed class AwkRuntimeState
         Limits = plan.RuntimeOptions.Limits.WithMaxArrayElements(plan.MaxArrayElements);
         Resources = new AwkRuntimeResourceMonitor(Limits, Counters);
         MemoryGovernor = AwkMemoryGovernor.Create(Limits, Counters);
-        CompatibilityMode = plan.CompatibilityMode;
-        LintMode = plan.LintMode;
-        CharactersAsBytes = plan.CharactersAsBytes;
-        NonDecimalData = plan.NonDecimalData;
+        CompatibilityMode = plan.CompatibilityProfile.Mode;
+        LintMode = plan.CompatibilityProfile.LintMode;
+        NonDecimalData = plan.CompatibilityProfile.NonDecimalData;
+        var stringUnitMode = plan.CompatibilityProfile.StringUnitMode;
         _timeRuntime = new AwkTimeRuntime(plan.RuntimeOptions.CurrentUnixTimeSeconds, plan.RuntimeOptions.TimeZone);
         _randomRuntime = new AwkRandomRuntime(plan.RuntimeOptions.CreateRandomGenerator(), _timeRuntime);
         _cancellationToken = plan.CancellationToken;
@@ -147,11 +132,11 @@ internal sealed class AwkRuntimeState
             CreateNumericStringValue);
         _regexRuntime = new AwkRegexRuntime(
             IsIgnoreCaseEnabled,
-            () => CharactersAsBytes,
+            stringUnitMode,
             ThrowIfCancellationRequested,
             Counters,
             plan.RuntimeOptions.RegexEngineKind);
-        _stringRuntime = new AwkStringRuntime(() => CharactersAsBytes);
+        _stringRuntime = new AwkStringRuntime(stringUnitMode);
         _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Counters, MemoryGovernor);
         _fieldSplitter = new AwkFieldSplitter(
             plan.FieldSeparator,
@@ -159,7 +144,7 @@ internal sealed class AwkRuntimeState
             _regexRuntime.CreateLiteral,
             EnumerateRegexMatchSpans,
             IsIgnoreCaseEnabled,
-            () => CharactersAsBytes,
+            stringUnitMode,
             ThrowIfCancellationRequested,
             MemoryGovernor,
             Counters);
@@ -218,8 +203,6 @@ internal sealed class AwkRuntimeState
     public AwkCompatibilityMode CompatibilityMode { get; }
 
     public AwkLintMode LintMode { get; }
-
-    public bool CharactersAsBytes { get; }
 
     public bool NonDecimalData { get; }
 

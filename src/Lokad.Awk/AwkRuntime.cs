@@ -54,10 +54,7 @@ internal static class AwkRuntime
             executionOptions.FieldSeparator,
             cancellationToken,
             runtimeOptions,
-            executionOptions.CompatibilityProfile.Mode,
-            executionOptions.CompatibilityProfile.LintMode,
-            executionOptions.CompatibilityProfile.CharactersAsBytes,
-            executionOptions.CompatibilityProfile.NonDecimalData,
+            executionOptions.CompatibilityProfile,
             runtimeOptions.Limits.MaxArrayElements));
         state.InitializeArguments(runtimeArguments.RuntimeArguments);
         state.InitializeEnvironment(runtimeArguments.Environment);
