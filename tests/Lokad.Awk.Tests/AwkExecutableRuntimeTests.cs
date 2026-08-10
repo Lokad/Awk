@@ -23,6 +23,18 @@ public sealed class AwkExecutableRuntimeTests
     }
 
     [Fact]
+    public void AwkInstruction_RejectsOperandsThatDoNotFitTheOpcode()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => AwkInstruction.WithoutOperand(AwkOpcode.LoadConstant));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => AwkInstruction.Counted(AwkOpcode.Jump, new AwkStackValueCount(1)));
+        Assert.Throws<InvalidOperationException>(
+            () => AwkInstruction.WithoutOperand(AwkOpcode.NoOp)
+                .WithJumpTarget(new AwkInstructionOffset(1)));
+    }
+
+    [Fact]
     public void AwkExecutionEngineKind_ExposesProductionSelectionModesOnly()
     {
         Assert.Equal(

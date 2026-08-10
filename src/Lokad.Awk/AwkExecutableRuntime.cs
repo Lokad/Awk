@@ -118,7 +118,7 @@ internal sealed class AwkExecutableAction
     public static AwkExecutableAction FromFallback(AwkAction action)
     {
         var block = new AwkExecutableBlock(
-            [new AwkInstruction(AwkOpcode.FallbackAction)]);
+            [AwkInstruction.WithoutOperand(AwkOpcode.FallbackAction)]);
         return new AwkExecutableAction(block, action, maxStackDepth: 0);
     }
 
@@ -172,7 +172,7 @@ internal sealed class AwkExecutableFunction : IAwkUserFunction
     public static AwkExecutableFunction FromFallback(AwkUserFunction function)
     {
         var block = new AwkExecutableBlock(
-            [new AwkInstruction(AwkOpcode.FallbackFunction)]);
+            [AwkInstruction.WithoutOperand(AwkOpcode.FallbackFunction)]);
         return new AwkExecutableFunction(
             function.FunctionName,
             function.LocalLayout,
@@ -284,14 +284,14 @@ internal static class AwkExecutableDispatcher
                             break;
 
                         case AwkOpcode.LoadConstant:
-                            stack[stackCount++] = tables.Constants[instruction.Operand0];
+                            stack[stackCount++] = tables.Constants[instruction.ConstantIndex.Value];
                             pc++;
                             break;
 
                         case AwkOpcode.LoadField:
-                            stack[stackCount++] = instruction.Operand0 > state.FieldCount
+                            stack[stackCount++] = instruction.FieldIndex.Value > state.FieldCount
                                 ? AwkValue.FromText(AwkText.Empty)
-                                : state.GetFieldValue(new AwkFieldIndex(instruction.Operand0));
+                                : state.GetFieldValue(instruction.FieldIndex);
                             pc++;
                             break;
 
@@ -328,14 +328,16 @@ internal static class AwkExecutableDispatcher
                             break;
 
                         case AwkOpcode.LoadScalar:
-                            stack[stackCount++] = bindings.LoadScalar(instruction.Operand0, state);
+                            stack[stackCount++] = bindings.LoadScalar(instruction.ScalarIndex, state);
                             pc++;
                             break;
 
                         case AwkOpcode.LoadArrayElement:
                             {
                                 var key = state.ToArrayKey(stack[--stackCount]);
-                                stack[stackCount++] = state.GetArrayAwkValue(tables.ArrayNames[instruction.Operand0], key);
+                                stack[stackCount++] = state.GetArrayAwkValue(
+                                    tables.ArrayNames[instruction.ArrayNameIndex.Value],
+                                    key);
                                 pc++;
                                 break;
                             }
@@ -343,8 +345,8 @@ internal static class AwkExecutableDispatcher
                         case AwkOpcode.StoreScalar:
                             {
                                 var value = stack[--stackCount];
-                                bindings.StoreScalar(instruction.Operand0, state, value);
-                                if (instruction.Operand1 != 0)
+                                bindings.StoreScalar(instruction.ScalarIndex, state, value);
+                                if (instruction.RetainsStoredValue)
                                     stack[stackCount++] = value;
 
                                 pc++;
@@ -355,8 +357,11 @@ internal static class AwkExecutableDispatcher
                             {
                                 var key = state.ToArrayKey(stack[--stackCount]);
                                 var value = stack[--stackCount];
-                                state.SetArrayAwkValue(tables.ArrayNames[instruction.Operand0], key, value);
-                                if (instruction.Operand1 != 0)
+                                state.SetArrayAwkValue(
+                                    tables.ArrayNames[instruction.ArrayNameIndex.Value],
+                                    key,
+                                    value);
+                                if (instruction.RetainsStoredValue)
                                     stack[stackCount++] = value;
 
                                 pc++;
@@ -366,7 +371,7 @@ internal static class AwkExecutableDispatcher
                         case AwkOpcode.DeleteArrayElement:
                             {
                                 var key = state.ToArrayKey(stack[--stackCount]);
-                                state.DeleteArrayValue(tables.ArrayNames[instruction.Operand0], key);
+                                state.DeleteArrayValue(tables.ArrayNames[instruction.ArrayNameIndex.Value], key);
                                 pc++;
                                 break;
                             }
@@ -375,7 +380,9 @@ internal static class AwkExecutableDispatcher
                             {
                                 var key = state.ToArrayKey(stack[--stackCount]);
                                 stack[stackCount++] = AwkValue.FromNumber(
-                                    state.ContainsArrayValue(tables.ArrayNames[instruction.Operand0], key) ? 1 : 0);
+                                    state.ContainsArrayValue(
+                                        tables.ArrayNames[instruction.ArrayNameIndex.Value],
+                                        key) ? 1 : 0);
                                 pc++;
                                 break;
                             }
@@ -397,7 +404,7 @@ internal static class AwkExecutableDispatcher
 
                         case AwkOpcode.FormatString:
                             {
-                                var start = stackCount - instruction.Operand0;
+                                var start = stackCount - instruction.ValueCount.Value;
                                 for (var index = start; index < stackCount; index++)
                                 {
                                     stack[index] = state.CreateByteTextValue(
@@ -410,7 +417,7 @@ internal static class AwkExecutableDispatcher
 
                         case AwkOpcode.Concat:
                             {
-                                var partCount = instruction.Operand0;
+                                var partCount = instruction.ValueCount.Value;
                                 var partStart = stackCount - partCount;
                                 var rentedParts = ArrayPool<AwkText>.Shared.Rent(partCount);
                                 try
@@ -440,7 +447,7 @@ internal static class AwkExecutableDispatcher
                                 var isMatch = AwkComparisonOperations.Evaluate(
                                     left,
                                     right,
-                                    (AwkComparison)instruction.Operand0,
+                                    instruction.Comparison,
                                     state);
                                 stack[stackCount++] = AwkValue.FromNumber(isMatch ? 1 : 0);
                                 pc++;
@@ -458,20 +465,26 @@ internal static class AwkExecutableDispatcher
                             break;
 
                         case AwkOpcode.Jump:
-                            pc = instruction.Operand0;
+                            pc = instruction.JumpTarget.Value;
                             break;
 
                         case AwkOpcode.JumpIfFalse:
                             {
                                 var condition = stack[--stackCount];
-                                pc = condition.IsTruthy() ? pc + 1 : instruction.Operand0;
+                                pc = condition.IsTruthy() ? pc + 1 : instruction.JumpTarget.Value;
                                 break;
                             }
 
                         case AwkOpcode.Print:
                             {
-                                ExecutePrint(stack, stackCount - instruction.Operand0, instruction.Operand0, state, bindings, output);
-                                stackCount -= instruction.Operand0;
+                                ExecutePrint(
+                                    stack,
+                                    stackCount - instruction.ValueCount.Value,
+                                    instruction.ValueCount.Value,
+                                    state,
+                                    bindings,
+                                    output);
+                                stackCount -= instruction.ValueCount.Value;
                                 pc++;
                                 break;
                             }
@@ -495,7 +508,7 @@ internal static class AwkExecutableDispatcher
                         case AwkOpcode.Exit:
                             {
                                 var exitCode = AwkOptionalExitCode.None;
-                                if (instruction.Operand0 != 0)
+                                if (instruction.HasValue)
                                     exitCode = AwkOptionalExitCode.Specified(new AwkExitCode(
                                         (int)Math.Truncate(stack[--stackCount].AsNumber())));
 
@@ -509,7 +522,9 @@ internal static class AwkExecutableDispatcher
                                 if (!state.IsInsideFunction)
                                     throw new AwkRuntimeException(AwkMessages.ErrorReturnOutsideFunction);
 
-                                var value = instruction.Operand0 != 0 ? stack[--stackCount] : AwkValue.FromText(AwkText.Empty);
+                                var value = instruction.HasValue
+                                    ? stack[--stackCount]
+                                    : AwkValue.FromText(AwkText.Empty);
                                 state.SetFunctionReturnValue(value);
                                 await FlushOutputAsync().ConfigureAwait(false);
                                 return AwkStatementFlow.ReturnFunction;
@@ -518,7 +533,7 @@ internal static class AwkExecutableDispatcher
                         case AwkOpcode.FallbackStatement:
                             {
                                 state.Counters.RecordVmFallbackCall();
-                                var statement = tables.FallbackStatements[instruction.Operand0];
+                                var statement = tables.FallbackStatements[instruction.FallbackStatementIndex.Value];
                                 var flow = await statement.ExecuteAsync(evaluationContext).ConfigureAwait(false);
                                 if (flow != AwkStatementFlow.Continue)
                                 {
@@ -536,7 +551,7 @@ internal static class AwkExecutableDispatcher
                         case AwkOpcode.FallbackExpression:
                             {
                                 state.Counters.RecordVmFallbackCall();
-                                stack[stackCount++] = await tables.FallbackExpressions[instruction.Operand0]
+                                stack[stackCount++] = await tables.FallbackExpressions[instruction.FallbackExpressionIndex.Value]
                                     .EvaluateAsync(evaluationContext)
                                     .ConfigureAwait(false);
                                 pc++;
@@ -740,44 +755,44 @@ internal sealed class AwkExecutableTableBuilder
     private readonly List<AwkStatement> _fallbackStatements = [];
     private readonly List<AwkExpression> _fallbackExpressions = [];
 
-    public int InternConstant(AwkValue value)
+    public AwkConstantIndex InternConstant(AwkValue value)
     {
         _constants.Add(value);
-        return _constants.Count - 1;
+        return new AwkConstantIndex(_constants.Count - 1);
     }
 
-    public int InternName(AwkVariableName name)
+    public AwkScalarIndex InternName(AwkVariableName name)
     {
         if (_nameIndexes.TryGetValue(name, out var index))
-            return index;
+            return new AwkScalarIndex(index);
 
         index = _scalarSymbols.Count;
         _scalarSymbols.Add(AwkExecutableScalarSymbol.Create(name));
         _nameIndexes[name] = index;
-        return index;
+        return new AwkScalarIndex(index);
     }
 
-    public int InternArrayName(AwkArrayName name)
+    public AwkArrayNameIndex InternArrayName(AwkArrayName name)
     {
         if (_arrayNameIndexes.TryGetValue(name, out var index))
-            return index;
+            return new AwkArrayNameIndex(index);
 
         index = _arrayNames.Count;
         _arrayNames.Add(name);
         _arrayNameIndexes[name] = index;
-        return index;
+        return new AwkArrayNameIndex(index);
     }
 
-    public int InternFallbackStatement(AwkStatement statement)
+    public AwkFallbackStatementIndex InternFallbackStatement(AwkStatement statement)
     {
         _fallbackStatements.Add(statement);
-        return _fallbackStatements.Count - 1;
+        return new AwkFallbackStatementIndex(_fallbackStatements.Count - 1);
     }
 
-    public int InternFallbackExpression(AwkExpression expression)
+    public AwkFallbackExpressionIndex InternFallbackExpression(AwkExpression expression)
     {
         _fallbackExpressions.Add(expression);
-        return _fallbackExpressions.Count - 1;
+        return new AwkFallbackExpressionIndex(_fallbackExpressions.Count - 1);
     }
 
     public AwkExecutableTables ToTables() =>
@@ -849,18 +864,18 @@ internal sealed class AwkExecutableRuntimeBindings
             AwkSpecialVariableId.OutputRecordSeparator,
             state);
 
-    public AwkValue LoadScalar(int index, AwkRuntimeState state)
+    public AwkValue LoadScalar(AwkScalarIndex index, AwkRuntimeState state)
     {
-        ref var scalar = ref _scalars[index];
+        ref var scalar = ref _scalars[index.Value];
         if (scalar.Symbol.TryGetSpecialId(out var specialId))
             return state.ResolveSpecialVariableValue(specialId);
 
         return state.GetGlobalScalarValue(GetOrCreateSlotId(ref scalar, state));
     }
 
-    public void StoreScalar(int index, AwkRuntimeState state, AwkValue value)
+    public void StoreScalar(AwkScalarIndex index, AwkRuntimeState state, AwkValue value)
     {
-        ref var scalar = ref _scalars[index];
+        ref var scalar = ref _scalars[index.Value];
         if (scalar.Symbol.TryGetSpecialId(out var specialId))
         {
             state.AssignSpecialVariableValue(specialId, value);
@@ -930,20 +945,160 @@ internal readonly struct AwkOptionalGlobalSlotId
     }
 }
 
-internal readonly record struct AwkInstruction(
-    AwkOpcode Opcode,
-    int Operand0,
-    int Operand1)
+internal readonly record struct AwkConstantIndex(int Value);
+
+internal readonly record struct AwkScalarIndex(int Value);
+
+internal readonly record struct AwkArrayNameIndex(int Value);
+
+internal readonly record struct AwkFallbackStatementIndex(int Value);
+
+internal readonly record struct AwkFallbackExpressionIndex(int Value);
+
+internal readonly record struct AwkInstructionOffset(int Value);
+
+internal readonly record struct AwkStackValueCount(int Value);
+
+internal readonly record struct AwkInstruction
 {
-    public AwkInstruction(AwkOpcode opcode)
-        : this(opcode, 0, 0)
+    private readonly int _encodedValue;
+    private readonly bool _encodedFlag;
+
+    private AwkInstruction(AwkOpcode opcode, int encodedValue, bool encodedFlag)
     {
+        Opcode = opcode;
+        _encodedValue = encodedValue;
+        _encodedFlag = encodedFlag;
     }
 
-    public AwkInstruction(AwkOpcode opcode, int operand0)
-        : this(opcode, operand0, 0)
+    public AwkOpcode Opcode { get; }
+
+    public AwkConstantIndex ConstantIndex => new(_encodedValue);
+
+    public AwkFieldIndex FieldIndex => new(_encodedValue);
+
+    public AwkScalarIndex ScalarIndex => new(_encodedValue);
+
+    public AwkArrayNameIndex ArrayNameIndex => new(_encodedValue);
+
+    public AwkFallbackStatementIndex FallbackStatementIndex => new(_encodedValue);
+
+    public AwkFallbackExpressionIndex FallbackExpressionIndex => new(_encodedValue);
+
+    public AwkInstructionOffset JumpTarget => new(_encodedValue);
+
+    public AwkStackValueCount ValueCount => new(_encodedValue);
+
+    public AwkComparison Comparison => (AwkComparison)_encodedValue;
+
+    public bool RetainsStoredValue => _encodedFlag;
+
+    public bool HasValue => _encodedFlag;
+
+    public static AwkInstruction WithoutOperand(AwkOpcode opcode)
     {
+        if (opcode is not (
+            AwkOpcode.NoOp or
+            AwkOpcode.CheckBudget or
+            AwkOpcode.Pop or
+            AwkOpcode.LoadCurrentRecord or
+            AwkOpcode.LoadFieldCount or
+            AwkOpcode.LoadLastField or
+            AwkOpcode.LoadRecordNumber or
+            AwkOpcode.LoadFileRecordNumber or
+            AwkOpcode.LoadFileName or
+            AwkOpcode.Add or
+            AwkOpcode.Subtract or
+            AwkOpcode.Multiply or
+            AwkOpcode.Divide or
+            AwkOpcode.Modulo or
+            AwkOpcode.Power or
+            AwkOpcode.Negate or
+            AwkOpcode.Truthiness or
+            AwkOpcode.Not or
+            AwkOpcode.Next or
+            AwkOpcode.NextFile or
+            AwkOpcode.Break or
+            AwkOpcode.Continue or
+            AwkOpcode.FallbackAction or
+            AwkOpcode.FallbackFunction))
+        {
+            throw new ArgumentOutOfRangeException(nameof(opcode));
+        }
+
+        return new AwkInstruction(opcode, 0, false);
     }
+
+    public static AwkInstruction LoadConstant(AwkConstantIndex index) =>
+        new(AwkOpcode.LoadConstant, index.Value, false);
+
+    public static AwkInstruction LoadField(AwkFieldIndex index) =>
+        new(AwkOpcode.LoadField, index.Value, false);
+
+    public static AwkInstruction Scalar(AwkOpcode opcode, AwkScalarIndex index, bool retainStoredValue)
+    {
+        if (opcode is not (AwkOpcode.LoadScalar or AwkOpcode.StoreScalar))
+            throw new ArgumentOutOfRangeException(nameof(opcode));
+        if (retainStoredValue && opcode != AwkOpcode.StoreScalar)
+            throw new ArgumentException("Only scalar stores can retain their value.", nameof(retainStoredValue));
+
+        return new AwkInstruction(opcode, index.Value, retainStoredValue);
+    }
+
+    public static AwkInstruction Array(AwkOpcode opcode, AwkArrayNameIndex index, bool retainStoredValue)
+    {
+        if (opcode is not (
+            AwkOpcode.LoadArrayElement or
+            AwkOpcode.StoreArrayElement or
+            AwkOpcode.DeleteArrayElement or
+            AwkOpcode.ArrayContains))
+        {
+            throw new ArgumentOutOfRangeException(nameof(opcode));
+        }
+        if (retainStoredValue && opcode != AwkOpcode.StoreArrayElement)
+            throw new ArgumentException("Only array stores can retain their value.", nameof(retainStoredValue));
+
+        return new AwkInstruction(opcode, index.Value, retainStoredValue);
+    }
+
+    public static AwkInstruction Counted(AwkOpcode opcode, AwkStackValueCount valueCount)
+    {
+        if (opcode is not (AwkOpcode.FormatString or AwkOpcode.Concat or AwkOpcode.Print))
+            throw new ArgumentOutOfRangeException(nameof(opcode));
+        ArgumentOutOfRangeException.ThrowIfNegative(valueCount.Value);
+
+        return new AwkInstruction(opcode, valueCount.Value, false);
+    }
+
+    public static AwkInstruction Compare(AwkComparison comparison) =>
+        new(AwkOpcode.Compare, (int)comparison, false);
+
+    public static AwkInstruction Jump(AwkOpcode opcode, AwkInstructionOffset target)
+    {
+        if (opcode is not (AwkOpcode.Jump or AwkOpcode.JumpIfFalse))
+            throw new ArgumentOutOfRangeException(nameof(opcode));
+
+        return new AwkInstruction(opcode, target.Value, false);
+    }
+
+    public static AwkInstruction OptionalValue(AwkOpcode opcode, bool hasValue)
+    {
+        if (opcode is not (AwkOpcode.Exit or AwkOpcode.Return))
+            throw new ArgumentOutOfRangeException(nameof(opcode));
+
+        return new AwkInstruction(opcode, 0, hasValue);
+    }
+
+    public static AwkInstruction FallbackStatement(AwkFallbackStatementIndex index) =>
+        new(AwkOpcode.FallbackStatement, index.Value, false);
+
+    public static AwkInstruction FallbackExpression(AwkFallbackExpressionIndex index) =>
+        new(AwkOpcode.FallbackExpression, index.Value, false);
+
+    public AwkInstruction WithJumpTarget(AwkInstructionOffset target) =>
+        Opcode is AwkOpcode.Jump or AwkOpcode.JumpIfFalse
+            ? new AwkInstruction(Opcode, target.Value, _encodedFlag)
+            : throw new InvalidOperationException("Only jump instructions have patchable targets.");
 }
 
 internal enum AwkOpcode

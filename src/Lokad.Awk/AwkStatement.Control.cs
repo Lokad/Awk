@@ -25,7 +25,7 @@ internal abstract partial class AwkStatement
             if (!condition.TryEmitExecutable(compiler))
                 return false;
 
-            var jumpIfFalseIndex = compiler.Emit(AwkOpcode.JumpIfFalse);
+            var jumpIfFalseIndex = compiler.EmitJump(AwkOpcode.JumpIfFalse);
             compiler.Pop();
             for (var index = 0; index < body.Length; index++)
             {
@@ -35,19 +35,19 @@ internal abstract partial class AwkStatement
 
             if (elseBody.Length == 0)
             {
-                compiler.PatchOperand0(jumpIfFalseIndex, compiler.CurrentOffset);
+                compiler.PatchJumpTarget(jumpIfFalseIndex, compiler.CurrentOffset);
                 return true;
             }
 
-            var jumpOverElseIndex = compiler.Emit(AwkOpcode.Jump);
-            compiler.PatchOperand0(jumpIfFalseIndex, compiler.CurrentOffset);
+            var jumpOverElseIndex = compiler.EmitJump(AwkOpcode.Jump);
+            compiler.PatchJumpTarget(jumpIfFalseIndex, compiler.CurrentOffset);
             for (var index = 0; index < elseBody.Length; index++)
             {
                 compiler.Emit(AwkOpcode.CheckBudget);
                 compiler.EmitStatementOrFallback(elseBody[index]);
             }
 
-            compiler.PatchOperand0(jumpOverElseIndex, compiler.CurrentOffset);
+            compiler.PatchJumpTarget(jumpOverElseIndex, compiler.CurrentOffset);
             return true;
         }
     }
@@ -301,7 +301,7 @@ internal abstract partial class AwkStatement
             if (valueExpression.HasValue && !compiler.TryEmitExpression(valueExpression.Value))
                 return false;
 
-            compiler.Emit(AwkOpcode.Return, valueExpression.HasValue ? 1 : 0);
+            compiler.EmitOptionalValue(AwkOpcode.Return, valueExpression.HasValue);
             if (valueExpression.HasValue)
                 compiler.Pop();
 
@@ -330,7 +330,7 @@ internal abstract partial class AwkStatement
             if (statusExpression.HasValue && !compiler.TryEmitExpression(statusExpression.Value))
                 return false;
 
-            compiler.Emit(AwkOpcode.Exit, statusExpression.HasValue ? 1 : 0);
+            compiler.EmitOptionalValue(AwkOpcode.Exit, statusExpression.HasValue);
             if (statusExpression.HasValue)
                 compiler.Pop();
 

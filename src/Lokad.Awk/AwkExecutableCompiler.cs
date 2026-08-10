@@ -33,32 +33,52 @@ internal sealed class AwkExecutableCompiler
     public void EmitStatementOrFallback(AwkStatement statement)
     {
         if (!TryEmitStatement(statement))
-            Emit(AwkOpcode.FallbackStatement, Tables.InternFallbackStatement(statement));
+            Add(AwkInstruction.FallbackStatement(Tables.InternFallbackStatement(statement)));
     }
 
     public void EmitExpressionOrFallback(AwkExpression expression)
     {
         if (!TryEmitExpression(expression))
         {
-            Emit(AwkOpcode.FallbackExpression, Tables.InternFallbackExpression(expression));
+            Add(AwkInstruction.FallbackExpression(Tables.InternFallbackExpression(expression)));
             Push();
         }
     }
 
-    public int Emit(AwkOpcode opcode) => Emit(opcode, 0, 0);
+    public int Emit(AwkOpcode opcode) => Add(AwkInstruction.WithoutOperand(opcode));
 
-    public int Emit(AwkOpcode opcode, int operand0) => Emit(opcode, operand0, 0);
+    public int EmitLoadConstant(AwkValue value) =>
+        Add(AwkInstruction.LoadConstant(Tables.InternConstant(value)));
 
-    public int Emit(AwkOpcode opcode, int operand0, int operand1)
-    {
-        _instructions.Add(new AwkInstruction(opcode, operand0, operand1));
-        return _instructions.Count - 1;
-    }
+    public int EmitLoadField(AwkFieldIndex index) => Add(AwkInstruction.LoadField(index));
 
-    public void PatchOperand0(int instructionIndex, int operand0)
+    public int EmitLoadScalar(AwkVariableName name) =>
+        Add(AwkInstruction.Scalar(AwkOpcode.LoadScalar, Tables.InternName(name), retainStoredValue: false));
+
+    public int EmitArrayOperation(AwkOpcode opcode, AwkArrayName name) =>
+        Add(AwkInstruction.Array(opcode, Tables.InternArrayName(name), retainStoredValue: false));
+
+    public int EmitStoreScalar(AwkVariableName name, bool retainStoredValue) =>
+        Add(AwkInstruction.Scalar(AwkOpcode.StoreScalar, Tables.InternName(name), retainStoredValue));
+
+    public int EmitStoreArrayElement(AwkArrayName name, bool retainStoredValue) =>
+        Add(AwkInstruction.Array(AwkOpcode.StoreArrayElement, Tables.InternArrayName(name), retainStoredValue));
+
+    public int EmitCounted(AwkOpcode opcode, int valueCount) =>
+        Add(AwkInstruction.Counted(opcode, new AwkStackValueCount(valueCount)));
+
+    public int EmitComparison(AwkComparison comparison) => Add(AwkInstruction.Compare(comparison));
+
+    public int EmitJump(AwkOpcode opcode) =>
+        Add(AwkInstruction.Jump(opcode, new AwkInstructionOffset(0)));
+
+    public int EmitOptionalValue(AwkOpcode opcode, bool hasValue) =>
+        Add(AwkInstruction.OptionalValue(opcode, hasValue));
+
+    public void PatchJumpTarget(int instructionIndex, int target)
     {
         var instruction = _instructions[instructionIndex];
-        _instructions[instructionIndex] = instruction with { Operand0 = operand0 };
+        _instructions[instructionIndex] = instruction.WithJumpTarget(new AwkInstructionOffset(target));
     }
 
     public int CurrentOffset => _instructions.Count;
@@ -111,6 +131,12 @@ internal sealed class AwkExecutableCompiler
 
         Rollback(checkpoint);
         return false;
+    }
+
+    private int Add(AwkInstruction instruction)
+    {
+        _instructions.Add(instruction);
+        return _instructions.Count - 1;
     }
 
     private void Rollback(Checkpoint checkpoint)

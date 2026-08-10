@@ -92,7 +92,7 @@ internal abstract partial class AwkStatement
                 compiler.EmitExpressionOrFallback(parts[index].Expression);
             }
 
-            compiler.Emit(AwkOpcode.Print, parts.Length);
+            compiler.EmitCounted(AwkOpcode.Print, parts.Length);
             compiler.Pop(parts.Length);
             return true;
         }

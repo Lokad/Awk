@@ -29,7 +29,7 @@ internal abstract partial class AwkExpression
                 if (!compiler.TryEmitExpression(valueExpression))
                     return false;
 
-                compiler.Emit(AwkOpcode.StoreScalar, compiler.Tables.InternName(variable), keepValue ? 1 : 0);
+                compiler.EmitStoreScalar(variable, keepValue);
                 compiler.Pop();
                 if (keepValue)
                     compiler.Push();
@@ -44,7 +44,7 @@ internal abstract partial class AwkExpression
                 return false;
             }
 
-            compiler.Emit(AwkOpcode.StoreArrayElement, compiler.Tables.InternArrayName(array), keepValue ? 1 : 0);
+            compiler.EmitStoreArrayElement(array, keepValue);
             compiler.Pop(2);
             if (keepValue)
                 compiler.Push();

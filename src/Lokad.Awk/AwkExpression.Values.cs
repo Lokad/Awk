@@ -24,7 +24,7 @@ internal abstract partial class AwkExpression
             if (!_index.IsNamedField)
                 return false;
 
-            compiler.Emit(AwkOpcode.LoadField, _index.Value);
+            compiler.EmitLoadField(_index);
             compiler.Push();
             return true;
         }
@@ -55,7 +55,7 @@ internal abstract partial class AwkExpression
             if (index == 0)
                 compiler.Emit(AwkOpcode.LoadCurrentRecord);
             else
-                compiler.Emit(AwkOpcode.LoadField, index);
+                compiler.EmitLoadField(new AwkFieldIndex(index));
 
             compiler.Push();
             return true;
@@ -163,7 +163,7 @@ internal abstract partial class AwkExpression
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
-            compiler.Emit(AwkOpcode.LoadConstant, compiler.Tables.InternConstant(AwkValue.FromText(_literalText)));
+            compiler.EmitLoadConstant(AwkValue.FromText(_literalText));
             compiler.Push();
             return true;
         }
@@ -176,7 +176,7 @@ internal abstract partial class AwkExpression
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
-            compiler.Emit(AwkOpcode.LoadScalar, compiler.Tables.InternName(name));
+            compiler.EmitLoadScalar(name);
             compiler.Push();
             return true;
         }
@@ -215,7 +215,7 @@ internal abstract partial class AwkExpression
             if (!indexExpression.TryEmitExecutableKey(compiler))
                 return false;
 
-            compiler.Emit(AwkOpcode.LoadArrayElement, compiler.Tables.InternArrayName(name));
+            compiler.EmitArrayOperation(AwkOpcode.LoadArrayElement, name);
             return true;
         }
     }
@@ -231,7 +231,7 @@ internal abstract partial class AwkExpression
             if (!TryResolvePortableExecutableNumber(text, gnuDefaultValue, out var value))
                 return false;
 
-            compiler.Emit(AwkOpcode.LoadConstant, compiler.Tables.InternConstant(AwkValue.FromNumber(value)));
+            compiler.EmitLoadConstant(AwkValue.FromNumber(value));
             compiler.Push();
             return true;
         }
