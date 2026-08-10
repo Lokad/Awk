@@ -295,15 +295,15 @@ internal sealed class AwkArrayRuntime
         return SortKeyValues(values, order);
     }
 
-    private async ValueTask<IReadOnlyList<AwkArrayKey>> SnapshotKeyValuesAsync(
+    private ValueTask<AwkArrayKey[]> SnapshotKeyValuesAsync(
         IReadOnlyDictionary<AwkArrayKey, AwkValue> values,
         AwkArraySortOrder order,
         AwkEvaluationContext context)
     {
         if (values.Count == 0)
-            return [];
+            return ValueTask.FromResult<AwkArrayKey[]>([]);
 
-        return await SortKeyValuesAsync(values, order, context).ConfigureAwait(false);
+        return SortKeyValuesAsync(values, order, context);
     }
 
     private IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotValues(AwkArrayName name)

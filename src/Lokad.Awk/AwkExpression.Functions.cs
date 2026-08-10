@@ -18,10 +18,10 @@ internal abstract partial class AwkExpression
 
     private sealed class FunctionCallExpression(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments) : AwkExpression
     {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             if (context.State.TryGetUserFunction(name, out var function))
-                return await function.InvokeAsync(arguments, context).ConfigureAwait(false);
+                return function.InvokeAsync(arguments, context);
 
             throw new AwkRuntimeException(
                 context.State.LintMode switch

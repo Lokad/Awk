@@ -246,7 +246,7 @@ internal static partial class AwkBuiltins
         AwkEvaluationContext context) =>
         EvaluateAsyncCore(definition, AwkBuiltins.Name(definition.Id), arguments, context);
 
-    private static async ValueTask<AwkValue> EvaluateAsyncCore(
+    private static ValueTask<AwkValue> EvaluateAsyncCore(
         string name,
         IReadOnlyList<AwkExpression> arguments,
         AwkEvaluationContext context)
@@ -254,10 +254,10 @@ internal static partial class AwkBuiltins
         if (!Definitions.TryGetValue(name, out var definition))
             throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(name));
 
-        return await EvaluateAsyncCore(definition, name, arguments, context).ConfigureAwait(false);
+        return EvaluateAsyncCore(definition, name, arguments, context);
     }
 
-    private static async ValueTask<AwkValue> EvaluateAsyncCore(
+    private static ValueTask<AwkValue> EvaluateAsyncCore(
         AwkBuiltinDefinition definition,
         string name,
         IReadOnlyList<AwkExpression> arguments,
@@ -272,10 +272,7 @@ internal static partial class AwkBuiltins
         if (!definition.Arity.Accepts(arguments.Count))
             throw new AwkRuntimeException(AwkMessages.FormatInvalidBuiltinArgumentCount(name));
 
-        return await definition.EvaluateAsync(new AwkBuiltinContext(
-                arguments,
-                context))
-            .ConfigureAwait(false);
+        return definition.EvaluateAsync(new AwkBuiltinContext(arguments, context));
     }
 
     private static AwkBuiltinDefinition PosixPure(

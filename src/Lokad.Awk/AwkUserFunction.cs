@@ -91,7 +91,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         return await InvokeFrameAsync(context).ConfigureAwait(false);
     }
 
-    public async ValueTask<AwkValue> InvokeValuesAsync(
+    public ValueTask<AwkValue> InvokeValuesAsync(
         IReadOnlyList<AwkValue> arguments,
         AwkEvaluationContext context)
     {
@@ -113,7 +113,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
                 ArrayPool<AwkFunctionArgument>.Shared.Return(values, clearArray: true);
         }
 
-        return await InvokeFrameAsync(context).ConfigureAwait(false);
+        return InvokeFrameAsync(context);
     }
 
     private void PushArguments(

@@ -30,12 +30,12 @@ internal sealed class AwkIoHostAdapter(
         }
     }
 
-    public async Task WriteStandardOutputAsync(string content)
+    public Task WriteStandardOutputAsync(string content)
     {
         if (content.Length == 0)
-            return;
+            return Task.CompletedTask;
 
-        await WriteStandardOutputAsync(AwkUtf8Codec.Encode(content, counters)).ConfigureAwait(false);
+        return WriteStandardOutputAsync(AwkUtf8Codec.Encode(content, counters));
     }
 
     public async Task WriteStandardOutputAsync(ReadOnlyMemory<byte> content)
@@ -71,10 +71,10 @@ internal sealed class AwkIoHostAdapter(
         ThrowIfAppendFailed(descriptor, status);
     }
 
-    public async Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode)
+    public Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode)
     {
         resources.RecordHostCall();
-        return await host.CreatePipeAsync(mode, cancellationToken).ConfigureAwait(false);
+        return host.CreatePipeAsync(mode, cancellationToken);
     }
 
     public AwkCommandInvocation CreateOutputPipeCommand(string commandName, AwkFileDescriptor stdIn) =>
@@ -111,10 +111,10 @@ internal sealed class AwkIoHostAdapter(
         return exitCodes[0];
     }
 
-    public async Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode)
+    public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode)
     {
         resources.RecordHostCall();
-        return await host.OpenFileAsync(path, mode, cancellationToken).ConfigureAwait(false);
+        return host.OpenFileAsync(path, mode, cancellationToken);
     }
 
     public async Task CloseDescriptorAsync(AwkFileDescriptor descriptor)

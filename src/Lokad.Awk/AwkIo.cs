@@ -169,12 +169,12 @@ internal sealed class AwkIo
     public void ClearMainInputReader() =>
         _mainInputReader = MainInputReaderBinding.Unbound;
 
-    public async Task<AwkGetlineResult> ReadMainRecordAsync()
+    public Task<AwkGetlineResult> ReadMainRecordAsync()
     {
         if (_mainInputReader is not MainInputReaderBinding.Bound boundReader)
-            return AwkGetlineResult.EndOfFile;
+            return Task.FromResult(AwkGetlineResult.EndOfFile);
 
-        return await ReadGetlineRecordAsync(boundReader.Reader).ConfigureAwait(false);
+        return ReadGetlineRecordAsync(boundReader.Reader);
     }
 
     private async Task<AwkGetlineResult> ReadGetlineRecordAsync(IAwkInputRecordReader reader)
