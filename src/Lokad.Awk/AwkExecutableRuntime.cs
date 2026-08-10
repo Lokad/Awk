@@ -497,14 +497,6 @@ internal static class AwkExecutableDispatcher
                             await FlushOutputAsync().ConfigureAwait(false);
                             return AwkStatementFlow.NextFile;
 
-                        case AwkOpcode.Break:
-                            await FlushOutputAsync().ConfigureAwait(false);
-                            return AwkStatementFlow.BreakLoop;
-
-                        case AwkOpcode.Continue:
-                            await FlushOutputAsync().ConfigureAwait(false);
-                            return AwkStatementFlow.ContinueLoop;
-
                         case AwkOpcode.Exit:
                             {
                                 var exitCode = AwkOptionalExitCode.None;
@@ -515,19 +507,6 @@ internal static class AwkExecutableDispatcher
                                 state.RequestExit(exitCode);
                                 await FlushOutputAsync().ConfigureAwait(false);
                                 return AwkStatementFlow.ExitProgram;
-                            }
-
-                        case AwkOpcode.Return:
-                            {
-                                if (!state.IsInsideFunction)
-                                    throw new AwkRuntimeException(AwkMessages.ErrorReturnOutsideFunction);
-
-                                var value = instruction.HasValue
-                                    ? stack[--stackCount]
-                                    : AwkValue.FromText(AwkText.Empty);
-                                state.SetFunctionReturnValue(value);
-                                await FlushOutputAsync().ConfigureAwait(false);
-                                return AwkStatementFlow.ReturnFunction;
                             }
 
                         case AwkOpcode.FallbackStatement:
@@ -1028,8 +1007,6 @@ internal readonly record struct AwkInstruction
             AwkOpcode.Not or
             AwkOpcode.Next or
             AwkOpcode.NextFile or
-            AwkOpcode.Break or
-            AwkOpcode.Continue or
             AwkOpcode.FallbackAction or
             AwkOpcode.FallbackFunction))
         {
@@ -1093,7 +1070,7 @@ internal readonly record struct AwkInstruction
 
     public static AwkInstruction OptionalValue(AwkOpcode opcode, bool hasValue)
     {
-        if (opcode is not (AwkOpcode.Exit or AwkOpcode.Return))
+        if (opcode != AwkOpcode.Exit)
             throw new ArgumentOutOfRangeException(nameof(opcode));
 
         return new AwkInstruction(opcode, 0, hasValue);
@@ -1148,9 +1125,6 @@ internal enum AwkOpcode
     Next,
     NextFile,
     Exit,
-    Break,
-    Continue,
-    Return,
     FallbackAction,
     FallbackFunction,
     FallbackStatement,

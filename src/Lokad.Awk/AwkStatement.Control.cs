@@ -236,11 +236,6 @@ internal abstract partial class AwkStatement
         public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(AwkStatementFlow.BreakLoop);
 
-        internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
-        {
-            compiler.Emit(AwkOpcode.Break);
-            return true;
-        }
     }
 
     private sealed class ContinueStatement : AwkStatement
@@ -250,11 +245,6 @@ internal abstract partial class AwkStatement
         public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(AwkStatementFlow.ContinueLoop);
 
-        internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
-        {
-            compiler.Emit(AwkOpcode.Continue);
-            return true;
-        }
     }
 
     private sealed class NextStatement : AwkStatement
@@ -302,17 +292,6 @@ internal abstract partial class AwkStatement
             return AwkStatementFlow.ReturnFunction;
         }
 
-        internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
-        {
-            if (valueExpression.HasValue && !compiler.TryEmitExpression(valueExpression.Value))
-                return false;
-
-            compiler.EmitOptionalValue(AwkOpcode.Return, valueExpression.HasValue);
-            if (valueExpression.HasValue)
-                compiler.Pop();
-
-            return true;
-        }
     }
 
     private sealed class ExitStatement(AwkOptionalExpression statusExpression) : AwkStatement

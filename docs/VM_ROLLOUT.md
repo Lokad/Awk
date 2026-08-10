@@ -13,7 +13,9 @@ Current non-fallback expression coverage includes constants; static and dynamic 
 `NF`, `$NF`, `NR`, `FNR`, and `FILENAME`; scalars and scalar assignment; array lookup, assignment,
 membership, and element deletion; arithmetic, concatenation, comparisons, logical short-circuit,
 and ternary selection. Current statement coverage includes expression statements, `if`, `print`,
-`delete array[index]`, `next`, `nextfile`, `exit`, `break`, `continue`, and `return`. Unsupported
+`delete array[index]`, `next`, `nextfile`, and `exit`. Loops and switches remain statement
+fallbacks, while user functions remain function fallbacks; their `break`, `continue`, and `return`
+flow therefore stays inside the interpreter boundary rather than using unreachable opcodes. Unsupported
 statement and expression children lower to explicit fallback instructions inside supported control
 shapes rather than forcing the whole action to fallback.
 
