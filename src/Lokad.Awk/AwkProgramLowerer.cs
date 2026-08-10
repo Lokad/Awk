@@ -81,7 +81,8 @@ internal static partial class AwkProgramLowerer
             mainActions.Count == 0 &&
             endActions.Count == 0 &&
             beginFileActions.Count == 0 &&
-            endFileActions.Count == 0)
+            endFileActions.Count == 0 &&
+            functions.Count == 0)
         {
             return AwkLoweringResult.Failure(syntax, "Expected awk pattern or action.");
         }

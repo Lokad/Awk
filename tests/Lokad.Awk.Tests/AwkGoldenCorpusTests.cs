@@ -156,21 +156,18 @@ public sealed class AwkGoldenCorpusTests
             return;
 
         var expectParserFailure = IsParserDiagnosticCase(testCase);
-        var sources = loaded.Sources;
-        for (var index = 0; index < sources.Count; index++)
+        var source = loaded.CompilationSource;
+        var binding = AwkBinder.Bind(
+            AwkParser.Parse(source.Text),
+            invocation.ExecutionOptions.CompatibilityProfile);
+        if (expectParserFailure)
         {
-            var binding = AwkBinder.Bind(
-                AwkParser.Parse(sources[index].Text),
-                invocation.ExecutionOptions.CompatibilityProfile);
-            if (expectParserFailure)
-            {
-                AssertStructuredParserDiagnostic(testCase, binding);
-                continue;
-            }
-
-            Assert.Empty(binding.Diagnostics);
-            Assert.True(binding.Program.HasProgram);
+            AssertStructuredParserDiagnostic(testCase, binding);
+            return;
         }
+
+        Assert.Empty(binding.Diagnostics);
+        Assert.True(binding.Program.HasProgram);
     }
 
     [Theory]
@@ -190,23 +187,20 @@ public sealed class AwkGoldenCorpusTests
             return;
 
         var expectParserFailure = IsParserDiagnosticCase(testCase);
-        var sources = loaded.Sources;
-        for (var index = 0; index < sources.Count; index++)
+        var source = loaded.CompilationSource;
+        var parse = AwkParser.Parse(source.Text);
+        var binding = AwkBinder.Bind(parse, invocation.ExecutionOptions.CompatibilityProfile);
+        if (expectParserFailure)
         {
-            var parse = AwkParser.Parse(sources[index].Text);
-            var binding = AwkBinder.Bind(parse, invocation.ExecutionOptions.CompatibilityProfile);
-            if (expectParserFailure)
-            {
-                AssertStructuredParserDiagnostic(testCase, binding);
-                continue;
-            }
-
-            if (testCase.SupportLevel != AwkGoldenSupportLevel.CurrentPass && !binding.Success)
-                continue;
-
-            Assert.True(binding.Success, "Expected executable parse success for golden case: " + testCase.Name);
-            AssertSyntaxOutlinesForAcceptedSource(testCase.Name, parse.Syntax);
+            AssertStructuredParserDiagnostic(testCase, binding);
+            return;
         }
+
+        if (testCase.SupportLevel != AwkGoldenSupportLevel.CurrentPass && !binding.Success)
+            return;
+
+        Assert.True(binding.Success, "Expected executable parse success for golden case: " + testCase.Name);
+        AssertSyntaxOutlinesForAcceptedSource(testCase.Name, parse.Syntax);
     }
 
     [Fact]
@@ -434,7 +428,8 @@ public sealed class AwkGoldenCorpusTests
             "input-directory-without-beginfile-fails" or
             "main-input-read-open-error-fails" or
             "empty-inline-script" or
-            "empty-script-file";
+            "empty-script-file" or
+            "function-only-program";
 
     private static AwkRuntimeOptions CreateExecutableOptions(AwkRuntimeCounters counters) =>
         new(

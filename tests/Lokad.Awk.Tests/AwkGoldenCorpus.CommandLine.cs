@@ -194,6 +194,35 @@ internal static partial class AwkGoldenCorpus
             "start\none\ntwo\n"),
 
         Passing(
+            "function-only-program",
+            ["function helper(){}"],
+            [],
+            string.Empty),
+
+        Passing(
+            "function-call-across-inline-source-units",
+            ["-e", "function helper(){return \"ok\"}", "-e", "BEGIN{print helper()}"],
+            [],
+            "ok\n"),
+
+        Passing(
+            "include-library-function-shares-program-namespace",
+            ["-i", "/lib.awk", "BEGIN{print helper()}"],
+            [File("/lib.awk", "function helper(){return \"library\"}")],
+            "library\n"),
+
+        CompilerDiagnostic(Failing(
+            "duplicate-function-across-source-units-fails",
+            [
+                "-e", "function helper(){return 1} BEGIN{print \"unreachable\"}",
+                "-e", "function helper(){return 2}"
+            ],
+            [],
+            2,
+            string.Empty,
+            "awk: <inline:2>:1:1: duplicate function definition `helper'.\n")),
+
+        Passing(
             "long-source-option",
             ["--source=BEGIN{print prefix}", "--assign=prefix=SKU"],
             [],

@@ -126,39 +126,30 @@ internal static class AwkExecutor
         if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)
             throw new System.InvalidOperationException("Unexpected awk source load result.");
 
-        var sources = loaded.Sources;
-        var programs = new List<AwkProgram>(sources.Count);
-        var warnings = new List<AwkDiagnostic>();
-        for (var index = 0; index < sources.Count; index++)
+        var source = loaded.CompilationSource;
+        var parsed = AwkParser.Parse(source.Text);
+        var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings);
+        var binding = AwkBinder.Bind(parsed, invocation.ExecutionOptions.CompatibilityProfile);
+        var phase = binding.PhaseResult;
+        if (!phase.Success)
         {
-            var source = sources[index];
-            var parsed = AwkParser.Parse(source.Text);
-            warnings.AddRange(AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings));
-
-            var binding = AwkBinder.Bind(parsed, invocation.ExecutionOptions.CompatibilityProfile);
-            var phase = binding.PhaseResult;
-            if (!phase.Success)
-            {
-                return AwkProgramResolution.Fail(
-                    AwkDiagnostics.Parse(AwkSourceDiagnosticMap.MapDiagnostics(source, phase.Diagnostics)),
-                    warnings);
-            }
-
-            var boundProgram = phase.Value;
-            if (!boundProgram.HasProgram)
-            {
-                return AwkProgramResolution.Fail(
-                    new AwkFailureDiagnostic(
-                        AwkMessages.ErrorInvalidScript,
-                        AwkDiagnostics.FatalExitCode,
-                        AwkDiagnosticId.ParseSyntax),
-                    warnings);
-            }
-
-            programs.Add(boundProgram.Program);
+            return AwkProgramResolution.Fail(
+                AwkDiagnostics.Parse(AwkSourceDiagnosticMap.MapDiagnostics(source, phase.Diagnostics)),
+                warnings);
         }
 
-        return AwkProgramResolution.Success(AwkProgram.Concat(programs), warnings);
+        var boundProgram = phase.Value;
+        if (!boundProgram.HasProgram)
+        {
+            return AwkProgramResolution.Fail(
+                new AwkFailureDiagnostic(
+                    AwkMessages.ErrorInvalidScript,
+                    AwkDiagnostics.FatalExitCode,
+                    AwkDiagnosticId.ParseSyntax),
+                warnings);
+        }
+
+        return AwkProgramResolution.Success(boundProgram.Program, warnings);
     }
 
     private abstract class AwkProgramResolution
