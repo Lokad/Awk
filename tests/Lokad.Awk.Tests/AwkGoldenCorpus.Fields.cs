@@ -149,6 +149,12 @@ internal static partial class AwkGoldenCorpus
             "a X c\n"),
 
         Passing(
+            "field-assignment-captures-current-output-separator",
+            ["BEGIN{$0=\"a b\"; $1=$1; OFS=\"|\"; $2=$2; OFS=\":\"; print $0}"],
+            [],
+            "a|b\n"),
+
+        Passing(
             "field-assignment-extends-record",
             ["BEGIN{OFS=\"|\"} {i=4; $i=\"d\"; print NF, $0}", "/file.txt"],
             [File("/file.txt", "a b\n")],

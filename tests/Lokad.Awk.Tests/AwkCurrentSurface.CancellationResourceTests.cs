@@ -437,6 +437,24 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
+    public void Awk_ValueByteLimitFailsBeforeFieldAssignmentTakesEffect()
+    {
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(4);
+        var state = AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default,
+            CancellationToken.None,
+            CreateOptions(limits));
+        state.SetCurrentRecord(AwkText.FromString("a b", state.Counters, state.MemoryGovernor));
+
+        var exception = Assert.Throws<AwkRuntimeException>(
+            () => state.AssignField(2, "value"));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+        Assert.Equal("a b", state.CurrentRecordByteText.AsString(state.Counters));
+        Assert.Equal("b", state.GetFieldValue(2).AsString());
+    }
+
+    [Fact]
     public async Task Awk_ValueByteLimitRejectsPrintfPaddingBeforeBuilderGrowth()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();

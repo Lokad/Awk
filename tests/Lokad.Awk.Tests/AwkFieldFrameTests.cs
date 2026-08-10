@@ -40,7 +40,11 @@ public sealed class AwkFieldFrameTests
     }
 
     private static AwkFieldFrame CreateFrame(AwkRuntimeCounters counters) =>
-        new(counters, CreateGovernor(counters), maxFields: 1_000);
+        new(
+            counters,
+            CreateGovernor(counters),
+            maxFields: 1_000,
+            _ => { });
 
     private static AwkMemoryGovernor CreateGovernor(AwkRuntimeCounters counters) =>
         AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);

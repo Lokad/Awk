@@ -682,6 +682,35 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
     }
 
+    [Fact]
+    public async Task Awk_RepeatedFieldAssignmentsAllocateOneRecomposedRecord()
+    {
+        const int fieldCount = 200;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(
+            () => new AwkUnixTimestampSeconds(0),
+            TimeZoneInfo.Utc,
+            new AwkRandomGenerator(),
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        var compiled = await AwkExecutor.CompileAsync(
+            new MockFileSystem(),
+            BuildInvocation("awk", "{for(i=1;i<=NF;i++) $i=$i; print $0}"),
+            CancellationToken.None);
+        var input = string.Join(' ', Enumerable.Range(1, fieldCount));
+        var fileSystem = new MockFileSystem();
+        fileSystem.SetStandardInput(input + "\n");
+
+        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+
+        Assert.Equal(AwkExitCode.Success, exitCode);
+        Assert.Equal(input + "\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(1, counters.FieldSplits);
+        Assert.InRange(counters.AwkTextAllocations, fieldCount, fieldCount + 8);
+    }
+
     public static TheoryData<string[], string, string> FieldWidthTextCases => new()
     {
         {

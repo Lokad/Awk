@@ -105,13 +105,13 @@ internal sealed class AwkRuntimeState
         _recordFields = new AwkRecordFieldRuntime(
             _fieldSplitter,
             CreateStringValue,
-            CreateByteTextValue,
             CreateNumericStringValue,
             FormatStringByteText,
             ResolveOutputFieldSeparator,
             Counters,
             MemoryGovernor,
-            Limits.MaxFields);
+            Limits.MaxFields,
+            Resources.ThrowIfValueBytesExceeded);
         _specialVariables = new AwkSpecialVariableDispatcher(
             _variables,
             _fieldSplitter,
