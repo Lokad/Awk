@@ -512,8 +512,6 @@ public sealed class AwkSyntaxParserTests
 
         Assert.Empty(program.Diagnostics);
         var pattern = Assert.IsType<AwkRangePatternSyntax>(Assert.Single(program.Rules).PatternSyntax);
-        Assert.True(pattern.IsRange);
-        Assert.Equal(AwkExpressionKind.ExpressionList, pattern.CombinedExpression?.Kind);
         Assert.Equal(AwkExpressionKind.Binary, pattern.Start.Expression?.Kind);
         Assert.Equal(AwkExpressionKind.Binary, pattern.End.Expression?.Kind);
     }

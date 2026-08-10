@@ -218,7 +218,6 @@ internal sealed class AwkTopLevelSyntaxParser
         var tokens = Flatten([startTokens, [commaToken], endTokens]);
         return new AwkRangePatternSyntax(
             tokens,
-            ParseExpressionList(tokens),
             new AwkPatternPartSyntax(startTokens, ParseExpression(startTokens)),
             new AwkPatternPartSyntax(endTokens, ParseExpression(endTokens)));
     }

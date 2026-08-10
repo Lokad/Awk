@@ -69,8 +69,6 @@ internal abstract class AwkPatternSyntax(IReadOnlyList<AwkToken> tokens)
 
     public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
 
-    public bool IsRange => this is AwkRangePatternSyntax;
-
     /// <summary>Enumerates every direct pattern expression exactly once in source order.</summary>
     public abstract IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions();
 }
@@ -98,12 +96,9 @@ internal sealed class AwkSinglePatternSyntax(
 
 internal sealed class AwkRangePatternSyntax(
     IReadOnlyList<AwkToken> tokens,
-    AwkExpressionSyntax? combinedExpression,
     AwkPatternPartSyntax start,
     AwkPatternPartSyntax end) : AwkPatternSyntax(tokens)
 {
-    public AwkExpressionSyntax? CombinedExpression { get; } = combinedExpression;
-
     public AwkPatternPartSyntax Start { get; } = start;
 
     public AwkPatternPartSyntax End { get; } = end;

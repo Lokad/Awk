@@ -40,10 +40,14 @@ internal sealed class AwkExpressionSyntaxParser
             : AwkParsingSupport.ToLexerResultWithEndOfFile(source, significantTokens);
         try
         {
-            var result = StreamParser(parser, parser.Tokens);
-            return result.IsExpressionList
-                ? AwkExpressionParseResult.List(result.Expression)
-                : AwkExpressionParseResult.Single(result.Expression);
+            return StreamParser(parser, parser.Tokens) switch
+            {
+                RootParseResult.Expression expression =>
+                    AwkExpressionParseResult.Single(expression.Syntax),
+                RootParseResult.ExpressionList expressionList =>
+                    AwkExpressionParseResult.List(expressionList.Syntax),
+                _ => AwkExpressionParseResult.InvalidResult
+            };
         }
         catch (ParseException)
         {
@@ -68,13 +72,13 @@ internal sealed class AwkExpressionSyntaxParser
     public RootParseResult ExpressionRoot(
         [NT] AwkExpressionSyntax expression,
         [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile) =>
-        new(expression, isExpressionList: false);
+        new RootParseResult.Expression(expression);
 
     [Rule]
     public RootParseResult ExpressionListRoot(
         [NT] ExpressionListSyntax expressionList,
         [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile) =>
-        new(expressionList.Expression, isExpressionList: true);
+        new RootParseResult.ExpressionList(expressionList.Expression);
 
     [Rule]
     public ExpressionListSyntax ExpressionList(
@@ -571,11 +575,21 @@ internal sealed class AwkExpressionSyntaxParser
         }
     }
 
-    internal sealed class RootParseResult(AwkExpressionSyntax expression, bool isExpressionList)
+    internal abstract class RootParseResult
     {
-        public AwkExpressionSyntax Expression { get; } = expression;
+        private RootParseResult()
+        {
+        }
 
-        public bool IsExpressionList { get; } = isExpressionList;
+        internal sealed class Expression(AwkExpressionSyntax syntax) : RootParseResult
+        {
+            public AwkExpressionSyntax Syntax { get; } = syntax;
+        }
+
+        internal sealed class ExpressionList(AwkExpressionSyntax syntax) : RootParseResult
+        {
+            public AwkExpressionSyntax Syntax { get; } = syntax;
+        }
     }
 
     internal sealed class ExpressionListSyntax(AwkExpressionSyntax expression)
