@@ -71,12 +71,6 @@ internal sealed class AwkFunctionRuntime
     public bool TryResolveLocal(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocal(slotId, out local);
 
-    public bool TryResolveLocalText(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
-        _calls.TryResolveLocalText(name, out local);
-
-    public bool TryResolveLocalText(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
-        _calls.TryResolveLocalText(slotId, out local);
-
     public bool TryResolveLocalValue(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocalValue(name, out local);
 

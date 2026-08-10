@@ -10,7 +10,6 @@ public sealed class AwkVariableSlotTests
         var slot = AwkVariableSlot.FromExternalText("café");
 
         Assert.Equal(AwkText.FromString("café"), slot.ByteText);
-        Assert.Equal("café", slot.StringValue);
     }
 
     [Fact]

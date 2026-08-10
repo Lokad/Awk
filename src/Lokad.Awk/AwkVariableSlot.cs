@@ -53,8 +53,6 @@ internal readonly struct AwkVariableSlot
         return new AwkVariableSlot(value.ByteText, kind);
     }
 
-    public string StringValue => ByteText.AsString();
-
     public AwkText ByteText =>
         Kind == AwkVariableSlotKind.Number
             ? AwkNumberFormatter.ToAwkText(_number)

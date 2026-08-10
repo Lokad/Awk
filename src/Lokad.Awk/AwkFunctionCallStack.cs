@@ -116,12 +116,6 @@ internal sealed class AwkFunctionCallStack(
     public bool TryResolveLocal(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
         TryResolveLocal(slotId, AwkFunctionLocalProjection.Kind, out local);
 
-    public bool TryResolveLocalText(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
-        TryResolveLocal(name, AwkFunctionLocalProjection.Text, out local);
-
-    public bool TryResolveLocalText(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
-        TryResolveLocal(slotId, AwkFunctionLocalProjection.Text, out local);
-
     public bool TryResolveLocalValue(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
         TryResolveLocal(name, AwkFunctionLocalProjection.Value, out local);
 
@@ -308,7 +302,6 @@ internal sealed class AwkFunctionCallStack(
         return projection switch
         {
             AwkFunctionLocalProjection.Kind => AwkResolvedFunctionLocal.Scalar(),
-            AwkFunctionLocalProjection.Text => AwkResolvedFunctionLocal.ScalarText(slot.Value.StringValue),
             AwkFunctionLocalProjection.Value => AwkResolvedFunctionLocal.ScalarValue(
                 slot.Value.ToValue(createByteTextValue, createNumericStringValue)),
             _ => throw new InvalidOperationException("Unknown function-local projection.")
@@ -352,7 +345,6 @@ internal sealed class AwkFunctionCallStack(
     private enum AwkFunctionLocalProjection
     {
         Kind,
-        Text,
         Value
     }
 

@@ -129,15 +129,6 @@ internal sealed class AwkVariables
         _governScalarMemory = true;
     }
 
-    public string GetOrCreateScalarString(AwkVariableName name)
-    {
-        if (TryGetScalarState(name, out var state))
-            return state.Slot.StringValue;
-
-        SetScalarSlot(name, new AwkVariableSlot(string.Empty, AwkVariableSlotKind.Unassigned));
-        return string.Empty;
-    }
-
     public AwkValue GetOrCreateScalarValue(AwkVariableName name)
     {
         if (TryGetScalarState(name, out var state))
