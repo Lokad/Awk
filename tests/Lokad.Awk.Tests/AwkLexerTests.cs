@@ -8,6 +8,25 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkLexerTests
 {
+    [Theory]
+    [InlineData("/a\\/b/", "a\\/b")]
+    [InlineData("/[a/b]/", "[a/b]")]
+    [InlineData("/[[:digit:]]+/", "[[:digit:]]+")]
+    public void AwkRegexLiteral_ReadsEscapesAndBracketExpressions(string text, string expectedPattern)
+    {
+        Assert.True(AwkRegexLiteral.TryReadPattern(text, out var pattern));
+        Assert.Equal(expectedPattern, pattern);
+    }
+
+    [Theory]
+    [InlineData("/unterminated")]
+    [InlineData("/line\nbreak/")]
+    [InlineData("/a/ trailing")]
+    public void AwkRegexLiteral_RejectsMissingOrNonFinalDelimiters(string text)
+    {
+        Assert.False(AwkRegexLiteral.TryReadPattern(text, out _));
+    }
+
     public static IEnumerable<object[]> TokenMatrixCases()
     {
         yield return

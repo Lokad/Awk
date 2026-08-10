@@ -194,49 +194,15 @@ internal static class AwkLexer
 
         private void ReadRegexBody(int start, AwkTokenKind kind)
         {
-            var escaped = false;
-            var inBracketExpression = false;
-            while (_position < _source.Length)
+            var scan = AwkRegexLiteral.Scan(_source, _position);
+            if (scan.Termination == AwkRegexLiteralTermination.Delimiter)
             {
-                var current = Current;
-                _position++;
-                if (escaped)
-                {
-                    escaped = false;
-                    continue;
-                }
-
-                if (current == '\\')
-                {
-                    escaped = true;
-                    continue;
-                }
-
-                if (current == '[')
-                {
-                    inBracketExpression = true;
-                    continue;
-                }
-
-                if (current == ']' && inBracketExpression)
-                {
-                    inBracketExpression = false;
-                    continue;
-                }
-
-                if (current == '/' && !inBracketExpression)
-                {
-                    AddToken(kind, start, _position - start);
-                    return;
-                }
-
-                if (current is '\r' or '\n')
-                {
-                    AddToken(AwkTokenKind.BadToken, start, _position - start - 1);
-                    return;
-                }
+                _position = scan.EndIndex + 1;
+                AddToken(kind, start, _position - start);
+                return;
             }
 
+            _position = scan.EndIndex;
             AddToken(AwkTokenKind.BadToken, start, _position - start);
         }
 
