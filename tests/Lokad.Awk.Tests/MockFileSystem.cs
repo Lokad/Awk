@@ -26,6 +26,8 @@ public sealed class MockFileSystem : IAwkHost
 
     public int OpenFileCount => _descriptors.OpenFileCount;
 
+    public int ReadOpenCount { get; private set; }
+
     public void AddDirectory(string path) =>
         AddDirectory(path, AwkFileTreePermission.ReadWrite);
 
@@ -112,7 +114,10 @@ public sealed class MockFileSystem : IAwkHost
             return Task.FromResult(AwkOpenedFile.Opened(AwkFileDescriptor.DevNull));
 
         if (mode == AwkFileOpenMode.Read)
+        {
+            ReadOpenCount++;
             return Task.FromResult(OpenForRead(path));
+        }
 
         if (mode is AwkFileOpenMode.WriteTruncate or AwkFileOpenMode.WriteAppend)
             return Task.FromResult(OpenForWrite(path, mode));

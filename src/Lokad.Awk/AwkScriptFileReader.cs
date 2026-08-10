@@ -13,7 +13,7 @@ internal static class AwkScriptFileReader
         AwkResolvedPath path,
         CancellationToken cancellationToken)
     {
-        var direct = await TryReadResolvedAsync(host, path, cancellationToken).ConfigureAwait(false);
+        var direct = await TryReadResolvedAsync(host, plan, path, cancellationToken).ConfigureAwait(false);
         if (direct is AwkScriptTextReadResult.Found found)
         {
             return AwkScriptFileReadResult.FoundScript(new AwkScriptFile(
@@ -54,7 +54,7 @@ internal static class AwkScriptFileReader
                 ? rawPath
                 : entry.TrimEnd('/') + "/" + rawPath;
             var resolved = plan.ResolvePath(candidate);
-            var script = await TryReadResolvedAsync(host, resolved, cancellationToken)
+            var script = await TryReadResolvedAsync(host, plan, resolved, cancellationToken)
                 .ConfigureAwait(false);
             if (script is AwkScriptTextReadResult.Found found)
             {
@@ -72,6 +72,20 @@ internal static class AwkScriptFileReader
     }
 
     private static async Task<AwkScriptTextReadResult> TryReadResolvedAsync(
+        IAwkHost host,
+        AwkSourceLoadPlan plan,
+        AwkResolvedPath path,
+        CancellationToken cancellationToken)
+    {
+        if (plan.TryGetScriptText(path.Absolute, out var cached))
+            return cached;
+
+        var result = await ReadResolvedAsync(host, path, cancellationToken).ConfigureAwait(false);
+        plan.CacheScriptText(path.Absolute, result);
+        return result;
+    }
+
+    private static async Task<AwkScriptTextReadResult> ReadResolvedAsync(
         IAwkHost host,
         AwkResolvedPath path,
         CancellationToken cancellationToken)

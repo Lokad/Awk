@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 
 namespace Lokad.Awk;
 
@@ -104,20 +105,46 @@ internal readonly record struct AwkLineContinuationNormalization
 
 internal sealed class AwkLineContinuationMap
 {
-    private readonly IReadOnlyList<AwkLineContinuationPoint> _points;
+    private readonly AwkLineContinuationMapNode _node;
+    private readonly int _count;
+    private AwkLineContinuationPoint[]? _materializedPoints;
 
     public AwkLineContinuationMap(IReadOnlyList<AwkLineContinuationPoint> points)
     {
-        _points = points;
+        _node = new AwkLineContinuationMapNode.Leaf(points);
+        _count = points.Count;
+    }
+
+    private AwkLineContinuationMap(
+        AwkLineContinuationMap first,
+        AwkLineContinuationMap second,
+        int secondOffset)
+    {
+        _node = new AwkLineContinuationMapNode.Concat(first, second, secondOffset);
+        _count = checked(first.Count + second.Count);
     }
 
     public static AwkLineContinuationMap Empty { get; } = new([]);
 
-    public int Count => Points.Count;
+    public int Count => _count;
 
     public bool IsEmpty => Count == 0;
 
-    private IReadOnlyList<AwkLineContinuationPoint> Points => _points ?? [];
+    private IReadOnlyList<AwkLineContinuationPoint> Points
+    {
+        get
+        {
+            if (_node is AwkLineContinuationMapNode.Leaf leaf)
+                return leaf.Points;
+
+            var materialized = Volatile.Read(ref _materializedPoints);
+            if (materialized != null)
+                return materialized;
+
+            materialized = MaterializePoints();
+            return Interlocked.CompareExchange(ref _materializedPoints, materialized, null) ?? materialized;
+        }
+    }
 
     public AwkLineContinuationPoint this[int index] => Points[index];
 
@@ -183,14 +210,34 @@ internal sealed class AwkLineContinuationMap
         if (next.IsEmpty)
             return this;
 
-        var points = new List<AwkLineContinuationPoint>(Count + next.Count);
-        for (var index = 0; index < Count; index++)
-            points.Add(this[index]);
+        return new AwkLineContinuationMap(this, next, nextOffset);
+    }
 
-        for (var index = 0; index < next.Count; index++)
-            points.Add(new AwkLineContinuationPoint(nextOffset + next[index].NormalizedOffset));
+    private AwkLineContinuationPoint[] MaterializePoints()
+    {
+        var points = new AwkLineContinuationPoint[Count];
+        var writeIndex = 0;
+        var pending = new Stack<(AwkLineContinuationMap Map, int Offset)>();
+        pending.Push((this, 0));
+        while (pending.Count > 0)
+        {
+            var (map, offset) = pending.Pop();
+            if (map._node is AwkLineContinuationMapNode.Concat concat)
+            {
+                pending.Push((concat.Second, checked(offset + concat.SecondOffset)));
+                pending.Push((concat.First, offset));
+                continue;
+            }
 
-        return new AwkLineContinuationMap(points);
+            var leaf = (AwkLineContinuationMapNode.Leaf)map._node;
+            for (var index = 0; index < leaf.Points.Count; index++)
+            {
+                points[writeIndex++] = new AwkLineContinuationPoint(
+                    checked(offset + leaf.Points[index].NormalizedOffset));
+            }
+        }
+
+        return points;
     }
 
     private int FindFirstAfter(int offset)
@@ -207,6 +254,16 @@ internal sealed class AwkLineContinuationMap
         }
 
         return low;
+    }
+
+    private abstract record AwkLineContinuationMapNode
+    {
+        internal sealed record Leaf(IReadOnlyList<AwkLineContinuationPoint> Points) : AwkLineContinuationMapNode;
+
+        internal sealed record Concat(
+            AwkLineContinuationMap First,
+            AwkLineContinuationMap Second,
+            int SecondOffset) : AwkLineContinuationMapNode;
     }
 }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
@@ -9,6 +10,7 @@ internal sealed class AwkSourceLoadPlan
     private readonly IReadOnlyList<AwkEnvironmentVariable> _environment;
     private readonly AwkPath _currentDirectory;
     private readonly HashSet<AwkSourceIdentity> _includedIdentities = [];
+    private readonly Dictionary<AwkPath, AwkScriptTextReadResult> _scriptTextByPath = [];
 
     private AwkSourceLoadPlan(
         IReadOnlyList<AwkSourceReference> sources,
@@ -35,6 +37,17 @@ internal sealed class AwkSourceLoadPlan
 
     public bool TryMarkIncluded(AwkScriptFile script) =>
         _includedIdentities.Add(script.SourceIdentity);
+
+    public bool TryGetScriptText(
+        AwkPath path,
+        [NotNullWhen(true)] out AwkScriptTextReadResult? result) =>
+        _scriptTextByPath.TryGetValue(path, out result);
+
+    public void CacheScriptText(AwkPath path, AwkScriptTextReadResult result)
+    {
+        if (result is not AwkScriptTextReadResult.Failed)
+            _scriptTextByPath[path] = result;
+    }
 
     public bool TryGetEnvironmentValue(string name, out string value)
     {

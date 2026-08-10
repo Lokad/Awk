@@ -65,6 +65,37 @@ public sealed class AwkSourceLoaderTests
             source.Segments.Select(segment => segment.Kind).ToArray());
         Assert.Equal(new AwkSourceName("/lib/common.awk"), source.Segments[0].SourceName);
         Assert.Equal(new AwkSourceName("<inline:1>"), source.Segments[1].SourceName);
+        Assert.Equal(4, fileSystem.ReadOpenCount);
+    }
+
+    [Fact]
+    public async Task AwkSourceLoader_BatchesContinuationMapsAcrossRepeatedEmptyIncludes()
+    {
+        const int includeCount = 256;
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("/empty.awk", string.Empty);
+        var program = new System.Text.StringBuilder();
+        for (var index = 0; index < includeCount; index++)
+        {
+            program.Append("value += 1 \\\n+ 0\n");
+            program.Append("@include \"/empty.awk\"\n");
+        }
+
+        var invocation = Parse(program.ToString());
+
+        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+
+        var source = Assert.Single(LoadedSources(result));
+        var segment = Assert.Single(source.Segments);
+        Assert.Equal(includeCount, segment.LineContinuations.Count);
+        for (var index = 1; index < segment.LineContinuations.Count; index++)
+        {
+            Assert.True(
+                segment.LineContinuations[index - 1].NormalizedOffset <
+                segment.LineContinuations[index].NormalizedOffset);
+        }
+        Assert.Equal(1, fileSystem.ReadOpenCount);
+        Assert.DoesNotContain("@include", source.Text);
     }
 
     [Fact]
