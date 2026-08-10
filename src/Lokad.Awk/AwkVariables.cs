@@ -336,6 +336,16 @@ internal sealed class AwkVariables
         ReplaceArraySlots(name, new Dictionary<AwkArrayKey, AwkVariableSlot>());
     }
 
+    public void ReplaceMutableArraySlots(
+        AwkArrayName name,
+        Dictionary<AwkArrayKey, AwkVariableSlot> slots)
+    {
+        if (!name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
+        ThrowIfArrayReplacementWouldExceedLimit(slots.Count);
+        ReplaceArraySlots(name, slots);
+    }
+
     public TResult[] SnapshotArrayValues<TState, TResult>(
         AwkArrayName name,
         TState state,

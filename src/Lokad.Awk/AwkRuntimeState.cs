@@ -721,6 +721,9 @@ internal sealed class AwkRuntimeState
     public void ClearArray(AwkArrayName name) =>
         _arrayRuntime.Clear(name);
 
+    public void ReplaceMatchCaptureArray(AwkArrayName name, IReadOnlyList<AwkRegexGroup> groups) =>
+        _arrayRuntime.ReplaceMatchCaptures(name, groups);
+
     public ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotArrayKeyValuesAsync(
         AwkArrayName name,
         AwkEvaluationContext context) =>

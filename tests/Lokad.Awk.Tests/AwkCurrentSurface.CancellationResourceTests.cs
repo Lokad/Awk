@@ -720,6 +720,48 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
+    public async Task Awk_RegexCaptureArrayLimitFailsBeforeChangingMatchState()
+    {
+        var state = AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default,
+            CancellationToken.None,
+            CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(2)));
+        var arrayName = AwkArrayName.FromText("a");
+        state.SetArrayString(arrayName, AwkArrayKey.FromOrdinal(1), "keep");
+        SetMatchState(state, start: 41, length: 42);
+        var expression = CreateCaptureMatchExpression(arrayName);
+
+        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
+            () => expression.EvaluateAsync(new AwkEvaluationContext(state)).AsTask());
+
+        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+        Assert.Equal("keep", FormatArrayValue(state, arrayName, AwkArrayKey.FromOrdinal(1)));
+        Assert.True(state.TryGetExistingArrayCount(arrayName, out var count));
+        Assert.Equal(1, count);
+        AssertMatchState(state, start: 41, length: 42);
+    }
+
+    [Fact]
+    public async Task Awk_RegexCaptureMemoryLimitFailsBeforeChangingMatchState()
+    {
+        var state = CreateStateWithMemoryLimit(600);
+        var arrayName = AwkArrayName.FromText("a");
+        state.SetArrayString(arrayName, AwkArrayKey.FromOrdinal(1), "keep");
+        SetMatchState(state, start: 41, length: 42);
+        var expression = CreateCaptureMatchExpression(arrayName);
+
+        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
+            () => expression.EvaluateAsync(new AwkEvaluationContext(state)).AsTask());
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+        Assert.Equal("keep", FormatArrayValue(state, arrayName, AwkArrayKey.FromOrdinal(1)));
+        Assert.True(state.TryGetExistingArrayCount(arrayName, out var count));
+        Assert.Equal(1, count);
+        AssertMatchState(state, start: 41, length: 42);
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+    }
+
+    [Fact]
     public void Awk_VmStackLimitUsesAwkDiagnostic()
     {
         var options = CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxVmStackBytes(8));
@@ -1489,6 +1531,32 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
     private static string FormatVariableValue(AwkRuntimeState state, AwkVariableName name) =>
         state.FormatStringByteText(state.ResolveVariableValue(name)).AsString(state.Counters);
+
+    private static AwkExpression CreateCaptureMatchExpression(AwkArrayName arrayName) =>
+        AwkExpression.Match(
+            AwkExpression.Literal("abcd"),
+            AwkExpression.Literal("(ab)(cd)"),
+            AwkOptionalIdentifier.Some(arrayName.Identifier));
+
+    private static void SetMatchState(AwkRuntimeState state, int start, int length)
+    {
+        state.AssignVariableValue(
+            new AwkSpecialVariableName(AwkSpecialVariableId.RegexStart),
+            AwkValue.FromNumber(start));
+        state.AssignVariableValue(
+            new AwkSpecialVariableName(AwkSpecialVariableId.RegexLength),
+            AwkValue.FromNumber(length));
+    }
+
+    private static void AssertMatchState(AwkRuntimeState state, int start, int length)
+    {
+        Assert.Equal(
+            start,
+            state.ResolveVariableValue(new AwkSpecialVariableName(AwkSpecialVariableId.RegexStart)).AsNumber());
+        Assert.Equal(
+            length,
+            state.ResolveVariableValue(new AwkSpecialVariableName(AwkSpecialVariableId.RegexLength)).AsNumber());
+    }
 
     private static AwkRuntimeOptions CreateOptions(
         AwkRuntimeLimits limits,

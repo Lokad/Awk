@@ -17,6 +17,12 @@ internal sealed class AwkArrayRuntime
     private static readonly AwkArrayKey ProcInfoSortedInKey =
         new(AwkText.FromSourceLiteralString("sorted_in"));
 
+    private static readonly AwkText MatchStartCaptureKeyPart =
+        AwkText.FromSourceLiteralString("start");
+
+    private static readonly AwkText MatchLengthCaptureKeyPart =
+        AwkText.FromSourceLiteralString("length");
+
     private static readonly IComparer<AwkArraySortEntry> IndexStringAscendingComparer =
         new AwkArraySortEntryComparer(AwkArraySortMode.IndexStringAscending, AwkRuntimeCounters.Disabled);
 
@@ -181,6 +187,34 @@ internal sealed class AwkArrayRuntime
     public void Clear(AwkArrayName name)
     {
         _variables.ClearArray(_variableRuntime.ResolveOrPromoteArrayName(name));
+    }
+
+    public void ReplaceMatchCaptures(AwkArrayName name, IReadOnlyList<AwkRegexGroup> groups)
+    {
+        var entryCount = 0;
+        for (var index = 0; index < groups.Count; index++)
+        {
+            entryCount = AwkRuntimeMemory.CheckedAdd(entryCount, groups[index].Success ? 3 : 1);
+        }
+
+        var slots = new Dictionary<AwkArrayKey, AwkVariableSlot>(entryCount);
+        for (var index = 0; index < groups.Count; index++)
+        {
+            var ordinalKey = AwkArrayKey.FromOrdinal(index);
+            var group = groups[index];
+            slots[ordinalKey] = AwkVariableSlot.FromValue(_state.CreateByteTextValue(group.Value));
+            if (!group.Success)
+                continue;
+
+            slots[_state.ComposeArrayKey(ordinalKey, MatchStartCaptureKeyPart)] =
+                AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Index + 1));
+            slots[_state.ComposeArrayKey(ordinalKey, MatchLengthCaptureKeyPart)] =
+                AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Length));
+        }
+
+        _variables.ReplaceMutableArraySlots(
+            _variableRuntime.ResolveOrPromoteArrayName(name),
+            slots);
     }
 
     public AwkLeasedReadOnlyList<AwkArrayKey> SnapshotKeyValues(AwkArrayName name)

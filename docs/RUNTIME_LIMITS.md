@@ -41,7 +41,8 @@ These limits constrain awk execution without changing successful compatibility b
 - `MaxFields`: current-record field materialization budget. The default matches
   `MaxArrayElements`, but hosts can now set a different field policy.
 - `MaxRegexCaptureBytes`: regex capture payloads, preflighted from backend spans before group values
-  are copied or capture arrays are changed.
+  are copied. Capture-array replacement separately preflights its complete entry count and retained
+  memory before changing the destination array or `RSTART`/`RLENGTH`.
 - `MaxRegexRecordSeparatorBytesScanned`: cumulative bytes submitted to the general regex record-
   separator fallback. The 64 MiB default bounds repeated cross-batch searches when a backend cannot
   resume an arbitrary partial match; specialized byte, literal, and byte-run separators do not

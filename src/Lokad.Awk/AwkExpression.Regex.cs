@@ -6,9 +6,6 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkExpression
 {
-    private static readonly AwkText MatchStartCaptureKeyPart = AwkText.FromSourceLiteralString("start");
-    private static readonly AwkText MatchLengthCaptureKeyPart = AwkText.FromSourceLiteralString("length");
-
     private sealed class GsubExpression(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
@@ -85,34 +82,9 @@ internal abstract partial class AwkExpression
             }
 
             var match = context.State.MatchRegexCaptureValue(regex, input);
-            AssignMatchVariables(context.State, match.Success, match.Index, match.Length);
-
             var arrayName = new AwkArrayName(captureArrayName.Value);
-            context.State.ClearArray(arrayName);
-            if (match.Success)
-            {
-                for (var index = 0; index < match.Groups.Count; index++)
-                {
-                    var ordinalKey = AwkArrayKey.FromOrdinal(index);
-                    var group = match.Groups[index];
-                    context.State.SetArrayAwkValue(
-                        arrayName,
-                        ordinalKey,
-                        context.State.CreateByteTextValue(group.Value));
-
-                    if (group.Success)
-                    {
-                        context.State.SetArrayAwkValue(
-                            arrayName,
-                            context.State.ComposeArrayKey(ordinalKey, MatchStartCaptureKeyPart),
-                            AwkValue.FromNumber(group.Index + 1));
-                        context.State.SetArrayAwkValue(
-                            arrayName,
-                            context.State.ComposeArrayKey(ordinalKey, MatchLengthCaptureKeyPart),
-                            AwkValue.FromNumber(group.Length));
-                    }
-                }
-            }
+            context.State.ReplaceMatchCaptureArray(arrayName, match.Groups);
+            AssignMatchVariables(context.State, match.Success, match.Index, match.Length);
 
             return AwkValue.FromNumber(match.Success ? match.Index + 1 : 0);
         }
