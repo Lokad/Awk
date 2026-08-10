@@ -634,6 +634,9 @@ internal sealed class AwkRuntimeState
     public AwkRegexMatch MatchRegexValue(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchValue(regex, input, MemoryGovernor);
 
+    public AwkRegexMatchPosition MatchRegexPosition(AwkRegex regex, AwkText input) =>
+        _regexRuntime.MatchPosition(regex, input);
+
     public AwkRegexMatchSpan MatchRegexSpan(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchSpan(regex, input);
 

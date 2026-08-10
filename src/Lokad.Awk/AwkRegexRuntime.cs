@@ -189,6 +189,13 @@ internal sealed class AwkRegexRuntime
     public AwkRegexMatchSpan MatchSpan(AwkRegex regex, AwkText input) =>
         MatchSpan(regex, input, AwkRegexSearchOffset.Start);
 
+    public AwkRegexMatchPosition MatchPosition(AwkRegex regex, AwkText input)
+    {
+        var inputContext = CaptureInputContext(regex, input);
+        var match = MatchSpan(regex, input, AwkRegexSearchOffset.Start, inputContext);
+        return AwkRegexMatchPosition.FromSpan(match, inputContext.ExecutionPolicy.CoordinatePolicy);
+    }
+
     public AwkRegexMatchSpan MatchSpan(
         AwkRegex regex,
         AwkText input,

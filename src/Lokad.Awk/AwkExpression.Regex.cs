@@ -60,6 +60,20 @@ internal abstract partial class AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
+            static void AssignMatchVariables(
+                AwkRuntimeState state,
+                bool success,
+                int index,
+                int length)
+            {
+                state.AssignVariableValue(
+                    new AwkSpecialVariableName(AwkSpecialVariableId.RegexStart),
+                    AwkValue.FromNumber(success ? index + 1 : 0));
+                state.AssignVariableValue(
+                    new AwkSpecialVariableName(AwkSpecialVariableId.RegexLength),
+                    AwkValue.FromNumber(success ? length : -1));
+            }
+
             static long EstimateCaptureBytes(AwkRegexMatch match)
             {
                 var bytes = 0L;
@@ -76,43 +90,42 @@ internal abstract partial class AwkExpression
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
             var regex = context.State.CreateRegex(new AwkRegexPattern(
                 await patternExpression.ResolveStringAsync(context).ConfigureAwait(false)));
-            var match = context.State.MatchRegexValue(regex, input);
-            context.State.AssignVariableValue(
-                new AwkSpecialVariableName(AwkSpecialVariableId.RegexStart),
-                AwkValue.FromNumber(match.Success ? match.Index + 1 : 0));
-            context.State.AssignVariableValue(
-                new AwkSpecialVariableName(AwkSpecialVariableId.RegexLength),
-                AwkValue.FromNumber(match.Success ? match.Length : -1));
-
-            if (captureArrayName.HasValue)
+            if (!captureArrayName.HasValue)
             {
-                var arrayName = new AwkArrayName(captureArrayName.Value);
-                if (match.Success)
-                    context.State.ThrowIfRegexCaptureBytesExceeded(EstimateCaptureBytes(match));
+                var position = context.State.MatchRegexPosition(regex, input);
+                AssignMatchVariables(context.State, position.Success, position.Index, position.Length);
+                return AwkValue.FromNumber(position.Success ? position.Index + 1 : 0);
+            }
 
-                context.State.ClearArray(arrayName);
-                if (match.Success)
+            var match = context.State.MatchRegexValue(regex, input);
+            AssignMatchVariables(context.State, match.Success, match.Index, match.Length);
+
+            var arrayName = new AwkArrayName(captureArrayName.Value);
+            if (match.Success)
+                context.State.ThrowIfRegexCaptureBytesExceeded(EstimateCaptureBytes(match));
+
+            context.State.ClearArray(arrayName);
+            if (match.Success)
+            {
+                for (var index = 0; index < match.Groups.Count; index++)
                 {
-                    for (var index = 0; index < match.Groups.Count; index++)
+                    var ordinalKey = AwkArrayKey.FromOrdinal(index);
+                    var group = match.Groups[index];
+                    context.State.SetArrayAwkValue(
+                        arrayName,
+                        ordinalKey,
+                        context.State.CreateByteTextValue(group.Value));
+
+                    if (group.Success)
                     {
-                        var ordinalKey = AwkArrayKey.FromOrdinal(index);
-                        var group = match.Groups[index];
                         context.State.SetArrayAwkValue(
                             arrayName,
-                            ordinalKey,
-                            context.State.CreateByteTextValue(group.Value));
-
-                        if (group.Success)
-                        {
-                            context.State.SetArrayAwkValue(
-                                arrayName,
-                                context.State.ComposeArrayKey(ordinalKey, MatchStartCaptureKeyPart),
-                                AwkValue.FromNumber(group.Index + 1));
-                            context.State.SetArrayAwkValue(
-                                arrayName,
-                                context.State.ComposeArrayKey(ordinalKey, MatchLengthCaptureKeyPart),
-                                AwkValue.FromNumber(group.Length));
-                        }
+                            context.State.ComposeArrayKey(ordinalKey, MatchStartCaptureKeyPart),
+                            AwkValue.FromNumber(group.Index + 1));
+                        context.State.SetArrayAwkValue(
+                            arrayName,
+                            context.State.ComposeArrayKey(ordinalKey, MatchLengthCaptureKeyPart),
+                            AwkValue.FromNumber(group.Length));
                     }
                 }
             }

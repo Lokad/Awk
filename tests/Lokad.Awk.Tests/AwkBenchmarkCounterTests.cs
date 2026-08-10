@@ -94,6 +94,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, exitCode);
         Assert.Equal("1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(1, counters.RegexCompiles);
+        Assert.Equal(0, counters.RegexGroupsMaterialized);
     }
 
     [Fact]

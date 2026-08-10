@@ -159,6 +159,19 @@ internal readonly record struct AwkRegexGroup(
     int Length,
     AwkText Value);
 
+internal readonly record struct AwkRegexMatchPosition(
+    bool Success,
+    int Index,
+    int Length)
+{
+    public static AwkRegexMatchPosition FromSpan(
+        AwkRegexMatchSpan match,
+        AwkRegexRuntime.AwkRegexCoordinatePolicy coordinatePolicy) =>
+        coordinatePolicy == AwkRegexRuntime.AwkRegexCoordinatePolicy.Byte
+            ? new AwkRegexMatchPosition(match.Success, match.ByteIndex, match.ByteLength)
+            : new AwkRegexMatchPosition(match.Success, match.Utf16Index, match.Utf16Length);
+}
+
 internal readonly record struct AwkRegexMatchSpan(
     bool Success,
     int ByteIndex,
