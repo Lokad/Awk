@@ -27,8 +27,6 @@ internal readonly record struct AwkFieldSeparatorSpec
 
     public AwkText ByteText => _kind == AwkFieldSeparatorKind.Custom ? _customText ?? AwkText.Empty : Space;
 
-    public string Text => ByteText.AsString();
-
     public bool UsesWhitespaceSemantics => _kind == AwkFieldSeparatorKind.Default;
 
     private enum AwkFieldSeparatorKind

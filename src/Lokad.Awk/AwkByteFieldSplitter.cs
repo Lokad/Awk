@@ -12,7 +12,8 @@ internal sealed class AwkByteFieldSplitter(
     Func<bool> isIgnoreCaseEnabled,
     Func<bool> charactersAsBytes,
     Action throwIfCancellationRequested,
-    AwkMemoryGovernor memoryGovernor)
+    AwkMemoryGovernor memoryGovernor,
+    AwkRuntimeCounters runtimeCounters)
 {
     public AwkTextSplitResult SplitBySeparator(
         AwkText line,
@@ -29,9 +30,10 @@ internal sealed class AwkByteFieldSplitter(
         if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) && !isIgnoreCaseEnabled())
             return SplitSingleByteLiteral(line, separatorByte, captureSeparators, counters);
 
+        var separatorText = separator.ByteText.AsString(counters);
         var regex = separator.ByteText.RuneLength > 1
-            ? createRegex(new AwkRegexPattern(separator.Text))
-            : createLiteralRegex(new AwkRegexLiteralText(separator.Text));
+            ? createRegex(new AwkRegexPattern(separatorText))
+            : createLiteralRegex(new AwkRegexLiteralText(separatorText));
         return SplitRegex(line, regex, captureSeparators, counters);
     }
 
@@ -48,9 +50,10 @@ internal sealed class AwkByteFieldSplitter(
         if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) && !isIgnoreCaseEnabled())
             return SplitSingleByteLiteralRecordFields(line, separatorByte);
 
+        var separatorText = separator.ByteText.AsString(runtimeCounters);
         var regex = separator.ByteText.RuneLength > 1
-            ? createRegex(new AwkRegexPattern(separator.Text))
-            : createLiteralRegex(new AwkRegexLiteralText(separator.Text));
+            ? createRegex(new AwkRegexPattern(separatorText))
+            : createLiteralRegex(new AwkRegexLiteralText(separatorText));
         return SplitRegexRecordFields(line, regex);
     }
 
@@ -64,7 +67,8 @@ internal sealed class AwkByteFieldSplitter(
         if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) && !isIgnoreCaseEnabled())
             return SplitSingleByteParagraphRecordFields(line, separatorByte);
 
-        var regex = createLiteralRegex(new AwkRegexLiteralText(separator.Text));
+        var regex = createLiteralRegex(new AwkRegexLiteralText(
+            separator.ByteText.AsString(runtimeCounters)));
         return SplitRegexParagraphRecordFields(line, regex);
     }
 

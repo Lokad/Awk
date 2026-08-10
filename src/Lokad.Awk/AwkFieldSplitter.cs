@@ -24,7 +24,8 @@ internal sealed class AwkFieldSplitter(
         isIgnoreCaseEnabled,
         charactersAsBytes,
         throwIfCancellationRequested,
-        memoryGovernor);
+        memoryGovernor,
+        counters);
 
     private AwkFieldSeparatorSpec _fieldSeparator = fieldSeparator;
     private string _fieldPattern = string.Empty;
