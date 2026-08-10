@@ -69,8 +69,15 @@ internal sealed class AwkSymbolTableArray(
         assignScalarValue(name, value);
     }
 
-    public static bool ContainsValue(string name) =>
-        AwkIdentifiers.IsValidName(name);
+    public bool ContainsValue(string name)
+    {
+        if (!AwkIdentifier.TryParse(name, out var identifier))
+            return false;
+
+        return IsName(name) ||
+            containsArray(new AwkArrayName(identifier)) ||
+            tryResolveScalar(new AwkVariableName(identifier), out _);
+    }
 
     public IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotValues()
     {

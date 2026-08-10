@@ -26,7 +26,10 @@ internal sealed class AwkArrayStorage
         get
         {
             foreach (var name in _ordinaryArrays.Keys)
-                yield return name;
+            {
+                if (!name.IsFunctionLocal)
+                    yield return name;
+            }
 
             foreach (var name in _specialArrays.Keys)
                 yield return name;
@@ -63,6 +66,11 @@ internal sealed class AwkArrayStorage
     {
         SetSlots(name, new Dictionary<AwkArrayKey, AwkVariableSlot>());
     }
+
+    public bool Remove(
+        AwkArrayName name,
+        [NotNullWhen(true)] out Dictionary<AwkArrayKey, AwkVariableSlot>? slots) =>
+        SelectTable(name).Remove(name, out slots);
 
     private Dictionary<AwkArrayName, Dictionary<AwkArrayKey, AwkVariableSlot>> SelectTable(AwkArrayName name) =>
         _storedSpecialArrayNames.Contains(name) ? _specialArrays : _ordinaryArrays;

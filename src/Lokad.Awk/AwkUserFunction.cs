@@ -60,20 +60,11 @@ internal sealed class AwkUserFunction : IAwkUserFunction
             for (var index = 0; index < arguments.Count; index++)
             {
                 var argument = arguments[index];
-                if (argument.TryGetVariableName(out var variableName))
+                if (argument.TryGetVariableName(out var variableName) &&
+                    context.State.TryResolveArrayArgument(variableName, out var arrayArgument))
                 {
-                    var arrayName = new AwkArrayName(variableName.Identifier);
-                    if (context.State.IsArray(arrayName))
-                    {
-                        values[index] = AwkFunctionArgument.Array(arrayName);
-                        continue;
-                    }
-
-                    if (!context.State.HasScalar(variableName))
-                    {
-                        values[index] = AwkFunctionArgument.PotentialArray(arrayName);
-                        continue;
-                    }
+                    values[index] = arrayArgument;
+                    continue;
                 }
 
                 values[index] = AwkFunctionArgument.Scalar(

@@ -24,11 +24,39 @@ internal sealed class AwkVariableRuntime(
             AwkVariableNameResolutionKind.SymbolTableArray or
             AwkVariableNameResolutionKind.GlobalArray;
 
+    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument)
+    {
+        if (functions.TryResolveArrayArgument(name, out argument))
+            return true;
+
+        if (functions.TryResolveLocal(name, out _))
+        {
+            argument = default;
+            return false;
+        }
+
+        var arrayName = new AwkArrayName(name.Identifier);
+        if (variables.ContainsArray(arrayName))
+        {
+            argument = AwkFunctionArgument.Array(arrayName);
+            return true;
+        }
+
+        if (variables.ContainsScalar(name))
+        {
+            argument = default;
+            return false;
+        }
+
+        argument = AwkFunctionArgument.PotentialArray(arrayName);
+        return true;
+    }
+
     public bool TryGetExistingArrayCount(AwkArrayName name, out int count)
     {
         var resolved = ResolveName(new AwkVariableName(name.Identifier));
         if (resolved.Kind == AwkVariableNameResolutionKind.LocalArrayAlias)
-            return TryGetExistingArrayCount(resolved.ArrayName, out count);
+            return variables.TryGetArrayCount(resolved.ArrayName, out count);
 
         return variables.TryGetArrayCount(name, out count);
     }
@@ -169,14 +197,11 @@ internal sealed class AwkVariableRuntime(
 
     public AwkArrayName ResolveOrPromoteArrayName(AwkArrayName name)
     {
-        var resolved = ResolveName(new AwkVariableName(name.Identifier));
-        if (resolved.Kind == AwkVariableNameResolutionKind.LocalArrayAlias)
-            return ResolveOrPromoteArrayName(resolved.ArrayName);
+        if (name.IsFunctionLocal)
+            return name;
 
-        if (functions.TryPromotePotentialArrayAlias(new AwkVariableName(name.Identifier), out var alias))
-        {
-            return ResolveOrPromoteArrayName(alias);
-        }
+        if (functions.TryResolveOrPromoteArrayName(new AwkVariableName(name.Identifier), out var localArrayName))
+            return localArrayName;
 
         if (!string.Equals(name.Text, AwkVariables.SymbolTableName, StringComparison.Ordinal))
             EnsureArrayName(name);

@@ -82,12 +82,12 @@ internal sealed class AwkVariables
         _scalarSlotsByName.ContainsKey(name);
 
     public bool ContainsArray(AwkArrayName name) =>
-        AwkSymbolTableArray.IsName(name.Text) ||
+        !name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text) ||
         _arrays.Contains(name);
 
     public bool TryGetArrayCount(AwkArrayName name, out int count)
     {
-        if (AwkSymbolTableArray.IsName(name.Text))
+        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
         {
             count = _symbolTable.Count;
             return true;
@@ -161,14 +161,14 @@ internal sealed class AwkVariables
 
     public AwkValue GetArrayValue(AwkArrayName name, AwkArrayKey index)
     {
-        if (AwkSymbolTableArray.IsName(name.Text))
+        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
             return _symbolTable.GetValue(index.AsString(_counters));
 
         var values = GetOrCreateArraySlots(name);
         if (values.TryGetValue(index, out var slot))
             return CreateValue(slot);
 
-        if (AwkSpecialArrayPolicy.IsElementReadOnly(name.Text))
+        if (!name.IsFunctionLocal && AwkSpecialArrayPolicy.IsElementReadOnly(name.Text))
             return AwkValue.FromText(string.Empty);
 
         ThrowIfArrayWouldGrowPastLimit(values, index);
@@ -178,13 +178,13 @@ internal sealed class AwkVariables
 
     public bool TryPeekArrayValue(AwkArrayName name, AwkArrayKey index, out AwkValue value)
     {
-        if (AwkSymbolTableArray.IsName(name.Text))
+        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
         {
             value = _symbolTable.GetValue(index.AsString(_counters));
             return true;
         }
 
-        if (ContainsScalar(new AwkVariableName(name.Identifier)))
+        if (!name.IsFunctionLocal && ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
         var values = GetOrCreateArraySlots(name);
@@ -199,13 +199,13 @@ internal sealed class AwkVariables
     }
 
     public bool ContainsArrayValue(AwkArrayName name, AwkArrayKey index) =>
-        AwkSymbolTableArray.IsName(name.Text)
-            ? AwkSymbolTableArray.ContainsValue(index.AsString(_counters))
+        !name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text)
+            ? _symbolTable.ContainsValue(index.AsString(_counters))
             : GetOrCreateArraySlots(name).ContainsKey(index);
 
     public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value)
     {
-        if (AwkSymbolTableArray.IsName(name.Text))
+        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
         {
             _symbolTable.AssignValue(
                 index.AsString(_counters),
@@ -213,7 +213,8 @@ internal sealed class AwkVariables
             return;
         }
 
-        AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text);
+        if (!name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text);
         var values = GetOrCreateArraySlots(name);
         ThrowIfArrayWouldGrowPastLimit(values, index);
         SetArraySlot(values, index, AwkVariableSlot.FromText(value));
@@ -221,13 +222,14 @@ internal sealed class AwkVariables
 
     public void SetArrayValue(AwkArrayName name, AwkArrayKey index, AwkValue value)
     {
-        if (AwkSymbolTableArray.IsName(name.Text))
+        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
         {
             _symbolTable.AssignValue(index.AsString(_counters), value);
             return;
         }
 
-        AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text);
+        if (!name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text);
         var values = GetOrCreateArraySlots(name);
         ThrowIfArrayWouldGrowPastLimit(values, index);
         SetArraySlot(values, index, AwkVariableSlot.FromValue(value));
@@ -235,10 +237,11 @@ internal sealed class AwkVariables
 
     public void DeleteArrayValue(AwkArrayName name, AwkArrayKey index)
     {
-        if (AwkSymbolTableArray.IsName(name.Text))
+        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
             throw new AwkRuntimeException(AwkMessages.ErrorCannotDeleteSymtab);
 
-        AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text);
+        if (!name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text);
         var values = GetOrCreateArraySlots(name);
         if (values.TryGetValue(index, out var slot) && values.Remove(index))
             _memoryGovernor.ReleaseCommitted(EstimateElementBytes(index, slot));
@@ -246,21 +249,24 @@ internal sealed class AwkVariables
 
     public void SetArrayValues(AwkArrayName name, IReadOnlyList<AwkText> values)
     {
-        AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
+        if (!name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
         ThrowIfArrayReplacementWouldExceedLimit(values.Count);
         ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, AwkVariableSlot.FromText));
     }
 
     public void SetArrayValues(AwkArrayName name, IReadOnlyList<AwkValue> values)
     {
-        AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
+        if (!name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
         ThrowIfArrayReplacementWouldExceedLimit(values.Count);
         ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, AwkVariableSlot.FromValue));
     }
 
     public void SetArrayValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)
     {
-        AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
+        if (!name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
         ThrowIfArrayReplacementWouldExceedLimit(values.Count);
         ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, AwkVariableSlot.FromExternalText));
     }
@@ -271,8 +277,10 @@ internal sealed class AwkVariables
         AwkArrayName separatorArrayName,
         IReadOnlyList<AwkText> separators)
     {
-        AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(fieldArrayName.Text);
-        AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(separatorArrayName.Text);
+        if (!fieldArrayName.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(fieldArrayName.Text);
+        if (!separatorArrayName.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(separatorArrayName.Text);
         ThrowIfArrayReplacementWouldExceedLimit(fields.Count);
         ThrowIfArrayReplacementWouldExceedLimit(separators.Count);
         ReplaceArraySlots(
@@ -284,16 +292,17 @@ internal sealed class AwkVariables
 
     public void ClearArray(AwkArrayName name)
     {
-        AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
+        if (!name.IsFunctionLocal)
+            AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
         ReplaceArraySlots(name, new Dictionary<AwkArrayKey, AwkVariableSlot>());
     }
 
     public IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotArrayValues(AwkArrayName name)
     {
-        if (AwkSymbolTableArray.IsName(name.Text))
+        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
             return _symbolTable.SnapshotValues();
 
-        if (ContainsScalar(new AwkVariableName(name.Identifier)))
+        if (!name.IsFunctionLocal && ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
         var snapshot = new Dictionary<AwkArrayKey, AwkValue>();
@@ -305,10 +314,10 @@ internal sealed class AwkVariables
 
     public int GetArraySnapshotCount(AwkArrayName name)
     {
-        if (AwkSymbolTableArray.IsName(name.Text))
+        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
             return _symbolTable.Count;
 
-        if (ContainsScalar(new AwkVariableName(name.Identifier)))
+        if (!name.IsFunctionLocal && ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
         return GetOrCreateArraySlots(name).Count;
@@ -380,7 +389,7 @@ internal sealed class AwkVariables
 
     public void CopyArrayKeys(AwkArrayName name, AwkArrayKey[] destination)
     {
-        if (AwkSymbolTableArray.IsName(name.Text))
+        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
         {
             var keys = _symbolTable.SnapshotKeys();
             for (var index = 0; index < keys.Count; index++)
@@ -393,6 +402,14 @@ internal sealed class AwkVariables
         var writeIndex = 0;
         foreach (var key in slots.Keys)
             destination[writeIndex++] = key;
+    }
+
+    public void RemoveFunctionLocalArray(AwkArrayName name)
+    {
+        if (!name.IsFunctionLocal || !_arrays.Remove(name, out var slots))
+            return;
+
+        _memoryGovernor.ReleaseCommitted(EstimateArrayBytes(slots));
     }
 
     private AwkValue CreateValue(AwkVariableSlot slot) =>
@@ -591,7 +608,7 @@ internal sealed class AwkVariables
         AwkRuntimeMemory.EstimateVariableSlotBytes(slot);
 
     private static bool ShouldGovernArray(AwkArrayName name) =>
-        !AwkSpecialArrayPolicy.IsElementReadOnly(name.Text);
+        name.IsFunctionLocal || !AwkSpecialArrayPolicy.IsElementReadOnly(name.Text);
 
     private void ThrowIfArrayWouldGrowPastLimit(Dictionary<AwkArrayKey, AwkVariableSlot> values, AwkArrayKey index)
     {

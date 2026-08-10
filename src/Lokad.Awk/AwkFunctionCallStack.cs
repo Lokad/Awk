@@ -12,6 +12,7 @@ internal sealed class AwkFunctionCallStack(
 {
     private readonly Stack<AwkFunctionFrame> _frames = new();
     private readonly Stack<AwkFunctionFrame> _recycledFrames = new();
+    private long _nextFrameId;
 
     public bool IsInsideFunction => _frames.Count > 0;
 
@@ -48,7 +49,7 @@ internal sealed class AwkFunctionCallStack(
         var frame = _recycledFrames.Count == 0
             ? new AwkFunctionFrame()
             : _recycledFrames.Pop();
-        frame.Initialize(layout, slots);
+        frame.Initialize(++_nextFrameId, layout, slots);
         try
         {
             frame.RetainedMemoryBytes = EstimateFrameBytes(frame);
@@ -81,9 +82,19 @@ internal sealed class AwkFunctionCallStack(
         }
     }
 
-    public void PopFrame()
+    public void PopFrame(Action<AwkArrayName> removeFunctionLocalArray)
     {
         var frame = _frames.Pop();
+        for (var index = 0; index < frame.Layout.SlotCount; index++)
+        {
+            var slot = frame.Slots[index];
+            if (slot.Kind is (AwkFunctionLocalSlotKind.ArrayAlias or AwkFunctionLocalSlotKind.PotentialArrayAlias) &&
+                slot.ArrayName.IsOwnedByFunctionFrame(frame.Id))
+            {
+                removeFunctionLocalArray(slot.ArrayName);
+            }
+        }
+
         memoryGovernor.ReleaseCommitted(frame.RetainedMemoryBytes);
         RecycleFrame(frame);
     }
@@ -130,7 +141,7 @@ internal sealed class AwkFunctionCallStack(
         if (_frames.Count > 0 &&
             TryGetLocalSlot(_frames.Peek(), name, out var slotId, out var slot))
         {
-            slot = PromoteMissingScalar(_frames.Peek(), slotId, slot, projection);
+            slot = PromoteScalarProjection(_frames.Peek(), slotId, slot, projection);
             local = ResolveLocal(slot, projection);
             return true;
         }
@@ -147,7 +158,7 @@ internal sealed class AwkFunctionCallStack(
         if (_frames.Count > 0 &&
             TryGetLocalSlot(_frames.Peek(), slotId, out var slot))
         {
-            slot = PromoteMissingScalar(_frames.Peek(), slotId, slot, projection);
+            slot = PromoteScalarProjection(_frames.Peek(), slotId, slot, projection);
             local = ResolveLocal(slot, projection);
             return true;
         }
@@ -156,7 +167,50 @@ internal sealed class AwkFunctionCallStack(
         return false;
     }
 
-    public bool TryPromotePotentialArrayAlias(AwkVariableName name, out AwkArrayName arrayName)
+    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument)
+    {
+        if (_frames.Count == 0)
+        {
+            argument = default;
+            return false;
+        }
+
+        var frame = _frames.Peek();
+        if (!TryGetLocalSlot(frame, name, out var slotId, out var slot))
+        {
+            argument = default;
+            return false;
+        }
+
+        if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
+        {
+            argument = AwkFunctionArgument.Array(slot.ArrayName);
+            return true;
+        }
+
+        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
+        {
+            argument = AwkFunctionArgument.PotentialArray(slot.ArrayName);
+            return true;
+        }
+
+        if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
+        {
+            var localArrayName = AwkArrayName.FunctionLocal(name.Identifier, frame.Id);
+            ReplaceLocalSlot(
+                frame,
+                slotId,
+                slot,
+                AwkFunctionLocalSlot.PotentialArrayAlias(localArrayName));
+            argument = AwkFunctionArgument.PotentialArray(localArrayName);
+            return true;
+        }
+
+        argument = default;
+        return false;
+    }
+
+    public bool TryResolveOrPromoteArrayName(AwkVariableName name, out AwkArrayName arrayName)
     {
         if (_frames.Count == 0)
         {
@@ -165,16 +219,34 @@ internal sealed class AwkFunctionCallStack(
         }
 
         var frame = _frames.Peek();
-        if (!TryGetLocalSlot(frame, name, out var slotId, out var slot) ||
-            slot.Kind != AwkFunctionLocalSlotKind.PotentialArrayAlias)
+        if (!TryGetLocalSlot(frame, name, out var slotId, out var slot))
         {
             arrayName = default;
             return false;
         }
 
-        arrayName = slot.ArrayName;
-        frame.Slots[slotId.Index] = AwkFunctionLocalSlot.ArrayAlias(slot.ArrayName);
-        return true;
+        if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
+        {
+            arrayName = slot.ArrayName;
+            return true;
+        }
+
+        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
+        {
+            arrayName = slot.ArrayName;
+            PromotePotentialArrayAliases(arrayName);
+            return true;
+        }
+
+        if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
+        {
+            arrayName = AwkArrayName.FunctionLocal(name.Identifier, frame.Id);
+            ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.ArrayAlias(arrayName));
+            return true;
+        }
+
+        arrayName = default;
+        return false;
     }
 
     public bool TryAssignLocal(AwkVariableName name, string value)
@@ -313,20 +385,43 @@ internal sealed class AwkFunctionCallStack(
         };
     }
 
-    private static AwkFunctionLocalSlot PromoteMissingScalar(
+    private void PromotePotentialArrayAliases(AwkArrayName arrayName)
+    {
+        foreach (var frame in _frames)
+        {
+            for (var index = 0; index < frame.Layout.SlotCount; index++)
+            {
+                var slot = frame.Slots[index];
+                if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias &&
+                    slot.ArrayName == arrayName)
+                {
+                    ReplaceLocalSlot(
+                        frame,
+                        new AwkFunctionLocalSlotId(index),
+                        slot,
+                        AwkFunctionLocalSlot.ArrayAlias(arrayName));
+                }
+            }
+        }
+    }
+
+    private AwkFunctionLocalSlot PromoteScalarProjection(
         AwkFunctionFrame frame,
         AwkFunctionLocalSlotId slotId,
         AwkFunctionLocalSlot slot,
         AwkFunctionLocalProjection projection)
     {
         if (projection != AwkFunctionLocalProjection.Value ||
-            slot.Kind != AwkFunctionLocalSlotKind.MissingScalar)
+            slot.Kind is not (AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.PotentialArrayAlias))
         {
             return slot;
         }
 
-        var promoted = AwkFunctionLocalSlot.Scalar(slot.Value);
-        frame.Slots[slotId.Index] = promoted;
+        var value = slot.Kind == AwkFunctionLocalSlotKind.MissingScalar
+            ? slot.Value
+            : AwkVariableSlot.FromValue(AwkValue.Unassigned());
+        var promoted = AwkFunctionLocalSlot.Scalar(value);
+        ReplaceLocalSlot(frame, slotId, slot, promoted);
         return promoted;
     }
 

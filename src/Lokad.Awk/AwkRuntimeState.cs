@@ -388,7 +388,7 @@ internal sealed class AwkRuntimeState
 
     public void PopFunctionFrame()
     {
-        _functions.PopFrame();
+        _functions.PopFrame(_variables.RemoveFunctionLocalArray);
     }
 
     public bool IsInsideFunction => _functions.IsInsideFunction;
@@ -457,6 +457,9 @@ internal sealed class AwkRuntimeState
 
     public bool IsArray(AwkArrayName name) =>
         _variableRuntime.IsArray(name);
+
+    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument) =>
+        _variableRuntime.TryResolveArrayArgument(name, out argument);
 
     public bool TryGetExistingArrayCount(AwkArrayName name, out int count) =>
         _variableRuntime.TryGetExistingArrayCount(name, out count);

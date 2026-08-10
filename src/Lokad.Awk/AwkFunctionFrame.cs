@@ -47,8 +47,11 @@ internal sealed class AwkFunctionFrame
 
     public long RetainedMemoryBytes { get; set; }
 
-    public void Initialize(AwkFunctionLocalLayout layout, AwkFunctionLocalSlot[] slots)
+    public long Id { get; private set; }
+
+    public void Initialize(long id, AwkFunctionLocalLayout layout, AwkFunctionLocalSlot[] slots)
     {
+        Id = id;
         Layout = layout;
         Slots = slots;
     }
@@ -61,6 +64,7 @@ internal sealed class AwkFunctionFrame
         HasReturnValue = false;
         ReturnValue = AwkValue.FromText(string.Empty);
         RetainedMemoryBytes = 0;
+        Id = 0;
         return slots;
     }
 }

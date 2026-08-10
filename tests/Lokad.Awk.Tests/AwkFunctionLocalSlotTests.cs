@@ -13,7 +13,7 @@ public sealed class AwkFunctionLocalSlotTests
         AwkFunctionArgument[] arguments =
             [AwkFunctionArgument.Scalar(AwkValue.FromText("value"))];
         stack.PushFrame(layout, arguments);
-        stack.PopFrame();
+        stack.PopFrame(static _ => { });
 
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -23,7 +23,7 @@ public sealed class AwkFunctionLocalSlotTests
         for (var index = 0; index < 10_000; index++)
         {
             stack.PushFrame(layout, arguments);
-            stack.PopFrame();
+            stack.PopFrame(static _ => { });
         }
 
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
@@ -73,7 +73,7 @@ public sealed class AwkFunctionLocalSlotTests
         }
         finally
         {
-            stack.PopFrame();
+            stack.PopFrame(static _ => { });
         }
     }
 

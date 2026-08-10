@@ -87,6 +87,36 @@ internal static partial class AwkGoldenCorpus
             "untyped 1\n1\n");
 
         yield return Passing(
+            "user-function-omitted-parameter-promotes-local-array",
+            ["function fill(a){a[1]=7; print a[1], typeof(a)} BEGIN{fill(); print (\"a\" in SYMTAB)}"],
+            [],
+            "7 array\n0\n");
+
+        yield return Passing(
+            "user-function-same-name-untyped-argument-promotes-array",
+            ["function fill(x){x[1]=7} BEGIN{fill(x); print x[1], typeof(x)}"],
+            [],
+            "7 array\n");
+
+        yield return Passing(
+            "user-function-forwards-untyped-array-argument",
+            ["function inner(b){b[1]=9} function outer(a){inner(a); print a[1]} BEGIN{outer(x); print x[1]}"],
+            [],
+            "9\n9\n");
+
+        yield return Passing(
+            "user-function-forwards-same-name-untyped-array-argument",
+            ["function inner(a){a[1]=9} function outer(a){inner(a); print a[1]} BEGIN{outer(x); print x[1]}"],
+            [],
+            "9\n9\n");
+
+        yield return Passing(
+            "user-function-forwards-existing-array-argument",
+            ["function inner(b){b[2]=9} function outer(a){inner(a)} BEGIN{x[1]=7; outer(x); print x[1], x[2]}"],
+            [],
+            "7 9\n");
+
+        yield return Passing(
             "user-function-untyped-scalar-argument-stays-local",
             ["function set(a){a=1} BEGIN{set(x); print typeof(x)}"],
             [],

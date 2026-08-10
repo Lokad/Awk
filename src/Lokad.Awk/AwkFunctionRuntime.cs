@@ -56,8 +56,8 @@ internal sealed class AwkFunctionRuntime
     public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments) =>
         _calls.PushFrame(layout, arguments);
 
-    public void PopFrame() =>
-        _calls.PopFrame();
+    public void PopFrame(Action<AwkArrayName> removeFunctionLocalArray) =>
+        _calls.PopFrame(removeFunctionLocalArray);
 
     public void SetReturnValue(AwkValue value) =>
         _calls.SetReturnValue(value);
@@ -77,8 +77,11 @@ internal sealed class AwkFunctionRuntime
     public bool TryResolveLocalValue(AwkFunctionLocalSlotId slotId, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocalValue(slotId, out local);
 
-    public bool TryPromotePotentialArrayAlias(AwkVariableName name, out AwkArrayName arrayName) =>
-        _calls.TryPromotePotentialArrayAlias(name, out arrayName);
+    public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument) =>
+        _calls.TryResolveArrayArgument(name, out argument);
+
+    public bool TryResolveOrPromoteArrayName(AwkVariableName name, out AwkArrayName arrayName) =>
+        _calls.TryResolveOrPromoteArrayName(name, out arrayName);
 
     public bool TryAssignLocal(AwkVariableName name, string value) =>
         _calls.TryAssignLocal(name, value);

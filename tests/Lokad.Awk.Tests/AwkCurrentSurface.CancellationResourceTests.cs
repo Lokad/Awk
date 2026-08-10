@@ -1142,6 +1142,25 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
+    public void Awk_OmittedFunctionLocalArrayReleasesStorageWithFrame()
+    {
+        var localName = AwkVariableName.FromText("a");
+        var arrayName = new AwkArrayName(localName.Identifier);
+        var state = CreateStateWithMemoryLimit(1_024);
+        state.PushFunctionFrame(new AwkFunctionLocalLayout([localName]), []);
+
+        state.SetArrayAwkValue(arrayName, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
+
+        Assert.True(state.IsArray(arrayName));
+        Assert.True(state.MemoryGovernor.CurrentCommittedBytes > 0);
+        state.PopFunctionFrame();
+
+        Assert.False(state.IsArray(arrayName));
+        Assert.Equal(0, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+    }
+
+    [Fact]
     public void Awk_CurrentRecordMemoryLimitFailsBeforeReplacingValue()
     {
         var state = CreateStateWithMemoryLimit(200);
