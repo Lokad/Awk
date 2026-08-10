@@ -407,7 +407,7 @@ internal static class AwkExecutableDispatcher
                                 var start = stackCount - instruction.ValueCount.Value;
                                 for (var index = start; index < stackCount; index++)
                                 {
-                                    stack[index] = state.CreateByteTextValue(
+                                    stack[index] = state.CreateDeferredTextValue(
                                         state.FormatStringByteText(stack[index]));
                                 }
 
@@ -426,7 +426,7 @@ internal static class AwkExecutableDispatcher
                                         rentedParts[index] = stack[partStart + index].ByteText;
 
                                     stackCount = partStart;
-                                    stack[stackCount++] = state.CreateByteTextValue(AwkText.Concat(
+                                    stack[stackCount++] = state.CreateDeferredTextValue(AwkText.Concat(
                                         rentedParts.AsSpan(0, partCount),
                                         state.Counters,
                                         state.MemoryGovernor));

@@ -76,12 +76,14 @@ internal sealed class AwkRuntimeState
             Counters,
             CreateByteTextValue,
             CreateNumericStringValue,
+            CreateDeferredTextValue,
             ApplySpecialVariableAssignment);
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryGovernor,
             CreateByteTextValue,
-            CreateNumericStringValue);
+            CreateNumericStringValue,
+            CreateDeferredTextValue);
         _regexRuntime = new AwkRegexRuntime(
             IsIgnoreCaseEnabled,
             stringUnitMode,
@@ -189,6 +191,13 @@ internal sealed class AwkRuntimeState
         Resources.ThrowIfValueBytesExceeded(text.ByteLength);
         Counters.RecordValueCreated();
         return AwkValue.FromText(text, NumberParsingMode);
+    }
+
+    public AwkValue CreateDeferredTextValue(AwkText text)
+    {
+        Resources.ThrowIfValueBytesExceeded(text.ByteLength);
+        Counters.RecordValueCreated();
+        return AwkValue.FromDeferredText(text, NumberParsingMode);
     }
 
     public AwkValue CreateNumericStringValue(string text)

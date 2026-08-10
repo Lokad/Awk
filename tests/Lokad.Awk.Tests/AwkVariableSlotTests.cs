@@ -18,7 +18,8 @@ public sealed class AwkVariableSlotTests
         var slot = AwkVariableSlot.FromExternalText("001");
         var value = slot.ToValue(
             AwkValue.FromText,
-            AwkValue.FromNumericString);
+            AwkValue.FromNumericString,
+            AwkValue.FromText);
 
         Assert.True(value.IsNumericStringValue);
         Assert.Equal("001", value.AsString());
@@ -31,7 +32,8 @@ public sealed class AwkVariableSlotTests
         var slot = AwkVariableSlot.FromExternalText(AwkText.FromHostBytes("001"u8.ToArray(), counters));
         var value = slot.ToValue(
             text => AwkValue.FromText(text, AwkNumberParsingMode.Decimal),
-            text => AwkValue.FromNumericString(text, AwkNumberParsingMode.Decimal));
+            text => AwkValue.FromNumericString(text, AwkNumberParsingMode.Decimal),
+            text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal));
 
         Assert.True(value.IsNumericStringValue);
         Assert.Equal(1, value.AsNumber());
@@ -46,7 +48,8 @@ public sealed class AwkVariableSlotTests
         var slot = AwkVariableSlot.FromValue(AwkValue.FromNumber(42));
         var value = slot.ToValue(
             text => AwkValue.FromText(text, AwkNumberParsingMode.Decimal),
-            text => AwkValue.FromNumericString(text, AwkNumberParsingMode.Decimal));
+            text => AwkValue.FromNumericString(text, AwkNumberParsingMode.Decimal),
+            text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal));
 
         Assert.Equal(0, slot.RetainedTextByteLength);
         Assert.True(value.IsNumberValue);

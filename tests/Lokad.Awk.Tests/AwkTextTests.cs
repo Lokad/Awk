@@ -87,6 +87,35 @@ public sealed class AwkTextTests
     }
 
     [Fact]
+    public void AwkText_ConcatenationDefersAndCachesPayloadMaterialization()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var concatenated = AwkText.FromString("ab", counters)
+            .Concat(AwkText.FromString("cd", counters), counters, AwkMemoryGovernor.Disabled);
+
+        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal("abcd", concatenated.AsString());
+        Assert.Equal(4, counters.ConcatenationBytesCopied);
+        Assert.Equal("abcd"u8.ToArray(), concatenated.AsSpan().ToArray());
+        Assert.Equal(4, counters.ConcatenationBytesCopied);
+    }
+
+    [Fact]
+    public void AwkText_ConcatenationSnapshotsBorrowedParts()
+    {
+        var buffer = "ab"u8.ToArray();
+        var borrowed = AwkText.FromTrustedBorrowedBytes(buffer, 0, buffer.Length);
+        var concatenated = borrowed.Concat(
+            AwkText.FromString("cd"),
+            AwkRuntimeCounters.Disabled,
+            AwkMemoryGovernor.Disabled);
+
+        buffer[0] = (byte)'x';
+
+        Assert.Equal("abcd", concatenated.AsString());
+    }
+
+    [Fact]
     public void AwkText_GovernedAllocationsCoverConcatAndSlices()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();

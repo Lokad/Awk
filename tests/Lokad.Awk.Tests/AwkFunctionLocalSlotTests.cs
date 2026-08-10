@@ -82,5 +82,6 @@ public sealed class AwkFunctionLocalSlotTests
             maxFunctionCallDepth: 8,
             AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters),
             static text => AwkValue.FromText(text),
-            static text => AwkValue.FromNumericString(text));
+            static text => AwkValue.FromNumericString(text),
+            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal));
 }

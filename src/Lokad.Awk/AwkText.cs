@@ -15,6 +15,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     private readonly int _byteOffset;
     private readonly int _byteLength;
     private readonly bool _isBorrowed;
+    private readonly AwkTextConcatenation? _concatenation;
     private string? _cachedString;
     // Zero means unclassified, -1 means non-ASCII with an unknown rune count,
     // and positive values store the rune count plus one.
@@ -32,6 +33,18 @@ internal sealed class AwkText : IEquatable<AwkText>
         _byteOffset = byteOffset;
         _byteLength = byteLength;
         _isBorrowed = isBorrowed;
+    }
+
+    private AwkText(
+        AwkText left,
+        AwkText right,
+        int byteLength,
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor)
+    {
+        _bytes = [];
+        _byteLength = byteLength;
+        _concatenation = new AwkTextConcatenation(left, right, counters, governor);
     }
 
     public static AwkText Empty { get; } = new([]);
@@ -52,9 +65,15 @@ internal sealed class AwkText : IEquatable<AwkText>
         }
     }
 
-    public ReadOnlySpan<byte> AsSpan() => _bytes.AsSpan(_byteOffset, _byteLength);
+    public ReadOnlySpan<byte> AsSpan() =>
+        _concatenation is null
+            ? _bytes.AsSpan(_byteOffset, _byteLength)
+            : MaterializeConcatenation(_concatenation).AsSpan();
 
-    public ReadOnlyMemory<byte> AsMemory() => _bytes.AsMemory(_byteOffset, _byteLength);
+    public ReadOnlyMemory<byte> AsMemory() =>
+        _concatenation is null
+            ? _bytes.AsMemory(_byteOffset, _byteLength)
+            : MaterializeConcatenation(_concatenation).AsMemory();
 
     public bool ContainsNonAscii(AwkRuntimeCounters counters)
     {
@@ -228,11 +247,14 @@ internal sealed class AwkText : IEquatable<AwkText>
             return this;
 
         var length = AwkRuntimeMemory.CheckedAdd(ByteLength, other.ByteLength);
-        var bytes = AllocateOwnedBytes(length, governor);
-        AsSpan().CopyTo(bytes);
-        other.AsSpan().CopyTo(bytes.AsSpan(ByteLength));
-        counters.RecordConcatenationBytesCopied(length);
-        return FromTrustedOwnedBytes(bytes, counters);
+        governor.PreflightAllocation(length);
+        counters.RecordValueCreated();
+        return new AwkText(
+            SnapshotBorrowedText(this, counters, governor),
+            SnapshotBorrowedText(other, counters, governor),
+            length,
+            counters,
+            governor);
     }
 
     public static AwkText Concat(
@@ -264,14 +286,39 @@ internal sealed class AwkText : IEquatable<AwkText>
                 throw new InvalidOperationException("A non-empty concatenation must retain its only part.");
         }
 
+        governor.PreflightAllocation(totalLength);
+        if (nonEmptyPartCount == 2)
+        {
+            AwkText? left = null;
+            AwkText? right = null;
+            for (var index = 0; index < parts.Length; index++)
+            {
+                if (parts[index].ByteLength == 0)
+                    continue;
+
+                if (left is null)
+                    left = SnapshotBorrowedText(parts[index], counters, governor);
+                else
+                    right = SnapshotBorrowedText(parts[index], counters, governor);
+            }
+
+            if (left is null || right is null)
+                throw new InvalidOperationException("A two-part concatenation must retain both parts.");
+
+            counters.RecordValueCreated();
+            return new AwkText(left, right, totalLength, counters, governor);
+        }
+
         var bytes = AllocateOwnedBytes(totalLength, governor);
-        var destination = bytes.AsSpan();
-        var position = 0;
+        var destinationOffset = 0;
         for (var index = 0; index < parts.Length; index++)
         {
-            var part = parts[index];
-            part.AsSpan().CopyTo(destination[position..]);
-            position += part.ByteLength;
+            if (parts[index].ByteLength == 0)
+                continue;
+
+            var source = parts[index].AsSpan();
+            source.CopyTo(bytes.AsSpan(destinationOffset));
+            destinationOffset += source.Length;
         }
 
         counters.RecordConcatenationBytesCopied(totalLength);
@@ -517,6 +564,129 @@ internal sealed class AwkText : IEquatable<AwkText>
         inspectedByteCount = span.Length;
         Volatile.Write(ref _textFacts, ByteLength + 1);
         return true;
+    }
+
+    private byte[] MaterializeConcatenation(AwkTextConcatenation concatenation)
+    {
+        var cached = Volatile.Read(ref concatenation.MaterializedBytes);
+        if (cached is not null)
+            return cached;
+
+        lock (concatenation)
+        {
+            cached = concatenation.MaterializedBytes;
+            if (cached is not null)
+                return cached;
+
+            var bytes = AllocateOwnedBytes(ByteLength, concatenation.Governor);
+            CopyConcatenationTo(bytes);
+            concatenation.Counters.RecordConcatenationBytesCopied(ByteLength);
+            concatenation.Counters.RecordAwkTextAllocation(ByteLength);
+            Volatile.Write(ref concatenation.MaterializedBytes, bytes);
+            concatenation.LeftPart = null;
+            concatenation.RightPart = null;
+            return bytes;
+        }
+    }
+
+    private void CopyConcatenationTo(Span<byte> destination)
+    {
+        var pending = ArrayPool<AwkText>.Shared.Rent(16);
+        var pendingCount = 1;
+        var destinationOffset = 0;
+        pending[0] = this;
+        try
+        {
+            while (pendingCount > 0)
+            {
+                var current = pending[--pendingCount];
+                var currentConcatenation = current._concatenation;
+                if (currentConcatenation is null)
+                {
+                    var source = current._bytes.AsSpan(current._byteOffset, current._byteLength);
+                    source.CopyTo(destination[destinationOffset..]);
+                    destinationOffset += source.Length;
+                    continue;
+                }
+
+                var materialized = Volatile.Read(ref currentConcatenation.MaterializedBytes);
+                if (materialized is not null)
+                {
+                    materialized.CopyTo(destination[destinationOffset..]);
+                    destinationOffset += materialized.Length;
+                    continue;
+                }
+
+                var left = currentConcatenation.LeftPart;
+                var right = currentConcatenation.RightPart;
+                if (left is null || right is null)
+                {
+                    materialized = Volatile.Read(ref currentConcatenation.MaterializedBytes);
+                    if (materialized is null)
+                        throw new InvalidOperationException("Concatenated text lost both its parts and materialized bytes.");
+
+                    materialized.CopyTo(destination[destinationOffset..]);
+                    destinationOffset += materialized.Length;
+                    continue;
+                }
+
+                EnsurePendingCapacity(2);
+                pending[pendingCount++] = right;
+                pending[pendingCount++] = left;
+            }
+
+            if (destinationOffset != destination.Length)
+                throw new InvalidOperationException("Concatenated text length does not match its retained parts.");
+        }
+        finally
+        {
+            ArrayPool<AwkText>.Shared.Return(pending, clearArray: true);
+        }
+
+        void EnsurePendingCapacity(int additionalCount)
+        {
+            if (pendingCount <= pending.Length - additionalCount)
+                return;
+
+            var expanded = ArrayPool<AwkText>.Shared.Rent(
+                AwkRuntimeMemory.CheckedAdd(pendingCount, additionalCount));
+            pending.AsSpan(0, pendingCount).CopyTo(expanded);
+            ArrayPool<AwkText>.Shared.Return(pending, clearArray: true);
+            pending = expanded;
+        }
+    }
+
+    private static AwkText SnapshotBorrowedText(
+        AwkText text,
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor) =>
+        text._isBorrowed
+            ? CopyTrustedBytes(text.AsSpan(), counters, governor)
+            : text;
+
+    private sealed class AwkTextConcatenation
+    {
+        public AwkTextConcatenation(
+            AwkText left,
+            AwkText right,
+            AwkRuntimeCounters counters,
+            AwkMemoryGovernor governor)
+        {
+            LeftPart = left;
+            RightPart = right;
+            Counters = counters;
+            Governor = governor;
+        }
+
+        public AwkRuntimeCounters Counters { get; }
+
+        public AwkMemoryGovernor Governor { get; }
+
+        public AwkText? LeftPart { get; set; }
+
+        public AwkText? RightPart { get; set; }
+
+        public byte[]? MaterializedBytes;
     }
 
     private static AwkText CreateTrustedOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)

@@ -14,7 +14,10 @@ internal enum AwkValueKind
     NumericText,
     Number,
     NumericString,
-    Unassigned
+    Unassigned,
+    DeferredDecimalText,
+    DeferredHexadecimalText,
+    DeferredNonDecimalText
 }
 
 internal readonly struct AwkValue
@@ -82,6 +85,18 @@ internal readonly struct AwkValue
     public static AwkValue FromNumber(double value) =>
         new(AwkText.Empty, value, AwkValueKind.Number);
 
+    public static AwkValue FromDeferredText(AwkText text, AwkNumberParsingMode numberParsingMode) =>
+        new(
+            text,
+            0,
+            numberParsingMode switch
+            {
+                AwkNumberParsingMode.Decimal => AwkValueKind.DeferredDecimalText,
+                AwkNumberParsingMode.HexadecimalInput => AwkValueKind.DeferredHexadecimalText,
+                AwkNumberParsingMode.NonDecimalData => AwkValueKind.DeferredNonDecimalText,
+                _ => throw new ArgumentOutOfRangeException(nameof(numberParsingMode))
+            });
+
     public static AwkValue Unassigned() =>
         new(AwkText.Empty, 0, AwkValueKind.Unassigned);
 
@@ -113,7 +128,17 @@ internal readonly struct AwkValue
             ? AwkNumberFormatter.ToAwkText(_number)
             : _text ?? AwkText.Empty;
 
-    public double AsNumber() => HasArithmeticNumber ? _number : 0;
+    public double AsNumber()
+    {
+        if (TryGetDeferredNumberParsingMode(out var numberParsingMode))
+        {
+            return TryParseAwkNumber(ByteText, numberParsingMode, out var number, out _)
+                ? number
+                : 0;
+        }
+
+        return HasArithmeticNumber ? _number : 0;
+    }
 
     public bool TryGetNumber(out double number)
     {
@@ -126,6 +151,11 @@ internal readonly struct AwkValue
     public bool IsNumericStringValue => _kind == AwkValueKind.NumericString;
 
     public bool IsUnassignedValue => _kind == AwkValueKind.Unassigned;
+
+    public bool IsDeferredTextValue => _kind is
+        AwkValueKind.DeferredDecimalText or
+        AwkValueKind.DeferredHexadecimalText or
+        AwkValueKind.DeferredNonDecimalText;
 
     public bool TryGetArrayOrdinal(out int ordinal)
     {
@@ -183,6 +213,25 @@ internal readonly struct AwkValue
 
     private bool HasComparisonNumber =>
         _kind is AwkValueKind.Number or AwkValueKind.NumericString or AwkValueKind.Unassigned;
+
+    private bool TryGetDeferredNumberParsingMode(out AwkNumberParsingMode numberParsingMode)
+    {
+        switch (_kind)
+        {
+            case AwkValueKind.DeferredDecimalText:
+                numberParsingMode = AwkNumberParsingMode.Decimal;
+                return true;
+            case AwkValueKind.DeferredHexadecimalText:
+                numberParsingMode = AwkNumberParsingMode.HexadecimalInput;
+                return true;
+            case AwkValueKind.DeferredNonDecimalText:
+                numberParsingMode = AwkNumberParsingMode.NonDecimalData;
+                return true;
+            default:
+                numberParsingMode = default;
+                return false;
+        }
+    }
 
     private static bool TryParseAwkNumber(
         AwkText text,

@@ -8,7 +8,8 @@ internal sealed class AwkFunctionCallStack(
     int maxFunctionCallDepth,
     AwkMemoryGovernor memoryGovernor,
     Func<AwkText, AwkValue> createByteTextValue,
-    Func<AwkText, AwkValue> createNumericStringValue)
+    Func<AwkText, AwkValue> createNumericStringValue,
+    Func<AwkText, AwkValue> createDeferredTextValue)
 {
     private readonly Stack<AwkFunctionFrame> _frames = new();
     private readonly Stack<AwkFunctionFrame> _recycledFrames = new();
@@ -364,7 +365,7 @@ internal sealed class AwkFunctionCallStack(
         {
             AwkFunctionLocalProjection.Kind => AwkResolvedFunctionLocal.Scalar(),
             AwkFunctionLocalProjection.Value => AwkResolvedFunctionLocal.ScalarValue(
-                slot.Value.ToValue(createByteTextValue, createNumericStringValue)),
+                slot.Value.ToValue(createByteTextValue, createNumericStringValue, createDeferredTextValue)),
             _ => throw new InvalidOperationException("Unknown function-local projection.")
         };
     }

@@ -70,7 +70,7 @@ internal abstract partial class AwkExpression
         }
 
         private AwkValue CreateValue(AwkEvaluationContext context, AwkText[] formattedParts) =>
-            context.State.CreateByteTextValue(AwkText.Concat(
+            context.State.CreateDeferredTextValue(AwkText.Concat(
                 formattedParts.AsSpan(0, _parts.Length),
                 context.State.Counters,
                 context.State.MemoryGovernor));

@@ -45,11 +45,16 @@ internal readonly struct AwkVariableSlot
         if (value.IsNumberValue)
             return new AwkVariableSlot(value.AsNumber());
 
-        var kind = value.IsUnassignedValue
-            ? AwkVariableSlotKind.Unassigned
-            : value.IsNumericStringValue
-                ? AwkVariableSlotKind.NumericString
-                : AwkVariableSlotKind.Text;
+        AwkVariableSlotKind kind;
+        if (value.IsUnassignedValue)
+            kind = AwkVariableSlotKind.Unassigned;
+        else if (value.IsDeferredTextValue)
+            kind = AwkVariableSlotKind.DeferredText;
+        else if (value.IsNumericStringValue)
+            kind = AwkVariableSlotKind.NumericString;
+        else
+            kind = AwkVariableSlotKind.Text;
+
         return new AwkVariableSlot(value.ByteText, kind);
     }
 
@@ -65,12 +70,14 @@ internal readonly struct AwkVariableSlot
 
     public AwkValue ToValue(
         Func<AwkText, AwkValue> createByteTextValue,
-        Func<AwkText, AwkValue> createNumericStringValue) =>
+        Func<AwkText, AwkValue> createNumericStringValue,
+        Func<AwkText, AwkValue> createDeferredTextValue) =>
         Kind switch
         {
             AwkVariableSlotKind.Unassigned => AwkValue.Unassigned(),
             AwkVariableSlotKind.Number => AwkValue.FromNumber(_number),
             AwkVariableSlotKind.NumericString => createNumericStringValue(ByteText),
+            AwkVariableSlotKind.DeferredText => createDeferredTextValue(ByteText),
             _ => createByteTextValue(ByteText)
         };
 }
@@ -80,5 +87,6 @@ internal enum AwkVariableSlotKind
     Text,
     Unassigned,
     Number,
-    NumericString
+    NumericString,
+    DeferredText
 }

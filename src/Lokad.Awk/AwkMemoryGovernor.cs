@@ -74,6 +74,16 @@ internal sealed class AwkMemoryGovernor
         _counters.RecordMemoryReserve(byteCount, LiveBytes);
     }
 
+    public void PreflightAllocation(long byteCount)
+    {
+        if (!_enabled || byteCount <= 0)
+            return;
+
+        ThrowIfLiveWouldExceedLimit(
+            AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, byteCount),
+            CurrentCommittedBytes);
+    }
+
     public void CommitReserved(long byteCount)
     {
         if (!_enabled || byteCount <= 0)

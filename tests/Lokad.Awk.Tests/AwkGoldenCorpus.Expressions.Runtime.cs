@@ -16,6 +16,12 @@ internal static partial class AwkGoldenCorpus
             [File("/file.txt", "10 a\n5 b\n20 c\n")],
             "35\n"),
 
+        Posix(Passing(
+            "concatenated-numeric-text-retains-string-semantics",
+            ["BEGIN{x=\"01\" \"\"; print x+1, (x==1), (x==\"01\")}"],
+            [],
+            "2 0 1\n")),
+
         Passing(
             "compound-assignment-operators",
             ["BEGIN{x=10; x-=3; y=4; y*=5; z=20; z/=4; r=17; r%=5; print x, y, z, r}"],

@@ -136,6 +136,37 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, executable.Counters.VmFallbackCalls);
     }
 
+    [Fact]
+    public async Task Awk_RepeatedSelfConcatenationCopiesLinearPayloadBytes()
+    {
+        const int recordCount = 1_024;
+        const int recordLength = 10;
+        var input = new StringBuilder(recordCount * (recordLength + 1));
+        for (var index = 0; index < recordCount; index++)
+            input.Append("abcdefghij\n");
+
+        var interpreter = await RunAsync(
+            ["{s=s $0} END{print s}"],
+            input.ToString(),
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Interpreter);
+        var executable = await RunAsync(
+            ["{s=s $0} END{print s}"],
+            input.ToString(),
+            AwkRegexEngineKind.Utf8Adapter,
+            AwkExecutionEngineKind.Executable);
+
+        var finalLength = recordCount * recordLength;
+        var expectedOutput = input.ToString().Replace("\n", string.Empty, StringComparison.Ordinal) + "\n";
+        Assert.Equal(0, interpreter.ExitCode);
+        Assert.Equal(0, executable.ExitCode);
+        Assert.Equal(expectedOutput, interpreter.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(expectedOutput, executable.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.InRange(interpreter.Counters.ConcatenationBytesCopied, finalLength, finalLength * 2L);
+        Assert.InRange(executable.Counters.ConcatenationBytesCopied, finalLength, finalLength * 2L);
+        Assert.Equal(0, executable.Counters.VmFallbackCalls);
+    }
+
     [Theory]
     [InlineData("BEGIN{FS=\"[,;]\"} {print NF}", "a,b;c\n", "3\n")]
     [InlineData("BEGIN{FIELDWIDTHS=\"2 3\"} {print NF}", "abcdef\n", "2\n")]
