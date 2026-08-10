@@ -2,16 +2,18 @@ namespace Lokad.Awk;
 
 internal readonly record struct AwkFormatString
 {
+    private readonly AwkText? _text;
+
     public AwkFormatString(AwkText text)
     {
-        Text = text;
+        _text = text;
     }
 
-    public AwkText Text { get; }
+    public AwkText Text => _text ?? AwkText.Empty;
 
     public string AsString(AwkRuntimeCounters counters)
     {
         counters.RecordFormattingStringInteropInput();
-        return (Text ?? AwkText.Empty).AsString(counters);
+        return Text.AsString(counters);
     }
 }

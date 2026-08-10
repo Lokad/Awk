@@ -144,8 +144,8 @@ internal static class AwkDirectiveParser
 
 internal readonly record struct AwkParsedDirective
 {
-    private readonly string _name;
-    private readonly IReadOnlyList<AwkToken> _argumentTokens;
+    private readonly string? _name;
+    private readonly IReadOnlyList<AwkToken>? _argumentTokens;
 
     public AwkParsedDirective(
         AwkDirectiveKind kind,

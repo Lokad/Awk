@@ -23,7 +23,7 @@ internal readonly struct AwkSourceUnit
 
 internal readonly struct AwkSourceSegment
 {
-    private readonly AwkLineContinuationMap _lineContinuations;
+    private readonly AwkLineContinuationMap? _lineContinuations;
 
     public AwkSourceSegment(
         AwkSourceName name,

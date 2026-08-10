@@ -155,7 +155,7 @@ internal abstract record CommandLineOptionItem
 
 internal readonly record struct CommandLineOptionValue
 {
-    private readonly string _text;
+    private readonly string? _text;
 
     private CommandLineOptionValue(CommandLineOptionValueKind kind, string text)
     {
@@ -172,7 +172,7 @@ internal readonly record struct CommandLineOptionValue
 
     public bool HasInlineValue => Kind == CommandLineOptionValueKind.Inline;
 
-    public string Text => HasInlineValue ? _text : string.Empty;
+    public string Text => HasInlineValue ? _text ?? string.Empty : string.Empty;
 }
 
 internal enum CommandLineOptionValueKind

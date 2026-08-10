@@ -89,8 +89,8 @@ internal static class AwkLineContinuations
 
 internal readonly record struct AwkLineContinuationNormalization
 {
-    private readonly string _text;
-    private readonly AwkLineContinuationMap _lineContinuations;
+    private readonly string? _text;
+    private readonly AwkLineContinuationMap? _lineContinuations;
 
     public AwkLineContinuationNormalization(string text, AwkLineContinuationMap lineContinuations)
     {

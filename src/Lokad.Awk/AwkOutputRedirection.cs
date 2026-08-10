@@ -19,7 +19,7 @@ internal readonly struct AwkOutputRedirection(AwkExpression target, AwkOutputRed
 
 internal readonly record struct AwkRedirectionPath
 {
-    private readonly string _text;
+    private readonly string? _text;
 
     public AwkRedirectionPath(string text)
     {

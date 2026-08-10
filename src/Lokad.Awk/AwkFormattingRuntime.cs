@@ -76,14 +76,14 @@ internal sealed class AwkFormattingRuntime(
     private bool UsesDefaultFormat(AwkFormattingVariable variable)
     {
         var format = resolveVariable(variable);
-        var text = format.Text ?? AwkText.Empty;
+        var text = format.Text;
         return text.EqualsAscii(AwkFormattingVariableFacts.DefaultFormat(variable));
     }
 
     private string ResolveFormatString(AwkFormattingVariable variable)
     {
         var format = resolveVariable(variable);
-        var text = format.Text ?? AwkText.Empty;
+        var text = format.Text;
         if (variable == AwkFormattingVariable.ConversionFormat)
             return ResolveConversionFormatString(text);
 

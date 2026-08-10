@@ -73,8 +73,8 @@ internal readonly record struct AwkTextLength
 
 internal readonly struct AwkToken
 {
-    private readonly string _text;
-    private readonly string _source;
+    private readonly string? _text;
+    private readonly string? _source;
     private readonly bool _sourceBacked;
 
     public AwkToken(AwkTokenKind kind, string text, AwkTextSpan span)
@@ -93,16 +93,18 @@ internal readonly struct AwkToken
             ? _text ?? string.Empty
             : Span.Length == 0
                 ? string.Empty
-                : _source.Substring(Span.Start, Span.Length);
+                : Source.Substring(Span.Start, Span.Length);
 
     public ReadOnlySpan<char> TextSpan =>
         !_sourceBacked
             ? (_text ?? string.Empty).AsSpan()
             : Span.Length == 0
                 ? []
-                : _source.AsSpan(Span.Start, Span.Length);
+                : Source.AsSpan(Span.Start, Span.Length);
 
     public AwkTextSpan Span { get; }
+
+    private string Source => _source ?? string.Empty;
 
     public static AwkToken FromSource(
         AwkTokenKind kind,

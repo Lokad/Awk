@@ -4,7 +4,7 @@ namespace Lokad.Awk;
 
 internal readonly record struct AwkIdentifier
 {
-    private readonly string _text;
+    private readonly string? _text;
 
     private AwkIdentifier(string text)
     {
@@ -65,7 +65,7 @@ internal readonly record struct AwkOptionalIdentifier
 
 internal readonly record struct AwkVariableAssignment
 {
-    private readonly string _value;
+    private readonly string? _value;
 
     private AwkVariableAssignment(AwkIdentifier identifier, string value, AwkVariableAssignmentSource source)
     {
