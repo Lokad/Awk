@@ -82,12 +82,12 @@ internal sealed class AwkVariables
         _scalarSlotsByName.ContainsKey(name);
 
     public bool ContainsArray(AwkArrayName name) =>
-        _symbolTable.IsName(name.Text) ||
+        AwkSymbolTableArray.IsName(name.Text) ||
         _arrays.Contains(name);
 
     public bool TryGetArrayCount(AwkArrayName name, out int count)
     {
-        if (_symbolTable.IsName(name.Text))
+        if (AwkSymbolTableArray.IsName(name.Text))
         {
             count = _symbolTable.Count;
             return true;
@@ -161,8 +161,8 @@ internal sealed class AwkVariables
 
     public AwkValue GetArrayValue(AwkArrayName name, AwkArrayKey index)
     {
-        if (_symbolTable.IsName(name.Text))
-            return _symbolTable.GetValue(index.StringValue);
+        if (AwkSymbolTableArray.IsName(name.Text))
+            return _symbolTable.GetValue(index.AsString(_counters));
 
         var values = GetOrCreateArraySlots(name);
         if (values.TryGetValue(index, out var slot))
@@ -178,9 +178,9 @@ internal sealed class AwkVariables
 
     public bool TryPeekArrayValue(AwkArrayName name, AwkArrayKey index, out AwkValue value)
     {
-        if (_symbolTable.IsName(name.Text))
+        if (AwkSymbolTableArray.IsName(name.Text))
         {
-            value = _symbolTable.GetValue(index.StringValue);
+            value = _symbolTable.GetValue(index.AsString(_counters));
             return true;
         }
 
@@ -199,16 +199,16 @@ internal sealed class AwkVariables
     }
 
     public bool ContainsArrayValue(AwkArrayName name, AwkArrayKey index) =>
-        _symbolTable.IsName(name.Text)
-            ? _symbolTable.ContainsValue(index)
+        AwkSymbolTableArray.IsName(name.Text)
+            ? AwkSymbolTableArray.ContainsValue(index.AsString(_counters))
             : GetOrCreateArraySlots(name).ContainsKey(index);
 
     public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value)
     {
-        if (_symbolTable.IsName(name.Text))
+        if (AwkSymbolTableArray.IsName(name.Text))
         {
             _symbolTable.AssignValue(
-                index.StringValue,
+                index.AsString(_counters),
                 _createByteTextValue(AwkText.FromString(value, _counters, _memoryGovernor)));
             return;
         }
@@ -221,9 +221,9 @@ internal sealed class AwkVariables
 
     public void SetArrayValue(AwkArrayName name, AwkArrayKey index, AwkValue value)
     {
-        if (_symbolTable.IsName(name.Text))
+        if (AwkSymbolTableArray.IsName(name.Text))
         {
-            _symbolTable.AssignValue(index.StringValue, value);
+            _symbolTable.AssignValue(index.AsString(_counters), value);
             return;
         }
 
@@ -235,7 +235,7 @@ internal sealed class AwkVariables
 
     public void DeleteArrayValue(AwkArrayName name, AwkArrayKey index)
     {
-        if (_symbolTable.IsName(name.Text))
+        if (AwkSymbolTableArray.IsName(name.Text))
             throw new AwkRuntimeException(AwkMessages.ErrorCannotDeleteSymtab);
 
         AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text);
@@ -290,7 +290,7 @@ internal sealed class AwkVariables
 
     public IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotArrayValues(AwkArrayName name)
     {
-        if (_symbolTable.IsName(name.Text))
+        if (AwkSymbolTableArray.IsName(name.Text))
             return _symbolTable.SnapshotValues();
 
         if (ContainsScalar(new AwkVariableName(name.Identifier)))
@@ -305,7 +305,7 @@ internal sealed class AwkVariables
 
     public int GetArraySnapshotCount(AwkArrayName name)
     {
-        if (_symbolTable.IsName(name.Text))
+        if (AwkSymbolTableArray.IsName(name.Text))
             return _symbolTable.Count;
 
         if (ContainsScalar(new AwkVariableName(name.Identifier)))
@@ -380,7 +380,7 @@ internal sealed class AwkVariables
 
     public void CopyArrayKeys(AwkArrayName name, AwkArrayKey[] destination)
     {
-        if (_symbolTable.IsName(name.Text))
+        if (AwkSymbolTableArray.IsName(name.Text))
         {
             var keys = _symbolTable.SnapshotKeys();
             for (var index = 0; index < keys.Count; index++)

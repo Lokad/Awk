@@ -17,7 +17,7 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(fromString, fromText);
         Assert.Equal(fromString.GetHashCode(), fromText.GetHashCode());
         Assert.Equal("value", values[fromText]);
-        Assert.Equal("café", fromText.StringValue);
+        Assert.Equal("café", fromText.AsString(AwkRuntimeCounters.Disabled));
     }
 
     [Theory]
@@ -38,7 +38,7 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(fromText, fromOrdinal);
         Assert.Equal(fromText.GetHashCode(), fromOrdinal.GetHashCode());
         Assert.Equal("value", values[fromText]);
-        Assert.Equal(text, fromOrdinal.StringValue);
+        Assert.Equal(text, fromOrdinal.AsString(AwkRuntimeCounters.Disabled));
         Assert.Equal(
             text,
             fromOrdinal.ToByteText(AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
@@ -87,13 +87,13 @@ public sealed class AwkArrayKeyTests
         var fractional = state.ToArrayKey(AwkValue.FromNumber(1.5));
 
         Assert.True(ordinal.IsOrdinal);
-        Assert.Equal("42", ordinal.StringValue);
+        Assert.Equal("42", ordinal.AsString(AwkRuntimeCounters.Disabled));
         Assert.False(numericString.IsOrdinal);
-        Assert.Equal("042", numericString.StringValue);
+        Assert.Equal("042", numericString.AsString(AwkRuntimeCounters.Disabled));
         Assert.False(text.IsOrdinal);
-        Assert.Equal("42", text.StringValue);
+        Assert.Equal("42", text.AsString(AwkRuntimeCounters.Disabled));
         Assert.False(fractional.IsOrdinal);
-        Assert.Equal("1.5", fractional.StringValue);
+        Assert.Equal("1.5", fractional.AsString(AwkRuntimeCounters.Disabled));
     }
 
     [Fact]

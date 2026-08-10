@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Lokad.Awk;
 
@@ -19,7 +18,7 @@ internal sealed class AwkSymbolTableArray(
     Func<AwkVariableSlot, AwkValue> createValue,
     Action<string, AwkValue> assignScalarValue)
 {
-    public bool IsName(string name) =>
+    public static bool IsName(string name) =>
         string.Equals(name, AwkVariables.SymbolTableName, StringComparison.Ordinal);
 
     public int Count
@@ -70,17 +69,17 @@ internal sealed class AwkSymbolTableArray(
         assignScalarValue(name, value);
     }
 
-    public bool ContainsValue(AwkArrayKey index) =>
-        AwkIdentifiers.IsValidName(index.StringValue);
+    public static bool ContainsValue(string name) =>
+        AwkIdentifiers.IsValidName(name);
 
     public IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotValues()
     {
         var values = new Dictionary<AwkArrayKey, AwkValue>();
-        foreach (var key in SnapshotKeys())
+        foreach (var name in SnapshotNames())
         {
-            values[key] = IsName(key.StringValue) || containsArray(AwkArrayName.FromText(key.StringValue))
+            values[new AwkArrayKey(name)] = IsName(name) || containsArray(AwkArrayName.FromText(name))
                 ? AwkValue.FromText(AwkText.Empty)
-                : GetValue(key.StringValue);
+                : GetValue(name);
         }
 
         return values;
@@ -88,20 +87,29 @@ internal sealed class AwkSymbolTableArray(
 
     public IReadOnlyList<AwkArrayKey> SnapshotKeys()
     {
-        var keys = new HashSet<string>(StringComparer.Ordinal)
+        var names = SnapshotNames();
+        var keys = new AwkArrayKey[names.Count];
+        var index = 0;
+        foreach (var name in names)
+            keys[index++] = new AwkArrayKey(name);
+
+        return keys;
+    }
+
+    private HashSet<string> SnapshotNames()
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal)
         {
             AwkVariables.SymbolTableName
         };
 
         foreach (var scalar in getScalars())
-            keys.Add(scalar.Name.Text);
+            names.Add(scalar.Name.Text);
 
-        foreach (var key in getArrayNames())
-        {
-            keys.Add(key.Text);
-        }
+        foreach (var name in getArrayNames())
+            names.Add(name.Text);
 
-        return keys.Select(static key => new AwkArrayKey(key)).ToArray();
+        return names;
     }
 
     private static AwkIdentifier ParseName(string name)

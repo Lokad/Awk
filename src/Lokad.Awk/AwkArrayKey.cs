@@ -39,10 +39,10 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     public static AwkArrayKey FromArgvIndex(AwkArgvIndex index) =>
         FromOrdinal(index.Value);
 
-    public string StringValue =>
+    public string AsString(AwkRuntimeCounters counters) =>
         IsOrdinal
             ? _ordinal.ToString(CultureInfo.InvariantCulture)
-            : Text.AsString();
+            : Text.AsString(counters);
 
     public int ByteLength
     {
@@ -106,7 +106,8 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
             ? ComputeHash(AwkText.Empty)
             : _hashCode;
 
-    public override string ToString() => StringValue;
+    public override string ToString() =>
+        AsString(AwkRuntimeCounters.Disabled);
 
     private AwkText Text => _text ?? AwkText.Empty;
 
