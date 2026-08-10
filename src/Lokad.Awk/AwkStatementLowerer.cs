@@ -245,13 +245,16 @@ internal static class AwkStatementLowerer
             if (!AwkStatementLoweringShapes.Getline(syntax).TryGetValue(out var getline))
                 return false;
 
-            if (!AwkGetlineLowerer.TryResolveStatementParts(getline, out var parts) ||
-                !AwkGetlineLowerer.TryLower(parts, scope, out var target, out var source))
+            if (!AwkGetlineLowerer.TryResolveStatementParts(getline, out var parts))
             {
                 return false;
             }
 
-            statement = AwkStatement.Getline(target, source);
+            var lowering = AwkGetlineLowerer.Lower(parts, scope);
+            if (!lowering.Succeeded)
+                return false;
+
+            statement = AwkStatement.Getline(lowering.Target, lowering.Source);
             return true;
         }
 

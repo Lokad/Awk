@@ -2,18 +2,15 @@ namespace Lokad.Awk;
 
 internal static class AwkLValueLowerer
 {
-    public static AwkLValueLoweringResult Lower(AwkExpressionSyntax? expression)
+    public static AwkLValueLoweringResult Lower(AwkExpressionSyntax expression)
     {
         return Lower(expression, AwkLoweringScope.Global);
     }
 
     public static AwkLValueLoweringResult Lower(
-        AwkExpressionSyntax? expression,
+        AwkExpressionSyntax expression,
         AwkLoweringScope scope)
     {
-        if (expression == null)
-            return AwkLValueLoweringResult.Invalid;
-
         switch (expression.Kind)
         {
             case AwkExpressionKind.Variable:
@@ -23,7 +20,7 @@ internal static class AwkLValueLowerer
             case AwkExpressionKind.Field:
                 return LowerField(expression, scope);
             default:
-                return AwkLValueLoweringResult.InvalidTarget(expression, "Invalid lvalue target.");
+                return AwkLValueLoweringResult.Invalid;
         }
     }
 
@@ -36,7 +33,7 @@ internal static class AwkLValueLowerer
     {
         if (!AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(expression, out var identifier))
         {
-            return AwkLValueLoweringResult.InvalidTarget(expression, "Invalid lvalue target.");
+            return AwkLValueLoweringResult.Invalid;
         }
 
         var variableName = new AwkVariableName(identifier.Identifier);
@@ -54,7 +51,7 @@ internal static class AwkLValueLowerer
             !AwkExpressionSyntaxFacts.TryGetAssignableArrayElementTarget(expression, out var target) ||
             !AwkExpressionLowerer.TryLowerArrayIndex(expression.Children, scope, out var index))
         {
-            return AwkLValueLoweringResult.InvalidTarget(expression, "Invalid lvalue target.");
+            return AwkLValueLoweringResult.Invalid;
         }
 
         return AwkLValueLoweringResult.Valid(AwkReference.ArrayElement(new AwkArrayName(target.Identifier), index));
@@ -65,7 +62,7 @@ internal static class AwkLValueLowerer
         AwkLoweringScope scope)
     {
         if (expression.Children.Count != 1)
-            return AwkLValueLoweringResult.InvalidTarget(expression, "Invalid field lvalue target.");
+            return AwkLValueLoweringResult.Invalid;
 
         if (AwkExpressionSyntaxFacts.IsFieldCountExpression(expression.Children[0]))
         {
@@ -73,7 +70,7 @@ internal static class AwkLValueLowerer
         }
 
         if (!AwkExpressionLowerer.TryLower(expression.Children[0], scope, out var index))
-            return AwkLValueLoweringResult.InvalidTarget(expression.Children[0], "Invalid field lvalue index.");
+            return AwkLValueLoweringResult.Invalid;
 
         return AwkLValueLoweringResult.Valid(AwkReference.Field(index));
     }
@@ -81,35 +78,21 @@ internal static class AwkLValueLowerer
 
 internal readonly struct AwkLValueLoweringResult
 {
-    private AwkLValueLoweringResult(bool succeeded, object reference, AwkDiagnostic diagnostic)
+    private readonly AwkReference? _reference;
+
+    private AwkLValueLoweringResult(AwkReference? reference)
     {
-        Succeeded = succeeded;
         _reference = reference;
-        Diagnostic = diagnostic;
     }
 
-    private readonly object _reference;
-
-    public bool Succeeded { get; }
+    public bool Succeeded => _reference is not null;
 
     public AwkReference Reference =>
-        Succeeded
-            ? (AwkReference)_reference
-            : throw new System.InvalidOperationException("No lvalue reference is present.");
-
-    public AwkDiagnostic Diagnostic { get; }
+        _reference ?? throw new System.InvalidOperationException("No lvalue reference is present.");
 
     public static AwkLValueLoweringResult Invalid { get; } =
-        new(succeeded: false, NoReference.Instance, default);
-
-    public static AwkLValueLoweringResult InvalidTarget(AwkExpressionSyntax expression, string message) =>
-        new(succeeded: false, NoReference.Instance, AwkLValueLowerer.CreateFailureDiagnostic(expression, message));
+        new(reference: null);
 
     public static AwkLValueLoweringResult Valid(AwkReference reference) =>
-        new(succeeded: true, reference, default);
-
-    private sealed class NoReference
-    {
-        public static readonly NoReference Instance = new();
-    }
+        new(reference);
 }

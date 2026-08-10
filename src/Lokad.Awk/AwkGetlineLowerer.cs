@@ -5,6 +5,45 @@ internal readonly record struct AwkGetlineLoweringParts(
     AwkSyntaxOptional<AwkExpressionSyntax> Source,
     bool RequiresInputRedirection);
 
+internal readonly struct AwkGetlineLoweringResult
+{
+    private readonly bool _succeeded;
+    private readonly AwkDiagnostic? _diagnostic;
+
+    private AwkGetlineLoweringResult(
+        bool succeeded,
+        AwkGetlineTarget target,
+        AwkGetlineSource source,
+        AwkDiagnostic? diagnostic)
+    {
+        _succeeded = succeeded;
+        Target = target;
+        Source = source;
+        _diagnostic = diagnostic;
+    }
+
+    public bool Succeeded => _succeeded;
+
+    public AwkGetlineTarget Target { get; }
+
+    public AwkGetlineSource Source { get; }
+
+    public AwkDiagnostic Diagnostic =>
+        _diagnostic ?? throw new InvalidOperationException("Successful getline lowering has no diagnostic.");
+
+    public static AwkGetlineLoweringResult Success(
+        AwkGetlineTarget target,
+        AwkGetlineSource source) =>
+        new(true, target, source, diagnostic: null);
+
+    public static AwkGetlineLoweringResult Failure(AwkDiagnostic diagnostic) =>
+        new(
+            false,
+            AwkGetlineTarget.CurrentRecord,
+            AwkGetlineSource.MainInput,
+            diagnostic);
+}
+
 internal static class AwkGetlineLowerer
 {
     public static bool TryResolveStatementParts(
@@ -82,83 +121,56 @@ internal static class AwkGetlineLowerer
         return true;
     }
 
-    public static bool TryLower(
+    public static AwkGetlineLoweringResult Lower(
         AwkGetlineLoweringParts parts,
-        out AwkGetlineTarget target,
-        out AwkGetlineSource source)
+        AwkLoweringScope scope)
     {
-        return TryLower(parts, AwkLoweringScope.Global, out target, out source, out _);
-    }
-
-    public static bool TryLower(
-        AwkGetlineLoweringParts parts,
-        AwkLoweringScope scope,
-        out AwkGetlineTarget target,
-        out AwkGetlineSource source)
-    {
-        return TryLower(parts, scope, out target, out source, out _);
-    }
-
-    public static bool TryLower(
-        AwkGetlineLoweringParts parts,
-        out AwkGetlineTarget target,
-        out AwkGetlineSource source,
-        out AwkDiagnostic diagnostic)
-    {
-        return TryLower(parts, AwkLoweringScope.Global, out target, out source, out diagnostic);
-    }
-
-    public static bool TryLower(
-        AwkGetlineLoweringParts parts,
-        AwkLoweringScope scope,
-        out AwkGetlineTarget target,
-        out AwkGetlineSource source,
-        out AwkDiagnostic diagnostic)
-    {
-        target = AwkGetlineTarget.CurrentRecord;
-        source = AwkGetlineSource.MainInput;
-        diagnostic = default;
+        var target = AwkGetlineTarget.CurrentRecord;
+        var source = AwkGetlineSource.MainInput;
 
         if (parts.Target.TryGetValue(out var targetExpression))
         {
             var targetResult = AwkLValueLowerer.Lower(targetExpression, scope);
             if (!targetResult.Succeeded)
-            {
-                diagnostic = InvalidGetline(targetExpression.Span, "Invalid getline target.");
-                return false;
-            }
+                return AwkGetlineLoweringResult.Failure(
+                    InvalidGetline(targetExpression.Span, "Invalid getline target."));
 
             target = AwkGetlineTarget.ReferenceTarget(targetResult.Reference);
         }
 
         if (parts.Source.TryGetValue(out var sourceExpressionSyntax))
         {
-            if (!AwkExpressionLowerer.TryLower(sourceExpressionSyntax, scope, out var sourceExpression, out diagnostic))
-                return false;
+            if (!AwkExpressionLowerer.TryLower(
+                    sourceExpressionSyntax,
+                    scope,
+                    out var sourceExpression,
+                    out var diagnostic))
+            {
+                return AwkGetlineLoweringResult.Failure(diagnostic);
+            }
 
             source = AwkGetlineSource.Redirection(sourceExpression);
         }
 
         if (parts.RequiresInputRedirection && source is not AwkRedirectionGetlineSource)
         {
-            diagnostic = InvalidGetline(
+            return AwkGetlineLoweringResult.Failure(InvalidGetline(
                 parts.Source.TryGetValue(out var sourceExpression)
                     ? sourceExpression.Span
                     : ResolveFallbackSpan(parts),
-                "Input redirection getline requires a source expression.");
-            return false;
+                "Input redirection getline requires a source expression."));
         }
 
-        return true;
+        return AwkGetlineLoweringResult.Success(target, source);
     }
 
     public static AwkDiagnostic CreateFailureDiagnostic(AwkExpressionSyntax expression)
     {
-        if (TryResolveExpressionCallParts(expression, out var parts) &&
-            !TryLower(parts, out _, out _, out var diagnostic) &&
-            HasDiagnostic(diagnostic))
+        if (TryResolveExpressionCallParts(expression, out var parts))
         {
-            return diagnostic;
+            var lowering = Lower(parts, AwkLoweringScope.Global);
+            if (!lowering.Succeeded)
+                return lowering.Diagnostic;
         }
 
         return InvalidGetline(expression.Span, "Invalid getline expression.");
@@ -167,11 +179,11 @@ internal static class AwkGetlineLowerer
     public static AwkDiagnostic CreateFailureDiagnostic(AwkStatementSyntax statement)
     {
         if (statement.Payload is AwkGetlineStatementSyntaxPayload payload &&
-            TryResolveStatementParts(payload.Getline, out var parts) &&
-            !TryLower(parts, out _, out _, out var diagnostic) &&
-            HasDiagnostic(diagnostic))
+            TryResolveStatementParts(payload.Getline, out var parts))
         {
-            return diagnostic;
+            var lowering = Lower(parts, AwkLoweringScope.Global);
+            if (!lowering.Succeeded)
+                return lowering.Diagnostic;
         }
 
         return InvalidGetline(statement.Span, "Invalid getline statement.");
@@ -187,9 +199,6 @@ internal static class AwkGetlineLowerer
 
         return new AwkTextSpan(0, 0);
     }
-
-    private static bool HasDiagnostic(AwkDiagnostic diagnostic) =>
-        diagnostic.Message != null;
 
     private static AwkDiagnostic InvalidGetline(AwkTextSpan span, string message) =>
         new(span, message, AwkDiagnosticId.BindInvalidProgram);

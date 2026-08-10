@@ -223,13 +223,14 @@ internal static partial class AwkExpressionLowerer
                     [NotNullWhen(true)] out AwkExpression? lowered)
                 {
                     lowered = null;
-                    if (!AwkGetlineLowerer.TryResolveExpressionCallParts(expression, out var parts) ||
-                        !AwkGetlineLowerer.TryLower(parts, scope, out var target, out var source))
-                    {
+                    if (!AwkGetlineLowerer.TryResolveExpressionCallParts(expression, out var parts))
                         return false;
-                    }
 
-                    lowered = AwkExpression.Getline(target, source);
+                    var lowering = AwkGetlineLowerer.Lower(parts, scope);
+                    if (!lowering.Succeeded)
+                        return false;
+
+                    lowered = AwkExpression.Getline(lowering.Target, lowering.Source);
                     return true;
                 }
 
