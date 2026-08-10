@@ -13,6 +13,9 @@ internal sealed class AwkFunctionCallStack(
 {
     private readonly Stack<AwkFunctionFrame> _frames = new();
     private readonly Stack<AwkFunctionFrame> _recycledFrames = new();
+    // Most potential aliases are independent function arguments. Counting live
+    // references lets those promote directly; only forwarded aliases need a scan.
+    private readonly Dictionary<AwkArrayName, int> _potentialArrayAliasCounts = new();
     private long _nextFrameId;
 
     public bool IsInsideFunction => _frames.Count > 0;
@@ -64,8 +67,11 @@ internal sealed class AwkFunctionCallStack(
             ? new AwkFunctionFrame()
             : _recycledFrames.Pop();
         frame.Initialize(++_nextFrameId, layout, slots);
+        var potentialAliasesRegistered = false;
         try
         {
+            RegisterPotentialArrayAliases(frame);
+            potentialAliasesRegistered = true;
             frame.RetainedMemoryBytes = EstimateFrameBytes(frame);
             memoryGovernor.Reserve(frame.RetainedMemoryBytes);
             try
@@ -91,6 +97,8 @@ internal sealed class AwkFunctionCallStack(
         }
         catch
         {
+            if (potentialAliasesRegistered)
+                UnregisterPotentialArrayAliases(frame);
             RecycleFrame(frame);
             throw;
         }
@@ -102,6 +110,8 @@ internal sealed class AwkFunctionCallStack(
         for (var index = 0; index < frame.Layout.SlotCount; index++)
         {
             var slot = frame.Slots[index];
+            if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
+                UnregisterPotentialArrayAlias(slot.ArrayName);
             if (slot.Kind is (AwkFunctionLocalSlotKind.ArrayAlias or AwkFunctionLocalSlotKind.PotentialArrayAlias) &&
                 slot.ArrayName.IsOwnedByFunctionFrame(frame.Id))
             {
@@ -248,7 +258,7 @@ internal sealed class AwkFunctionCallStack(
         if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
         {
             arrayName = slot.ArrayName;
-            PromotePotentialArrayAliases(arrayName);
+            PromotePotentialArrayAliases(frame, slotId, slot);
             return true;
         }
 
@@ -313,32 +323,56 @@ internal sealed class AwkFunctionCallStack(
         AwkFunctionLocalSlot oldSlot,
         AwkFunctionLocalSlot newSlot)
     {
+        var replacesPotentialAlias =
+            oldSlot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias &&
+            (newSlot.Kind != AwkFunctionLocalSlotKind.PotentialArrayAlias ||
+             newSlot.ArrayName != oldSlot.ArrayName);
+        var addsPotentialAlias =
+            newSlot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias &&
+            (oldSlot.Kind != AwkFunctionLocalSlotKind.PotentialArrayAlias ||
+             oldSlot.ArrayName != newSlot.ArrayName);
+        if (addsPotentialAlias)
+            RegisterPotentialArrayAlias(newSlot.ArrayName);
+
         var oldBytes = EstimateLocalSlotBytes(oldSlot);
         var newBytes = EstimateLocalSlotBytes(newSlot);
         var growth = newBytes - oldBytes;
-        if (growth > 0)
-            memoryGovernor.Reserve(growth);
-
         try
         {
-            frame.Slots[slotId.Index] = newSlot;
+            if (growth > 0)
+                memoryGovernor.Reserve(growth);
+
+            try
+            {
+                frame.Slots[slotId.Index] = newSlot;
+            }
+            catch
+            {
+                if (growth > 0)
+                    memoryGovernor.ReleaseReserved(growth);
+
+                throw;
+            }
+
+            if (growth > 0)
+                memoryGovernor.CommitReserved(growth);
+            else if (growth < 0)
+                memoryGovernor.ReleaseCommitted(-growth);
+
+            frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(
+                frame.RetainedMemoryBytes,
+                growth);
         }
         catch
         {
-            if (growth > 0)
-                memoryGovernor.ReleaseReserved(growth);
+            if (addsPotentialAlias)
+                UnregisterPotentialArrayAlias(newSlot.ArrayName);
 
             throw;
         }
 
-        if (growth > 0)
-            memoryGovernor.CommitReserved(growth);
-        else if (growth < 0)
-            memoryGovernor.ReleaseCommitted(-growth);
-
-        frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(
-            frame.RetainedMemoryBytes,
-            growth);
+        if (replacesPotentialAlias)
+            UnregisterPotentialArrayAlias(oldSlot.ArrayName);
     }
 
     private void RecycleFrame(AwkFunctionFrame frame)
@@ -370,8 +404,26 @@ internal sealed class AwkFunctionCallStack(
         };
     }
 
-    private void PromotePotentialArrayAliases(AwkArrayName arrayName)
+    private void PromotePotentialArrayAliases(
+        AwkFunctionFrame currentFrame,
+        AwkFunctionLocalSlotId currentSlotId,
+        AwkFunctionLocalSlot currentSlot)
     {
+        var arrayName = currentSlot.ArrayName;
+        if (!_potentialArrayAliasCounts.TryGetValue(arrayName, out var aliasCount))
+            throw new InvalidOperationException("Potential array alias is not registered.");
+
+        if (aliasCount == 1)
+        {
+            ReplaceLocalSlot(
+                currentFrame,
+                currentSlotId,
+                currentSlot,
+                AwkFunctionLocalSlot.ArrayAlias(arrayName));
+            return;
+        }
+
+        var remainingAliases = aliasCount;
         foreach (var frame in _frames)
         {
             for (var index = 0; index < frame.Layout.SlotCount; index++)
@@ -385,9 +437,67 @@ internal sealed class AwkFunctionCallStack(
                         new AwkFunctionLocalSlotId(index),
                         slot,
                         AwkFunctionLocalSlot.ArrayAlias(arrayName));
+
+                    remainingAliases--;
+                    if (remainingAliases == 0)
+                        return;
                 }
             }
         }
+
+        throw new InvalidOperationException("Potential array alias count does not match the live function frames.");
+    }
+
+    private void RegisterPotentialArrayAliases(AwkFunctionFrame frame)
+    {
+        var registeredSlotCount = 0;
+        try
+        {
+            for (; registeredSlotCount < frame.Layout.SlotCount; registeredSlotCount++)
+            {
+                var slot = frame.Slots[registeredSlotCount];
+                if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
+                    RegisterPotentialArrayAlias(slot.ArrayName);
+            }
+        }
+        catch
+        {
+            for (var index = 0; index < registeredSlotCount; index++)
+            {
+                var slot = frame.Slots[index];
+                if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
+                    UnregisterPotentialArrayAlias(slot.ArrayName);
+            }
+
+            throw;
+        }
+    }
+
+    private void UnregisterPotentialArrayAliases(AwkFunctionFrame frame)
+    {
+        for (var index = 0; index < frame.Layout.SlotCount; index++)
+        {
+            var slot = frame.Slots[index];
+            if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
+                UnregisterPotentialArrayAlias(slot.ArrayName);
+        }
+    }
+
+    private void RegisterPotentialArrayAlias(AwkArrayName arrayName)
+    {
+        _potentialArrayAliasCounts.TryGetValue(arrayName, out var count);
+        _potentialArrayAliasCounts[arrayName] = checked(count + 1);
+    }
+
+    private void UnregisterPotentialArrayAlias(AwkArrayName arrayName)
+    {
+        if (!_potentialArrayAliasCounts.TryGetValue(arrayName, out var count))
+            throw new InvalidOperationException("Potential array alias is not registered.");
+
+        if (count == 1)
+            _potentialArrayAliasCounts.Remove(arrayName);
+        else
+            _potentialArrayAliasCounts[arrayName] = count - 1;
     }
 
     private AwkFunctionLocalSlot PromoteScalarProjection(
