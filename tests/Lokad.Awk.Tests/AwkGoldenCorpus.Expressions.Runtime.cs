@@ -95,6 +95,12 @@ internal static partial class AwkGoldenCorpus
             "a b\nc d\n"),
 
         Passing(
+            "field-separator-plan-tracks-ignorecase",
+            ["BEGIN{FS=\"[a]\"; IGNORECASE=0} {print NF; IGNORECASE=1}", "/file.txt"],
+            [File("/file.txt", "xAy\nxAy\n")],
+            "1\n2\n"),
+
+        Passing(
             "parenthesized-arithmetic",
             ["{sum=(sum+$1)} END{print sum}", "/file.txt"],
             [File("/file.txt", "10 a\n5 b\n20 c\n")],

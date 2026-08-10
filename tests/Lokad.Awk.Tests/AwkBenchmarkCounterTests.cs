@@ -532,6 +532,24 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task Awk_RegexFieldSeparatorPlanIsResolvedOnceForRepeatedRecords()
+    {
+        const int rowCount = 32;
+        var input = BuildRepeatedSeparatedRows(rowCount, fieldCount: 3, ',');
+        var (exitCode, fileSystem, counters) = await RunAsync(
+            ["BEGIN{FS=\"[,;]\"} {total += NF} END{print total}"],
+            input,
+            AwkRegexEngineKind.Utf8Adapter);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("96\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(rowCount, counters.FieldSplits);
+        Assert.Equal(1, counters.RegexCompiles);
+        Assert.Equal(1, counters.AwkTextAsStringCalls);
+        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
+    }
+
+    [Fact]
     public async Task Awk_RuntimeCounterEvidenceCoversSmallArrayWorkloads()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(

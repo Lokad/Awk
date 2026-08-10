@@ -15,6 +15,8 @@ internal sealed class AwkByteFieldSplitter(
     AwkMemoryGovernor memoryGovernor,
     AwkRuntimeCounters runtimeCounters)
 {
+    private ResolvedFieldSeparatorPlan? _resolvedSeparator;
+
     public AwkTextSplitResult SplitBySeparator(
         AwkText line,
         AwkFieldSeparatorSpec separator,
@@ -83,20 +85,34 @@ internal sealed class AwkByteFieldSplitter(
         if (separator.UsesWhitespaceSemantics)
             return FieldSeparatorPlan.Whitespace;
 
-        if (separator.ByteText.ByteLength == 0)
+        var separatorText = separator.ByteText;
+        if (separatorText.ByteLength == 0)
             return FieldSeparatorPlan.Characters;
 
-        if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) &&
-            !isIgnoreCaseEnabled())
+        var ignoresCase = isIgnoreCaseEnabled();
+        if (_resolvedSeparator is { } resolvedSeparator &&
+            ReferenceEquals(resolvedSeparator.SeparatorText, separatorText) &&
+            resolvedSeparator.IgnoresCase == ignoresCase)
         {
-            return FieldSeparatorPlan.FromSingleByte(separatorByte);
+            return resolvedSeparator.Plan;
         }
 
-        var separatorText = separator.ByteText.AsString(counters);
-        return FieldSeparatorPlan.FromRegex(
-            separator.ByteText.RuneLength > 1
-                ? createRegex(new AwkRegexPattern(separatorText))
-                : createLiteralRegex(new AwkRegexLiteralText(separatorText)));
+        FieldSeparatorPlan plan;
+        if (TryGetSingleByteLiteralSeparator(separatorText, out var separatorByte) && !ignoresCase)
+        {
+            plan = FieldSeparatorPlan.FromSingleByte(separatorByte);
+        }
+        else
+        {
+            var regexText = separatorText.AsString(counters);
+            plan = FieldSeparatorPlan.FromRegex(
+                separatorText.RuneLength > 1
+                    ? createRegex(new AwkRegexPattern(regexText))
+                    : createLiteralRegex(new AwkRegexLiteralText(regexText)));
+        }
+
+        _resolvedSeparator = new ResolvedFieldSeparatorPlan(separatorText, ignoresCase, plan);
+        return plan;
     }
 
     public AwkTextSplitResult Patsplit(
@@ -514,6 +530,11 @@ internal sealed class AwkByteFieldSplitter(
     }
 
     private readonly record struct AwkByteRange(int Start, int Length);
+
+    private readonly record struct ResolvedFieldSeparatorPlan(
+        AwkText SeparatorText,
+        bool IgnoresCase,
+        FieldSeparatorPlan Plan);
 
     private readonly struct FieldSeparatorPlan
     {
