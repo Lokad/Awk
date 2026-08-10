@@ -7,14 +7,34 @@ internal static class AwkParser
     public static AwkParseResult Parse(string source)
     {
         var syntax = AwkSyntaxParser.Parse(source);
-        var warnings = new List<AwkDiagnostic>();
-        var errors = new List<AwkDiagnostic>();
-        foreach (var diagnostic in syntax.Diagnostics)
+        if (syntax.Diagnostics.Count == 0)
         {
-            (diagnostic.IsWarning ? warnings : errors).Add(diagnostic);
+            return new AwkParseResult(AwkPhaseResult<AwkSyntaxProgram>.SuccessResult(
+                AwkPipelinePhase.Parse,
+                syntax,
+                []));
         }
 
-        var phase = errors.Count == 0
+        var warningCount = 0;
+        foreach (var diagnostic in syntax.Diagnostics)
+        {
+            if (diagnostic.IsWarning)
+                warningCount++;
+        }
+
+        var warnings = new AwkDiagnostic[warningCount];
+        var errors = new AwkDiagnostic[syntax.Diagnostics.Count - warningCount];
+        var warningIndex = 0;
+        var errorIndex = 0;
+        foreach (var diagnostic in syntax.Diagnostics)
+        {
+            if (diagnostic.IsWarning)
+                warnings[warningIndex++] = diagnostic;
+            else
+                errors[errorIndex++] = diagnostic;
+        }
+
+        var phase = errors.Length == 0
             ? AwkPhaseResult<AwkSyntaxProgram>.SuccessResult(AwkPipelinePhase.Parse, syntax, warnings)
             : AwkPhaseResult<AwkSyntaxProgram>.Failure(AwkPipelinePhase.Parse, syntax, errors, warnings);
         return new AwkParseResult(phase);

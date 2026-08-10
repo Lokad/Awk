@@ -110,20 +110,15 @@ internal readonly record struct AwkRegexMatch(
                 ? checked(match.Groups.Count * 2)
                 : 0;
             long[]? rentedBoundaries = null;
-            Span<long> stackBoundaries = stackalloc long[MaxStackBoundaryCount];
-            scoped Span<long> byteBoundaries;
-            if (boundaryCount == 0)
-            {
-                byteBoundaries = [];
-            }
-            else if (boundaryCount <= MaxStackBoundaryCount)
-            {
-                byteBoundaries = stackBoundaries[..boundaryCount];
-            }
-            else
+            scoped Span<long> byteBoundaries = [];
+            if (boundaryCount > MaxStackBoundaryCount)
             {
                 rentedBoundaries = ArrayPool<long>.Shared.Rent(boundaryCount);
                 byteBoundaries = rentedBoundaries.AsSpan(0, boundaryCount);
+            }
+            else if (boundaryCount > 0)
+            {
+                byteBoundaries = stackalloc long[boundaryCount];
             }
 
             try
