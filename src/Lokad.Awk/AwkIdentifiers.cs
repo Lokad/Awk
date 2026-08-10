@@ -93,7 +93,7 @@ internal readonly record struct AwkVariableAssignment
     {
         parsed = default;
 
-        var equalsIndex = assignment.IndexOf('=');
+        var equalsIndex = assignment.IndexOf('=', StringComparison.Ordinal);
         if (equalsIndex <= 0)
             return false;
 

@@ -977,7 +977,12 @@ internal readonly record struct AwkInputRecordResult
 
     public AwkRecordFieldSplittingMode FieldSplittingMode { get; }
 
-    public static AwkInputRecordResult EndOfFile { get; } = default;
+    public static AwkInputRecordResult EndOfFile { get; } =
+        new(
+            AwkInputRecordResultKind.EndOfFile,
+            AwkText.Empty,
+            AwkRecordTerminator.Empty,
+            AwkRecordFieldSplittingMode.Ordinary);
 
     public static AwkInputRecordResult Record(
         AwkText record,

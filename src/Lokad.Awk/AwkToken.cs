@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using Lokad.Parsing.Lexer;
 
 namespace Lokad.Awk;
@@ -52,7 +53,7 @@ internal readonly record struct AwkTextOffset
 
     public int Value { get; }
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 internal readonly record struct AwkTextLength
@@ -67,7 +68,7 @@ internal readonly record struct AwkTextLength
 
     public int Value { get; }
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 internal readonly struct AwkToken

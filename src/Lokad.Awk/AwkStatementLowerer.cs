@@ -417,8 +417,7 @@ internal static class AwkStatementLowerer
             return false;
         }
 
-        if (syntax.BodyStatements.Count != 1 ||
-            syntax.BodyStatements[0].Kind != AwkStatementKind.If ||
+        if (syntax.BodyStatements[0].Kind != AwkStatementKind.If ||
             syntax.BodyStatements[0].ElseStatements.Count != 0 ||
             !TryLowerConditionSlot(outer.Header, scope, out var outerCondition) ||
             !TryLowerConditionSlot(inner.Header, scope, out var innerCondition) ||

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 
 namespace Lokad.Awk;
 
@@ -85,7 +86,7 @@ internal readonly record struct AwkLineNumber
 
     public int Value { get; }
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 internal readonly record struct AwkColumnNumber
@@ -100,7 +101,7 @@ internal readonly record struct AwkColumnNumber
 
     public int Value { get; }
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 internal enum AwkDiagnosticKind

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace Lokad.Awk;
 
@@ -64,7 +65,7 @@ internal readonly record struct AwkLineOffset
 
     public int Value { get; }
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 internal readonly record struct AwkColumnOffset
@@ -79,7 +80,7 @@ internal readonly record struct AwkColumnOffset
 
     public int Value { get; }
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 internal enum AwkSourceSegmentKind

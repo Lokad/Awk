@@ -13,6 +13,37 @@ internal static class AwkScriptFileReader
         AwkResolvedPath path,
         CancellationToken cancellationToken)
     {
+        static async Task<AwkScriptFileReadResult> TryReadFromAwkPathAsync(
+            IAwkHost host,
+            AwkSourceLoadPlan plan,
+            string rawPath,
+            CancellationToken cancellationToken)
+        {
+            var entries = plan.AwkPathEntries;
+            for (var index = 0; index < entries.Count; index++)
+            {
+                var entry = entries[index];
+                var candidate = entry == "."
+                    ? rawPath
+                    : entry + "/" + rawPath;
+                var resolved = plan.ResolvePath(candidate);
+                var script = await TryReadResolvedAsync(host, plan, resolved, cancellationToken)
+                    .ConfigureAwait(false);
+                if (script is AwkScriptTextReadResult.Found found)
+                {
+                    return AwkScriptFileReadResult.FoundScript(new AwkScriptFile(
+                        found.Text,
+                        new AwkSourceName(AwkUtf8Codec.Decode(resolved.Display)),
+                        new AwkSourceIdentity(resolved.Absolute.Path)));
+                }
+
+                if (script is AwkScriptTextReadResult.Failed failed)
+                    return AwkScriptFileReadResult.Failure(failed.ErrorMessage, failed.Id);
+            }
+
+            return AwkScriptFileReadResult.MissingFile;
+        }
+
         var direct = await TryReadResolvedAsync(host, plan, path, cancellationToken).ConfigureAwait(false);
         if (direct is AwkScriptTextReadResult.Found found)
         {
@@ -32,37 +63,6 @@ internal static class AwkScriptFileReader
                 .ConfigureAwait(false);
             if (fromAwkPath is not AwkScriptFileReadResult.Missing)
                 return fromAwkPath;
-        }
-
-        return AwkScriptFileReadResult.MissingFile;
-    }
-
-    private static async Task<AwkScriptFileReadResult> TryReadFromAwkPathAsync(
-        IAwkHost host,
-        AwkSourceLoadPlan plan,
-        string rawPath,
-        CancellationToken cancellationToken)
-    {
-        var entries = plan.AwkPathEntries;
-        for (var index = 0; index < entries.Count; index++)
-        {
-            var entry = entries[index];
-            var candidate = entry == "."
-                ? rawPath
-                : entry + "/" + rawPath;
-            var resolved = plan.ResolvePath(candidate);
-            var script = await TryReadResolvedAsync(host, plan, resolved, cancellationToken)
-                .ConfigureAwait(false);
-            if (script is AwkScriptTextReadResult.Found found)
-            {
-                return AwkScriptFileReadResult.FoundScript(new AwkScriptFile(
-                    found.Text,
-                    new AwkSourceName(AwkUtf8Codec.Decode(resolved.Display)),
-                    new AwkSourceIdentity(resolved.Absolute.Path)));
-            }
-
-            if (script is AwkScriptTextReadResult.Failed failed)
-                return AwkScriptFileReadResult.Failure(failed.ErrorMessage, failed.Id);
         }
 
         return AwkScriptFileReadResult.MissingFile;

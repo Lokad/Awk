@@ -329,7 +329,7 @@ internal static class AwkCommandParser
                     AwkMessages.ErrorMissingValue,
                     AwkDiagnosticId.OptionMissingValue);
 
-            var equalsIndex = value.IndexOf('=');
+            var equalsIndex = value.IndexOf('=', StringComparison.Ordinal);
             var name = equalsIndex < 0 ? value : value[..equalsIndex];
             var optionValue = equalsIndex < 0
                 ? CommandLineOptionValue.Absent
@@ -398,8 +398,6 @@ internal static class AwkCommandParser
             AwkCommandParseResult.Fail(
                 AwkMessages.FormatInvalidOption(AwkOptionSpelling.W(name).Display),
                 AwkDiagnosticId.OptionInvalid);
-
-        private static string FormatLongOptionName(string name) => $"--{name}";
 
         private readonly struct AwkCommandParseResult
         {
@@ -510,7 +508,7 @@ internal static class AwkCommandParser
                 new(AwkOptionSource.Short, "-" + name);
 
             public static AwkOptionSpelling Long(string name) =>
-                new(AwkOptionSource.Long, FormatLongOptionName(name));
+                new(AwkOptionSource.Long, "--" + name);
 
             public static AwkOptionSpelling W(string name) =>
                 new(AwkOptionSource.WOption, "-W " + name);

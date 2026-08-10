@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace Lokad.Awk;
 
@@ -39,7 +40,7 @@ public static class AwkPathResolution
 
     internal static AwkResolvedPath ResolveArgument(string raw, AwkPath currentDirectory)
     {
-        var absolute = AwkRawPath.Parse(raw).ToAbsolute(currentDirectory);
+        var absolute = AwkRawPath.Parse(raw, CultureInfo.InvariantCulture).ToAbsolute(currentDirectory);
         return new AwkResolvedPath(AwkUtf8Codec.Encode(raw), absolute);
     }
 }

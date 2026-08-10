@@ -658,8 +658,7 @@ internal readonly struct AwkSingleValuePrintfArguments(
 
     public string GetString(int index)
     {
-        if (index != 0)
-            throw new ArgumentOutOfRangeException(nameof(index));
+        ArgumentOutOfRangeException.ThrowIfNotEqual(index, 0);
 
         counters.RecordFormattingStringInteropInput();
         return value.AsString(counters);

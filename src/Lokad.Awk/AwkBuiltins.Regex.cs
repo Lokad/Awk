@@ -13,7 +13,7 @@ internal static partial class AwkBuiltins
             string selector,
             AwkText input)
         {
-            if (selector.StartsWith("g", StringComparison.OrdinalIgnoreCase))
+            if (selector.Length > 0 && selector[0] is 'g' or 'G')
             {
                 return AwkRegexSubstitution.ReplaceAll(
                     context.State,

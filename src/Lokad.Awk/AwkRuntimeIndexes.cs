@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 
 namespace Lokad.Awk;
 
@@ -18,7 +19,7 @@ internal readonly record struct AwkFieldIndex
 
     public bool IsNamedField => Value > 0;
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 internal readonly record struct AwkFieldCount
@@ -33,7 +34,7 @@ internal readonly record struct AwkFieldCount
 
     public int Value { get; }
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 internal readonly record struct AwkRecordNumber
@@ -50,7 +51,7 @@ internal readonly record struct AwkRecordNumber
 
     public AwkRecordNumber Next() => new(Value + 1);
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 internal readonly record struct AwkArgvIndex
@@ -65,7 +66,7 @@ internal readonly record struct AwkArgvIndex
 
     public int Value { get; }
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 internal readonly record struct AwkGlobalSlotId
@@ -80,5 +81,5 @@ internal readonly record struct AwkGlobalSlotId
 
     public int Value { get; }
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }

@@ -71,7 +71,7 @@ internal sealed class AwkRegex
 
     private static string TranslateEscapes(string pattern)
     {
-        var slash = pattern.IndexOf('\\');
+        var slash = pattern.IndexOf('\\', StringComparison.Ordinal);
         if (slash < 0)
             return pattern;
 

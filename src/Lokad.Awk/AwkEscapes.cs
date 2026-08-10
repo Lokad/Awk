@@ -6,7 +6,7 @@ internal static class AwkEscapes
 {
     public static string Decode(string text)
     {
-        var slash = text.IndexOf('\\');
+        var slash = text.IndexOf('\\', StringComparison.Ordinal);
         if (slash < 0)
             return text;
 

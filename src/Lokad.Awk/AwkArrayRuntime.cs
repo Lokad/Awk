@@ -328,10 +328,102 @@ internal sealed class AwkArrayRuntime
     private ValueTask<AwkArraySortEntry[]> SortEntriesAsync(
         AwkArrayName arrayName,
         AwkArraySortOrder order,
-        AwkEvaluationContext context) =>
-        order is AwkArraySortOrder.UserFunctionOrder
-            ? SortUserEntriesAsync(arrayName, order, context)
+        AwkEvaluationContext context)
+    {
+        static async ValueTask<AwkArraySortEntry[]> SortUserEntriesAsync(
+            AwkArrayRuntime runtime,
+            AwkArrayName arrayName,
+            AwkArraySortOrder.UserFunctionOrder order,
+            AwkEvaluationContext context)
+        {
+            static async ValueTask SortWithUserFunctionAsync(
+                AwkArraySortEntry[] entries,
+                IAwkUserFunction function,
+                AwkEvaluationContext context)
+            {
+                if (entries.Length < 2)
+                    return;
+
+                var comparatorArguments = new AwkValue[4];
+                var buffer = new AwkArraySortEntry[entries.Length];
+                var source = entries;
+                var destination = buffer;
+                var runLength = 1;
+                while (runLength < entries.Length)
+                {
+                    for (var start = 0; start < entries.Length;)
+                    {
+                        var middle = (int)Math.Min((long)start + runLength, entries.Length);
+                        var end = (int)Math.Min((long)middle + runLength, entries.Length);
+                        await MergeRunsAsync(source, destination, start, middle, end).ConfigureAwait(false);
+                        start = end;
+                    }
+
+                    (source, destination) = (destination, source);
+                    runLength = runLength > entries.Length / 2 ? entries.Length : runLength * 2;
+                }
+
+                if (!ReferenceEquals(source, entries))
+                    Array.Copy(source, entries, entries.Length);
+
+                async ValueTask MergeRunsAsync(
+                    AwkArraySortEntry[] mergeSource,
+                    AwkArraySortEntry[] mergeDestination,
+                    int start,
+                    int middle,
+                    int end)
+                {
+                    var leftIndex = start;
+                    var rightIndex = middle;
+                    var destinationIndex = start;
+                    while (leftIndex < middle && rightIndex < end)
+                    {
+                        var comparison = await CompareAsync(
+                                mergeSource[leftIndex],
+                                mergeSource[rightIndex])
+                            .ConfigureAwait(false);
+                        mergeDestination[destinationIndex++] = comparison <= 0
+                            ? mergeSource[leftIndex++]
+                            : mergeSource[rightIndex++];
+                    }
+
+                    while (leftIndex < middle)
+                        mergeDestination[destinationIndex++] = mergeSource[leftIndex++];
+
+                    while (rightIndex < end)
+                        mergeDestination[destinationIndex++] = mergeSource[rightIndex++];
+                }
+
+                async ValueTask<int> CompareAsync(
+                    AwkArraySortEntry left,
+                    AwkArraySortEntry right)
+                {
+                    var state = context.State;
+                    comparatorArguments[0] = state.CreateByteTextValue(left.KeyText);
+                    comparatorArguments[1] = left.Value;
+                    comparatorArguments[2] = state.CreateByteTextValue(right.KeyText);
+                    comparatorArguments[3] = right.Value;
+                    var value = await function.InvokeValuesAsync(comparatorArguments, context).ConfigureAwait(false);
+                    var number = value.AsNumber();
+                    if (number < 0)
+                        return -1;
+
+                    return number > 0 ? 1 : 0;
+                }
+            }
+
+            if (!runtime._state.TryGetUserFunction(order.FunctionName, out var function))
+                throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(order.FunctionName.Text));
+
+            var entries = runtime.SnapshotSortEntries(arrayName, AwkArraySortMode.UserFunction);
+            await SortWithUserFunctionAsync(entries, function, context).ConfigureAwait(false);
+            return entries;
+        }
+
+        return order is AwkArraySortOrder.UserFunctionOrder userFunctionOrder
+            ? SortUserEntriesAsync(this, arrayName, userFunctionOrder, context)
             : ValueTask.FromResult(SortEntries(arrayName, order));
+    }
 
     private AwkArraySortEntry[] SortEntries(
         AwkArrayName arrayName,
@@ -373,100 +465,6 @@ internal sealed class AwkArrayRuntime
         var entries = SnapshotSortEntries(arrayName, plan.Mode);
         Array.Sort(entries, plan.Comparer);
         return entries;
-    }
-
-    private async ValueTask<AwkArraySortEntry[]> SortUserEntriesAsync(
-        AwkArrayName arrayName,
-        AwkArraySortOrder order,
-        AwkEvaluationContext context)
-    {
-        static async ValueTask SortWithUserFunctionAsync(
-            AwkArraySortEntry[] entries,
-            IAwkUserFunction function,
-            AwkEvaluationContext context)
-        {
-            if (entries.Length < 2)
-                return;
-
-            var comparatorArguments = new AwkValue[4];
-            var buffer = new AwkArraySortEntry[entries.Length];
-            var source = entries;
-            var destination = buffer;
-            var runLength = 1;
-            while (runLength < entries.Length)
-            {
-                for (var start = 0; start < entries.Length;)
-                {
-                    var middle = (int)Math.Min((long)start + runLength, entries.Length);
-                    var end = (int)Math.Min((long)middle + runLength, entries.Length);
-                    await MergeRunsAsync(source, destination, start, middle, end).ConfigureAwait(false);
-                    start = end;
-                }
-
-                (source, destination) = (destination, source);
-                runLength = runLength > entries.Length / 2 ? entries.Length : runLength * 2;
-            }
-
-            if (!ReferenceEquals(source, entries))
-                Array.Copy(source, entries, entries.Length);
-
-            async ValueTask MergeRunsAsync(
-                AwkArraySortEntry[] mergeSource,
-                AwkArraySortEntry[] mergeDestination,
-                int start,
-                int middle,
-                int end)
-            {
-                var leftIndex = start;
-                var rightIndex = middle;
-                var destinationIndex = start;
-                while (leftIndex < middle && rightIndex < end)
-                {
-                    var comparison = await CompareAsync(
-                            mergeSource[leftIndex],
-                            mergeSource[rightIndex])
-                        .ConfigureAwait(false);
-                    mergeDestination[destinationIndex++] = comparison <= 0
-                        ? mergeSource[leftIndex++]
-                        : mergeSource[rightIndex++];
-                }
-
-                while (leftIndex < middle)
-                    mergeDestination[destinationIndex++] = mergeSource[leftIndex++];
-
-                while (rightIndex < end)
-                    mergeDestination[destinationIndex++] = mergeSource[rightIndex++];
-            }
-
-            async ValueTask<int> CompareAsync(
-                AwkArraySortEntry left,
-                AwkArraySortEntry right)
-            {
-                var state = context.State;
-                comparatorArguments[0] = state.CreateByteTextValue(left.KeyText);
-                comparatorArguments[1] = left.Value;
-                comparatorArguments[2] = state.CreateByteTextValue(right.KeyText);
-                comparatorArguments[3] = right.Value;
-                var value = await function.InvokeValuesAsync(comparatorArguments, context).ConfigureAwait(false);
-                var number = value.AsNumber();
-                if (number < 0)
-                    return -1;
-
-                return number > 0 ? 1 : 0;
-            }
-        }
-
-        if (order is AwkArraySortOrder.UserFunctionOrder userFunctionOrder)
-        {
-            if (!_state.TryGetUserFunction(userFunctionOrder.FunctionName, out var function))
-                throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(userFunctionOrder.FunctionName.Text));
-
-            var entries = SnapshotSortEntries(arrayName, AwkArraySortMode.UserFunction);
-            await SortWithUserFunctionAsync(entries, function, context).ConfigureAwait(false);
-            return entries;
-        }
-
-        throw new InvalidOperationException("Expected a user-defined awk sort comparator.");
     }
 
     private AwkArraySortEntry[] SnapshotSortEntries(
