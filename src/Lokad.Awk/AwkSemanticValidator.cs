@@ -9,45 +9,108 @@ internal static class AwkSemanticValidator
         AwkSemanticModel semanticModel,
         AwkCompatibilityProfile compatibilityProfile)
     {
+        static void ValidateFunctionDeclarations(
+            AwkSyntaxProgram syntax,
+            List<AwkDiagnostic> diagnostics)
+        {
+            var declarations = new Dictionary<string, AwkTextSpan>(
+                syntax.Functions.Count,
+                System.StringComparer.Ordinal);
+            for (var index = 0; index < syntax.Functions.Count; index++)
+            {
+                var function = syntax.Functions[index];
+                if (function.Name.Length == 0)
+                {
+                    ValidateFunctionParameters(function, diagnostics);
+                    continue;
+                }
+
+                if (AwkIdentifiers.IsReservedName(function.Name))
+                {
+                    diagnostics.Add(new AwkDiagnostic(
+                        function.Span,
+                        "Function name `" + function.Name + "' is reserved.",
+                        AwkDiagnosticId.BindInvalidProgram));
+                }
+                else if (!declarations.TryAdd(function.Name, function.Span))
+                {
+                    diagnostics.Add(new AwkDiagnostic(
+                        function.Span,
+                        "Duplicate function definition `" + function.Name + "'.",
+                        AwkDiagnosticId.BindInvalidProgram));
+                }
+
+                ValidateFunctionParameters(function, diagnostics);
+            }
+        }
+
+        static void ValidateUndefinedFunctions(
+            AwkSemanticModel semanticModel,
+            AwkLintMode lintMode,
+            List<AwkDiagnostic> diagnostics)
+        {
+            static string FormatDiagnostic(string name, AwkLintMode lintMode) =>
+                lintMode switch
+                {
+                    AwkLintMode.Fatal => AwkMessages.FormatUndefinedFunctionWithFatalLintText(name),
+                    AwkLintMode.Normal => AwkMessages.FormatUndefinedFunctionWithLintWarningText(name),
+                    _ => AwkMessages.FormatUndefinedFunctionText(name)
+                };
+
+            HashSet<AwkIdentifier>? reported = null;
+            for (var index = 0; index < semanticModel.Usages.Count; index++)
+            {
+                var symbol = semanticModel.Usages[index];
+                if (symbol.Kind != AwkSemanticSymbolKind.UnknownFunction)
+                    continue;
+
+                reported ??= [];
+                if (!reported.Add(symbol.Identifier))
+                    continue;
+
+                diagnostics.Add(new AwkDiagnostic(
+                    symbol.Span,
+                    FormatDiagnostic(symbol.Name, lintMode),
+                    AwkDiagnosticId.BindInvalidProgram));
+            }
+        }
+
+        static void ValidateCompatibilityGatedCallables(
+            AwkSemanticModel semanticModel,
+            AwkCompatibilityMode compatibilityMode,
+            List<AwkDiagnostic> diagnostics)
+        {
+            if (compatibilityMode == AwkCompatibilityMode.GnuDefault)
+                return;
+
+            HashSet<AwkIdentifier>? reported = null;
+            for (var index = 0; index < semanticModel.Usages.Count; index++)
+            {
+                var symbol = semanticModel.Usages[index];
+                if (symbol.Kind != AwkSemanticSymbolKind.BuiltinFunction ||
+                    !AwkBuiltins.TryGetCallable(symbol.Name, out var definition) ||
+                    definition.Compatibility != AwkBuiltinCompatibility.Gnu)
+                {
+                    continue;
+                }
+
+                reported ??= [];
+                if (!reported.Add(symbol.Identifier))
+                    continue;
+
+                diagnostics.Add(new AwkDiagnostic(
+                    symbol.Span,
+                    AwkMessages.FormatUndefinedFunctionText(symbol.Name),
+                    AwkDiagnosticId.BindInvalidProgram));
+            }
+        }
+
         var diagnostics = new List<AwkDiagnostic>();
         ValidateFunctionDeclarations(syntax, diagnostics);
         ValidateUndefinedFunctions(semanticModel, compatibilityProfile.LintMode, diagnostics);
         ValidateCompatibilityGatedCallables(semanticModel, compatibilityProfile.Mode, diagnostics);
         ValidateStatementSemantics(syntax, diagnostics);
         return diagnostics;
-    }
-
-    private static void ValidateFunctionDeclarations(
-        AwkSyntaxProgram syntax,
-        List<AwkDiagnostic> diagnostics)
-    {
-        var declarations = new Dictionary<string, AwkTextSpan>(syntax.Functions.Count, System.StringComparer.Ordinal);
-        for (var index = 0; index < syntax.Functions.Count; index++)
-        {
-            var function = syntax.Functions[index];
-            if (function.Name.Length == 0)
-            {
-                ValidateFunctionParameters(function, diagnostics);
-                continue;
-            }
-
-            if (AwkIdentifiers.IsReservedName(function.Name))
-            {
-                diagnostics.Add(new AwkDiagnostic(
-                    function.Span,
-                    "Function name `" + function.Name + "' is reserved.",
-                    AwkDiagnosticId.BindInvalidProgram));
-            }
-            else if (!declarations.TryAdd(function.Name, function.Span))
-            {
-                diagnostics.Add(new AwkDiagnostic(
-                    function.Span,
-                    "Duplicate function definition `" + function.Name + "'.",
-                    AwkDiagnosticId.BindInvalidProgram));
-            }
-
-            ValidateFunctionParameters(function, diagnostics);
-        }
     }
 
     private static void ValidateFunctionParameters(
@@ -58,67 +121,6 @@ internal static class AwkSemanticValidator
         for (var index = 0; index < binding.Diagnostics.Count; index++)
         {
             diagnostics.Add(binding.Diagnostics[index]);
-        }
-    }
-
-    private static void ValidateUndefinedFunctions(
-        AwkSemanticModel semanticModel,
-        AwkLintMode lintMode,
-        List<AwkDiagnostic> diagnostics)
-    {
-        HashSet<AwkIdentifier>? reported = null;
-        for (var index = 0; index < semanticModel.Usages.Count; index++)
-        {
-            var symbol = semanticModel.Usages[index];
-            if (symbol.Kind != AwkSemanticSymbolKind.UnknownFunction)
-                continue;
-
-            reported ??= [];
-            if (!reported.Add(symbol.Identifier))
-                continue;
-
-            diagnostics.Add(new AwkDiagnostic(
-                symbol.Span,
-                FormatUndefinedFunctionDiagnostic(symbol.Name, lintMode),
-                AwkDiagnosticId.BindInvalidProgram));
-        }
-    }
-
-    private static string FormatUndefinedFunctionDiagnostic(string name, AwkLintMode lintMode) =>
-        lintMode switch
-        {
-            AwkLintMode.Fatal => AwkMessages.FormatUndefinedFunctionWithFatalLintText(name),
-            AwkLintMode.Normal => AwkMessages.FormatUndefinedFunctionWithLintWarningText(name),
-            _ => AwkMessages.FormatUndefinedFunctionText(name)
-        };
-
-    private static void ValidateCompatibilityGatedCallables(
-        AwkSemanticModel semanticModel,
-        AwkCompatibilityMode compatibilityMode,
-        List<AwkDiagnostic> diagnostics)
-    {
-        if (compatibilityMode == AwkCompatibilityMode.GnuDefault)
-            return;
-
-        HashSet<AwkIdentifier>? reported = null;
-        for (var index = 0; index < semanticModel.Usages.Count; index++)
-        {
-            var symbol = semanticModel.Usages[index];
-            if (symbol.Kind != AwkSemanticSymbolKind.BuiltinFunction ||
-                !AwkBuiltins.TryGetCallable(symbol.Name, out var definition) ||
-                definition.Compatibility != AwkBuiltinCompatibility.Gnu)
-            {
-                continue;
-            }
-
-            reported ??= [];
-            if (!reported.Add(symbol.Identifier))
-                continue;
-
-            diagnostics.Add(new AwkDiagnostic(
-                symbol.Span,
-                AwkMessages.FormatUndefinedFunctionText(symbol.Name),
-                AwkDiagnosticId.BindInvalidProgram));
         }
     }
 
@@ -153,6 +155,74 @@ internal static class AwkSemanticValidator
         AwkStatementValidationContext context,
         List<AwkDiagnostic> diagnostics)
     {
+        static void ValidateDeleteStatement(
+            AwkStatementSyntax statement,
+            List<AwkDiagnostic> diagnostics)
+        {
+            static void ValidateSpecialArrayDelete(
+                AwkExpressionSyntax target,
+                List<AwkDiagnostic> diagnostics)
+            {
+                if (!TryGetStaticArrayTargetName(target, out var arrayName) ||
+                    !AwkSpecialVariables.TryGetArray(arrayName, out var definition))
+                {
+                    return;
+                }
+
+                if (!definition.CanModifyArrayElements)
+                {
+                    diagnostics.Add(new AwkDiagnostic(
+                        target.Span,
+                        "Cannot modify special array `" + arrayName + "'",
+                        AwkDiagnosticId.BindInvalidProgram));
+                }
+                else if (!definition.CanReplaceArray)
+                {
+                    diagnostics.Add(new AwkDiagnostic(
+                        target.Span,
+                        "`delete' is not allowed with " + arrayName,
+                        AwkDiagnosticId.BindInvalidProgram));
+                }
+            }
+
+            if (statement.Kind != AwkStatementKind.Delete)
+                return;
+
+            if (!statement.Expression.TryGetValue(out var target))
+            {
+                diagnostics.Add(new AwkDiagnostic(
+                    statement.Span,
+                    "Expected delete target.",
+                    AwkDiagnosticId.BindInvalidProgram));
+                return;
+            }
+
+            if (target.Kind == AwkExpressionKind.ExpressionList)
+            {
+                if (target.Children.Count != 1)
+                {
+                    diagnostics.Add(new AwkDiagnostic(
+                        target.Span,
+                        "Delete expects a single target.",
+                        AwkDiagnosticId.BindInvalidProgram));
+                    return;
+                }
+
+                target = target.Children[0];
+            }
+
+            if (AwkExpressionSyntaxFacts.TryGetStaticArrayTargetName(target, out _))
+            {
+                ValidateSpecialArrayDelete(target, diagnostics);
+                return;
+            }
+
+            diagnostics.Add(new AwkDiagnostic(
+                target.Span,
+                "Invalid delete target.",
+                AwkDiagnosticId.BindInvalidProgram));
+        }
+
         for (var index = 0; index < statements.Count; index++)
         {
             var statement = statements[index];
@@ -187,30 +257,14 @@ internal static class AwkSemanticValidator
                 out var diagnostic) &&
             !context.Allows(requirement))
         {
-            AddControlFlowDiagnostic(statement, diagnostic, diagnostics);
+            diagnostics.Add(new AwkDiagnostic(
+                statement.Span,
+                diagnostic,
+                AwkDiagnosticId.BindInvalidProgram));
         }
     }
 
-    private static void AddControlFlowDiagnostic(
-        AwkStatementSyntax statement,
-        string message,
-        List<AwkDiagnostic> diagnostics)
-    {
-        diagnostics.Add(new AwkDiagnostic(
-            statement.Span,
-            message,
-            AwkDiagnosticId.BindInvalidProgram));
-    }
-
     private static void ValidateArgumentlessStatementShape(
-        AwkStatementSyntax statement,
-        List<AwkDiagnostic> diagnostics)
-    {
-        if (AwkStatementValidationFacts.IsArgumentless(statement.Kind))
-            AddUnexpectedArgumentDiagnostic(statement, diagnostics);
-    }
-
-    private static void AddUnexpectedArgumentDiagnostic(
         AwkStatementSyntax statement,
         List<AwkDiagnostic> diagnostics)
     {
@@ -231,22 +285,14 @@ internal static class AwkSemanticValidator
         AwkStatementSyntax statement,
         List<AwkDiagnostic> diagnostics)
     {
-        if (AwkStatementValidationFacts.TryGetMissingExpressionDiagnostic(statement.Kind, out var message))
-            AddMissingExpressionDiagnostic(statement, message, diagnostics);
-    }
-
-    private static void AddMissingExpressionDiagnostic(
-        AwkStatementSyntax statement,
-        string message,
-        List<AwkDiagnostic> diagnostics)
-    {
-        if (statement.Expression.HasValue)
-            return;
-
-        diagnostics.Add(new AwkDiagnostic(
-            statement.Span,
-            message,
-            AwkDiagnosticId.BindInvalidProgram));
+        if (AwkStatementValidationFacts.TryGetMissingExpressionDiagnostic(statement.Kind, out var message) &&
+            !statement.Expression.HasValue)
+        {
+            diagnostics.Add(new AwkDiagnostic(
+                statement.Span,
+                message,
+                AwkDiagnosticId.BindInvalidProgram));
+        }
     }
 
     private static void ValidateExpressionSemantics(
@@ -274,13 +320,96 @@ internal static class AwkSemanticValidator
         AwkStatementValidationContext context,
         List<AwkDiagnostic> diagnostics)
     {
+        static void ValidateBareCallableVariable(
+            AwkExpressionSyntax expression,
+            List<AwkDiagnostic> diagnostics)
+        {
+            if (expression.Kind != AwkExpressionKind.Variable ||
+                !AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier) ||
+                AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length) ||
+                !AwkBuiltins.IsKnownFunctionOrSpecialForm(identifier.Name))
+            {
+                return;
+            }
+
+            diagnostics.Add(new AwkDiagnostic(
+                expression.Span,
+                "Function `" + identifier.Name + "' requires a call.",
+                AwkDiagnosticId.BindInvalidProgram));
+        }
+
+        static void ValidateKnownCallableShape(
+            AwkExpressionSyntax expression,
+            List<AwkDiagnostic> diagnostics)
+        {
+            if (expression.Kind != AwkExpressionKind.FunctionCall ||
+                !AwkBuiltinCallShape.TryCreateKnownCallable(expression, out var call))
+            {
+                return;
+            }
+
+            if (!AwkBuiltinCallShape.AcceptsArgumentCount(call.Definition, call.ArgumentCount))
+            {
+                diagnostics.Add(new AwkDiagnostic(
+                    expression.Span,
+                    "Invalid number of arguments for " + call.Target.Name,
+                    AwkDiagnosticId.BindInvalidProgram));
+                return;
+            }
+
+            if (AwkBuiltinCallShape.TryGetArgumentRoleFailure(call, out var failure))
+            {
+                diagnostics.Add(new AwkDiagnostic(
+                    failure.Argument.Span,
+                    AwkBuiltinCallShape.FormatArgumentRoleFailure(call, failure),
+                    AwkDiagnosticId.BindInvalidProgram));
+            }
+        }
+
+        static void ValidateMainInputGetlineUsage(
+            AwkExpressionSyntax expression,
+            AwkStatementValidationContext context,
+            List<AwkDiagnostic> diagnostics)
+        {
+            if (!context.TryGetMainInputGetlineProhibition(out var ruleName) ||
+                expression.Kind != AwkExpressionKind.FunctionCall ||
+                expression.Children.Count == 0 ||
+                !AwkExpressionSyntaxFacts.TryGetIdentifier(expression.Children[0], out var identifier) ||
+                !AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Getline) ||
+                !AwkGetlineLowerer.TryResolveExpressionCallParts(expression, out var parts) ||
+                parts.RequiresInputRedirection)
+            {
+                return;
+            }
+
+            diagnostics.Add(new AwkDiagnostic(
+                expression.Span,
+                "Non-redirected `getline' invalid inside `" + ruleName + "' rule",
+                AwkDiagnosticId.BindInvalidProgram));
+        }
+
+        static bool IsMalformedArrayElement(AwkExpressionSyntax expression)
+        {
+            if (expression.Kind != AwkExpressionKind.ArrayElement)
+                return false;
+
+            for (var index = 0; index < expression.DelimiterTokens.Count; index++)
+            {
+                if (expression.DelimiterTokens[index].Kind == AwkTokenKind.RightBracket)
+                    return false;
+            }
+
+            return true;
+        }
+
         ValidateBareCallableVariable(expression, diagnostics);
         ValidateKnownCallableShape(expression, diagnostics);
         ValidateMainInputGetlineUsage(expression, context, diagnostics);
 
         if (expression.Kind == AwkExpressionKind.Assignment)
         {
-            if (expression.Children.Count == 0 || !IsValidMutationTarget(expression.Children[0]))
+            if (expression.Children.Count == 0 ||
+                !AwkExpressionSyntaxFacts.IsValidMutationTarget(expression.Children[0]))
             {
                 diagnostics.Add(new AwkDiagnostic(
                     expression.Children.Count == 0 ? expression.Span : expression.Children[0].Span,
@@ -293,7 +422,8 @@ internal static class AwkSemanticValidator
             }
         }
         else if (AwkExpressionSyntaxFacts.IsIncrementOrDecrementExpression(expression) &&
-            (expression.Children.Count == 0 || !IsValidMutationTarget(expression.Children[0])))
+            (expression.Children.Count == 0 ||
+                !AwkExpressionSyntaxFacts.IsValidMutationTarget(expression.Children[0])))
         {
             diagnostics.Add(new AwkDiagnostic(
                 expression.Children.Count == 0 ? expression.Span : expression.Children[0].Span,
@@ -305,152 +435,14 @@ internal static class AwkSemanticValidator
             ValidateSpecialArrayElementMutation(expression.Children[0], diagnostics);
         }
 
-        if (ShouldSkipNestedExpressionValidation(expression))
+        if (expression.Kind == AwkExpressionKind.Field || IsMalformedArrayElement(expression))
             return;
 
-        for (var index = NestedExpressionStartIndex(expression); index < expression.Children.Count; index++)
+        var startIndex = expression.Kind == AwkExpressionKind.FunctionCall ? 1 : 0;
+        for (var index = startIndex; index < expression.Children.Count; index++)
         {
             ValidateExpressionSemantics(expression.Children[index], context, diagnostics);
         }
-    }
-
-    private static void ValidateMainInputGetlineUsage(
-        AwkExpressionSyntax expression,
-        AwkStatementValidationContext context,
-        List<AwkDiagnostic> diagnostics)
-    {
-        if (!context.TryGetMainInputGetlineProhibition(out var ruleName) ||
-            expression.Kind != AwkExpressionKind.FunctionCall ||
-            expression.Children.Count == 0 ||
-            !AwkExpressionSyntaxFacts.TryGetIdentifier(expression.Children[0], out var identifier) ||
-            !AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Getline) ||
-            !AwkGetlineLowerer.TryResolveExpressionCallParts(expression, out var parts) ||
-            parts.RequiresInputRedirection)
-        {
-            return;
-        }
-
-        AddMainInputGetlineDiagnostic(expression.Span, ruleName, diagnostics);
-    }
-
-    private static void AddMainInputGetlineDiagnostic(
-        AwkTextSpan span,
-        string ruleName,
-        List<AwkDiagnostic> diagnostics) =>
-        diagnostics.Add(new AwkDiagnostic(
-            span,
-            "Non-redirected `getline' invalid inside `" + ruleName + "' rule",
-            AwkDiagnosticId.BindInvalidProgram));
-
-    private static int NestedExpressionStartIndex(AwkExpressionSyntax expression) =>
-        expression.Kind == AwkExpressionKind.FunctionCall ? 1 : 0;
-
-    private static void ValidateBareCallableVariable(
-        AwkExpressionSyntax expression,
-        List<AwkDiagnostic> diagnostics)
-    {
-        if (expression.Kind != AwkExpressionKind.Variable ||
-            !AwkExpressionSyntaxFacts.TryGetIdentifier(expression, out var identifier) ||
-            AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Length) ||
-            !AwkBuiltins.IsKnownFunctionOrSpecialForm(identifier.Name))
-        {
-            return;
-        }
-
-        diagnostics.Add(new AwkDiagnostic(
-            expression.Span,
-            "Function `" + identifier.Name + "' requires a call.",
-            AwkDiagnosticId.BindInvalidProgram));
-    }
-
-    private static void ValidateKnownCallableShape(
-        AwkExpressionSyntax expression,
-        List<AwkDiagnostic> diagnostics)
-    {
-        if (expression.Kind != AwkExpressionKind.FunctionCall ||
-            !AwkBuiltinCallShape.TryCreateKnownCallable(expression, out var call))
-        {
-            return;
-        }
-
-        if (!AwkBuiltinCallShape.AcceptsArgumentCount(call.Definition, call.ArgumentCount))
-        {
-            diagnostics.Add(new AwkDiagnostic(
-                expression.Span,
-                "Invalid number of arguments for " + call.Target.Name,
-                AwkDiagnosticId.BindInvalidProgram));
-            return;
-        }
-
-        if (AwkBuiltinCallShape.TryGetArgumentRoleFailure(call, out var failure))
-        {
-            diagnostics.Add(new AwkDiagnostic(
-                failure.Argument.Span,
-                AwkBuiltinCallShape.FormatArgumentRoleFailure(call, failure),
-                AwkDiagnosticId.BindInvalidProgram));
-        }
-    }
-
-    private static bool ShouldSkipNestedExpressionValidation(AwkExpressionSyntax expression) =>
-        expression.Kind == AwkExpressionKind.Field || IsMalformedArrayElement(expression);
-
-    private static bool IsMalformedArrayElement(AwkExpressionSyntax expression)
-    {
-        if (expression.Kind != AwkExpressionKind.ArrayElement)
-            return false;
-
-        for (var index = 0; index < expression.DelimiterTokens.Count; index++)
-        {
-            if (expression.DelimiterTokens[index].Kind == AwkTokenKind.RightBracket)
-                return false;
-        }
-
-        return true;
-    }
-
-    private static bool IsValidMutationTarget(AwkExpressionSyntax expression) =>
-        AwkExpressionSyntaxFacts.IsValidMutationTarget(expression);
-
-    private static void ValidateDeleteStatement(
-        AwkStatementSyntax statement,
-        List<AwkDiagnostic> diagnostics)
-    {
-        if (statement.Kind != AwkStatementKind.Delete)
-            return;
-
-        if (!statement.Expression.TryGetValue(out var target))
-        {
-            diagnostics.Add(new AwkDiagnostic(
-                statement.Span,
-                "Expected delete target.",
-                AwkDiagnosticId.BindInvalidProgram));
-            return;
-        }
-
-        if (target.Kind == AwkExpressionKind.ExpressionList)
-        {
-            if (target.Children.Count != 1)
-            {
-                diagnostics.Add(new AwkDiagnostic(
-                    target.Span,
-                    "Delete expects a single target.",
-                    AwkDiagnosticId.BindInvalidProgram));
-                return;
-            }
-
-            target = target.Children[0];
-        }
-
-        if (AwkExpressionSyntaxFacts.TryGetStaticArrayTargetName(target, out _))
-        {
-            ValidateSpecialArrayDelete(target, diagnostics);
-            return;
-        }
-
-        diagnostics.Add(new AwkDiagnostic(
-            target.Span,
-            "Invalid delete target.",
-            AwkDiagnosticId.BindInvalidProgram));
     }
 
     private static void ValidateSpecialArrayElementMutation(
@@ -468,32 +460,6 @@ internal static class AwkSemanticValidator
             target.Span,
             "Cannot modify special array `" + arrayName + "'",
             AwkDiagnosticId.BindInvalidProgram));
-    }
-
-    private static void ValidateSpecialArrayDelete(
-        AwkExpressionSyntax target,
-        List<AwkDiagnostic> diagnostics)
-    {
-        if (!TryGetStaticArrayTargetName(target, out var arrayName) ||
-            !AwkSpecialVariables.TryGetArray(arrayName, out var definition))
-        {
-            return;
-        }
-
-        if (!definition.CanModifyArrayElements)
-        {
-            diagnostics.Add(new AwkDiagnostic(
-                target.Span,
-                "Cannot modify special array `" + arrayName + "'",
-                AwkDiagnosticId.BindInvalidProgram));
-        }
-        else if (!definition.CanReplaceArray)
-        {
-            diagnostics.Add(new AwkDiagnostic(
-                target.Span,
-                "`delete' is not allowed with " + arrayName,
-                AwkDiagnosticId.BindInvalidProgram));
-        }
     }
 
     private static bool TryGetStaticArrayElementName(AwkExpressionSyntax expression, out string name)
