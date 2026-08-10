@@ -131,7 +131,9 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             "BEGIN{print 1}"));
 
         Assert.Equal(AwkCompatibilityMode.GnuDefault, invocation.ExecutionOptions.CompatibilityProfile.Mode);
-        Assert.False(invocation.ExecutionOptions.CompatibilityProfile.CharactersAsBytes);
+        Assert.Equal(
+            AwkStringUnitMode.Utf8Rune,
+            invocation.ExecutionOptions.CompatibilityProfile.StringUnitMode);
         Assert.False(invocation.ExecutionOptions.CompatibilityProfile.NonDecimalData);
         Assert.Equal(AwkLintMode.Off, invocation.ExecutionOptions.CompatibilityProfile.LintMode);
     }

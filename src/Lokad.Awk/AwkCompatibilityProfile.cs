@@ -4,12 +4,12 @@ internal readonly struct AwkCompatibilityProfile
 {
     public AwkCompatibilityProfile(
         AwkCompatibilityMode mode,
-        bool charactersAsBytes,
+        AwkStringUnitMode stringUnitMode,
         bool nonDecimalData,
         AwkLintMode lintMode)
     {
         Mode = mode;
-        CharactersAsBytes = charactersAsBytes;
+        StringUnitMode = stringUnitMode;
         NonDecimalData = nonDecimalData;
         LintMode = lintMode;
     }
@@ -17,16 +17,13 @@ internal readonly struct AwkCompatibilityProfile
     public static AwkCompatibilityProfile Default =>
         new(
             mode: AwkCompatibilityMode.GnuDefault,
-            charactersAsBytes: false,
+            stringUnitMode: AwkStringUnitMode.Utf8Rune,
             nonDecimalData: false,
             lintMode: AwkLintMode.Off);
 
     public AwkCompatibilityMode Mode { get; }
 
-    public bool CharactersAsBytes { get; }
-
-    public AwkStringUnitMode StringUnitMode =>
-        CharactersAsBytes ? AwkStringUnitMode.Byte : AwkStringUnitMode.Utf8Rune;
+    public AwkStringUnitMode StringUnitMode { get; }
 
     public bool NonDecimalData { get; }
 
@@ -35,18 +32,18 @@ internal readonly struct AwkCompatibilityProfile
     public AwkCompatibilityProfile WithMode(AwkCompatibilityMode mode) =>
         new(
             mode,
-            CharactersAsBytes,
+            StringUnitMode,
             NonDecimalData,
             LintMode);
 
     public AwkCompatibilityProfile WithCharactersAsBytes() =>
-        new(Mode, true, NonDecimalData, LintMode);
+        new(Mode, AwkStringUnitMode.Byte, NonDecimalData, LintMode);
 
     public AwkCompatibilityProfile WithNonDecimalData() =>
-        new(Mode, CharactersAsBytes, true, LintMode);
+        new(Mode, StringUnitMode, true, LintMode);
 
     public AwkCompatibilityProfile WithLintMode(AwkLintMode lintMode) =>
-        new(Mode, CharactersAsBytes, NonDecimalData, lintMode);
+        new(Mode, StringUnitMode, NonDecimalData, lintMode);
 }
 
 internal enum AwkStringUnitMode
