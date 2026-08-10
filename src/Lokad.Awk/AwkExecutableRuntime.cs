@@ -419,22 +419,12 @@ internal static class AwkExecutableDispatcher
                             {
                                 var partCount = instruction.ValueCount.Value;
                                 var partStart = stackCount - partCount;
-                                var rentedParts = ArrayPool<AwkText>.Shared.Rent(partCount);
-                                try
-                                {
-                                    for (var index = 0; index < partCount; index++)
-                                        rentedParts[index] = stack[partStart + index].ByteText;
-
-                                    stackCount = partStart;
-                                    stack[stackCount++] = state.CreateDeferredTextValue(AwkText.Concat(
-                                        rentedParts.AsSpan(0, partCount),
-                                        state.Counters,
-                                        state.MemoryGovernor));
-                                }
-                                finally
-                                {
-                                    ArrayPool<AwkText>.Shared.Return(rentedParts, clearArray: true);
-                                }
+                                var concatenated = AwkText.Concat(
+                                    stack.AsSpan(partStart, partCount),
+                                    state.Counters,
+                                    state.MemoryGovernor);
+                                stackCount = partStart;
+                                stack[stackCount++] = state.CreateDeferredTextValue(concatenated);
 
                                 pc++;
                                 break;

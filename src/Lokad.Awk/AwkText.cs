@@ -260,21 +260,37 @@ internal sealed class AwkText : IEquatable<AwkText>
     public static AwkText Concat(
         ReadOnlySpan<AwkText> parts,
         AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor) =>
+        Concat<AwkText, AwkTextPartSelector>(parts, counters, governor);
+
+    public static AwkText Concat(
+        ReadOnlySpan<AwkValue> parts,
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor) =>
+        Concat<AwkValue, AwkValueTextPartSelector>(parts, counters, governor);
+
+    private static AwkText Concat<TPart, TSelector>(
+        ReadOnlySpan<TPart> parts,
+        AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
+        where TSelector : struct, IAwkTextPartSelector<TPart>
     {
         var totalLength = 0;
         var nonEmptyPartCount = 0;
-        AwkText? singleNonEmptyPart = null;
+        AwkText? firstNonEmptyPart = null;
+        AwkText? secondNonEmptyPart = null;
         for (var index = 0; index < parts.Length; index++)
         {
-            var part = parts[index];
+            var part = TSelector.Select(parts, index);
             if (part.ByteLength == 0)
                 continue;
 
             totalLength = AwkRuntimeMemory.CheckedAdd(totalLength, part.ByteLength);
             nonEmptyPartCount++;
             if (nonEmptyPartCount == 1)
-                singleNonEmptyPart = part;
+                firstNonEmptyPart = part;
+            else if (nonEmptyPartCount == 2)
+                secondNonEmptyPart = part;
         }
 
         if (nonEmptyPartCount == 0)
@@ -282,47 +298,57 @@ internal sealed class AwkText : IEquatable<AwkText>
 
         if (nonEmptyPartCount == 1)
         {
-            return singleNonEmptyPart ??
+            return firstNonEmptyPart ??
                 throw new InvalidOperationException("A non-empty concatenation must retain its only part.");
         }
 
         governor.PreflightAllocation(totalLength);
         if (nonEmptyPartCount == 2)
         {
-            AwkText? left = null;
-            AwkText? right = null;
-            for (var index = 0; index < parts.Length; index++)
-            {
-                if (parts[index].ByteLength == 0)
-                    continue;
-
-                if (left is null)
-                    left = SnapshotBorrowedText(parts[index], counters, governor);
-                else
-                    right = SnapshotBorrowedText(parts[index], counters, governor);
-            }
-
-            if (left is null || right is null)
+            if (firstNonEmptyPart is null || secondNonEmptyPart is null)
                 throw new InvalidOperationException("A two-part concatenation must retain both parts.");
 
             counters.RecordValueCreated();
-            return new AwkText(left, right, totalLength, counters, governor);
+            return new AwkText(
+                SnapshotBorrowedText(firstNonEmptyPart, counters, governor),
+                SnapshotBorrowedText(secondNonEmptyPart, counters, governor),
+                totalLength,
+                counters,
+                governor);
         }
 
         var bytes = AllocateOwnedBytes(totalLength, governor);
         var destinationOffset = 0;
         for (var index = 0; index < parts.Length; index++)
         {
-            if (parts[index].ByteLength == 0)
+            var part = TSelector.Select(parts, index);
+            if (part.ByteLength == 0)
                 continue;
 
-            var source = parts[index].AsSpan();
+            var source = part.AsSpan();
             source.CopyTo(bytes.AsSpan(destinationOffset));
             destinationOffset += source.Length;
         }
 
         counters.RecordConcatenationBytesCopied(totalLength);
         return FromTrustedOwnedBytes(bytes, counters);
+    }
+
+    private interface IAwkTextPartSelector<TPart>
+    {
+        static abstract AwkText Select(ReadOnlySpan<TPart> parts, int index);
+    }
+
+    private readonly struct AwkTextPartSelector : IAwkTextPartSelector<AwkText>
+    {
+        public static AwkText Select(ReadOnlySpan<AwkText> parts, int index) =>
+            parts[index];
+    }
+
+    private readonly struct AwkValueTextPartSelector : IAwkTextPartSelector<AwkValue>
+    {
+        public static AwkText Select(ReadOnlySpan<AwkValue> parts, int index) =>
+            parts[index].ByteText;
     }
 
     public AwkText CopyByteSlice(
