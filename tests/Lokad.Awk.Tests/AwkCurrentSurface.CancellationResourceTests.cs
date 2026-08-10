@@ -375,9 +375,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(string.Empty, systemDefaultFileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
-    [Fact]
-    public async Task Awk_OutputBuilderLimitFailsBeforeWritingStandardOutput()
+    [Theory]
+    [InlineData((int)AwkExecutionEngineKind.Interpreter)]
+    [InlineData((int)AwkExecutionEngineKind.Executable)]
+    public async Task Awk_OutputBuilderLimitFailsBeforeWritingStandardOutput(int engineValue)
     {
+        var engine = (AwkExecutionEngineKind)engineValue;
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
@@ -385,10 +388,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4),
             AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            engine);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
-            BuildInvocation("awk", "BEGIN{print \"abcde\"}"),
+            BuildInvocation("awk", "BEGIN{print \"ab\", \"cd\"}"),
             CancellationToken.None);
         var fileSystem = new MockFileSystem();
 

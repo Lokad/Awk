@@ -26,6 +26,14 @@ internal sealed class AwkOutputSink : IDisposable
         _standardOutput.Append(value);
     }
 
+    public void Append(ReadOnlySpan<AwkText> values)
+    {
+        if (values.IsEmpty)
+            return;
+
+        _standardOutput.Append(values);
+    }
+
     public void Append(ReadOnlyMemory<byte> content)
     {
         if (content.IsEmpty)

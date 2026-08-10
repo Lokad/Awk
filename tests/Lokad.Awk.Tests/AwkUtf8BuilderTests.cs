@@ -39,6 +39,23 @@ public sealed class AwkUtf8BuilderTests
     }
 
     [Fact]
+    public void AwkUtf8Builder_TextSequencePreflightsBeforeMutatingContent()
+    {
+        using var builder = new AwkUtf8Builder(
+            AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4),
+            AwkMemoryGovernor.Disabled,
+            capacity: 4);
+        builder.Append("a"u8);
+        AwkText[] values = [AwkText.FromString("bc"), AwkText.FromString("de")];
+
+        var exception = Assert.Throws<AwkRuntimeException>(() => builder.Append(values));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+        Assert.Equal(1, builder.Length);
+        Assert.Equal("a", builder.CopyToAwkText(AwkRuntimeCounters.Disabled).AsString());
+    }
+
+    [Fact]
     public void AwkUtf8Builder_ReservedPrefixSupportsBorrowedRegexViews()
     {
         using var builder = AwkUtf8Builder.CreateWithReservedPrefix(

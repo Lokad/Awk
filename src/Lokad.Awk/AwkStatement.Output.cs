@@ -118,9 +118,7 @@ internal abstract partial class AwkStatement
             segments[segmentCount++] = state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputRecordSeparator);
             if (!target.HasValue)
             {
-                for (var index = 0; index < segmentCount; index++)
-                    output.Append(segments[index]);
-
+                output.Append(segments.AsSpan(0, segmentCount));
                 return;
             }
 

@@ -621,15 +621,25 @@ internal static class AwkExecutableDispatcher
         var outputFieldSeparator = count > 1
             ? bindings.LoadOutputFieldSeparator(state)
             : AwkText.Empty;
-        for (var index = 0; index < count; index++)
+        var segments = ArrayPool<AwkText>.Shared.Rent((count * 2) + 1);
+        var segmentCount = 0;
+        try
         {
-            if (index > 0)
-                output.Append(outputFieldSeparator);
+            for (var index = 0; index < count; index++)
+            {
+                if (index > 0)
+                    segments[segmentCount++] = outputFieldSeparator;
 
-            output.Append(state.FormatPrintByteText(stack[offset + index]));
+                segments[segmentCount++] = state.FormatPrintByteText(stack[offset + index]);
+            }
+
+            segments[segmentCount++] = bindings.LoadOutputRecordSeparator(state);
+            output.Append(segments.AsSpan(0, segmentCount));
         }
-
-        output.Append(bindings.LoadOutputRecordSeparator(state));
+        finally
+        {
+            ArrayPool<AwkText>.Shared.Return(segments, clearArray: true);
+        }
     }
 
     private static int NormalizeStackDepth(int maxStackDepth) =>
