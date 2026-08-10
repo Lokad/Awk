@@ -2,6 +2,14 @@
 
 ## 0.1.0
 
+- Preserve Unicode scalar values in character-oriented `printf` formatting, govern UTF-8 output
+  while it is encoded, and share pooled print staging between the interpreter and executable engine.
+- Defer `$0` recomposition across repeated field assignments, maintain field value and retained-memory
+  totals incrementally, and preflight the final record state before any observable mutation.
+- Reuse each .NET regex input adapter throughout a match scan, materialize captured byte spans through
+  the runtime governor, and count retained deferred-concatenation nodes in all value stores.
+- Use diagnostic identifiers as the single diagnostic classification, replace sentinel-based getline
+  and lvalue lowering with explicit results, and document every remaining polymorphic contract.
 - Reuse source-line metadata across nested frontend parses, build expression lexer tokens directly,
   remove the redundant combined range-pattern parse, and add a generated rule-count scaling
   benchmark so frontend complexity and allocation regressions are visible.

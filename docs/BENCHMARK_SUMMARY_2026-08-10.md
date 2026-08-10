@@ -3,14 +3,14 @@
 This smoke baseline covers formatting, UTF-8 separators, array sorting, allocation, executable
 dispatch, and runtime-state cleanup. The recorded timing selection did not include a frontend
 benchmark. The timing sample remains anchored at `94b4f79`; the deterministic counter
-evidence was refreshed through `9932640` after source-binding, array-snapshot, and runtime-state
-cleanup.
+evidence was refreshed through `f415362` after record-recomposition, regex-adapter, print-staging,
+and memory-accounting cleanup.
 
 ## Environment
 
 - Timing source commit: `94b4f79` (`refactor: remove unused runtime surface`)
-- Counter source commit: `9932640` (`refactor: type single-use frontend and sort state`)
-- Counter report: `2026-08-10T12:37:27.3302709+00:00`
+- Counter source commit: `f415362` (`docs: specify text selector semantics`)
+- Counter report: `2026-08-10T15:39:29.9081570+00:00`
 - Machine: `LOKAD-0399`
 - OS: Windows 11 `10.0.26200.8893` (25H2)
 - CPU: Intel Core i7-14700KF, 20 physical cores, 28 logical cores
@@ -55,19 +55,19 @@ controlled before/after comparison. This table is the reproducible baseline for 
 
 ## Counter Evidence
 
-Selected rows from the counter report run at counter source commit `9932640`:
+Selected rows from the counter report run at counter source commit `f415362`:
 
 | Scenario | Records | Input bytes | Output bytes | Steps | String decodes | AsString calls | AwkText allocs | Regex matches | RS bytes scanned | Byte comparisons | VM instructions/fallbacks | Memory peak |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `counter column extraction` | 3 | 51 | 21 | 9 | 0 | 0 | 6 | 0 | 0 | 0 | 0 / 0 | 1,341 |
 | `counter streaming projection calibration` | 10,000 | 243,978 | 80,909 | 30,000 | 0 | 0 | 20,000 | 0 | 0 | 0 | 0 / 0 | 1,504 |
 | `counter three-key filter calibration` | 10,000 | 243,978 | 5 | 155,004 | 0 | 0 | 40,001 | 0 | 0 | 30,000 | 0 / 0 | 1,528 |
-| `counter regex field separator` | 3 | 39 | 3 | 26 | 4 | 12 | 7 | 9 | 0 | 0 | 0 / 0 | 1,317 |
+| `counter regex field separator` | 3 | 39 | 3 | 26 | 4 | 4 | 7 | 9 | 0 | 0 | 0 / 0 | 1,317 |
 | `counter grouped byte-run record separator` | 1 | 243,978 | 7 | 7 | 0 | 0 | 2 | 0 | 243,978 | 0 | 0 / 0 | 507,021 |
 | `counter non-ASCII record separator` | 3 | 19 | 4 | 31 | 0 | 0 | 7 | 0 | 19 | 0 | 0 / 0 | 1,228 |
 | `counter UTF-8 FIELDWIDTHS` | 2 | 27 | 3 | 27 | 0 | 0 | 7 | 0 | 0 | 0 | 0 / 0 | 1,398 |
 | `counter large split fields` | 32 | 1,568 | 4 | 770 | 1 | 32 | 865 | 0 | 0 | 0 | 0 / 0 | 5,380 |
-| `counter regex replacement expansion` | 2 | 24 | 3 | 24 | 3 | 8 | 5 | 6 | 0 | 0 | 0 / 0 | 1,106 |
+| `counter regex replacement expansion` | 2 | 24 | 3 | 24 | 3 | 4 | 5 | 6 | 0 | 0 | 0 / 0 | 1,106 |
 | `counter array sorting` | 3 | 12 | 8 | 33 | 1 | 1 | 11 | 0 | 0 | 1 | 0 / 0 | 2,081 |
 | `counter user-function loop` | 0 | 0 | 5 | 1,127 | 0 | 0 | 1 | 0 | 0 | 0 | 0 / 0 | 931 |
 | `counter executable opcode execution` | 2 | 34 | 14 | 4 | 0 | 0 | 4 | 0 | 0 | 0 | 6 / 0 | 1,413 |
@@ -79,4 +79,6 @@ rows stay free of string decodes at their byte-native boundaries. Direct array-s
 reduces the selected sorting scenario's governed peak from 2,753 to 2,081 bytes without changing
 its behavior. The one reported sort byte comparison is the only byte comparison performed for the
 selected scenario after lazy tie-break evaluation; the previous zero reflected missing sort-path
-instrumentation rather than no comparison work.
+instrumentation rather than no comparison work. Reusing the regex backend's input adapter reduces
+the selected field-separator and replacement scenarios from 12 to 4 and from 8 to 4 `AsString`
+calls, respectively, without increasing their governed memory peaks.
