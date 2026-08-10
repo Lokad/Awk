@@ -82,6 +82,27 @@ internal sealed class AwkFormattingRuntime(
 
     private string ResolveFormatString(AwkFormattingVariable variable)
     {
+        string ResolveConversionFormatString(AwkText text)
+        {
+            if (_hasConversionFormatString && _conversionFormatText.Equals(text))
+                return _conversionFormatString;
+
+            var defaultFormat = AwkFormattingVariableFacts.DefaultFormat(AwkFormattingVariable.ConversionFormat);
+            if (text.EqualsAscii(defaultFormat))
+            {
+                _conversionFormatText = text;
+                _conversionFormatString = defaultFormat;
+                _hasConversionFormatString = true;
+                return _conversionFormatString;
+            }
+
+            counters.RecordFormattingStringInteropInput();
+            _conversionFormatText = text;
+            _conversionFormatString = text.AsString(counters);
+            _hasConversionFormatString = true;
+            return _conversionFormatString;
+        }
+
         var format = resolveVariable(variable);
         var text = format.Text;
         if (variable == AwkFormattingVariable.ConversionFormat)
@@ -104,27 +125,6 @@ internal sealed class AwkFormattingRuntime(
         _outputFormatString = text.AsString(counters);
         _hasOutputFormatString = true;
         return _outputFormatString;
-    }
-
-    private string ResolveConversionFormatString(AwkText text)
-    {
-        if (_hasConversionFormatString && _conversionFormatText.Equals(text))
-            return _conversionFormatString;
-
-        var defaultFormat = AwkFormattingVariableFacts.DefaultFormat(AwkFormattingVariable.ConversionFormat);
-        if (text.EqualsAscii(defaultFormat))
-        {
-            _conversionFormatText = text;
-            _conversionFormatString = defaultFormat;
-            _hasConversionFormatString = true;
-            return _conversionFormatString;
-        }
-
-        counters.RecordFormattingStringInteropInput();
-        _conversionFormatText = text;
-        _conversionFormatString = text.AsString(counters);
-        _hasConversionFormatString = true;
-        return _conversionFormatString;
     }
 
 }

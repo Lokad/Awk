@@ -27,6 +27,25 @@ internal sealed class AwkSemanticModel
 
     public static AwkSemanticModel Create(IReadOnlyList<AwkSymbolReference> symbols)
     {
+        static bool IsDeclaration(AwkSymbolReferenceKind kind) =>
+            kind is AwkSymbolReferenceKind.FunctionDefinition or AwkSymbolReferenceKind.FunctionParameter;
+
+        static AwkSemanticSymbolKind ToSemanticKind(AwkSymbolReferenceKind kind) =>
+            kind switch
+            {
+                AwkSymbolReferenceKind.Variable => AwkSemanticSymbolKind.Variable,
+                AwkSymbolReferenceKind.SpecialVariable => AwkSemanticSymbolKind.SpecialVariable,
+                AwkSymbolReferenceKind.Array => AwkSemanticSymbolKind.Array,
+                AwkSymbolReferenceKind.SpecialArray => AwkSemanticSymbolKind.SpecialArray,
+                AwkSymbolReferenceKind.BuiltinFunction => AwkSemanticSymbolKind.BuiltinFunction,
+                AwkSymbolReferenceKind.UserFunction => AwkSemanticSymbolKind.UserFunction,
+                AwkSymbolReferenceKind.UnknownFunction => AwkSemanticSymbolKind.UnknownFunction,
+                AwkSymbolReferenceKind.FunctionDefinition => AwkSemanticSymbolKind.FunctionDefinition,
+                AwkSymbolReferenceKind.FunctionParameter => AwkSemanticSymbolKind.FunctionParameter,
+                AwkSymbolReferenceKind.Field => throw new InvalidOperationException("Field references are not named semantic symbols."),
+                _ => throw new InvalidOperationException("Unknown symbol reference kind.")
+            };
+
         var semanticSymbols = new HashSet<AwkSemanticSymbol>();
         var declarations = new List<AwkSemanticSymbol>();
         var usages = new List<AwkSemanticSymbol>();
@@ -67,24 +86,6 @@ internal sealed class AwkSemanticModel
             referencesFields);
     }
 
-    private static bool IsDeclaration(AwkSymbolReferenceKind kind) =>
-        kind is AwkSymbolReferenceKind.FunctionDefinition or AwkSymbolReferenceKind.FunctionParameter;
-
-    private static AwkSemanticSymbolKind ToSemanticKind(AwkSymbolReferenceKind kind) =>
-        kind switch
-        {
-            AwkSymbolReferenceKind.Variable => AwkSemanticSymbolKind.Variable,
-            AwkSymbolReferenceKind.SpecialVariable => AwkSemanticSymbolKind.SpecialVariable,
-            AwkSymbolReferenceKind.Array => AwkSemanticSymbolKind.Array,
-            AwkSymbolReferenceKind.SpecialArray => AwkSemanticSymbolKind.SpecialArray,
-            AwkSymbolReferenceKind.BuiltinFunction => AwkSemanticSymbolKind.BuiltinFunction,
-            AwkSymbolReferenceKind.UserFunction => AwkSemanticSymbolKind.UserFunction,
-            AwkSymbolReferenceKind.UnknownFunction => AwkSemanticSymbolKind.UnknownFunction,
-            AwkSymbolReferenceKind.FunctionDefinition => AwkSemanticSymbolKind.FunctionDefinition,
-            AwkSymbolReferenceKind.FunctionParameter => AwkSemanticSymbolKind.FunctionParameter,
-            AwkSymbolReferenceKind.Field => throw new InvalidOperationException("Field references are not named semantic symbols."),
-            _ => throw new InvalidOperationException("Unknown symbol reference kind.")
-        };
 }
 
 internal readonly record struct AwkSemanticSymbol(
