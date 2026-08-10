@@ -95,16 +95,20 @@ internal static class AwkFrontendDiagnosticPolicy
         out ReadOnlyMemory<byte> errorMessage)
     {
         var token = tokens[index];
-        if (IsDirective(tokens, index, "load"))
+        if (token.Kind == AwkTokenKind.At &&
+            AwkDirectiveParser.TryParseAt(tokens, index, out var directive))
         {
-            errorMessage = AwkMessages.ErrorUnsupportedDynamicLoad;
-            return true;
-        }
+            if (directive.Kind == AwkDirectiveKind.Load)
+            {
+                errorMessage = AwkMessages.ErrorUnsupportedDynamicLoad;
+                return true;
+            }
 
-        if (IsDirective(tokens, index, "namespace"))
-        {
-            errorMessage = AwkMessages.ErrorUnsupportedNamespace;
-            return true;
+            if (directive.Kind == AwkDirectiveKind.Namespace)
+            {
+                errorMessage = AwkMessages.ErrorUnsupportedNamespace;
+                return true;
+            }
         }
 
         switch (token.Kind)
@@ -157,13 +161,6 @@ internal static class AwkFrontendDiagnosticPolicy
                 .Kind == AwkTokenKind.LeftParen;
         }
     }
-
-    private static bool IsDirective(
-        IReadOnlyList<AwkToken> tokens,
-        int index,
-        string name) =>
-        AwkDirectiveParser.TryParseAt(tokens, index, out var directive) &&
-        string.Equals(directive.Name, name, StringComparison.Ordinal);
 
     private static int NextSignificantTokenIndex(IReadOnlyList<AwkToken> tokens, int index)
     {
