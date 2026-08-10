@@ -625,7 +625,7 @@ public sealed class AwkSyntaxParserTests
         var program = AwkSyntaxParser.Parse("BEGIN{print \"x\" ~ /[z-a]/}");
 
         var diagnostic = Assert.Single(program.Diagnostics);
-        Assert.Equal(AwkDiagnosticKind.InvalidRegex, diagnostic.Kind);
+        Assert.Equal(AwkDiagnosticId.ParseInvalidRegex, diagnostic.Id);
     }
 
     [Fact]
@@ -634,8 +634,8 @@ public sealed class AwkSyntaxParserTests
         var program = AwkSyntaxParser.Parse("BEGIN{print \"a\\qz\"; print \"a\\xz\"}");
 
         Assert.Equal(
-            [AwkDiagnosticKind.StringEscapeWarning, AwkDiagnosticKind.StringEscapeWarning],
-            program.Diagnostics.Select(diagnostic => diagnostic.Kind).ToArray());
+            [AwkDiagnosticId.WarningStringEscape, AwkDiagnosticId.WarningStringEscape],
+            program.Diagnostics.Select(diagnostic => diagnostic.Id).ToArray());
     }
 
     [Fact]

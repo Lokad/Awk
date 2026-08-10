@@ -6,35 +6,23 @@ namespace Lokad.Awk;
 internal readonly struct AwkDiagnostic
 {
     public AwkDiagnostic(AwkTextSpan span, string message)
-        : this(span, message, AwkDiagnosticKind.Syntax)
-    {
-    }
-
-    public AwkDiagnostic(AwkTextSpan span, string message, AwkDiagnosticKind kind)
-        : this(span, message, kind, AwkDiagnosticFacts.GetId(kind))
+        : this(span, message, AwkDiagnosticId.ParseSyntax)
     {
     }
 
     public AwkDiagnostic(AwkTextSpan span, string message, AwkDiagnosticId id)
-        : this(span, message, AwkDiagnosticFacts.GetKind(id), id)
-    {
-    }
-
-    private AwkDiagnostic(AwkTextSpan span, string message, AwkDiagnosticKind kind, AwkDiagnosticId id)
-        : this(span, message, kind, id, null)
+        : this(span, message, id, null)
     {
     }
 
     private AwkDiagnostic(
         AwkTextSpan span,
         string message,
-        AwkDiagnosticKind kind,
         AwkDiagnosticId id,
         AwkSourceLocation? sourceLocation)
     {
         Span = span;
         Message = message;
-        Kind = kind;
         Id = id;
         Category = AwkDiagnosticFacts.GetCategory(id);
         SourceLocation = sourceLocation;
@@ -43,8 +31,6 @@ internal readonly struct AwkDiagnostic
     public AwkTextSpan Span { get; }
 
     public string Message { get; }
-
-    public AwkDiagnosticKind Kind { get; }
 
     public AwkDiagnosticId Id { get; }
 
@@ -55,7 +41,7 @@ internal readonly struct AwkDiagnostic
     public bool IsWarning => Category == AwkDiagnosticCategory.Warning;
 
     public AwkDiagnostic WithSourceLocation(AwkSourceLocation sourceLocation) =>
-        new(Span, Message, Kind, Id, sourceLocation);
+        new(Span, Message, Id, sourceLocation);
 }
 
 internal readonly struct AwkSourceLocation
@@ -104,14 +90,6 @@ internal readonly record struct AwkColumnNumber
     public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
-internal enum AwkDiagnosticKind
-{
-    Syntax,
-    Semantic,
-    InvalidRegex,
-    StringEscapeWarning
-}
-
 internal enum AwkDiagnosticId
 {
     Unknown,
@@ -149,25 +127,6 @@ internal enum AwkDiagnosticCategory
 
 internal static class AwkDiagnosticFacts
 {
-    public static AwkDiagnosticId GetId(AwkDiagnosticKind kind) =>
-        kind switch
-        {
-            AwkDiagnosticKind.Syntax => AwkDiagnosticId.ParseSyntax,
-            AwkDiagnosticKind.Semantic => AwkDiagnosticId.BindInvalidProgram,
-            AwkDiagnosticKind.InvalidRegex => AwkDiagnosticId.ParseInvalidRegex,
-            AwkDiagnosticKind.StringEscapeWarning => AwkDiagnosticId.WarningStringEscape,
-            _ => AwkDiagnosticId.Unknown
-        };
-
-    public static AwkDiagnosticKind GetKind(AwkDiagnosticId id) =>
-        id switch
-        {
-            AwkDiagnosticId.BindInvalidProgram => AwkDiagnosticKind.Semantic,
-            AwkDiagnosticId.ParseInvalidRegex => AwkDiagnosticKind.InvalidRegex,
-            AwkDiagnosticId.WarningStringEscape or AwkDiagnosticId.WarningRuntime => AwkDiagnosticKind.StringEscapeWarning,
-            _ => AwkDiagnosticKind.Syntax
-        };
-
     public static AwkDiagnosticCategory GetCategory(AwkDiagnosticId id) =>
         id switch
         {

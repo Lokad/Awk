@@ -13,11 +13,11 @@ public sealed class AwkDiagnosticsTests
         var regex = new AwkDiagnostic(
             new AwkTextSpan(1, 1),
             "Invalid regular expression.",
-            AwkDiagnosticKind.InvalidRegex);
+            AwkDiagnosticId.ParseInvalidRegex);
         var warning = new AwkDiagnostic(
             new AwkTextSpan(2, 1),
             "awk: warning: escape sequence.",
-            AwkDiagnosticKind.StringEscapeWarning);
+            AwkDiagnosticId.WarningStringEscape);
         var bind = new AwkDiagnostic(
             new AwkTextSpan(3, 1),
             "Invalid action block.",
@@ -34,7 +34,6 @@ public sealed class AwkDiagnosticsTests
         Assert.Equal(AwkDiagnosticCategory.Warning, warning.Category);
         Assert.True(warning.IsWarning);
 
-        Assert.Equal(AwkDiagnosticKind.Semantic, bind.Kind);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, bind.Id);
         Assert.Equal(AwkDiagnosticCategory.Bind, bind.Category);
     }
@@ -73,7 +72,7 @@ public sealed class AwkDiagnosticsTests
             AwkDiagnosticId.UnsupportedPolicy,
             AwkDiagnosticCategory.UnsupportedPolicy);
         AssertFailure(
-            AwkDiagnostics.Parse([new AwkDiagnostic(new AwkTextSpan(0, 1), "Invalid regex.", AwkDiagnosticKind.InvalidRegex)]),
+            AwkDiagnostics.Parse([new AwkDiagnostic(new AwkTextSpan(0, 1), "Invalid regex.", AwkDiagnosticId.ParseInvalidRegex)]),
             AwkDiagnosticId.ParseInvalidRegex,
             AwkDiagnosticCategory.Parse);
         AssertFailure(

@@ -16,11 +16,11 @@ internal static class AwkFrontendDiagnosticPolicy
             if (tokens[index].Kind == AwkTokenKind.BadToken)
             {
                 var text = tokens[index].TextSpan;
-                var kind = text.StartsWith("/", StringComparison.Ordinal) ||
+                var id = text.StartsWith("/", StringComparison.Ordinal) ||
                     text.StartsWith("@/", StringComparison.Ordinal)
-                    ? AwkDiagnosticKind.InvalidRegex
-                    : AwkDiagnosticKind.Syntax;
-                diagnostics.Add(new AwkDiagnostic(tokens[index].Span, "Unrecognized awk token.", kind));
+                    ? AwkDiagnosticId.ParseInvalidRegex
+                    : AwkDiagnosticId.ParseSyntax;
+                diagnostics.Add(new AwkDiagnostic(tokens[index].Span, "Unrecognized awk token.", id));
             }
             else if (TryGetUnsupportedDiagnostic(source, tokens, index, out var unsupportedMessage))
             {
@@ -59,7 +59,7 @@ internal static class AwkFrontendDiagnosticPolicy
                     diagnostics.Add(new AwkDiagnostic(
                         token.Span,
                         AwkMessages.FormatStringHexEscapeWarning(),
-                        AwkDiagnosticKind.StringEscapeWarning));
+                        AwkDiagnosticId.WarningStringEscape));
                     continue;
                 }
 
@@ -72,7 +72,7 @@ internal static class AwkFrontendDiagnosticPolicy
                 diagnostics.Add(new AwkDiagnostic(
                     token.Span,
                     AwkMessages.FormatStringEscapeWarning(escaped),
-                    AwkDiagnosticKind.StringEscapeWarning));
+                    AwkDiagnosticId.WarningStringEscape));
             }
         }
 
@@ -83,7 +83,7 @@ internal static class AwkFrontendDiagnosticPolicy
                 diagnostics.Add(new AwkDiagnostic(
                     token.Span,
                     "Invalid regular expression.",
-                    AwkDiagnosticKind.InvalidRegex));
+                    AwkDiagnosticId.ParseInvalidRegex));
             }
         }
     }

@@ -50,7 +50,7 @@ internal static class AwkDiagnostics
         for (var index = 0; index < diagnostics.Count; index++)
         {
             if (!diagnostics[index].IsWarning &&
-                diagnostics[index].Kind == AwkDiagnosticKind.InvalidRegex)
+                diagnostics[index].Id == AwkDiagnosticId.ParseInvalidRegex)
             {
                 return new AwkFailureDiagnostic(AwkMessages.ErrorInvalidRegex, FatalExitCode, diagnostics[index].Id);
             }
