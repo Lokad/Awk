@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Lokad.Awk;
 
 internal readonly struct AwkCompatibilityProfile
@@ -57,6 +55,7 @@ internal enum AwkStringUnitMode
     Byte
 }
 
+// These flags are recorded for GNU command-line compatibility but deliberately do not alter execution.
 internal readonly record struct AwkAcceptedCompatibilityOptions(
     bool ReInterval,
     bool UseLcNumeric,
@@ -83,47 +82,6 @@ internal readonly record struct AwkAcceptedCompatibilityOptions(
         this with { Sandbox = true };
 }
 
-internal static class AwkCompatibilityOptionFacts
-{
-    private static readonly AwkCompatibilityFieldAudit[] FieldAuditEntries =
-    [
-        new(
-            AwkCompatibilityField.Mode,
-            AwkCompatibilityFieldStatus.Enforced,
-            "Compatibility mode gates GNU-only language features and numeric parsing."),
-        new(
-            AwkCompatibilityField.CharactersAsBytes,
-            AwkCompatibilityFieldStatus.Enforced,
-            "Byte mode changes string length/indexing and rejects unsupported byte-regex paths."),
-        new(
-            AwkCompatibilityField.ReInterval,
-            AwkCompatibilityFieldStatus.AcceptedNoOp,
-            "Interval regular expressions are always accepted; the flag is retained for gawk CLI compatibility."),
-        new(
-            AwkCompatibilityField.NonDecimalData,
-            AwkCompatibilityFieldStatus.Enforced,
-            "Non-decimal data changes runtime string-to-number parsing."),
-        new(
-            AwkCompatibilityField.UseLcNumeric,
-            AwkCompatibilityFieldStatus.AcceptedNoOp,
-            "Lokad awk uses invariant numeric parsing and formatting; locale numeric parsing is not implemented."),
-        new(
-            AwkCompatibilityField.LintMode,
-            AwkCompatibilityFieldStatus.Enforced,
-            "Off, normal, and fatal lint modes are enforced; compatibility aliases normalize to normal lint."),
-        new(
-            AwkCompatibilityField.Optimize,
-            AwkCompatibilityFieldStatus.AcceptedNoOp,
-            "There is no optimizer pass; scripts are lowered directly to the executable model."),
-        new(
-            AwkCompatibilityField.Sandbox,
-            AwkCompatibilityFieldStatus.AcceptedNoOp,
-            "Lokad host policy is enforced independently; the flag is retained for gawk CLI compatibility.")
-    ];
-
-    public static IReadOnlyList<AwkCompatibilityFieldAudit> FieldAudits => FieldAuditEntries;
-}
-
 internal enum AwkCompatibilityMode
 {
     GnuDefault,
@@ -136,41 +94,4 @@ internal enum AwkLintMode
     Off,
     Normal,
     Fatal
-}
-
-internal readonly struct AwkCompatibilityFieldAudit
-{
-    public AwkCompatibilityFieldAudit(
-        AwkCompatibilityField field,
-        AwkCompatibilityFieldStatus status,
-        string rationale)
-    {
-        Field = field;
-        Status = status;
-        Rationale = rationale;
-    }
-
-    public AwkCompatibilityField Field { get; }
-
-    public AwkCompatibilityFieldStatus Status { get; }
-
-    public string Rationale { get; }
-}
-
-internal enum AwkCompatibilityField
-{
-    Mode,
-    CharactersAsBytes,
-    ReInterval,
-    NonDecimalData,
-    UseLcNumeric,
-    LintMode,
-    Optimize,
-    Sandbox
-}
-
-internal enum AwkCompatibilityFieldStatus
-{
-    Enforced,
-    AcceptedNoOp
 }

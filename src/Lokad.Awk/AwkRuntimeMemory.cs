@@ -119,9 +119,6 @@ internal static class AwkRuntimeMemory
         return left + right;
     }
 
-    public static int CheckedMultiplyToInt32(int left, int right) =>
-        CheckedToInt32(CheckedMultiply(left, right));
-
     public static long CheckedMultiply(int left, int right) =>
         CheckedMultiply((long)left, right);
 

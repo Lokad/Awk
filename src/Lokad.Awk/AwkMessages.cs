@@ -62,8 +62,6 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: namespaces are unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedStronglyTypedRegex =
         AwkUtf8Codec.Encode("awk: strongly typed regexp constants are unsupported in Lokad awk\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedByteModeRegex =
-        AwkUtf8Codec.Encode("awk: byte-mode regular expressions over non-ASCII text are unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedByteModeEmptyFieldSeparator =
         AwkUtf8Codec.Encode("awk: byte-mode FS=\"\" over non-ASCII text is unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedByteModeFieldWidths =
@@ -131,10 +129,6 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: cannot modify special array `");
     private static readonly ReadOnlyMemory<byte> ErrorCannotModifySpecialArraySuffix =
         AwkUtf8Codec.Encode("'\n");
-    private static readonly ReadOnlyMemory<byte> WarningGensubThirdArgumentPrefix =
-        AwkUtf8Codec.Encode("awk: warning: gensub: third argument `");
-    private static readonly ReadOnlyMemory<byte> WarningGensubThirdArgumentSuffix =
-        AwkUtf8Codec.Encode("' treated as 1\n");
 
     internal static ReadOnlyMemory<byte> FormatPathError(ReadOnlyMemory<byte> path)
     {

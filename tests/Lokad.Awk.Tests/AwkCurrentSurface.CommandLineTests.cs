@@ -104,30 +104,6 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     }
 
     [Fact]
-    public void AwkCompatibilityOptionFacts_AuditsCliFields()
-    {
-        foreach (var field in Enum.GetValues<AwkCompatibilityField>())
-        {
-            var found = false;
-            foreach (var audit in AwkCompatibilityOptionFacts.FieldAudits)
-            {
-                found |= audit.Field == field;
-            }
-
-            Assert.True(found, "Missing compatibility audit for " + field);
-        }
-
-        AssertCompatibilityFieldStatus(AwkCompatibilityField.Mode, AwkCompatibilityFieldStatus.Enforced);
-        AssertCompatibilityFieldStatus(AwkCompatibilityField.CharactersAsBytes, AwkCompatibilityFieldStatus.Enforced);
-        AssertCompatibilityFieldStatus(AwkCompatibilityField.NonDecimalData, AwkCompatibilityFieldStatus.Enforced);
-        AssertCompatibilityFieldStatus(AwkCompatibilityField.LintMode, AwkCompatibilityFieldStatus.Enforced);
-        AssertCompatibilityFieldStatus(AwkCompatibilityField.ReInterval, AwkCompatibilityFieldStatus.AcceptedNoOp);
-        AssertCompatibilityFieldStatus(AwkCompatibilityField.UseLcNumeric, AwkCompatibilityFieldStatus.AcceptedNoOp);
-        AssertCompatibilityFieldStatus(AwkCompatibilityField.Optimize, AwkCompatibilityFieldStatus.AcceptedNoOp);
-        AssertCompatibilityFieldStatus(AwkCompatibilityField.Sandbox, AwkCompatibilityFieldStatus.AcceptedNoOp);
-    }
-
-    [Fact]
     public void AwkLintMode_OnlyContainsDistinctRuntimeModes()
     {
         Assert.Equal(new[] { "Off", "Normal", "Fatal" }, Enum.GetNames<AwkLintMode>());
@@ -183,23 +159,6 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("SKU\nb\nd\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-    }
-
-    private static void AssertCompatibilityFieldStatus(
-        AwkCompatibilityField field,
-        AwkCompatibilityFieldStatus status)
-    {
-        foreach (var audit in AwkCompatibilityOptionFacts.FieldAudits)
-        {
-            if (audit.Field != field)
-                continue;
-
-            Assert.Equal(status, audit.Status);
-            Assert.False(string.IsNullOrWhiteSpace(audit.Rationale));
-            return;
-        }
-
-        Assert.Fail("Missing compatibility audit for " + field);
     }
 
     private static void AssertLintMode(AwkLintMode expected, params string[] arguments)

@@ -46,8 +46,6 @@ internal readonly record struct AwkRuntimeStatePlan(
 
 internal sealed class AwkRuntimeState
 {
-    internal const int DefaultMaxArrayElements = AwkRuntimeLimits.DefaultMaxArrayElements;
-
     private static readonly AwkArrayName ArgumentVectorArrayName =
         AwkArrayName.FromText(AwkSpecialVariables.Name(AwkSpecialVariableId.ArgumentVector));
 
@@ -447,9 +445,6 @@ internal sealed class AwkRuntimeState
     public bool TryGetExistingArrayCount(AwkArrayName name, out int count) =>
         _variableRuntime.TryGetExistingArrayCount(name, out count);
 
-    public string ResolveVariable(AwkVariableName name) =>
-        FormatString(ResolveVariableValue(name));
-
     public AwkValue ResolveVariableValue(AwkVariableName name) =>
         _variableRuntime.ResolveVariableValue(name);
 
@@ -458,11 +453,6 @@ internal sealed class AwkRuntimeState
 
     public AwkValue GetGlobalScalarValue(AwkGlobalSlotId id) =>
         _variableRuntime.GetGlobalScalarValue(id);
-
-    public string ResolveFunctionLocal(
-        AwkFunctionLocalSlotId slotId,
-        AwkVariableName name) =>
-        FormatString(ResolveFunctionLocalValue(slotId, name));
 
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
@@ -723,9 +713,6 @@ internal sealed class AwkRuntimeState
     {
         return ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy();
     }
-
-    public string GetArrayString(AwkArrayName name, AwkArrayKey index) =>
-        _arrayRuntime.GetString(name, index);
 
     public AwkText GetArrayByteText(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.GetByteText(name, index);

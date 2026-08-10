@@ -53,9 +53,6 @@ internal sealed class AwkArrayRuntime
         _fieldSplitter = fieldSplitter;
     }
 
-    public string GetString(AwkArrayName name, AwkArrayKey index) =>
-        GetByteText(name, index).AsString(_state.Counters);
-
     public AwkText GetByteText(AwkArrayName name, AwkArrayKey index) =>
         _state.FormatStringByteText(GetAwkValue(name, index));
 
