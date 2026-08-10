@@ -2,6 +2,16 @@
 
 ## 0.1.0
 
+- Preserve numeric values and full precision through `printf`, custom `OFMT`/`CONVFMT`, `asort`,
+  user sort comparators, and host environment snapshots instead of formatting and reparsing them.
+- Apply `CONVFMT` consistently at comparison, regex, substitution, switch, record, field, separator,
+  array-order, and host string boundaries while keeping record and field separator classification
+  byte-native.
+- Avoid allocations on missing-array probes, parse unsupported frontend directives once, remove
+  forwarding async state machines, and model action-flow, input-record, and separator-cache states
+  explicitly.
+- Refresh the checked-in ShortRun and deterministic runtime-counter baseline on .NET 10.0.8 with
+  reproducible host, SDK, command, timing, allocation, and memory-governor evidence.
 - Enforce `MaxHostCalls` once across every input and output path, retain source-open failures rather
   than treating them as missing files, and reject successful host reads that permit more data
   without making progress.

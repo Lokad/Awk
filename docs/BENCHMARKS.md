@@ -51,6 +51,6 @@ allocation, regex, VM, record/field splitting, or counter behavior. A snapshot r
 - a short explanation for material regressions or improvements.
 
 Do not commit raw `BenchmarkDotNet.Artifacts/` output. If a stable baseline is needed, copy the
-curated summary into a docs or release artifact with the evidence above, using a dated file such as
-`docs/BENCHMARK_SUMMARY_2026-07-06.md`. Release readiness requires benchmark deltas only for
-changes that can plausibly affect performance or allocation behavior.
+curated summary into a docs or release artifact with the evidence above. The current baseline is
+`docs/BENCHMARK_SUMMARY_2026-08-10.md`. Release readiness requires benchmark deltas only for changes
+that can plausibly affect performance or allocation behavior.
