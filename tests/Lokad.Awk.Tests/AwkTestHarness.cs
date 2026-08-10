@@ -8,6 +8,17 @@ namespace Lokad.Awk.Tests;
 
 internal static class AwkTestHarness
 {
+    public static AwkRuntimeState CreateRuntimeState(
+        AwkFieldSeparatorSpec fieldSeparator,
+        CancellationToken cancellationToken) =>
+        CreateRuntimeState(fieldSeparator, cancellationToken, AwkRuntimeOptions.CreateSystemDefault());
+
+    public static AwkRuntimeState CreateRuntimeState(
+        AwkFieldSeparatorSpec fieldSeparator,
+        CancellationToken cancellationToken,
+        AwkRuntimeOptions runtimeOptions) =>
+        new(fieldSeparator, cancellationToken, runtimeOptions, AwkCompatibilityProfile.Default);
+
     public static AwkCommandInvocation BuildInvocation(string command, params string[] arguments)
     {
         return BuildInvocation(command, arguments, []);

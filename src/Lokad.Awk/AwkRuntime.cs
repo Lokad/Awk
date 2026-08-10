@@ -50,12 +50,11 @@ internal static class AwkRuntime
         var executionOptions = invocation.ExecutionOptions;
         var runtimeArguments = invocation.RuntimeArgumentsPlan;
         var stdio = invocation.Stdio;
-        var state = new AwkRuntimeState(AwkRuntimeStatePlan.Create(
+        var state = new AwkRuntimeState(
             executionOptions.FieldSeparator,
             cancellationToken,
             runtimeOptions,
-            executionOptions.CompatibilityProfile,
-            runtimeOptions.Limits.MaxArrayElements));
+            executionOptions.CompatibilityProfile);
         state.InitializeArguments(runtimeArguments.RuntimeArguments);
         state.InitializeEnvironment(runtimeArguments.Environment);
         state.InitializeProcInfo();

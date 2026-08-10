@@ -9,7 +9,7 @@ public sealed class AwkBuiltinsTests
     public async Task AwkBuiltins_ReusesSynchronousArgumentStorage()
     {
         Assert.True(AwkBuiltins.TryGetCallable("int", out var definition));
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var context = new AwkEvaluationContext(0, state);
         AwkExpression[] arguments = [AwkExpression.Number("42", 42)];
         _ = await definition.EvaluateAsync(new AwkBuiltinContext(arguments, context));

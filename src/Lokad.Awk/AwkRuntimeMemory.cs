@@ -15,7 +15,6 @@ internal static class AwkRuntimeMemory
     private const int AwkRegexGroupBytes = 32;
     private const int AwkValueBytes = 32;
     private const int AwkArrayKeyBytes = 32;
-    private const int ArrayValueDictionaryEntryBytes = 80;
     private const int ArraySortEntryBytes = 96;
     private const int FunctionFrameBytes = 64;
     private const int FunctionLocalEntryBytes = 64;
@@ -51,9 +50,6 @@ internal static class AwkRuntimeMemory
 
     public static long EstimateDictionaryBufferBytes(int count) =>
         count <= 0 ? 0 : CheckedAdd(DictionaryObjectBytes, CheckedMultiply(DictionaryEntryBytes, count));
-
-    public static long EstimateArrayValueDictionaryBytes(int count) =>
-        count <= 0 ? 0 : CheckedAdd(DictionaryObjectBytes, CheckedMultiply(ArrayValueDictionaryEntryBytes, count));
 
     public static long EstimateAwkValueArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, AwkValueBytes);

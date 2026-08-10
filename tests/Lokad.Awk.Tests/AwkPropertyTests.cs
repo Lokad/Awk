@@ -55,7 +55,7 @@ public sealed class AwkPropertyTests
     public void Awk_GeneratedPosixDigitRegexesMatchReferenceStrings()
     {
         var random = new Random(17830);
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         for (var index = 0; index < 80; index++)
         {
             var prefix = GenerateWord(random, 2 + random.Next(4));

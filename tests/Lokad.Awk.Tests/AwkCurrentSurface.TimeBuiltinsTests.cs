@@ -50,7 +50,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
 
         var actual = (await EvaluateAsync("rand", [], state)).AsNumber();
 
@@ -70,8 +70,8 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
-        var first = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
-        var second = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var first = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var second = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
 
         for (var index = 0; index < 32; index++)
             Assert.Equal(first.NextRandomNumber(), second.NextRandomNumber());
@@ -164,7 +164,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
     private static AwkRuntimeState CreateState(
         Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
         TimeZoneInfo timeZone) =>
-        new(
+        AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
             new AwkRuntimeOptions(currentUnixTimeSeconds, timeZone, new AwkRandomGenerator(),

@@ -15,7 +15,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
         var fileSystem = new MockFileSystem();
         var io = new AwkIo(
             fileSystem,
@@ -211,7 +211,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var host = new TestOperationVisitor([]);
         host.EnqueueOpenAwkFileDescriptor(3);
         host.EnqueueAppendExitCode(9);
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var io = new AwkIo(
             host,
             AwkPath.Root,
@@ -675,7 +675,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public void Awk_VmStackLimitUsesAwkDiagnostic()
     {
         var options = CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxVmStackBytes(8));
-        var state = new AwkRuntimeState(
+        var state = AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
             options);
@@ -690,7 +690,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
         var expression = AwkExpression.RegexMatch(
             AwkExpression.Literal("abc"),
             AwkExpression.Literal("a"),
@@ -714,7 +714,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public async Task Awk_RecursiveFunctionEntryObservesCancellation()
     {
         using var cancellation = new CancellationTokenSource();
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token);
         var functionName = AwkFunctionName.FromText("f");
         var function = new AwkUserFunction(
             functionName,
@@ -749,7 +749,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public void Awk_ArrayGrowthLimitFailsBeforeAddingElement()
     {
         var arrayName = AwkArrayName.FromText("a");
-        var state = new AwkRuntimeState(AwkRuntimeStatePlan.Create(
+        var state = AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
             new AwkRuntimeOptions(
@@ -757,11 +757,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
                 TimeZoneInfo.Local,
                 new AwkRandomGenerator(),
                 AwkRuntimeCounters.Disabled,
-                AwkRuntimeLimits.CreateDefault(),
+                AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(2),
                 AwkRegexEngineKind.DotNetCompatibility,
-                AwkExecutionEngineKind.Interpreter),
-            AwkCompatibilityProfile.Default,
-            maxArrayElements: 2));
+                AwkExecutionEngineKind.Interpreter));
 
         state.SetArrayString(arrayName, new AwkArrayKey("1"), "one");
         state.SetArrayString(arrayName, new AwkArrayKey("2"), "two");
@@ -784,7 +782,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1),
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
-        var state = new AwkRuntimeState(
+        var state = AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
             options);
@@ -809,7 +807,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(300),
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
-        var state = new AwkRuntimeState(
+        var state = AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
             options);
@@ -839,7 +837,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024),
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
-        var state = new AwkRuntimeState(
+        var state = AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
             options);
@@ -1084,7 +1082,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var output = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
         output.Append(new string('x', 80));
         var fileSystem = new MockFileSystem();
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var io = new AwkIo(
             fileSystem,
             AwkPath.Root,
@@ -1142,7 +1140,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(200),
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
-        var state = new AwkRuntimeState(
+        var state = AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
             options);
@@ -1350,7 +1348,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public async Task Awk_OutputFileLimitFailsBeforeOpeningAnotherFile()
     {
         var fileSystem = new MockFileSystem();
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var io = new AwkIo(
             fileSystem,
             AwkPath.Root,
@@ -1442,7 +1440,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     private static AwkRuntimeState CreateStateWithMemoryLimit(int maxExecutionMemoryBytes) =>
-        new(
+        AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
             new AwkRuntimeOptions(

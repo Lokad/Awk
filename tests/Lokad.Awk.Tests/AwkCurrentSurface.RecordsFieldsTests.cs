@@ -101,7 +101,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     {
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInputBytes([0x61, 0x80, 0x0A]);
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var counters = AwkRuntimeCounters.Disabled;
         var reader = new AsyncLineReader(
             fileSystem,

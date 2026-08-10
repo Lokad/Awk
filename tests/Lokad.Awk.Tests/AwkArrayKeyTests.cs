@@ -79,7 +79,7 @@ public sealed class AwkArrayKeyTests
     [Fact]
     public void AwkArrayKey_RuntimeConversionPreservesNumericOrdinalShape()
     {
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
 
         var ordinal = state.ToArrayKey(AwkValue.FromNumber(42));
         var numericString = state.ToArrayKey(AwkValue.FromNumericString("042"));
@@ -99,7 +99,7 @@ public sealed class AwkArrayKeyTests
     [Fact]
     public async Task AwkArrayKey_UnsortedSnapshotsKeepOrdinalShapeUntilObservation()
     {
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var arrayName = AwkArrayName.FromText("a");
         state.SetArrayAwkValue(arrayName, AwkArrayKey.FromOrdinal(7), AwkValue.FromNumber(1));
 

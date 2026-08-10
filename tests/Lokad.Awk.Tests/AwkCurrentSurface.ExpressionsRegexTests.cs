@@ -180,7 +180,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.Utf8Adapter,
             AwkExecutionEngineKind.Interpreter);
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new AwkRegexPattern("[[:alpha:]]+"));
         var input = AwkText.FromString("abc123déf", counters, state.MemoryGovernor);
         var replacement = AwkText.FromString("X", counters, state.MemoryGovernor);
@@ -216,7 +216,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             limits,
             AwkRegexEngineKind.Utf8Adapter,
             AwkExecutionEngineKind.Interpreter);
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString(new string('a', 4_096), counters);
 
@@ -249,7 +249,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4),
             AwkRegexEngineKind.Utf8Adapter,
             AwkExecutionEngineKind.Interpreter);
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("a1234", counters, state.MemoryGovernor);
         var replacement = AwkText.FromString("X", counters, state.MemoryGovernor);

@@ -8,42 +8,6 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
-internal readonly record struct AwkRuntimeStatePlan(
-    AwkFieldSeparatorSpec FieldSeparator,
-    CancellationToken CancellationToken,
-    AwkRuntimeOptions RuntimeOptions,
-    AwkCompatibilityProfile CompatibilityProfile,
-    int MaxArrayElements)
-{
-    public static AwkRuntimeStatePlan Create(
-        AwkFieldSeparatorSpec fieldSeparator,
-        CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions) =>
-        Create(
-            fieldSeparator,
-            cancellationToken,
-            runtimeOptions,
-            AwkCompatibilityProfile.Default,
-            runtimeOptions.Limits.MaxArrayElements);
-
-    public static AwkRuntimeStatePlan Create(
-        AwkFieldSeparatorSpec fieldSeparator,
-        CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions,
-        AwkCompatibilityProfile compatibilityProfile,
-        int maxArrayElements)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxArrayElements);
-
-        return new AwkRuntimeStatePlan(
-            fieldSeparator,
-            cancellationToken,
-            runtimeOptions,
-            compatibilityProfile,
-            maxArrayElements);
-    }
-}
-
 internal sealed class AwkRuntimeState
 {
     private static readonly AwkArrayName ArgumentVectorArrayName =
@@ -89,35 +53,25 @@ internal sealed class AwkRuntimeState
     private bool _recordSeparatorIgnoresCase;
     private long _recordSeparatorVersion;
 
-    public AwkRuntimeState(AwkFieldSeparatorSpec fieldSeparator, CancellationToken cancellationToken)
-        : this(AwkRuntimeStatePlan.Create(fieldSeparator, cancellationToken, AwkRuntimeOptions.CreateSystemDefault()))
-    {
-    }
-
-    public AwkRuntimeState(
+    internal AwkRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
         CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions)
-        : this(AwkRuntimeStatePlan.Create(fieldSeparator, cancellationToken, runtimeOptions))
+        AwkRuntimeOptions runtimeOptions,
+        AwkCompatibilityProfile compatibilityProfile)
     {
-    }
-
-    internal AwkRuntimeState(
-        AwkRuntimeStatePlan plan)
-    {
-        Counters = plan.RuntimeOptions.Counters;
-        Limits = plan.RuntimeOptions.Limits.WithMaxArrayElements(plan.MaxArrayElements);
+        Counters = runtimeOptions.Counters;
+        Limits = runtimeOptions.Limits;
         Resources = new AwkRuntimeResourceMonitor(Limits, Counters);
         MemoryGovernor = AwkMemoryGovernor.Create(Limits, Counters);
-        CompatibilityMode = plan.CompatibilityProfile.Mode;
-        LintMode = plan.CompatibilityProfile.LintMode;
-        NonDecimalData = plan.CompatibilityProfile.NonDecimalData;
-        var stringUnitMode = plan.CompatibilityProfile.StringUnitMode;
-        _timeRuntime = new AwkTimeRuntime(plan.RuntimeOptions.CurrentUnixTimeSeconds, plan.RuntimeOptions.TimeZone);
-        _randomRuntime = new AwkRandomRuntime(plan.RuntimeOptions.CreateRandomGenerator(), _timeRuntime);
-        _cancellationToken = plan.CancellationToken;
+        CompatibilityMode = compatibilityProfile.Mode;
+        LintMode = compatibilityProfile.LintMode;
+        NonDecimalData = compatibilityProfile.NonDecimalData;
+        var stringUnitMode = compatibilityProfile.StringUnitMode;
+        _timeRuntime = new AwkTimeRuntime(runtimeOptions.CurrentUnixTimeSeconds, runtimeOptions.TimeZone);
+        _randomRuntime = new AwkRandomRuntime(runtimeOptions.CreateRandomGenerator(), _timeRuntime);
+        _cancellationToken = cancellationToken;
         _variables = new AwkVariables(
-            plan.MaxArrayElements,
+            Limits.MaxArrayElements,
             MemoryGovernor,
             Counters,
             CreateByteTextValue,
@@ -133,11 +87,11 @@ internal sealed class AwkRuntimeState
             stringUnitMode,
             ThrowIfCancellationRequested,
             Counters,
-            plan.RuntimeOptions.RegexEngineKind);
+            runtimeOptions.RegexEngineKind);
         _stringRuntime = new AwkStringRuntime(stringUnitMode);
         _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Counters, MemoryGovernor);
         _fieldSplitter = new AwkFieldSplitter(
-            plan.FieldSeparator,
+            fieldSeparator,
             CreateRegex,
             _regexRuntime.CreateLiteral,
             EnumerateRegexMatchSpans,
@@ -164,7 +118,7 @@ internal sealed class AwkRuntimeState
             RecordSpecialVariableAssignment);
         _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables);
         _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
-        _specialVariables.InitializeScalars(plan.FieldSeparator);
+        _specialVariables.InitializeScalars(fieldSeparator);
         _recordSeparatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
         _recordSeparatorIgnoresCase = IsIgnoreCaseEnabled();
         _variables.CaptureScalarMemoryBaseline();
