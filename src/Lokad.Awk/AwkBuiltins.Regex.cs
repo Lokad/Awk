@@ -11,12 +11,14 @@ internal static partial class AwkBuiltins
         var pattern = context.GetString(0);
         var replacement = context.GetByteText(1);
         var how = context.GetValue(2);
+        var selector = context.GetString(2);
         var input = context.ArgumentCount == 4 ? context.GetByteText(3) : context.State.CurrentRecordByteText;
         return context.State.CreateByteTextValue(ApplyGensub(
             context,
             context.State.CreateRegex(new AwkRegexPattern(pattern)),
             replacement,
             how,
+            selector,
             input));
     }
 
@@ -25,9 +27,9 @@ internal static partial class AwkBuiltins
         AwkRegex regex,
         AwkText replacement,
         AwkValue how,
+        string selector,
         AwkText input)
     {
-        var selector = how.AsString();
         if (selector.StartsWith("g", StringComparison.OrdinalIgnoreCase))
         {
             return AwkRegexSubstitution.ReplaceAll(

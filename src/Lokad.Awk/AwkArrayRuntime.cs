@@ -57,7 +57,7 @@ internal sealed class AwkArrayRuntime
         GetByteText(name, index).AsString(_state.Counters);
 
     public AwkText GetByteText(AwkArrayName name, AwkArrayKey index) =>
-        _variables.GetArrayByteText(_variableRuntime.ResolveOrPromoteArrayName(name), index);
+        _state.FormatStringByteText(GetAwkValue(name, index));
 
     public AwkValue GetAwkValue(AwkArrayName name, AwkArrayKey index) =>
         _variables.GetArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
@@ -377,16 +377,19 @@ internal sealed class AwkArrayRuntime
     private bool TryResolveSortedInOrder(out AwkArraySortOrder order)
     {
         order = AwkArraySortOrder.Default;
-        if (!_variables.TryGetArrayByteText(
+        if (!_variables.TryPeekArrayValue(
             ProcInfoArrayName,
             ProcInfoSortedInKey,
-            out var value) ||
-            value.ByteLength == 0)
+            out var value))
         {
             return false;
         }
 
-        order = AwkArraySortOrder.Parse(value.AsString(_state.Counters));
+        var text = _state.FormatStringByteText(value);
+        if (text.ByteLength == 0)
+            return false;
+
+        order = AwkArraySortOrder.Parse(text.AsString(_state.Counters));
         return true;
     }
 

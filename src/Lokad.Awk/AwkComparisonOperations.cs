@@ -6,9 +6,9 @@ internal static class AwkComparisonOperations
         AwkValue left,
         AwkValue right,
         AwkComparison comparison,
-        AwkRuntimeCounters counters)
+        AwkRuntimeState state)
     {
-        var result = AwkValue.Compare(left, right, counters);
+        var result = Compare(left, right, state);
         return comparison switch
         {
             AwkComparison.GreaterOrEqual => result >= 0,
@@ -19,5 +19,14 @@ internal static class AwkComparisonOperations
             AwkComparison.NotEqual => result != 0,
             _ => throw new ArgumentOutOfRangeException(nameof(comparison))
         };
+    }
+
+    public static int Compare(AwkValue left, AwkValue right, AwkRuntimeState state)
+    {
+        if (left.TryGetNumber(out var leftNumber) && right.TryGetNumber(out var rightNumber))
+            return leftNumber.CompareTo(rightNumber);
+
+        state.Counters.RecordByteTextComparison();
+        return state.FormatStringByteText(left).CompareBytes(state.FormatStringByteText(right));
     }
 }

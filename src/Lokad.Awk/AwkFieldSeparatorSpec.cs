@@ -4,10 +4,12 @@ namespace Lokad.Awk;
 
 internal readonly record struct AwkFieldSeparatorSpec
 {
-    private readonly string? _customText;
+    private static readonly AwkText Space = AwkText.FromSourceLiteralString(" ");
+
+    private readonly AwkText? _customText;
     private readonly AwkFieldSeparatorKind _kind;
 
-    private AwkFieldSeparatorSpec(string text)
+    private AwkFieldSeparatorSpec(AwkText text)
     {
         _customText = text;
         _kind = AwkFieldSeparatorKind.Custom;
@@ -17,10 +19,15 @@ internal readonly record struct AwkFieldSeparatorSpec
 
     public static AwkFieldSeparatorSpec FromText(string text)
     {
-        return text == " " ? Default : new AwkFieldSeparatorSpec(text);
+        return FromByteText(AwkText.FromSourceLiteralString(text));
     }
 
-    public string Text => _kind == AwkFieldSeparatorKind.Custom ? _customText ?? string.Empty : " ";
+    public static AwkFieldSeparatorSpec FromByteText(AwkText text) =>
+        text.EqualsAscii(" ") ? Default : new AwkFieldSeparatorSpec(text);
+
+    public AwkText ByteText => _kind == AwkFieldSeparatorKind.Custom ? _customText ?? AwkText.Empty : Space;
+
+    public string Text => ByteText.AsString();
 
     public bool UsesWhitespaceSemantics => _kind == AwkFieldSeparatorKind.Default;
 

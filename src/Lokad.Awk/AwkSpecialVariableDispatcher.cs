@@ -5,13 +5,14 @@ namespace Lokad.Awk;
 internal sealed class AwkSpecialVariableDispatcher(
     AwkVariables variables,
     AwkFieldSplitter fieldSplitter,
+    Func<AwkValue, AwkText> formatString,
     Action<AwkSpecialVariableId> recordAssignment)
 {
     public void InitializeScalars(AwkFieldSeparatorSpec fieldSeparator)
     {
-        variables.SetScalarText(
+        variables.SetScalarValue(
             AwkSpecialVariables.VariableName(AwkSpecialVariableId.FieldSeparator),
-            fieldSeparator.Text);
+            AwkValue.FromText(fieldSeparator.ByteText));
         foreach (var variable in AwkSpecialVariables.Scalars)
         {
             if (variable.Id == AwkSpecialVariableId.FieldSeparator ||
@@ -34,16 +35,16 @@ internal sealed class AwkSpecialVariableDispatcher(
     {
         recordAssignment(id);
         if (RequiresFieldSplitterUpdate(id))
-            ApplyAssignmentEffects(id, value.AsString());
+            ApplyAssignmentEffects(id, formatString(value));
     }
 
-    public void ApplyAssignment(AwkSpecialVariableId id, string value)
+    public void ApplyAssignment(AwkSpecialVariableId id, AwkText value)
     {
         recordAssignment(id);
         ApplyAssignmentEffects(id, value);
     }
 
-    private void ApplyAssignmentEffects(AwkSpecialVariableId id, string value)
+    private void ApplyAssignmentEffects(AwkSpecialVariableId id, AwkText value)
     {
         switch (id)
         {

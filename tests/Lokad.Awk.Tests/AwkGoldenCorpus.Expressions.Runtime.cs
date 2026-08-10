@@ -143,6 +143,24 @@ internal static partial class AwkGoldenCorpus
             "4 3 1.23 1 1 1.23\n"),
 
         Passing(
+            "comparison-regex-switch-and-substitution-use-convfmt",
+            ["BEGIN{CONVFMT=\"%.2f\"; n=1.234567; print (n==\"1.23\"), (n==\"1.23457\"), (\"1.23\" ~ n), (n ~ \"^1.23$\"); switch(n){case /^1\\.23$/: print \"switch\"}; x=n; sub(/23/,\"XX\",x); print x}"],
+            [],
+            "1 0 1 1\nswitch\n1.XX\n"),
+
+        Passing(
+            "special-separators-and-fields-use-convfmt",
+            ["BEGIN{CONVFMT=\"%.2f\"; n=1.234567; FS=n; $0=\"a1.23b\"; print NF,$1,$2; OFS=n; print \"a\",\"b\"; SUBSEP=n; a[\"x\",\"y\"]=7; print (\"x1.23y\" in a); OFS=\" \"; $0=n; FS=\"\\\\.\"; print NF; FS=\" \"; $0=\"a b\"; $1=n; print \"[\" $0 \"]\"}"],
+            [],
+            "2 a b\na1.23b\n1\n2\n[1.23 b]\n"),
+
+        Passing(
+            "record-and-output-separators-use-convfmt",
+            ["BEGIN{CONVFMT=\"%.2f\"; RS=1.234567; ORS=1.234567; print \"x\"; ORS=\"\\n\"} {print \"[\" $0 \"]\"}", "/file.txt"],
+            [File("/file.txt", "a1.23b")],
+            "x1.23[a]\n[b]\n"),
+
+        Passing(
             "comparison-logical-and-ternary-expressions",
             ["BEGIN{x=1; print (\"b\" > \"a\"), (2 <= 2), (2 != 3); print (0 && ++x), x; print (1 || ++x), x; print (x ? \"yes\" : ++y), y+0}"],
             [],

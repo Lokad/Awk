@@ -23,13 +23,13 @@ internal sealed class AwkByteFieldSplitter(
         if (separator.UsesWhitespaceSemantics)
             return SplitWhitespace(line, captureSeparators, counters);
 
-        if (separator.Text.Length == 0)
+        if (separator.ByteText.ByteLength == 0)
             return SplitCharacters(line, captureSeparators, charactersAsBytes(), counters);
 
-        if (TryGetSingleByteLiteralSeparator(separator.Text, out var separatorByte) && !isIgnoreCaseEnabled())
+        if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) && !isIgnoreCaseEnabled())
             return SplitSingleByteLiteral(line, separatorByte, captureSeparators, counters);
 
-        var regex = separator.Text.Length > 1
+        var regex = separator.ByteText.RuneLength > 1
             ? createRegex(new AwkRegexPattern(separator.Text))
             : createLiteralRegex(new AwkRegexLiteralText(separator.Text));
         return SplitRegex(line, regex, captureSeparators, counters);
@@ -42,13 +42,13 @@ internal sealed class AwkByteFieldSplitter(
         if (separator.UsesWhitespaceSemantics)
             return SplitWhitespaceRecordFields(line);
 
-        if (separator.Text.Length == 0)
+        if (separator.ByteText.ByteLength == 0)
             return SplitCharacterRecordFields(line, charactersAsBytes());
 
-        if (TryGetSingleByteLiteralSeparator(separator.Text, out var separatorByte) && !isIgnoreCaseEnabled())
+        if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) && !isIgnoreCaseEnabled())
             return SplitSingleByteLiteralRecordFields(line, separatorByte);
 
-        var regex = separator.Text.Length > 1
+        var regex = separator.ByteText.RuneLength > 1
             ? createRegex(new AwkRegexPattern(separator.Text))
             : createLiteralRegex(new AwkRegexLiteralText(separator.Text));
         return SplitRegexRecordFields(line, regex);
@@ -58,21 +58,13 @@ internal sealed class AwkByteFieldSplitter(
         AwkText line,
         AwkFieldSeparatorSpec separator)
     {
-        static bool IsSingleCharacter(string value)
-        {
-            var enumerator = value.EnumerateRunes().GetEnumerator();
-            return enumerator.MoveNext() && !enumerator.MoveNext();
-        }
-
-        if (separator.UsesWhitespaceSemantics || !IsSingleCharacter(separator.Text))
+        if (separator.UsesWhitespaceSemantics || separator.ByteText.RuneLength != 1)
             return SplitRecordFieldsBySeparator(line, separator);
 
-        if (TryGetSingleByteLiteralSeparator(separator.Text, out var separatorByte) && !isIgnoreCaseEnabled())
+        if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) && !isIgnoreCaseEnabled())
             return SplitSingleByteParagraphRecordFields(line, separatorByte);
 
-        var regex = separator.Text.Length > 1
-            ? createRegex(new AwkRegexPattern(separator.Text))
-            : createLiteralRegex(new AwkRegexLiteralText(separator.Text));
+        var regex = createLiteralRegex(new AwkRegexLiteralText(separator.Text));
         return SplitRegexParagraphRecordFields(line, regex);
     }
 
@@ -602,11 +594,11 @@ internal sealed class AwkByteFieldSplitter(
         return byteIndex + (status == OperationStatus.Done && bytesConsumed > 0 ? bytesConsumed : 1);
     }
 
-    private static bool TryGetSingleByteLiteralSeparator(string separator, out byte separatorByte)
+    private static bool TryGetSingleByteLiteralSeparator(AwkText separator, out byte separatorByte)
     {
-        if (separator.Length == 1 && separator[0] <= 0x7F)
+        if (separator.AsSpan() is [var value])
         {
-            separatorByte = (byte)separator[0];
+            separatorByte = value;
             return true;
         }
 

@@ -479,7 +479,7 @@ internal static class AwkExecutableDispatcher
                                     left,
                                     right,
                                     (AwkComparison)instruction.Operand0,
-                                    state.Counters);
+                                    state);
                                 stack[stackCount++] = AwkValue.FromNumber(isMatch ? 1 : 0);
                                 pc++;
                                 break;
@@ -968,7 +968,7 @@ internal sealed class AwkExecutableRuntimeBindings
             optionalSlotId = AwkOptionalGlobalSlotId.FromValue(slotId);
         }
 
-        return state.GetGlobalScalarValue(slotId).ByteText;
+        return state.FormatStringByteText(state.GetGlobalScalarValue(slotId));
     }
 
     private struct AwkExecutableScalarBinding(AwkExecutableScalarSymbol symbol)

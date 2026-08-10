@@ -53,7 +53,8 @@ internal sealed record AwkCurrentRecordSubstitutionTarget : AwkSubstitutionTarge
 internal sealed record AwkReferenceSubstitutionTarget(AwkReference Reference) : AwkSubstitutionTarget
 {
     public override async ValueTask<AwkText> ResolveInputTextAsync(AwkEvaluationContext context) =>
-        (await Reference.EvaluateAsync(context).ConfigureAwait(false)).ByteText;
+        context.State.FormatStringByteText(
+            await Reference.EvaluateAsync(context).ConfigureAwait(false));
 
     public override ValueTask AssignTextAsync(AwkEvaluationContext context, AwkText value) =>
         Reference.AssignValueAsync(context, context.State.CreateByteTextValue(value));
@@ -199,12 +200,14 @@ internal sealed record AwkExpressionSwitchCasePattern(AwkExpression Expression) 
     public override async ValueTask<bool> MatchesAsync(AwkValue value, AwkEvaluationContext context)
     {
         var candidateValue = await Expression.EvaluateAsync(context).ConfigureAwait(false);
-        return AwkValue.Compare(value, candidateValue, context.State.Counters) == 0;
+        return AwkComparisonOperations.Compare(value, candidateValue, context.State) == 0;
     }
 }
 
 internal sealed record AwkRegexSwitchCasePattern(AwkRegex Regex) : AwkSwitchCasePattern
 {
     public override ValueTask<bool> MatchesAsync(AwkValue value, AwkEvaluationContext context) =>
-        ValueTask.FromResult(context.State.IsRegexMatch(Regex, value.ByteText));
+        ValueTask.FromResult(context.State.IsRegexMatch(
+            Regex,
+            context.State.FormatStringByteText(value)));
 }

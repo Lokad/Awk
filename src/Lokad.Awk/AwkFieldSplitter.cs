@@ -14,7 +14,8 @@ internal sealed class AwkFieldSplitter(
     Func<bool> isIgnoreCaseEnabled,
     Func<bool> charactersAsBytes,
     Action throwIfCancellationRequested,
-    AwkMemoryGovernor memoryGovernor)
+    AwkMemoryGovernor memoryGovernor,
+    AwkRuntimeCounters counters)
 {
     private readonly AwkByteFieldSplitter _byteSplitter = new(
         createRegex,
@@ -34,47 +35,78 @@ internal sealed class AwkFieldSplitter(
     public void SetRecordFieldSplittingMode(AwkRecordFieldSplittingMode mode) =>
         _recordFieldSplittingMode = mode;
 
-    public void AssignFieldSeparator(string value)
+    public void AssignFieldSeparator(AwkText value)
     {
-        _fieldSeparator = AwkFieldSeparatorSpec.FromText(value);
+        _fieldSeparator = AwkFieldSeparatorSpec.FromByteText(value);
         _fieldSplittingMode = AwkFieldSplittingMode.FieldSeparator;
     }
 
-    public void AssignFieldPattern(string value)
+    public void AssignFieldPattern(AwkText value)
     {
-        _fieldPattern = value;
-        if (value.Length > 0)
+        _fieldPattern = value.AsString(counters);
+        if (value.ByteLength > 0)
             _fieldSplittingMode = AwkFieldSplittingMode.FieldPattern;
     }
 
-    public void AssignFieldWidths(string value)
+    public void AssignFieldWidths(AwkText value)
     {
-        static IReadOnlyList<AwkFieldWidth> ParseFieldWidths(string text)
+        static IReadOnlyList<AwkFieldWidth> ParseFieldWidths(ReadOnlySpan<byte> text)
         {
-            var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 0)
-                return [];
+            static bool IsWhitespace(byte value) =>
+                value is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n' or (byte)'\v' or (byte)'\f';
 
-            var widths = new List<AwkFieldWidth>(parts.Length);
-            for (var index = 0; index < parts.Length; index++)
+            static bool TryParseNonNegativeInteger(ReadOnlySpan<byte> value, out int result)
             {
-                var part = parts[index];
-                var separatorIndex = part.IndexOf(':', StringComparison.Ordinal);
-                var skipText = separatorIndex >= 0 ? part[..separatorIndex] : "0";
+                result = 0;
+                if (value is [(byte)'+', .. var positive])
+                    value = positive;
+
+                if (value.IsEmpty)
+                    return false;
+
+                for (var index = 0; index < value.Length; index++)
+                {
+                    var digit = value[index] - (byte)'0';
+                    if (digit > 9 || result > (int.MaxValue - digit) / 10)
+                        return false;
+
+                    result = result * 10 + digit;
+                }
+
+                return true;
+            }
+
+            var widths = new List<AwkFieldWidth>();
+            var position = 0;
+            while (position < text.Length)
+            {
+                while (position < text.Length && IsWhitespace(text[position]))
+                    position++;
+
+                var start = position;
+                while (position < text.Length && !IsWhitespace(text[position]))
+                    position++;
+
+                if (start == position)
+                    break;
+
+                var part = text[start..position];
+                var separatorIndex = part.IndexOf((byte)':');
+                var skipText = separatorIndex >= 0 ? part[..separatorIndex] : "0"u8;
                 var widthText = separatorIndex >= 0 ? part[(separatorIndex + 1)..] : part;
-                if (!AwkFieldSkip.TryParse(skipText, out var skip) ||
-                    !AwkFieldWidthLength.TryParse(widthText, out var width))
+                if (!TryParseNonNegativeInteger(skipText, out var skip) ||
+                    !TryParseNonNegativeInteger(widthText, out var width))
                 {
                     continue;
                 }
 
-                widths.Add(new AwkFieldWidth(skip, width));
+                widths.Add(new AwkFieldWidth(new AwkFieldSkip(skip), new AwkFieldWidthLength(width)));
             }
 
             return widths;
         }
 
-        _fieldWidths = ParseFieldWidths(value);
+        _fieldWidths = ParseFieldWidths(value.AsSpan());
         if (_fieldWidths.Count > 0)
             _fieldSplittingMode = AwkFieldSplittingMode.FieldWidths;
     }

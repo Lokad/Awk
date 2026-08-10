@@ -80,12 +80,13 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         ClearSplitFields();
     }
 
-    public void SetRecordValue(AwkValue value)
+    public void SetRecordValue(AwkValue value, Func<AwkValue, AwkText> formatStringByteText)
     {
-        ReplaceRetainedMemory(EstimateRetainedBytes(value.ByteText, [], EmptyFieldValueCache));
+        var text = formatStringByteText(value);
+        ReplaceRetainedMemory(EstimateRetainedBytes(text, [], EmptyFieldValueCache));
         _recordString = string.Empty;
         _recordStringIsCurrent = false;
-        _recordText = value.ByteText;
+        _recordText = text;
         _recordValue = value;
         _recordValueIsCurrent = true;
         ClearSplitFields();
@@ -94,13 +95,14 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
     public void AssignFieldValue(
         AwkFieldIndex index,
         AwkValue value,
-        string outputFieldSeparator,
+        AwkText outputFieldSeparator,
+        Func<AwkValue, AwkText> formatStringByteText,
         Func<AwkText, IReadOnlyList<AwkFieldText>> splitFields,
         Func<AwkText, AwkValue> createRecordValue)
     {
         if (index.IsCurrentRecord)
         {
-            SetRecordValue(value);
+            SetRecordValue(value, formatStringByteText);
             return;
         }
 
@@ -114,7 +116,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
             addedFields++;
         }
 
-        newFieldTexts[index.Value - 1] = AwkFieldText.FromOwned(value.ByteText);
+        newFieldTexts[index.Value - 1] = AwkFieldText.FromOwned(formatStringByteText(value));
         var newRecordText = ComposeRecordText(outputFieldSeparator, newFieldTexts);
         var newFieldValueCache = new Dictionary<int, AwkValue> { [index.Value - 1] = value };
         ReplaceRetainedMemory(EstimateRetainedBytes(newRecordText, newFieldTexts, newFieldValueCache));
@@ -128,7 +130,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
 
     public void AssignFieldCount(
         AwkFieldCount count,
-        string outputFieldSeparator,
+        AwkText outputFieldSeparator,
         Func<AwkText, IReadOnlyList<AwkFieldText>> splitFields,
         Func<AwkText, AwkValue> createRecordValue)
     {
@@ -171,12 +173,12 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         _fieldsAreSplit = true;
     }
 
-    private AwkText ComposeRecordText(string outputFieldSeparator, List<AwkFieldText> fieldTexts)
+    private AwkText ComposeRecordText(AwkText outputFieldSeparator, List<AwkFieldText> fieldTexts)
     {
         if (fieldTexts.Count == 0)
             return AwkText.Empty;
 
-        var separator = AwkUtf8Codec.Encode(outputFieldSeparator, counters);
+        var separator = outputFieldSeparator.AsSpan();
         var byteLength = EstimateComposedRecordByteLength(separator.Length, fieldTexts);
 
         if (byteLength == 0)
@@ -188,7 +190,7 @@ internal sealed class AwkFieldFrame(AwkRuntimeCounters counters, AwkMemoryGovern
         {
             if (index > 0 && !separator.IsEmpty)
             {
-                separator.Span.CopyTo(bytes.AsSpan(offset));
+                separator.CopyTo(bytes.AsSpan(offset));
                 offset += separator.Length;
             }
 

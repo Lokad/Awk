@@ -174,7 +174,7 @@ internal abstract partial class AwkExpression
                 leftValue,
                 rightValue,
                 comparison,
-                context.State.Counters);
+                context.State);
             return AwkValue.FromNumber(result ? 1 : 0);
         }
 
@@ -265,9 +265,8 @@ internal abstract partial class AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var input = (await valueExpression.EvaluateAsync(context).ConfigureAwait(false)).ByteText;
-            var pattern = (await patternExpression.EvaluateAsync(context).ConfigureAwait(false))
-                .AsString(context.State.Counters);
+            var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
+            var pattern = await patternExpression.ResolveStringAsync(context).ConfigureAwait(false);
             var matched = context.State.IsRegexMatch(
                 context.State.CreateRegex(new AwkRegexPattern(pattern)),
                 input);

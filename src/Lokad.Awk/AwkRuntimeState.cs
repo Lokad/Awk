@@ -78,17 +78,11 @@ internal sealed class AwkRuntimeState
     private static readonly AwkArrayKey ProcInfoVersionKey =
         new(AwkText.FromSourceLiteralString("version"));
 
-    private static readonly AwkVariableName RecordSeparatorVariableName =
-        AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordSeparator);
-
     private static readonly AwkVariableName RecordTerminatorVariableName =
         AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordTerminator);
 
     private static readonly AwkVariableName ErrnoVariableName =
         AwkSpecialVariables.VariableName(AwkSpecialVariableId.Errno);
-
-    private static readonly AwkVariableName OutputFieldSeparatorVariableName =
-        AwkSpecialVariables.VariableName(AwkSpecialVariableId.OutputFieldSeparator);
 
     private readonly CancellationToken _cancellationToken;
     private readonly AwkRandomRuntime _randomRuntime;
@@ -167,13 +161,15 @@ internal sealed class AwkRuntimeState
             IsIgnoreCaseEnabled,
             () => CharactersAsBytes,
             ThrowIfCancellationRequested,
-            MemoryGovernor);
+            MemoryGovernor,
+            Counters);
         _recordFields = new AwkRecordFieldRuntime(
             _fieldSplitter,
             CreateStringValue,
             CreateByteTextValue,
             CreateNumericStringValue,
             CreateNumericStringValue,
+            FormatStringByteText,
             ResolveOutputFieldSeparator,
             Counters,
             MemoryGovernor,
@@ -181,6 +177,7 @@ internal sealed class AwkRuntimeState
         _specialVariables = new AwkSpecialVariableDispatcher(
             _variables,
             _fieldSplitter,
+            FormatStringByteText,
             RecordSpecialVariableAssignment);
         _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables);
         _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
@@ -465,7 +462,7 @@ internal sealed class AwkRuntimeState
         _variableRuntime.TryGetExistingArrayCount(name, out count);
 
     public string ResolveVariable(AwkVariableName name) =>
-        _variableRuntime.ResolveVariable(name);
+        FormatString(ResolveVariableValue(name));
 
     public AwkValue ResolveVariableValue(AwkVariableName name) =>
         _variableRuntime.ResolveVariableValue(name);
@@ -479,7 +476,7 @@ internal sealed class AwkRuntimeState
     public string ResolveFunctionLocal(
         AwkFunctionLocalSlotId slotId,
         AwkVariableName name) =>
-        _variableRuntime.ResolveFunctionLocal(slotId, name);
+        FormatString(ResolveFunctionLocalValue(slotId, name));
 
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
@@ -487,7 +484,9 @@ internal sealed class AwkRuntimeState
         _variableRuntime.ResolveFunctionLocalValue(slotId, name);
 
     public string ResolveVariable(AwkVariableName name, string fallback) =>
-        _variableRuntime.ResolveVariable(name, fallback);
+        _variableRuntime.HasScalar(name)
+            ? FormatString(ResolveVariableValue(name))
+            : fallback;
 
     private AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable) =>
         new(ResolveSpecialVariableText(AwkFormattingVariableFacts.SpecialVariableId(variable)));
@@ -568,7 +567,7 @@ internal sealed class AwkRuntimeState
             : _variableRuntime.ResolveVariableValue(AwkSpecialVariables.VariableName(id));
 
     public AwkText ResolveSpecialVariableText(AwkSpecialVariableId id) =>
-        ResolveSpecialVariableValue(id).ByteText;
+        FormatStringByteText(ResolveSpecialVariableValue(id));
 
     public void AssignSpecialVariableValue(AwkSpecialVariableId id, AwkValue value)
     {
@@ -594,10 +593,10 @@ internal sealed class AwkRuntimeState
     public AwkGlobalSlotId GetOrCreateGlobalScalarSlot(AwkVariableName name) =>
         _variableRuntime.GetOrCreateGlobalScalarSlot(name);
 
-    public string ResolveRecordSeparator()
+    public AwkText ResolveRecordSeparator()
     {
         Counters.RecordRecordSeparatorResolution();
-        return ResolveVariable(RecordSeparatorVariableName, "\n");
+        return ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
     }
 
     public long RecordSeparatorVersion => _recordSeparatorVersion;
@@ -626,13 +625,16 @@ internal sealed class AwkRuntimeState
 
     public string ResolveProcInfo(string key, string fallback)
     {
-        return _variables.TryGetArrayByteText(
+        if (!_variables.TryPeekArrayValue(
             ProcInfoArrayName,
             new AwkArrayKey(key),
-            out var value) &&
-            value.ByteLength > 0
-                ? value.AsString(Counters)
-                : fallback;
+            out var value))
+        {
+            return fallback;
+        }
+
+        var text = FormatStringByteText(value);
+        return text.ByteLength > 0 ? text.AsString(Counters) : fallback;
     }
 
     public void BeginInputFile(string fileName, AwkArgvIndex argvIndex)
@@ -684,8 +686,8 @@ internal sealed class AwkRuntimeState
     public void AssignFieldCount(AwkFieldCount count) =>
         _recordFields.AssignFieldCount(count);
 
-    private string ResolveOutputFieldSeparator() =>
-        ResolveVariable(OutputFieldSeparatorVariableName, " ");
+    private AwkText ResolveOutputFieldSeparator() =>
+        ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator);
 
     public AwkArrayKey ComposeArrayKey(AwkArrayKey first, AwkText second)
     {
@@ -708,6 +710,9 @@ internal sealed class AwkRuntimeState
 
     public AwkText FormatStringByteText(AwkValue value) =>
         _formattingRuntime.FormatStringByteText(value);
+
+    private string FormatString(AwkValue value) =>
+        FormatStringByteText(value).AsString(Counters);
 
     public bool IsRegexMatch(AwkRegex regex, AwkText input) =>
         _regexRuntime.IsMatch(regex, input);

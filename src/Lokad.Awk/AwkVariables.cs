@@ -108,6 +108,11 @@ internal sealed class AwkVariables
         SetScalarSlot(name, AwkVariableSlot.FromText(value));
     }
 
+    public void SetScalarText(AwkVariableName name, AwkText value)
+    {
+        SetScalarSlot(name, AwkVariableSlot.FromText(value));
+    }
+
     public void SetScalarValue(AwkVariableName name, AwkValue value)
     {
         SetScalarSlot(name, AwkVariableSlot.FromValue(value));

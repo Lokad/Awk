@@ -582,38 +582,37 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         return separator;
     }
 
-    private RecordSeparator CreateSeparator(string separatorText)
+    private RecordSeparator CreateSeparator(AwkText separatorText)
     {
-        if (separatorText.Length == 0)
+        var separatorBytes = separatorText.AsSpan();
+        if (separatorBytes.Length == 0)
             return ParagraphSeparator.Instance;
 
-        if (separatorText == "\n")
+        if (separatorBytes is [(byte)'\n'])
             return NewlineSeparator.Instance;
 
-        if (separatorText.Length == 1 && separatorText[0] <= 0x7F)
+        if (separatorBytes.Length == 1)
         {
-            var value = (byte)separatorText[0];
+            var value = separatorBytes[0];
             return new SingleByteSeparator(
                 value,
                 AwkRecordTerminator.FromText(AwkText.FromTrustedOwnedBytes([value], _state.Counters)));
         }
 
-        if (TryCreateByteSet(separatorText, out var byteSet))
+        if (TryCreateByteSet(separatorBytes, out var byteSet))
             return byteSet;
 
-        if (TryCreateByteRun(separatorText, out var byteRun))
+        if (TryCreateByteRun(separatorBytes, out var byteRun))
             return byteRun;
 
-        if (separatorText.Length == 1)
-        {
-            var value = AwkText.FromString(separatorText, _state.Counters);
-            return new LiteralSeparator(value, AwkRecordTerminator.FromText(value));
-        }
+        if (separatorText.RuneLength == 1)
+            return new LiteralSeparator(separatorText, AwkRecordTerminator.FromText(separatorText));
 
-        return new RegexSeparator(_state.CreateRegex(new AwkRegexPattern(separatorText)));
+        return new RegexSeparator(_state.CreateRegex(
+            new AwkRegexPattern(separatorText.AsString(_state.Counters))));
     }
 
-    private bool TryCreateByteSet(string separatorText, out ByteSetSeparator separator)
+    private bool TryCreateByteSet(ReadOnlySpan<byte> separatorText, out ByteSetSeparator separator)
     {
         if (!TryCreateByteMembership(separatorText, 0, separatorText.Length, out var membership))
         {
@@ -635,7 +634,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         return true;
     }
 
-    private static bool TryCreateByteRun(string separatorText, out ByteRunSeparator separator)
+    private static bool TryCreateByteRun(ReadOnlySpan<byte> separatorText, out ByteRunSeparator separator)
     {
         var start = 0;
         var length = separatorText.Length;
@@ -672,27 +671,27 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     }
 
     private static bool TryCreateByteMembership(
-        string separatorText,
+        ReadOnlySpan<byte> separatorText,
         int start,
         int length,
         out ByteMembership membership)
     {
         static bool TryAddTerm(
-            string text,
+            ReadOnlySpan<byte> text,
             int termStart,
             int termLength,
             ref ByteMembership values)
         {
-            static bool IsAsciiLetter(char value) =>
-                value is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
+            static bool IsAsciiLetter(byte value) =>
+                value is >= (byte)'A' and <= (byte)'Z' or >= (byte)'a' and <= (byte)'z';
 
             if (termLength == 1)
             {
                 var value = text[termStart];
-                if (value > 0x7F || IsAsciiLetter(value) || IsRegexMetacharacter(value))
+                if (IsAsciiLetter(value) || IsRegexMetacharacter(value))
                     return false;
 
-                values = values.Add((byte)value);
+                values = values.Add(value);
                 return true;
             }
 
@@ -703,10 +702,10 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             for (var index = termStart + 1; index < termEnd; index++)
             {
                 var ch = text[index];
-                if (ch > 0x7F || ch is '\\' or '-' or '^' or '[' or ']' || IsAsciiLetter(ch))
+                if (ch is (byte)'\\' or (byte)'-' or (byte)'^' or (byte)'[' or (byte)']' || IsAsciiLetter(ch))
                     return false;
 
-                values = values.Add((byte)ch);
+                values = values.Add(ch);
             }
 
             return values.Count > 0;
@@ -720,10 +719,11 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             int termLength;
             if (separatorText[termStart] == '[')
             {
-                var closingBracket = separatorText.IndexOf(']', termStart + 1, end - termStart - 1);
-                if (closingBracket < 0)
+                var relativeClosingBracket = separatorText[(termStart + 1)..end].IndexOf((byte)']');
+                if (relativeClosingBracket < 0)
                     return false;
 
+                var closingBracket = termStart + 1 + relativeClosingBracket;
                 termLength = closingBracket - termStart + 1;
             }
             else
@@ -754,8 +754,9 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         return false;
     }
 
-    private static bool IsRegexMetacharacter(char value) =>
-        value is '\\' or '.' or '^' or '$' or '[' or ']' or '(' or ')' or '|' or '*' or '+' or '?' or '{' or '}';
+    private static bool IsRegexMetacharacter(byte value) =>
+        value is (byte)'\\' or (byte)'.' or (byte)'^' or (byte)'$' or (byte)'[' or (byte)']' or
+            (byte)'(' or (byte)')' or (byte)'|' or (byte)'*' or (byte)'+' or (byte)'?' or (byte)'{' or (byte)'}';
 
     private readonly record struct ByteMembership(ulong Low, ulong High, int Count)
     {

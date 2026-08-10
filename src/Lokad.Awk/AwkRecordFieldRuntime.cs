@@ -9,7 +9,8 @@ internal sealed class AwkRecordFieldRuntime(
     Func<AwkText, AwkValue> createByteTextValue,
     Func<string, AwkValue> createNumericStringValue,
     Func<AwkText, AwkValue> createNumericByteText,
-    Func<string> resolveOutputFieldSeparator,
+    Func<AwkValue, AwkText> formatStringByteText,
+    Func<AwkText> resolveOutputFieldSeparator,
     AwkRuntimeCounters counters,
     AwkMemoryGovernor governor,
     int maxFields)
@@ -46,7 +47,7 @@ internal sealed class AwkRecordFieldRuntime(
 
     public void SetCurrentRecordValue(AwkValue value)
     {
-        _frame.SetRecordValue(value);
+        _frame.SetRecordValue(value, formatStringByteText);
     }
 
     public void AssignField(int index, string value)
@@ -80,6 +81,7 @@ internal sealed class AwkRecordFieldRuntime(
             index,
             value,
             resolveOutputFieldSeparator(),
+            formatStringByteText,
             fieldSplitter.SplitRecordFields,
             createByteTextValue);
     }
