@@ -21,59 +21,82 @@ internal sealed class AwkByteFieldSplitter(
         bool captureSeparators,
         AwkRuntimeCounters counters)
     {
-        if (separator.UsesWhitespaceSemantics)
-            return SplitWhitespace(line, captureSeparators, counters);
-
-        if (separator.ByteText.ByteLength == 0)
-            return SplitCharacters(
+        var plan = ResolveSeparator(separator, counters);
+        return plan.Kind switch
+        {
+            FieldSeparatorKind.Whitespace => SplitWhitespace(line, captureSeparators, counters),
+            FieldSeparatorKind.Characters => SplitCharacters(
                 line,
                 captureSeparators,
                 stringUnitMode is AwkStringUnitMode.Byte,
-                counters);
-
-        if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) && !isIgnoreCaseEnabled())
-            return SplitSingleByteLiteral(line, separatorByte, captureSeparators, counters);
-
-        var separatorText = separator.ByteText.AsString(counters);
-        var regex = separator.ByteText.RuneLength > 1
-            ? createRegex(new AwkRegexPattern(separatorText))
-            : createLiteralRegex(new AwkRegexLiteralText(separatorText));
-        return SplitRegex(line, regex, captureSeparators, counters);
+                counters),
+            FieldSeparatorKind.SingleByte => SplitSingleByteLiteral(
+                line,
+                plan.SingleByte,
+                captureSeparators,
+                counters),
+            FieldSeparatorKind.Regex => SplitRegex(line, plan.Regex, captureSeparators, counters),
+            _ => throw new InvalidOperationException("Unknown field separator kind.")
+        };
     }
 
     public IReadOnlyList<AwkFieldText> SplitRecordFieldsBySeparator(
         AwkText line,
         AwkFieldSeparatorSpec separator)
     {
-        if (separator.UsesWhitespaceSemantics)
-            return SplitWhitespaceRecordFields(line);
-
-        if (separator.ByteText.ByteLength == 0)
-            return SplitCharacterRecordFields(line, stringUnitMode is AwkStringUnitMode.Byte);
-
-        if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) && !isIgnoreCaseEnabled())
-            return SplitSingleByteLiteralRecordFields(line, separatorByte);
-
-        var separatorText = separator.ByteText.AsString(runtimeCounters);
-        var regex = separator.ByteText.RuneLength > 1
-            ? createRegex(new AwkRegexPattern(separatorText))
-            : createLiteralRegex(new AwkRegexLiteralText(separatorText));
-        return SplitRegexRecordFields(line, regex);
+        var plan = ResolveSeparator(separator, runtimeCounters);
+        return plan.Kind switch
+        {
+            FieldSeparatorKind.Whitespace => SplitWhitespaceRecordFields(line),
+            FieldSeparatorKind.Characters => SplitCharacterRecordFields(
+                line,
+                stringUnitMode is AwkStringUnitMode.Byte),
+            FieldSeparatorKind.SingleByte => SplitSingleByteLiteralRecordFields(line, plan.SingleByte),
+            FieldSeparatorKind.Regex => SplitRegexRecordFields(line, plan.Regex),
+            _ => throw new InvalidOperationException("Unknown field separator kind.")
+        };
     }
 
     public IReadOnlyList<AwkFieldText> SplitParagraphRecordFieldsBySeparator(
         AwkText line,
         AwkFieldSeparatorSpec separator)
     {
-        if (separator.UsesWhitespaceSemantics || separator.ByteText.RuneLength != 1)
-            return SplitRecordFieldsBySeparator(line, separator);
+        var plan = ResolveSeparator(separator, runtimeCounters);
+        return plan.Kind switch
+        {
+            FieldSeparatorKind.SingleByte => SplitSingleByteParagraphRecordFields(line, plan.SingleByte),
+            FieldSeparatorKind.Regex when separator.ByteText.RuneLength == 1 =>
+                SplitRegexParagraphRecordFields(line, plan.Regex),
+            FieldSeparatorKind.Whitespace => SplitWhitespaceRecordFields(line),
+            FieldSeparatorKind.Characters => SplitCharacterRecordFields(
+                line,
+                stringUnitMode is AwkStringUnitMode.Byte),
+            FieldSeparatorKind.Regex => SplitRegexRecordFields(line, plan.Regex),
+            _ => throw new InvalidOperationException("Unknown field separator kind.")
+        };
+    }
 
-        if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) && !isIgnoreCaseEnabled())
-            return SplitSingleByteParagraphRecordFields(line, separatorByte);
+    private FieldSeparatorPlan ResolveSeparator(
+        AwkFieldSeparatorSpec separator,
+        AwkRuntimeCounters counters)
+    {
+        if (separator.UsesWhitespaceSemantics)
+            return FieldSeparatorPlan.Whitespace;
 
-        var regex = createLiteralRegex(new AwkRegexLiteralText(
-            separator.ByteText.AsString(runtimeCounters)));
-        return SplitRegexParagraphRecordFields(line, regex);
+        if (separator.ByteText.ByteLength == 0)
+            return FieldSeparatorPlan.Characters;
+
+        if (TryGetSingleByteLiteralSeparator(separator.ByteText, out var separatorByte) &&
+            !isIgnoreCaseEnabled())
+        {
+            return FieldSeparatorPlan.FromSingleByte(separatorByte);
+        }
+
+        var separatorText = separator.ByteText.AsString(counters);
+        return FieldSeparatorPlan.FromRegex(
+            separator.ByteText.RuneLength > 1
+                ? createRegex(new AwkRegexPattern(separatorText))
+                : createLiteralRegex(new AwkRegexLiteralText(separatorText)));
     }
 
     public AwkTextSplitResult Patsplit(
@@ -491,6 +514,51 @@ internal sealed class AwkByteFieldSplitter(
     }
 
     private readonly record struct AwkByteRange(int Start, int Length);
+
+    private readonly struct FieldSeparatorPlan
+    {
+        private readonly byte _singleByte;
+        private readonly AwkRegex? _regex;
+
+        private FieldSeparatorPlan(FieldSeparatorKind kind, byte singleByte, AwkRegex? regex)
+        {
+            Kind = kind;
+            _singleByte = singleByte;
+            _regex = regex;
+        }
+
+        public static FieldSeparatorPlan Whitespace { get; } =
+            new(FieldSeparatorKind.Whitespace, 0, null);
+
+        public static FieldSeparatorPlan Characters { get; } =
+            new(FieldSeparatorKind.Characters, 0, null);
+
+        public FieldSeparatorKind Kind { get; }
+
+        public byte SingleByte =>
+            Kind == FieldSeparatorKind.SingleByte
+                ? _singleByte
+                : throw new InvalidOperationException("The field separator is not a single byte.");
+
+        public AwkRegex Regex =>
+            Kind == FieldSeparatorKind.Regex && _regex != null
+                ? _regex
+                : throw new InvalidOperationException("The field separator is not a regular expression.");
+
+        public static FieldSeparatorPlan FromSingleByte(byte value) =>
+            new(FieldSeparatorKind.SingleByte, value, null);
+
+        public static FieldSeparatorPlan FromRegex(AwkRegex regex) =>
+            new(FieldSeparatorKind.Regex, 0, regex);
+    }
+
+    private enum FieldSeparatorKind
+    {
+        Whitespace,
+        Characters,
+        SingleByte,
+        Regex
+    }
 
     private struct AwkWhitespaceFieldScanner(AwkText line)
     {
