@@ -39,39 +39,22 @@ public readonly record struct AwkEnvironmentVariable
 public sealed class AwkCommandInvocation
 {
     /// <summary>
-    /// Initializes an invocation with standard descriptors and a current directory derived from <c>PWD</c>.
+    /// Creates an invocation with standard descriptors and a current directory derived from <c>PWD</c>.
     /// </summary>
-    public AwkCommandInvocation(
+    public static AwkCommandInvocation CreateWithStandardDescriptors(
         string commandName,
         IReadOnlyList<string> arguments,
         IReadOnlyList<AwkEnvironmentVariable> environment)
-        : this(
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        return new AwkCommandInvocation(
             commandName,
             arguments,
             environment,
+            AwkPathResolution.ResolveCurrentDirectory(environment),
             AwkFileDescriptor.StdIn,
             AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr)
-    {
-    }
-
-    /// <summary>Initializes an invocation with explicit descriptors and a current directory derived from <c>PWD</c>.</summary>
-    public AwkCommandInvocation(
-        string commandName,
-        IReadOnlyList<string> arguments,
-        IReadOnlyList<AwkEnvironmentVariable> environment,
-        AwkFileDescriptor stdIn,
-        AwkFileDescriptor stdOut,
-        AwkFileDescriptor stdErr)
-        : this(
-            commandName,
-            arguments,
-            environment,
-            AwkPathResolution.ResolveCurrentDirectory(RequireEnvironment(environment)),
-            stdIn,
-            stdOut,
-            stdErr)
-    {
+            AwkFileDescriptor.StdErr);
     }
 
     /// <summary>Initializes an invocation with an explicit current directory and descriptors.</summary>
@@ -84,6 +67,33 @@ public sealed class AwkCommandInvocation
         AwkFileDescriptor stdOut,
         AwkFileDescriptor stdErr)
     {
+        static ReadOnlyCollection<string> CopyArguments(IReadOnlyList<string> arguments)
+        {
+            var copy = new string[arguments.Count];
+            for (var index = 0; index < copy.Length; index++)
+            {
+                var argument = arguments[index];
+                ArgumentNullException.ThrowIfNull(argument, nameof(arguments));
+                copy[index] = argument;
+            }
+
+            return Array.AsReadOnly(copy);
+        }
+
+        static ReadOnlyCollection<AwkEnvironmentVariable> CopyEnvironment(
+            IReadOnlyList<AwkEnvironmentVariable> environment)
+        {
+            var copy = new AwkEnvironmentVariable[environment.Count];
+            for (var index = 0; index < copy.Length; index++)
+            {
+                var variable = environment[index];
+                ArgumentException.ThrowIfNullOrEmpty(variable.Name, nameof(environment));
+                copy[index] = variable;
+            }
+
+            return Array.AsReadOnly(copy);
+        }
+
         ArgumentNullException.ThrowIfNull(commandName);
         ArgumentNullException.ThrowIfNull(arguments);
         ArgumentNullException.ThrowIfNull(environment);
@@ -118,37 +128,4 @@ public sealed class AwkCommandInvocation
     /// <summary>Gets the descriptor used for standard error.</summary>
     public AwkFileDescriptor StdErr { get; }
 
-    private static IReadOnlyList<AwkEnvironmentVariable> RequireEnvironment(
-        IReadOnlyList<AwkEnvironmentVariable>? environment)
-    {
-        ArgumentNullException.ThrowIfNull(environment);
-        return environment;
-    }
-
-    private static ReadOnlyCollection<string> CopyArguments(IReadOnlyList<string> arguments)
-    {
-        var copy = new string[arguments.Count];
-        for (var index = 0; index < copy.Length; index++)
-        {
-            var argument = arguments[index];
-            ArgumentNullException.ThrowIfNull(argument, nameof(arguments));
-            copy[index] = argument;
-        }
-
-        return Array.AsReadOnly(copy);
-    }
-
-    private static ReadOnlyCollection<AwkEnvironmentVariable> CopyEnvironment(
-        IReadOnlyList<AwkEnvironmentVariable> environment)
-    {
-        var copy = new AwkEnvironmentVariable[environment.Count];
-        for (var index = 0; index < copy.Length; index++)
-        {
-            var variable = environment[index];
-            ArgumentException.ThrowIfNullOrEmpty(variable.Name, nameof(environment));
-            copy[index] = variable;
-        }
-
-        return Array.AsReadOnly(copy);
-    }
 }

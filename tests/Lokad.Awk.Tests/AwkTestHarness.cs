@@ -47,7 +47,7 @@ internal static class AwkTestHarness
             argumentBytes.Add(arguments[index]);
         }
 
-        return new AwkCommandInvocation(command, argumentBytes, environment);
+        return AwkCommandInvocation.CreateWithStandardDescriptors(command, argumentBytes, environment);
     }
 
     public static MockFileSystem BuildFileSystem(AwkGoldenCase testCase)

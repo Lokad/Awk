@@ -8,7 +8,7 @@ internal static partial class AwkProgramLowerer
 {
     public static AwkLoweringResult Lower(AwkSyntaxProgram syntax)
     {
-        if (syntax.SourceText.Trim().Length == 0)
+        if (string.IsNullOrWhiteSpace(syntax.SourceText))
         {
             return AwkLoweringResult.SuccessResult(AwkProgram.Empty);
         }

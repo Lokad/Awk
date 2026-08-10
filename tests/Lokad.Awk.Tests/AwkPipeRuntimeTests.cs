@@ -14,7 +14,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueCommandExitCodes([0]);
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(true);
-        var command = new AwkCommandInvocation(
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors(
             "awk",
             [
                 "BEGIN{ENVIRON[\"TOKEN\"]=\"child\"; ENVIRON[\"NEW\"]=\"created\"; " +

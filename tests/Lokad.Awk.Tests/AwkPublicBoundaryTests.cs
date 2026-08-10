@@ -14,7 +14,7 @@ public sealed class AwkPublicBoundaryTests
         {
             new("PWD", "/work")
         };
-        var invocation = new AwkCommandInvocation("awk", arguments, environment);
+        var invocation = AwkCommandInvocation.CreateWithStandardDescriptors("awk", arguments, environment);
 
         arguments[0] = "BEGIN{print 2}";
         environment[0] = new AwkEnvironmentVariable("PWD", "/changed");
@@ -29,9 +29,9 @@ public sealed class AwkPublicBoundaryTests
     {
         Assert.Throws<ArgumentException>(() => new AwkEnvironmentVariable(string.Empty, "value"));
         Assert.Throws<ArgumentNullException>(() =>
-            new AwkCommandInvocation("awk", new string[1], []));
+            AwkCommandInvocation.CreateWithStandardDescriptors("awk", new string[1], []));
         Assert.Throws<ArgumentException>(() =>
-            new AwkCommandInvocation("awk", [], [default]));
+            AwkCommandInvocation.CreateWithStandardDescriptors("awk", [], [default]));
     }
 
     [Fact]

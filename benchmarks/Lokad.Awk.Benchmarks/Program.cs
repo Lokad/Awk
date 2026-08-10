@@ -691,7 +691,7 @@ internal static class BenchmarkExecution
     public static async Task<BenchmarkRunResult> RunFullInvocationAsync(BenchmarkScenario scenario)
     {
         var host = BenchmarkHost.FromFiles(scenario.Files);
-        var awk = Awk.TryParse(new AwkCommandInvocation("awk", scenario.Arguments, []));
+        var awk = Awk.TryParse(AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []));
         if (awk is null)
             throw new InvalidOperationException("Benchmark command could not be parsed: " + scenario.Name);
 
@@ -732,7 +732,10 @@ internal static class BenchmarkExecution
     {
         var host = BenchmarkHost.FromFiles(scenario.Files);
         return await AwkExecutor
-            .CompileAsync(host, new AwkCommandInvocation("awk", scenario.Arguments, []), CancellationToken.None)
+            .CompileAsync(
+                host,
+                AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []),
+                CancellationToken.None)
             .ConfigureAwait(false);
     }
 
@@ -833,7 +836,7 @@ internal static class BenchmarkCounterReport
         var compiled = await AwkExecutor
             .CompileAsync(
                 BenchmarkHost.FromFiles(scenario.Files),
-                new AwkCommandInvocation("awk", scenario.Arguments, []),
+                AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []),
                 cancellationToken)
             .ConfigureAwait(false);
         var host = BenchmarkHost.FromFiles(scenario.Files);

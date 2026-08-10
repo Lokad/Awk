@@ -16,7 +16,7 @@ using System;
 using System.Threading;
 using Lokad.Awk;
 
-var invocation = new AwkCommandInvocation(
+var invocation = AwkCommandInvocation.CreateWithStandardDescriptors(
     "awk",
     ["-F,", "NR > 1 { total += $3 } END { print total }", "/sales.csv"],
     [new AwkEnvironmentVariable("PWD", "/")]);
