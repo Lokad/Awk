@@ -44,7 +44,7 @@ internal static partial class AwkGoldenCorpus
             "redirection-looking-tokens-in-expression-contexts",
             ["BEGIN{s=\"a > b |& c >> d\"; print s; print (\"a>b\" ~ />/), (\"|\" ~ /[>|&]/); print index(\"x >> y\", \">>\"); print (1 ? \"x > y\" : \"z |& q\"); switch(\">\") {case \">\": print \"switch\"; default: print \"bad\"} if(1){print \"nested >>\"}}"],
             [],
-            "a > b |& c >> d\n1 1\n3\nx > y\nswitch\nnested >>\n"),
+            "a > b |& c >> d\n1 1\n3\nx > y\nswitch\nbad\nnested >>\n"),
 
         Posix(Passing(
             "nested-ternary-associativity",

@@ -553,8 +553,7 @@ internal static class AwkStatementLowerer
             return false;
         }
 
-        var cases = new List<AwkSwitchCase>();
-        IReadOnlyList<AwkStatement> defaultBody = [];
+        var arms = new List<AwkSwitchArm>();
         for (var index = 0; index < switchShape.SwitchCases.Count; index++)
         {
             var switchCase = switchShape.SwitchCases[index];
@@ -563,7 +562,7 @@ internal static class AwkStatementLowerer
 
             if (switchCase.IsDefault)
             {
-                defaultBody = body;
+                arms.Add(new AwkDefaultSwitchArm(body));
                 continue;
             }
 
@@ -572,17 +571,17 @@ internal static class AwkStatementLowerer
 
             if (AwkExpressionLowerer.TryLowerRegexLiteralPattern(caseExpression, out var regex))
             {
-                cases.Add(new AwkSwitchCase(AwkSwitchCasePattern.FromRegex(regex), body));
+                arms.Add(new AwkSwitchCase(AwkSwitchCasePattern.FromRegex(regex), body));
                 continue;
             }
 
             if (!AwkExpressionLowerer.TryLower(caseExpression, scope, out var expression))
                 return false;
 
-            cases.Add(new AwkSwitchCase(AwkSwitchCasePattern.FromExpression(expression), body));
+            arms.Add(new AwkSwitchCase(AwkSwitchCasePattern.FromExpression(expression), body));
         }
 
-        statement = AwkStatement.Switch(value, cases, defaultBody);
+        statement = AwkStatement.Switch(value, arms);
         return true;
     }
 

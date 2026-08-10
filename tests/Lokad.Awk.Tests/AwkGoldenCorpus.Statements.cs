@@ -87,16 +87,22 @@ internal static partial class AwkGoldenCorpus
             "one\ntwo\nthree\nother\n"),
 
         Passing(
-            "switch-does-not-fall-through",
+            "switch-falls-through-until-break",
             ["BEGIN{switch(1){case 1: print \"one\"; case 2: print \"two\"; default: print \"other\"}}"],
             [],
-            "one\n"),
+            "one\ntwo\nother\n"),
 
         Passing(
             "switch-label-keywords-nesting-and-empty-bodies",
             ["BEGIN{switch(\"case default\"){case \"case default\": print \"keyword-label\"; break; default: print \"bad\"} switch(\"outer\"){case \"outer\": switch(\"inner\"){case \"inner\": print \"nested\"; break}; break; default: print \"bad\"} switch(\"empty\"){case \"empty\": case \"other\": print \"bad\"; default: print \"after-empty\"}}"],
             [],
-            "keyword-label\nnested\n"),
+            "keyword-label\nnested\nbad\nafter-empty\n"),
+
+        Passing(
+            "switch-default-preserves-source-order",
+            ["BEGIN{switch(9){case 1: print \"one\"; default: print \"default\"; case 2: print \"tail\"} switch(1){case 1: print \"matched\"; default: print \"middle\"; case 2: print \"tail\"} switch(2){case 1: print \"bad\"; default: print \"bad\"; case 2: print \"late\"}}"],
+            [],
+            "default\ntail\nmatched\nmiddle\ntail\nlate\n"),
 
         Failing(
             "posix-switch-is-gnu-extension",

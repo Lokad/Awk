@@ -88,9 +88,9 @@ public sealed class AwkProgramTests
             AwkSwitchCasePattern.FromExpression(AwkExpression.Number("1", 1)),
             caseBody);
         caseBody.Clear();
-        var cases = new List<AwkSwitchCase> { switchCase };
-        var statement = AwkStatement.Switch(AwkExpression.Number("1", 1), cases, []);
-        cases.Clear();
+        var arms = new List<AwkSwitchArm> { switchCase };
+        var statement = AwkStatement.Switch(AwkExpression.Number("1", 1), arms);
+        arms.Clear();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
 
         var flow = await statement.ExecuteAsync(state, AwkTestHarness.CreateOutputSink(), CreateIo());

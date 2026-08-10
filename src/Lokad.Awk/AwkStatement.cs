@@ -28,19 +28,30 @@ internal enum AwkCompoundAssignmentOperation
     Power
 }
 
-internal sealed class AwkSwitchCase
+internal abstract class AwkSwitchArm
 {
-    public AwkSwitchCase(
-        AwkSwitchCasePattern pattern,
-        IReadOnlyList<AwkStatement> statements)
+    protected AwkSwitchArm(IReadOnlyList<AwkStatement> statements)
     {
-        Pattern = pattern;
         Statements = AwkCollectionSnapshots.Copy(statements);
     }
 
-    public AwkSwitchCasePattern Pattern { get; }
-
     public AwkStatement[] Statements { get; }
+}
+
+internal sealed class AwkSwitchCase : AwkSwitchArm
+{
+    public AwkSwitchCase(
+        AwkSwitchCasePattern pattern,
+        IReadOnlyList<AwkStatement> statements) : base(statements)
+    {
+        Pattern = pattern;
+    }
+
+    public AwkSwitchCasePattern Pattern { get; }
+}
+
+internal sealed class AwkDefaultSwitchArm(IReadOnlyList<AwkStatement> statements) : AwkSwitchArm(statements)
+{
 }
 
 internal abstract partial class AwkStatement
@@ -133,12 +144,10 @@ internal abstract partial class AwkStatement
 
     public static AwkStatement Switch(
         AwkExpression value,
-        IReadOnlyList<AwkSwitchCase> cases,
-        IReadOnlyList<AwkStatement> defaultBody) =>
+        IReadOnlyList<AwkSwitchArm> arms) =>
         new SwitchStatement(
             value,
-            AwkCollectionSnapshots.Copy(cases),
-            AwkCollectionSnapshots.Copy(defaultBody));
+            AwkCollectionSnapshots.Copy(arms));
 
     public static AwkStatement Break() => BreakStatement.Instance;
 

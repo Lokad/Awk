@@ -185,8 +185,7 @@ internal abstract partial class AwkStatement
 
     private sealed class SwitchStatement(
         AwkExpression valueExpression,
-        AwkSwitchCase[] cases,
-        AwkStatement[] defaultBody) : AwkStatement
+        AwkSwitchArm[] arms) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
@@ -195,31 +194,38 @@ internal abstract partial class AwkStatement
                 throw new AwkRuntimeException(AwkMessages.ErrorSwitchIsGnuExtension, AwkDiagnosticId.UnsupportedPolicy);
 
             var value = await valueExpression.EvaluateAsync(context).ConfigureAwait(false);
-            for (var index = 0; index < cases.Length; index++)
+            var selectedArmIndex = -1;
+            var defaultArmIndex = -1;
+            for (var index = 0; index < arms.Length; index++)
             {
-                var candidate = cases[index];
-                if (!await MatchesAsync(candidate, value, context).ConfigureAwait(false))
+                if (arms[index] is AwkDefaultSwitchArm)
+                {
+                    defaultArmIndex = index;
+                    continue;
+                }
+
+                var candidate = (AwkSwitchCase)arms[index];
+                if (!await candidate.Pattern.MatchesAsync(value, context).ConfigureAwait(false))
                     continue;
 
-                return await ExecuteSelectedAsync(candidate.Statements, context)
-                    .ConfigureAwait(false);
+                selectedArmIndex = index;
+                break;
             }
 
-            return await ExecuteSelectedAsync(defaultBody, context).ConfigureAwait(false);
-        }
+            if (selectedArmIndex < 0)
+                selectedArmIndex = defaultArmIndex;
 
-        private static ValueTask<bool> MatchesAsync(
-            AwkSwitchCase candidate,
-            AwkValue value,
-            AwkEvaluationContext context) =>
-            candidate.Pattern.MatchesAsync(value, context);
+            for (var index = selectedArmIndex; index >= 0 && index < arms.Length; index++)
+            {
+                var flow = await ExecuteAllAsync(arms[index].Statements, context).ConfigureAwait(false);
+                if (flow == AwkStatementFlow.BreakLoop)
+                    return AwkStatementFlow.Continue;
 
-        private static async ValueTask<AwkStatementFlow> ExecuteSelectedAsync(
-            AwkStatement[] body,
-            AwkEvaluationContext context)
-        {
-            var flow = await ExecuteAllAsync(body, context).ConfigureAwait(false);
-            return flow == AwkStatementFlow.BreakLoop ? AwkStatementFlow.Continue : flow;
+                if (flow != AwkStatementFlow.Continue)
+                    return flow;
+            }
+
+            return AwkStatementFlow.Continue;
         }
     }
 
