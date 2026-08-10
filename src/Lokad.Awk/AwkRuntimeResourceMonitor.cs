@@ -90,9 +90,6 @@ internal sealed class AwkRuntimeResourceMonitor
     public void ThrowIfValueBytesExceeded(long byteCount) =>
         ThrowIfExceeded(byteCount, _limits.MaxValueBytes);
 
-    public void ThrowIfRegexCaptureBytesExceeded(long byteCount) =>
-        ThrowIfExceeded(byteCount, _limits.MaxRegexCaptureBytes);
-
     public void ThrowIfVmStackBytesExceeded(long byteCount) =>
         ThrowIfExceeded(byteCount, _limits.MaxVmStackBytes);
 

@@ -238,9 +238,6 @@ internal sealed class AwkRuntimeState
     public void ThrowIfRecordBytesExceeded(AwkText record) =>
         Resources.ThrowIfRecordBytesExceeded(record.ByteLength);
 
-    public void ThrowIfRegexCaptureBytesExceeded(long byteCount) =>
-        Resources.ThrowIfRegexCaptureBytesExceeded(byteCount);
-
     public void ThrowIfVmStackBytesExceeded(long byteCount) =>
         Resources.ThrowIfVmStackBytesExceeded(byteCount);
 
@@ -633,6 +630,9 @@ internal sealed class AwkRuntimeState
 
     public AwkRegexMatch MatchRegexValue(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchValue(regex, input, MemoryGovernor);
+
+    public AwkRegexMatch MatchRegexCaptureValue(AwkRegex regex, AwkText input) =>
+        _regexRuntime.MatchCaptureValue(regex, input, MemoryGovernor, Limits.MaxRegexCaptureBytes);
 
     public AwkRegexMatchPosition MatchRegexPosition(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchPosition(regex, input);

@@ -74,19 +74,6 @@ internal abstract partial class AwkExpression
                     AwkValue.FromNumber(success ? length : -1));
             }
 
-            static long EstimateCaptureBytes(AwkRegexMatch match)
-            {
-                var bytes = 0L;
-                for (var index = 0; index < match.Groups.Count; index++)
-                {
-                    var group = match.Groups[index];
-                    if (group.Success)
-                        bytes += group.Value.ByteLength;
-                }
-
-                return bytes;
-            }
-
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
             var regex = context.State.CreateRegex(new AwkRegexPattern(
                 await patternExpression.ResolveStringAsync(context).ConfigureAwait(false)));
@@ -97,13 +84,10 @@ internal abstract partial class AwkExpression
                 return AwkValue.FromNumber(position.Success ? position.Index + 1 : 0);
             }
 
-            var match = context.State.MatchRegexValue(regex, input);
+            var match = context.State.MatchRegexCaptureValue(regex, input);
             AssignMatchVariables(context.State, match.Success, match.Index, match.Length);
 
             var arrayName = new AwkArrayName(captureArrayName.Value);
-            if (match.Success)
-                context.State.ThrowIfRegexCaptureBytesExceeded(EstimateCaptureBytes(match));
-
             context.State.ClearArray(arrayName);
             if (match.Success)
             {

@@ -701,7 +701,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public async Task Awk_RegexCaptureLimitFailsBeforeClearingDestinationArray()
     {
-        var options = CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxRegexCaptureBytes(2));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = CreateOptions(
+            AwkRuntimeLimits.CreateDefault().WithMaxRegexCaptureBytes(2),
+            counters);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{a[1]=\"keep\"; match(\"abcd\", /(ab)(cd)/, a); print a[1]}"),
@@ -713,6 +716,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, counters.RegexGroupsMaterialized);
     }
 
     [Fact]

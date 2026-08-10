@@ -112,25 +112,48 @@ internal sealed class AwkRegexRuntime
             regex,
             input,
             governor,
+            AwkRuntimeLimits.Unlimited,
             AwkRegexSearchOffset.Start,
             out _);
     }
 
+    public AwkRegexMatch MatchCaptureValue(
+        AwkRegex regex,
+        AwkText input,
+        AwkMemoryGovernor governor,
+        long maxCaptureBytes) =>
+        MatchValue(
+            regex,
+            input,
+            governor,
+            maxCaptureBytes,
+            AwkRegexSearchOffset.Start,
+            out _);
+
     internal AwkRegexMatch MatchValue(
         AwkRegex regex,
         AwkText input,
         AwkMemoryGovernor governor,
+        long maxCaptureBytes,
         AwkRegexSearchOffset searchOffset,
         out AwkRegexMatchSpan matchSpan)
     {
         var inputContext = CaptureInputContext(regex, input);
-        return MatchValue(regex, input, governor, searchOffset, inputContext, out matchSpan);
+        return MatchValue(
+            regex,
+            input,
+            governor,
+            maxCaptureBytes,
+            searchOffset,
+            inputContext,
+            out matchSpan);
     }
 
     internal AwkRegexMatch MatchValue(
         AwkRegex regex,
         AwkText input,
         AwkMemoryGovernor governor,
+        long maxCaptureBytes,
         AwkRegexSearchOffset searchOffset,
         AwkRegexInputContext inputContext,
         out AwkRegexMatchSpan matchSpan)
@@ -153,7 +176,8 @@ internal sealed class AwkRegexRuntime
                 text,
                 matchSpan.ByteIndex,
                 matchSpan.ByteLength,
-                inputContext.ExecutionPolicy.UseByteOffsets,
+                inputContext.ExecutionPolicy.CoordinatePolicy,
+                maxCaptureBytes,
                 _counters,
                 governor);
         }
@@ -176,7 +200,8 @@ internal sealed class AwkRegexRuntime
                 match.LengthInUtf16);
             return AwkRegexMatch.FromUtf8Match(
                 match,
-                inputContext.ExecutionPolicy.UseByteOffsets,
+                inputContext.ExecutionPolicy.CoordinatePolicy,
+                maxCaptureBytes,
                 _counters,
                 governor);
         }
@@ -454,8 +479,6 @@ internal sealed class AwkRegexRuntime
         AwkRegexCoordinatePolicy CoordinatePolicy)
     {
         public bool UsesUtf8Adapter => Engine == AwkRegexExecutionEngine.Utf8Adapter;
-
-        public bool UseByteOffsets => CoordinatePolicy == AwkRegexCoordinatePolicy.Byte;
     }
 
     internal readonly record struct AwkRegexInputContext(
@@ -478,11 +501,6 @@ internal sealed class AwkRegexRuntime
         PatternGap
     }
 
-    internal enum AwkRegexCoordinatePolicy
-    {
-        Utf16,
-        Byte
-    }
 }
 
 internal sealed class AwkRegexMatchEnumerator : IDisposable
@@ -525,6 +543,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
             _regex,
             _input,
             _governor,
+            AwkRuntimeLimits.Unlimited,
             _nextOffset,
             _inputContext,
             out var matchSpan);

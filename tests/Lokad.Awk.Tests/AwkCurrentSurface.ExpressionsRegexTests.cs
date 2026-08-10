@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Lokad.Awk;
@@ -167,6 +168,42 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.Equal(2, match.Groups.Count);
         Assert.Same(match.Groups[0].Value, match.Value);
         Assert.Equal(baselineTextAllocations + 2, counters.AwkTextAllocations);
+    }
+
+    [Fact]
+    public void Awk_DotNetCaptureCoordinatesUseOneByteMappingAcrossLookbehindGroups()
+    {
+        const string input = "\u00e9x";
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var dotNetMatch = Regex.Match(input, "(?<=(\u00e9))x", RegexOptions.CultureInvariant);
+
+        var match = AwkRegexMatch.FromMatch(
+            dotNetMatch,
+            input,
+            byteIndex: 2,
+            byteLength: 1,
+            AwkRegexCoordinatePolicy.Byte,
+            AwkRuntimeLimits.Unlimited,
+            counters,
+            AwkMemoryGovernor.Disabled);
+
+        Assert.True(match.Success);
+        Assert.Equal(2, match.Index);
+        Assert.Equal(1, match.Length);
+        Assert.Collection(
+            match.Groups,
+            group =>
+            {
+                Assert.Equal(2, group.Index);
+                Assert.Equal(1, group.Length);
+                Assert.Equal("x", group.Value.AsString());
+            },
+            group =>
+            {
+                Assert.Equal(0, group.Index);
+                Assert.Equal(2, group.Length);
+                Assert.Equal("\u00e9", group.Value.AsString());
+            });
     }
 
     [Fact]
