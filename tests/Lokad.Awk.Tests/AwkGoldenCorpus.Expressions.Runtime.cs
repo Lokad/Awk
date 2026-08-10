@@ -251,6 +251,12 @@ internal static partial class AwkGoldenCorpus
             "untyped 0 1\nnumber\n"),
 
         Passing(
+            "typeof-array-element-materializes-array-not-element",
+            ["BEGIN{print typeof(a[1]), isarray(a), (1 in a)}"],
+            [],
+            "untyped 1 0\n"),
+
+        Passing(
             "typeof-numeric-string-provenance",
             ["BEGIN{split(\"00\", a); x=a[1]; print typeof(a[1]), typeof(x); x=x \"\"; print typeof(x)}"],
             [],

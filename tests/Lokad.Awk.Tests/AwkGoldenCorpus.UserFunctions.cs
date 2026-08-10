@@ -81,6 +81,12 @@ internal static partial class AwkGoldenCorpus
             "1 7\n");
 
         yield return Passing(
+            "user-function-typeof-element-promotes-array-parameter",
+            ["function inspect(a){print typeof(a[1]), isarray(a)} BEGIN{inspect(x); print isarray(x)}"],
+            [],
+            "untyped 1\n1\n");
+
+        yield return Passing(
             "user-function-untyped-scalar-argument-stays-local",
             ["function set(a){a=1} BEGIN{set(x); print typeof(x)}"],
             [],

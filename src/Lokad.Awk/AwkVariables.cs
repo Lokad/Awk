@@ -187,8 +187,8 @@ internal sealed class AwkVariables
         if (ContainsScalar(new AwkVariableName(name.Identifier)))
             throw new AwkRuntimeException(AwkMessages.FormatScalarAsArray(name.Text));
 
-        if (!_arrays.TryGetSlots(name, out var values) ||
-            !values.TryGetValue(index, out var slot))
+        var values = GetOrCreateArraySlots(name);
+        if (!values.TryGetValue(index, out var slot))
         {
             value = AwkValue.FromText(string.Empty);
             return false;
