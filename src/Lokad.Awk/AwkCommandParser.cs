@@ -16,8 +16,6 @@ internal static class AwkCommandParser
             new(invocation.CommandName, invocation.CurrentDirectory);
         private AwkFieldSeparatorSpec _fieldSeparator = AwkFieldSeparatorSpec.Default;
         private AwkCompatibilityProfile _profile = AwkCompatibilityProfile.Default;
-        private AwkAcceptedCompatibilityOptions _acceptedCompatibilityOptions =
-            AwkAcceptedCompatibilityOptions.Default;
 
         public AwkInvocation Parse()
         {
@@ -78,7 +76,6 @@ internal static class AwkCommandParser
                 .WithPlan(_sourceInputPlanner.BuildPlan(invocation.Environment))
                 .WithFieldSeparator(_fieldSeparator)
                 .WithCompatibilityProfile(_profile)
-                .WithAcceptedCompatibilityOptions(_acceptedCompatibilityOptions)
                 .Build();
         }
 
@@ -256,28 +253,19 @@ internal static class AwkCommandParser
                     _profile = _profile.WithLintMode(AwkLintMode.Normal);
                     return AwkCommandParseResult.KeepParsing;
                 case AwkOptionAction.NoOptimize:
-                    _acceptedCompatibilityOptions = _acceptedCompatibilityOptions.WithOptimize(false);
+                case AwkOptionAction.Optimize:
+                case AwkOptionAction.ReInterval:
+                case AwkOptionAction.Sandbox:
+                case AwkOptionAction.UseLcNumeric:
                     return AwkCommandParseResult.KeepParsing;
                 case AwkOptionAction.NonDecimalData:
                     _profile = _profile.WithNonDecimalData();
                     return AwkCommandParseResult.KeepParsing;
-                case AwkOptionAction.Optimize:
-                    _acceptedCompatibilityOptions = _acceptedCompatibilityOptions.WithOptimize(true);
-                    return AwkCommandParseResult.KeepParsing;
                 case AwkOptionAction.Posix:
                     _profile = _profile.WithMode(AwkCompatibilityMode.Posix);
                     return AwkCommandParseResult.KeepParsing;
-                case AwkOptionAction.ReInterval:
-                    _acceptedCompatibilityOptions = _acceptedCompatibilityOptions.WithReInterval();
-                    return AwkCommandParseResult.KeepParsing;
-                case AwkOptionAction.Sandbox:
-                    _acceptedCompatibilityOptions = _acceptedCompatibilityOptions.WithSandbox();
-                    return AwkCommandParseResult.KeepParsing;
                 case AwkOptionAction.AddInlineScript:
                     _sourceInputPlanner.AddInlineScript(value);
-                    return AwkCommandParseResult.KeepParsing;
-                case AwkOptionAction.UseLcNumeric:
-                    _acceptedCompatibilityOptions = _acceptedCompatibilityOptions.WithUseLcNumeric();
                     return AwkCommandParseResult.KeepParsing;
                 case AwkOptionAction.PrintVersion:
                     return AwkCommandParseResult.Terminate(AwkCommandTerminal.Version);

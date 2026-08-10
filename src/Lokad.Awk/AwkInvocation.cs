@@ -8,7 +8,6 @@ internal sealed class AwkInvocation
         AwkRuntimeArgumentPlan runtimeArguments,
         AwkStdioPlan stdio,
         AwkExecutionOptions executionOptions,
-        AwkAcceptedCompatibilityOptions acceptedCompatibilityOptions,
         AwkTerminalInvocationResult terminalResult)
     {
         SourcePlan = sourcePlan;
@@ -16,7 +15,6 @@ internal sealed class AwkInvocation
         RuntimeArgumentsPlan = runtimeArguments;
         Stdio = stdio;
         ExecutionOptions = executionOptions;
-        AcceptedCompatibilityOptions = acceptedCompatibilityOptions;
         TerminalResult = terminalResult;
     }
 
@@ -29,8 +27,6 @@ internal sealed class AwkInvocation
     public AwkStdioPlan Stdio { get; }
 
     public AwkExecutionOptions ExecutionOptions { get; }
-
-    public AwkAcceptedCompatibilityOptions AcceptedCompatibilityOptions { get; }
 
     public AwkTerminalInvocationResult TerminalResult { get; }
 }

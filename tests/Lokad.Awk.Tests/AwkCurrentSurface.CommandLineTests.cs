@@ -120,7 +120,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     }
 
     [Fact]
-    public void AwkAcceptedCompatibilityOptions_StayOutOfExecutionOptions()
+    public void AwkNoOpCompatibilityOptions_DoNotAlterExecutionOptions()
     {
         var invocation = AwkCommandParser.Parse(AwkTestHarness.BuildInvocation(
             "awk",
@@ -134,10 +134,6 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         Assert.False(invocation.ExecutionOptions.CompatibilityProfile.CharactersAsBytes);
         Assert.False(invocation.ExecutionOptions.CompatibilityProfile.NonDecimalData);
         Assert.Equal(AwkLintMode.Off, invocation.ExecutionOptions.CompatibilityProfile.LintMode);
-        Assert.True(invocation.AcceptedCompatibilityOptions.ReInterval);
-        Assert.True(invocation.AcceptedCompatibilityOptions.UseLcNumeric);
-        Assert.False(invocation.AcceptedCompatibilityOptions.Optimize);
-        Assert.True(invocation.AcceptedCompatibilityOptions.Sandbox);
     }
 
     [Fact]

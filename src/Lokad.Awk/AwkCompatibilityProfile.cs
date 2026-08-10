@@ -55,33 +55,6 @@ internal enum AwkStringUnitMode
     Byte
 }
 
-// These flags are recorded for GNU command-line compatibility but deliberately do not alter execution.
-internal readonly record struct AwkAcceptedCompatibilityOptions(
-    bool ReInterval,
-    bool UseLcNumeric,
-    bool Optimize,
-    bool Sandbox)
-{
-    public static AwkAcceptedCompatibilityOptions Default { get; } =
-        new(
-            ReInterval: false,
-            UseLcNumeric: false,
-            Optimize: true,
-            Sandbox: false);
-
-    public AwkAcceptedCompatibilityOptions WithReInterval() =>
-        this with { ReInterval = true };
-
-    public AwkAcceptedCompatibilityOptions WithUseLcNumeric() =>
-        this with { UseLcNumeric = true };
-
-    public AwkAcceptedCompatibilityOptions WithOptimize(bool optimize) =>
-        this with { Optimize = optimize };
-
-    public AwkAcceptedCompatibilityOptions WithSandbox() =>
-        this with { Sandbox = true };
-}
-
 internal enum AwkCompatibilityMode
 {
     GnuDefault,
