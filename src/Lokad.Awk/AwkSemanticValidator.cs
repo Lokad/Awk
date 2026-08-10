@@ -21,7 +21,7 @@ internal static class AwkSemanticValidator
         AwkSyntaxProgram syntax,
         List<AwkDiagnostic> diagnostics)
     {
-        var declarations = new Dictionary<string, AwkTextSpan>(System.StringComparer.Ordinal);
+        var declarations = new Dictionary<string, AwkTextSpan>(syntax.Functions.Count, System.StringComparer.Ordinal);
         for (var index = 0; index < syntax.Functions.Count; index++)
         {
             var function = syntax.Functions[index];
@@ -66,7 +66,7 @@ internal static class AwkSemanticValidator
         AwkLintMode lintMode,
         List<AwkDiagnostic> diagnostics)
     {
-        var reported = new HashSet<AwkIdentifier>();
+        var reported = new HashSet<AwkIdentifier>(semanticModel.Usages.Count);
         for (var index = 0; index < semanticModel.Usages.Count; index++)
         {
             var symbol = semanticModel.Usages[index];
@@ -99,7 +99,7 @@ internal static class AwkSemanticValidator
         if (compatibilityMode == AwkCompatibilityMode.GnuDefault)
             return;
 
-        var reported = new HashSet<AwkIdentifier>();
+        var reported = new HashSet<AwkIdentifier>(semanticModel.Usages.Count);
         for (var index = 0; index < semanticModel.Usages.Count; index++)
         {
             var symbol = semanticModel.Usages[index];

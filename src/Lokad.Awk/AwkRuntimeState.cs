@@ -317,7 +317,7 @@ internal sealed class AwkRuntimeState
         SetArgumentCount(arguments.Count);
         SetArgvIndex(0);
 
-        var argv = new Dictionary<AwkArrayKey, string>();
+        var argv = new Dictionary<AwkArrayKey, string>(arguments.Count);
         for (var index = 0; index < arguments.Count; index++)
         {
             var key = AwkArrayKey.FromOrdinal(index);
@@ -331,7 +331,7 @@ internal sealed class AwkRuntimeState
 
     public void InitializeEnvironment(IReadOnlyList<AwkEnvironmentVariable> environment)
     {
-        var environ = new Dictionary<AwkArrayKey, string>();
+        var environ = new Dictionary<AwkArrayKey, string>(environment.Count);
         for (var index = 0; index < environment.Count; index++)
         {
             var variable = environment[index];

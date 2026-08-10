@@ -53,7 +53,7 @@ internal sealed class AwkExecutableProgram
             IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
             AwkExecutableTableBuilder tables)
         {
-            var executable = new Dictionary<AwkFunctionName, AwkExecutableFunction>();
+            var executable = new Dictionary<AwkFunctionName, AwkExecutableFunction>(functions.Count);
             foreach (var function in functions.Values)
                 executable[function.FunctionName] = AwkExecutableFunction.FromFallback(function, tables);
 

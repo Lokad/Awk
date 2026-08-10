@@ -54,7 +54,7 @@ internal readonly struct AwkProgram
         static ReadOnlyDictionary<AwkFunctionName, AwkUserFunction> CopyFunctions(
             IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
         {
-            var copy = new Dictionary<AwkFunctionName, AwkUserFunction>();
+            var copy = new Dictionary<AwkFunctionName, AwkUserFunction>(functions.Count);
             foreach (var function in functions.Values)
                 copy[function.FunctionName] = function;
 

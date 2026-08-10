@@ -49,9 +49,9 @@ internal static class AwkFunctionParameters
             diagnostics.Add(new AwkDiagnostic(span, message, AwkDiagnosticId.BindInvalidProgram));
         }
 
-        var parameters = new List<AwkIdentifier>();
+        var parameters = new List<AwkIdentifier>(parameterTokens.Count);
         var diagnostics = new List<AwkDiagnostic>();
-        var seen = new HashSet<string>(System.StringComparer.Ordinal);
+        var seen = new HashSet<string>(parameterTokens.Count, System.StringComparer.Ordinal);
         var expectParameter = true;
         var sawParameterListToken = false;
 

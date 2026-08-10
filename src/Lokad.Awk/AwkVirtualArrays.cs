@@ -81,8 +81,9 @@ internal sealed class AwkSymbolTableArray(
 
     public IReadOnlyDictionary<AwkArrayKey, AwkValue> SnapshotValues()
     {
-        var values = new Dictionary<AwkArrayKey, AwkValue>();
-        foreach (var name in SnapshotNames())
+        var names = SnapshotNames();
+        var values = new Dictionary<AwkArrayKey, AwkValue>(names.Count);
+        foreach (var name in names)
         {
             values[new AwkArrayKey(name)] = IsName(name) || containsArray(AwkArrayName.FromText(name))
                 ? AwkValue.FromText(AwkText.Empty)

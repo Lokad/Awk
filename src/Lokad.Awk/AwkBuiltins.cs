@@ -168,7 +168,8 @@ internal static partial class AwkBuiltins
 
     private static Dictionary<AwkStatementKind, AwkBuiltinDefinition> BuildStatementDefinitions()
     {
-        var definitions = new Dictionary<AwkStatementKind, AwkBuiltinDefinition>();
+        var definitions = new Dictionary<AwkStatementKind, AwkBuiltinDefinition>(
+            Definitions.Count + SpecialFormDefinitions.Count + SpecialSyntaxDefinitions.Count);
         AddStatementDefinitions(definitions, Definitions.Values);
         AddStatementDefinitions(definitions, SpecialFormDefinitions.Values);
         AddStatementDefinitions(definitions, SpecialSyntaxDefinitions.Values);
@@ -195,6 +196,8 @@ internal static partial class AwkBuiltins
 
     public static bool IsName(string name, AwkBuiltinId id) =>
         string.Equals(name, Name(id), StringComparison.Ordinal);
+
+    public static int Count => Definitions.Count;
 
     public static IEnumerable<string> Names => Definitions.Keys;
 

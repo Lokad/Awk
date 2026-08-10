@@ -29,14 +29,14 @@ internal sealed class AwkFunctionRuntime
         IReadOnlyDictionary<AwkFunctionName, TFunction> functions)
         where TFunction : IAwkUserFunction
     {
-        var functionMap = new Dictionary<AwkFunctionName, IAwkUserFunction>();
+        var functionMap = new Dictionary<AwkFunctionName, IAwkUserFunction>(functions.Count);
         foreach (var function in functions)
         {
             functionMap[function.Key] = function.Value;
         }
 
         _functions = functionMap;
-        var functionTable = new Dictionary<AwkArrayKey, string>();
+        var functionTable = new Dictionary<AwkArrayKey, string>(AwkBuiltins.Count + functions.Count);
         foreach (var name in AwkBuiltins.Names)
         {
             functionTable[new AwkArrayKey(name)] = name;

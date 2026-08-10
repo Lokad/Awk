@@ -33,7 +33,7 @@ internal static partial class AwkProgramLowerer
         var endActions = new List<AwkAction>();
         var beginFileActions = new List<AwkAction>();
         var endFileActions = new List<AwkAction>();
-        var functions = new Dictionary<AwkFunctionName, AwkUserFunction>();
+        var functions = new Dictionary<AwkFunctionName, AwkUserFunction>(syntax.Functions.Count);
 
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
         {

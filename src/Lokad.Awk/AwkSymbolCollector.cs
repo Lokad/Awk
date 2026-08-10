@@ -7,7 +7,7 @@ internal static class AwkSymbolCollector
 {
     public static IReadOnlyList<AwkSymbolReference> Collect(AwkSyntaxProgram syntax)
     {
-        var functionNames = new HashSet<AwkIdentifier>();
+        var functionNames = new HashSet<AwkIdentifier>(syntax.Functions.Count);
         for (var index = 0; index < syntax.Functions.Count; index++)
         {
             var function = syntax.Functions[index];
