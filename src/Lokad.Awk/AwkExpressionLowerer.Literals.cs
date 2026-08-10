@@ -101,46 +101,6 @@ internal static partial class AwkExpressionLowerer
         return false;
     }
 
-    private static bool TryLowerNumber(
-        AwkExpressionSyntax expression,
-        [NotNullWhen(true)] out AwkExpression? lowered)
-    {
-        lowered = null;
-        if (expression.Tokens.Count != 1 || expression.Tokens[0].Kind != AwkTokenKind.Number)
-            return false;
-
-        var text = expression.Tokens[0].Text;
-        var index = 0;
-        if (!TryReadNumericLiteralToken(text, ref index, out var numberText, out var numberValue) ||
-            index != text.Length)
-        {
-            return false;
-        }
-
-        lowered = AwkExpression.Number(numberText, numberValue);
-        return true;
-    }
-
-    private static bool TryLowerString(
-        AwkExpressionSyntax expression,
-        [NotNullWhen(true)] out AwkExpression? lowered)
-    {
-        lowered = null;
-        if (expression.Tokens.Count != 1 || expression.Tokens[0].Kind != AwkTokenKind.String)
-            return false;
-
-        var text = expression.Tokens[0].Text;
-        var index = 0;
-        if (!TryReadStringLiteralToken(text, ref index, out var literal) ||
-            index != text.Length)
-        {
-            return false;
-        }
-
-        lowered = AwkExpression.Literal(literal);
-        return true;
-    }
-
     private static void ParseExponentIfPresent(string text, ref int index)
     {
         if (index >= text.Length || text[index] is not ('e' or 'E'))

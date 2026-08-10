@@ -5,18 +5,6 @@ namespace Lokad.Awk;
 
 internal static partial class AwkExpressionLowerer
 {
-    public static bool TryLowerRegexLiteral(
-        AwkExpressionSyntax? expression,
-        [NotNullWhen(true)] out AwkExpression? lowered)
-    {
-        lowered = null;
-        if (!TryLowerRegexLiteralPattern(expression, out var regex))
-            return false;
-
-        lowered = AwkExpression.RegexMatch(AwkExpression.FieldZero(), regex, negate: false);
-        return true;
-    }
-
     private static bool TryLowerPatternExpression(
         AwkExpressionSyntax expression,
         AwkLoweringScope scope,

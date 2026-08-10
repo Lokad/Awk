@@ -11,6 +11,21 @@ internal static class AwkGetlineLowerer
         AwkGetlineSyntax syntax,
         out AwkGetlineLoweringParts parts)
     {
+        static bool TryResolveSlot(
+            AwkExpressionSlotSyntax slot,
+            out AwkSyntaxOptional<AwkExpressionSyntax> expression)
+        {
+            expression = AwkSyntaxOptional<AwkExpressionSyntax>.None;
+            if (slot.IsEmpty)
+                return true;
+
+            if (!slot.Expression.TryGetValue(out var syntax))
+                return false;
+
+            expression = syntax;
+            return true;
+        }
+
         parts = default;
         if (!TryResolveSlot(syntax.Target, out var target) ||
             !TryResolveSlot(syntax.Source, out var source))
@@ -160,21 +175,6 @@ internal static class AwkGetlineLowerer
         }
 
         return InvalidGetline(statement.Span, "Invalid getline statement.");
-    }
-
-    private static bool TryResolveSlot(
-        AwkExpressionSlotSyntax slot,
-        out AwkSyntaxOptional<AwkExpressionSyntax> expression)
-    {
-        expression = AwkSyntaxOptional<AwkExpressionSyntax>.None;
-        if (slot.IsEmpty)
-            return true;
-
-        if (!slot.Expression.TryGetValue(out var syntax))
-            return false;
-
-        expression = syntax;
-        return true;
     }
 
     private static AwkTextSpan ResolveFallbackSpan(AwkGetlineLoweringParts parts)
