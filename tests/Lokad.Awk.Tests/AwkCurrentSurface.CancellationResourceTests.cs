@@ -848,7 +848,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(300),
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(600),
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
         var state = AwkTestHarness.CreateRuntimeState(
@@ -901,7 +901,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(490);
+        var state = CreateStateWithMemoryLimit(900);
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
@@ -922,7 +922,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var arrayName = AwkArrayName.FromText("a");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(400);
+        var state = CreateStateWithMemoryLimit(800);
         state.SetArrayString(arrayName, ordinalOne, "keep");
 
         var exception = Assert.Throws<AwkRuntimeException>(
@@ -943,7 +943,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(650);
+        var state = CreateStateWithMemoryLimit(1_200);
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
@@ -964,7 +964,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(650);
+        var state = CreateStateWithMemoryLimit(1_200);
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
@@ -1006,7 +1006,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var fieldArrayName = AwkArrayName.FromText("fields");
         var separatorArrayName = AwkArrayName.FromText("separators");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(650);
+        var state = CreateStateWithMemoryLimit(1_000);
         state.SetArrayString(fieldArrayName, ordinalOne, "keep-field");
         state.SetArrayString(separatorArrayName, ordinalOne, "keep-separator");
 
@@ -1029,7 +1029,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var fieldArrayName = AwkArrayName.FromText("fields");
         var separatorArrayName = AwkArrayName.FromText("separators");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(650);
+        var state = CreateStateWithMemoryLimit(1_000);
         state.SetArrayString(fieldArrayName, ordinalOne, "keep-field");
         state.SetArrayString(separatorArrayName, ordinalOne, "keep-separator");
 
@@ -1049,7 +1049,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_FieldSplitMemoryLimitFailsBeforeMaterializingFields()
     {
-        var state = CreateStateWithMemoryLimit(300);
+        var state = CreateStateWithMemoryLimit(600);
         var record = new string('x', 100);
         state.SetCurrentRecord(AwkText.FromString(record, state.Counters, state.MemoryGovernor));
 
@@ -1155,7 +1155,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(950),
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1_500),
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
         var content = new string('x', 80);
@@ -1169,7 +1169,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(content + "\n", fileSystem.ReadFile("/out.txt"));
-        Assert.InRange(counters.MemoryPeakLiveBytes, 1, 950);
+        Assert.InRange(counters.MemoryPeakLiveBytes, 1, 1_500);
     }
 
     [Fact]
@@ -1202,7 +1202,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public void Awk_FunctionLocalMemoryLimitFailsBeforeReplacingValue()
     {
         var variableName = AwkVariableName.FromText("x");
-        var state = CreateStateWithMemoryLimit(300);
+        var state = CreateStateWithMemoryLimit(500);
         state.PushFunctionFrame(
             new AwkFunctionLocalLayout([variableName]),
             [AwkFunctionArgument.Scalar(AwkValue.FromText("keep"))]);

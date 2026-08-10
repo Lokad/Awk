@@ -10,7 +10,7 @@ internal sealed class AwkText : IEquatable<AwkText>
 {
     private const int UnknownTextFacts = 0;
     private const int KnownNonAsciiWithoutRuneCount = -1;
-    private const int RuneCheckpointStride = 64;
+    private const int RuneCheckpointStride = AwkRuntimeMemory.TextRuneCheckpointStride;
     private readonly byte[] _bytes;
     private readonly int _byteOffset;
     private readonly int _byteLength;
@@ -46,7 +46,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         _bytes = [];
         _byteLength = byteLength;
         _concatenation = new AwkTextConcatenation(left, right, counters, governor);
-        EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateConcatenatedTextBytes(left, right);
+        EstimatedRetainedMemoryBytes = AwkRuntimeMemory.EstimateConcatenatedTextBytes(left, right, byteLength);
     }
 
     public static AwkText Empty { get; } = new([]);

@@ -224,6 +224,22 @@ public sealed class AwkTextTests
     }
 
     [Fact]
+    public void AwkText_RetainedEstimateAllowsForLazyCaches()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var text = AwkText.FromString(new string('\u00e9', 128), counters);
+        var retainedBytes = text.EstimatedRetainedMemoryBytes;
+
+        _ = text.AsString(counters);
+        _ = text.CopyRuneSlice(1, 1, counters, AwkMemoryGovernor.Disabled);
+
+        Assert.True(retainedBytes > text.ByteLength);
+        Assert.Equal(retainedBytes, text.EstimatedRetainedMemoryBytes);
+        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
+        Assert.Equal(1, counters.RuneSliceIndexAllocations);
+    }
+
+    [Fact]
     public void AwkText_ParsesNumbersFromUtf8Bytes()
     {
         var decimalText = AwkText.FromSourceLiteralString("  -12.5e2 tail");

@@ -2,8 +2,12 @@ namespace Lokad.Awk;
 
 internal static class AwkRuntimeMemory
 {
-    private const int AwkTextObjectBytes = 24;
+    // Conservative 64-bit layout estimates include object/array headers and the
+    // reference/value fields retained by each runtime object. They intentionally
+    // favor rejecting an allocation slightly early over understating live memory.
+    private const int AwkTextObjectBytes = 72;
     private const int ByteArrayObjectBytes = 24;
+    private const int StringObjectBytes = 24;
     private const int VariableSlotBytes = 24;
     private const int ArrayEntryBytes = 64;
     private const int ArrayObjectBytes = 24;
@@ -19,6 +23,7 @@ internal static class AwkRuntimeMemory
     private const int FunctionFrameBytes = 64;
     private const int FunctionLocalEntryBytes = 64;
     private const int ConcatenatedTextNodeBytes = 80;
+    internal const int TextRuneCheckpointStride = 64;
 
     public static long EstimateTextBytes(AwkText text) =>
         text.EstimatedRetainedMemoryBytes;
@@ -28,7 +33,9 @@ internal static class AwkRuntimeMemory
         if (byteLength <= 0)
             return 0;
 
-        return CheckedAdd(CheckedAdd(AwkTextObjectBytes, ByteArrayObjectBytes), byteLength);
+        return CheckedAdd(
+            CheckedAdd(CheckedAdd(AwkTextObjectBytes, ByteArrayObjectBytes), byteLength),
+            EstimateOptionalTextCacheBytes(byteLength));
     }
 
     public static long EstimateVariableSlotBytes(AwkVariableSlot slot) =>
@@ -39,9 +46,9 @@ internal static class AwkRuntimeMemory
             CheckedAdd(ArrayEntryBytes, key.RetainedTextMemoryBytes),
             EstimateVariableSlotBytes(slot));
 
-    public static long EstimateConcatenatedTextBytes(AwkText left, AwkText right) =>
+    public static long EstimateConcatenatedTextBytes(AwkText left, AwkText right, int byteLength) =>
         CheckedAdd(
-            ConcatenatedTextNodeBytes,
+            CheckedAdd(ConcatenatedTextNodeBytes, EstimateOptionalTextCacheBytes(byteLength)),
             CheckedAdd(left.EstimatedRetainedMemoryBytes, right.EstimatedRetainedMemoryBytes));
 
     public static long EstimateFunctionFrameBytes() =>
@@ -95,6 +102,16 @@ internal static class AwkRuntimeMemory
             return 0;
 
         return CheckedAdd(ArrayObjectBytes, CheckedMultiply(elementBytes, count));
+    }
+
+    private static long EstimateOptionalTextCacheBytes(int byteLength)
+    {
+        var decodedStringBytes = CheckedAdd(
+            StringObjectBytes,
+            CheckedMultiply(byteLength, sizeof(char)));
+        var checkpointCount = CheckedAdd(byteLength / TextRuneCheckpointStride, 2);
+        var checkpointBytes = EstimateArrayBufferBytes(checkpointCount, sizeof(int));
+        return CheckedAdd(decodedStringBytes, checkpointBytes);
     }
 
     public static int CheckedAdd(int left, int right)

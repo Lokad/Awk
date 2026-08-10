@@ -17,10 +17,12 @@ These limits are host-mediated and may be changed by internal hosts/tests throug
 - `MaxValueBytes`: bytes in one awk-visible text value.
 - `MaxBuilderBytes`: bytes retained by one transient UTF-8 builder. The default is 64 MiB, and
   growth is rejected before the builder changes.
-- `MaxExecutionMemoryBytes`: live governed runtime memory across retained ordinary arrays,
-  governed transient builders, VM frames, and explicit preflighted `AwkText` byte allocations.
-  Deferred concatenations charge their retained rope nodes and child text, not only the eventual
-  flattened payload.
+- `MaxExecutionMemoryBytes`: conservative live governed runtime memory across retained ordinary
+  arrays, governed transient builders, VM frames, and explicit preflighted `AwkText` byte
+  allocations. Retained text estimates include capacity for the decoded-string and sparse-rune
+  caches that a later compatibility operation may populate. Deferred concatenations charge their
+  retained rope nodes, child text, and root cache allowance, not only the eventual flattened
+  payload.
 
 Failures use awk-shaped diagnostics and do not leak CLR exception text. Byte and memory ceilings
 use `awk: memory limit exceeded`; execution-step, host-call, and output-file ceilings use their
@@ -73,8 +75,11 @@ These names are not public embedding policy unless a concrete host need appears:
 
 Runtime-owned `AwkText` byte arrays, sparse rune checkpoints, and builder materialization are
 preflighted with the governor; APIs accepting an already-created owned array account it at their
-boundary. The transient charge is released after construction. Retained ordinary array entries are
-charged separately with an estimate that includes key/value payloads and small-object overhead.
+boundary. The transient construction charge is released after construction. Retained text is
+charged separately with a conservative estimate that includes its payload, current 64-bit object
+layout, and capacity for both optional caches, so populating a cache cannot take retained memory
+outside the execution budget. Retained ordinary array entries additionally charge their key/value
+and small-object overhead.
 Read-only built-in special arrays such as `FUNCTAB` are static runtime metadata and are not charged
 against the execution memory budget.
 
