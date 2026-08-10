@@ -32,7 +32,7 @@ internal readonly struct AwkAction
             return AwkStatementFlow.Continue;
 
         using var executionContext = state.PushExecutionContext(output, io);
-        var evaluationContext = new AwkEvaluationContext(state.RecordNumber, state, output, io);
+        var evaluationContext = new AwkEvaluationContext(state, output, io);
         for (var index = 0; index < _statements.Length; index++)
         {
             state.RecordExecutionStep();

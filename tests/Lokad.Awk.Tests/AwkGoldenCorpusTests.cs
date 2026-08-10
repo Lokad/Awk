@@ -543,7 +543,6 @@ public sealed class AwkGoldenCorpusTests
 
         if (statement.LValue.TryGetValue(out var lValue))
         {
-            Assert.NotEmpty(lValue.Tokens);
             Assert.True(lValue.Span.Length > 0, context);
         }
 

@@ -47,7 +47,7 @@ internal abstract class AwkPattern
     {
         public override async ValueTask<bool> MatchesAsync(AwkRuntimeState state)
         {
-            var context = new AwkEvaluationContext(state.RecordNumber, state);
+            var context = new AwkEvaluationContext(state);
             var active = state.IsRangePatternActive(this);
             if (!active && await start.EvaluateAsync(context).ConfigureAwait(false))
             {

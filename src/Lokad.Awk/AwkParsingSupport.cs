@@ -338,15 +338,4 @@ internal sealed class AwkLAttribute : ListAttribute
     {
     }
 
-    public AwkTokenKind Sep
-    {
-        get => (AwkTokenKind)(Separator ?? 0);
-        set => Separator = (int)value;
-    }
-
-    public AwkTokenKind End
-    {
-        get => (AwkTokenKind)(Terminator ?? 0);
-        set => Terminator = (int)value;
-    }
 }

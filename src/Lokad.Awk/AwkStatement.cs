@@ -174,7 +174,7 @@ internal abstract partial class AwkStatement
             AwkRuntimeState state,
             AwkOutputSink output,
             AwkIo io) =>
-        ExecuteAsync(new AwkEvaluationContext(state.RecordNumber, state, output, io));
+        ExecuteAsync(new AwkEvaluationContext(state, output, io));
 
     /// <summary>Emits this complete statement when supported by the executable engine.</summary>
     /// <returns><see langword="true"/> only when control flow and compiler stack state were fully emitted.</returns>

@@ -103,7 +103,7 @@ public sealed class AwkArrayKeyTests
         var arrayName = AwkArrayName.FromText("a");
         state.SetArrayAwkValue(arrayName, AwkArrayKey.FromOrdinal(7), AwkValue.FromNumber(1));
 
-        using var keys = await state.SnapshotArrayKeyValuesAsync(arrayName, new AwkEvaluationContext(0, state));
+        using var keys = await state.SnapshotArrayKeyValuesAsync(arrayName, new AwkEvaluationContext(state));
         var key = Assert.Single(keys);
         Assert.True(key.IsOrdinal);
         Assert.Equal("7", state.CreateArrayKeyValue(key).AsString());

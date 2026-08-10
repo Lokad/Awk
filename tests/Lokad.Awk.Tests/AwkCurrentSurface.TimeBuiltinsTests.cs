@@ -159,7 +159,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         string name,
         IReadOnlyList<AwkExpression> arguments,
         AwkRuntimeState state) =>
-        AwkBuiltins.EvaluateAsync(name, arguments, new AwkEvaluationContext(0, state));
+        AwkBuiltins.EvaluateAsync(name, arguments, new AwkEvaluationContext(state));
 
     private static AwkRuntimeState CreateState(
         Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,

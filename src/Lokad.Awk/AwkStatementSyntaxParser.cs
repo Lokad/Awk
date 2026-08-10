@@ -1091,10 +1091,10 @@ internal sealed class AwkStatementSyntaxParser
             AwkExpressionKind.Field => AwkLValueKind.Field,
             _ => (AwkLValueKind?)null
         };
-        if (kind == null || target.Tokens.Count == 0)
+        if (kind == null || target.Span.Length == 0)
             return null;
 
-        return new AwkLValueSyntax(kind.Value, target.Tokens, target.Span);
+        return new AwkLValueSyntax(kind.Value, target.Span);
     }
 
     private AwkForHeaderSyntax ParseForHeader(IReadOnlyList<AwkToken> tokens)

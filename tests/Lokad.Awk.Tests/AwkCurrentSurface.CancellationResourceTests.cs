@@ -703,7 +703,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             negate: false);
 
         await Assert.ThrowsAsync<OperationCanceledException>(
-            () => expression.EvaluateAsync(new AwkEvaluationContext(0, state)).AsTask());
+            () => expression.EvaluateAsync(new AwkEvaluationContext(state)).AsTask());
     }
 
     [Fact]
@@ -747,7 +747,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         cancellation.Cancel();
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => function
-            .InvokeAsync([], new AwkEvaluationContext(0, state, AwkTestHarness.CreateOutputSink(), io))
+            .InvokeAsync([], new AwkEvaluationContext(state, AwkTestHarness.CreateOutputSink(), io))
             .AsTask());
     }
 
@@ -872,7 +872,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
                 sourceArrayName,
                 destinationArrayName,
                 AwkArraySortOrder.Default,
-                new AwkEvaluationContext(0, state)).AsTask());
+                new AwkEvaluationContext(state)).AsTask());
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal("keep", FormatArrayValue(state, destinationArrayName, ordinalOne));
@@ -913,7 +913,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             sourceArrayName,
             destinationArrayName,
             AwkArraySortOrder.Default,
-            new AwkEvaluationContext(0, state));
+            new AwkEvaluationContext(state));
 
         Assert.Equal(1, count);
         Assert.Equal("v", FormatArrayValue(state, destinationArrayName, ordinalOne));
@@ -934,7 +934,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             sourceArrayName,
             destinationArrayName,
             AwkArraySortOrder.Default,
-            new AwkEvaluationContext(0, state));
+            new AwkEvaluationContext(state));
 
         Assert.Equal(1, count);
         Assert.Equal("k", FormatArrayValue(state, destinationArrayName, ordinalOne));

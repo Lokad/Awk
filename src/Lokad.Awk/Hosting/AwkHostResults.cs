@@ -117,10 +117,7 @@ public enum AwkFileOpenMode
     WriteTruncate,
 
     /// <summary>Open for writing after existing content.</summary>
-    WriteAppend,
-
-    /// <summary>Open for both reading and writing without truncation.</summary>
-    ReadWrite
+    WriteAppend
 }
 
 /// <summary>Represents one line-oriented read completed by an <see cref="IAwkHost"/>.</summary>

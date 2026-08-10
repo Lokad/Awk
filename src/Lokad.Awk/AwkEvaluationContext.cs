@@ -5,28 +5,22 @@ internal readonly struct AwkEvaluationContext
     private readonly bool _hasExecutionContext;
     private readonly AwkExecutionContext _executionContext;
 
-    public AwkEvaluationContext(
-        int recordNumber,
-        AwkRuntimeState state)
+    public AwkEvaluationContext(AwkRuntimeState state)
     {
-        RecordNumber = recordNumber;
         State = state;
         _hasExecutionContext = false;
         _executionContext = default;
     }
 
     public AwkEvaluationContext(
-        int recordNumber,
         AwkRuntimeState state,
         AwkOutputSink output,
         AwkIo io)
-        : this(recordNumber, state)
+        : this(state)
     {
         _hasExecutionContext = true;
         _executionContext = new AwkExecutionContext(output, io);
     }
-
-    public int RecordNumber { get; }
 
     public AwkRuntimeState State { get; }
 

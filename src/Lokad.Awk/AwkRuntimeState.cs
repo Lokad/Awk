@@ -131,15 +131,11 @@ internal sealed class AwkRuntimeState
         set => _input.RecordNumber = value;
     }
 
-    public AwkRecordNumber RecordNumberValue => _input.RecordNumberValue;
-
     public int FileRecordNumber
     {
         get => _input.FileRecordNumber;
         set => _input.FileRecordNumber = value;
     }
-
-    public AwkRecordNumber FileRecordNumberValue => _input.FileRecordNumberValue;
 
     public string FileName => _input.FileName;
 

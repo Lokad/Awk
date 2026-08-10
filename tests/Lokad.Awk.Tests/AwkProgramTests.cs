@@ -61,7 +61,7 @@ public sealed class AwkProgramTests
 
         var value = await function.InvokeValuesAsync(
             [],
-            new AwkEvaluationContext(0, state, AwkTestHarness.CreateOutputSink(), io));
+            new AwkEvaluationContext(state, AwkTestHarness.CreateOutputSink(), io));
 
         Assert.Equal(["value"], function.Parameters.Select(static parameter => parameter.Text));
         Assert.Equal(1, value.AsNumber());
@@ -111,7 +111,7 @@ public sealed class AwkProgramTests
         alternatives.Clear();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
 
-        Assert.True(await condition.EvaluateAsync(new AwkEvaluationContext(0, state)));
+        Assert.True(await condition.EvaluateAsync(new AwkEvaluationContext(state)));
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public sealed class AwkProgramTests
         arguments.Clear();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
 
-        var value = await expression.EvaluateAsync(new AwkEvaluationContext(0, state));
+        var value = await expression.EvaluateAsync(new AwkEvaluationContext(state));
 
         Assert.Equal(2, value.AsNumber());
     }
@@ -136,7 +136,7 @@ public sealed class AwkProgramTests
             .ToArray();
         var expression = AwkExpression.Concat(parts);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-        var context = new AwkEvaluationContext(0, state);
+        var context = new AwkEvaluationContext(state);
         _ = await expression.EvaluateAsync(context);
 
         GC.Collect();

@@ -2,11 +2,9 @@ using System.Collections.Generic;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkLValueSyntax(AwkLValueKind kind, IReadOnlyList<AwkToken> tokens, AwkTextSpan span)
+internal sealed class AwkLValueSyntax(AwkLValueKind kind, AwkTextSpan span)
 {
     public AwkLValueKind Kind { get; } = kind;
-
-    public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
 
     public AwkTextSpan Span { get; } = span;
 }

@@ -257,7 +257,7 @@ internal static class AwkExecutableDispatcher
         {
             var stackCount = 0;
             using var executionContext = state.PushExecutionContext(output, io);
-            var evaluationContext = new AwkEvaluationContext(state.RecordNumber, state, output, io);
+            var evaluationContext = new AwkEvaluationContext(state, output, io);
             var pc = 0;
             var flushingOutput = false;
             try
