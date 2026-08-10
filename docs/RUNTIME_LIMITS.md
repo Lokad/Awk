@@ -76,6 +76,12 @@ charged separately with an estimate that includes key/value payloads and small-o
 Read-only built-in special arrays such as `FUNCTAB` are static runtime metadata and are not charged
 against the execution memory budget.
 
+Array sorting reserves the entry snapshot required by every comparison mode, plus the merge buffer
+and four comparator arguments only for user functions with at least two entries. A sorted key
+enumeration also reserves its returned key snapshot. `asort` and `asorti` write their sorted entries
+directly into the replacement array, so their preflight does not charge obsolete dictionary or
+projection buffers.
+
 ## Mutation Semantics
 
 Resource failures must occur before the observable mutation when the current surface requires it:

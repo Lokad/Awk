@@ -2,6 +2,15 @@
 
 ## 0.1.0
 
+- Preflight array sorting by the selected comparison and output modes, then project source entries
+  and destination slots directly; built-in sorts no longer reserve user-comparator buffers or
+  allocate intermediate value dictionaries and result arrays.
+- Carry compatibility as one typed runtime profile, remove immutable byte-mode delegates from hot
+  string/regex/field paths, cache normalized `AWKPATH` entries per source-load plan, and pre-size
+  runtime collections whose final count is already known.
+- Consolidate byte-native case conversion, remove test-only runtime and compatibility-audit
+  surfaces, and align numeric diagnostics, single-use helpers, and ordinal string operations with
+  the repository C# guidelines.
 - Preserve numeric values and full precision through `printf`, custom `OFMT`/`CONVFMT`, `asort`,
   user sort comparators, and host environment snapshots instead of formatting and reparsing them;
   project array values to text only for value-string sort modes that consume that projection.
