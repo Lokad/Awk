@@ -95,21 +95,23 @@ public sealed class AwkExecutableRuntimeTests
         Assert.Single(executable.MainActions);
         Assert.Single(executable.EndActions);
         Assert.Empty(executable.Functions);
-        Assert.Contains(AwkVariableName.FromText("x"), executable.Tables.Names);
         Assert.Contains(
-            executable.BeginActions[0].Blocks[0].Instructions,
+            executable.Tables.ScalarSymbols,
+            static symbol => symbol.Name == AwkVariableName.FromText("x"));
+        Assert.Contains(
+            executable.BeginActions[0].Block.Instructions,
             static instruction => instruction.Opcode == AwkOpcode.StoreScalar);
         Assert.Contains(
-            executable.BeginActions[0].Blocks[0].Instructions,
+            executable.BeginActions[0].Block.Instructions,
             static instruction => instruction.Opcode == AwkOpcode.JumpIfFalse);
         Assert.Contains(
-            executable.MainActions[0].Blocks[0].Instructions,
+            executable.MainActions[0].Block.Instructions,
             static instruction => instruction.Opcode == AwkOpcode.LoadCurrentRecord);
         Assert.Contains(
-            executable.MainActions[0].Blocks[0].Instructions,
+            executable.MainActions[0].Block.Instructions,
             static instruction => instruction.Opcode == AwkOpcode.LoadField);
         Assert.Contains(
-            executable.EndActions[0].Blocks[0].Instructions,
+            executable.EndActions[0].Block.Instructions,
             static instruction => instruction.Opcode == AwkOpcode.Print);
     }
 
@@ -121,7 +123,7 @@ public sealed class AwkExecutableRuntimeTests
         Assert.True(binding.Program.HasProgram);
 
         var executable = AwkExecutableProgram.Compile(binding.Program.Program);
-        var instructions = executable.BeginActions[0].Blocks[0].Instructions;
+        var instructions = executable.BeginActions[0].Block.Instructions;
 
         Assert.False(executable.BeginActions[0].UsesFallbackOnly);
         Assert.Contains(instructions, static instruction => instruction.Opcode == AwkOpcode.Print);
@@ -138,11 +140,8 @@ public sealed class AwkExecutableRuntimeTests
 
         var executable = AwkExecutableProgram.Compile(binding.Program.Program);
         var function = Assert.Single(executable.Functions.Values);
-        var block = Assert.Single(function.Blocks);
-        var instruction = Assert.Single(block.Instructions);
+        var instruction = Assert.Single(function.Block.Instructions);
 
-        Assert.Equal(AwkExecutableFunctionBodyKind.Fallback, function.BodyKind);
-        Assert.Equal(AwkExecutableFunctionStorageKind.RuntimeFunctionFrame, function.StorageKind);
         Assert.True(function.UsesFallbackOnly);
         Assert.Equal(
             [
@@ -153,7 +152,7 @@ public sealed class AwkExecutableRuntimeTests
             ],
             function.Parameters);
         Assert.Equal(AwkOpcode.FallbackFunction, instruction.Opcode);
-        Assert.Same(function.FallbackFunction, executable.Tables.FallbackFunctions[instruction.Operand0]);
+        Assert.Same(binding.Program.Program.Functions.Values.Single(), function.FallbackFunction);
     }
 
     [Fact]

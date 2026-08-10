@@ -45,15 +45,13 @@ internal sealed class AwkExecutableCompiler
         }
     }
 
-    public int Emit(AwkOpcode opcode) => Emit(opcode, 0, 0, 0);
+    public int Emit(AwkOpcode opcode) => Emit(opcode, 0, 0);
 
-    public int Emit(AwkOpcode opcode, int operand0) => Emit(opcode, operand0, 0, 0);
+    public int Emit(AwkOpcode opcode, int operand0) => Emit(opcode, operand0, 0);
 
-    public int Emit(AwkOpcode opcode, int operand0, int operand1) => Emit(opcode, operand0, operand1, 0);
-
-    public int Emit(AwkOpcode opcode, int operand0, int operand1, int operand2)
+    public int Emit(AwkOpcode opcode, int operand0, int operand1)
     {
-        _instructions.Add(new AwkInstruction(opcode, operand0, operand1, operand2));
+        _instructions.Add(new AwkInstruction(opcode, operand0, operand1));
         return _instructions.Count - 1;
     }
 

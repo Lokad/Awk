@@ -50,12 +50,11 @@ internal sealed class AwkExecutableProgram
     public static AwkExecutableProgram Compile(AwkProgram program)
     {
         static ReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction> CompileFunctions(
-            IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
-            AwkExecutableTableBuilder tables)
+            IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
         {
             var executable = new Dictionary<AwkFunctionName, AwkExecutableFunction>(functions.Count);
             foreach (var function in functions.Values)
-                executable[function.FunctionName] = AwkExecutableFunction.FromFallback(function, tables);
+                executable[function.FunctionName] = AwkExecutableFunction.FromFallback(function);
 
             return new ReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction>(executable);
         }
@@ -67,7 +66,7 @@ internal sealed class AwkExecutableProgram
             CompileActions(program.EndActions, tables),
             CompileActions(program.BeginFileActions, tables),
             CompileActions(program.EndFileActions, tables),
-            CompileFunctions(program.Functions, tables),
+            CompileFunctions(program.Functions),
             tables.ToTables());
     }
 
@@ -96,46 +95,31 @@ internal sealed class AwkExecutableProgram
     }
 }
 
-internal enum AwkExecutableFunctionBodyKind
-{
-    Fallback
-}
-
-internal enum AwkExecutableFunctionStorageKind
-{
-    RuntimeFunctionFrame
-}
-
 internal sealed class AwkExecutableAction
 {
     private AwkExecutableAction(
-        IReadOnlyList<AwkExecutableBlock> blocks,
+        AwkExecutableBlock block,
         AwkAction fallbackAction,
         int maxStackDepth)
     {
-        Blocks = blocks;
+        Block = block;
         FallbackAction = fallbackAction;
         MaxStackDepth = maxStackDepth;
     }
 
-    public IReadOnlyList<AwkExecutableBlock> Blocks { get; }
+    public AwkExecutableBlock Block { get; }
 
     public AwkAction FallbackAction { get; }
 
     public int MaxStackDepth { get; }
 
-    public bool UsesFallbackOnly =>
-        Blocks.Count == 1 &&
-        Blocks[0].IsFallbackOnly;
+    public bool UsesFallbackOnly => Block.IsFallbackOnly;
 
-    public static AwkExecutableAction FromFallback(
-        AwkAction action,
-        AwkExecutableTableBuilder tables)
+    public static AwkExecutableAction FromFallback(AwkAction action)
     {
         var block = new AwkExecutableBlock(
-            label: 0,
-            [new AwkInstruction(AwkOpcode.FallbackAction, tables.InternFallbackAction(action))]);
-        return new AwkExecutableAction([block], action, maxStackDepth: 0);
+            [new AwkInstruction(AwkOpcode.FallbackAction)]);
+        return new AwkExecutableAction(block, action, maxStackDepth: 0);
     }
 
     public static AwkExecutableAction Compile(
@@ -143,7 +127,7 @@ internal sealed class AwkExecutableAction
         AwkExecutableTableBuilder tables)
     {
         if (!action.IsPatternless || action.Statements.Length == 0)
-            return FromFallback(action, tables);
+            return FromFallback(action);
 
         var compiler = new AwkExecutableCompiler(tables);
         for (var index = 0; index < action.Statements.Length; index++)
@@ -152,8 +136,8 @@ internal sealed class AwkExecutableAction
             compiler.EmitStatementOrFallback(action.Statements[index]);
         }
 
-        var block = new AwkExecutableBlock(label: 0, compiler.Instructions);
-        return new AwkExecutableAction([block], action, compiler.MaxStackDepth);
+        var block = new AwkExecutableBlock(compiler.Instructions);
+        return new AwkExecutableAction(block, action, compiler.MaxStackDepth);
     }
 }
 
@@ -162,16 +146,12 @@ internal sealed class AwkExecutableFunction : IAwkUserFunction
     private AwkExecutableFunction(
         AwkFunctionName name,
         AwkFunctionLocalLayout localLayout,
-        IReadOnlyList<AwkExecutableBlock> blocks,
-        AwkExecutableFunctionBodyKind bodyKind,
-        AwkExecutableFunctionStorageKind storageKind,
+        AwkExecutableBlock block,
         AwkUserFunction fallbackFunction)
     {
         FunctionName = name;
         LocalLayout = localLayout;
-        Blocks = blocks;
-        BodyKind = bodyKind;
-        StorageKind = storageKind;
+        Block = block;
         FallbackFunction = fallbackFunction;
     }
 
@@ -183,32 +163,20 @@ internal sealed class AwkExecutableFunction : IAwkUserFunction
 
     public IReadOnlyList<AwkVariableName> Parameters => LocalLayout.Parameters;
 
-    public IReadOnlyList<AwkExecutableBlock> Blocks { get; }
-
-    public AwkExecutableFunctionBodyKind BodyKind { get; }
-
-    public AwkExecutableFunctionStorageKind StorageKind { get; }
+    public AwkExecutableBlock Block { get; }
 
     public AwkUserFunction FallbackFunction { get; }
 
-    public bool UsesFallbackOnly =>
-        BodyKind == AwkExecutableFunctionBodyKind.Fallback &&
-        Blocks.Count == 1 &&
-        Blocks[0].IsFallbackOnly;
+    public bool UsesFallbackOnly => Block.IsFallbackOnly;
 
-    public static AwkExecutableFunction FromFallback(
-        AwkUserFunction function,
-        AwkExecutableTableBuilder tables)
+    public static AwkExecutableFunction FromFallback(AwkUserFunction function)
     {
         var block = new AwkExecutableBlock(
-            label: 0,
-            [new AwkInstruction(AwkOpcode.FallbackFunction, tables.InternFallbackFunction(function))]);
+            [new AwkInstruction(AwkOpcode.FallbackFunction)]);
         return new AwkExecutableFunction(
             function.FunctionName,
             function.LocalLayout,
-            [block],
-            AwkExecutableFunctionBodyKind.Fallback,
-            AwkExecutableFunctionStorageKind.RuntimeFunctionFrame,
+            block,
             function);
     }
 
@@ -232,11 +200,8 @@ internal sealed class AwkExecutableFunction : IAwkUserFunction
 
     private void RecordFallbackDispatch(AwkRuntimeState state)
     {
-        if (Blocks.Count == 0)
-            return;
-
         state.Counters.RecordVmBasicBlockEntry();
-        var block = Blocks[0];
+        var block = Block;
         for (var index = 0; index < block.Instructions.Length; index++)
         {
             var opcode = block.Instructions[index].Opcode;
@@ -279,9 +244,6 @@ internal static class AwkExecutableDispatcher
         AwkIo io,
         AwkOutputSink output)
     {
-        if (action.Blocks.Count == 0)
-            return AwkStatementFlow.Continue;
-
         if (action.UsesFallbackOnly)
             return await ExecuteFallbackActionAsync(action, state, io, output).ConfigureAwait(false);
 
@@ -289,7 +251,7 @@ internal static class AwkExecutableDispatcher
         var stackSlotCount = NormalizeStackDepth(action.MaxStackDepth);
         using var frame = EnterFrame(state, stackSlotCount);
         state.Counters.RecordVmBasicBlockEntry();
-        var block = action.Blocks[0];
+        var block = action.Block;
         var stack = RentStack(stackSlotCount);
         try
         {
@@ -622,7 +584,7 @@ internal static class AwkExecutableDispatcher
     {
         using var frame = EnterFallbackFrame(state);
         state.Counters.RecordVmBasicBlockEntry();
-        var block = action.Blocks[0];
+        var block = action.Block;
         if (block.Instructions.Length != 1 || block.Instructions[0].Opcode != AwkOpcode.FallbackAction)
             throw new InvalidOperationException("Executable action fallback block is malformed.");
 
@@ -729,13 +691,10 @@ internal readonly struct AwkVmFrameScope : IDisposable
 
 internal sealed class AwkExecutableBlock
 {
-    public AwkExecutableBlock(int label, IReadOnlyList<AwkInstruction> instructions)
+    public AwkExecutableBlock(IReadOnlyList<AwkInstruction> instructions)
     {
-        Label = label;
         Instructions = AwkCollectionSnapshots.Copy(instructions);
     }
-
-    public int Label { get; }
 
     public AwkInstruction[] Instructions { get; }
 
@@ -748,35 +707,23 @@ internal sealed class AwkExecutableTables
 {
     public AwkExecutableTables(
         IReadOnlyList<AwkValue> constants,
-        IReadOnlyList<AwkVariableName> names,
         IReadOnlyList<AwkArrayName> arrayNames,
         IReadOnlyList<AwkExecutableScalarSymbol> scalarSymbols,
-        IReadOnlyList<AwkAction> fallbackActions,
-        IReadOnlyList<AwkUserFunction> fallbackFunctions,
         IReadOnlyList<AwkStatement> fallbackStatements,
         IReadOnlyList<AwkExpression> fallbackExpressions)
     {
         Constants = constants;
-        Names = names;
         ArrayNames = arrayNames;
         ScalarSymbols = scalarSymbols;
-        FallbackActions = fallbackActions;
-        FallbackFunctions = fallbackFunctions;
         FallbackStatements = fallbackStatements;
         FallbackExpressions = fallbackExpressions;
     }
 
     public IReadOnlyList<AwkValue> Constants { get; }
 
-    public IReadOnlyList<AwkVariableName> Names { get; }
-
     public IReadOnlyList<AwkArrayName> ArrayNames { get; }
 
     public IReadOnlyList<AwkExecutableScalarSymbol> ScalarSymbols { get; }
-
-    public IReadOnlyList<AwkAction> FallbackActions { get; }
-
-    public IReadOnlyList<AwkUserFunction> FallbackFunctions { get; }
 
     public IReadOnlyList<AwkStatement> FallbackStatements { get; }
 
@@ -786,13 +733,10 @@ internal sealed class AwkExecutableTables
 internal sealed class AwkExecutableTableBuilder
 {
     private readonly List<AwkValue> _constants = [];
-    private readonly List<AwkVariableName> _names = [];
     private readonly List<AwkArrayName> _arrayNames = [];
     private readonly List<AwkExecutableScalarSymbol> _scalarSymbols = [];
     private readonly Dictionary<AwkVariableName, int> _nameIndexes = new();
     private readonly Dictionary<AwkArrayName, int> _arrayNameIndexes = new();
-    private readonly List<AwkAction> _fallbackActions = [];
-    private readonly List<AwkUserFunction> _fallbackFunctions = [];
     private readonly List<AwkStatement> _fallbackStatements = [];
     private readonly List<AwkExpression> _fallbackExpressions = [];
 
@@ -807,8 +751,7 @@ internal sealed class AwkExecutableTableBuilder
         if (_nameIndexes.TryGetValue(name, out var index))
             return index;
 
-        index = _names.Count;
-        _names.Add(name);
+        index = _scalarSymbols.Count;
         _scalarSymbols.Add(AwkExecutableScalarSymbol.Create(name));
         _nameIndexes[name] = index;
         return index;
@@ -823,18 +766,6 @@ internal sealed class AwkExecutableTableBuilder
         _arrayNames.Add(name);
         _arrayNameIndexes[name] = index;
         return index;
-    }
-
-    public int InternFallbackAction(AwkAction action)
-    {
-        _fallbackActions.Add(action);
-        return _fallbackActions.Count - 1;
-    }
-
-    public int InternFallbackFunction(AwkUserFunction function)
-    {
-        _fallbackFunctions.Add(function);
-        return _fallbackFunctions.Count - 1;
     }
 
     public int InternFallbackStatement(AwkStatement statement)
@@ -852,11 +783,8 @@ internal sealed class AwkExecutableTableBuilder
     public AwkExecutableTables ToTables() =>
         new(
             _constants.ToArray(),
-            _names.ToArray(),
             _arrayNames.ToArray(),
             _scalarSymbols.ToArray(),
-            _fallbackActions.ToArray(),
-            _fallbackFunctions.ToArray(),
             _fallbackStatements.ToArray(),
             _fallbackExpressions.ToArray());
 }
@@ -904,13 +832,10 @@ internal sealed class AwkExecutableRuntimeBindings
 
     public AwkExecutableRuntimeBindings(AwkExecutableTables tables)
     {
-        Tables = tables;
         _scalars = new AwkExecutableScalarBinding[tables.ScalarSymbols.Count];
         for (var index = 0; index < _scalars.Length; index++)
             _scalars[index] = new AwkExecutableScalarBinding(tables.ScalarSymbols[index]);
     }
-
-    public AwkExecutableTables Tables { get; }
 
     public AwkText LoadOutputFieldSeparator(AwkRuntimeState state) =>
         LoadSpecialScalarText(
@@ -1008,11 +933,15 @@ internal readonly struct AwkOptionalGlobalSlotId
 internal readonly record struct AwkInstruction(
     AwkOpcode Opcode,
     int Operand0,
-    int Operand1,
-    int Operand2)
+    int Operand1)
 {
+    public AwkInstruction(AwkOpcode opcode)
+        : this(opcode, 0, 0)
+    {
+    }
+
     public AwkInstruction(AwkOpcode opcode, int operand0)
-        : this(opcode, operand0, 0, 0)
+        : this(opcode, operand0, 0)
     {
     }
 }
