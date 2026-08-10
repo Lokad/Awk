@@ -145,14 +145,14 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         return AwkStatementFlow.Continue;
     }
 
-    private static async ValueTask<bool> MatchesExecutableActionAsync(
+    private static ValueTask<bool> MatchesExecutableActionAsync(
         AwkExecutableAction action,
         AwkRuntimeState state)
     {
         if (!action.FallbackAction.IsPatternless)
             state.Counters.RecordVmPatternFallback();
 
-        return await action.FallbackAction.MatchesAsync(state).ConfigureAwait(false);
+        return action.FallbackAction.MatchesAsync(state);
     }
 
     private static AwkActionFlowDecision ResolvePhaseActionFlow(
@@ -190,12 +190,30 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         return AwkActionFlowDecision.ContinueActions();
     }
 
-    private readonly record struct AwkActionFlowDecision(bool ShouldStop, AwkStatementFlow Flow)
+    private readonly record struct AwkActionFlowDecision
     {
+        private AwkActionFlowDecision(AwkActionFlowDecisionKind kind, AwkStatementFlow flow)
+        {
+            Kind = kind;
+            Flow = flow;
+        }
+
+        public AwkActionFlowDecisionKind Kind { get; }
+
+        public AwkStatementFlow Flow { get; }
+
+        public bool ShouldStop => Kind == AwkActionFlowDecisionKind.StopActions;
+
         public static AwkActionFlowDecision ContinueActions() =>
-            new(false, AwkStatementFlow.Continue);
+            new(AwkActionFlowDecisionKind.ContinueActions, AwkStatementFlow.Continue);
 
         public static AwkActionFlowDecision Stop(AwkStatementFlow flow) =>
-            new(true, flow);
+            new(AwkActionFlowDecisionKind.StopActions, flow);
+    }
+
+    private enum AwkActionFlowDecisionKind
+    {
+        ContinueActions,
+        StopActions
     }
 }

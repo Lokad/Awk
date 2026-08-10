@@ -573,8 +573,8 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private RecordSeparator GetCurrentSeparator()
     {
         var version = _state.RecordSeparatorVersion;
-        if (_separatorCache.HasValue && _separatorCache.Version == version)
-            return _separatorCache.Separator;
+        if (_separatorCache.IsCurrent(version))
+            return _separatorCache.Value;
 
         var separator = CreateSeparator(_state.ResolveRecordSeparator());
         _separatorCache = new SeparatorCache(separator, version);
@@ -882,9 +882,33 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             new(BufferedReadStatus.Record, record);
     }
 
-    private readonly record struct SeparatorCache(RecordSeparator Separator, long Version)
+    private readonly record struct SeparatorCache
     {
-        public bool HasValue { get; } = true;
+        private readonly SeparatorCacheKind _kind;
+        private readonly RecordSeparator? _value;
+
+        public SeparatorCache(RecordSeparator value, long version)
+        {
+            _kind = SeparatorCacheKind.Value;
+            _value = value;
+            Version = version;
+        }
+
+        public long Version { get; }
+
+        public RecordSeparator Value =>
+            _kind == SeparatorCacheKind.Value && _value is { } value
+                ? value
+                : throw new InvalidOperationException("The record-separator cache is empty.");
+
+        public bool IsCurrent(long version) =>
+            _kind == SeparatorCacheKind.Value && Version == version;
+    }
+
+    private enum SeparatorCacheKind
+    {
+        Empty,
+        Value
     }
 
     private abstract record RecordSeparator;
@@ -928,18 +952,42 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private sealed record RegexSeparator(AwkRegex Value) : RecordSeparator;
 }
 
-internal readonly record struct AwkInputRecordResult(
-    bool HasRecord,
-    AwkText RecordText,
-    AwkRecordTerminator Terminator,
-    AwkRecordFieldSplittingMode FieldSplittingMode)
+internal readonly record struct AwkInputRecordResult
 {
-    public static AwkInputRecordResult EndOfFile { get; } =
-        new(false, AwkText.Empty, AwkRecordTerminator.Empty, AwkRecordFieldSplittingMode.Ordinary);
+    private readonly AwkInputRecordResultKind _kind;
+    private readonly AwkText? _recordText;
+
+    private AwkInputRecordResult(
+        AwkInputRecordResultKind kind,
+        AwkText recordText,
+        AwkRecordTerminator terminator,
+        AwkRecordFieldSplittingMode fieldSplittingMode)
+    {
+        _kind = kind;
+        _recordText = recordText;
+        Terminator = terminator;
+        FieldSplittingMode = fieldSplittingMode;
+    }
+
+    public bool HasRecord => _kind == AwkInputRecordResultKind.Record;
+
+    public AwkText RecordText => _recordText ?? AwkText.Empty;
+
+    public AwkRecordTerminator Terminator { get; }
+
+    public AwkRecordFieldSplittingMode FieldSplittingMode { get; }
+
+    public static AwkInputRecordResult EndOfFile { get; } = default;
 
     public static AwkInputRecordResult Record(
         AwkText record,
         AwkRecordTerminator terminator,
         AwkRecordFieldSplittingMode fieldSplittingMode) =>
-        new(true, record, terminator, fieldSplittingMode);
+        new(AwkInputRecordResultKind.Record, record, terminator, fieldSplittingMode);
+
+    private enum AwkInputRecordResultKind
+    {
+        EndOfFile,
+        Record
+    }
 }
