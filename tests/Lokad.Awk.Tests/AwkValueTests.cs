@@ -82,6 +82,7 @@ public sealed class AwkValueTests
         var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
         var formatter = new AwkFormattingRuntime(
             static _ => new AwkFormatString(AwkText.FromSourceLiteralString("%.6g")),
+            AwkRuntimeLimits.CreateDefault(),
             counters,
             governor);
 
@@ -103,6 +104,7 @@ public sealed class AwkValueTests
         var defaultFormat = new AwkFormatString(AwkText.FromSourceLiteralString("%.6g"));
         var formatter = new AwkFormattingRuntime(
             _ => defaultFormat,
+            AwkRuntimeLimits.CreateDefault(),
             counters,
             governor);
 

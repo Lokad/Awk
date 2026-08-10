@@ -436,6 +436,26 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
+    [Fact]
+    public async Task Awk_ValueByteLimitRejectsPrintfPaddingBeforeBuilderGrowth()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(4);
+        var options = CreateOptions(limits, counters);
+        var compiled = await AwkExecutor.CompileAsync(
+            new MockFileSystem(),
+            BuildInvocation("awk", "BEGIN{x=sprintf(\"%10000s\", \"x\"); print x}"),
+            CancellationToken.None);
+        var fileSystem = new MockFileSystem();
+
+        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, counters.MemoryReservedBytes);
+    }
+
     public static TheoryData<string, string, int> GovernedAwkTextAllocationCases => new()
     {
         {

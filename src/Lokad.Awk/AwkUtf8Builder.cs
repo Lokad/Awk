@@ -125,6 +125,22 @@ internal sealed class AwkUtf8Builder : IDisposable
         return this;
     }
 
+    public AwkUtf8Builder AppendUtf8(ReadOnlySpan<char> text)
+    {
+        ThrowIfDisposed();
+        if (text.IsEmpty)
+            return this;
+
+        var byteCount = AwkUtf8Codec.GetEncodedByteCount(text);
+        var nextLength = AwkRuntimeMemory.CheckedAdd(Length, byteCount);
+        EnsureCapacity(nextLength);
+        AwkUtf8Codec.EncodeWithoutCounting(
+            text,
+            _buffer.AsSpan(_contentOffset + Length, byteCount));
+        Length = nextLength;
+        return this;
+    }
+
     public AwkUtf8Builder Append(byte value)
     {
         ThrowIfDisposed();

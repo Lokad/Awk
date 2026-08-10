@@ -120,6 +120,22 @@ internal static partial class AwkGoldenCorpus
             string.Empty,
             "awk: not enough arguments to satisfy format string\n"),
 
+        Failing(
+            "printf-literal-width-overflow-fails",
+            ["BEGIN{printf \"%999999999999s\", \"x\"}"],
+            [],
+            2,
+            string.Empty,
+            "awk: memory limit exceeded\n"),
+
+        Failing(
+            "printf-dynamic-precision-overflow-fails",
+            ["BEGIN{printf \"%.*f\", 1e100, 1}"],
+            [],
+            2,
+            string.Empty,
+            "awk: memory limit exceeded\n"),
+
         Passing(
             "sprintf-width-and-precision",
             ["BEGIN{print sprintf(\"%.3s:%06.2f\", \"abcdef\", 12.3)}"],

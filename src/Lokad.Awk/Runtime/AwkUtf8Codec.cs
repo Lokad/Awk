@@ -88,4 +88,9 @@ internal static class AwkUtf8Codec
         return StrictUtf8.GetBytes(text, destination);
     }
 
+    public static int EncodeWithoutCounting(
+        ReadOnlySpan<char> text,
+        Span<byte> destination) =>
+        StrictUtf8.GetBytes(text, destination);
+
 }

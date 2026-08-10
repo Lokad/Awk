@@ -1,10 +1,10 @@
 using System;
-using System.Collections.Generic;
 
 namespace Lokad.Awk;
 
 internal sealed class AwkFormattingRuntime(
     Func<AwkFormattingVariable, AwkFormatString> resolveVariable,
+    AwkRuntimeLimits limits,
     AwkRuntimeCounters counters,
     AwkMemoryGovernor governor)
 {
@@ -24,11 +24,11 @@ internal sealed class AwkFormattingRuntime(
             return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor);
 
         counters.RecordFormattingFallback();
-        return AwkText.FromString(
-            PrintfEvaluation.Format(
-                ResolveFormatString(AwkFormattingVariable.OutputFormat),
-                new AwkSingleValuePrintfArguments(value, counters),
-                strictMissingArguments: false),
+        return PrintfEvaluation.FormatByteText(
+            ResolveFormatString(AwkFormattingVariable.OutputFormat),
+            new AwkSingleValuePrintfArguments(value, counters),
+            strictMissingArguments: false,
+            limits,
             counters,
             governor);
     }
@@ -45,77 +45,32 @@ internal sealed class AwkFormattingRuntime(
             return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor);
 
         counters.RecordFormattingFallback();
-        return AwkText.FromString(
-            PrintfEvaluation.Format(
-                ResolveFormatString(AwkFormattingVariable.ConversionFormat),
-                new AwkSingleValuePrintfArguments(value, counters),
-                strictMissingArguments: false),
+        return PrintfEvaluation.FormatByteText(
+            ResolveFormatString(AwkFormattingVariable.ConversionFormat),
+            new AwkSingleValuePrintfArguments(value, counters),
+            strictMissingArguments: false,
+            limits,
             counters,
             governor);
     }
-
-    public static string FormatPrintfStrict(string formatText, IReadOnlyList<string> arguments)
-    {
-        return FormatPrintfStrict(formatText, arguments, AwkRuntimeCounters.Disabled);
-    }
-
-    public static string FormatPrintfStrict(
-        string formatText,
-        IReadOnlyList<string> arguments,
-        AwkRuntimeCounters counters) =>
-        FormatPrintfStrict(
-            formatText,
-            new PrintfStringListArguments(arguments, counters),
-            counters);
-
-    public static AwkText FormatPrintfStrictByteText(
-        string formatText,
-        IReadOnlyList<string> arguments,
-        AwkRuntimeCounters counters)
-    {
-        return FormatPrintfStrictByteText(formatText, arguments, counters, AwkMemoryGovernor.Disabled);
-    }
-
-    public static AwkText FormatPrintfStrictByteText(
-        string formatText,
-        IReadOnlyList<string> arguments,
-        AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor) =>
-        FormatPrintfStrictByteText(
-            formatText,
-            new PrintfStringListArguments(arguments, counters),
-            counters,
-            governor);
 
     public static AwkText FormatPrintfStrictByteText<TArguments>(
         string formatText,
         TArguments arguments,
+        AwkRuntimeLimits limits,
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
         where TArguments : IPrintfArguments
     {
-        return AwkText.FromString(
-            FormatPrintfStrict(formatText, arguments, counters),
+        counters.RecordFormattingFallback();
+        counters.RecordFormattingStringInteropInput();
+        return PrintfEvaluation.FormatByteText(
+            formatText,
+            arguments,
+            strictMissingArguments: true,
+            limits,
             counters,
             governor);
-    }
-
-    private static string FormatPrintfStrict<TArguments>(
-        string formatText,
-        TArguments arguments,
-        AwkRuntimeCounters counters)
-        where TArguments : IPrintfArguments
-    {
-        try
-        {
-            counters.RecordFormattingFallback();
-            counters.RecordFormattingStringInteropInput();
-            return PrintfEvaluation.Format(formatText, arguments, strictMissingArguments: true);
-        }
-        catch (FormatException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorNotEnoughPrintfArguments);
-        }
     }
 
     private bool UsesDefaultFormat(AwkFormattingVariable variable)

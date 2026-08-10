@@ -91,7 +91,7 @@ internal sealed class AwkRuntimeState
             Counters,
             runtimeOptions.RegexEngineKind);
         _stringRuntime = new AwkStringRuntime(stringUnitMode);
-        _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Counters, MemoryGovernor);
+        _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryGovernor);
         _fieldSplitter = new AwkFieldSplitter(
             fieldSeparator,
             CreateRegex,
