@@ -943,7 +943,9 @@ internal sealed class AwkStatementSyntaxParser
         if (!expression.TryGetValue(out var expressionSyntax) ||
             !ExpressionCoversTokenSegment(expressionSyntax, tokens))
         {
-            return FindUnexpectedPostfixMutationTrailingToken(tokens);
+            return FindUnexpectedPostfixMutationTrailingToken(
+                tokens,
+                PostfixTrailingTokenScanMode.Expression);
         }
 
         if (expressionSyntax.Kind != AwkExpressionKind.Concatenation ||
@@ -956,7 +958,9 @@ internal sealed class AwkStatementSyntaxParser
         return FirstToken(expressionSyntax.Children[1]);
     }
 
-    private static AwkToken? FindUnexpectedPostfixMutationTrailingToken(IReadOnlyList<AwkToken> tokens)
+    private static AwkToken? FindUnexpectedPostfixMutationTrailingToken(
+        IReadOnlyList<AwkToken> tokens,
+        PostfixTrailingTokenScanMode mode)
     {
         var parenDepth = 0;
         var bracketDepth = 0;
@@ -969,8 +973,20 @@ internal sealed class AwkStatementSyntaxParser
                 braceDepth == 0 &&
                 IsPostfixMutation(tokens, index))
             {
-                var nextIndex = AwkTokenNavigation.SkipNonSignificant(tokens, index + 1, tokens.Count);
+                var nextIndex = index + 1;
+                if (mode == PostfixTrailingTokenScanMode.Expression)
+                {
+                    nextIndex = AwkTokenNavigation.SkipNonSignificant(tokens, nextIndex, tokens.Count);
+                }
+                else
+                {
+                    while (nextIndex < tokens.Count && tokens[nextIndex].Kind == AwkTokenKind.Comment)
+                        nextIndex++;
+                }
+
                 if (nextIndex < tokens.Count &&
+                    (mode != PostfixTrailingTokenScanMode.StatementStream ||
+                        tokens[nextIndex].Kind is not (AwkTokenKind.NewLine or AwkTokenKind.Semicolon)) &&
                     CanStartImplicitPostfixOperand(tokens[nextIndex].Kind))
                 {
                     return tokens[nextIndex];
@@ -1310,7 +1326,9 @@ internal sealed class AwkStatementSyntaxParser
             return null;
 
         var combinedTokens = Flatten([previous.Tokens, next.Tokens]);
-        var trailing = FindUnexpectedPostfixMutationTrailingToken(combinedTokens);
+        var trailing = FindUnexpectedPostfixMutationTrailingToken(
+            combinedTokens,
+            PostfixTrailingTokenScanMode.Expression);
         if (trailing != null && trailing.Value.Span.Start >= nextFirst.Value.Span.Start)
         {
             return new AwkDiagnostic(trailing.Value.Span, "Unexpected token after postfix update expression.");
@@ -1376,7 +1394,9 @@ internal sealed class AwkStatementSyntaxParser
         IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics)
     {
-        var token = FindUnexpectedPostfixMutationTrailingTokenInStatementStream(tokens);
+        var token = FindUnexpectedPostfixMutationTrailingToken(
+            tokens,
+            PostfixTrailingTokenScanMode.StatementStream);
         if (token == null)
             return;
 
@@ -1391,37 +1411,6 @@ internal sealed class AwkStatementSyntaxParser
         }
 
         diagnostics.Add(new AwkDiagnostic(token.Value.Span, message));
-    }
-
-    private static AwkToken? FindUnexpectedPostfixMutationTrailingTokenInStatementStream(IReadOnlyList<AwkToken> tokens)
-    {
-        var parenDepth = 0;
-        var bracketDepth = 0;
-        var braceDepth = 0;
-        for (var index = 0; index < tokens.Count; index++)
-        {
-            if (tokens[index].Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus &&
-                parenDepth == 0 &&
-                bracketDepth == 0 &&
-                braceDepth == 0 &&
-                IsPostfixMutation(tokens, index))
-            {
-                var nextIndex = index + 1;
-                while (nextIndex < tokens.Count && tokens[nextIndex].Kind == AwkTokenKind.Comment)
-                    nextIndex++;
-
-                if (nextIndex < tokens.Count &&
-                    tokens[nextIndex].Kind is not (AwkTokenKind.NewLine or AwkTokenKind.Semicolon) &&
-                    CanStartImplicitPostfixOperand(tokens[nextIndex].Kind))
-                {
-                    return tokens[nextIndex];
-                }
-            }
-
-            AwkTokenNavigation.UpdateDepth(tokens[index].Kind, ref parenDepth, ref bracketDepth, ref braceDepth);
-        }
-
-        return null;
     }
 
     private static AwkToken? FindFirstSignificant(IReadOnlyList<AwkToken> tokens) =>
@@ -1629,6 +1618,12 @@ internal sealed class AwkStatementSyntaxParser
         public AwkToken Token { get; } = token;
 
         public string Message { get; } = message;
+    }
+
+    private enum PostfixTrailingTokenScanMode
+    {
+        Expression,
+        StatementStream
     }
 
     public readonly struct MalformedControlPart(IReadOnlyList<AwkToken> tokens)
