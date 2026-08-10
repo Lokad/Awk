@@ -187,6 +187,28 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(numeric.Counters.AwkTextAllocations, userFunction.Counters.AwkTextAllocations);
     }
 
+    [Theory]
+    [InlineData("@ind_str_asc", "2", "1", 1)]
+    [InlineData("@ind_num_asc", "2", "1", 1)]
+    [InlineData("@val_str_asc", "2", "1", 1)]
+    [InlineData("@val_str_asc", "1", "1", 2)]
+    [InlineData("@val_num_asc", "2", "1", 0)]
+    [InlineData("@val_num_asc", "1", "1", 1)]
+    public async Task Awk_ArraySortEvaluatesOnlyRequiredTextTieBreakers(
+        string order,
+        string firstValue,
+        string secondValue,
+        long expectedComparisons)
+    {
+        var result = await RunAsync([
+            "BEGIN{a[\"b\"]=" + firstValue + "; a[\"a\"]=" + secondValue +
+            "; n=asort(a,b,\"" + order + "\"); print n}"]);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(expectedComparisons, result.Counters.ByteTextComparisons);
+    }
+
     [Fact]
     public async Task Awk_RegexReplacementEncodingDoesNotScaleWithLiteralLength()
     {
