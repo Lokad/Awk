@@ -351,6 +351,7 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     private interface IAwkTextPartSelector<TPart>
     {
+        /// <summary>Returns the byte-native text represented by one concatenation input.</summary>
         static abstract AwkText Select(ReadOnlySpan<TPart> parts, int index);
     }
 
