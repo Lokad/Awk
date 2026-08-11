@@ -12,7 +12,7 @@ internal abstract class AwkBalancedTokenGroup
         OpenToken = openToken;
         CloseToken = closeToken;
         InnerTokens = innerTokens;
-        FullTokens = [openToken, .. innerTokens, closeToken];
+        FullTokens = AwkTokenNavigation.Flatten([[openToken], innerTokens, [closeToken]]);
     }
 
     public AwkToken OpenToken { get; }

@@ -23,32 +23,67 @@ internal static class AwkTokenNavigation
 
     public static AwkToken? FindFirstSignificant(IReadOnlyList<AwkToken> tokens)
     {
+        if (tokens is CompositeTokenList composite)
+            return FindInComposite(composite);
+
         for (var index = 0; index < tokens.Count; index++)
         {
-            if (IsSignificant(tokens[index].Kind))
-                return tokens[index];
+            var token = tokens[index];
+            if (IsSignificant(token.Kind))
+                return token;
         }
 
         return null;
+
+        static AwkToken? FindInComposite(CompositeTokenList composite)
+        {
+            for (var index = 0; index < composite.Groups.Count; index++)
+            {
+                var token = FindFirstSignificant(composite.Groups[index]);
+                if (token != null)
+                    return token;
+            }
+
+            return null;
+        }
     }
 
     public static AwkToken? FindLastSignificant(IReadOnlyList<AwkToken> tokens)
     {
+        if (tokens is CompositeTokenList composite)
+            return FindInComposite(composite);
+
         for (var index = tokens.Count - 1; index >= 0; index--)
         {
-            if (IsSignificant(tokens[index].Kind))
-                return tokens[index];
+            var token = tokens[index];
+            if (IsSignificant(token.Kind))
+                return token;
         }
 
         return null;
+
+        static AwkToken? FindInComposite(CompositeTokenList composite)
+        {
+            for (var index = composite.Groups.Count - 1; index >= 0; index--)
+            {
+                var token = FindLastSignificant(composite.Groups[index]);
+                if (token != null)
+                    return token;
+            }
+
+            return null;
+        }
     }
 
     public static AwkToken? FindNextSignificant(IReadOnlyList<AwkToken> tokens, int startIndex)
     {
-        for (var index = startIndex; index < tokens.Count; index++)
+        var index = 0;
+        foreach (var token in tokens)
         {
-            if (IsSignificant(tokens[index].Kind))
-                return tokens[index];
+            if (index >= startIndex && IsSignificant(token.Kind))
+                return token;
+
+            index++;
         }
 
         return null;
@@ -189,6 +224,8 @@ internal static class AwkTokenNavigation
         }
 
         public int Count { get; }
+
+        public IReadOnlyList<IReadOnlyList<AwkToken>> Groups => _groups;
 
         public AwkToken this[int index]
         {

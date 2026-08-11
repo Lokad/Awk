@@ -61,6 +61,41 @@ public sealed class AwkSyntaxParserTests
     }
 
     [Fact]
+    public void AwkSyntaxParser_ParsesDeepStatementNestingWithLinearAllocation()
+    {
+        _ = ParseAndMeasureAllocatedBytes(CreateNestedStatements(8));
+        var shallowAllocatedBytes = ParseAndMeasureAllocatedBytes(CreateNestedStatements(256));
+        var deepAllocatedBytes = ParseAndMeasureAllocatedBytes(CreateNestedStatements(512));
+
+        Assert.True(
+            deepAllocatedBytes < shallowAllocatedBytes * 3,
+            "Allocated bytes at depths 256 and 512: " + shallowAllocatedBytes + ", " + deepAllocatedBytes + ".");
+
+        static long ParseAndMeasureAllocatedBytes(string source)
+        {
+            var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+            var result = AwkParser.Parse(source);
+            var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+            Assert.True(result.Success);
+            return allocatedBytes;
+        }
+
+        static string CreateNestedStatements(int depth)
+        {
+            var source = new System.Text.StringBuilder("BEGIN{");
+            for (var index = 0; index < depth; index++)
+                source.Append("while(1){");
+
+            source.Append("print 1");
+            for (var index = 0; index <= depth; index++)
+                source.Append('}');
+
+            return source.ToString();
+        }
+    }
+
+    [Fact]
     public void AwkSyntaxParser_ParsesBeginMainAndEndRulesInOrder()
     {
         var program = AwkSyntaxParser.Parse("BEGIN{print \"start\"} /foo/ {print $0} END{print NR}");

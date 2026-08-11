@@ -357,7 +357,7 @@ internal sealed class AwkStatementSyntaxParser
         var closeToken = ToToken(AwkTokenKind.RightBrace, close);
         var innerTokens = Flatten(items.Select(item => item.Tokens));
         return new StatementBody(
-            [openToken, .. innerTokens, closeToken],
+            Flatten([[openToken], innerTokens, [closeToken]]),
             StatementsFrom(items));
     }
 
@@ -381,7 +381,7 @@ internal sealed class AwkStatementSyntaxParser
         }
 
         return new SwitchBlock(
-            [openToken, .. Flatten(items.Select(item => item.Tokens)), closeToken],
+            Flatten([[openToken], Flatten(items.Select(item => item.Tokens)), [closeToken]]),
             cases);
     }
 
@@ -415,7 +415,7 @@ internal sealed class AwkStatementSyntaxParser
             new AwkTextSpan(keywordToken.Span.Start, last.Span.End - keywordToken.Span.Start));
         return new SwitchCasePart(
             syntax,
-            [keywordToken, .. labelTokens, colonToken, .. bodyTokens]);
+            Flatten([[keywordToken], labelTokens, [colonToken], bodyTokens]));
     }
 
     [Rule]
@@ -434,7 +434,7 @@ internal sealed class AwkStatementSyntaxParser
             new AwkTextSpan(keywordToken.Span.Start, last.Span.End - keywordToken.Span.Start));
         return new SwitchCasePart(
             syntax,
-            [keywordToken, colonToken, .. bodyTokens]);
+            Flatten([[keywordToken, colonToken], bodyTokens]));
     }
 
     [Rule]
