@@ -25,6 +25,7 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageOutputPath>..\..\artifacts\nuget\</PackageOutputPath>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
