@@ -24,6 +24,8 @@ public sealed class MockFileSystem : IAwkHost
 
     public Func<AwkFileDescriptor, int, AwkReadResult>? ReadLinesOverride { get; set; }
 
+    public Exception? OpenFileException { get; set; }
+
     public int OpenFileCount => _descriptors.OpenFileCount;
 
     public int ReadOpenCount { get; private set; }
@@ -110,6 +112,9 @@ public sealed class MockFileSystem : IAwkHost
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (OpenFileException is { } exception)
+            throw exception;
+
         if (path.Equals(AwkFileDescriptor.DevNullPath))
             return Task.FromResult(AwkOpenedFile.Opened(AwkFileDescriptor.DevNull));
 

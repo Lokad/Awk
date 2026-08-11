@@ -112,14 +112,41 @@ internal static class AwkExecutor
             var failure = AwkDiagnostics.Runtime(exception);
             runtimeOptions.Counters.RecordHostCall();
             runtimeOptions.Counters.RecordOutputBytes(failure.Message.Length);
-            var appendStatus = await host.AppendAsync(
-                    invocation.Stdio.StdErr,
-                    failure.Message,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            return appendStatus.Succeeded
-                ? failure.ExitCode
-                : AwkDiagnostics.FatalExitCode;
+            try
+            {
+                var appendStatus = await host.AppendAsync(
+                        invocation.Stdio.StdErr,
+                        failure.Message,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                return appendStatus.Succeeded
+                    ? failure.ExitCode
+                    : AwkDiagnostics.FatalExitCode;
+            }
+            catch (Exception)
+            {
+                return AwkDiagnostics.FatalExitCode;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            try
+            {
+                _ = await host.AppendAsync(
+                        invocation.Stdio.StdErr,
+                        AwkMessages.ErrorUnexpectedFailure,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                return AwkDiagnostics.FatalExitCode;
+            }
+            catch (Exception)
+            {
+                return AwkDiagnostics.FatalExitCode;
+            }
         }
     }
 

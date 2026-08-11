@@ -38,7 +38,9 @@ internal sealed class AwkIo
         bool sandbox = false,
         bool allowFileRedirections = true,
         bool allowCommandPipes = true,
-        AwkPath? accessiblePathRoot = null)
+        AwkPath? accessiblePathRoot = null,
+        TimeSpan? commandTimeout = null,
+        TimeSpan? cleanupTimeout = null)
     {
         _host = new AwkIoHostAdapter(
             host,
@@ -50,7 +52,9 @@ internal sealed class AwkIo
             snapshotEnvironment,
             counters,
             state.Resources,
-            accessiblePathRoot);
+            accessiblePathRoot,
+            commandTimeout,
+            cleanupTimeout);
         _maxOutputFiles = limits.MaxOutputFiles;
         _maxInputFiles = limits.MaxInputFiles;
         _sandbox = sandbox;

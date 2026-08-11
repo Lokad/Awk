@@ -616,7 +616,14 @@ internal static partial class AwkBuiltins
             var timeZone = context.ArgumentCount >= 3 && context.GetValue(2).IsTruthy()
                 ? TimeZoneInfo.Utc
                 : context.State.TimeZone;
-            return context.State.CreateStringValue(FormatTime(format, timestamp, timeZone));
+            try
+            {
+                return context.State.CreateStringValue(FormatTime(format, timestamp, timeZone));
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return AwkValue.FromText(string.Empty);
+            }
         }
 
         static AwkBuiltinDefinition PosixPure(

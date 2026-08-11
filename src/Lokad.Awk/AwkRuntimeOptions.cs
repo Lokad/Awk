@@ -16,7 +16,9 @@ internal sealed class AwkRuntimeOptions
         AwkExecutionEngineKind executionEngineKind,
         bool allowFileRedirections = true,
         bool allowCommandPipes = true,
-        AwkPath? accessiblePathRoot = null)
+        AwkPath? accessiblePathRoot = null,
+        TimeSpan? commandTimeout = null,
+        TimeSpan? cleanupTimeout = null)
     {
         var randomGeneratorSnapshot = randomGenerator.Clone();
         CurrentUnixTimeSeconds = currentUnixTimeSeconds;
@@ -29,6 +31,8 @@ internal sealed class AwkRuntimeOptions
         AllowFileRedirections = allowFileRedirections;
         AllowCommandPipes = allowCommandPipes;
         AccessiblePathRoot = accessiblePathRoot;
+        CommandTimeout = commandTimeout ?? TimeSpan.FromMinutes(5);
+        CleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
     }
 
     public Func<AwkUnixTimestampSeconds> CurrentUnixTimeSeconds { get; }
@@ -51,12 +55,16 @@ internal sealed class AwkRuntimeOptions
 
     public AwkPath? AccessiblePathRoot { get; }
 
+    public TimeSpan CommandTimeout { get; }
+
+    public TimeSpan CleanupTimeout { get; }
+
     public static AwkRuntimeOptions CreateSystemDefault() => Create(AwkExecutionPolicy.CreateDefault());
 
     public static AwkRuntimeOptions Create(AwkExecutionPolicy policy) =>
         new(
-            AwkUnixTimestampSeconds.FromSystemClock,
-            TimeZoneInfo.Local,
+            () => new AwkUnixTimestampSeconds(policy.TimeProvider.GetUtcNow().ToUnixTimeSeconds()),
+            policy.TimeZone,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.FromPolicy(policy),
@@ -64,5 +72,7 @@ internal sealed class AwkRuntimeOptions
             AwkExecutionEngineKind.Interpreter,
             policy.AllowFileRedirections,
             policy.AllowCommandPipes,
-            policy.AccessiblePathRoot);
+            policy.AccessiblePathRoot,
+            policy.CommandTimeout,
+            policy.CleanupTimeout);
 }

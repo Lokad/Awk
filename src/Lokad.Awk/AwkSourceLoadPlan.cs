@@ -66,7 +66,7 @@ internal sealed class AwkSourceLoadPlan
 
     public AwkResolvedPath ResolvePath(string path)
     {
-        var resolved = AwkPathResolution.ResolveArgument(path, _currentDirectory);
+        var resolved = AwkPathResolution.ResolveRuntimeArgument(path, _currentDirectory);
         ThrowIfDenied(resolved.Absolute);
         return resolved;
     }

@@ -114,7 +114,9 @@ internal static class AwkRuntime
             executionOptions.Sandbox,
             runtimeOptions.AllowFileRedirections,
             runtimeOptions.AllowCommandPipes,
-            runtimeOptions.AccessiblePathRoot);
+            runtimeOptions.AccessiblePathRoot,
+            runtimeOptions.CommandTimeout,
+            runtimeOptions.CleanupTimeout);
         using var actionExecutor = new AwkRuntimeActionExecutor(program, executableProgram, state);
         var inputScheduler = new AwkInputScheduler(
             host,

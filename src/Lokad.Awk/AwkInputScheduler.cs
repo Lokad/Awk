@@ -157,7 +157,7 @@ internal sealed class AwkInputScheduler(
                 inputArgument is AwkInputArgument.FileArgument file &&
                 runtimeArgument.Text.AsSpan().SequenceEqual(file.Path.Display.Span)
                     ? file.Path
-                    : AwkPathResolution.ResolveArgument(
+                    : AwkPathResolution.ResolveRuntimeArgument(
                         runtimeArgument.Value,
                         invocation.RuntimeArgumentsPlan.CurrentDirectory);
 

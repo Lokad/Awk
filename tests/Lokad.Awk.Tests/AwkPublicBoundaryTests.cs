@@ -106,6 +106,44 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
+    public async Task AwkExecutionPolicy_RestrictedPresetUsesFixedUtcTime()
+    {
+        var host = new MockFileSystem();
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "BEGIN{print systime(); print strftime(\"%Y-%m-%d %H:%M:%S\")}"));
+
+        var exitCode = await tool.ExecuteAsync(
+            host,
+            AwkExecutionPolicy.CreateRestricted(),
+            CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.Success, exitCode);
+        Assert.Equal("0\n1970-01-01 00:00:00\n", host.GetOutput(AwkFileDescriptor.StdOut));
+    }
+
+    [Fact]
+    public async Task Awk_PublicExecutionDoesNotLeakUnexpectedHostExceptionDetails()
+    {
+        var host = new MockFileSystem
+        {
+            OpenFileException = new InvalidOperationException("sensitive host implementation detail")
+        };
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "{print}",
+            "/input.txt"));
+
+        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(
+            "awk: execution failed without exposing host exception details\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.DoesNotContain("sensitive", host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
     public void AwkCommandInvocation_SnapshotsCallerOwnedCollections()
     {
         var arguments = new List<string> { "BEGIN{print 1}" };

@@ -106,6 +106,12 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: command pipes are disabled by execution policy\n");
     internal static readonly ReadOnlyMemory<byte> ErrorPathOutsideExecutionRoot =
         AwkUtf8Codec.Encode("awk: path is outside the execution policy root\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorCommandTimeout =
+        AwkUtf8Codec.Encode("awk: command pipe timed out\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorInvalidPath =
+        AwkUtf8Codec.Encode("awk: invalid path\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorUnexpectedFailure =
+        AwkUtf8Codec.Encode("awk: execution failed without exposing host exception details\n");
     internal static readonly ReadOnlyMemory<byte> ErrorLengthArrayArgument =
         AwkUtf8Codec.Encode("awk: length: received array argument\n");
     internal static readonly ReadOnlyMemory<byte> ErrorSwitchIsGnuExtension =

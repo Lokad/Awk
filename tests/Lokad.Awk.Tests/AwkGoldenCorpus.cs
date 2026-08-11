@@ -1606,7 +1606,7 @@ internal static partial class AwkGoldenCorpus
             [],
             2,
             string.Empty,
-            "awk: : Invalid path\n"),
+            "awk: invalid path\n"),
 
         Failing(
             "malformed-printf-redirection-fails",
@@ -2620,6 +2620,12 @@ internal static partial class AwkGoldenCorpus
             "97445\n1970-01-01 00:00:00\n86400\n"),
 
         Passing(
+            "strftime-out-of-range-timestamp-is-empty",
+            ["BEGIN{print \"[\" strftime(\"%Y\", 1e20, 1) \"]\"}"],
+            [],
+            "[]\n"),
+
+        Passing(
             "strftime-procinfo-default-format",
             ["BEGIN{PROCINFO[\"strftime\"]=\"%Y\"; y=strftime(); if(y ~ /^[0-9][0-9][0-9][0-9]$/) print \"year\"; else print y}"],
             [],
@@ -2916,13 +2922,29 @@ internal static partial class AwkGoldenCorpus
     ];
         static AwkGoldenCase[] HostPolicyCases() =>
         [
-            Failing(
+        Failing(
             "system-function-unsupported",
             ["BEGIN{print system(\"echo hi\")}"],
             [],
             2,
             string.Empty,
             "awk: system() is unsupported in Lokad awk\n"),
+
+        Failing(
+            "above-root-command-line-path-is-diagnostic",
+            ["BEGIN{print}", "../../secret"],
+            [],
+            2,
+            string.Empty,
+            "awk: invalid path\n"),
+
+        Failing(
+            "above-root-runtime-path-is-diagnostic",
+            ["BEGIN{getline value < \"../../secret\"}"],
+            [],
+            2,
+            string.Empty,
+            "awk: invalid path\n"),
 
         Failing(
             "coprocess-output-unsupported",

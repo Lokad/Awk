@@ -6,8 +6,17 @@ internal static class AwkCommandParser
 {
     public static AwkInvocation Parse(AwkCommandInvocation invocation)
     {
-        var parser = new Parser(invocation);
-        return parser.Parse();
+        try
+        {
+            var parser = new Parser(invocation);
+            return parser.Parse();
+        }
+        catch (Exception exception) when (exception is FormatException or AwkPathException)
+        {
+            return new AwkInvocationBuilder(invocation)
+                .WithErrorMessage(AwkMessages.ErrorInvalidPath, AwkDiagnosticId.OptionInvalid)
+                .Build();
+        }
     }
 
     private sealed class Parser(AwkCommandInvocation invocation)

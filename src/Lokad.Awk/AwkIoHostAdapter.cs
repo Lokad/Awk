@@ -15,22 +15,18 @@ internal sealed class AwkIoHostAdapter(
     Func<IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
     AwkRuntimeCounters counters,
     AwkRuntimeResourceMonitor resources,
-    AwkPath? accessiblePathRoot = null)
+    AwkPath? accessiblePathRoot = null,
+    TimeSpan? commandTimeout = null,
+    TimeSpan? cleanupTimeout = null)
 {
+    private readonly TimeSpan _commandTimeout = commandTimeout ?? TimeSpan.FromMinutes(5);
+    private readonly TimeSpan _cleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
+
     public AwkResolvedPath ResolvePath(string path)
     {
-        try
-        {
-            var resolved = AwkPathResolution.ResolveArgument(path, currentDirectory);
-            AwkHostPathPolicy.ThrowIfDenied(resolved.Absolute, accessiblePathRoot);
-            return resolved;
-        }
-        catch (FormatException)
-        {
-            throw new AwkRuntimeException(
-                AwkMessages.FormatPathError(AwkUtf8Codec.Encode(path), "Invalid path"),
-                AwkDiagnosticId.HostIoFailure);
-        }
+        var resolved = AwkPathResolution.ResolveRuntimeArgument(path, currentDirectory);
+        AwkHostPathPolicy.ThrowIfDenied(resolved.Absolute, accessiblePathRoot);
+        return resolved;
     }
 
     public Task WriteStandardOutputAsync(string content)
@@ -109,7 +105,19 @@ internal sealed class AwkIoHostAdapter(
     public async Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command)
     {
         resources.RecordHostCall();
-        var exitCodes = await host.RunCommandsAsync([command], cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<AwkExitCode> exitCodes;
+        try
+        {
+            exitCodes = await host.RunCommandsAsync([command], cancellationToken)
+                .WaitAsync(_commandTimeout, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            throw new AwkRuntimeException(
+                AwkMessages.ErrorCommandTimeout,
+                AwkDiagnosticId.RuntimeResourceLimit);
+        }
         if (exitCodes.Count != 1)
         {
             throw new AwkRuntimeException(
@@ -142,7 +150,9 @@ internal sealed class AwkIoHostAdapter(
     public async Task CloseDescriptorForCleanupAsync(AwkFileDescriptor descriptor)
     {
         resources.RecordCleanupHostCall();
-        _ = await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
+        _ = await host.CloseDescriptorAsync(descriptor, CancellationToken.None)
+            .WaitAsync(_cleanupTimeout)
+            .ConfigureAwait(false);
     }
 
     public AsyncLineReader CreateLineReader(AwkFileDescriptor descriptor, int maxLineCount) =>

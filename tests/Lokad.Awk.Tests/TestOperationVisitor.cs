@@ -26,6 +26,12 @@ public sealed class TestOperationVisitor : IAwkHost
 
     public Action? BeforeAppend { get; set; }
 
+    public Func<IReadOnlyList<AwkCommandInvocation>, CancellationToken, Task<IReadOnlyList<AwkExitCode>>>?
+        RunCommandsOverride { get; set; }
+
+    public Func<AwkFileDescriptor, CancellationToken, Task<AwkOperationStatus>>?
+        CloseDescriptorOverride { get; set; }
+
     public string GetAppendedOutput(AwkFileDescriptor descriptor)
     {
         var builder = new StringBuilder();
@@ -58,6 +64,9 @@ public sealed class TestOperationVisitor : IAwkHost
             CommandInvocations.Add(command);
             CommandNames.Add(command.CommandName);
         }
+
+        if (RunCommandsOverride is { } runCommandsOverride)
+            return runCommandsOverride(commands, cancellationToken);
 
         var operation = Dequeue<TestHostOperation.RunCommands>("command exit codes");
         return Task.FromResult(operation.ExitCodes);
@@ -92,6 +101,9 @@ public sealed class TestOperationVisitor : IAwkHost
         {
             return Task.FromResult(AwkOperationStatus.Success);
         }
+
+        if (CloseDescriptorOverride is { } closeDescriptorOverride)
+            return closeDescriptorOverride(descriptor, cancellationToken);
 
         var operation = Dequeue<TestHostOperation.CloseDescriptor>("descriptor close results");
         return Task.FromResult(operation.Status);

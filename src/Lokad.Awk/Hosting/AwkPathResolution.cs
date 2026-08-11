@@ -44,4 +44,16 @@ public static class AwkPathResolution
         var absolute = AwkRawPath.Parse(raw, CultureInfo.InvariantCulture).ToAbsolute(currentDirectory);
         return new AwkResolvedPath(AwkUtf8Codec.Encode(raw), absolute);
     }
+
+    internal static AwkResolvedPath ResolveRuntimeArgument(string raw, AwkPath currentDirectory)
+    {
+        try
+        {
+            return ResolveArgument(raw, currentDirectory);
+        }
+        catch (Exception exception) when (exception is FormatException or AwkPathException)
+        {
+            throw new AwkRuntimeException(AwkMessages.ErrorInvalidPath, AwkDiagnosticId.HostIoFailure);
+        }
+    }
 }

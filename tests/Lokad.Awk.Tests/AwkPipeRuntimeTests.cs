@@ -5,6 +5,64 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 {
     [Fact]
+    public async Task Awk_CommandHostCallHasIndependentTimeout()
+    {
+        var pendingCommand = new TaskCompletionSource<IReadOnlyList<AwkExitCode>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new TestOperationVisitor([])
+        {
+            RunCommandsOverride = (_, _) => pendingCommand.Task
+        };
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var adapter = new AwkIoHostAdapter(
+            host,
+            AwkPath.Root,
+            AwkFileDescriptor.StdIn,
+            AwkFileDescriptor.StdOut,
+            AwkFileDescriptor.StdErr,
+            CancellationToken.None,
+            static () => [],
+            AwkRuntimeCounters.Disabled,
+            new AwkRuntimeResourceMonitor(limits, AwkRuntimeCounters.Disabled),
+            commandTimeout: TimeSpan.FromMilliseconds(10));
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors(
+            "never-finishes",
+            [],
+            []);
+
+        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
+            () => adapter.RunCommandAsync(command));
+
+        Assert.Equal("awk: command pipe timed out\n", AwkUtf8Codec.Decode(exception.MessageBytes));
+    }
+
+    [Fact]
+    public async Task Awk_CleanupDescriptorCallHasIndependentTimeout()
+    {
+        var pendingClose = new TaskCompletionSource<AwkOperationStatus>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new TestOperationVisitor([])
+        {
+            CloseDescriptorOverride = (_, _) => pendingClose.Task
+        };
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var adapter = new AwkIoHostAdapter(
+            host,
+            AwkPath.Root,
+            AwkFileDescriptor.StdIn,
+            AwkFileDescriptor.StdOut,
+            AwkFileDescriptor.StdErr,
+            CancellationToken.None,
+            static () => [],
+            AwkRuntimeCounters.Disabled,
+            new AwkRuntimeResourceMonitor(limits, AwkRuntimeCounters.Disabled),
+            cleanupTimeout: TimeSpan.FromMilliseconds(10));
+
+        await Assert.ThrowsAsync<TimeoutException>(
+            () => adapter.CloseDescriptorForCleanupAsync(new AwkFileDescriptor(82)));
+    }
+
+    [Fact]
     public async Task Awk_PublicPipeLimitFailsBeforeCreatingAnotherPipe()
     {
         var host = new TestOperationVisitor([]);

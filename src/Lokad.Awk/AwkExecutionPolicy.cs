@@ -21,6 +21,18 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the optional lexical root for every host-opened path.</summary>
     public AwkPath? AccessiblePathRoot { get; private init; }
 
+    /// <summary>Gets the time provider observed by time-related awk builtins.</summary>
+    public TimeProvider TimeProvider { get; private init; } = TimeProvider.System;
+
+    /// <summary>Gets the local time zone observed by time-related awk builtins.</summary>
+    public TimeZoneInfo TimeZone { get; private init; } = TimeZoneInfo.Local;
+
+    /// <summary>Gets the maximum duration allowed for a host command requested by a pipe.</summary>
+    public TimeSpan CommandTimeout { get; private init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Gets the maximum duration allowed for each best-effort cleanup host call.</summary>
+    public TimeSpan CleanupTimeout { get; private init; } = TimeSpan.FromSeconds(30);
+
     /// <summary>Gets the maximum number of interpreted execution steps.</summary>
     public int MaxExecutionSteps { get; private init; } = 10_000_000;
 
@@ -90,6 +102,10 @@ public sealed record AwkExecutionPolicy
         {
             AllowFileRedirections = false,
             AllowCommandPipes = false,
+            TimeProvider = AwkFixedTimeProvider.UnixEpoch,
+            TimeZone = TimeZoneInfo.Utc,
+            CommandTimeout = TimeSpan.FromSeconds(10),
+            CleanupTimeout = TimeSpan.FromSeconds(5),
             MaxExecutionSteps = 1_000_000,
             MaxFunctionCallDepth = 32,
             MaxSyntaxNestingDepth = 64,
@@ -126,6 +142,28 @@ public sealed record AwkExecutionPolicy
         ArgumentNullException.ThrowIfNull(root);
         return this with { AccessiblePathRoot = root };
     }
+
+    /// <summary>Returns a copy with the time provider used by awk builtins.</summary>
+    public AwkExecutionPolicy WithTimeProvider(TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        return this with { TimeProvider = timeProvider };
+    }
+
+    /// <summary>Returns a copy with the local time zone used by awk builtins.</summary>
+    public AwkExecutionPolicy WithTimeZone(TimeZoneInfo timeZone)
+    {
+        ArgumentNullException.ThrowIfNull(timeZone);
+        return this with { TimeZone = timeZone };
+    }
+
+    /// <summary>Returns a copy with the command completion timeout configured.</summary>
+    public AwkExecutionPolicy WithCommandTimeout(TimeSpan timeout) =>
+        this with { CommandTimeout = RequirePositive(timeout) };
+
+    /// <summary>Returns a copy with the cleanup host-call timeout configured.</summary>
+    public AwkExecutionPolicy WithCleanupTimeout(TimeSpan timeout) =>
+        this with { CleanupTimeout = RequirePositive(timeout) };
 
     /// <summary>Returns a copy with the execution-step budget configured.</summary>
     public AwkExecutionPolicy WithMaxExecutionSteps(int value) =>
@@ -218,4 +256,25 @@ public sealed record AwkExecutionPolicy
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
         return value;
     }
+
+    private static TimeSpan RequirePositive(TimeSpan value)
+    {
+        if (value <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(value));
+
+        return value;
+    }
+}
+
+internal sealed class AwkFixedTimeProvider : TimeProvider
+{
+    private AwkFixedTimeProvider()
+    {
+    }
+
+    public static AwkFixedTimeProvider UnixEpoch { get; } = new();
+
+    public override DateTimeOffset GetUtcNow() => DateTimeOffset.UnixEpoch;
+
+    public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
 }
