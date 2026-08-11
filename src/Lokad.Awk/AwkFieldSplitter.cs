@@ -28,7 +28,7 @@ internal sealed class AwkFieldSplitter(
         counters);
 
     private AwkFieldSeparatorSpec _fieldSeparator = fieldSeparator;
-    private string _fieldPattern = string.Empty;
+    private AwkRegexPattern _fieldPattern;
     private List<AwkFieldWidth> _fieldWidths = [];
     private AwkFieldSplittingMode _fieldSplittingMode;
     private AwkRecordFieldSplittingMode _recordFieldSplittingMode;
@@ -44,7 +44,7 @@ internal sealed class AwkFieldSplitter(
 
     public void AssignFieldPattern(AwkText value)
     {
-        _fieldPattern = value.AsString(counters);
+        _fieldPattern = new AwkRegexPattern(value.AsString(counters));
         if (value.ByteLength > 0)
             _fieldSplittingMode = AwkFieldSplittingMode.FieldPattern;
     }
@@ -232,17 +232,21 @@ internal sealed class AwkFieldSplitter(
     public AwkTextSplitResult SplitFieldTextsBySeparator(
         AwkText line,
         AwkFieldSeparatorSpec separator,
-        bool captureSeparators,
+        AwkSeparatorCaptureMode captureMode,
         AwkRuntimeCounters counters)
     {
         return _byteSplitter.SplitBySeparator(
             line,
             separator,
-            captureSeparators,
+            captureMode,
             counters);
     }
 
-    public AwkTextSplitResult Patsplit(AwkText input, string pattern, bool captureSeparators, AwkRuntimeCounters counters) =>
-        _byteSplitter.Patsplit(input, pattern, captureSeparators, counters);
+    public AwkTextSplitResult Patsplit(
+        AwkText input,
+        AwkRegexPattern pattern,
+        AwkSeparatorCaptureMode captureMode,
+        AwkRuntimeCounters counters) =>
+        _byteSplitter.Patsplit(input, pattern, captureMode, counters);
 
 }

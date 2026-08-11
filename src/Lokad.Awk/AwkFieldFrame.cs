@@ -339,7 +339,7 @@ internal sealed class AwkFieldFrame(
             AwkRuntimeMemory.EstimateSplitBufferBytes(
                 _recordText.ByteLength,
                 fieldListCount: 2,
-                includeSeparatorBoundaryList: false));
+                AwkSeparatorCaptureMode.Omit));
         var fieldTexts = splitFields(_recordText);
         ThrowIfFieldCountExceeded(fieldTexts.Count);
         ReplaceRetainedMemory(EstimateRetainedBytes(_recordText, fieldTexts, EmptyFieldValueCache));

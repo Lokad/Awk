@@ -87,13 +87,13 @@ internal static class AwkRuntimeMemory
     public static long EstimateSplitBufferBytes(
         int inputByteLength,
         int fieldListCount,
-        bool includeSeparatorBoundaryList)
+        AwkSeparatorCaptureMode captureMode)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fieldListCount);
 
         var fieldCount = CheckedAdd(inputByteLength, 1);
         var bytes = CheckedMultiply(EstimateReferenceListBytes(fieldCount), fieldListCount);
-        return includeSeparatorBoundaryList
+        return captureMode is AwkSeparatorCaptureMode.Capture
             ? CheckedAdd(bytes, EstimateReferenceListBytes(CheckedAdd(fieldCount, 1)))
             : bytes;
     }

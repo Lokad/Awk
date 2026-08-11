@@ -28,22 +28,22 @@ public sealed class AwkRuntimeMemoryTests
         var oneFieldList = AwkRuntimeMemory.EstimateSplitBufferBytes(
             inputByteLength: 3,
             fieldListCount: 1,
-            includeSeparatorBoundaryList: false);
+            AwkSeparatorCaptureMode.Omit);
         var twoFieldLists = AwkRuntimeMemory.EstimateSplitBufferBytes(
             inputByteLength: 3,
             fieldListCount: 2,
-            includeSeparatorBoundaryList: false);
+            AwkSeparatorCaptureMode.Omit);
         var fieldsAndSeparators = AwkRuntimeMemory.EstimateSplitBufferBytes(
             inputByteLength: 3,
             fieldListCount: 1,
-            includeSeparatorBoundaryList: true);
+            AwkSeparatorCaptureMode.Capture);
 
         Assert.Equal(oneFieldList * 2, twoFieldLists);
         Assert.True(fieldsAndSeparators > oneFieldList);
         AssertMemoryLimit(() => AwkRuntimeMemory.EstimateSplitBufferBytes(
             int.MaxValue,
             fieldListCount: 1,
-            includeSeparatorBoundaryList: false));
+            AwkSeparatorCaptureMode.Omit));
     }
 
     private static void AssertMemoryLimit(Action action)

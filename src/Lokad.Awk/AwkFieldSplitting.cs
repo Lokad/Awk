@@ -28,3 +28,9 @@ internal readonly struct AwkTextSplitResult(
 
     public IReadOnlyList<AwkText> Separators => separators ?? [];
 }
+
+internal enum AwkSeparatorCaptureMode
+{
+    Omit,
+    Capture
+}

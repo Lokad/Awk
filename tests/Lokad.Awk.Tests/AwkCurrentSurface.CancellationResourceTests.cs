@@ -1013,7 +1013,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             () => state.SplitIntoArray(
                 AwkText.FromString(new string('x', 80)),
                 arrayName,
-                " ",
+                AwkFieldSeparatorSpec.FromText(" "),
                 AwkOptionalIdentifier.None));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
@@ -1098,7 +1098,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             () => state.SplitIntoArray(
                 AwkText.FromString("a b"),
                 fieldArrayName,
-                " ",
+                AwkFieldSeparatorSpec.FromText(" "),
                 AwkOptionalIdentifier.FromText(separatorArrayName.Text)));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
@@ -1121,7 +1121,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             () => state.PatsplitIntoArray(
                 AwkText.FromString("a b"),
                 fieldArrayName,
-                "[^ ]+",
+                new AwkRegexPattern("[^ ]+"),
                 AwkOptionalIdentifier.FromText(separatorArrayName.Text)));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));

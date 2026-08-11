@@ -104,16 +104,19 @@ internal sealed class AwkArrayRuntime
     public int SplitIntoArray(
         AwkText input,
         AwkArrayName arrayName,
-        string separator,
+        AwkFieldSeparatorSpec separator,
         AwkOptionalIdentifier separatorArrayName)
     {
         ThrowIfSameSplitArrays(arrayName, separatorArrayName);
+        var captureMode = separatorArrayName.HasValue
+            ? AwkSeparatorCaptureMode.Capture
+            : AwkSeparatorCaptureMode.Omit;
         using var splitLease = _state.MemoryGovernor.ReserveTransient(
-            EstimateSplitBuffers(input.ByteLength, separatorArrayName.HasValue));
+            EstimateSplitBuffers(input.ByteLength, captureMode));
         var result = _fieldSplitter.SplitFieldTextsBySeparator(
             input,
-            AwkFieldSeparatorSpec.FromText(separator),
-            separatorArrayName.HasValue,
+            separator,
+            captureMode,
             _state.Counters);
         if (separatorArrayName.HasValue)
         {
@@ -135,13 +138,16 @@ internal sealed class AwkArrayRuntime
     public int PatsplitIntoArray(
         AwkText input,
         AwkArrayName arrayName,
-        string pattern,
+        AwkRegexPattern pattern,
         AwkOptionalIdentifier separatorArrayName)
     {
         ThrowIfSameSplitArrays(arrayName, separatorArrayName);
+        var captureMode = separatorArrayName.HasValue
+            ? AwkSeparatorCaptureMode.Capture
+            : AwkSeparatorCaptureMode.Omit;
         using var splitLease = _state.MemoryGovernor.ReserveTransient(
-            EstimateSplitBuffers(input.ByteLength, separatorArrayName.HasValue));
-        var result = _fieldSplitter.Patsplit(input, pattern, separatorArrayName.HasValue, _state.Counters);
+            EstimateSplitBuffers(input.ByteLength, captureMode));
+        var result = _fieldSplitter.Patsplit(input, pattern, captureMode, _state.Counters);
         if (separatorArrayName.HasValue)
         {
             SetSplitArrayValues(
@@ -621,11 +627,13 @@ internal sealed class AwkArrayRuntime
         return result;
     }
 
-    private static long EstimateSplitBuffers(int inputByteLength, bool captureSeparators)
+    private static long EstimateSplitBuffers(
+        int inputByteLength,
+        AwkSeparatorCaptureMode captureMode)
         => AwkRuntimeMemory.EstimateSplitBufferBytes(
             inputByteLength,
             fieldListCount: 1,
-            includeSeparatorBoundaryList: captureSeparators);
+            captureMode);
 
     private static long EstimateSortOperationBytes(
         int count,

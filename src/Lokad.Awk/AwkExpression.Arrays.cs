@@ -20,7 +20,7 @@ internal abstract partial class AwkExpression
             return AwkValue.FromNumber(context.State.SplitIntoArray(
                 input,
                 arrayName,
-                separator,
+                AwkFieldSeparatorSpec.FromText(separator),
                 separatorArrayName));
         }
     }
@@ -41,7 +41,7 @@ internal abstract partial class AwkExpression
             return AwkValue.FromNumber(context.State.PatsplitIntoArray(
                 input,
                 arrayName,
-                pattern,
+                new AwkRegexPattern(pattern),
                 separatorArrayName));
         }
     }

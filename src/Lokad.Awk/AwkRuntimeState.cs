@@ -700,14 +700,14 @@ internal sealed class AwkRuntimeState
     public int SplitIntoArray(
         AwkText input,
         AwkArrayName arrayName,
-        string separator,
+        AwkFieldSeparatorSpec separator,
         AwkOptionalIdentifier separatorArrayName) =>
         _arrayRuntime.SplitIntoArray(input, arrayName, separator, separatorArrayName);
 
     public int PatsplitIntoArray(
         AwkText input,
         AwkArrayName arrayName,
-        string pattern,
+        AwkRegexPattern pattern,
         AwkOptionalIdentifier separatorArrayName) =>
         _arrayRuntime.PatsplitIntoArray(input, arrayName, pattern, separatorArrayName);
 
