@@ -689,7 +689,7 @@ internal sealed class AwkStatementSyntaxParser
         var expressions = ResolveStatementExpressions(tokens, kind, outputParts);
         return CreateStatement(
             kind,
-            CopyStatementTokens(tokens, preserveNewLines: false),
+            CopyStatementTokens(tokens),
             expressions,
             [],
             [],
@@ -1046,15 +1046,13 @@ internal sealed class AwkStatementSyntaxParser
                     AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(targetTokens))));
         }
 
-        static List<AwkToken> CopyStatementTokens(
-            IReadOnlyList<AwkToken> tokens,
-            bool preserveNewLines)
+        static List<AwkToken> CopyStatementTokens(IReadOnlyList<AwkToken> tokens)
         {
             var result = new List<AwkToken>(tokens.Count);
             for (var index = 0; index < tokens.Count; index++)
             {
                 var token = tokens[index];
-                if (preserveNewLines || token.Kind is not AwkTokenKind.NewLine)
+                if (token.Kind is not AwkTokenKind.NewLine)
                     result.Add(token);
             }
 

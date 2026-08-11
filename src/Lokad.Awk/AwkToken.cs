@@ -4,15 +4,16 @@ using Lokad.Parsing.Lexer;
 
 namespace Lokad.Awk;
 
+internal enum AwkTokenFromAccess
+{
+    Public,
+    Private
+}
+
 internal sealed class AwkTokenFromAttribute : FromAttribute
 {
-    public AwkTokenFromAttribute(AwkTokenKind parent)
-        : this(parent, isPrivate: false)
-    {
-    }
-
-    public AwkTokenFromAttribute(AwkTokenKind parent, bool isPrivate)
-        : base((int)parent, isPrivate)
+    public AwkTokenFromAttribute(AwkTokenKind parent, AwkTokenFromAccess access)
+        : base((int)parent, access is AwkTokenFromAccess.Private)
     {
     }
 }
@@ -137,53 +138,53 @@ internal enum AwkTokenKind
     InternationalizedString,
     Regex,
     StrongRegex,
-    [Any("BEGIN"), AwkTokenFrom(Identifier, true)]
+    [Any("BEGIN"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Begin,
-    [Any("END"), AwkTokenFrom(Identifier, true)]
+    [Any("END"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     End,
-    [Any("BEGINFILE"), AwkTokenFrom(Identifier, true)]
+    [Any("BEGINFILE"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     BeginFile,
-    [Any("ENDFILE"), AwkTokenFrom(Identifier, true)]
+    [Any("ENDFILE"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     EndFile,
-    [Any("function", "func"), AwkTokenFrom(Identifier, true)]
+    [Any("function", "func"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Function,
-    [Any("if"), AwkTokenFrom(Identifier, true)]
+    [Any("if"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     If,
-    [Any("else"), AwkTokenFrom(Identifier, true)]
+    [Any("else"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Else,
-    [Any("while"), AwkTokenFrom(Identifier, true)]
+    [Any("while"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     While,
-    [Any("do"), AwkTokenFrom(Identifier, true)]
+    [Any("do"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Do,
-    [Any("for"), AwkTokenFrom(Identifier, true)]
+    [Any("for"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     For,
-    [Any("in"), AwkTokenFrom(Identifier, true)]
+    [Any("in"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     In,
-    [Any("break"), AwkTokenFrom(Identifier, true)]
+    [Any("break"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Break,
-    [Any("continue"), AwkTokenFrom(Identifier, true)]
+    [Any("continue"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Continue,
-    [Any("next"), AwkTokenFrom(Identifier, true)]
+    [Any("next"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Next,
-    [Any("nextfile"), AwkTokenFrom(Identifier, true)]
+    [Any("nextfile"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     NextFile,
-    [Any("delete"), AwkTokenFrom(Identifier, true)]
+    [Any("delete"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Delete,
-    [Any("exit"), AwkTokenFrom(Identifier, true)]
+    [Any("exit"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Exit,
-    [Any("return"), AwkTokenFrom(Identifier, true)]
+    [Any("return"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Return,
-    [Any("print"), AwkTokenFrom(Identifier, true)]
+    [Any("print"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Print,
-    [Any("printf"), AwkTokenFrom(Identifier, true)]
+    [Any("printf"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Printf,
-    [Any("switch"), AwkTokenFrom(Identifier, true)]
+    [Any("switch"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Switch,
-    [Any("case"), AwkTokenFrom(Identifier, true)]
+    [Any("case"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Case,
-    [Any("default"), AwkTokenFrom(Identifier, true)]
+    [Any("default"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Default,
-    [Any("getline"), AwkTokenFrom(Identifier, true)]
+    [Any("getline"), AwkTokenFrom(Identifier, AwkTokenFromAccess.Private)]
     Getline,
     [Any("{")]
     LeftBrace,

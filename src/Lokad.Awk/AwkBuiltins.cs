@@ -533,7 +533,7 @@ internal static partial class AwkBuiltins
 
         static AwkValue EvaluateMktime(AwkBuiltinContext context)
         {
-            static double MakeTime(string dateSpec, bool utc, TimeZoneInfo timeZone)
+            static double MakeTime(string dateSpec, TimeZoneInfo timeZone)
             {
                 var text = dateSpec.AsSpan();
                 Span<int> values = stackalloc int[6];
@@ -562,19 +562,6 @@ internal static partial class AwkBuiltins
 
                 try
                 {
-                    if (utc)
-                    {
-                        return new DateTimeOffset(
-                                values[0],
-                                values[1],
-                                values[2],
-                                values[3],
-                                values[4],
-                                values[5],
-                                TimeSpan.Zero)
-                            .ToUnixTimeSeconds();
-                    }
-
                     var local = new DateTime(
                         values[0],
                         values[1],
@@ -594,9 +581,11 @@ internal static partial class AwkBuiltins
             if (context.ArgumentCount is < 1 or > 2)
                 return AwkValue.FromNumber(-1);
 
-            var makeUtc = context.ArgumentCount == 2 && context.GetValue(1).IsTruthy();
+            var timeZone = context.ArgumentCount == 2 && context.GetValue(1).IsTruthy()
+                ? TimeZoneInfo.Utc
+                : context.State.TimeZone;
             context.State.Counters.RecordStringInteropFallback();
-            return AwkValue.FromNumber(MakeTime(context.GetString(0), makeUtc, context.State.TimeZone));
+            return AwkValue.FromNumber(MakeTime(context.GetString(0), timeZone));
         }
 
         static AwkValue EvaluateStrftime(AwkBuiltinContext context)
@@ -604,13 +593,11 @@ internal static partial class AwkBuiltins
             static string FormatTime(
                 string format,
                 AwkUnixTimestampSeconds timestamp,
-                bool utc,
                 TimeZoneInfo timeZone)
             {
-                var value = DateTimeOffset.FromUnixTimeSeconds(timestamp.Value);
-                if (!utc)
-                    value = TimeZoneInfo.ConvertTime(value, timeZone);
-
+                var value = TimeZoneInfo.ConvertTime(
+                    DateTimeOffset.FromUnixTimeSeconds(timestamp.Value),
+                    timeZone);
                 return GnuDateFormatting.Format(value, format);
             }
 
@@ -626,8 +613,10 @@ internal static partial class AwkBuiltins
             var timestamp = context.ArgumentCount >= 2
                 ? new AwkUnixTimestampSeconds((long)context.GetNumber(1))
                 : context.State.CurrentUnixTimeSeconds();
-            var utc = context.ArgumentCount >= 3 && context.GetValue(2).IsTruthy();
-            return context.State.CreateStringValue(FormatTime(format, timestamp, utc, context.State.TimeZone));
+            var timeZone = context.ArgumentCount >= 3 && context.GetValue(2).IsTruthy()
+                ? TimeZoneInfo.Utc
+                : context.State.TimeZone;
+            return context.State.CreateStringValue(FormatTime(format, timestamp, timeZone));
         }
 
         static AwkBuiltinDefinition PosixPure(

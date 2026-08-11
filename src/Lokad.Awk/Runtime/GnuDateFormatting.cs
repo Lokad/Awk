@@ -160,10 +160,10 @@ internal static class GnuDateFormatting
                 'm' => value.ToString("MM", Culture),
                 'q' => (((value.Month - 1) / 3) + 1).ToString(Culture),
                 'u' => (value.DayOfWeek == DayOfWeek.Sunday ? 7 : (int)value.DayOfWeek).ToString(Culture),
-                'U' => GetWeekNumber(value, mondayFirst: false).ToString(Culture).PadLeft(2, '0'),
+                'U' => GetWeekNumber(value, DayOfWeek.Sunday).ToString(Culture).PadLeft(2, '0'),
                 'V' => ISOWeek.GetWeekOfYear(value.DateTime).ToString(Culture).PadLeft(2, '0'),
                 'w' => ((int)value.DayOfWeek).ToString(Culture),
-                'W' => GetWeekNumber(value, mondayFirst: true).ToString(Culture).PadLeft(2, '0'),
+                'W' => GetWeekNumber(value, DayOfWeek.Monday).ToString(Culture).PadLeft(2, '0'),
                 'x' => Format(value, "%m/%d/%y"),
                 'y' => value.ToString("yy", Culture),
                 'Y' => value.ToString("yyyy", Culture),
@@ -180,9 +180,8 @@ internal static class GnuDateFormatting
             static string FormatOffsetWithColonCount(TimeSpan offset, int colonCount) =>
                 FormatOffset(offset, new GnuDateColonCount(colonCount));
 
-            static int GetWeekNumber(DateTimeOffset value, bool mondayFirst)
+            static int GetWeekNumber(DateTimeOffset value, DayOfWeek firstWeekDay)
             {
-                var firstWeekDay = mondayFirst ? DayOfWeek.Monday : DayOfWeek.Sunday;
                 var firstDayOfYear = new DateTime(value.Year, 1, 1).DayOfWeek;
                 var firstWeekStart = ((int)firstWeekDay - (int)firstDayOfYear + 7) % 7;
                 var dayOfYear = value.DayOfYear - 1;

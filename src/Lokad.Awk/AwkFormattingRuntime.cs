@@ -27,7 +27,7 @@ internal sealed class AwkFormattingRuntime(
         return PrintfEvaluation.FormatByteText(
             ResolveFormatString(AwkFormattingVariable.OutputFormat),
             new AwkSingleValuePrintfArguments(value, counters),
-            strictMissingArguments: false,
+            PrintfMissingArgumentPolicy.OmitDirective,
             limits,
             counters,
             governor);
@@ -48,7 +48,7 @@ internal sealed class AwkFormattingRuntime(
         return PrintfEvaluation.FormatByteText(
             ResolveFormatString(AwkFormattingVariable.ConversionFormat),
             new AwkSingleValuePrintfArguments(value, counters),
-            strictMissingArguments: false,
+            PrintfMissingArgumentPolicy.OmitDirective,
             limits,
             counters,
             governor);
@@ -67,7 +67,7 @@ internal sealed class AwkFormattingRuntime(
         return PrintfEvaluation.FormatByteText(
             formatText,
             arguments,
-            strictMissingArguments: true,
+            PrintfMissingArgumentPolicy.Throw,
             limits,
             counters,
             governor);

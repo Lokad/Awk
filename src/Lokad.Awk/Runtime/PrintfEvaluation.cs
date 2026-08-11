@@ -4,12 +4,18 @@ using System.Text;
 
 namespace Lokad.Awk;
 
+internal enum PrintfMissingArgumentPolicy
+{
+    OmitDirective,
+    Throw
+}
+
 internal static class PrintfEvaluation
 {
     public static AwkText FormatByteText<TArguments>(
         string format,
         TArguments arguments,
-        bool strictMissingArguments,
+        PrintfMissingArgumentPolicy missingArgumentPolicy,
         AwkRuntimeLimits limits,
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
@@ -74,13 +80,13 @@ internal static class PrintfEvaluation
             var width = ResolveWidth(
                 directive.Width,
                 arguments,
-                strictMissingArguments,
+                missingArgumentPolicy,
                 ref argIndex,
                 ref flags);
             var precision = ResolvePrecision(
                 directive.Precision,
                 arguments,
-                strictMissingArguments,
+                missingArgumentPolicy,
                 ref argIndex);
 
             if (directive.Conversion == PrintfConversion.Percent)
@@ -91,7 +97,7 @@ internal static class PrintfEvaluation
 
             if (directive.Conversion == PrintfConversion.String)
             {
-                if (TryReadArgumentIndex(arguments, strictMissingArguments, ref argIndex, out var argumentIndex))
+                if (TryReadArgumentIndex(arguments, missingArgumentPolicy, ref argIndex, out var argumentIndex))
                 {
                     output.PreflightAdditionalBytes(width.Value);
                     var value = arguments.GetString(argumentIndex);
@@ -106,7 +112,7 @@ internal static class PrintfEvaluation
 
             if (directive.Conversion.IsInteger())
             {
-                if (TryReadArgumentIndex(arguments, strictMissingArguments, ref argIndex, out var argumentIndex))
+                if (TryReadArgumentIndex(arguments, missingArgumentPolicy, ref argIndex, out var argumentIndex))
                 {
                     var formatted = FormatInteger(arguments.GetNumber(argumentIndex), directive.Conversion, flags);
                     output.PreflightAdditionalBytes(Math.Max(
@@ -120,7 +126,7 @@ internal static class PrintfEvaluation
 
             if (directive.Conversion.IsFloat())
             {
-                if (TryReadArgumentIndex(arguments, strictMissingArguments, ref argIndex, out var argumentIndex))
+                if (TryReadArgumentIndex(arguments, missingArgumentPolicy, ref argIndex, out var argumentIndex))
                 {
                     var number = arguments.GetNumber(argumentIndex);
                     output.PreflightAdditionalBytes(Math.Max(
@@ -135,7 +141,7 @@ internal static class PrintfEvaluation
 
             if (directive.Conversion == PrintfConversion.Character)
             {
-                if (TryReadArgumentIndex(arguments, strictMissingArguments, ref argIndex, out var argumentIndex))
+                if (TryReadArgumentIndex(arguments, missingArgumentPolicy, ref argIndex, out var argumentIndex))
                 {
                     var formatted = FormatCharacter(arguments, argumentIndex);
                     output.PreflightAdditionalBytes(Math.Max(
@@ -256,7 +262,7 @@ internal static class PrintfEvaluation
         static PrintfWidthValue ResolveWidth(
             PrintfWidth width,
             IPrintfArguments arguments,
-            bool strictMissingArguments,
+            PrintfMissingArgumentPolicy missingArgumentPolicy,
             ref int argIndex,
             ref PrintfFlags flags)
         {
@@ -265,7 +271,7 @@ internal static class PrintfEvaluation
                 var dynamicWidth = 0;
                 if (argIndex >= arguments.Count)
                 {
-                    if (strictMissingArguments)
+                    if (missingArgumentPolicy is PrintfMissingArgumentPolicy.Throw)
                         throw new AwkRuntimeException(AwkMessages.ErrorNotEnoughPrintfArguments);
                 }
                 else
@@ -295,7 +301,7 @@ internal static class PrintfEvaluation
         static PrintfPrecisionValue ResolvePrecision(
             PrintfPrecision precision,
             IPrintfArguments arguments,
-            bool strictMissingArguments,
+            PrintfMissingArgumentPolicy missingArgumentPolicy,
             ref int argIndex)
         {
             if (precision.Kind == PrintfPrecisionKind.Dynamic)
@@ -303,7 +309,7 @@ internal static class PrintfEvaluation
                 var dynamicPrecision = 0;
                 if (argIndex >= arguments.Count)
                 {
-                    if (strictMissingArguments)
+                    if (missingArgumentPolicy is PrintfMissingArgumentPolicy.Throw)
                         throw new AwkRuntimeException(AwkMessages.ErrorNotEnoughPrintfArguments);
                 }
                 else
@@ -330,13 +336,13 @@ internal static class PrintfEvaluation
 
         static bool TryReadArgumentIndex(
             IPrintfArguments arguments,
-            bool strictMissingArguments,
+            PrintfMissingArgumentPolicy missingArgumentPolicy,
             ref int argIndex,
             out int argumentIndex)
         {
             if (argIndex >= arguments.Count)
             {
-                if (strictMissingArguments)
+                if (missingArgumentPolicy is PrintfMissingArgumentPolicy.Throw)
                     throw new AwkRuntimeException(AwkMessages.ErrorNotEnoughPrintfArguments);
 
                 argumentIndex = 0;
