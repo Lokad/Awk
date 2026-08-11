@@ -33,6 +33,9 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum duration allowed for a host command requested by a pipe.</summary>
     public TimeSpan CommandTimeout { get; private init; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>Gets the optional cooperative wall-time limit for the complete awk execution.</summary>
+    public TimeSpan? ExecutionTimeout { get; private init; }
+
     /// <summary>Gets the maximum duration allowed for each best-effort cleanup host call.</summary>
     public TimeSpan CleanupTimeout { get; private init; } = TimeSpan.FromSeconds(30);
 
@@ -109,6 +112,7 @@ public sealed record AwkExecutionPolicy
             TimeProvider = AwkFixedTimeProvider.UnixEpoch,
             TimeZone = TimeZoneInfo.Utc,
             CommandTimeout = TimeSpan.FromSeconds(10),
+            ExecutionTimeout = TimeSpan.FromSeconds(30),
             CleanupTimeout = TimeSpan.FromSeconds(5),
             MaxExecutionSteps = 1_000_000,
             MaxFunctionCallDepth = 32,
@@ -168,6 +172,10 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the command completion timeout configured.</summary>
     public AwkExecutionPolicy WithCommandTimeout(TimeSpan timeout) =>
         this with { CommandTimeout = RequirePositive(timeout) };
+
+    /// <summary>Returns a copy with the cooperative execution timeout configured.</summary>
+    public AwkExecutionPolicy WithExecutionTimeout(TimeSpan timeout) =>
+        this with { ExecutionTimeout = RequirePositive(timeout) };
 
     /// <summary>Returns a copy with the cleanup host-call timeout configured.</summary>
     public AwkExecutionPolicy WithCleanupTimeout(TimeSpan timeout) =>

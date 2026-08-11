@@ -58,7 +58,8 @@ These limits constrain awk execution without changing successful compatibility b
 Compatibility defaults remain intentionally generous or unlimited where ordinary awk scripts
 historically expect no fixed ceiling. The restricted preset makes host calls, records, values,
 output, captures, VM stack, aggregate execution memory, sources, includes, files, pipes, syntax,
-fields, arrays, and execution steps finite.
+fields, arrays, and execution steps finite. It also supplies a cooperative `ExecutionTimeout`;
+caller cancellation continues to take precedence and remains observable as cancellation.
 
 The ten-million-step default is calibrated against deterministic Release counter-report workloads,
 including projection, multi-key filtering, associative aggregation, and two-file comparison. It

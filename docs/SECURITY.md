@@ -15,7 +15,8 @@ Use `AwkExecutionPolicy.CreateRestricted()` for awk supplied by an untrusted par
 - fixes `systime()`, zero-argument `srand()`, and local time formatting to the Unix epoch and UTC;
 - applies finite execution, syntax, source, include, memory, value, record, output, host-call,
   descriptor, pipe, field, array, regex, and stack budgets; and
-- bounds command completion and each best-effort cleanup close.
+- applies a cooperative wall-time limit and bounds command completion and each best-effort cleanup
+  close.
 
 Set an `AccessiblePathRoot` when the host exposes a virtual subtree. This is a lexical check over
 canonical `AwkPath` values. A host mapping those values to an operating-system filesystem must still
