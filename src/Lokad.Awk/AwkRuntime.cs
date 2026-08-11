@@ -126,7 +126,8 @@ internal static class AwkRuntime
             state,
             io,
             cancellationToken,
-            runtimeOptions.AccessiblePathRoot);
+            runtimeOptions.AccessiblePathRoot,
+            runtimeOptions.CleanupTimeout);
         io.BindMainInputReader(inputScheduler);
         try
         {

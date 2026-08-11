@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -8,6 +9,36 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkSourceLoaderTests
 {
+    [Fact]
+    public async Task Awk_SourceDescriptorCloseUsesPolicyCleanupTimeout()
+    {
+        var pendingClose = new TaskCompletionSource<AwkOperationStatus>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new TestOperationVisitor([])
+        {
+            CloseDescriptorOverride = (_, _) => pendingClose.Task
+        };
+        host.EnqueueOpenAwkFileDescriptor(100);
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
+            AwkUtf8Codec.Encode("BEGIN{print 1}\n"),
+            [],
+            AwkReadCompletion.EndOfFile));
+        host.EnqueueAppendExitCode(0);
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "-f",
+            "/script.awk"));
+        var policy = AwkExecutionPolicy.CreateDefault()
+            .WithCleanupTimeout(TimeSpan.FromMilliseconds(10));
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(
+            "awk: /script.awk: Close failed.\n",
+            host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+    }
+
     [Fact]
     public async Task AwkSourceLoader_ReusesOrdinaryNormalizedSourceText()
     {

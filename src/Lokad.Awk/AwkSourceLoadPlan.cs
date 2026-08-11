@@ -10,6 +10,7 @@ internal sealed class AwkSourceLoadPlan
     private readonly IReadOnlyList<string> _awkPathEntries;
     private readonly AwkPath _currentDirectory;
     private readonly AwkPath? _accessiblePathRoot;
+    private readonly TimeSpan _cleanupTimeout;
     private readonly HashSet<AwkSourceIdentity> _includedIdentities = [];
     private readonly Dictionary<AwkPath, AwkScriptTextReadResult> _scriptTextByPath = [];
 
@@ -17,7 +18,8 @@ internal sealed class AwkSourceLoadPlan
         IReadOnlyList<AwkSourceReference> sources,
         IReadOnlyList<AwkEnvironmentVariable> environment,
         AwkPath currentDirectory,
-        AwkPath? accessiblePathRoot)
+        AwkPath? accessiblePathRoot,
+        TimeSpan? cleanupTimeout)
     {
         static IReadOnlyList<string> ParseAwkPathEntries(
             IReadOnlyList<AwkEnvironmentVariable> environment)
@@ -49,18 +51,25 @@ internal sealed class AwkSourceLoadPlan
         _awkPathEntries = ParseAwkPathEntries(environment);
         _currentDirectory = currentDirectory;
         _accessiblePathRoot = accessiblePathRoot;
+        _cleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
     }
 
     public int SourceCount => _sources.Count;
 
     public IReadOnlyList<string> AwkPathEntries => _awkPathEntries;
 
-    public static AwkSourceLoadPlan FromInvocation(AwkInvocation invocation, AwkPath? accessiblePathRoot = null) =>
+    public TimeSpan CleanupTimeout => _cleanupTimeout;
+
+    public static AwkSourceLoadPlan FromInvocation(
+        AwkInvocation invocation,
+        AwkPath? accessiblePathRoot = null,
+        TimeSpan? cleanupTimeout = null) =>
         new(
             invocation.SourcePlan.Sources,
             invocation.RuntimeArgumentsPlan.Environment,
             invocation.RuntimeArgumentsPlan.CurrentDirectory,
-            accessiblePathRoot);
+            accessiblePathRoot,
+            cleanupTimeout);
 
     public AwkSourceReference GetSource(int index) => _sources[index];
 

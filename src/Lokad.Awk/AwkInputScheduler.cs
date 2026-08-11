@@ -17,8 +17,10 @@ internal sealed class AwkInputScheduler(
     AwkRuntimeState state,
     AwkIo io,
     CancellationToken cancellationToken,
-    AwkPath? accessiblePathRoot = null) : IAwkInputRecordReader
+    AwkPath? accessiblePathRoot = null,
+    TimeSpan? cleanupTimeout = null) : IAwkInputRecordReader
 {
+    private readonly TimeSpan _cleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
     private readonly HashSet<AwkFileDescriptor> _ownedDescriptors = [];
     private readonly AwkRecordProcessor _recordProcessor = new(state);
     private OpenMainInput? _currentInput;
@@ -268,6 +270,7 @@ internal sealed class AwkInputScheduler(
             {
                 state.Resources.RecordCleanupHostCall();
                 _ = await host.CloseDescriptorAsync(descriptors[index], CancellationToken.None)
+                    .WaitAsync(_cleanupTimeout)
                     .ConfigureAwait(false);
             }
             catch (Exception)
@@ -340,7 +343,9 @@ internal sealed class AwkInputScheduler(
         try
         {
             state.Resources.RecordHostCall();
-            var closed = await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
+            var closed = await host.CloseDescriptorAsync(descriptor, CancellationToken.None)
+                .WaitAsync(_cleanupTimeout)
+                .ConfigureAwait(false);
             if (closed != AwkOperationStatus.Success)
             {
                 throw new AwkRuntimeException(

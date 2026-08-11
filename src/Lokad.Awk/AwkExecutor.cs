@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -72,6 +73,7 @@ internal static class AwkExecutor
                     resources,
                     runtimeOptions.Limits.MaxSyntaxNestingDepth,
                     runtimeOptions.AccessiblePathRoot,
+                    runtimeOptions.CleanupTimeout,
                     cancellationToken)
                 .ConfigureAwait(false);
             for (var index = 0; index < resolved.Warnings.Count; index++)
@@ -180,6 +182,7 @@ internal static class AwkExecutor
                 resources,
                 runtimeOptions.Limits.MaxSyntaxNestingDepth,
                 runtimeOptions.AccessiblePathRoot,
+                runtimeOptions.CleanupTimeout,
                 cancellationToken)
             .ConfigureAwait(false);
         if (resolved is AwkProgramResolution.Failed failed)
@@ -201,6 +204,7 @@ internal static class AwkExecutor
         AwkRuntimeResourceMonitor resources,
         int maxSyntaxNestingDepth,
         AwkPath? accessiblePathRoot,
+        TimeSpan cleanupTimeout,
         CancellationToken cancellationToken)
     {
         var sourceLoad = await AwkSourceLoader.LoadAsync(
@@ -208,7 +212,8 @@ internal static class AwkExecutor
                 invocation,
                 resources,
                 cancellationToken,
-                accessiblePathRoot)
+                accessiblePathRoot,
+                cleanupTimeout)
             .ConfigureAwait(false);
         if (sourceLoad is AwkSourceLoadResult.Failed failed)
         {

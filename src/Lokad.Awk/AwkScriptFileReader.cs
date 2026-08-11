@@ -81,7 +81,13 @@ internal static class AwkScriptFileReader
         if (plan.TryGetScriptText(path.Absolute, out var cached))
             return cached;
 
-        var result = await ReadResolvedAsync(host, path, resources, cancellationToken).ConfigureAwait(false);
+        var result = await ReadResolvedAsync(
+                host,
+                path,
+                resources,
+                cancellationToken,
+                plan.CleanupTimeout)
+            .ConfigureAwait(false);
         plan.CacheScriptText(path.Absolute, result);
         return result;
 
@@ -89,14 +95,17 @@ internal static class AwkScriptFileReader
             IAwkHost host,
             AwkResolvedPath path,
             AwkRuntimeResourceMonitor resources,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            TimeSpan cleanupTimeout)
         {
             async Task CloseForCleanupAsync(AwkFileDescriptor descriptor)
             {
                 try
                 {
                     resources.RecordCleanupHostCall();
-                    _ = await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
+                    _ = await host.CloseDescriptorAsync(descriptor, CancellationToken.None)
+                        .WaitAsync(cleanupTimeout)
+                        .ConfigureAwait(false);
                 }
                 catch (Exception)
                 {
@@ -139,6 +148,7 @@ internal static class AwkScriptFileReader
             {
                 resources.RecordHostCall();
                 var closed = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
+                    .WaitAsync(cleanupTimeout)
                     .ConfigureAwait(false);
                 if (closed != AwkOperationStatus.Success &&
                     readResult is not AwkScriptTextReadResult.Failed)

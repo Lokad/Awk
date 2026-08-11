@@ -11,9 +11,10 @@ internal static partial class AwkSourceLoader
         AwkInvocation invocation,
         AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken,
-        AwkPath? accessiblePathRoot = null)
+        AwkPath? accessiblePathRoot = null,
+        TimeSpan? cleanupTimeout = null)
     {
-        var plan = AwkSourceLoadPlan.FromInvocation(invocation, accessiblePathRoot);
+        var plan = AwkSourceLoadPlan.FromInvocation(invocation, accessiblePathRoot, cleanupTimeout);
         var sources = new List<AwkSourceUnit>(plan.SourceCount);
         var inlineSourceIndex = 0;
         for (var index = 0; index < plan.SourceCount; index++)
