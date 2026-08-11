@@ -2,20 +2,24 @@ namespace Lokad.Awk;
 
 internal readonly record struct AwkRegexPattern
 {
+    private readonly string? _text;
+
     public AwkRegexPattern(string text)
     {
-        Text = text;
+        _text = text;
     }
 
-    public string Text { get; }
+    public string Text => _text ?? string.Empty;
 }
 
 internal readonly record struct AwkRegexLiteralText
 {
+    private readonly string? _text;
+
     public AwkRegexLiteralText(string text)
     {
-        Text = text;
+        _text = text;
     }
 
-    public string Text { get; }
+    public string Text => _text ?? string.Empty;
 }

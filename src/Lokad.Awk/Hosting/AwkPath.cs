@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
@@ -117,19 +118,41 @@ public sealed class AwkPath
         return Path == other.Path || IsParentOf(other);
     }
 
-    /// <summary>Returns the canonical child path, or <see langword="null"/> when it cannot be formed.</summary>
-    public AwkPath? TryChild(AwkPathSegment segment)
+    /// <summary>Attempts to form the canonical child path.</summary>
+    /// <param name="segment">The validated child segment.</param>
+    /// <param name="child">The child path when the operation succeeds; otherwise, <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the child path was formed.</returns>
+    public bool TryChild(
+        AwkPathSegment segment,
+        [NotNullWhen(true)] out AwkPath? child)
     {
         if (!AwkPathSegment.IsValid(segment.Name))
-            return null;
+        {
+            child = null;
+            return false;
+        }
 
         var combined = IsRoot ? "/" + segment.Name : Path + "/" + segment.Name;
-        return IsValid(combined) ? new AwkPath(combined) : null;
+        child = new AwkPath(combined);
+        return true;
     }
 
-    /// <summary>Returns the canonical child path, or <see langword="null"/> for an invalid segment.</summary>
-    public AwkPath? TryChild(string? name) =>
-        AwkPathSegment.TryCreate(name, out var segment) ? TryChild(segment) : null;
+    /// <summary>Attempts to form a canonical child path from segment text.</summary>
+    /// <param name="name">The prospective child-segment text.</param>
+    /// <param name="child">The child path when the operation succeeds; otherwise, <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the segment is valid and the child path was formed.</returns>
+    public bool TryChild(
+        string? name,
+        [NotNullWhen(true)] out AwkPath? child)
+    {
+        if (!AwkPathSegment.TryCreate(name, out var segment))
+        {
+            child = null;
+            return false;
+        }
+
+        return TryChild(segment, out child);
+    }
 
     /// <inheritdoc />
     public override string ToString() => Path;

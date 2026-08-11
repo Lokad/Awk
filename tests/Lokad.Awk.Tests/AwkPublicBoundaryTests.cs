@@ -40,8 +40,26 @@ public sealed class AwkPublicBoundaryTests
         Assert.False(AwkPath.IsValid(null));
         Assert.False(AwkPathSegment.IsValid(null));
         Assert.False(AwkPathSegment.TryCreate(null, out _));
-        Assert.Null(AwkPath.Root.TryChild(null));
-        Assert.Null(AwkPath.Root.TryChild(default(AwkPathSegment)));
+        Assert.False(AwkPath.Root.TryChild((string?)null, out var nullChild));
+        Assert.Null(nullChild);
+        Assert.False(AwkPath.Root.TryChild(default(AwkPathSegment), out var defaultChild));
+        Assert.Null(defaultChild);
+
+        Assert.True(AwkPath.Root.TryChild("child", out var child));
+        Assert.Equal("/child", Assert.IsType<AwkPath>(child).Path);
+    }
+
+    [Fact]
+    public void Awk_InternalValueObjectsExposeNonNullDefaultViews()
+    {
+        Assert.Empty(default(AwkAction).Statements);
+        Assert.Equal(string.Empty, default(AwkSourceUnit).Text);
+        Assert.Empty(default(AwkSourceUnit).Segments);
+        Assert.Equal(string.Empty, default(AwkSourceName).Text);
+        Assert.Equal(string.Empty, default(AwkSourceIdentity).Text);
+        Assert.Equal(string.Empty, default(AwkRegexPattern).Text);
+        Assert.Equal(string.Empty, default(AwkRegexLiteralText).Text);
+        Assert.Equal(string.Empty, default(AwkErrno).Text);
     }
 
     [Fact]

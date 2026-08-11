@@ -2,9 +2,11 @@ namespace Lokad.Awk;
 
 internal readonly record struct AwkErrno
 {
+    private readonly string? _text;
+
     private AwkErrno(string text)
     {
-        Text = text;
+        _text = text;
     }
 
     public static AwkErrno None { get; } = new(string.Empty);
@@ -15,8 +17,11 @@ internal readonly record struct AwkErrno
     public static AwkErrno RedirectionNeverOpened { get; } =
         new(AwkMessages.ErrnoRedirectionNeverOpened);
 
-    public static AwkErrno FromHostMessage(string message) =>
-        message.Length == 0 ? None : new AwkErrno(message);
+    public static AwkErrno FromHostMessage(string message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        return message.Length == 0 ? None : new AwkErrno(message);
+    }
 
-    public string Text { get; }
+    public string Text => _text ?? string.Empty;
 }

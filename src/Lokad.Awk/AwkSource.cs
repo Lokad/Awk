@@ -7,18 +7,21 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkSourceUnit
 {
+    private readonly string? _text;
+    private readonly IReadOnlyList<AwkSourceSegment>? _segments;
+
     public AwkSourceUnit(AwkSourceName name, string text, IReadOnlyList<AwkSourceSegment> segments)
     {
         SourceName = name;
-        Text = text;
-        Segments = segments;
+        _text = text;
+        _segments = segments;
     }
 
     public AwkSourceName SourceName { get; }
 
-    public string Text { get; }
+    public string Text => _text ?? string.Empty;
 
-    public IReadOnlyList<AwkSourceSegment> Segments { get; }
+    public IReadOnlyList<AwkSourceSegment> Segments => _segments ?? [];
 }
 
 internal readonly struct AwkSourceSegment
@@ -126,13 +129,31 @@ internal sealed class AwkScriptFile
     public AwkSourceIdentity SourceIdentity { get; }
 }
 
-internal readonly record struct AwkSourceName(string Text)
+internal readonly record struct AwkSourceName
 {
+    private readonly string? _text;
+
+    public AwkSourceName(string text)
+    {
+        _text = text;
+    }
+
+    public string Text => _text ?? string.Empty;
+
     public override string ToString() => Text;
 }
 
-internal readonly record struct AwkSourceIdentity(string Text)
+internal readonly record struct AwkSourceIdentity
 {
+    private readonly string? _text;
+
+    public AwkSourceIdentity(string text)
+    {
+        _text = text;
+    }
+
+    public string Text => _text ?? string.Empty;
+
     public override string ToString() => Text;
 }
 

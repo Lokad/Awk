@@ -6,7 +6,7 @@ namespace Lokad.Awk;
 internal readonly struct AwkAction
 {
     private readonly AwkPattern? _pattern;
-    private readonly AwkStatement[] _statements;
+    private readonly AwkStatement[]? _statements;
 
     public AwkAction(AwkPattern? pattern, IReadOnlyList<AwkStatement> statements)
     {
@@ -16,7 +16,7 @@ internal readonly struct AwkAction
 
     internal bool IsPatternless => _pattern == null;
 
-    internal AwkStatement[] Statements => _statements;
+    internal AwkStatement[] Statements => _statements ?? [];
 
     public ValueTask<bool> MatchesAsync(AwkRuntimeState state) =>
         _pattern == null
@@ -28,16 +28,17 @@ internal readonly struct AwkAction
         AwkIo io,
         AwkOutputSink output)
     {
-        if (_statements.Length == 0)
+        var statements = Statements;
+        if (statements.Length == 0)
             return AwkStatementFlow.Continue;
 
         using var executionContext = state.PushExecutionContext(output, io);
         var evaluationContext = new AwkEvaluationContext(state, output, io);
-        for (var index = 0; index < _statements.Length; index++)
+        for (var index = 0; index < statements.Length; index++)
         {
             state.RecordExecutionStep();
             state.ThrowIfCancellationRequested();
-            var flow = await _statements[index].ExecuteAsync(evaluationContext).ConfigureAwait(false);
+            var flow = await statements[index].ExecuteAsync(evaluationContext).ConfigureAwait(false);
             await output.FlushAsync(io).ConfigureAwait(false);
             if (flow is AwkStatementFlow.NextRecord or AwkStatementFlow.NextFile or AwkStatementFlow.ExitProgram)
                 return flow;
