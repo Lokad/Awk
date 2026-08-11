@@ -2,6 +2,12 @@ using System;
 
 namespace Lokad.Awk;
 
+internal enum AwkUtf8BorrowRange
+{
+    Content,
+    ReservedPrefixAndContent
+}
+
 internal sealed class AwkUtf8Builder : IDisposable
 {
     private readonly AwkMemoryGovernor _governor;
@@ -192,14 +198,14 @@ internal sealed class AwkUtf8Builder : IDisposable
         Length -= length;
     }
 
-    public AwkText BorrowAsAwkText(bool includeReservedPrefix)
+    public AwkText BorrowAsAwkText(AwkUtf8BorrowRange range)
     {
         // This view is valid only until the builder is mutated.
         ThrowIfDisposed();
-        if (includeReservedPrefix && _contentOffset == 0)
+        if (range is AwkUtf8BorrowRange.ReservedPrefixAndContent && _contentOffset == 0)
             throw new InvalidOperationException("This UTF-8 builder has no reserved prefix.");
 
-        var prefixLength = includeReservedPrefix ? 1 : 0;
+        var prefixLength = range is AwkUtf8BorrowRange.ReservedPrefixAndContent ? 1 : 0;
         return AwkText.FromTrustedBorrowedBytes(
             _buffer,
             _contentOffset - prefixLength,

@@ -2,6 +2,12 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
+internal enum AwkPendingDiagnosticPolicy
+{
+    Preserve,
+    Flush
+}
+
 internal static class AwkGetlineRuntime
 {
     public static async ValueTask<AwkGetlineResult> ExecuteAsync(
@@ -9,18 +15,18 @@ internal static class AwkGetlineRuntime
         AwkGetlineSource source,
         AwkEvaluationContext context,
         AwkExecutionContext execution,
-        bool flushPendingDiagnostics)
+        AwkPendingDiagnosticPolicy pendingDiagnosticPolicy)
     {
         static async ValueTask ApplyResultAsync(
             AwkGetlineTarget target,
+            AwkGetlineSource source,
             AwkEvaluationContext context,
             AwkExecutionContext execution,
-            bool readMainInput,
             AwkGetlineResult result)
         {
             if (result.HasRecord)
             {
-                if (readMainInput)
+                if (source.ReadsMainInput)
                 {
                     context.State.AdvanceMainInputRecord(result.Terminator);
                 }
@@ -50,14 +56,14 @@ internal static class AwkGetlineRuntime
         {
             await execution.Output.FlushAsync(execution.Io).ConfigureAwait(false);
         }
-        else if (flushPendingDiagnostics)
+        else if (pendingDiagnosticPolicy is AwkPendingDiagnosticPolicy.Flush)
         {
             await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
         }
 
         var result = await source.ReadAsync(context, execution).ConfigureAwait(false);
 
-        await ApplyResultAsync(target, context, execution, readMainInput, result)
+        await ApplyResultAsync(target, source, context, execution, result)
             .ConfigureAwait(false);
         return result;
     }

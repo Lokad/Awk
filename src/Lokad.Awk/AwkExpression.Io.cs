@@ -19,7 +19,7 @@ internal abstract partial class AwkExpression
                     source,
                     context,
                     execution,
-                    flushPendingDiagnostics: true)
+                    AwkPendingDiagnosticPolicy.Flush)
                 .ConfigureAwait(false);
             return AwkValue.FromNumber(result.StatusCode);
         }

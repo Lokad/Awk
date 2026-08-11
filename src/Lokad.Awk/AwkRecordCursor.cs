@@ -401,7 +401,9 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
                     _regexInputPrefixLength = _hasConsumedDescriptorBytes ? 1 : 0;
                     _regexInput = buffer.BorrowAsAwkText(
-                        includeReservedPrefix: _regexInputPrefixLength != 0);
+                        _regexInputPrefixLength != 0
+                            ? AwkUtf8BorrowRange.ReservedPrefixAndContent
+                            : AwkUtf8BorrowRange.Content);
                     return _regexInput;
                 }
 

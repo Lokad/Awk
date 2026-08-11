@@ -29,10 +29,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             state,
             static () => []);
         var statement = AwkStatement.For(
-            AwkStatement.Assignment(AwkReference.Scalar("i"), AwkExpression.Number("0", 0)),
+            AwkStatement.Assignment(AwkReference.Scalar(AwkVariableName.FromText("i")), AwkExpression.Number("0", 0)),
             new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]),
-            AwkStatement.PostIncrement(AwkReference.Scalar("i")),
-            [AwkStatement.PostIncrement(AwkReference.Scalar("x"))]);
+            AwkStatement.PostIncrement(AwkReference.Scalar(AwkVariableName.FromText("i"))),
+            [AwkStatement.PostIncrement(AwkReference.Scalar(AwkVariableName.FromText("x")))]);
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             async () => await statement.ExecuteAsync(state, AwkTestHarness.CreateOutputSink(), io));

@@ -66,15 +66,15 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
 
     /// <summary>Resolves this path against <paramref name="current"/> without a confinement boundary.</summary>
     public AwkPath ToAbsolute(AwkPath current) =>
-        ResolveAbsolute(current, confineToCurrent: false);
+        ResolveAbsolute(current, AwkPathConfinement.None);
 
     /// <summary>
     /// Resolves this path against <paramref name="current"/> and rejects results outside that directory.
     /// </summary>
     public AwkPath ToAbsoluteWithin(AwkPath current) =>
-        ResolveAbsolute(current, confineToCurrent: true);
+        ResolveAbsolute(current, AwkPathConfinement.CurrentDirectory);
 
-    private AwkPath ResolveAbsolute(AwkPath current, bool confineToCurrent)
+    private AwkPath ResolveAbsolute(AwkPath current, AwkPathConfinement confinement)
     {
         ArgumentNullException.ThrowIfNull(current);
         var combined = Raw.StartsWith('/')
@@ -162,7 +162,7 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
 
         var result = new AwkPath(resultPath);
 
-        if (confineToCurrent && !current.IsEqualToOrParentOf(result))
+        if (confinement is AwkPathConfinement.CurrentDirectory && !current.IsEqualToOrParentOf(result))
         {
             throw new AwkPathException(
                 $"Cannot resolve '{Raw}': result '{resultPath}' escapes jail '{current.Path}'.");
@@ -175,6 +175,12 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
     public override string ToString() => Raw;
 
     private readonly record struct PathSegment(int Start, int Length);
+
+    private enum AwkPathConfinement
+    {
+        None,
+        CurrentDirectory
+    }
 
     private readonly struct PathCreationState(
         string? source,

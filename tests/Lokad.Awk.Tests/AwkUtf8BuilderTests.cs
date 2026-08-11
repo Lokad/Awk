@@ -65,8 +65,8 @@ public sealed class AwkUtf8BuilderTests
             prefix: 0x01);
         builder.Append("abc"u8);
 
-        var inputStart = builder.BorrowAsAwkText(includeReservedPrefix: false);
-        var continuedInput = builder.BorrowAsAwkText(includeReservedPrefix: true);
+        var inputStart = builder.BorrowAsAwkText(AwkUtf8BorrowRange.Content);
+        var continuedInput = builder.BorrowAsAwkText(AwkUtf8BorrowRange.ReservedPrefixAndContent);
         var ownedCopy = continuedInput.CopyByteSlice(
             0,
             continuedInput.ByteLength,

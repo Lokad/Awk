@@ -5,17 +5,11 @@ namespace Lokad.Awk;
 
 internal abstract record AwkReference
 {
-    public static AwkReference Scalar(string variable) =>
-        Scalar(AwkVariableName.FromText(variable));
-
     public static AwkReference Scalar(AwkVariableName variable) =>
         new AwkScalarReference(variable);
 
     public static AwkReference LocalScalar(AwkVariableName variable, AwkFunctionLocalSlotId slotId) =>
         new AwkLocalScalarReference(variable, slotId);
-
-    public static AwkReference ArrayElement(string variable, AwkArrayIndex indexExpression) =>
-        ArrayElement(AwkArrayName.FromText(variable), indexExpression);
 
     public static AwkReference ArrayElement(AwkArrayName variable, AwkArrayIndex indexExpression) =>
         new AwkArrayElementReference(variable, indexExpression);
@@ -50,16 +44,16 @@ internal abstract record AwkReference
     }
 
     public ValueTask<AwkValue> ApplyIncrementAsync(AwkEvaluationContext context) =>
-        ApplyNumericUpdateAsync(context, AwkNumericOperations.Increment, returnPrevious: false);
+        ApplyNumericUpdateAsync(context, AwkNumericOperations.Increment, AwkNumericUpdateResult.Updated);
 
     public ValueTask<AwkValue> ApplyDecrementAsync(AwkEvaluationContext context) =>
-        ApplyNumericUpdateAsync(context, AwkNumericOperations.Decrement, returnPrevious: false);
+        ApplyNumericUpdateAsync(context, AwkNumericOperations.Decrement, AwkNumericUpdateResult.Updated);
 
     public ValueTask<AwkValue> ApplyPostIncrementAsync(AwkEvaluationContext context) =>
-        ApplyNumericUpdateAsync(context, AwkNumericOperations.Increment, returnPrevious: true);
+        ApplyNumericUpdateAsync(context, AwkNumericOperations.Increment, AwkNumericUpdateResult.Previous);
 
     public ValueTask<AwkValue> ApplyPostDecrementAsync(AwkEvaluationContext context) =>
-        ApplyNumericUpdateAsync(context, AwkNumericOperations.Decrement, returnPrevious: true);
+        ApplyNumericUpdateAsync(context, AwkNumericOperations.Decrement, AwkNumericUpdateResult.Previous);
 
     /// <summary>Resolves the concrete mutable location after evaluating any field or array index.</summary>
     protected abstract ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context);
@@ -82,14 +76,20 @@ internal abstract record AwkReference
     private async ValueTask<AwkValue> ApplyNumericUpdateAsync(
         AwkEvaluationContext context,
         Func<double, double> update,
-        bool returnPrevious)
+        AwkNumericUpdateResult resultSelection)
     {
         var target = await ResolveTargetAsync(context).ConfigureAwait(false);
         var previous = target.Evaluate(context.State);
         var result = AwkValue.FromNumber(update(previous.AsNumber()));
         target.AssignValue(context.State, result);
-        return returnPrevious ? previous : result;
+        return resultSelection is AwkNumericUpdateResult.Previous ? previous : result;
     }
+}
+
+internal enum AwkNumericUpdateResult
+{
+    Updated,
+    Previous
 }
 
 internal sealed record AwkScalarReference(AwkVariableName Variable) : AwkReference

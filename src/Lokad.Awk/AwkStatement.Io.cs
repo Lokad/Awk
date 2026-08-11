@@ -29,7 +29,7 @@ internal abstract partial class AwkStatement
                     source,
                     context,
                     execution,
-                    flushPendingDiagnostics: false)
+                    AwkPendingDiagnosticPolicy.Preserve)
                 .ConfigureAwait(false);
 
             return AwkStatementFlow.Continue;
