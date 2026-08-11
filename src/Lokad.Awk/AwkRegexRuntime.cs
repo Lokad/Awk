@@ -115,7 +115,7 @@ internal sealed class AwkRegexRuntime
             try
             {
                 _counters.RecordRegexStringAdapterMatch();
-                _counters.RecordRegexMatch();
+                _resources.RecordRegexOperation();
                 return ResolveDotNetRegex(regex).IsMatch(text);
             }
             catch (RegexMatchTimeoutException)
@@ -134,7 +134,7 @@ internal sealed class AwkRegexRuntime
 
         try
         {
-            _counters.RecordRegexMatch();
+            _resources.RecordRegexOperation();
             return ResolveUtf8Regex(regex).Match(input.AsSpan()).Success;
         }
         catch (RegexMatchTimeoutException)
@@ -231,7 +231,7 @@ internal sealed class AwkRegexRuntime
 
         try
         {
-            _counters.RecordRegexMatch();
+            _resources.RecordRegexOperation();
             var match = ResolveUtf8Regex(regex)
                 .MatchDetailedFromUtf16Offset(input.AsSpan(), searchOffset.Utf16Index);
             if (!match.Success)
@@ -297,7 +297,7 @@ internal sealed class AwkRegexRuntime
 
         try
         {
-            _counters.RecordRegexMatch();
+            _resources.RecordRegexOperation();
             var match = ResolveUtf8Regex(regex)
                 .MatchDetailedFromUtf16Offset(input.AsSpan(), searchOffset.Utf16Index);
             return match.Success
@@ -373,7 +373,7 @@ internal sealed class AwkRegexRuntime
         try
         {
             _counters.RecordRegexStringAdapterMatch();
-            _counters.RecordRegexMatch();
+            _resources.RecordRegexOperation();
             return ResolveDotNetRegex(regex).Match(input, startAt);
         }
         catch (RegexMatchTimeoutException)

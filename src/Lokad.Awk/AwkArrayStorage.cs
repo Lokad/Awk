@@ -12,8 +12,16 @@ internal sealed class AwkArrayStorage
 
     private readonly HashSet<AwkArrayName> _storedSpecialArrayNames = [];
 
+    private readonly IEqualityComparer<AwkArrayKey> _keyComparer;
+
     public AwkArrayStorage()
+        : this(AwkArrayKeyComparer.Instance)
     {
+    }
+
+    public AwkArrayStorage(IEqualityComparer<AwkArrayKey> keyComparer)
+    {
+        _keyComparer = keyComparer;
         foreach (var definition in AwkSpecialVariables.Arrays)
         {
             if (definition.Id != AwkSpecialVariableId.SymbolTable)
@@ -52,7 +60,7 @@ internal sealed class AwkArrayStorage
         if (table.TryGetValue(name, out var slots))
             return slots;
 
-        slots = new Dictionary<AwkArrayKey, AwkVariableSlot>();
+        slots = new Dictionary<AwkArrayKey, AwkVariableSlot>(_keyComparer);
         table[name] = slots;
         return slots;
     }
@@ -64,7 +72,7 @@ internal sealed class AwkArrayStorage
 
     public void Clear(AwkArrayName name)
     {
-        SetSlots(name, new Dictionary<AwkArrayKey, AwkVariableSlot>());
+        SetSlots(name, new Dictionary<AwkArrayKey, AwkVariableSlot>(_keyComparer));
     }
 
     public bool Remove(

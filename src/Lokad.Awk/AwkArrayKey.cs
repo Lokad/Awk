@@ -113,6 +113,22 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
             ? AwkText.Empty.GetHashCode()
             : _hashCode;
 
+    internal int GetRandomizedHashCode()
+    {
+        var hash = new System.HashCode();
+        if (IsOrdinal)
+        {
+            Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
+            hash.AddBytes(FormatOrdinalBytes(_ordinal, buffer));
+        }
+        else
+        {
+            hash.AddBytes(Text.AsSpan());
+        }
+
+        return hash.ToHashCode();
+    }
+
     public override string ToString() =>
         AsString(AwkRuntimeCounters.Disabled);
 

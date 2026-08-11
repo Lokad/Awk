@@ -20,7 +20,13 @@ internal sealed class AwkRecordDescriptorReader
     }
 
     public AsyncLineReader CreateLineReader(AwkFileDescriptor descriptor) =>
-        new(_host, descriptor, _cancellationToken, AwkIo.InputReadBatchLineCount, _resources);
+        new(
+            _host,
+            descriptor,
+            _cancellationToken,
+            AwkIo.InputReadBatchLineCount,
+            _resources,
+            countAsRuntimeInput: true);
 
     public async Task<AwkRecordReadBatch> ReadNextBatchAsync(AwkFileDescriptor descriptor)
     {
@@ -29,7 +35,7 @@ internal sealed class AwkRecordDescriptorReader
         if (result.Failed)
             throw new AwkHostReadException(descriptor, result.Error);
 
-        _resources.RecordBytesRead(result.Content.Length);
+        _resources.RecordInputBytes(result.Content.Length);
         return AwkRecordReadBatch.Success(result.Content, result.Completion);
     }
 

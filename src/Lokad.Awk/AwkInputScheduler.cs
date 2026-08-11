@@ -47,7 +47,11 @@ internal sealed class AwkInputScheduler(
                 throw new InvalidOperationException("Main input was not initialized after a successful open.");
             var record = await input.Cursor.ReadAsync().ConfigureAwait(false);
             if (record.HasRecord)
+            {
+                state.Resources.RecordInputRecord();
+                state.RecordExecutionStep();
                 return record;
+            }
 
             var endFileFlow = await CompleteCurrentInputAsync(EndFileAction.Execute).ConfigureAwait(false);
             if (endFileFlow == AwkStatementFlow.ExitProgram)

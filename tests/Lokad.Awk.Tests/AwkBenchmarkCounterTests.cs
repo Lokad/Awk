@@ -460,17 +460,17 @@ public sealed class AwkBenchmarkCounterTests
         {
             "{print $2}",
             "region1\nregion2\nregion2\n",
-            9
+            12
         },
         {
             "$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}",
             "2\n",
-            53
+            56
         },
         {
             "{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}",
             "3 2\n",
-            39
+            42
         }
     };
 

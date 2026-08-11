@@ -210,7 +210,7 @@ internal sealed class AwkArrayRuntime
         }
 
         _variables.PreflightMutableArrayReplacement(entryCount);
-        var slots = new Dictionary<AwkArrayKey, AwkVariableSlot>(entryCount);
+        var slots = _variables.CreateMutableArraySlots(entryCount);
         for (var index = 0; index < groups.Count; index++)
         {
             var ordinalKey = AwkArrayKey.FromOrdinal(index);
@@ -549,8 +549,29 @@ internal sealed class AwkArrayRuntime
 
         var plan = ResolveSortPlan(order, _state.Counters);
         var entries = SnapshotSortEntries(arrayName, count, plan.Mode);
-        Array.Sort(entries, plan.Comparer);
+        try
+        {
+            Array.Sort(entries, new AwkBudgetedSortComparer(plan.Comparer, _state));
+        }
+        catch (InvalidOperationException exception)
+            when (exception.InnerException is AwkRuntimeException runtimeException)
+        {
+            throw runtimeException;
+        }
+
         return entries;
+    }
+
+    private sealed class AwkBudgetedSortComparer(
+        IComparer<AwkArraySortEntry> comparer,
+        AwkRuntimeState state) : IComparer<AwkArraySortEntry>
+    {
+        public int Compare(AwkArraySortEntry left, AwkArraySortEntry right)
+        {
+            state.Resources.RecordSortComparison();
+            state.ThrowIfCancellationRequested();
+            return comparer.Compare(left, right);
+        }
     }
 
     private readonly struct AwkArraySortPlan

@@ -60,6 +60,12 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum size of one input record in UTF-8 bytes.</summary>
     public long MaxRecordBytes { get; private init; } = Unlimited;
 
+    /// <summary>Gets the maximum aggregate bytes read from runtime input descriptors.</summary>
+    public long MaxInputBytes { get; private init; } = Unlimited;
+
+    /// <summary>Gets the maximum number of input records consumed by one execution.</summary>
+    public long MaxRecords { get; private init; } = Unlimited;
+
     /// <summary>Gets the maximum size of one runtime value in UTF-8 bytes.</summary>
     public long MaxValueBytes { get; private init; } = Unlimited;
 
@@ -95,6 +101,12 @@ public sealed record AwkExecutionPolicy
 
     /// <summary>Gets the maximum estimated bytes retained across regex caches.</summary>
     public long MaxRegexCacheBytes { get; private init; } = 64L << 20;
+
+    /// <summary>Gets the maximum number of regex match/search operations.</summary>
+    public long MaxRegexOperations { get; private init; } = 10_000_000;
+
+    /// <summary>Gets the maximum number of built-in array-sort comparisons.</summary>
+    public long MaxSortComparisons { get; private init; } = 10_000_000;
 
     /// <summary>Gets the maximum bytes scanned by regex record separators.</summary>
     public long MaxRegexRecordSeparatorBytesScanned { get; private init; } = 64L << 20;
@@ -160,6 +172,8 @@ public sealed record AwkExecutionPolicy
             MaxSyntaxNestingDepth = 64,
             MaxHostCalls = 100_000,
             MaxRecordBytes = 8L << 20,
+            MaxInputBytes = 64L << 20,
+            MaxRecords = 1_000_000,
             MaxValueBytes = 8L << 20,
             MaxOutputBytes = 16L << 20,
             MaxArrayElements = 100_000,
@@ -172,6 +186,8 @@ public sealed record AwkExecutionPolicy
             MaxRegexGroups = 256,
             MaxRegexCompilations = 256,
             MaxRegexCacheBytes = 8L << 20,
+            MaxRegexOperations = 1_000_000,
+            MaxSortComparisons = 1_000_000,
             MaxRegexRecordSeparatorBytesScanned = 16L << 20,
             MaxVmStackBytes = 8L << 20,
             MaxExecutionMemoryBytes = 64L << 20,
@@ -261,6 +277,14 @@ public sealed record AwkExecutionPolicy
     public AwkExecutionPolicy WithMaxRecordBytes(long value) =>
         this with { MaxRecordBytes = RequirePositive(value) };
 
+    /// <summary>Returns a copy with the aggregate runtime-input byte budget configured.</summary>
+    public AwkExecutionPolicy WithMaxInputBytes(long value) =>
+        this with { MaxInputBytes = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the input-record budget configured.</summary>
+    public AwkExecutionPolicy WithMaxRecords(long value) =>
+        this with { MaxRecords = RequirePositive(value) };
+
     /// <summary>Returns a copy with the per-value byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxValueBytes(long value) =>
         this with { MaxValueBytes = RequirePositive(value) };
@@ -308,6 +332,14 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the retained regex-cache byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexCacheBytes(long value) =>
         this with { MaxRegexCacheBytes = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the regex-operation budget configured.</summary>
+    public AwkExecutionPolicy WithMaxRegexOperations(long value) =>
+        this with { MaxRegexOperations = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the built-in sort-comparison budget configured.</summary>
+    public AwkExecutionPolicy WithMaxSortComparisons(long value) =>
+        this with { MaxSortComparisons = RequirePositive(value) };
 
     /// <summary>Returns a copy with the regex record-separator scan budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexRecordSeparatorBytesScanned(long value) =>

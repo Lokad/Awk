@@ -9,6 +9,10 @@ internal sealed class AwkRuntimeResourceMonitor
     private long _executionSteps;
     private long _hostCalls;
     private long _outputBytes;
+    private long _inputBytes;
+    private long _records;
+    private long _regexOperations;
+    private long _sortComparisons;
     private long _regexRecordSeparatorBytesScanned;
     private int _regexCompilations;
     private long _sourceBytes;
@@ -56,6 +60,51 @@ internal sealed class AwkRuntimeResourceMonitor
     public void RecordBytesRead(long byteCount)
     {
         _counters.RecordBytesRead(byteCount);
+    }
+
+    public void RecordInputBytes(long byteCount)
+    {
+        if (byteCount > 0 && _limits.MaxInputBytes != AwkRuntimeLimits.Unlimited)
+        {
+            var next = AwkRuntimeMemory.CheckedAdd(_inputBytes, byteCount);
+            if (next > _limits.MaxInputBytes)
+                throw new AwkRuntimeException(AwkMessages.ErrorInputByteLimit, AwkDiagnosticId.RuntimeResourceLimit);
+
+            _inputBytes = next;
+        }
+
+        _counters.RecordBytesRead(byteCount);
+    }
+
+    public void RecordInputRecord()
+    {
+        if (_limits.MaxRecords == AwkRuntimeLimits.Unlimited)
+            return;
+
+        var next = AwkRuntimeMemory.CheckedAdd(_records, 1);
+        if (next > _limits.MaxRecords)
+            throw new AwkRuntimeException(AwkMessages.ErrorRecordLimit, AwkDiagnosticId.RuntimeResourceLimit);
+
+        _records = next;
+    }
+
+    public void RecordRegexOperation()
+    {
+        var next = AwkRuntimeMemory.CheckedAdd(_regexOperations, 1);
+        if (next > _limits.MaxRegexOperations)
+            throw new AwkRuntimeException(AwkMessages.ErrorRegexOperationLimit, AwkDiagnosticId.RuntimeResourceLimit);
+
+        _regexOperations = next;
+        _counters.RecordRegexMatch();
+    }
+
+    public void RecordSortComparison()
+    {
+        var next = AwkRuntimeMemory.CheckedAdd(_sortComparisons, 1);
+        if (next > _limits.MaxSortComparisons)
+            throw new AwkRuntimeException(AwkMessages.ErrorSortComparisonLimit, AwkDiagnosticId.RuntimeResourceLimit);
+
+        _sortComparisons = next;
     }
 
     public void RecordOutputBytes(long byteCount)

@@ -11,6 +11,7 @@ internal sealed class AsyncLineReader
     private readonly CancellationToken _cancellationToken;
     private readonly int _maxLineCount;
     private readonly AwkRuntimeResourceMonitor _resources;
+    private readonly bool _countAsRuntimeInput;
     private ReadOnlyMemory<byte> _content;
     private ReadOnlyMemory<int> _lineStartOffsets;
     private int _lineIndex;
@@ -22,7 +23,8 @@ internal sealed class AsyncLineReader
         AwkFileDescriptor descriptor,
         CancellationToken cancellationToken,
         int maxLineCount,
-        AwkRuntimeResourceMonitor resources)
+        AwkRuntimeResourceMonitor resources,
+        bool countAsRuntimeInput = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxLineCount);
 
@@ -33,6 +35,7 @@ internal sealed class AsyncLineReader
         _cancellationToken = cancellationToken;
         _maxLineCount = maxLineCount;
         _resources = resources;
+        _countAsRuntimeInput = countAsRuntimeInput;
         _content = ReadOnlyMemory<byte>.Empty;
         _lineStartOffsets = ReadOnlyMemory<int>.Empty;
     }
@@ -51,7 +54,10 @@ internal sealed class AsyncLineReader
             if (result.Failed)
                 throw new AwkHostReadException(_descriptor, result.Error);
 
-            _resources.RecordBytesRead(result.Content.Length);
+            if (_countAsRuntimeInput)
+                _resources.RecordInputBytes(result.Content.Length);
+            else
+                _resources.RecordBytesRead(result.Content.Length);
             _content = result.Content;
             _lineStartOffsets = result.LineStartOffsets;
             _lineIndex = 0;

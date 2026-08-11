@@ -100,6 +100,14 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: memory limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorExecutionStepLimit =
         AwkUtf8Codec.Encode("awk: execution step limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorInputByteLimit =
+        AwkUtf8Codec.Encode("awk: input byte limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorRecordLimit =
+        AwkUtf8Codec.Encode("awk: input record limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorRegexOperationLimit =
+        AwkUtf8Codec.Encode("awk: regular expression operation limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorSortComparisonLimit =
+        AwkUtf8Codec.Encode("awk: array sort comparison limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInputFileLimit =
         AwkUtf8Codec.Encode("awk: input file limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorPipeLimit =

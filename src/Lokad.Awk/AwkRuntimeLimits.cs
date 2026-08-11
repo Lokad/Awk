@@ -39,6 +39,10 @@ internal sealed record AwkRuntimeLimits
 
     public long MaxRecordBytes { get; private init; } = Unlimited;
 
+    public long MaxInputBytes { get; private init; } = Unlimited;
+
+    public long MaxRecords { get; private init; } = Unlimited;
+
     public long MaxValueBytes { get; private init; } = Unlimited;
 
     public long MaxOutputBytes { get; private init; } = Unlimited;
@@ -62,6 +66,10 @@ internal sealed record AwkRuntimeLimits
     public int MaxRegexCompilations { get; private init; } = 10_000;
 
     public long MaxRegexCacheBytes { get; private init; } = 64L << 20;
+
+    public long MaxRegexOperations { get; private init; } = 10_000_000;
+
+    public long MaxSortComparisons { get; private init; } = 10_000_000;
 
     public long MaxRegexRecordSeparatorBytesScanned { get; private init; } =
         DefaultMaxRegexRecordSeparatorBytesScanned;
@@ -102,6 +110,8 @@ internal sealed record AwkRuntimeLimits
             MaxSyntaxNestingDepth = policy.MaxSyntaxNestingDepth,
             MaxHostCalls = policy.MaxHostCalls,
             MaxRecordBytes = policy.MaxRecordBytes,
+            MaxInputBytes = policy.MaxInputBytes,
+            MaxRecords = policy.MaxRecords,
             MaxValueBytes = policy.MaxValueBytes,
             MaxOutputBytes = policy.MaxOutputBytes,
             MaxArrayElements = policy.MaxArrayElements,
@@ -114,6 +124,8 @@ internal sealed record AwkRuntimeLimits
             MaxRegexGroups = policy.MaxRegexGroups,
             MaxRegexCompilations = policy.MaxRegexCompilations,
             MaxRegexCacheBytes = policy.MaxRegexCacheBytes,
+            MaxRegexOperations = policy.MaxRegexOperations,
+            MaxSortComparisons = policy.MaxSortComparisons,
             MaxRegexRecordSeparatorBytesScanned = policy.MaxRegexRecordSeparatorBytesScanned,
             MaxVmStackBytes = policy.MaxVmStackBytes,
             MaxExecutionMemoryBytes = policy.MaxExecutionMemoryBytes,
@@ -144,6 +156,12 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxRecordBytes(long value) =>
         this with { MaxRecordBytes = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxInputBytes(long value) =>
+        this with { MaxInputBytes = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxRecords(long value) =>
+        this with { MaxRecords = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxValueBytes(long value) =>
         this with { MaxValueBytes = RequirePositive(value) };
@@ -180,6 +198,12 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxRegexCacheBytes(long value) =>
         this with { MaxRegexCacheBytes = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxRegexOperations(long value) =>
+        this with { MaxRegexOperations = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxSortComparisons(long value) =>
+        this with { MaxSortComparisons = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxRegexRecordSeparatorBytesScanned(long value) =>
         this with { MaxRegexRecordSeparatorBytesScanned = RequirePositive(value) };

@@ -33,4 +33,22 @@ public sealed class AwkBoundedCacheTests
         Assert.Equal(3, c);
         Assert.False(cache.Set("oversized", 4, weight: 6));
     }
+
+    [Fact]
+    public void Awk_ArrayKeyComparerBreaksKnownStableHashCollision()
+    {
+        var first = new AwkArrayKey("k32728");
+        var second = new AwkArrayKey("k261234");
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+
+        var comparer = AwkArrayKeyComparer.Instance;
+
+        Assert.NotEqual(comparer.GetHashCode(first), comparer.GetHashCode(second));
+        var values = new Dictionary<AwkArrayKey, int>(comparer)
+        {
+            [first] = 1,
+            [second] = 2
+        };
+        Assert.Equal(2, values.Count);
+    }
 }

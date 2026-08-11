@@ -160,7 +160,13 @@ internal sealed class AwkIoHostAdapter(
     }
 
     public AsyncLineReader CreateLineReader(AwkFileDescriptor descriptor, int maxLineCount) =>
-        new(host, descriptor, cancellationToken, maxLineCount, resources);
+        new(
+            host,
+            descriptor,
+            cancellationToken,
+            maxLineCount,
+            resources,
+            countAsRuntimeInput: true);
 
     private static void ThrowIfAppendFailed(AwkFileDescriptor descriptor, AwkExitCode status)
     {
