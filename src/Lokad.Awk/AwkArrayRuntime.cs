@@ -209,6 +209,7 @@ internal sealed class AwkArrayRuntime
             entryCount = AwkRuntimeMemory.CheckedAdd(entryCount, groups[index].Success ? 3 : 1);
         }
 
+        _variables.PreflightMutableArrayReplacement(entryCount);
         var slots = new Dictionary<AwkArrayKey, AwkVariableSlot>(entryCount);
         for (var index = 0; index < groups.Count; index++)
         {

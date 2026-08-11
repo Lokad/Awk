@@ -47,6 +47,10 @@ internal sealed record AwkRuntimeLimits
 
     public int MaxFields { get; private init; } = DefaultMaxFields;
 
+    public int MaxSymbols { get; private init; } = 100_000;
+
+    public int MaxIdentifierBytes { get; private init; } = 64 << 10;
+
     public int MaxBuilderBytes { get; private init; } = DefaultMaxBuilderBytes;
 
     public long MaxRegexCaptureBytes { get; private init; } = Unlimited;
@@ -102,6 +106,8 @@ internal sealed record AwkRuntimeLimits
             MaxOutputBytes = policy.MaxOutputBytes,
             MaxArrayElements = policy.MaxArrayElements,
             MaxFields = policy.MaxFields,
+            MaxSymbols = policy.MaxSymbols,
+            MaxIdentifierBytes = policy.MaxIdentifierBytes,
             MaxBuilderBytes = policy.MaxBuilderBytes,
             MaxRegexCaptureBytes = policy.MaxRegexCaptureBytes,
             MaxRegexPatternBytes = policy.MaxRegexPatternBytes,
@@ -150,6 +156,12 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxFields(int value) =>
         this with { MaxFields = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxSymbols(int value) =>
+        this with { MaxSymbols = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxIdentifierBytes(int value) =>
+        this with { MaxIdentifierBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxBuilderBytes(int value) =>
         this with { MaxBuilderBytes = RequirePositive(value) };

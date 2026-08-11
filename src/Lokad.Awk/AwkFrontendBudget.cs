@@ -10,6 +10,7 @@ internal sealed class AwkFrontendBudget
         int maxSyntaxNestingDepth,
         int maxTokens,
         int maxDiagnostics,
+        int maxIdentifierBytes,
         long maxRegexPatternBytes,
         int maxRegexGroups,
         Action reserveRegexLiteralCompilations)
@@ -17,6 +18,7 @@ internal sealed class AwkFrontendBudget
         MaxSyntaxNestingDepth = maxSyntaxNestingDepth;
         MaxTokens = maxTokens;
         MaxDiagnostics = maxDiagnostics;
+        MaxIdentifierBytes = maxIdentifierBytes;
         MaxRegexPatternBytes = maxRegexPatternBytes;
         MaxRegexGroups = maxRegexGroups;
         _reserveRegexLiteralCompilations = reserveRegexLiteralCompilations;
@@ -27,6 +29,8 @@ internal sealed class AwkFrontendBudget
     public int MaxTokens { get; }
 
     public int MaxDiagnostics { get; }
+
+    public int MaxIdentifierBytes { get; }
 
     public long MaxRegexPatternBytes { get; }
 
@@ -39,6 +43,7 @@ internal sealed class AwkFrontendBudget
             maxSyntaxNestingDepth,
             int.MaxValue,
             int.MaxValue,
+            int.MaxValue,
             long.MaxValue,
             int.MaxValue,
             static () => { });
@@ -48,6 +53,7 @@ internal sealed class AwkFrontendBudget
             resources.Limits.MaxSyntaxNestingDepth,
             resources.Limits.MaxFrontendTokens,
             resources.Limits.MaxFrontendDiagnostics,
+            resources.Limits.MaxIdentifierBytes,
             resources.Limits.MaxRegexPatternBytes,
             resources.Limits.MaxRegexGroups,
             () => resources.ReserveRegexCompilations(2));

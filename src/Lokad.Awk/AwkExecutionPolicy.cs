@@ -72,6 +72,12 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum number of record fields.</summary>
     public int MaxFields { get; private init; } = 1_000_000;
 
+    /// <summary>Gets the maximum number of scalar symbols retained by one execution.</summary>
+    public int MaxSymbols { get; private init; } = 100_000;
+
+    /// <summary>Gets the maximum UTF-8 byte length of an awk identifier.</summary>
+    public int MaxIdentifierBytes { get; private init; } = 64 << 10;
+
     /// <summary>Gets the maximum size of a governed runtime builder.</summary>
     public int MaxBuilderBytes { get; private init; } = 64 << 20;
 
@@ -158,6 +164,8 @@ public sealed record AwkExecutionPolicy
             MaxOutputBytes = 16L << 20,
             MaxArrayElements = 100_000,
             MaxFields = 100_000,
+            MaxSymbols = 10_000,
+            MaxIdentifierBytes = 1 << 10,
             MaxBuilderBytes = 8 << 20,
             MaxRegexCaptureBytes = 8L << 20,
             MaxRegexPatternBytes = 64L << 10,
@@ -268,6 +276,14 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the field-count budget configured.</summary>
     public AwkExecutionPolicy WithMaxFields(int value) =>
         this with { MaxFields = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the retained scalar-symbol budget configured.</summary>
+    public AwkExecutionPolicy WithMaxSymbols(int value) =>
+        this with { MaxSymbols = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the identifier byte budget configured.</summary>
+    public AwkExecutionPolicy WithMaxIdentifierBytes(int value) =>
+        this with { MaxIdentifierBytes = RequirePositive(value) };
 
     /// <summary>Returns a copy with the governed-builder byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxBuilderBytes(int value) =>

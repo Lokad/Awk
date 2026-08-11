@@ -178,6 +178,71 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
+    public async Task AwkExecutionPolicy_DynamicSymtabNamesRespectSymbolLimit()
+    {
+        var host = new MockFileSystem();
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "BEGIN{for(i=0;i<2000;i++) SYMTAB[\"hostile\" i]=0}"));
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxSymbols(1_000);
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal("awk: symbol limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_DynamicSymtabNamesRespectIdentifierLimit()
+    {
+        var host = new MockFileSystem();
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "BEGIN{name=\"abcdefghijklmnopq\"; SYMTAB[name]=0}"));
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxIdentifierBytes(16);
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal("awk: identifier byte limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_CaptureArrayLimitPreflightsBeforeDictionaryAllocation()
+    {
+        var host = new MockFileSystem();
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "BEGIN{match(\"ab\", /(a)(b)/, captures)}"));
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxArrayElements(4);
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal("awk: array element limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_EnvironmentLimitPreflightsBeforeMaterialization()
+    {
+        var invocation = AwkCommandInvocation.CreateWithStandardDescriptors(
+            "awk",
+            ["BEGIN{print \"unreachable\"}"],
+            [
+                new AwkEnvironmentVariable("ONE", "1"),
+                new AwkEnvironmentVariable("TWO", "2")
+            ]);
+        Assert.True(Awk.TryParse(invocation, out var tool));
+        var host = new MockFileSystem();
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxArrayElements(1);
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal("awk: array element limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
     public async Task AwkExecutionPolicy_RestrictedPresetDeniesFileRedirections()
     {
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(

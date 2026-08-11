@@ -88,6 +88,10 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: function recursion limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorArrayElementLimit =
         AwkUtf8Codec.Encode("awk: array element limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorSymbolLimit =
+        AwkUtf8Codec.Encode("awk: symbol limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorIdentifierLimit =
+        AwkUtf8Codec.Encode("awk: identifier byte limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorOutputFileLimit =
         AwkUtf8Codec.Encode("awk: output file limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorHostCallLimit =

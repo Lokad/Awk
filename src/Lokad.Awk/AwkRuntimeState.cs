@@ -74,12 +74,15 @@ internal sealed class AwkRuntimeState
         AwkSpecialVariableDispatcher? specialVariables = null;
         _variables = new AwkVariables(
             Limits.MaxArrayElements,
+            Limits.MaxSymbols,
+            Limits.MaxIdentifierBytes,
             MemoryGovernor,
             Counters,
             CreateByteTextValue,
             CreateNumericStringValue,
             CreateDeferredTextValue,
-            ApplySpecialVariableAssignment);
+            ApplySpecialVariableAssignment,
+            Resources.ThrowIfValueBytesExceeded);
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryGovernor,
@@ -295,7 +298,7 @@ internal sealed class AwkRuntimeState
         _variables.InitializeArrayExternalStringValues(
             EnvironmentArrayName,
             environment,
-            static variable => new AwkArrayKey(variable.Name),
+            static variable => variable.Name,
             static variable => variable.Value);
     }
 

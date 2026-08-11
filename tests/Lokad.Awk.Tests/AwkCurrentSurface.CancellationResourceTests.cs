@@ -1307,7 +1307,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1_500),
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(2_500),
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
         var content = new string('x', 80);
@@ -1321,7 +1321,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(content + "\n", fileSystem.ReadFile("/out.txt"));
-        Assert.InRange(counters.MemoryPeakLiveBytes, 1, 1_500);
+        Assert.InRange(counters.MemoryPeakLiveBytes, 1, 2_500);
     }
 
     [Fact]
@@ -1333,7 +1333,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(200),
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(500),
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
         var state = AwkTestHarness.CreateRuntimeState(

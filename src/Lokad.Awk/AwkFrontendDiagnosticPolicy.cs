@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Lokad.Awk;
@@ -24,6 +25,14 @@ internal static class AwkFrontendDiagnosticPolicy
     {
         for (var index = 0; index < tokens.Count; index++)
         {
+            if (tokens[index].Kind == AwkTokenKind.Identifier &&
+                Encoding.UTF8.GetByteCount(tokens[index].TextSpan) > budget.MaxIdentifierBytes)
+            {
+                throw new AwkRuntimeException(
+                    AwkMessages.ErrorIdentifierLimit,
+                    AwkDiagnosticId.RuntimeResourceLimit);
+            }
+
             if (tokens[index].Kind == AwkTokenKind.BadToken)
             {
                 var text = tokens[index].TextSpan;
