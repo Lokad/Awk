@@ -37,15 +37,23 @@ internal static partial class AwkBuiltins
     {
         static double MakeTime(string dateSpec, bool utc, TimeZoneInfo timeZone)
         {
-            var parts = dateSpec.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length < 6)
-                return -1;
-
-            var values = new int[6];
+            var text = dateSpec.AsSpan();
+            Span<int> values = stackalloc int[6];
+            var position = 0;
             for (var index = 0; index < values.Length; index++)
             {
+                while (position < text.Length && char.IsWhiteSpace(text[position]))
+                    position++;
+
+                var partStart = position;
+                while (position < text.Length && !char.IsWhiteSpace(text[position]))
+                    position++;
+
+                if (partStart == position)
+                    return -1;
+
                 if (!int.TryParse(
-                        parts[index],
+                        text[partStart..position],
                         NumberStyles.Integer,
                         CultureInfo.InvariantCulture,
                         out values[index]))
