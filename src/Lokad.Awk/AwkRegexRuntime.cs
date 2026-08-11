@@ -9,7 +9,7 @@ internal sealed class AwkRegexRuntime
 {
     private const int MaxCachedRegexes = AwkRuntimeLimits.DefaultRegexCacheSize;
 
-    private readonly Func<bool> _isIgnoreCaseEnabled;
+    private readonly Func<AwkRegexCaseSensitivity> _resolveCaseSensitivity;
     private readonly AwkStringUnitMode _stringUnitMode;
     private readonly Action _throwIfCancellationRequested;
     private readonly AwkRuntimeCounters _counters;
@@ -19,13 +19,13 @@ internal sealed class AwkRegexRuntime
     private readonly AwkBoundedCache<AwkRegexCacheKey, Utf8RegexEngine> _utf8RegexCache = new(MaxCachedRegexes);
 
     public AwkRegexRuntime(
-        Func<bool> isIgnoreCaseEnabled,
+        Func<AwkRegexCaseSensitivity> resolveCaseSensitivity,
         AwkStringUnitMode stringUnitMode,
         Action throwIfCancellationRequested,
         AwkRuntimeCounters counters,
         AwkRegexEngineKind engineKind)
     {
-        _isIgnoreCaseEnabled = isIgnoreCaseEnabled;
+        _resolveCaseSensitivity = resolveCaseSensitivity;
         _stringUnitMode = stringUnitMode;
         _throwIfCancellationRequested = throwIfCancellationRequested;
         _counters = counters;
@@ -35,37 +35,39 @@ internal sealed class AwkRegexRuntime
     public AwkRegex Create(AwkRegexPattern pattern)
     {
         _throwIfCancellationRequested();
-        var ignoreCase = _isIgnoreCaseEnabled();
-        var key = new AwkRegexCacheKey(pattern.Text, ignoreCase, AwkRegexCacheKind.Pattern, _engineKind);
+        var caseSensitivity = _resolveCaseSensitivity();
+        var key = new AwkRegexCacheKey(pattern.Text, caseSensitivity, AwkRegexCacheKind.Pattern, _engineKind);
         if (_regexCache.TryGetValue(key, out var cached))
             return cached;
 
         try
         {
             _counters.RecordRegexCompile();
-            return Cache(key, CreatePatternRegex(pattern, ignoreCase));
+            return Cache(key, CreatePatternRegex(pattern, caseSensitivity));
         }
         catch (ArgumentException)
         {
             throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
         }
 
-        AwkRegex CreatePatternRegex(AwkRegexPattern pattern, bool ignoreCase) =>
-            CreateRegex(AwkRegex.TranslatePattern(pattern), ignoreCase);
+        AwkRegex CreatePatternRegex(
+            AwkRegexPattern pattern,
+            AwkRegexCaseSensitivity caseSensitivity) =>
+            CreateRegex(AwkRegex.TranslatePattern(pattern), caseSensitivity);
     }
 
     public AwkRegex CreateLiteral(AwkRegexLiteralText literal)
     {
         _throwIfCancellationRequested();
-        var ignoreCase = _isIgnoreCaseEnabled();
-        var key = new AwkRegexCacheKey(literal.Text, ignoreCase, AwkRegexCacheKind.Literal, _engineKind);
+        var caseSensitivity = _resolveCaseSensitivity();
+        var key = new AwkRegexCacheKey(literal.Text, caseSensitivity, AwkRegexCacheKind.Literal, _engineKind);
         if (_regexCache.TryGetValue(key, out var cached))
             return cached;
 
         try
         {
             _counters.RecordRegexCompile();
-            return Cache(key, CreateRegex(Regex.Escape(literal.Text), ignoreCase));
+            return Cache(key, CreateRegex(Regex.Escape(literal.Text), caseSensitivity));
         }
         catch (ArgumentException)
         {
@@ -365,12 +367,14 @@ internal sealed class AwkRegexRuntime
         return regex;
     }
 
-    private AwkRegex CreateRegex(string translatedPattern, bool ignoreCase)
+    private AwkRegex CreateRegex(
+        string translatedPattern,
+        AwkRegexCaseSensitivity caseSensitivity)
     {
         return _engineKind == AwkRegexEngineKind.Utf8Adapter &&
             !AwkRegex.RequiresDotNetEngine(translatedPattern)
-            ? AwkRegex.CreateUtf8(translatedPattern, ignoreCase)
-            : AwkRegex.CreateDotNet(translatedPattern, ignoreCase);
+            ? AwkRegex.CreateUtf8(translatedPattern, caseSensitivity)
+            : AwkRegex.CreateDotNet(translatedPattern, caseSensitivity);
     }
 
     private Utf8RegexEngine ResolveUtf8Regex(AwkRegex regex)
@@ -381,14 +385,14 @@ internal sealed class AwkRegexRuntime
             return compiledRegex;
         }
 
-        var ignoreCase = _isIgnoreCaseEnabled();
+        var caseSensitivity = _resolveCaseSensitivity();
         if (regex.Backend is AwkUtf8RegexBackend precompiled &&
-            precompiled.SeedIgnoreCase == ignoreCase)
+            precompiled.SeedCaseSensitivity == caseSensitivity)
         {
             return precompiled.Value;
         }
 
-        var key = new AwkRegexCacheKey(regex.Pattern, ignoreCase, AwkRegexCacheKind.TranslatedPattern, _engineKind);
+        var key = new AwkRegexCacheKey(regex.Pattern, caseSensitivity, AwkRegexCacheKind.TranslatedPattern, _engineKind);
         if (_utf8RegexCache.TryGetValue(key, out var cached))
             return cached;
 
@@ -397,7 +401,7 @@ internal sealed class AwkRegexRuntime
             key,
             new Utf8RegexEngine(
                 regex.Pattern,
-                AwkRegex.ResolveOptions(ignoreCase),
+                AwkRegex.ResolveOptions(caseSensitivity),
                 AwkRegex.MatchTimeout));
     }
 
@@ -409,16 +413,16 @@ internal sealed class AwkRegexRuntime
             return compiledRegex;
         }
 
-        var ignoreCase = _isIgnoreCaseEnabled();
+        var caseSensitivity = _resolveCaseSensitivity();
         if (regex.Backend is AwkDotNetRegexBackend precompiled &&
-            precompiled.SeedIgnoreCase == ignoreCase)
+            precompiled.SeedCaseSensitivity == caseSensitivity)
         {
             return precompiled.Value;
         }
 
         var key = new AwkRegexCacheKey(
             regex.Pattern,
-            ignoreCase,
+            caseSensitivity,
             AwkRegexCacheKind.TranslatedPattern,
             AwkRegexEngineKind.DotNetCompatibility);
         if (_dotNetRegexCache.TryGetValue(key, out var cached))
@@ -429,7 +433,7 @@ internal sealed class AwkRegexRuntime
             key,
             new Regex(
                 regex.Pattern,
-                AwkRegex.ResolveOptions(ignoreCase),
+                AwkRegex.ResolveOptions(caseSensitivity),
                 AwkRegex.MatchTimeout));
     }
 
@@ -449,26 +453,26 @@ internal sealed class AwkRegexRuntime
 
         public AwkRegexCacheKey(
             string pattern,
-            bool ignoreCase,
+            AwkRegexCaseSensitivity caseSensitivity,
             AwkRegexCacheKind kind,
             AwkRegexEngineKind engineKind)
         {
             _pattern = pattern;
-            IgnoreCase = ignoreCase;
+            CaseSensitivity = caseSensitivity;
             Kind = kind;
             EngineKind = engineKind;
         }
 
         private string Pattern => _pattern ?? string.Empty;
 
-        private bool IgnoreCase { get; }
+        private AwkRegexCaseSensitivity CaseSensitivity { get; }
 
         private AwkRegexCacheKind Kind { get; }
 
         private AwkRegexEngineKind EngineKind { get; }
 
         public bool Equals(AwkRegexCacheKey other) =>
-            IgnoreCase == other.IgnoreCase &&
+            CaseSensitivity == other.CaseSensitivity &&
             Kind == other.Kind &&
             EngineKind == other.EngineKind &&
             string.Equals(Pattern, other.Pattern, StringComparison.Ordinal);
@@ -477,7 +481,7 @@ internal sealed class AwkRegexRuntime
             obj is AwkRegexCacheKey other && Equals(other);
 
         public override int GetHashCode() =>
-            HashCode.Combine(Pattern, IgnoreCase, Kind, EngineKind);
+            HashCode.Combine(Pattern, CaseSensitivity, Kind, EngineKind);
     }
 
     private enum AwkRegexCacheKind

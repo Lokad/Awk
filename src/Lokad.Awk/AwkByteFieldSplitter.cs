@@ -9,7 +9,7 @@ internal sealed class AwkByteFieldSplitter(
     Func<AwkRegexPattern, AwkRegex> createRegex,
     Func<AwkRegexLiteralText, AwkRegex> createLiteralRegex,
     Func<AwkRegex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
-    Func<bool> isIgnoreCaseEnabled,
+    Func<AwkRegexCaseSensitivity> resolveRegexCaseSensitivity,
     AwkStringUnitMode stringUnitMode,
     Action throwIfCancellationRequested,
     AwkMemoryGovernor memoryGovernor,
@@ -292,16 +292,17 @@ internal sealed class AwkByteFieldSplitter(
         if (separatorText.ByteLength == 0)
             return FieldSeparatorPlan.Characters;
 
-        var ignoresCase = isIgnoreCaseEnabled();
+        var caseSensitivity = resolveRegexCaseSensitivity();
         if (_resolvedSeparator is { } resolvedSeparator &&
             ReferenceEquals(resolvedSeparator.SeparatorText, separatorText) &&
-            resolvedSeparator.IgnoresCase == ignoresCase)
+            resolvedSeparator.CaseSensitivity == caseSensitivity)
         {
             return resolvedSeparator.Plan;
         }
 
         FieldSeparatorPlan plan;
-        if (TryGetSingleByteLiteralSeparator(separatorText, out var separatorByte) && !ignoresCase)
+        if (TryGetSingleByteLiteralSeparator(separatorText, out var separatorByte) &&
+            caseSensitivity is AwkRegexCaseSensitivity.CaseSensitive)
         {
             plan = FieldSeparatorPlan.FromSingleByte(separatorByte);
         }
@@ -314,7 +315,7 @@ internal sealed class AwkByteFieldSplitter(
                     : createLiteralRegex(new AwkRegexLiteralText(regexText)));
         }
 
-        _resolvedSeparator = new ResolvedFieldSeparatorPlan(separatorText, ignoresCase, plan);
+        _resolvedSeparator = new ResolvedFieldSeparatorPlan(separatorText, caseSensitivity, plan);
         return plan;
 
         static bool TryGetSingleByteLiteralSeparator(AwkText separator, out byte separatorByte)
@@ -544,12 +545,12 @@ internal sealed class AwkByteFieldSplitter(
 
     private readonly struct ResolvedFieldSeparatorPlan(
         AwkText? separatorText,
-        bool ignoresCase,
+        AwkRegexCaseSensitivity caseSensitivity,
         FieldSeparatorPlan plan)
     {
         public AwkText SeparatorText => separatorText ?? AwkText.Empty;
 
-        public bool IgnoresCase { get; } = ignoresCase;
+        public AwkRegexCaseSensitivity CaseSensitivity { get; } = caseSensitivity;
 
         public FieldSeparatorPlan Plan { get; } = plan;
     }

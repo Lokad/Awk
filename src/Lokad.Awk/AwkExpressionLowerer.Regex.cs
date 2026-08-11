@@ -30,7 +30,9 @@ internal static partial class AwkExpressionLowerer
 
         try
         {
-            regex = AwkRegex.Create(new AwkRegexPattern(pattern), ignoreCase: false);
+            regex = AwkRegex.Create(
+                new AwkRegexPattern(pattern),
+                AwkRegexCaseSensitivity.CaseSensitive);
             return true;
         }
         catch (ArgumentException)

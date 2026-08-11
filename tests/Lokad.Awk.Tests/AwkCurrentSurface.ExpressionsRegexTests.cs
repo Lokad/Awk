@@ -49,9 +49,9 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     [Fact]
     public void Awk_RegexRuntimeCachesByPatternAndIgnoreCase()
     {
-        var ignoreCase = false;
+        var caseSensitivity = AwkRegexCaseSensitivity.CaseSensitive;
         var runtime = new AwkRegexRuntime(
-            () => ignoreCase,
+            () => caseSensitivity,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
             AwkRuntimeCounters.Disabled,
@@ -59,7 +59,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
 
         var first = runtime.Create(new AwkRegexPattern("a+"));
         var second = runtime.Create(new AwkRegexPattern("a+"));
-        ignoreCase = true;
+        caseSensitivity = AwkRegexCaseSensitivity.IgnoreCase;
         var ignoreCaseRegex = runtime.Create(new AwkRegexPattern("a+"));
         var ignoreCaseRegexAgain = runtime.Create(new AwkRegexPattern("a+"));
 
@@ -74,7 +74,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var counters = AwkRuntimeCounters.CreateEnabled();
         var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
         var runtime = new AwkRegexRuntime(
-            static () => false,
+            static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
             counters,
@@ -102,7 +102,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(
-            static () => false,
+            static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
             counters,
@@ -130,7 +130,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(
-            static () => false,
+            static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Byte,
             static () => { },
             counters,
@@ -151,7 +151,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(
-            static () => false,
+            static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
             counters,
@@ -182,7 +182,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(
-            static () => false,
+            static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
             counters,

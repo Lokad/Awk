@@ -50,7 +50,7 @@ internal sealed class AwkRuntimeState
     private readonly AwkExecutionControlRuntime _executionControl = new();
     private readonly Dictionary<AwkExecutableTables, AwkExecutableRuntimeBindings> _executableBindings = new();
     private AwkText _recordSeparatorText = AwkText.Empty;
-    private bool _recordSeparatorIgnoresCase;
+    private AwkRegexCaseSensitivity _recordSeparatorCaseSensitivity;
     private long _recordSeparatorVersion;
 
     internal AwkRuntimeState(
@@ -87,7 +87,7 @@ internal sealed class AwkRuntimeState
             CreateNumericStringValue,
             CreateDeferredTextValue);
         _regexRuntime = new AwkRegexRuntime(
-            IsIgnoreCaseEnabled,
+            ResolveRegexCaseSensitivity,
             stringUnitMode,
             ThrowIfCancellationRequested,
             Counters,
@@ -99,7 +99,7 @@ internal sealed class AwkRuntimeState
             CreateRegex,
             _regexRuntime.CreateLiteral,
             EnumerateRegexMatchSpans,
-            IsIgnoreCaseEnabled,
+            ResolveRegexCaseSensitivity,
             stringUnitMode,
             ThrowIfCancellationRequested,
             MemoryGovernor,
@@ -124,7 +124,7 @@ internal sealed class AwkRuntimeState
         _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
         _specialVariables.InitializeScalars(fieldSeparator);
         _recordSeparatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
-        _recordSeparatorIgnoresCase = IsIgnoreCaseEnabled();
+        _recordSeparatorCaseSensitivity = ResolveRegexCaseSensitivity();
         _variables.CaptureScalarMemoryBaseline();
 
         AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable) =>
@@ -140,15 +140,15 @@ internal sealed class AwkRuntimeState
                 return;
 
             var separatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
-            var ignoresCase = IsIgnoreCaseEnabled();
+            var caseSensitivity = ResolveRegexCaseSensitivity();
             if (_recordSeparatorText.Equals(separatorText) &&
-                _recordSeparatorIgnoresCase == ignoresCase)
+                _recordSeparatorCaseSensitivity == caseSensitivity)
             {
                 return;
             }
 
             _recordSeparatorText = separatorText;
-            _recordSeparatorIgnoresCase = ignoresCase;
+            _recordSeparatorCaseSensitivity = caseSensitivity;
             _recordSeparatorVersion++;
         }
 
@@ -662,10 +662,10 @@ internal sealed class AwkRuntimeState
     public AwkRegexMatchSpanEnumerator EnumerateRegexMatchSpans(AwkRegex regex, AwkText input) =>
         _regexRuntime.EnumerateMatchSpans(regex, input);
 
-    private bool IsIgnoreCaseEnabled()
-    {
-        return ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy();
-    }
+    private AwkRegexCaseSensitivity ResolveRegexCaseSensitivity() =>
+        ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy()
+            ? AwkRegexCaseSensitivity.IgnoreCase
+            : AwkRegexCaseSensitivity.CaseSensitive;
 
     public AwkText GetArrayByteText(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.GetByteText(name, index);

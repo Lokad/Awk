@@ -5,6 +5,12 @@ using Utf8RegexEngine = Lokad.Utf8Regex.Utf8Regex;
 
 namespace Lokad.Awk;
 
+internal enum AwkRegexCaseSensitivity
+{
+    CaseSensitive,
+    IgnoreCase
+}
+
 internal sealed class AwkRegex
 {
     private AwkRegex(string pattern, AwkRegexBackend backend)
@@ -28,40 +34,46 @@ internal sealed class AwkRegex
 
     public static AwkRegex Create(
         AwkRegexPattern pattern,
-        bool ignoreCase)
+        AwkRegexCaseSensitivity caseSensitivity)
     {
         var translatedPattern = TranslatePattern(pattern);
         return new AwkRegex(
             translatedPattern,
             AwkRegexBackend.DotNet(
-                ignoreCase,
+                caseSensitivity,
                 new Regex(
                     translatedPattern,
-                    ResolveOptions(ignoreCase),
+                    ResolveOptions(caseSensitivity),
                     MatchTimeout)));
     }
 
-    internal static AwkRegex CreateDotNet(string translatedPattern, bool ignoreCase) =>
+    internal static AwkRegex CreateDotNet(
+        string translatedPattern,
+        AwkRegexCaseSensitivity caseSensitivity) =>
         new(
             translatedPattern,
             AwkRegexBackend.DotNet(
-                ignoreCase,
-                new Regex(translatedPattern, ResolveOptions(ignoreCase), MatchTimeout)));
+                caseSensitivity,
+                new Regex(translatedPattern, ResolveOptions(caseSensitivity), MatchTimeout)));
 
-    internal static AwkRegex CreateUtf8(string translatedPattern, bool ignoreCase) =>
+    internal static AwkRegex CreateUtf8(
+        string translatedPattern,
+        AwkRegexCaseSensitivity caseSensitivity) =>
         new(
             translatedPattern,
             AwkRegexBackend.Utf8(
-                ignoreCase,
-                new Utf8RegexEngine(translatedPattern, ResolveOptions(ignoreCase), MatchTimeout)));
+                caseSensitivity,
+                new Utf8RegexEngine(translatedPattern, ResolveOptions(caseSensitivity), MatchTimeout)));
 
     internal static bool RequiresDotNetEngine(string translatedPattern) =>
         translatedPattern.Contains(@"\A", StringComparison.Ordinal) ||
         translatedPattern.Contains(@"\z", StringComparison.Ordinal);
 
-    internal static RegexOptions ResolveOptions(bool ignoreCase) =>
+    internal static RegexOptions ResolveOptions(AwkRegexCaseSensitivity caseSensitivity) =>
         RegexOptions.CultureInvariant |
-        (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
+        (caseSensitivity is AwkRegexCaseSensitivity.IgnoreCase
+            ? RegexOptions.IgnoreCase
+            : RegexOptions.None);
 
     public static string TranslatePattern(AwkRegexPattern pattern)
     {
@@ -292,22 +304,22 @@ internal sealed class AwkRegex
     }
 }
 
-internal abstract record AwkRegexBackend(bool SeedIgnoreCase)
+internal abstract record AwkRegexBackend(AwkRegexCaseSensitivity SeedCaseSensitivity)
 {
     /// <summary>Gets the complete-match group plus every capturing group exposed by this backend.</summary>
     public abstract int GroupCount { get; }
 
-    public static AwkRegexBackend DotNet(bool ignoreCase, Regex value) =>
-        new AwkDotNetRegexBackend(ignoreCase, value);
+    public static AwkRegexBackend DotNet(AwkRegexCaseSensitivity caseSensitivity, Regex value) =>
+        new AwkDotNetRegexBackend(caseSensitivity, value);
 
-    public static AwkRegexBackend Utf8(bool ignoreCase, Utf8RegexEngine value) =>
-        new AwkUtf8RegexBackend(ignoreCase, value);
+    public static AwkRegexBackend Utf8(AwkRegexCaseSensitivity caseSensitivity, Utf8RegexEngine value) =>
+        new AwkUtf8RegexBackend(caseSensitivity, value);
 }
 
 internal sealed record AwkDotNetRegexBackend : AwkRegexBackend
 {
-    public AwkDotNetRegexBackend(bool seedIgnoreCase, Regex value)
-        : base(seedIgnoreCase)
+    public AwkDotNetRegexBackend(AwkRegexCaseSensitivity seedCaseSensitivity, Regex value)
+        : base(seedCaseSensitivity)
     {
         Value = value;
     }
@@ -319,8 +331,8 @@ internal sealed record AwkDotNetRegexBackend : AwkRegexBackend
 
 internal sealed record AwkUtf8RegexBackend : AwkRegexBackend
 {
-    public AwkUtf8RegexBackend(bool seedIgnoreCase, Utf8RegexEngine value)
-        : base(seedIgnoreCase)
+    public AwkUtf8RegexBackend(AwkRegexCaseSensitivity seedCaseSensitivity, Utf8RegexEngine value)
+        : base(seedCaseSensitivity)
     {
         Value = value;
     }

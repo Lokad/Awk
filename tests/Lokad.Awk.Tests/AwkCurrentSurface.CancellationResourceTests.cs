@@ -241,7 +241,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var checks = 0;
         var runtime = new AwkRegexRuntime(
-            static () => false,
+            static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             () =>
             {
@@ -831,10 +831,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_RegexFactoryAppliesMatchTimeout()
     {
-        var regex = AwkRegex.Create(new AwkRegexPattern("a+"), ignoreCase: false);
+        var regex = AwkRegex.Create(
+            new AwkRegexPattern("a+"),
+            AwkRegexCaseSensitivity.CaseSensitive);
 
         var backend = Assert.IsType<AwkDotNetRegexBackend>(regex.Backend);
-        Assert.False(backend.SeedIgnoreCase);
+        Assert.Equal(AwkRegexCaseSensitivity.CaseSensitive, backend.SeedCaseSensitivity);
         Assert.Equal(AwkRegex.MatchTimeout, backend.Value.MatchTimeout);
     }
 
