@@ -66,7 +66,12 @@ internal static class AwkExecutor
                     .ConfigureAwait(false);
             }
 
-            var resolved = await ResolveProgramAsync(host, invocation, resources, cancellationToken)
+            var resolved = await ResolveProgramAsync(
+                    host,
+                    invocation,
+                    resources,
+                    runtimeOptions.Limits.MaxSyntaxNestingDepth,
+                    cancellationToken)
                 .ConfigureAwait(false);
             for (var index = 0; index < resolved.Warnings.Count; index++)
             {
@@ -141,7 +146,13 @@ internal static class AwkExecutor
 
         var runtimeOptions = AwkRuntimeOptions.CreateSystemDefault();
         var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters);
-        var resolved = await ResolveProgramAsync(host, invocation, resources, cancellationToken).ConfigureAwait(false);
+        var resolved = await ResolveProgramAsync(
+                host,
+                invocation,
+                resources,
+                runtimeOptions.Limits.MaxSyntaxNestingDepth,
+                cancellationToken)
+            .ConfigureAwait(false);
         if (resolved is AwkProgramResolution.Failed failed)
             throw new System.InvalidOperationException(AwkUtf8Codec.Decode(failed.Diagnostic.Message));
 
@@ -159,6 +170,7 @@ internal static class AwkExecutor
         IAwkHost host,
         AwkInvocation invocation,
         AwkRuntimeResourceMonitor resources,
+        int maxSyntaxNestingDepth,
         CancellationToken cancellationToken)
     {
         var sourceLoad = await AwkSourceLoader.LoadAsync(host, invocation, resources, cancellationToken)
@@ -172,7 +184,7 @@ internal static class AwkExecutor
             throw new System.InvalidOperationException("Unexpected awk source load result.");
 
         var source = loaded.CompilationSource;
-        var parsed = AwkParser.Parse(source.Text);
+        var parsed = AwkParser.Parse(source.Text, maxSyntaxNestingDepth);
         var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings);
         var binding = AwkBinder.Bind(parsed, invocation.ExecutionOptions.CompatibilityProfile);
         var phase = binding.PhaseResult;

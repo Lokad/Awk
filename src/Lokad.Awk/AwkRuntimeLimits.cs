@@ -7,6 +7,7 @@ internal sealed record AwkRuntimeLimits
     public const long Unlimited = long.MaxValue;
     public const int DefaultMaxExecutionSteps = 10_000_000;
     public const int DefaultMaxFunctionCallDepth = 64;
+    public const int DefaultMaxSyntaxNestingDepth = 128;
     public const int DefaultMaxArrayElements = 1_000_000;
     public const int DefaultMaxFields = 1_000_000;
     public const int DefaultMaxBuilderBytes = 64 << 20;
@@ -24,6 +25,8 @@ internal sealed record AwkRuntimeLimits
     public int MaxExecutionSteps { get; private init; } = DefaultMaxExecutionSteps;
 
     public int MaxFunctionCallDepth { get; private init; } = DefaultMaxFunctionCallDepth;
+
+    public int MaxSyntaxNestingDepth { get; private init; } = DefaultMaxSyntaxNestingDepth;
 
     public long MaxHostCalls { get; private init; } = Unlimited;
 
@@ -57,6 +60,9 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxFunctionCallDepth(int value) =>
         this with { MaxFunctionCallDepth = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxSyntaxNestingDepth(int value) =>
+        this with { MaxSyntaxNestingDepth = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxHostCalls(long value) =>
         this with { MaxHostCalls = RequirePositive(value) };

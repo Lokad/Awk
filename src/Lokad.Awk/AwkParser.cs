@@ -5,8 +5,11 @@ namespace Lokad.Awk;
 internal static class AwkParser
 {
     public static AwkParseResult Parse(string source)
+        => Parse(source, int.MaxValue);
+
+    public static AwkParseResult Parse(string source, int maxSyntaxNestingDepth)
     {
-        var syntax = AwkSyntaxParser.Parse(source);
+        var syntax = AwkSyntaxParser.Parse(source, maxSyntaxNestingDepth);
         if (syntax.Diagnostics.Count == 0)
         {
             return new AwkParseResult(AwkPhaseResult<AwkSyntaxProgram>.SuccessResult(

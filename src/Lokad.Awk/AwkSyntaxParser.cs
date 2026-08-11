@@ -5,25 +5,40 @@ namespace Lokad.Awk;
 internal static class AwkSyntaxParser
 {
     public static AwkSyntaxProgram Parse(string source)
+        => Parse(source, int.MaxValue);
+
+    public static AwkSyntaxProgram Parse(string source, int maxSyntaxNestingDepth)
     {
-        var parser = new Parser(AwkParsingSource.Create(source), AwkLexer.Tokenize(source));
+        var parsingSource = AwkParsingSource.Create(source);
+        var tokens = AwkLexer.Tokenize(source);
+        if (AwkSyntaxNesting.TryFindExcessiveDelimiterDepth(
+                tokens,
+                maxSyntaxNestingDepth,
+                out var excessiveDelimiter))
+        {
+            return new AwkSyntaxProgram(
+                source,
+                [],
+                [],
+                [],
+                [CreateNestingDiagnostic(excessiveDelimiter)]);
+        }
+
+        var parser = new Parser(parsingSource, tokens, maxSyntaxNestingDepth);
         return parser.ParseProgram();
     }
 
-    private sealed class Parser
+    private sealed class Parser(
+        AwkParsingSource source,
+        IReadOnlyList<AwkToken> tokens,
+        int maxSyntaxNestingDepth)
     {
-        private readonly AwkParsingSource _source;
-        private readonly IReadOnlyList<AwkToken> _tokens;
+        private readonly AwkParsingSource _source = source;
+        private readonly IReadOnlyList<AwkToken> _tokens = tokens;
         private readonly List<AwkRuleSyntax> _rules = [];
         private readonly List<AwkFunctionSyntax> _functions = [];
         private readonly List<AwkDirectiveSyntax> _directives = [];
         private readonly List<AwkDiagnostic> _diagnostics = [];
-
-        public Parser(AwkParsingSource source, IReadOnlyList<AwkToken> tokens)
-        {
-            _source = source;
-            _tokens = tokens;
-        }
 
         public AwkSyntaxProgram ParseProgram()
         {
@@ -32,7 +47,21 @@ internal static class AwkSyntaxParser
             if (AwkTopLevelSyntaxParser.TryParse(_source, _tokens, out var parsedProgram))
             {
                 AddTopLevelItems(parsedProgram.Items);
-                return new AwkSyntaxProgram(_source.Text, _rules, _functions, _directives, _diagnostics);
+                var program = new AwkSyntaxProgram(
+                    _source.Text,
+                    _rules,
+                    _functions,
+                    _directives,
+                    _diagnostics);
+                if (AwkSyntaxNesting.TryFindExcessiveTreeDepth(
+                        program,
+                        maxSyntaxNestingDepth,
+                        out var excessiveNode))
+                {
+                    _diagnostics.Add(CreateNestingDiagnostic(excessiveNode));
+                }
+
+                return program;
             }
 
             AddTopLevelParseFailureDiagnostic();
@@ -168,4 +197,10 @@ internal static class AwkSyntaxParser
                 AwkFrontendDiagnosticPolicy.AddLexicalDiagnostics(_source.Text, _tokens, _diagnostics);
         }
     }
+
+    private static AwkDiagnostic CreateNestingDiagnostic(AwkTextSpan span) =>
+        new(
+            span,
+            "Program nesting limit exceeded.",
+            AwkDiagnosticId.RuntimeResourceLimit);
 }

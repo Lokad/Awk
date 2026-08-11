@@ -1487,6 +1487,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeSpan.FromSeconds(AwkRuntimeLimits.DefaultRegexMatchTimeoutSeconds),
             AwkRegex.MatchTimeout);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxFunctionCallDepth, limits.MaxFunctionCallDepth);
+        Assert.Equal(AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth, limits.MaxSyntaxNestingDepth);
         Assert.Equal(AwkRuntimeLimits.Unlimited, limits.MaxHostCalls);
         Assert.Equal(AwkRuntimeLimits.Unlimited, limits.MaxRecordBytes);
         Assert.Equal(AwkRuntimeLimits.Unlimited, limits.MaxValueBytes);
@@ -1494,6 +1495,50 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(AwkRuntimeLimits.Unlimited, limits.MaxRegexCaptureBytes);
         Assert.Equal(AwkRuntimeLimits.Unlimited, limits.MaxVmStackBytes);
         Assert.Equal(AwkRuntimeLimits.Unlimited, limits.MaxExecutionMemoryBytes);
+    }
+
+    [Fact]
+    public async Task Awk_DefaultSyntaxLimitRejectsDeeplyNestedCallsBeforeExecution()
+    {
+        var program = new StringBuilder("function f(x){return x} BEGIN{x=");
+        for (var index = 0; index <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth; index++)
+            program.Append("f(");
+
+        program.Append('0');
+        for (var index = 0; index <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth; index++)
+            program.Append(')');
+
+        program.Append('}');
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", program.ToString()));
+        var fileSystem = new MockFileSystem();
+
+        var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(
+            "awk: program nesting limit exceeded.\n",
+            fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task Awk_DefaultSyntaxLimitRejectsDeepFlatExpressionTreeBeforeExecution()
+    {
+        var program = new StringBuilder("BEGIN{x=0");
+        for (var index = 0; index <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth; index++)
+            program.Append("+0");
+
+        program.Append('}');
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", program.ToString()));
+        var fileSystem = new MockFileSystem();
+
+        var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(
+            "awk: program nesting limit exceeded.\n",
+            fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Fact]
