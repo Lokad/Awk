@@ -182,6 +182,9 @@ public class FullInvocationBenchmarks
         Validate(_regexReplacementExpansion);
         Validate(_arraySorting);
         Validate(_heavyConcatByteMode);
+
+        static void Validate(BenchmarkScenario scenario) =>
+            BenchmarkExecution.ValidateFullInvocation(scenario);
     }
 
     [Benchmark(Baseline = true)]
@@ -279,9 +282,6 @@ public class FullInvocationBenchmarks
     {
         _ = await BenchmarkExecution.RunFullInvocationAsync(_heavyConcatByteMode).ConfigureAwait(false);
     }
-
-    private static void Validate(BenchmarkScenario scenario) =>
-        BenchmarkExecution.ValidateFullInvocation(scenario);
 
     internal static string CreateLargeUtf8Data()
     {
@@ -799,105 +799,16 @@ internal static class BenchmarkExecution
 internal static class BenchmarkCounterReport
 {
     private const long CounterExecutionMemoryLimitBytes = 1L << 30;
-    private static readonly BenchmarkScenario[] Scenarios = CreateScenarios();
+    private static readonly BenchmarkScenario[] Scenarios;
 
-    public static async Task RunAsync(CancellationToken cancellationToken)
+    static BenchmarkCounterReport()
     {
-        Console.WriteLine("# Lokad.Awk Benchmark Counter Report");
-        Console.WriteLine();
-        Console.WriteLine("Command: `dotnet run -c Release --project .\\benchmarks\\Lokad.Awk.Benchmarks\\Lokad.Awk.Benchmarks.csproj -- --counter-report`");
-        Console.WriteLine("Date UTC: " + DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
-        Console.WriteLine("Machine: " + Environment.MachineName);
-        Console.WriteLine("OS: " + Environment.OSVersion);
-        Console.WriteLine(".NET: " + Environment.Version);
-        Console.WriteLine();
-        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex policy bytes | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | VM instructions | VM fallbacks | Memory peak |");
-        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        Scenarios = CreateScenarios();
 
-        for (var index = 0; index < Scenarios.Length; index++)
+        static BenchmarkScenario[] CreateScenarios()
         {
-            var scenario = Scenarios[index];
-            var result = await RunScenarioAsync(scenario, cancellationToken).ConfigureAwait(false);
-            PrintRow(scenario, result);
-        }
-    }
-
-    private static async Task<CounterScenarioResult> RunScenarioAsync(
-        BenchmarkScenario scenario,
-        CancellationToken cancellationToken)
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = new AwkRuntimeOptions(
-            () => new AwkUnixTimestampSeconds(0),
-            TimeZoneInfo.Utc,
-            new AwkRandomGenerator(),
-            counters,
-            AwkRuntimeLimits.CreateDefault()
-                .WithMaxExecutionMemoryBytes(CounterExecutionMemoryLimitBytes),
-            executionEngineKind: scenario.CounterExecutionEngineKind,
-            regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
-        var compiled = await AwkExecutor
-            .CompileAsync(
-                BenchmarkHost.FromFiles(scenario.Files),
-                AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []),
-                cancellationToken)
-            .ConfigureAwait(false);
-        var host = BenchmarkHost.FromFiles(scenario.Files);
-        var exitCode = await compiled.ExecuteAsync(host, cancellationToken, options).ConfigureAwait(false);
-        if (exitCode.Failed)
-            throw new InvalidOperationException("Counter report scenario failed: " + scenario.Name);
-
-        var run = host.Result;
-        if (run.StandardErrorBytes != 0)
-            throw new InvalidOperationException("Counter report scenario wrote stderr: " + scenario.Name);
-
-        return new CounterScenarioResult(counters, run);
-    }
-
-    private static void PrintRow(BenchmarkScenario scenario, CounterScenarioResult result)
-    {
-        var counters = result.Counters;
-        Console.WriteLine(
-            string.Join(
-                " | ",
-                "| " + EscapeCell(scenario.Name),
-                scenario.Metrics.RecordCount.ToString(CultureInfo.InvariantCulture),
-                scenario.Metrics.InputBytes.ToString(CultureInfo.InvariantCulture),
-                result.Run.StandardOutputBytes.ToString(CultureInfo.InvariantCulture),
-                counters.ExecutionSteps.ToString(CultureInfo.InvariantCulture),
-                counters.StringDecodes.ToString(CultureInfo.InvariantCulture),
-                counters.AwkTextAsStringCalls.ToString(CultureInfo.InvariantCulture),
-                counters.AwkTextAsStringDecodeMisses.ToString(CultureInfo.InvariantCulture),
-                counters.Utf8Encodes.ToString(CultureInfo.InvariantCulture),
-                counters.AwkTextAllocations.ToString(CultureInfo.InvariantCulture),
-                counters.AwkTextPayloadBytes.ToString(CultureInfo.InvariantCulture),
-                counters.RegexMatches.ToString(CultureInfo.InvariantCulture),
-                counters.RegexDotNetTextMatches.ToString(CultureInfo.InvariantCulture),
-                counters.RegexPatternGapFallbacks.ToString(CultureInfo.InvariantCulture),
-                counters.RegexStringAdapterMatches.ToString(CultureInfo.InvariantCulture),
-                counters.RegexPolicyInputBytesInspected.ToString(CultureInfo.InvariantCulture),
-                counters.RegexGroupsMaterialized.ToString(CultureInfo.InvariantCulture),
-                counters.RecordSeparatorResolutions.ToString(CultureInfo.InvariantCulture),
-                counters.RecordSeparatorBytesScanned.ToString(CultureInfo.InvariantCulture),
-                counters.RecordSeparatorTailBytesMoved.ToString(CultureInfo.InvariantCulture),
-                counters.FormattingFallbacks.ToString(CultureInfo.InvariantCulture),
-                counters.StringInteropFallbacks.ToString(CultureInfo.InvariantCulture),
-                counters.ByteTextComparisons.ToString(CultureInfo.InvariantCulture),
-                counters.ConcatenationBytesCopied.ToString(CultureInfo.InvariantCulture),
-                counters.RuneSliceBytesScanned.ToString(CultureInfo.InvariantCulture),
-                counters.RuneSliceIndexAllocations.ToString(CultureInfo.InvariantCulture),
-                counters.RuneSliceIndexBytes.ToString(CultureInfo.InvariantCulture),
-                counters.VmInstructions.ToString(CultureInfo.InvariantCulture),
-                counters.VmFallbackCalls.ToString(CultureInfo.InvariantCulture),
-                counters.MemoryPeakLiveBytes.ToString(CultureInfo.InvariantCulture) + " |"));
-    }
-
-    private static string EscapeCell(string value) =>
-        value.Replace("|", "\\|", StringComparison.Ordinal);
-
-    private static BenchmarkScenario[] CreateScenarios() =>
-    [
-        new(
+            return [
+            new(
             "counter column extraction",
             "{print $2}",
             ["{print $2}", "/data.tsv"],
@@ -1096,64 +1007,158 @@ internal static class BenchmarkCounterReport
             [new BenchmarkFile("/data.tsv", "sku1\t1\ttail\nsku2\t2\ttail\n")],
             recordCount: 2,
             counterExecutionEngineKind: AwkExecutionEngineKind.Executable)
-    ];
-
-    private const int CounterStreamingRecordCount = 10_000;
-    private const int CounterComparisonRecordCount = 5_000;
-
-    private static string BuildCounterStreamingRows()
-    {
-        var builder = new StringBuilder();
-        for (var index = 0; index < CounterStreamingRecordCount; index++)
-        {
-            builder.Append("sku");
-            builder.Append(index % 101);
-            builder.Append('\t');
-            builder.Append("region");
-            builder.Append(index % 11);
-            builder.Append('\t');
-            builder.Append(index % 4 == 0 ? "open" : "closed");
-            builder.Append('\t');
-            builder.Append(index % 97);
-            builder.AppendLine();
-        }
-
-        return builder.ToString();
-    }
-
-    private static string BuildCounterComparisonRows(bool changed)
-    {
-        var builder = new StringBuilder();
-        for (var index = 0; index < CounterComparisonRecordCount; index++)
-        {
-            builder.Append("key");
-            builder.Append(index);
-            builder.Append('\t');
-            builder.Append(changed && index % 10 == 0 ? index + 1 : index);
-            builder.AppendLine();
-        }
-
-        return builder.ToString();
-    }
-
-    private static string BuildCounterSeparatedRows()
-    {
-        var builder = new StringBuilder();
-        for (var row = 0; row < 32; row++)
-        {
-            for (var field = 0; field < 24; field++)
+        ];
+            static string BuildCounterStreamingRows()
             {
-                if (field > 0)
-                    builder.Append(' ');
+                var builder = new StringBuilder();
+                for (var index = 0; index < CounterStreamingRecordCount; index++)
+                {
+                    builder.Append("sku");
+                    builder.Append(index % 101);
+                    builder.Append('\t');
+                    builder.Append("region");
+                    builder.Append(index % 11);
+                    builder.Append('\t');
+                    builder.Append(index % 4 == 0 ? "open" : "closed");
+                    builder.Append('\t');
+                    builder.Append(index % 97);
+                    builder.AppendLine();
+                }
 
-                builder.Append('a');
+                return builder.ToString();
             }
 
-            builder.AppendLine();
+            static string BuildCounterComparisonRows(bool changed)
+            {
+                var builder = new StringBuilder();
+                for (var index = 0; index < CounterComparisonRecordCount; index++)
+                {
+                    builder.Append("key");
+                    builder.Append(index);
+                    builder.Append('\t');
+                    builder.Append(changed && index % 10 == 0 ? index + 1 : index);
+                    builder.AppendLine();
+                }
+
+                return builder.ToString();
+            }
+
+            static string BuildCounterSeparatedRows()
+            {
+                var builder = new StringBuilder();
+                for (var row = 0; row < 32; row++)
+                {
+                    for (var field = 0; field < 24; field++)
+                    {
+                        if (field > 0)
+                            builder.Append(' ');
+
+                        builder.Append('a');
+                    }
+
+                    builder.AppendLine();
+                }
+
+                return builder.ToString();
+            }
+        }
+    }
+
+    public static async Task RunAsync(CancellationToken cancellationToken)
+    {
+        Console.WriteLine("# Lokad.Awk Benchmark Counter Report");
+        Console.WriteLine();
+        Console.WriteLine("Command: `dotnet run -c Release --project .\\benchmarks\\Lokad.Awk.Benchmarks\\Lokad.Awk.Benchmarks.csproj -- --counter-report`");
+        Console.WriteLine("Date UTC: " + DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+        Console.WriteLine("Machine: " + Environment.MachineName);
+        Console.WriteLine("OS: " + Environment.OSVersion);
+        Console.WriteLine(".NET: " + Environment.Version);
+        Console.WriteLine();
+        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex policy bytes | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | VM instructions | VM fallbacks | Memory peak |");
+        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+
+        for (var index = 0; index < Scenarios.Length; index++)
+        {
+            var scenario = Scenarios[index];
+            var result = await RunScenarioAsync(scenario, cancellationToken).ConfigureAwait(false);
+            PrintRow(scenario, result);
         }
 
-        return builder.ToString();
+        static async Task<CounterScenarioResult> RunScenarioAsync(
+            BenchmarkScenario scenario,
+            CancellationToken cancellationToken)
+        {
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var options = new AwkRuntimeOptions(
+                () => new AwkUnixTimestampSeconds(0),
+                TimeZoneInfo.Utc,
+                new AwkRandomGenerator(),
+                counters,
+                AwkRuntimeLimits.CreateDefault()
+                    .WithMaxExecutionMemoryBytes(CounterExecutionMemoryLimitBytes),
+                executionEngineKind: scenario.CounterExecutionEngineKind,
+                regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
+            var compiled = await AwkExecutor
+                .CompileAsync(
+                    BenchmarkHost.FromFiles(scenario.Files),
+                    AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            var host = BenchmarkHost.FromFiles(scenario.Files);
+            var exitCode = await compiled.ExecuteAsync(host, cancellationToken, options).ConfigureAwait(false);
+            if (exitCode.Failed)
+                throw new InvalidOperationException("Counter report scenario failed: " + scenario.Name);
+
+            var run = host.Result;
+            if (run.StandardErrorBytes != 0)
+                throw new InvalidOperationException("Counter report scenario wrote stderr: " + scenario.Name);
+
+            return new CounterScenarioResult(counters, run);
+        }
+
+        static void PrintRow(BenchmarkScenario scenario, CounterScenarioResult result)
+        {
+            var counters = result.Counters;
+            Console.WriteLine(
+                string.Join(
+                    " | ",
+                    "| " + EscapeCell(scenario.Name),
+                    scenario.Metrics.RecordCount.ToString(CultureInfo.InvariantCulture),
+                    scenario.Metrics.InputBytes.ToString(CultureInfo.InvariantCulture),
+                    result.Run.StandardOutputBytes.ToString(CultureInfo.InvariantCulture),
+                    counters.ExecutionSteps.ToString(CultureInfo.InvariantCulture),
+                    counters.StringDecodes.ToString(CultureInfo.InvariantCulture),
+                    counters.AwkTextAsStringCalls.ToString(CultureInfo.InvariantCulture),
+                    counters.AwkTextAsStringDecodeMisses.ToString(CultureInfo.InvariantCulture),
+                    counters.Utf8Encodes.ToString(CultureInfo.InvariantCulture),
+                    counters.AwkTextAllocations.ToString(CultureInfo.InvariantCulture),
+                    counters.AwkTextPayloadBytes.ToString(CultureInfo.InvariantCulture),
+                    counters.RegexMatches.ToString(CultureInfo.InvariantCulture),
+                    counters.RegexDotNetTextMatches.ToString(CultureInfo.InvariantCulture),
+                    counters.RegexPatternGapFallbacks.ToString(CultureInfo.InvariantCulture),
+                    counters.RegexStringAdapterMatches.ToString(CultureInfo.InvariantCulture),
+                    counters.RegexPolicyInputBytesInspected.ToString(CultureInfo.InvariantCulture),
+                    counters.RegexGroupsMaterialized.ToString(CultureInfo.InvariantCulture),
+                    counters.RecordSeparatorResolutions.ToString(CultureInfo.InvariantCulture),
+                    counters.RecordSeparatorBytesScanned.ToString(CultureInfo.InvariantCulture),
+                    counters.RecordSeparatorTailBytesMoved.ToString(CultureInfo.InvariantCulture),
+                    counters.FormattingFallbacks.ToString(CultureInfo.InvariantCulture),
+                    counters.StringInteropFallbacks.ToString(CultureInfo.InvariantCulture),
+                    counters.ByteTextComparisons.ToString(CultureInfo.InvariantCulture),
+                    counters.ConcatenationBytesCopied.ToString(CultureInfo.InvariantCulture),
+                    counters.RuneSliceBytesScanned.ToString(CultureInfo.InvariantCulture),
+                    counters.RuneSliceIndexAllocations.ToString(CultureInfo.InvariantCulture),
+                    counters.RuneSliceIndexBytes.ToString(CultureInfo.InvariantCulture),
+                    counters.VmInstructions.ToString(CultureInfo.InvariantCulture),
+                    counters.VmFallbackCalls.ToString(CultureInfo.InvariantCulture),
+                    counters.MemoryPeakLiveBytes.ToString(CultureInfo.InvariantCulture) + " |"));
+
+            static string EscapeCell(string value) =>
+                value.Replace("|", "\\|", StringComparison.Ordinal);
+        }
     }
+    private const int CounterStreamingRecordCount = 10_000;
+    private const int CounterComparisonRecordCount = 5_000;
 
     private readonly record struct CounterScenarioResult(
         AwkRuntimeCounters Counters,
@@ -1352,14 +1357,35 @@ internal static class BenchmarkScenarioCatalog
     }
 }
 
-internal sealed class BenchmarkScenario(
-    string name,
-    string programSource,
-    IReadOnlyList<string> arguments,
-    IReadOnlyList<BenchmarkFile> files,
-    long recordCount,
-    AwkExecutionEngineKind counterExecutionEngineKind)
+internal sealed class BenchmarkScenario
 {
+    public BenchmarkScenario(
+        string name,
+        string programSource,
+        IReadOnlyList<string> arguments,
+        IReadOnlyList<BenchmarkFile> files,
+        long recordCount,
+        AwkExecutionEngineKind counterExecutionEngineKind)
+    {
+        Name = name;
+        ProgramSource = programSource;
+        Arguments = arguments;
+        Files = files;
+        Metrics = new BenchmarkWorkloadMetrics(SumInputBytes(files), recordCount);
+        CounterExecutionEngineKind = counterExecutionEngineKind;
+
+        static long SumInputBytes(IReadOnlyList<BenchmarkFile> files)
+        {
+            var total = 0L;
+            for (var index = 0; index < files.Count; index++)
+            {
+                total += files[index].ContentBytes.Length;
+            }
+
+            return total;
+        }
+    }
+
     public static BenchmarkScenario Empty { get; } = new(
         string.Empty,
         string.Empty,
@@ -1368,28 +1394,17 @@ internal sealed class BenchmarkScenario(
         0,
         AwkExecutionEngineKind.Interpreter);
 
-    public string Name { get; } = name;
+    public string Name { get; }
 
-    public string ProgramSource { get; } = programSource;
+    public string ProgramSource { get; }
 
-    public IReadOnlyList<string> Arguments { get; } = arguments;
+    public IReadOnlyList<string> Arguments { get; }
 
-    public IReadOnlyList<BenchmarkFile> Files { get; } = files;
+    public IReadOnlyList<BenchmarkFile> Files { get; }
 
-    public BenchmarkWorkloadMetrics Metrics { get; } = new(SumInputBytes(files), recordCount);
+    public BenchmarkWorkloadMetrics Metrics { get; }
 
-    public AwkExecutionEngineKind CounterExecutionEngineKind { get; } = counterExecutionEngineKind;
-
-    private static long SumInputBytes(IReadOnlyList<BenchmarkFile> files)
-    {
-        var total = 0L;
-        for (var index = 0; index < files.Count; index++)
-        {
-            total += files[index].ContentBytes.Length;
-        }
-
-        return total;
-    }
+    public AwkExecutionEngineKind CounterExecutionEngineKind { get; }
 }
 
 internal readonly record struct BenchmarkWorkloadMetrics(long InputBytes, long RecordCount);
@@ -1463,6 +1478,17 @@ internal sealed class BenchmarkHost : IAwkHost
         }
 
         return Task.FromResult(AwkExitCode.Success);
+
+        static ulong Hash(ulong current, ReadOnlySpan<byte> content)
+        {
+            for (var index = 0; index < content.Length; index++)
+            {
+                current ^= content[index];
+                current *= FnvPrime;
+            }
+
+            return current;
+        }
     }
 
     public Task<AwkOpenedFile> OpenFileAsync(
@@ -1510,17 +1536,6 @@ internal sealed class BenchmarkHost : IAwkHost
     public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken) =>
         Task.FromResult(AwkPipeCreationResult.NotSupported(
             new AwkOperationError("Benchmark host does not create pipes.")));
-
-    private static ulong Hash(ulong current, ReadOnlySpan<byte> content)
-    {
-        for (var index = 0; index < content.Length; index++)
-        {
-            current ^= content[index];
-            current *= FnvPrime;
-        }
-
-        return current;
-    }
 
     private sealed class ReadState(byte[] content)
     {
