@@ -629,7 +629,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(1, counters.OutputSinkCreations);
     }
 
-    private static Task<(int ExitCode, MockFileSystem FileSystem, AwkRuntimeCounters Counters)> RunAsync(
+    private static Task<BenchmarkRunResult> RunAsync(
         string[] arguments) =>
         RunAsync(
             arguments,
@@ -637,7 +637,7 @@ public sealed class AwkBenchmarkCounterTests
             AwkRegexEngineKind.Utf8Adapter,
             AwkExecutionEngineKind.Interpreter);
 
-    private static Task<(int ExitCode, MockFileSystem FileSystem, AwkRuntimeCounters Counters)> RunAsync(
+    private static Task<BenchmarkRunResult> RunAsync(
         string[] arguments,
         string input) =>
         RunAsync(
@@ -646,13 +646,13 @@ public sealed class AwkBenchmarkCounterTests
             AwkRegexEngineKind.Utf8Adapter,
             AwkExecutionEngineKind.Interpreter);
 
-    private static Task<(int ExitCode, MockFileSystem FileSystem, AwkRuntimeCounters Counters)> RunAsync(
+    private static Task<BenchmarkRunResult> RunAsync(
         string[] arguments,
         string input,
         AwkRegexEngineKind regexEngineKind) =>
         RunAsync(arguments, input, regexEngineKind, AwkExecutionEngineKind.Interpreter);
 
-    private static async Task<(int ExitCode, MockFileSystem FileSystem, AwkRuntimeCounters Counters)> RunAsync(
+    private static async Task<BenchmarkRunResult> RunAsync(
         string[] arguments,
         string input,
         AwkRegexEngineKind regexEngineKind,
@@ -669,8 +669,13 @@ public sealed class AwkBenchmarkCounterTests
             fileSystem.SetStandardInput(input);
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
-        return (exitCode.Value, fileSystem, counters);
+        return new BenchmarkRunResult(exitCode.Value, fileSystem, counters);
     }
+
+    private readonly record struct BenchmarkRunResult(
+        int ExitCode,
+        MockFileSystem FileSystem,
+        AwkRuntimeCounters Counters);
 
     private static string BuildRepeatedSeparatedRows(int rowCount, int fieldCount, char separator)
     {

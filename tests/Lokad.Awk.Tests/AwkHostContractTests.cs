@@ -43,8 +43,8 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             new AwkFileDescriptor(11)));
         host.EnqueueCommandExitCodes(resultCount == 0 ? [] : [0, 1]);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueCloseDescriptorResult(true);
-        host.EnqueueCloseDescriptorResult(true);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
         host.EnqueueAppendExitCode(0);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
@@ -89,8 +89,8 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             new AwkFileDescriptor(21)));
         host.EnqueueCommandExitCodes([0]);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueCloseDescriptorResult(false);
-        host.EnqueueCloseDescriptorResult(true);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Failure);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
         host.EnqueueAppendExitCode(0);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",

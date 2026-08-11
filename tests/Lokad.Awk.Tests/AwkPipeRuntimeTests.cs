@@ -13,7 +13,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             new AwkFileDescriptor(9)));
         host.EnqueueCommandExitCodes([0]);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueCloseDescriptorResult(true);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
         var command = AwkCommandInvocation.CreateWithStandardDescriptors(
             "awk",
             [
@@ -53,7 +53,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
-        host.EnqueueCloseDescriptorResult(true);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{print \"one\" | \"cat -n\"; print \"two\" | \"cat -n\"}"));
@@ -77,7 +77,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(20), pipeWrite));
         host.EnqueueCommandExitCodes([17]);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueCloseDescriptorResult(true);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
@@ -98,7 +98,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(30), new AwkFileDescriptor(31)));
         host.EnqueueCommandExitCodes([0]);
         host.EnqueueAppendExitCode(9);
-        host.EnqueueCloseDescriptorResult(true);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
         host.EnqueueAppendExitCode(0);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
@@ -126,8 +126,8 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             AwkReadCompletion.EndOfFile));
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
-        host.EnqueueCloseDescriptorResult(true);
-        host.EnqueueCloseDescriptorResult(true);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{\"producer\" | getline line; print line}"));
@@ -157,8 +157,8 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             AwkReadCompletion.EndOfFile));
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
-        host.EnqueueCloseDescriptorResult(true);
-        host.EnqueueCloseDescriptorResult(true);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{RS=\"|\"; \"producer\" | getline line; print line \"[\" RT \"]\"}"));
@@ -179,8 +179,8 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             AwkUtf8Codec.Encode("payload\n"),
             [],
             AwkReadCompletion.EndOfFile));
-        host.EnqueueCloseDescriptorResult(true);
-        host.EnqueueCloseDescriptorResult(true);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(

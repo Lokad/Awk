@@ -6,7 +6,7 @@ namespace Lokad.Awk.Tests;
 public sealed class TestOperationVisitor : IAwkHost
 {
     private readonly Queue<TestHostOperation> _operations = [];
-    private readonly List<(AwkFileDescriptor Descriptor, byte[] Content)> _appends = [];
+    private readonly List<AppendedContent> _appends = [];
 
     public TestOperationVisitor(IReadOnlyList<int> exitCodes)
     {
@@ -72,7 +72,7 @@ public sealed class TestOperationVisitor : IAwkHost
         cancellationToken.ThrowIfCancellationRequested();
 
         var operation = Dequeue<TestHostOperation.Append>("append exit codes");
-        _appends.Add((fileDescriptor, content.ToArray()));
+        _appends.Add(new AppendedContent(fileDescriptor, content.ToArray()));
         return Task.FromResult(operation.ExitCode);
     }
 
@@ -94,8 +94,7 @@ public sealed class TestOperationVisitor : IAwkHost
         }
 
         var operation = Dequeue<TestHostOperation.CloseDescriptor>("descriptor close results");
-        return Task.FromResult(
-            operation.Closed ? AwkOperationStatus.Success : AwkOperationStatus.Failure);
+        return Task.FromResult(operation.Status);
     }
 
     public Task<AwkReadResult> ReadLinesAsync(
@@ -147,9 +146,9 @@ public sealed class TestOperationVisitor : IAwkHost
         _operations.Enqueue(new TestHostOperation.OpenFile(new AwkFileDescriptor(descriptor)));
     }
 
-    public void EnqueueCloseDescriptorResult(bool closed)
+    public void EnqueueCloseDescriptorResult(AwkOperationStatus status)
     {
-        _operations.Enqueue(new TestHostOperation.CloseDescriptor(closed));
+        _operations.Enqueue(new TestHostOperation.CloseDescriptor(status));
     }
 
     public void EnqueueAwkReadResult(AwkReadResult result)
@@ -183,9 +182,13 @@ public sealed class TestOperationVisitor : IAwkHost
 
         public sealed record OpenFile(AwkFileDescriptor Descriptor) : TestHostOperation;
 
-        public sealed record CloseDescriptor(bool Closed) : TestHostOperation;
+        public sealed record CloseDescriptor(AwkOperationStatus Status) : TestHostOperation;
 
         public sealed record ReadLines(AwkReadResult Result) : TestHostOperation;
 
     }
+
+    private readonly record struct AppendedContent(
+        AwkFileDescriptor Descriptor,
+        byte[] Content);
 }

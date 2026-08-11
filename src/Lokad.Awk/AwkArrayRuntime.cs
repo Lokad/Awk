@@ -495,7 +495,7 @@ internal sealed class AwkArrayRuntime
         AwkArraySortOrder order,
         int count)
     {
-        static (AwkArraySortMode Mode, IComparer<AwkArraySortEntry> Comparer) ResolveSortPlan(
+        static AwkArraySortPlan ResolveSortPlan(
             AwkArraySortOrder sortOrder,
             AwkRuntimeCounters counters)
         {
@@ -525,7 +525,7 @@ internal sealed class AwkArrayRuntime
             };
 
             if (counters.IsEnabled)
-                return (mode, new AwkArraySortEntryComparer(mode, counters));
+                return new AwkArraySortPlan(mode, new AwkArraySortEntryComparer(mode, counters));
 
             var comparer = mode switch
             {
@@ -538,7 +538,7 @@ internal sealed class AwkArrayRuntime
                 AwkArraySortMode.ValueNumberDescending => ValueNumberDescendingComparer,
                 _ => ValueStringAscendingComparer
             };
-            return (mode, comparer);
+            return new AwkArraySortPlan(mode, comparer);
         }
 
         if (order is AwkArraySortOrder.UserFunctionOrder)
@@ -550,6 +550,23 @@ internal sealed class AwkArrayRuntime
         var entries = SnapshotSortEntries(arrayName, count, plan.Mode);
         Array.Sort(entries, plan.Comparer);
         return entries;
+    }
+
+    private readonly struct AwkArraySortPlan
+    {
+        private readonly IComparer<AwkArraySortEntry>? _comparer;
+
+        public AwkArraySortPlan(
+            AwkArraySortMode mode,
+            IComparer<AwkArraySortEntry> comparer)
+        {
+            Mode = mode;
+            _comparer = comparer;
+        }
+
+        public AwkArraySortMode Mode { get; }
+
+        public IComparer<AwkArraySortEntry> Comparer => _comparer ?? ValueStringAscendingComparer;
     }
 
     private AwkArraySortEntry[] SnapshotSortEntries(

@@ -148,15 +148,15 @@ internal sealed class AwkLineContinuationMap
             {
                 var points = new AwkLineContinuationPoint[Count];
                 var writeIndex = 0;
-                var pending = new Stack<(AwkLineContinuationMap Map, int Offset)>();
-                pending.Push((this, 0));
+                var pending = new Stack<PendingMap>();
+                pending.Push(new PendingMap(this, 0));
                 while (pending.Count > 0)
                 {
                     var (map, offset) = pending.Pop();
                     if (map._node is AwkLineContinuationMapNode.Concat concat)
                     {
-                        pending.Push((concat.Second, checked(offset + concat.SecondOffset)));
-                        pending.Push((concat.First, offset));
+                        pending.Push(new PendingMap(concat.Second, checked(offset + concat.SecondOffset)));
+                        pending.Push(new PendingMap(concat.First, offset));
                         continue;
                     }
 
@@ -170,6 +170,27 @@ internal sealed class AwkLineContinuationMap
 
                 return points;
             }
+        }
+    }
+
+    private readonly struct PendingMap
+    {
+        private readonly AwkLineContinuationMap? _map;
+
+        public PendingMap(AwkLineContinuationMap map, int offset)
+        {
+            _map = map;
+            Offset = offset;
+        }
+
+        public AwkLineContinuationMap Map => _map ?? Empty;
+
+        public int Offset { get; }
+
+        public void Deconstruct(out AwkLineContinuationMap map, out int offset)
+        {
+            map = Map;
+            offset = Offset;
         }
     }
 
