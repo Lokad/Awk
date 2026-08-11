@@ -168,6 +168,24 @@ public sealed class AwkPublicBoundaryTests
         Assert.Equal("0\n1970-01-01 00:00:00\n", host.GetOutput(AwkFileDescriptor.StdOut));
     }
 
+    [Theory]
+    [InlineData("%2147483647Y")]
+    [InlineData("%999999999999999999999Y")]
+    public async Task AwkExecutionPolicy_StrftimeWidthPreflightsBeforeAllocation(string format)
+    {
+        var host = new MockFileSystem();
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            $"BEGIN{{print strftime(\"{format}\", 0, 1)}}"));
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxValueBytes(64);
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
     [Fact]
     public async Task Awk_PublicExecutionDoesNotLeakUnexpectedHostExceptionDetails()
     {

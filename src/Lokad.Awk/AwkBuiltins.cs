@@ -593,12 +593,13 @@ internal static partial class AwkBuiltins
             static string FormatTime(
                 string format,
                 AwkUnixTimestampSeconds timestamp,
-                TimeZoneInfo timeZone)
+                TimeZoneInfo timeZone,
+                int maxOutputLength)
             {
                 var value = TimeZoneInfo.ConvertTime(
                     DateTimeOffset.FromUnixTimeSeconds(timestamp.Value),
                     timeZone);
-                return GnuDateFormatting.Format(value, format);
+                return GnuDateFormatting.Format(value, format, maxOutputLength);
             }
 
             if (context.ArgumentCount > 3)
@@ -618,7 +619,13 @@ internal static partial class AwkBuiltins
                 : context.State.TimeZone;
             try
             {
-                return context.State.CreateStringValue(FormatTime(format, timestamp, timeZone));
+                var maxOutputLength = context.State.Limits.MaxValueBytes == AwkRuntimeLimits.Unlimited
+                    ? context.State.Limits.MaxBuilderBytes
+                    : (int)Math.Min(
+                        context.State.Limits.MaxValueBytes,
+                        context.State.Limits.MaxBuilderBytes);
+                return context.State.CreateStringValue(
+                    FormatTime(format, timestamp, timeZone, maxOutputLength));
             }
             catch (ArgumentOutOfRangeException)
             {
