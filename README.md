@@ -21,7 +21,7 @@ var invocation = AwkCommandInvocation.CreateWithStandardDescriptors(
     ["-F,", "NR > 1 { total += $3 } END { print total }", "/sales.csv"],
     [new AwkEnvironmentVariable("PWD", "/")]);
 
-if (Awk.TryParse(invocation) is not { } awk)
+if (!Awk.TryParse(invocation, out var awk))
     throw new InvalidOperationException("The invocation is not an awk command.");
 
 IAwkHost host = new ApplicationAwkHost(); // Owns files, streams, pipes, and process policy.

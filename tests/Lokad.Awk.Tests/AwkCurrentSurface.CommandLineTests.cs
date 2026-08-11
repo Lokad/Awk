@@ -15,8 +15,9 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     [InlineData(@"C:\tools\awk")]
     public void Awk_TryParseAcceptsAwkCommandBasename(string command)
     {
-        var tool = Awk.TryParse(BuildInvocation(command, "BEGIN{print 1}"));
+        var parsed = Awk.TryParse(BuildInvocation(command, "BEGIN{print 1}"), out var tool);
 
+        Assert.True(parsed);
         Assert.IsType<Awk>(tool);
     }
 
@@ -26,8 +27,9 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     [InlineData(@"C:\tools\gawk")]
     public void Awk_TryParseRejectsOtherCommandBasenames(string command)
     {
-        var tool = Awk.TryParse(BuildInvocation(command, "BEGIN{print 1}"));
+        var parsed = Awk.TryParse(BuildInvocation(command, "BEGIN{print 1}"), out var tool);
 
+        Assert.False(parsed);
         Assert.Null(tool);
     }
 
@@ -145,14 +147,14 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         fileSystem.AddFile("/script.awk", "BEGIN{print prefix} {print $2}");
         fileSystem.AddFile("/file.txt", "a:b\nc:d\n");
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "--field-separator",
             ":",
             "--assign=prefix=SKU",
             "--file",
             "/script.awk",
-            "/file.txt")));
+            "/file.txt"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -178,11 +180,11 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     {
         var fileSystem = new MockFileSystem();
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "-v",
             "prefix=SKU",
-            "BEGIN{print prefix}")));
+            "BEGIN{print prefix}"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -194,7 +196,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     {
         var fileSystem = new MockFileSystem();
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "--help")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "--help"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -210,7 +212,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         fileSystem.AddFile("/script.awk", "BEGIN{print \"start\"} {print $2}");
         fileSystem.AddFile("/file.txt", "1 one\n2 two\n");
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "-f", "/script.awk", "/file.txt")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk", "/file.txt"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -225,13 +227,13 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         fileSystem.AddFile("/main.awk", "{print $2}");
         fileSystem.AddFile("/file.txt", "1 one\n2 two\n");
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "-f",
             "/begin.awk",
             "-f",
             "/main.awk",
-            "/file.txt")));
+            "/file.txt"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -558,7 +560,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     {
         var fileSystem = new MockFileSystem();
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "-f", "/missing.awk")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/missing.awk"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);

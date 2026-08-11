@@ -6,7 +6,7 @@ internal readonly record struct AwkErrno
 
     private AwkErrno(string text)
     {
-        _text = text;
+        _text = text.Length == 0 ? null : text;
     }
 
     public static AwkErrno None { get; } = new(string.Empty);
@@ -19,7 +19,6 @@ internal readonly record struct AwkErrno
 
     public static AwkErrno FromHostMessage(string message)
     {
-        ArgumentNullException.ThrowIfNull(message);
         return message.Length == 0 ? None : new AwkErrno(message);
     }
 

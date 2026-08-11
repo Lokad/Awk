@@ -48,7 +48,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         };
         fileSystem.AddFile("/file.txt", "one\ntwo\n");
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "{print $0}", "/file.txt")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print $0}", "/file.txt"));
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => tool.ExecuteAsync(fileSystem, cancellation.Token));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -60,10 +60,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/file.txt", "unread\n");
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{exit}",
-            "/file.txt")));
+            "/file.txt"));
 
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
@@ -81,10 +81,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AfterCloseDescriptor = static () => throw new InvalidOperationException("cleanup failed")
         };
         fileSystem.AddFile("/file.txt", "one\ntwo\n");
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "{print}",
-            "/file.txt")));
+            "/file.txt"));
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => tool.ExecuteAsync(fileSystem, cancellation.Token));
@@ -100,9 +100,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         {
             AfterAppend = cancellation.Cancel
         };
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{print \"one\" > \"/out.txt\"; print \"unreached\"}")));
+            "BEGIN{print \"one\" > \"/out.txt\"; print \"unreached\"}"));
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => tool.ExecuteAsync(fileSystem, cancellation.Token));
@@ -115,9 +115,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public async Task Awk_RuntimeFailureClosesRedirectedOutputBeforeReportingTheDiagnostic()
     {
         var fileSystem = new MockFileSystem();
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{print \"one\" > \"/out.txt\"; values[1]=1; print values}")));
+            "BEGIN{print \"one\" > \"/out.txt\"; values[1]=1; print values}"));
 
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
@@ -144,7 +144,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         };
         fileSystem.SetStandardInput(input);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", program)));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", program));
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => tool.ExecuteAsync(fileSystem, cancellation.Token));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -159,7 +159,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             BeforeAppend = cancellation.Cancel
         };
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "BEGIN{print sprintf(\"%10000s\", \"x\")}")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{print sprintf(\"%10000s\", \"x\")}"));
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => tool.ExecuteAsync(host, cancellation.Token));
     }
@@ -179,9 +179,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             }
         };
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{print \"before\"; print \"after\"}")));
+            "BEGIN{print \"before\"; print \"after\"}"));
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => tool.ExecuteAsync(fileSystem, cancellation.Token));
 
@@ -195,7 +195,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         host.EnqueueAppendExitCode(7);
         host.EnqueueAppendExitCode(0);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "BEGIN{print \"x\"}")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{print \"x\"}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 

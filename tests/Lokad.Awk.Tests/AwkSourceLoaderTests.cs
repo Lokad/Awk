@@ -399,7 +399,7 @@ public sealed class AwkSourceLoaderTests
 
         fileSystem = new MockFileSystem();
         fileSystem.AddFile("/lib/bad.awk", [0x42, 0x45, 0x47, 0x49, 0x4e, 0x80]);
-        var parsedTool = Assert.IsType<Awk>(Awk.TryParse(command));
+        var parsedTool = AwkTestHarness.ParseAwk(command);
         var exitCode = await parsedTool.ExecuteAsync(fileSystem, CancellationToken.None);
         var result = new AwkTestRunResult(
             exitCode.Value,
@@ -497,7 +497,7 @@ public sealed class AwkSourceLoaderTests
         MockFileSystem fileSystem,
         IReadOnlyList<string> arguments)
     {
-        var tool = Assert.IsType<Awk>(Awk.TryParse(AwkTestHarness.BuildInvocation("awk", arguments, [])));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments, []));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None).ConfigureAwait(false);
         return new AwkTestRunResult(
             exitCode.Value,

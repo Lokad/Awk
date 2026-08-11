@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,8 +18,12 @@ public sealed class Awk
     /// <summary>
     /// Parses an invocation whose command base name is <c>awk</c>.
     /// </summary>
-    /// <returns>The parsed command, or <see langword="null"/> when the command name is not <c>awk</c>.</returns>
-    public static Awk? TryParse(AwkCommandInvocation invocation)
+    /// <param name="invocation">The command invocation to inspect and parse.</param>
+    /// <param name="awk">The parsed command when the command base name is <c>awk</c>.</param>
+    /// <returns><see langword="true"/> when the invocation represents an awk command.</returns>
+    public static bool TryParse(
+        AwkCommandInvocation invocation,
+        [NotNullWhen(true)] out Awk? awk)
     {
         ArgumentNullException.ThrowIfNull(invocation);
 
@@ -26,9 +31,13 @@ public sealed class Awk
             AwkNameFacts.GetCommandBaseName(name).SequenceEqual("awk".AsSpan());
 
         if (!IsAwkName(invocation.CommandName))
-            return null;
+        {
+            awk = null;
+            return false;
+        }
 
-        return new Awk(AwkCommandParser.Parse(invocation));
+        awk = new Awk(AwkCommandParser.Parse(invocation));
+        return true;
     }
 
     /// <summary>Executes the parsed command, routing every external effect through <paramref name="host"/>.</summary>

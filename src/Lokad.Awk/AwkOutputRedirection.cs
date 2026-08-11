@@ -23,7 +23,7 @@ internal readonly record struct AwkRedirectionPath
 
     public AwkRedirectionPath(string text)
     {
-        _text = text;
+        _text = text.Length == 0 ? null : text;
     }
 
     public string Text => _text ?? string.Empty;

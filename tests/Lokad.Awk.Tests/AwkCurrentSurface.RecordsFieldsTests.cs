@@ -44,7 +44,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInputBytes([0x61, 0x80, 0x0A]);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "{print $0}")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print $0}"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         AssertInvalidUtf8Failure(exitCode, fileSystem);
@@ -60,7 +60,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             ["{print $0}"],
             [new AwkEnvironmentVariable("LC_ALL", "C")]);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(invocation));
+        var tool = AwkTestHarness.ParseAwk(invocation);
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         AssertInvalidUtf8Failure(exitCode, fileSystem);
@@ -76,7 +76,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             ["{print $0}"],
             [new AwkEnvironmentVariable("LC_ALL", "C")]);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(invocation));
+        var tool = AwkTestHarness.ParseAwk(invocation);
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -90,7 +90,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/bad.txt", [0xC3, 0x28, 0x0A]);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "{print $0}", "/bad.txt")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print $0}", "/bad.txt"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         AssertInvalidUtf8Failure(exitCode, fileSystem);
@@ -130,9 +130,9 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInputBytes([0xC3, 0x28, 0x0A]);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{ if ((getline line) > 0) print line }")));
+            "BEGIN{ if ((getline line) > 0) print line }"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         AssertInvalidUtf8Failure(exitCode, fileSystem);
@@ -171,9 +171,9 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInputBytes([0x61, 0xC3, 0x28, 0x7C]);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{RS=\"|\"} {print $0}")));
+            "BEGIN{RS=\"|\"} {print $0}"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         AssertInvalidUtf8Failure(exitCode, fileSystem);
@@ -189,7 +189,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkReadCompletion.MoreData));
         host.EnqueueAppendExitCode(0);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "{print; exit}")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -214,7 +214,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
 
         var program = "{record=$0; terminator=RT; gsub(/\\n/,\"N\",record); gsub(/\\n/,\"N\",terminator); " +
             "print NR \":\" record \"[\" terminator \"]\"; if(NR==1) RS=\"|\"}";
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", program)));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", program));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -234,7 +234,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkReadCompletion.MoreData));
         host.EnqueueAppendExitCode(0);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "BEGIN{RS=\"|\"} {print; exit}")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"|\"} {print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -538,11 +538,11 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     [Fact]
     public async Task Awk_EmptyFieldSeparatorRejectsNonAsciiByteModeFields()
     {
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "--characters-as-bytes",
             "BEGIN{FS=\"\"} {print NF}",
-            "/file.txt")));
+            "/file.txt"));
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/file.txt", "é\n");
 
@@ -780,11 +780,11 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
     [Fact]
     public async Task Awk_FieldWidthsRejectByteModeSplitInsideUtf8Character()
     {
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "--characters-as-bytes",
             "BEGIN{FIELDWIDTHS=\"1 1\"} {print NF}",
-            "/file.txt")));
+            "/file.txt"));
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/file.txt", "\u00e9\n");
 
@@ -870,9 +870,9 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInput("first|second,third,");
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{RS=\"|\"} {print $0; RS=\",\"}")));
+            "BEGIN{RS=\"|\"} {print $0; RS=\",\"}"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -975,7 +975,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
                 host.EnqueueAppendExitCode(0);
         }
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", program)));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", program));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -1089,9 +1089,9 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         host.EnqueueAppendExitCode(0);
         host.EnqueueAppendExitCode(0);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{RS=\"(^x|,)\"} {print $0 \"[\" RT \"]\"}")));
+            "BEGIN{RS=\"(^x|,)\"} {print $0 \"[\" RT \"]\"}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -1167,7 +1167,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkReadCompletion.MoreData));
         host.EnqueueAppendExitCode(0);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "BEGIN{RS=\"[,;]\"} {print; exit}")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"[,;]\"} {print; exit}"));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
@@ -1210,7 +1210,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkReadCompletion.MoreData));
         host.EnqueueAppendExitCode(0);
 
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "BEGIN{RS=\"\"} {print $0; exit}")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "BEGIN{RS=\"\"} {print $0; exit}"));
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);

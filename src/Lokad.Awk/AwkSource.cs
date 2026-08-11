@@ -135,7 +135,7 @@ internal readonly record struct AwkSourceName
 
     public AwkSourceName(string text)
     {
-        _text = text;
+        _text = text.Length == 0 ? null : text;
     }
 
     public string Text => _text ?? string.Empty;
@@ -149,7 +149,7 @@ internal readonly record struct AwkSourceIdentity
 
     public AwkSourceIdentity(string text)
     {
-        _text = text;
+        _text = text.Length == 0 ? null : text;
     }
 
     public string Text => _text ?? string.Empty;

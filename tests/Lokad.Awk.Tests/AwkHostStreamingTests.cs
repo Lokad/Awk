@@ -13,9 +13,9 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{print \"one\"; print \"two\"}")));
+            "BEGIN{print \"one\"; print \"two\"}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -28,9 +28,9 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
     public async Task Awk_OutputPipeStreamsThroughBoundedHostPipe()
     {
         var host = new BoundedPipeHost(capacityBytes: 4);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{print \"a\" | \"consumer\"; print \"bc\" | \"consumer\"}")));
+            "BEGIN{print \"a\" | \"consumer\"; print \"bc\" | \"consumer\"}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 

@@ -466,10 +466,10 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     public async Task Awk_CharactersAsBytesRegexUsesByteOffsetsForValidUtf8()
     {
         var fileSystem = new MockFileSystem();
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "--characters-as-bytes",
-            "BEGIN{s=\"éa\"; print (s ~ /éa/), match(s,/a/), RSTART, RLENGTH; print match(s,/é/,m), RSTART, RLENGTH, m[0], m[0,\"start\"], m[0,\"length\"]}")));
+            "BEGIN{s=\"éa\"; print (s ~ /éa/), match(s,/a/), RSTART, RLENGTH; print match(s,/é/,m), RSTART, RLENGTH, m[0], m[0,\"start\"], m[0,\"length\"]}"));
         var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);

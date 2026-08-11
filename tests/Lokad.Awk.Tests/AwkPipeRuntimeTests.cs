@@ -27,7 +27,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
                 new AwkEnvironmentVariable("TOKEN", "parent"),
                 new AwkEnvironmentVariable("DROP", "remove")
             ]);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(command));
+        var tool = AwkTestHarness.ParseAwk(command);
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -54,9 +54,9 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         host.EnqueueCloseDescriptorResult(true);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{print \"one\" | \"cat -n\"; print \"two\" | \"cat -n\"}")));
+            "BEGIN{print \"one\" | \"cat -n\"; print \"two\" | \"cat -n\"}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -80,9 +80,9 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{print \"payload\" | \"worker\"; print close(\"worker\")}")));
+            "BEGIN{print \"payload\" | \"worker\"; print close(\"worker\")}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -100,9 +100,9 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendExitCode(9);
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueAppendExitCode(0);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{print \"payload\" | \"closed-reader\"; print \"after\"}")));
+            "BEGIN{print \"payload\" | \"closed-reader\"; print \"after\"}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -128,9 +128,9 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueCloseDescriptorResult(true);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{\"producer\" | getline line; print line}")));
+            "BEGIN{\"producer\" | getline line; print line}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -159,9 +159,9 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueCloseDescriptorResult(true);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{RS=\"|\"; \"producer\" | getline line; print line \"[\" RT \"]\"}")));
+            "BEGIN{RS=\"|\"; \"producer\" | getline line; print line \"[\" RT \"]\"}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -183,9 +183,9 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{\"producer\" | getline line; print close(\"producer\", \"from\")}")));
+            "BEGIN{\"producer\" | getline line; print close(\"producer\", \"from\")}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 

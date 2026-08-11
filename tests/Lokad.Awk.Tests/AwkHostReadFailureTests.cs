@@ -16,7 +16,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
                 ? AwkReadResult.FromContent("one\n"u8.ToArray(), [], AwkReadCompletion.MoreData)
                 : AwkReadResult.Failure(new AwkOperationError("Device read failed"))
         };
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "{print}")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -36,9 +36,9 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
                 AwkReadResult.Failure(new AwkOperationError("Device read failed"))
         };
         host.AddFile("/data.txt", "unread");
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{result=(getline value < \"/data.txt\"); print result, ERRNO; exit}")));
+            "BEGIN{result=(getline value < \"/data.txt\"); print result, ERRNO; exit}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -58,7 +58,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
                 AwkReadResult.Failure(new AwkOperationError("Device read failed"))
         };
         host.AddFile("/script.awk", "BEGIN{print \"unread\"}");
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "-f", "/script.awk")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -80,7 +80,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
                 AwkReadResult.FromContent("BEGIN{print 1}"u8.ToArray(), [], AwkReadCompletion.MoreData)
         };
         host.AddFile("/script.awk", "unread");
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "-f", "/script.awk")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => tool.ExecuteAsync(host, cancellation.Token));

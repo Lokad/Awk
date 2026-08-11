@@ -10,10 +10,10 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
     public async Task Awk_ExitFromBeginDoesNotOpenMainInput()
     {
         var host = new TestOperationVisitor([]);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{exit}",
-            "/unopened.txt")));
+            "/unopened.txt"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -25,7 +25,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAppendExitCode(7);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "--help")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "--help"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -46,9 +46,9 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueAppendExitCode(0);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{print \"payload\" | \"consumer\"; exit}")));
+            "BEGIN{print \"payload\" | \"consumer\"; exit}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -70,9 +70,9 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         host.EnqueueCloseDescriptorResult(false);
         host.EnqueueCloseDescriptorResult(true);
         host.EnqueueAppendExitCode(0);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation(
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{print \"payload\" | \"consumer\"; exit}")));
+            "BEGIN{print \"payload\" | \"consumer\"; exit}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 
@@ -90,7 +90,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             CloseDescriptorResultOverride = static (_, _) => false
         };
         host.AddFile("/script.awk", "BEGIN{print 1}");
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", "-f", "/script.awk")));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 

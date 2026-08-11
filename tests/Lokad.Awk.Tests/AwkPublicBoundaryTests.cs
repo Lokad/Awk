@@ -63,6 +63,17 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
+    public void Awk_InternalEmptyValueObjectsHaveCanonicalEquality()
+    {
+        Assert.Equal(default, new AwkRegexPattern(string.Empty));
+        Assert.Equal(default, new AwkRegexLiteralText(string.Empty));
+        Assert.Equal(default, new AwkSourceName(string.Empty));
+        Assert.Equal(default, new AwkSourceIdentity(string.Empty));
+        Assert.Equal(default, new AwkRedirectionPath(string.Empty));
+        Assert.Equal(default, AwkErrno.None);
+    }
+
+    [Fact]
     public void AwkRawPaths_CanonicalizeAndEnforceBoundaries()
     {
         var current = new AwkPath("/work/input");

@@ -50,6 +50,12 @@ internal static class AwkTestHarness
         return AwkCommandInvocation.CreateWithStandardDescriptors(command, argumentBytes, environment);
     }
 
+    public static Awk ParseAwk(AwkCommandInvocation invocation)
+    {
+        Assert.True(Awk.TryParse(invocation, out var awk));
+        return awk;
+    }
+
     public static MockFileSystem BuildFileSystem(AwkGoldenCase testCase)
     {
         var fileSystem = new MockFileSystem();
@@ -81,7 +87,7 @@ internal static class AwkTestHarness
         CancellationToken cancellationToken)
     {
         var fileSystem = BuildFileSystem(testCase);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", testCase.Arguments, testCase.Environment)));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", testCase.Arguments, testCase.Environment));
         var exitCode = await tool.ExecuteAsync(fileSystem, cancellationToken).ConfigureAwait(false);
         var expectedFiles = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var expectedFile in testCase.ExpectedFiles)
@@ -144,7 +150,7 @@ internal static class AwkTestHarness
 
         var arguments = new List<string>(1 + inputArguments.Count) { program };
         arguments.AddRange(inputArguments);
-        var tool = Assert.IsType<Awk>(Awk.TryParse(BuildInvocation("awk", arguments, [])));
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", arguments, []));
         var exitCode = await tool.ExecuteAsync(fileSystem, cancellationToken).ConfigureAwait(false);
 
         return new AwkTestRunResult(

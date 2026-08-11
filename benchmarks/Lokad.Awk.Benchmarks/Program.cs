@@ -691,9 +691,12 @@ internal static class BenchmarkExecution
     public static async Task<BenchmarkRunResult> RunFullInvocationAsync(BenchmarkScenario scenario)
     {
         var host = BenchmarkHost.FromFiles(scenario.Files);
-        var awk = Awk.TryParse(AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []));
-        if (awk is null)
+        if (!Awk.TryParse(
+                AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []),
+                out var awk))
+        {
             throw new InvalidOperationException("Benchmark command could not be parsed: " + scenario.Name);
+        }
 
         var exitCode = await awk.ExecuteAsync(host, CancellationToken.None).ConfigureAwait(false);
         if (exitCode.Failed)
