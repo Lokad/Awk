@@ -104,6 +104,10 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: file redirections are disabled by execution policy\n");
     internal static readonly ReadOnlyMemory<byte> ErrorCommandPipesDisabled =
         AwkUtf8Codec.Encode("awk: command pipes are disabled by execution policy\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorSourceIncludesDisabled =
+        AwkUtf8Codec.Encode("awk: source includes are disabled by execution policy\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorDynamicMainInputPathsDisabled =
+        AwkUtf8Codec.Encode("awk: dynamic main-input paths are disabled by execution policy\n");
     internal static readonly ReadOnlyMemory<byte> ErrorPathOutsideExecutionRoot =
         AwkUtf8Codec.Encode("awk: path is outside the execution policy root\n");
     internal static readonly ReadOnlyMemory<byte> ErrorCommandTimeout =

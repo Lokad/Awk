@@ -19,7 +19,9 @@ internal sealed class AwkRuntimeOptions
         AwkPath? accessiblePathRoot = null,
         TimeSpan? commandTimeout = null,
         TimeSpan? cleanupTimeout = null,
-        bool forwardCommandEnvironment = true)
+        bool forwardCommandEnvironment = true,
+        bool allowSourceIncludes = true,
+        bool allowDynamicMainInputPaths = true)
     {
         var randomGeneratorSnapshot = randomGenerator.Clone();
         CurrentUnixTimeSeconds = currentUnixTimeSeconds;
@@ -35,6 +37,8 @@ internal sealed class AwkRuntimeOptions
         CommandTimeout = commandTimeout ?? TimeSpan.FromMinutes(5);
         CleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
         ForwardCommandEnvironment = forwardCommandEnvironment;
+        AllowSourceIncludes = allowSourceIncludes;
+        AllowDynamicMainInputPaths = allowDynamicMainInputPaths;
     }
 
     public Func<AwkUnixTimestampSeconds> CurrentUnixTimeSeconds { get; }
@@ -63,6 +67,10 @@ internal sealed class AwkRuntimeOptions
 
     public bool ForwardCommandEnvironment { get; }
 
+    public bool AllowSourceIncludes { get; }
+
+    public bool AllowDynamicMainInputPaths { get; }
+
     public static AwkRuntimeOptions CreateSystemDefault() => Create(AwkExecutionPolicy.CreateDefault());
 
     public static AwkRuntimeOptions Create(AwkExecutionPolicy policy) =>
@@ -79,5 +87,7 @@ internal sealed class AwkRuntimeOptions
             policy.AccessiblePathRoot,
             policy.CommandTimeout,
             policy.CleanupTimeout,
-            policy.ForwardCommandEnvironment);
+            policy.ForwardCommandEnvironment,
+            policy.AllowSourceIncludes,
+            policy.AllowDynamicMainInputPaths);
 }

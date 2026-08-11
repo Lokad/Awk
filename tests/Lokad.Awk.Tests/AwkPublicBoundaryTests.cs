@@ -21,6 +21,8 @@ public sealed class AwkPublicBoundaryTests
         Assert.True(compatible.AllowFileRedirections);
         Assert.False(restricted.AllowCommandPipes);
         Assert.False(restricted.AllowFileRedirections);
+        Assert.False(restricted.AllowSourceIncludes);
+        Assert.False(restricted.AllowDynamicMainInputPaths);
         Assert.Equal(42, customized.MaxOutputBytes);
         Assert.True(customized.AllowCommandPipes);
         Assert.False(restricted.AllowCommandPipes);
@@ -61,6 +63,50 @@ public sealed class AwkPublicBoundaryTests
         Assert.False(host.FileExists("/out.txt"));
         Assert.Equal(
             "awk: file redirections are disabled by execution policy\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_RestrictedPresetDeniesSourceIncludesBeforeHostOpen()
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/secret.awk", "BEGIN{print \"secret\"}\n");
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "@include \"/secret.awk\"\nBEGIN{print \"unreachable\"}"));
+
+        var exitCode = await tool.ExecuteAsync(
+            host,
+            AwkExecutionPolicy.CreateRestricted(),
+            CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(
+            "awk: source includes are disabled by execution policy\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_RestrictedPresetDeniesDynamicMainInputPaths()
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/safe.txt", "safe\n");
+        host.AddFile("/secret.txt", "secret\n");
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "BEGIN{ARGV[1]=\"/secret.txt\"} {print}",
+            "/safe.txt"));
+
+        var exitCode = await tool.ExecuteAsync(
+            host,
+            AwkExecutionPolicy.CreateRestricted(),
+            CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(
+            "awk: dynamic main-input paths are disabled by execution policy\n",
             host.GetOutput(AwkFileDescriptor.StdErr));
     }
 

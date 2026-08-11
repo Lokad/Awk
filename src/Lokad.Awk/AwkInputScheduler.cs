@@ -18,7 +18,8 @@ internal sealed class AwkInputScheduler(
     AwkIo io,
     CancellationToken cancellationToken,
     AwkPath? accessiblePathRoot = null,
-    TimeSpan? cleanupTimeout = null) : IAwkInputRecordReader
+    TimeSpan? cleanupTimeout = null,
+    bool allowDynamicMainInputPaths = true) : IAwkInputRecordReader
 {
     private readonly TimeSpan _cleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
     private readonly HashSet<AwkFileDescriptor> _ownedDescriptors = [];
@@ -75,6 +76,9 @@ internal sealed class AwkInputScheduler(
 
                 _selectedInputSource = true;
                 var runtimeArgument = GetRuntimeArgumentValue(inputArgument);
+                if (!allowDynamicMainInputPaths && !IsOriginalInputArgument(inputArgument, runtimeArgument.Text))
+                    throw new AwkRuntimeException(AwkMessages.ErrorDynamicMainInputPathsDisabled);
+
                 if (runtimeArgument.IsStandardInput)
                 {
                     state.BeginInputFile(runtimeArgument.Value, inputArgument.ArgvIndex);
@@ -152,6 +156,14 @@ internal sealed class AwkInputScheduler(
                 state.Counters.RecordStringInteropFallback();
                 return new RuntimeArgumentValue(text, text.AsString(state.Counters));
             }
+
+            static bool IsOriginalInputArgument(AwkInputArgument inputArgument, AwkText text) =>
+                inputArgument switch
+                {
+                    AwkInputArgument.StandardInputArgument => text.EqualsAscii("-") || text.EqualsAscii("/dev/stdin"),
+                    AwkInputArgument.FileArgument file => text.AsSpan().SequenceEqual(file.Path.Display.Span),
+                    _ => true
+                };
 
             AwkResolvedPath ResolveRuntimePath(
                 AwkInputArgument inputArgument,

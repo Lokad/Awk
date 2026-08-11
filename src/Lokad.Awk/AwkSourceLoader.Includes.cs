@@ -68,6 +68,13 @@ internal static partial class AwkSourceLoader
                 continue;
             }
 
+            if (!plan.AllowSourceIncludes)
+            {
+                return SourceExpansionResult.Failure(
+                    AwkMessages.ErrorSourceIncludesDisabled,
+                    AwkDiagnosticId.SourceLoadFailure);
+            }
+
             AppendSourceSegment(
                 builder,
                 segments,

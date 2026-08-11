@@ -18,6 +18,12 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets whether awk input and output command pipes are allowed.</summary>
     public bool AllowCommandPipes { get; private init; } = true;
 
+    /// <summary>Gets whether source text may load additional files through <c>@include</c>.</summary>
+    public bool AllowSourceIncludes { get; private init; } = true;
+
+    /// <summary>Gets whether awk may replace command-line main-input paths through <c>ARGV</c>.</summary>
+    public bool AllowDynamicMainInputPaths { get; private init; } = true;
+
     /// <summary>Gets whether the mutable awk <c>ENVIRON</c> snapshot is forwarded to pipe commands.</summary>
     public bool ForwardCommandEnvironment { get; private init; } = true;
 
@@ -108,6 +114,8 @@ public sealed record AwkExecutionPolicy
         {
             AllowFileRedirections = false,
             AllowCommandPipes = false,
+            AllowSourceIncludes = false,
+            AllowDynamicMainInputPaths = false,
             ForwardCommandEnvironment = false,
             TimeProvider = AwkFixedTimeProvider.UnixEpoch,
             TimeZone = TimeZoneInfo.Utc,
@@ -143,6 +151,14 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with command-pipe capability configured.</summary>
     public AwkExecutionPolicy WithCommandPipes(bool allowed) =>
         this with { AllowCommandPipes = allowed };
+
+    /// <summary>Returns a copy with source-include capability configured.</summary>
+    public AwkExecutionPolicy WithSourceIncludes(bool allowed) =>
+        this with { AllowSourceIncludes = allowed };
+
+    /// <summary>Returns a copy with dynamic main-input path replacement configured.</summary>
+    public AwkExecutionPolicy WithDynamicMainInputPaths(bool allowed) =>
+        this with { AllowDynamicMainInputPaths = allowed };
 
     /// <summary>Returns a copy with command-environment forwarding configured.</summary>
     public AwkExecutionPolicy WithCommandEnvironment(bool forward) =>
