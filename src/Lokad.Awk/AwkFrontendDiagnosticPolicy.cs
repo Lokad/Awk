@@ -9,8 +9,18 @@ internal static class AwkFrontendDiagnosticPolicy
     public static void AddLexicalDiagnostics(
         string source,
         IReadOnlyList<AwkToken> tokens,
+        List<AwkDiagnostic> diagnostics) =>
+        AddLexicalDiagnostics(
+            source,
+            tokens,
+            diagnostics,
+            AwkFrontendBudget.Unlimited(int.MaxValue));
+
+    public static void AddLexicalDiagnostics(
+        string source,
+        IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics,
-        int maxDiagnostics = int.MaxValue)
+        AwkFrontendBudget budget)
     {
         for (var index = 0; index < tokens.Count; index++)
         {
@@ -79,7 +89,11 @@ internal static class AwkFrontendDiagnosticPolicy
 
         void AddRegexDiagnosticIfInvalid(AwkToken token)
         {
-            if (!AwkRegexSyntaxValidator.IsValidLiteral(token))
+            budget.ReserveRegexLiteralCompilations();
+            if (!AwkRegexSyntaxValidator.IsValidLiteral(
+                    token,
+                    budget.MaxRegexPatternBytes,
+                    budget.MaxRegexGroups))
             {
                 AddDiagnostic(new AwkDiagnostic(
                     token.Span,
@@ -90,7 +104,7 @@ internal static class AwkFrontendDiagnosticPolicy
 
         void AddDiagnostic(AwkDiagnostic diagnostic)
         {
-            if (diagnostics.Count >= maxDiagnostics)
+            if (diagnostics.Count >= budget.MaxDiagnostics)
             {
                 throw new AwkRuntimeException(
                     AwkMessages.ErrorFrontendDiagnosticLimit,
@@ -199,6 +213,12 @@ internal static class AwkFrontendDiagnosticPolicy
 internal static class AwkRegexSyntaxValidator
 {
     public static bool IsValidLiteral(AwkToken token)
+        => IsValidLiteral(token, long.MaxValue, int.MaxValue);
+
+    public static bool IsValidLiteral(
+        AwkToken token,
+        long maxPatternBytes,
+        int maxGroups)
     {
         var text = token.Text;
         string pattern;
@@ -211,15 +231,24 @@ internal static class AwkRegexSyntaxValidator
             return false;
         }
 
-        return IsValidPattern(pattern);
+        return IsValidPattern(pattern, maxPatternBytes, maxGroups);
     }
 
     public static bool IsValidPattern(string pattern)
+        => IsValidPattern(pattern, long.MaxValue, int.MaxValue);
+
+    private static bool IsValidPattern(
+        string pattern,
+        long maxPatternBytes,
+        int maxGroups)
     {
         try
         {
+            AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(pattern, maxPatternBytes, maxGroups);
+            var translated = AwkRegex.TranslatePattern(new AwkRegexPattern(pattern));
+            AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(translated, maxPatternBytes, maxGroups);
             _ = new Regex(
-                AwkRegex.TranslatePattern(new AwkRegexPattern(pattern)),
+                translated,
                 RegexOptions.CultureInvariant,
                 AwkRegex.MatchTimeout);
             return true;

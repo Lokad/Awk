@@ -10,6 +10,7 @@ internal sealed class AwkRuntimeResourceMonitor
     private long _hostCalls;
     private long _outputBytes;
     private long _regexRecordSeparatorBytesScanned;
+    private int _regexCompilations;
     private long _sourceBytes;
     private long _expandedSourceBytes;
     private int _includeFiles;
@@ -89,6 +90,25 @@ internal sealed class AwkRuntimeResourceMonitor
 
         _regexRecordSeparatorBytesScanned = next;
         _counters.RecordRecordSeparatorBytesScanned(byteCount);
+    }
+
+    public void RecordRegexCompilation()
+    {
+        ReserveRegexCompilations(1);
+        _counters.RecordRegexCompile();
+    }
+
+    public void ReserveRegexCompilations(int count)
+    {
+        var next = AwkRuntimeMemory.CheckedAdd(_regexCompilations, count);
+        if (next > _limits.MaxRegexCompilations)
+        {
+            throw new AwkRuntimeException(
+                AwkMessages.ErrorRegexCompilationLimit,
+                AwkDiagnosticId.RuntimeResourceLimit);
+        }
+
+        _regexCompilations = next;
     }
 
     public void RecordSourceBytes(long byteCount)

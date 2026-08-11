@@ -51,6 +51,14 @@ internal sealed record AwkRuntimeLimits
 
     public long MaxRegexCaptureBytes { get; private init; } = Unlimited;
 
+    public long MaxRegexPatternBytes { get; private init; } = 8L << 20;
+
+    public int MaxRegexGroups { get; private init; } = 10_000;
+
+    public int MaxRegexCompilations { get; private init; } = 10_000;
+
+    public long MaxRegexCacheBytes { get; private init; } = 64L << 20;
+
     public long MaxRegexRecordSeparatorBytesScanned { get; private init; } =
         DefaultMaxRegexRecordSeparatorBytesScanned;
 
@@ -96,6 +104,10 @@ internal sealed record AwkRuntimeLimits
             MaxFields = policy.MaxFields,
             MaxBuilderBytes = policy.MaxBuilderBytes,
             MaxRegexCaptureBytes = policy.MaxRegexCaptureBytes,
+            MaxRegexPatternBytes = policy.MaxRegexPatternBytes,
+            MaxRegexGroups = policy.MaxRegexGroups,
+            MaxRegexCompilations = policy.MaxRegexCompilations,
+            MaxRegexCacheBytes = policy.MaxRegexCacheBytes,
             MaxRegexRecordSeparatorBytesScanned = policy.MaxRegexRecordSeparatorBytesScanned,
             MaxVmStackBytes = policy.MaxVmStackBytes,
             MaxExecutionMemoryBytes = policy.MaxExecutionMemoryBytes,
@@ -144,6 +156,18 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxRegexCaptureBytes(long value) =>
         this with { MaxRegexCaptureBytes = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxRegexPatternBytes(long value) =>
+        this with { MaxRegexPatternBytes = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxRegexGroups(int value) =>
+        this with { MaxRegexGroups = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxRegexCompilations(int value) =>
+        this with { MaxRegexCompilations = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxRegexCacheBytes(long value) =>
+        this with { MaxRegexCacheBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxRegexRecordSeparatorBytesScanned(long value) =>
         this with { MaxRegexRecordSeparatorBytesScanned = RequirePositive(value) };

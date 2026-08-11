@@ -11,23 +11,17 @@ internal static class AwkParser
     public static AwkParseResult Parse(string source, int maxSyntaxNestingDepth)
         => Parse(
             source,
-            maxSyntaxNestingDepth,
-            int.MaxValue,
-            int.MaxValue,
+            AwkFrontendBudget.Unlimited(maxSyntaxNestingDepth),
             CancellationToken.None);
 
     public static AwkParseResult Parse(
         string source,
-        int maxSyntaxNestingDepth,
-        int maxTokens,
-        int maxDiagnostics,
+        AwkFrontendBudget budget,
         CancellationToken cancellationToken)
     {
         var syntax = AwkSyntaxParser.Parse(
             source,
-            maxSyntaxNestingDepth,
-            maxTokens,
-            maxDiagnostics,
+            budget,
             cancellationToken);
         if (syntax.Diagnostics.Count == 0)
         {

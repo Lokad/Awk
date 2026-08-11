@@ -71,7 +71,6 @@ internal static class AwkExecutor
                     host,
                     invocation,
                     resources,
-                    runtimeOptions.Limits.MaxSyntaxNestingDepth,
                     runtimeOptions.AccessiblePathRoot,
                     runtimeOptions.CleanupTimeout,
                     runtimeOptions.AllowSourceIncludes,
@@ -181,7 +180,6 @@ internal static class AwkExecutor
                 host,
                 invocation,
                 resources,
-                runtimeOptions.Limits.MaxSyntaxNestingDepth,
                 runtimeOptions.AccessiblePathRoot,
                 runtimeOptions.CleanupTimeout,
                 runtimeOptions.AllowSourceIncludes,
@@ -204,7 +202,6 @@ internal static class AwkExecutor
         IAwkHost host,
         AwkInvocation invocation,
         AwkRuntimeResourceMonitor resources,
-        int maxSyntaxNestingDepth,
         AwkPath? accessiblePathRoot,
         TimeSpan cleanupTimeout,
         bool allowSourceIncludes,
@@ -232,9 +229,7 @@ internal static class AwkExecutor
         cancellationToken.ThrowIfCancellationRequested();
         var parsed = AwkParser.Parse(
             source.Text,
-            maxSyntaxNestingDepth,
-            resources.Limits.MaxFrontendTokens,
-            resources.Limits.MaxFrontendDiagnostics,
+            AwkFrontendBudget.FromResources(resources),
             cancellationToken);
         var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings);
         cancellationToken.ThrowIfCancellationRequested();

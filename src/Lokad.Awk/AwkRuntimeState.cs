@@ -91,7 +91,8 @@ internal sealed class AwkRuntimeState
             stringUnitMode,
             ThrowIfCancellationRequested,
             Counters,
-            runtimeOptions.RegexEngineKind);
+            runtimeOptions.RegexEngineKind,
+            resources);
         _stringRuntime = new AwkStringRuntime(stringUnitMode);
         _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryGovernor);
         _fieldSplitter = new AwkFieldSplitter(

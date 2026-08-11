@@ -78,6 +78,18 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum retained bytes in one regex capture result.</summary>
     public long MaxRegexCaptureBytes { get; private init; } = Unlimited;
 
+    /// <summary>Gets the maximum UTF-8 byte length of a source or translated regex pattern.</summary>
+    public long MaxRegexPatternBytes { get; private init; } = 8L << 20;
+
+    /// <summary>Gets the maximum number of group constructs in one regex pattern.</summary>
+    public int MaxRegexGroups { get; private init; } = 10_000;
+
+    /// <summary>Gets the maximum regex constructor calls in one execution.</summary>
+    public int MaxRegexCompilations { get; private init; } = 10_000;
+
+    /// <summary>Gets the maximum estimated bytes retained across regex caches.</summary>
+    public long MaxRegexCacheBytes { get; private init; } = 64L << 20;
+
     /// <summary>Gets the maximum bytes scanned by regex record separators.</summary>
     public long MaxRegexRecordSeparatorBytesScanned { get; private init; } = 64L << 20;
 
@@ -148,6 +160,10 @@ public sealed record AwkExecutionPolicy
             MaxFields = 100_000,
             MaxBuilderBytes = 8 << 20,
             MaxRegexCaptureBytes = 8L << 20,
+            MaxRegexPatternBytes = 64L << 10,
+            MaxRegexGroups = 256,
+            MaxRegexCompilations = 256,
+            MaxRegexCacheBytes = 8L << 20,
             MaxRegexRecordSeparatorBytesScanned = 16L << 20,
             MaxVmStackBytes = 8L << 20,
             MaxExecutionMemoryBytes = 64L << 20,
@@ -260,6 +276,22 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the regex-capture byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexCaptureBytes(long value) =>
         this with { MaxRegexCaptureBytes = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the regex pattern-byte budget configured.</summary>
+    public AwkExecutionPolicy WithMaxRegexPatternBytes(long value) =>
+        this with { MaxRegexPatternBytes = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the per-pattern regex group budget configured.</summary>
+    public AwkExecutionPolicy WithMaxRegexGroups(int value) =>
+        this with { MaxRegexGroups = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the regex compilation budget configured.</summary>
+    public AwkExecutionPolicy WithMaxRegexCompilations(int value) =>
+        this with { MaxRegexCompilations = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the retained regex-cache byte budget configured.</summary>
+    public AwkExecutionPolicy WithMaxRegexCacheBytes(long value) =>
+        this with { MaxRegexCacheBytes = RequirePositive(value) };
 
     /// <summary>Returns a copy with the regex record-separator scan budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexRecordSeparatorBytesScanned(long value) =>

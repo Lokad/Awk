@@ -8,14 +8,18 @@ internal sealed class AwkBoundedCache<TKey, TValue>
     where TKey : notnull
 {
     private readonly int _capacity;
+    private readonly long _maxWeight;
     private readonly Dictionary<TKey, CacheEntry> _entries = [];
     private readonly LinkedList<TKey> _recency = [];
+    private long _weight;
 
-    public AwkBoundedCache(int capacity)
+    public AwkBoundedCache(int capacity, long maxWeight = long.MaxValue)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxWeight);
 
         _capacity = capacity;
+        _maxWeight = maxWeight;
     }
 
     public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value)
@@ -32,29 +36,65 @@ internal sealed class AwkBoundedCache<TKey, TValue>
         return true;
     }
 
-    public void Set(TKey key, TValue value)
+    public bool Set(TKey key, TValue value, long weight = 1)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(weight);
+        if (weight > _maxWeight)
+            return false;
+
         if (_entries.TryGetValue(key, out var existing))
         {
+            var nextWeight = AwkRuntimeMemory.CheckedAdd(_weight - existing.Weight, weight);
+            while (nextWeight > _maxWeight)
+            {
+                if (!TryEvictLeastRecent(hasRetainedKey: true, key))
+                    return false;
+
+                nextWeight = AwkRuntimeMemory.CheckedAdd(_weight - existing.Weight, weight);
+            }
+
             _recency.Remove(existing.RecencyNode);
             _recency.AddLast(existing.RecencyNode);
-            _entries[key] = new CacheEntry(value, existing.RecencyNode);
-            return;
+            _entries[key] = new CacheEntry(value, existing.RecencyNode, weight);
+            _weight = nextWeight;
+            return true;
         }
 
-        if (_entries.Count == _capacity)
+        while (_entries.Count == _capacity || weight > _maxWeight - _weight)
         {
-            var leastRecent = _recency.First ??
-                throw new InvalidOperationException("A full cache must have a least-recent entry.");
-            _recency.RemoveFirst();
-            _entries.Remove(leastRecent.Value);
+            if (!TryEvictLeastRecent(hasRetainedKey: false, key))
+                return false;
         }
 
         var recencyNode = _recency.AddLast(key);
-        _entries.Add(key, new CacheEntry(value, recencyNode));
+        _entries.Add(key, new CacheEntry(value, recencyNode, weight));
+        _weight = AwkRuntimeMemory.CheckedAdd(_weight, weight);
+        return true;
+
+        bool TryEvictLeastRecent(bool hasRetainedKey, TKey retainedKey)
+        {
+            var leastRecent = _recency.First;
+            while (leastRecent != null &&
+                   hasRetainedKey &&
+                   EqualityComparer<TKey>.Default.Equals(leastRecent.Value, retainedKey))
+            {
+                leastRecent = leastRecent.Next;
+            }
+
+            if (leastRecent == null)
+                return false;
+
+            if (!_entries.Remove(leastRecent.Value, out var removed))
+                throw new InvalidOperationException("A cache recency entry must have a value.");
+
+            _recency.Remove(leastRecent);
+            _weight -= removed.Weight;
+            return true;
+        }
     }
 
     private readonly record struct CacheEntry(
         TValue Value,
-        LinkedListNode<TKey> RecencyNode);
+        LinkedListNode<TKey> RecencyNode,
+        long Weight);
 }

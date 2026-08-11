@@ -9,22 +9,20 @@ internal static class AwkSyntaxParser
         => Parse(source, int.MaxValue);
 
     public static AwkSyntaxProgram Parse(string source, int maxSyntaxNestingDepth)
-        => Parse(source, maxSyntaxNestingDepth, int.MaxValue, int.MaxValue, CancellationToken.None);
+        => Parse(source, AwkFrontendBudget.Unlimited(maxSyntaxNestingDepth), CancellationToken.None);
 
     public static AwkSyntaxProgram Parse(
         string source,
-        int maxSyntaxNestingDepth,
-        int maxTokens,
-        int maxDiagnostics,
+        AwkFrontendBudget budget,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var parsingSource = AwkParsingSource.Create(source);
-        var tokens = AwkLexer.Tokenize(source, maxTokens, cancellationToken);
+        var tokens = AwkLexer.Tokenize(source, budget.MaxTokens, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (AwkSyntaxNesting.TryFindExcessiveDelimiterDepth(
                 tokens,
-                maxSyntaxNestingDepth,
+                budget.MaxSyntaxNestingDepth,
                 out var excessiveDelimiter))
         {
             return new AwkSyntaxProgram(
@@ -38,8 +36,7 @@ internal static class AwkSyntaxParser
         var parser = new Parser(
             parsingSource,
             tokens,
-            maxSyntaxNestingDepth,
-            maxDiagnostics,
+            budget,
             cancellationToken);
         return parser.ParseProgram();
     }
@@ -47,8 +44,7 @@ internal static class AwkSyntaxParser
     private sealed class Parser(
         AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
-        int maxSyntaxNestingDepth,
-        int maxDiagnostics,
+        AwkFrontendBudget budget,
         CancellationToken cancellationToken)
     {
         private readonly AwkParsingSource _source = source;
@@ -75,7 +71,7 @@ internal static class AwkSyntaxParser
                     _diagnostics);
                 if (AwkSyntaxNesting.TryFindExcessiveTreeDepth(
                         program,
-                        maxSyntaxNestingDepth,
+                        budget.MaxSyntaxNestingDepth,
                         out var excessiveNode))
                 {
                     _diagnostics.Add(CreateNestingDiagnostic(excessiveNode));
@@ -212,7 +208,7 @@ internal static class AwkSyntaxParser
                             break;
                     }
 
-                    if (_diagnostics.Count > maxDiagnostics)
+                    if (_diagnostics.Count > budget.MaxDiagnostics)
                     {
                         throw new AwkRuntimeException(
                             AwkMessages.ErrorFrontendDiagnosticLimit,
@@ -226,7 +222,7 @@ internal static class AwkSyntaxParser
                     _source.Text,
                     _tokens,
                     _diagnostics,
-                    maxDiagnostics);
+                    budget);
         }
     }
 
