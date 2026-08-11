@@ -106,149 +106,149 @@ internal static class AwkParsingSupport
         return text[0] == '/'
             ? AwkTokenKind.Regex
             : IsIdentifierText(text) ? AwkTokenKind.Identifier : AwkTokenKind.BadToken;
-    }
 
-    private static bool TryResolveLiteralTokenKind(
-        ReadOnlySpan<char> text,
-        out AwkTokenKind kind)
-    {
-        if (text.Length == 1)
+        static bool TryResolveLiteralTokenKind(
+            ReadOnlySpan<char> text,
+            out AwkTokenKind kind)
         {
-            kind = text[0] switch
+            if (text.Length == 1)
             {
-                '{' => AwkTokenKind.LeftBrace,
-                '}' => AwkTokenKind.RightBrace,
-                '(' => AwkTokenKind.LeftParen,
-                ')' => AwkTokenKind.RightParen,
-                '[' => AwkTokenKind.LeftBracket,
-                ']' => AwkTokenKind.RightBracket,
-                ',' => AwkTokenKind.Comma,
-                ';' => AwkTokenKind.Semicolon,
-                '?' => AwkTokenKind.Question,
-                ':' => AwkTokenKind.Colon,
-                '$' => AwkTokenKind.Dollar,
-                '@' => AwkTokenKind.At,
-                '+' => AwkTokenKind.Plus,
-                '-' => AwkTokenKind.Minus,
-                '*' => AwkTokenKind.Star,
-                '/' => AwkTokenKind.Slash,
-                '%' => AwkTokenKind.Percent,
-                '^' => AwkTokenKind.Caret,
-                '!' => AwkTokenKind.Bang,
-                '~' => AwkTokenKind.Tilde,
-                '=' => AwkTokenKind.Equal,
-                '<' => AwkTokenKind.Less,
-                '>' => AwkTokenKind.Greater,
-                '|' => AwkTokenKind.Pipe,
-                _ => default
-            };
+                kind = text[0] switch
+                {
+                    '{' => AwkTokenKind.LeftBrace,
+                    '}' => AwkTokenKind.RightBrace,
+                    '(' => AwkTokenKind.LeftParen,
+                    ')' => AwkTokenKind.RightParen,
+                    '[' => AwkTokenKind.LeftBracket,
+                    ']' => AwkTokenKind.RightBracket,
+                    ',' => AwkTokenKind.Comma,
+                    ';' => AwkTokenKind.Semicolon,
+                    '?' => AwkTokenKind.Question,
+                    ':' => AwkTokenKind.Colon,
+                    '$' => AwkTokenKind.Dollar,
+                    '@' => AwkTokenKind.At,
+                    '+' => AwkTokenKind.Plus,
+                    '-' => AwkTokenKind.Minus,
+                    '*' => AwkTokenKind.Star,
+                    '/' => AwkTokenKind.Slash,
+                    '%' => AwkTokenKind.Percent,
+                    '^' => AwkTokenKind.Caret,
+                    '!' => AwkTokenKind.Bang,
+                    '~' => AwkTokenKind.Tilde,
+                    '=' => AwkTokenKind.Equal,
+                    '<' => AwkTokenKind.Less,
+                    '>' => AwkTokenKind.Greater,
+                    '|' => AwkTokenKind.Pipe,
+                    _ => default
+                };
+                return kind != default;
+            }
+
+            kind = default;
+            if (TextEquals(text, "BEGIN"))
+                kind = AwkTokenKind.Begin;
+            else if (TextEquals(text, "END"))
+                kind = AwkTokenKind.End;
+            else if (TextEquals(text, "BEGINFILE"))
+                kind = AwkTokenKind.BeginFile;
+            else if (TextEquals(text, "ENDFILE"))
+                kind = AwkTokenKind.EndFile;
+            else if (TextEquals(text, "function") || TextEquals(text, "func"))
+                kind = AwkTokenKind.Function;
+            else if (TextEquals(text, "if"))
+                kind = AwkTokenKind.If;
+            else if (TextEquals(text, "else"))
+                kind = AwkTokenKind.Else;
+            else if (TextEquals(text, "while"))
+                kind = AwkTokenKind.While;
+            else if (TextEquals(text, "do"))
+                kind = AwkTokenKind.Do;
+            else if (TextEquals(text, "for"))
+                kind = AwkTokenKind.For;
+            else if (TextEquals(text, "in"))
+                kind = AwkTokenKind.In;
+            else if (TextEquals(text, "break"))
+                kind = AwkTokenKind.Break;
+            else if (TextEquals(text, "continue"))
+                kind = AwkTokenKind.Continue;
+            else if (TextEquals(text, "next"))
+                kind = AwkTokenKind.Next;
+            else if (TextEquals(text, "nextfile"))
+                kind = AwkTokenKind.NextFile;
+            else if (TextEquals(text, "delete"))
+                kind = AwkTokenKind.Delete;
+            else if (TextEquals(text, "exit"))
+                kind = AwkTokenKind.Exit;
+            else if (TextEquals(text, "return"))
+                kind = AwkTokenKind.Return;
+            else if (TextEquals(text, "print"))
+                kind = AwkTokenKind.Print;
+            else if (TextEquals(text, "printf"))
+                kind = AwkTokenKind.Printf;
+            else if (TextEquals(text, "switch"))
+                kind = AwkTokenKind.Switch;
+            else if (TextEquals(text, "case"))
+                kind = AwkTokenKind.Case;
+            else if (TextEquals(text, "default"))
+                kind = AwkTokenKind.Default;
+            else if (TextEquals(text, "getline"))
+                kind = AwkTokenKind.Getline;
+            else if (TextEquals(text, "::"))
+                kind = AwkTokenKind.DoubleColon;
+            else if (TextEquals(text, "!~"))
+                kind = AwkTokenKind.BangTilde;
+            else if (TextEquals(text, "+="))
+                kind = AwkTokenKind.PlusEqual;
+            else if (TextEquals(text, "-="))
+                kind = AwkTokenKind.MinusEqual;
+            else if (TextEquals(text, "*="))
+                kind = AwkTokenKind.StarEqual;
+            else if (TextEquals(text, "/="))
+                kind = AwkTokenKind.SlashEqual;
+            else if (TextEquals(text, "%="))
+                kind = AwkTokenKind.PercentEqual;
+            else if (TextEquals(text, "^="))
+                kind = AwkTokenKind.CaretEqual;
+            else if (TextEquals(text, "=="))
+                kind = AwkTokenKind.EqualEqual;
+            else if (TextEquals(text, "!="))
+                kind = AwkTokenKind.BangEqual;
+            else if (TextEquals(text, "<="))
+                kind = AwkTokenKind.LessEqual;
+            else if (TextEquals(text, ">="))
+                kind = AwkTokenKind.GreaterEqual;
+            else if (TextEquals(text, ">>"))
+                kind = AwkTokenKind.AppendRedirect;
+            else if (TextEquals(text, "|&"))
+                kind = AwkTokenKind.PipeAmpersand;
+            else if (TextEquals(text, "&&"))
+                kind = AwkTokenKind.AmpersandAmpersand;
+            else if (TextEquals(text, "||"))
+                kind = AwkTokenKind.PipePipe;
+            else if (TextEquals(text, "++"))
+                kind = AwkTokenKind.PlusPlus;
+            else if (TextEquals(text, "--"))
+                kind = AwkTokenKind.MinusMinus;
+
             return kind != default;
+
+            static bool TextEquals(ReadOnlySpan<char> text, string value) =>
+                text.SequenceEqual(value.AsSpan());
         }
 
-        kind = default;
-        if (TextEquals(text, "BEGIN"))
-            kind = AwkTokenKind.Begin;
-        else if (TextEquals(text, "END"))
-            kind = AwkTokenKind.End;
-        else if (TextEquals(text, "BEGINFILE"))
-            kind = AwkTokenKind.BeginFile;
-        else if (TextEquals(text, "ENDFILE"))
-            kind = AwkTokenKind.EndFile;
-        else if (TextEquals(text, "function") || TextEquals(text, "func"))
-            kind = AwkTokenKind.Function;
-        else if (TextEquals(text, "if"))
-            kind = AwkTokenKind.If;
-        else if (TextEquals(text, "else"))
-            kind = AwkTokenKind.Else;
-        else if (TextEquals(text, "while"))
-            kind = AwkTokenKind.While;
-        else if (TextEquals(text, "do"))
-            kind = AwkTokenKind.Do;
-        else if (TextEquals(text, "for"))
-            kind = AwkTokenKind.For;
-        else if (TextEquals(text, "in"))
-            kind = AwkTokenKind.In;
-        else if (TextEquals(text, "break"))
-            kind = AwkTokenKind.Break;
-        else if (TextEquals(text, "continue"))
-            kind = AwkTokenKind.Continue;
-        else if (TextEquals(text, "next"))
-            kind = AwkTokenKind.Next;
-        else if (TextEquals(text, "nextfile"))
-            kind = AwkTokenKind.NextFile;
-        else if (TextEquals(text, "delete"))
-            kind = AwkTokenKind.Delete;
-        else if (TextEquals(text, "exit"))
-            kind = AwkTokenKind.Exit;
-        else if (TextEquals(text, "return"))
-            kind = AwkTokenKind.Return;
-        else if (TextEquals(text, "print"))
-            kind = AwkTokenKind.Print;
-        else if (TextEquals(text, "printf"))
-            kind = AwkTokenKind.Printf;
-        else if (TextEquals(text, "switch"))
-            kind = AwkTokenKind.Switch;
-        else if (TextEquals(text, "case"))
-            kind = AwkTokenKind.Case;
-        else if (TextEquals(text, "default"))
-            kind = AwkTokenKind.Default;
-        else if (TextEquals(text, "getline"))
-            kind = AwkTokenKind.Getline;
-        else if (TextEquals(text, "::"))
-            kind = AwkTokenKind.DoubleColon;
-        else if (TextEquals(text, "!~"))
-            kind = AwkTokenKind.BangTilde;
-        else if (TextEquals(text, "+="))
-            kind = AwkTokenKind.PlusEqual;
-        else if (TextEquals(text, "-="))
-            kind = AwkTokenKind.MinusEqual;
-        else if (TextEquals(text, "*="))
-            kind = AwkTokenKind.StarEqual;
-        else if (TextEquals(text, "/="))
-            kind = AwkTokenKind.SlashEqual;
-        else if (TextEquals(text, "%="))
-            kind = AwkTokenKind.PercentEqual;
-        else if (TextEquals(text, "^="))
-            kind = AwkTokenKind.CaretEqual;
-        else if (TextEquals(text, "=="))
-            kind = AwkTokenKind.EqualEqual;
-        else if (TextEquals(text, "!="))
-            kind = AwkTokenKind.BangEqual;
-        else if (TextEquals(text, "<="))
-            kind = AwkTokenKind.LessEqual;
-        else if (TextEquals(text, ">="))
-            kind = AwkTokenKind.GreaterEqual;
-        else if (TextEquals(text, ">>"))
-            kind = AwkTokenKind.AppendRedirect;
-        else if (TextEquals(text, "|&"))
-            kind = AwkTokenKind.PipeAmpersand;
-        else if (TextEquals(text, "&&"))
-            kind = AwkTokenKind.AmpersandAmpersand;
-        else if (TextEquals(text, "||"))
-            kind = AwkTokenKind.PipePipe;
-        else if (TextEquals(text, "++"))
-            kind = AwkTokenKind.PlusPlus;
-        else if (TextEquals(text, "--"))
-            kind = AwkTokenKind.MinusMinus;
-
-        return kind != default;
-    }
-
-    private static bool TextEquals(ReadOnlySpan<char> text, string value) =>
-        text.SequenceEqual(value.AsSpan());
-
-    private static bool IsIdentifierText(ReadOnlySpan<char> text)
-    {
-        if (text.Length == 0 || !(char.IsLetter(text[0]) || text[0] == '_'))
-            return false;
-
-        for (var index = 1; index < text.Length; index++)
+        static bool IsIdentifierText(ReadOnlySpan<char> text)
         {
-            if (!char.IsLetterOrDigit(text[index]) && text[index] != '_')
+            if (text.Length == 0 || !(char.IsLetter(text[0]) || text[0] == '_'))
                 return false;
-        }
 
-        return true;
+            for (var index = 1; index < text.Length; index++)
+            {
+                if (!char.IsLetterOrDigit(text[index]) && text[index] != '_')
+                    return false;
+            }
+
+            return true;
+        }
     }
 }
 

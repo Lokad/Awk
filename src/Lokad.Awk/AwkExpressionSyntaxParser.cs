@@ -435,9 +435,12 @@ internal sealed class AwkExpressionSyntaxParser
     {
         var current = left;
         for (var index = 0; index < tails.Length; index++)
-            current = CreateNode(AwkExpressionKind.Concatenation, current, tails[index].Right);
+            current = CreateConcatenationNode(AwkExpressionKind.Concatenation, current, tails[index].Right);
 
         return current;
+
+        static AwkExpressionSyntax CreateConcatenationNode(AwkExpressionKind kind, AwkExpressionSyntax left, AwkExpressionSyntax right) =>
+            CreateNode(kind, left, right, []);
     }
 
     [Rule]
@@ -491,14 +494,22 @@ internal sealed class AwkExpressionSyntaxParser
         [AwkT(AwkTokenKind.Question)] Pos<string> question,
         [NT] AwkExpressionSyntax whenTrue,
         [AwkT(AwkTokenKind.Colon)] Pos<string> colon,
-        [NT(9)] AwkExpressionSyntax whenFalse) =>
-        CreateNode(
+        [NT(9)] AwkExpressionSyntax whenFalse)
+    {
+        return CreateConditionalNode(
             AwkExpressionKind.Conditional,
             condition,
             whenTrue,
             whenFalse,
             [ToToken(AwkTokenKind.Question, question), ToToken(AwkTokenKind.Colon, colon)]);
-
+        static AwkExpressionSyntax CreateConditionalNode(
+            AwkExpressionKind kind,
+            AwkExpressionSyntax first,
+            AwkExpressionSyntax second,
+            AwkExpressionSyntax third,
+            IReadOnlyList<AwkToken> operatorTokens) =>
+            CreateNode(kind, first.FirstToken, third.LastToken, [first, second, third], operatorTokens: operatorTokens);
+    }
     [Rule(Rank = 10)]
     public AwkExpressionSyntax Assignment(
         [NT(9)] AwkExpressionSyntax left,
@@ -558,23 +569,12 @@ internal sealed class AwkExpressionSyntaxParser
     private static AwkExpressionSyntax CreateTokenNode(AwkExpressionKind kind, AwkToken token) =>
         new(kind, [token], [], token.Span);
 
-    private static AwkExpressionSyntax CreateNode(AwkExpressionKind kind, AwkExpressionSyntax left, AwkExpressionSyntax right) =>
-        CreateNode(kind, left, right, []);
-
     private static AwkExpressionSyntax CreateNode(
         AwkExpressionKind kind,
         AwkExpressionSyntax left,
         AwkExpressionSyntax right,
         IReadOnlyList<AwkToken> operatorTokens) =>
         CreateNode(kind, left.FirstToken, right.LastToken, [left, right], operatorTokens: operatorTokens);
-
-    private static AwkExpressionSyntax CreateNode(
-        AwkExpressionKind kind,
-        AwkExpressionSyntax first,
-        AwkExpressionSyntax second,
-        AwkExpressionSyntax third,
-        IReadOnlyList<AwkToken> operatorTokens) =>
-        CreateNode(kind, first.FirstToken, third.LastToken, [first, second, third], operatorTokens: operatorTokens);
 
     private static AwkExpressionSyntax CreateNode(
         AwkExpressionKind kind,

@@ -86,79 +86,79 @@ internal static class AwkFrontendDiagnosticPolicy
                     AwkDiagnosticId.ParseInvalidRegex));
             }
         }
-    }
 
-    private static bool TryGetUnsupportedDiagnostic(
-        string source,
-        IReadOnlyList<AwkToken> tokens,
-        int index,
-        out ReadOnlyMemory<byte> errorMessage)
-    {
-        var token = tokens[index];
-        if (token.Kind == AwkTokenKind.At &&
-            AwkDirectiveParser.TryParseAt(tokens, index, out var directive))
+        static bool TryGetUnsupportedDiagnostic(
+            string source,
+            IReadOnlyList<AwkToken> tokens,
+            int index,
+            out ReadOnlyMemory<byte> errorMessage)
         {
-            if (directive.Kind == AwkDirectiveKind.Load)
+            var token = tokens[index];
+            if (token.Kind == AwkTokenKind.At &&
+                AwkDirectiveParser.TryParseAt(tokens, index, out var directive))
             {
-                errorMessage = AwkMessages.ErrorUnsupportedDynamicLoad;
-                return true;
-            }
-
-            if (directive.Kind == AwkDirectiveKind.Namespace)
-            {
-                errorMessage = AwkMessages.ErrorUnsupportedNamespace;
-                return true;
-            }
-        }
-
-        switch (token.Kind)
-        {
-            case AwkTokenKind.DoubleColon:
-                errorMessage = AwkMessages.ErrorUnsupportedNamespace;
-                return true;
-            case AwkTokenKind.StrongRegex:
-                errorMessage = AwkMessages.ErrorUnsupportedStronglyTypedRegex;
-                return true;
-            case AwkTokenKind.InternationalizedString:
-                errorMessage = AwkMessages.ErrorUnsupportedInternationalization;
-                return true;
-            case AwkTokenKind.At:
-                if (IsIndirectFunctionCall())
+                if (directive.Kind == AwkDirectiveKind.Load)
                 {
-                    errorMessage = AwkMessages.ErrorUnsupportedIndirectFunctionCall;
+                    errorMessage = AwkMessages.ErrorUnsupportedDynamicLoad;
                     return true;
                 }
 
-                break;
-            case AwkTokenKind.RightBracket:
-                if (TokenAtOrEnd(
+                if (directive.Kind == AwkDirectiveKind.Namespace)
+                {
+                    errorMessage = AwkMessages.ErrorUnsupportedNamespace;
+                    return true;
+                }
+            }
+
+            switch (token.Kind)
+            {
+                case AwkTokenKind.DoubleColon:
+                    errorMessage = AwkMessages.ErrorUnsupportedNamespace;
+                    return true;
+                case AwkTokenKind.StrongRegex:
+                    errorMessage = AwkMessages.ErrorUnsupportedStronglyTypedRegex;
+                    return true;
+                case AwkTokenKind.InternationalizedString:
+                    errorMessage = AwkMessages.ErrorUnsupportedInternationalization;
+                    return true;
+                case AwkTokenKind.At:
+                    if (IsIndirectFunctionCall())
+                    {
+                        errorMessage = AwkMessages.ErrorUnsupportedIndirectFunctionCall;
+                        return true;
+                    }
+
+                    break;
+                case AwkTokenKind.RightBracket:
+                    if (TokenAtOrEnd(
+                            source,
+                            tokens,
+                            NextSignificantTokenIndex(tokens, index + 1))
+                        .Kind == AwkTokenKind.LeftBracket)
+                    {
+                        errorMessage = AwkMessages.ErrorUnsupportedArrayOfArrays;
+                        return true;
+                    }
+
+                    break;
+            }
+
+            errorMessage = ReadOnlyMemory<byte>.Empty;
+            return false;
+
+            bool IsIndirectFunctionCall()
+            {
+                var identifierIndex = NextSignificantTokenIndex(tokens, index + 1);
+                var identifier = TokenAtOrEnd(source, tokens, identifierIndex);
+                if (identifier.Kind != AwkTokenKind.Identifier || identifier.Span.Start != token.Span.End)
+                    return false;
+
+                return TokenAtOrEnd(
                         source,
                         tokens,
-                        NextSignificantTokenIndex(tokens, index + 1))
-                    .Kind == AwkTokenKind.LeftBracket)
-                {
-                    errorMessage = AwkMessages.ErrorUnsupportedArrayOfArrays;
-                    return true;
-                }
-
-                break;
-        }
-
-        errorMessage = ReadOnlyMemory<byte>.Empty;
-        return false;
-
-        bool IsIndirectFunctionCall()
-        {
-            var identifierIndex = NextSignificantTokenIndex(tokens, index + 1);
-            var identifier = TokenAtOrEnd(source, tokens, identifierIndex);
-            if (identifier.Kind != AwkTokenKind.Identifier || identifier.Span.Start != token.Span.End)
-                return false;
-
-            return TokenAtOrEnd(
-                    source,
-                    tokens,
-                    NextSignificantTokenIndex(tokens, identifierIndex + 1))
-                .Kind == AwkTokenKind.LeftParen;
+                        NextSignificantTokenIndex(tokens, identifierIndex + 1))
+                    .Kind == AwkTokenKind.LeftParen;
+            }
         }
     }
 

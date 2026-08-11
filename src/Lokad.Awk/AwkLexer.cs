@@ -24,6 +24,24 @@ internal static class AwkLexer
         {
             _source = source;
             _lexemes = ReadContextFreeLexemes(source);
+
+            static List<AwkToken> ReadContextFreeLexemes(string source)
+            {
+                var reader = new ReflectionTokenReader<AwkTokenKind>();
+                var result = reader.ReadAllTokens(source);
+                var lexemes = new List<AwkToken>(result.Tokens.Count);
+                foreach (var token in result.Tokens)
+                {
+                    lexemes.Add(AwkToken.FromSource(
+                        token.Length == 0
+                            ? token.Token
+                            : AwkParsingSupport.ResolveTextKind(source.AsSpan(token.Start, token.Length)),
+                        source,
+                        new AwkTextSpan(token.Start, token.Length)));
+                }
+
+                return lexemes;
+            }
         }
 
         public List<AwkToken> Tokenize()
@@ -93,6 +111,67 @@ internal static class AwkLexer
 
             AddToken(AwkTokenKind.EndOfFile, _position, 0);
             return _tokens;
+
+            void ReadNewLine()
+            {
+                var start = _position;
+                if (Current == '\r' && Peek(1) == '\n')
+                {
+                    _position += 2;
+                }
+                else
+                {
+                    _position++;
+                }
+
+                AddToken(AwkTokenKind.NewLine, start, _position - start);
+            }
+
+            void ReadComment()
+            {
+                var start = _position;
+                while (_position < _source.Length && Current is not '\r' and not '\n')
+                {
+                    _position++;
+                }
+
+                AddToken(AwkTokenKind.Comment, start, _position - start);
+            }
+
+            void ReadString()
+            {
+                var start = _position;
+                ReadQuotedString(start, AwkTokenKind.String);
+            }
+
+            void ReadInternationalizedString()
+            {
+                var start = _position;
+                _position++;
+                ReadQuotedString(start, AwkTokenKind.InternationalizedString);
+            }
+
+            void ReadRegex()
+            {
+                var start = _position;
+                _position++;
+                ReadRegexBody(start, AwkTokenKind.Regex);
+            }
+
+            void ReadStrongRegex()
+            {
+                var start = _position;
+                _position += 2;
+                ReadRegexBody(start, AwkTokenKind.StrongRegex);
+            }
+
+            void AddLexeme(AwkToken lexeme)
+            {
+                AddToken(
+                    lexeme.Kind,
+                    lexeme.Span.Start,
+                    lexeme.Span.Length);
+            }
         }
 
         private char Current => Peek(0);
@@ -101,59 +180,6 @@ internal static class AwkLexer
         {
             var index = _position + offset;
             return index >= _source.Length ? '\0' : _source[index];
-        }
-
-        private void ReadNewLine()
-        {
-            var start = _position;
-            if (Current == '\r' && Peek(1) == '\n')
-            {
-                _position += 2;
-            }
-            else
-            {
-                _position++;
-            }
-
-            AddToken(AwkTokenKind.NewLine, start, _position - start);
-        }
-
-        private void ReadComment()
-        {
-            var start = _position;
-            while (_position < _source.Length && Current is not '\r' and not '\n')
-            {
-                _position++;
-            }
-
-            AddToken(AwkTokenKind.Comment, start, _position - start);
-        }
-
-        private void ReadString()
-        {
-            var start = _position;
-            ReadQuotedString(start, AwkTokenKind.String);
-        }
-
-        private void ReadInternationalizedString()
-        {
-            var start = _position;
-            _position++;
-            ReadQuotedString(start, AwkTokenKind.InternationalizedString);
-        }
-
-        private void ReadRegex()
-        {
-            var start = _position;
-            _position++;
-            ReadRegexBody(start, AwkTokenKind.Regex);
-        }
-
-        private void ReadStrongRegex()
-        {
-            var start = _position;
-            _position += 2;
-            ReadRegexBody(start, AwkTokenKind.StrongRegex);
         }
 
         private void ReadQuotedString(int start, AwkTokenKind kind)
@@ -214,38 +240,12 @@ internal static class AwkLexer
             SkipLexemesBeforePosition();
         }
 
-        private void AddLexeme(AwkToken lexeme)
-        {
-            AddToken(
-                lexeme.Kind,
-                lexeme.Span.Start,
-                lexeme.Span.Length);
-        }
-
         private void SkipLexemesBeforePosition()
         {
             while (_lexemeIndex < _lexemes.Count && _lexemes[_lexemeIndex].Span.Start < _position)
             {
                 _lexemeIndex++;
             }
-        }
-
-        private static List<AwkToken> ReadContextFreeLexemes(string source)
-        {
-            var reader = new ReflectionTokenReader<AwkTokenKind>();
-            var result = reader.ReadAllTokens(source);
-            var lexemes = new List<AwkToken>(result.Tokens.Count);
-            foreach (var token in result.Tokens)
-            {
-                lexemes.Add(AwkToken.FromSource(
-                    token.Length == 0
-                        ? token.Token
-                        : AwkParsingSupport.ResolveTextKind(source.AsSpan(token.Start, token.Length)),
-                    source,
-                    new AwkTextSpan(token.Start, token.Length)));
-            }
-
-            return lexemes;
         }
     }
 }

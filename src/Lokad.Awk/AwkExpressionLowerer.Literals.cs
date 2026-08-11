@@ -60,6 +60,55 @@ internal static partial class AwkExpressionLowerer
 
         numberText = text.Substring(start, index - start);
         return TryParseNumericLiteral(numberText, out numberValue);
+
+        static void ParseExponentIfPresent(string text, ref int index)
+        {
+            if (index >= text.Length || text[index] is not ('e' or 'E'))
+                return;
+
+            var exponentStart = index;
+            index++;
+            if (index < text.Length && text[index] is '+' or '-')
+                index++;
+
+            var digitStart = index;
+            while (index < text.Length && AwkCharacterFacts.IsDecimalDigit(text[index]))
+                index++;
+
+            if (digitStart == index)
+                index = exponentStart;
+        }
+
+        static bool TryParseNumericLiteral(string numberText, out double numberValue)
+        {
+            static string? NormalizeTrailingDotExponentLiteral(string numberText)
+            {
+                for (var index = 1; index + 1 < numberText.Length; index++)
+                {
+                    if (numberText[index] == '.' && numberText[index + 1] is ('e' or 'E'))
+                        return numberText[..(index + 1)] + "0" + numberText[(index + 1)..];
+                }
+
+                return null;
+            }
+
+            if (AwkValue.TryParseNumber(
+                    numberText,
+                    AwkNumberParsingMode.NonDecimalData,
+                    requireFullText: true,
+                    out numberValue))
+            {
+                return true;
+            }
+
+            var normalized = NormalizeTrailingDotExponentLiteral(numberText);
+            return normalized != null &&
+                AwkValue.TryParseNumber(
+                    normalized,
+                    AwkNumberParsingMode.Decimal,
+                    requireFullText: true,
+                    out numberValue);
+        }
     }
 
     public static bool TryReadStringLiteralToken(string source, ref int position, out string literal)
@@ -99,54 +148,5 @@ internal static partial class AwkExpressionLowerer
         }
 
         return false;
-    }
-
-    private static void ParseExponentIfPresent(string text, ref int index)
-    {
-        if (index >= text.Length || text[index] is not ('e' or 'E'))
-            return;
-
-        var exponentStart = index;
-        index++;
-        if (index < text.Length && text[index] is '+' or '-')
-            index++;
-
-        var digitStart = index;
-        while (index < text.Length && AwkCharacterFacts.IsDecimalDigit(text[index]))
-            index++;
-
-        if (digitStart == index)
-            index = exponentStart;
-    }
-
-    private static bool TryParseNumericLiteral(string numberText, out double numberValue)
-    {
-        static string? NormalizeTrailingDotExponentLiteral(string numberText)
-        {
-            for (var index = 1; index + 1 < numberText.Length; index++)
-            {
-                if (numberText[index] == '.' && numberText[index + 1] is ('e' or 'E'))
-                    return numberText[..(index + 1)] + "0" + numberText[(index + 1)..];
-            }
-
-            return null;
-        }
-
-        if (AwkValue.TryParseNumber(
-                numberText,
-                AwkNumberParsingMode.NonDecimalData,
-                requireFullText: true,
-                out numberValue))
-        {
-            return true;
-        }
-
-        var normalized = NormalizeTrailingDotExponentLiteral(numberText);
-        return normalized != null &&
-            AwkValue.TryParseNumber(
-                normalized,
-                AwkNumberParsingMode.Decimal,
-                requireFullText: true,
-                out numberValue);
     }
 }

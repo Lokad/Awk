@@ -89,96 +89,128 @@ internal static partial class AwkProgramLowerer
 
         return AwkLoweringResult.SuccessResult(
             new AwkProgram(beginActions, mainActions, endActions, beginFileActions, endFileActions, functions));
-    }
 
-    private static AwkLoweringOutcome<AwkUserFunction> ParseFunctionDefinition(
-        AwkFunctionSyntax functionSyntax)
-    {
-        if (functionSyntax.Name.Length == 0 || AwkIdentifiers.IsReservedName(functionSyntax.Name))
-            return AwkLoweringOutcome<AwkUserFunction>.Failure(new AwkDiagnostic(
-                functionSyntax.Span,
-                "Invalid function declaration.",
-                AwkDiagnosticId.BindInvalidProgram));
-
-        var parameterBinding = functionSyntax.ParameterBinding;
-        if (!parameterBinding.Success)
-            return AwkLoweringOutcome<AwkUserFunction>.Failure(parameterBinding.Diagnostics);
-
-        var localLayout = new AwkFunctionLocalLayout(parameterBinding.Parameters);
-        var body = AwkStatementLowerer.LowerList(
-            functionSyntax.BodyStatements,
-            AwkLoweringScope.Function(localLayout));
-        if (!body.Succeeded)
+        static AwkLoweringOutcome<AwkUserFunction> ParseFunctionDefinition(
+            AwkFunctionSyntax functionSyntax)
         {
-            return AwkLoweringOutcome<AwkUserFunction>.Failure(body.Diagnostics);
-        }
+            if (functionSyntax.Name.Length == 0 || AwkIdentifiers.IsReservedName(functionSyntax.Name))
+                return AwkLoweringOutcome<AwkUserFunction>.Failure(new AwkDiagnostic(
+                    functionSyntax.Span,
+                    "Invalid function declaration.",
+                    AwkDiagnosticId.BindInvalidProgram));
 
-        var statements = body.Value;
-        return AwkLoweringOutcome<AwkUserFunction>.Success(
-            new AwkUserFunction(AwkFunctionName.FromText(functionSyntax.Name), localLayout, statements));
-    }
+            var parameterBinding = functionSyntax.ParameterBinding;
+            if (!parameterBinding.Success)
+                return AwkLoweringOutcome<AwkUserFunction>.Failure(parameterBinding.Diagnostics);
 
-    private static AwkLoweringOutcome<AwkAction> LowerRule(AwkRuleSyntax rule)
-    {
-        static IReadOnlyList<AwkStatement> DefaultPrintStatements() =>
-            [AwkStatement.Print([AwkExpression.FieldZero()])];
-
-        static bool TryLowerSyntaxRegexPattern(
-            AwkRuleSyntax rule,
-            [NotNullWhen(true)] out AwkPattern? pattern)
-        {
-            static bool IsSingleRegexPattern(AwkPatternSyntax pattern)
+            var localLayout = new AwkFunctionLocalLayout(parameterBinding.Parameters);
+            var body = AwkStatementLowerer.LowerList(
+                functionSyntax.BodyStatements,
+                AwkLoweringScope.Function(localLayout));
+            if (!body.Succeeded)
             {
-                AwkToken? significantToken = null;
-                for (var index = 0; index < pattern.Tokens.Count; index++)
-                {
-                    if (!AwkTokenNavigation.IsSignificant(pattern.Tokens[index].Kind))
-                        continue;
-
-                    if (significantToken.HasValue)
-                        return false;
-
-                    significantToken = pattern.Tokens[index];
-                }
-
-                return significantToken.HasValue && significantToken.Value.Kind == AwkTokenKind.Regex;
+                return AwkLoweringOutcome<AwkUserFunction>.Failure(body.Diagnostics);
             }
 
-            pattern = null;
-            if (rule.PatternSyntax is AwkSinglePatternSyntax singlePattern &&
-                IsSingleRegexPattern(singlePattern) &&
-                AwkExpressionLowerer.TryLowerRegexLiteralPattern(singlePattern.Expression, out var regex))
+            var statements = body.Value;
+            return AwkLoweringOutcome<AwkUserFunction>.Success(
+                new AwkUserFunction(AwkFunctionName.FromText(functionSyntax.Name), localLayout, statements));
+        }
+
+        static AwkLoweringOutcome<AwkAction> LowerRule(AwkRuleSyntax rule)
+        {
+            static IReadOnlyList<AwkStatement> DefaultPrintStatements() =>
+                [AwkStatement.Print([AwkExpression.FieldZero()])];
+
+            static bool TryLowerSyntaxRegexPattern(
+                AwkRuleSyntax rule,
+                [NotNullWhen(true)] out AwkPattern? pattern)
             {
-                pattern = AwkPattern.Regex(regex);
+                static bool IsSingleRegexPattern(AwkPatternSyntax pattern)
+                {
+                    AwkToken? significantToken = null;
+                    for (var index = 0; index < pattern.Tokens.Count; index++)
+                    {
+                        if (!AwkTokenNavigation.IsSignificant(pattern.Tokens[index].Kind))
+                            continue;
+
+                        if (significantToken.HasValue)
+                            return false;
+
+                        significantToken = pattern.Tokens[index];
+                    }
+
+                    return significantToken.HasValue && significantToken.Value.Kind == AwkTokenKind.Regex;
+                }
+
+                pattern = null;
+                if (rule.PatternSyntax is AwkSinglePatternSyntax singlePattern &&
+                    IsSingleRegexPattern(singlePattern) &&
+                    AwkExpressionLowerer.TryLowerRegexLiteralPattern(singlePattern.Expression, out var regex))
+                {
+                    pattern = AwkPattern.Regex(regex);
+                    return true;
+                }
+
+                if (rule.PatternSyntax is not AwkRangePatternSyntax rangePattern ||
+                    !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.Start.Expression, out var start) ||
+                    !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.End.Expression, out var end))
+                {
+                    return false;
+                }
+
+                var startCondition = start ?? throw new InvalidOperationException();
+                var endCondition = end ?? throw new InvalidOperationException();
+                pattern = AwkPattern.Range(startCondition, endCondition);
                 return true;
             }
 
-            if (rule.PatternSyntax is not AwkRangePatternSyntax rangePattern ||
-                !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.Start.Expression, out var start) ||
-                !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.End.Expression, out var end))
+            static bool TryLowerSyntaxExpressionRangePattern(
+                AwkRuleSyntax rule,
+                [NotNullWhen(true)] out AwkPattern? pattern)
             {
-                return false;
+                static bool TryLowerSyntaxPatternCondition(
+                    AwkPatternPartSyntax part,
+                    [NotNullWhen(true)] out AwkCondition? condition)
+                {
+                    condition = null;
+                    var expressionSyntax = part.Expression;
+                    if (expressionSyntax == null ||
+                        expressionSyntax.Kind == AwkExpressionKind.Regex ||
+                        !AwkExpressionLowerer.TryLower(expressionSyntax, out var expression))
+                    {
+                        return false;
+                    }
+
+                    condition = new AwkCondition([[AwkConditionClause.Truthy(expression)]]);
+                    return true;
+                }
+
+                pattern = null;
+                if (rule.PatternSyntax is not AwkRangePatternSyntax rangePattern)
+                    return false;
+
+                if (!TryLowerSyntaxPatternCondition(rangePattern.Start, out var start) ||
+                    !TryLowerSyntaxPatternCondition(rangePattern.End, out var end))
+                {
+                    return false;
+                }
+
+                var startCondition = start ?? throw new InvalidOperationException();
+                var endCondition = end ?? throw new InvalidOperationException();
+                pattern = AwkPattern.Range(startCondition, endCondition);
+                return true;
             }
 
-            var startCondition = start ?? throw new InvalidOperationException();
-            var endCondition = end ?? throw new InvalidOperationException();
-            pattern = AwkPattern.Range(startCondition, endCondition);
-            return true;
-        }
-
-        static bool TryLowerSyntaxExpressionRangePattern(
-            AwkRuleSyntax rule,
-            [NotNullWhen(true)] out AwkPattern? pattern)
-        {
-            static bool TryLowerSyntaxPatternCondition(
-                AwkPatternPartSyntax part,
+            static bool TryLowerSyntaxExpressionPattern(
+                AwkRuleSyntax rule,
                 [NotNullWhen(true)] out AwkCondition? condition)
             {
                 condition = null;
-                var expressionSyntax = part.Expression;
-                if (expressionSyntax == null ||
-                    expressionSyntax.Kind == AwkExpressionKind.Regex ||
-                    !AwkExpressionLowerer.TryLower(expressionSyntax, out var expression))
+                if (rule.PatternSyntax is not AwkSinglePatternSyntax singlePattern ||
+                    singlePattern.Expression == null ||
+                    singlePattern.Expression.Kind == AwkExpressionKind.Regex ||
+                    !AwkExpressionLowerer.TryLower(singlePattern.Expression, out var expression))
                 {
                     return false;
                 }
@@ -187,84 +219,52 @@ internal static partial class AwkProgramLowerer
                 return true;
             }
 
-            pattern = null;
-            if (rule.PatternSyntax is not AwkRangePatternSyntax rangePattern)
-                return false;
-
-            if (!TryLowerSyntaxPatternCondition(rangePattern.Start, out var start) ||
-                !TryLowerSyntaxPatternCondition(rangePattern.End, out var end))
+            IReadOnlyList<AwkStatement> statements;
+            if (rule.HasExplicitAction)
             {
-                return false;
+                var body = AwkStatementLowerer.LowerList(rule.ActionStatements);
+                if (!body.Succeeded)
+                    return AwkLoweringOutcome<AwkAction>.Failure(body.Diagnostics);
+
+                statements = body.Value;
+            }
+            else
+            {
+                statements = DefaultPrintStatements();
             }
 
-            var startCondition = start ?? throw new InvalidOperationException();
-            var endCondition = end ?? throw new InvalidOperationException();
-            pattern = AwkPattern.Range(startCondition, endCondition);
-            return true;
-        }
-
-        static bool TryLowerSyntaxExpressionPattern(
-            AwkRuleSyntax rule,
-            [NotNullWhen(true)] out AwkCondition? condition)
-        {
-            condition = null;
-            if (rule.PatternSyntax is not AwkSinglePatternSyntax singlePattern ||
-                singlePattern.Expression == null ||
-                singlePattern.Expression.Kind == AwkExpressionKind.Regex ||
-                !AwkExpressionLowerer.TryLower(singlePattern.Expression, out var expression))
+            if (rule.Kind != AwkRuleKind.Main)
             {
-                return false;
+                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, statements));
             }
 
-            condition = new AwkCondition([[AwkConditionClause.Truthy(expression)]]);
-            return true;
-        }
+            if (rule.PatternTokens.Count == 0)
+            {
+                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, statements));
+            }
 
-        IReadOnlyList<AwkStatement> statements;
-        if (rule.HasExplicitAction)
-        {
-            var body = AwkStatementLowerer.LowerList(rule.ActionStatements);
-            if (!body.Succeeded)
-                return AwkLoweringOutcome<AwkAction>.Failure(body.Diagnostics);
+            if (TryLowerSyntaxRegexPattern(rule, out var regexPattern))
+            {
+                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(regexPattern, statements));
+            }
 
-            statements = body.Value;
-        }
-        else
-        {
-            statements = DefaultPrintStatements();
-        }
+            if (TryLowerSyntaxExpressionRangePattern(rule, out var expressionRangePattern))
+            {
+                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(expressionRangePattern, statements));
+            }
 
-        if (rule.Kind != AwkRuleKind.Main)
-        {
-            return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, statements));
-        }
+            if (TryLowerSyntaxExpressionPattern(rule, out var expressionCondition))
+            {
+                var syntaxCondition = expressionCondition ?? throw new InvalidOperationException();
+                return AwkLoweringOutcome<AwkAction>.Success(
+                    new AwkAction(null, [AwkStatement.If(syntaxCondition, statements)]));
+            }
 
-        if (rule.PatternTokens.Count == 0)
-        {
-            return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, statements));
+            return AwkLoweringOutcome<AwkAction>.Failure(new AwkDiagnostic(
+                rule.Span,
+                rule.HasExplicitAction ? "Invalid action block." : "Invalid pattern.",
+                AwkDiagnosticId.BindInvalidProgram));
         }
-
-        if (TryLowerSyntaxRegexPattern(rule, out var regexPattern))
-        {
-            return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(regexPattern, statements));
-        }
-
-        if (TryLowerSyntaxExpressionRangePattern(rule, out var expressionRangePattern))
-        {
-            return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(expressionRangePattern, statements));
-        }
-
-        if (TryLowerSyntaxExpressionPattern(rule, out var expressionCondition))
-        {
-            var syntaxCondition = expressionCondition ?? throw new InvalidOperationException();
-            return AwkLoweringOutcome<AwkAction>.Success(
-                new AwkAction(null, [AwkStatement.If(syntaxCondition, statements)]));
-        }
-
-        return AwkLoweringOutcome<AwkAction>.Failure(new AwkDiagnostic(
-            rule.Span,
-            rule.HasExplicitAction ? "Invalid action block." : "Invalid pattern.",
-            AwkDiagnosticId.BindInvalidProgram));
     }
 
 }

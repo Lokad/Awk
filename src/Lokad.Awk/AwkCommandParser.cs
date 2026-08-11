@@ -77,134 +77,178 @@ internal static class AwkCommandParser
                 .WithFieldSeparator(_fieldSeparator)
                 .WithCompatibilityProfile(_profile)
                 .Build();
-        }
 
-        private void AddRemainingInputArguments(CommandLineOptionParser parser)
-        {
-            while (parser.TryReadRaw(out var argument))
+            void AddRemainingInputArguments(CommandLineOptionParser parser)
             {
-                if (argument == "--")
-                    continue;
-
-                _sourceInputPlanner.AddInputArgument(argument);
-            }
-        }
-
-        private void AddScriptOrInputArgument(string argument)
-        {
-            if (!_sourceInputPlanner.HasScript)
-                _sourceInputPlanner.AddInlineScript(argument);
-            else
-                _sourceInputPlanner.AddInputArgument(argument);
-        }
-
-        private AwkInvocation BuildErrorInvocation(ReadOnlyMemory<byte> message, AwkDiagnosticId id)
-        {
-            return CreateInvocationBuilder()
-                .WithErrorMessage(message, id)
-                .Build();
-        }
-
-        private AwkInvocation BuildTerminalInvocation(AwkCommandTerminal terminal)
-        {
-            var builder = CreateInvocationBuilder();
-            return terminal switch
-            {
-                AwkCommandTerminal.Help => builder.WithHelp().Build(),
-                AwkCommandTerminal.Version => builder.WithVersion().Build(),
-                _ => throw new InvalidOperationException("Unknown terminal awk invocation.")
-            };
-        }
-
-        private AwkInvocationBuilder CreateInvocationBuilder() => new(invocation);
-
-        private AwkCommandParseResult ParseShortOption(CommandLineOptionParser parser, char option)
-        {
-            var spelling = AwkOptionSpelling.Short(option);
-            if (!AwkOptions.TryResolveShortOption(option, out var spec))
-                return AwkCommandParseResult.Fail(
-                    AwkMessages.FormatInvalidOption(spelling.Display),
-                    AwkDiagnosticId.OptionInvalid);
-
-            var valueResult = ReadShortOptionValue(parser, spec);
-            if (valueResult.Status == AwkOptionValueStatus.Error)
-                return AwkCommandParseResult.Fail(valueResult.Message, valueResult.Id);
-
-            if (spec.Action == AwkOptionAction.ExpandWOption)
-                return ApplyWOption(parser, valueResult.Value);
-
-            return ApplyOption(spec, valueResult.Value, spelling);
-
-            static AwkOptionValueResult ReadShortOptionValue(
-                CommandLineOptionParser optionParser,
-                AwkOptionSpec optionSpec)
-            {
-                switch (optionSpec.ShortValuePlacement)
+                while (parser.TryReadRaw(out var argument))
                 {
-                    case AwkShortOptionValuePlacement.None:
-                        return AwkOptionValueResult.Empty;
-                    case AwkShortOptionValuePlacement.AttachedOnly:
-                        AwkOptionValueReader.TryDiscardShortAttached(optionParser);
-                        return AwkOptionValueResult.Empty;
-                    case AwkShortOptionValuePlacement.AttachedOrRaw:
-                        if (optionSpec.ValueCardinality == AwkOptionValueCardinality.Optional)
-                        {
-                            AwkOptionValueReader.TryReadOptionalShortAttachedOrRaw(
-                                optionParser,
-                                out var optionalValue);
-                            return AwkOptionValueResult.Success(optionalValue);
-                        }
+                    if (argument == "--")
+                        continue;
 
-                        if (AwkOptionValueReader.TryReadShortAttachedOrRaw(
-                                optionParser,
-                                out var attachedOrRawValue))
-                        {
-                            return AwkOptionValueResult.Success(attachedOrRawValue);
-                        }
+                    _sourceInputPlanner.AddInputArgument(argument);
+                }
+            }
 
-                        return AwkOptionValueResult.Fail(
+            void AddScriptOrInputArgument(string argument)
+            {
+                if (!_sourceInputPlanner.HasScript)
+                    _sourceInputPlanner.AddInlineScript(argument);
+                else
+                    _sourceInputPlanner.AddInputArgument(argument);
+            }
+
+            AwkInvocation BuildErrorInvocation(ReadOnlyMemory<byte> message, AwkDiagnosticId id)
+            {
+                return CreateInvocationBuilder()
+                    .WithErrorMessage(message, id)
+                    .Build();
+            }
+
+            AwkInvocation BuildTerminalInvocation(AwkCommandTerminal terminal)
+            {
+                var builder = CreateInvocationBuilder();
+                return terminal switch
+                {
+                    AwkCommandTerminal.Help => builder.WithHelp().Build(),
+                    AwkCommandTerminal.Version => builder.WithVersion().Build(),
+                    _ => throw new InvalidOperationException("Unknown terminal awk invocation.")
+                };
+            }
+
+            AwkCommandParseResult ParseShortOption(CommandLineOptionParser parser, char option)
+            {
+                var spelling = AwkOptionSpelling.Short(option);
+                if (!AwkOptions.TryResolveShortOption(option, out var spec))
+                    return AwkCommandParseResult.Fail(
+                        AwkMessages.FormatInvalidOption(spelling.Display),
+                        AwkDiagnosticId.OptionInvalid);
+
+                var valueResult = ReadShortOptionValue(parser, spec);
+                if (valueResult.Status == AwkOptionValueStatus.Error)
+                    return AwkCommandParseResult.Fail(valueResult.Message, valueResult.Id);
+
+                if (spec.Action == AwkOptionAction.ExpandWOption)
+                    return ApplyWOption(parser, valueResult.Value);
+
+                return ApplyOption(spec, valueResult.Value, spelling);
+
+                static AwkOptionValueResult ReadShortOptionValue(
+                    CommandLineOptionParser optionParser,
+                    AwkOptionSpec optionSpec)
+                {
+                    switch (optionSpec.ShortValuePlacement)
+                    {
+                        case AwkShortOptionValuePlacement.None:
+                            return AwkOptionValueResult.Empty;
+                        case AwkShortOptionValuePlacement.AttachedOnly:
+                            AwkOptionValueReader.TryDiscardShortAttached(optionParser);
+                            return AwkOptionValueResult.Empty;
+                        case AwkShortOptionValuePlacement.AttachedOrRaw:
+                            if (optionSpec.ValueCardinality == AwkOptionValueCardinality.Optional)
+                            {
+                                AwkOptionValueReader.TryReadOptionalShortAttachedOrRaw(
+                                    optionParser,
+                                    out var optionalValue);
+                                return AwkOptionValueResult.Success(optionalValue);
+                            }
+
+                            if (AwkOptionValueReader.TryReadShortAttachedOrRaw(
+                                    optionParser,
+                                    out var attachedOrRawValue))
+                            {
+                                return AwkOptionValueResult.Success(attachedOrRawValue);
+                            }
+
+                            return AwkOptionValueResult.Fail(
+                                AwkMessages.ErrorMissingValue,
+                                AwkDiagnosticId.OptionMissingValue);
+                        case AwkShortOptionValuePlacement.Raw:
+                            if (AwkOptionValueReader.TryReadShortRaw(optionParser, out var rawValue))
+                                return AwkOptionValueResult.Success(rawValue);
+
+                            return AwkOptionValueResult.Fail(
+                                AwkMessages.ErrorMissingValue,
+                                AwkDiagnosticId.OptionMissingValue);
+                        default:
+                            return AwkOptionValueResult.Empty;
+                    }
+                }
+
+                AwkCommandParseResult ApplyWOption(CommandLineOptionParser parser, string value)
+                {
+                    if (value.Length == 0)
+                        return AwkCommandParseResult.Fail(
                             AwkMessages.ErrorMissingValue,
                             AwkDiagnosticId.OptionMissingValue);
-                    case AwkShortOptionValuePlacement.Raw:
-                        if (AwkOptionValueReader.TryReadShortRaw(optionParser, out var rawValue))
-                            return AwkOptionValueResult.Success(rawValue);
 
-                        return AwkOptionValueResult.Fail(
-                            AwkMessages.ErrorMissingValue,
-                            AwkDiagnosticId.OptionMissingValue);
-                    default:
-                        return AwkOptionValueResult.Empty;
+                    var equalsIndex = value.IndexOf('=', StringComparison.Ordinal);
+                    var name = equalsIndex < 0 ? value : value[..equalsIndex];
+                    var optionValue = equalsIndex < 0
+                        ? CommandLineOptionValue.Absent
+                        : CommandLineOptionValue.Inline(value[(equalsIndex + 1)..]);
+                    if (!AwkOptions.TryResolveWOptionName(name, out var spec))
+                        return RejectInvalidWOption(name);
+
+                    var spelling = AwkOptionSpelling.W(name);
+                    var valueResult = ReadWOptionValue(parser, spec, optionValue, spelling.Display);
+                    if (valueResult.Status == AwkOptionValueStatus.Error)
+                        return AwkCommandParseResult.Fail(valueResult.Message, valueResult.Id);
+
+                    return ApplyOption(spec, valueResult.Value, spelling);
+
+                    static AwkOptionValueResult ReadWOptionValue(
+                        CommandLineOptionParser parser,
+                        AwkOptionSpec spec,
+                        CommandLineOptionValue inlineValue,
+                        string optionName)
+                    {
+                        return ReadNamedOptionValue(
+                            spec,
+                            inlineValue,
+                            optionName,
+                            (out string requiredValue) => AwkOptionValueReader.TryReadW(
+                                parser,
+                                inlineValue,
+                                out requiredValue));
+                    }
+
+                    static AwkCommandParseResult RejectInvalidWOption(string name) =>
+                        AwkCommandParseResult.Fail(
+                            AwkMessages.FormatInvalidOption(AwkOptionSpelling.W(name).Display),
+                            AwkDiagnosticId.OptionInvalid);
+                }
+            }
+
+            AwkCommandParseResult ParseLongOption(CommandLineOptionParser parser, CommandLineOptionItem.LongOption item)
+            {
+                if (!AwkOptions.TryResolveLongOptionName(item.Name, out var spec))
+                    return AwkCommandParseResult.Fail(
+                        AwkMessages.FormatInvalidOption(AwkOptionSpelling.Long(item.Name).Display),
+                        AwkDiagnosticId.OptionInvalid);
+
+                var spelling = AwkOptionSpelling.Long(item.Name);
+                var valueResult = ReadLongOptionValue(parser, item, spec, spelling);
+                if (valueResult.Status == AwkOptionValueStatus.Error)
+                    return AwkCommandParseResult.Fail(valueResult.Message, valueResult.Id);
+
+                return ApplyOption(spec, valueResult.Value, spelling);
+
+                static AwkOptionValueResult ReadLongOptionValue(
+                    CommandLineOptionParser parser,
+                    CommandLineOptionItem.LongOption item,
+                    AwkOptionSpec spec,
+                    AwkOptionSpelling spelling)
+                {
+                    return ReadNamedOptionValue(
+                        spec,
+                        item.Value,
+                        spelling.Display,
+                        (out string requiredValue) => AwkOptionValueReader.TryReadLong(parser, item, out requiredValue));
                 }
             }
         }
 
-        private AwkCommandParseResult ParseLongOption(CommandLineOptionParser parser, CommandLineOptionItem.LongOption item)
-        {
-            if (!AwkOptions.TryResolveLongOptionName(item.Name, out var spec))
-                return AwkCommandParseResult.Fail(
-                    AwkMessages.FormatInvalidOption(AwkOptionSpelling.Long(item.Name).Display),
-                    AwkDiagnosticId.OptionInvalid);
-
-            var spelling = AwkOptionSpelling.Long(item.Name);
-            var valueResult = ReadLongOptionValue(parser, item, spec, spelling);
-            if (valueResult.Status == AwkOptionValueStatus.Error)
-                return AwkCommandParseResult.Fail(valueResult.Message, valueResult.Id);
-
-            return ApplyOption(spec, valueResult.Value, spelling);
-        }
-
-        private static AwkOptionValueResult ReadLongOptionValue(
-            CommandLineOptionParser parser,
-            CommandLineOptionItem.LongOption item,
-            AwkOptionSpec spec,
-            AwkOptionSpelling spelling)
-        {
-            return ReadNamedOptionValue(
-                spec,
-                item.Value,
-                spelling.Display,
-                (out string requiredValue) => AwkOptionValueReader.TryReadLong(parser, item, out requiredValue));
-        }
+        private AwkInvocationBuilder CreateInvocationBuilder() => new(invocation);
 
         private AwkCommandParseResult ApplyOption(
             AwkOptionSpec spec,
@@ -270,79 +314,40 @@ internal static class AwkCommandParser
                         AwkMessages.FormatInvalidOption(spelling.Display),
                         AwkDiagnosticId.OptionInvalid);
             }
-        }
 
-        private AwkCommandParseResult TryAddVariableAssignment(string assignment)
-        {
-            if (_sourceInputPlanner.TryAddOptionVariableAssignment(assignment, out var error))
-                return AwkCommandParseResult.KeepParsing;
-
-            return AwkCommandParseResult.Fail(
-                error.IsEmpty ? AwkMessages.ErrorInvalidVariableAssignment : error,
-                AwkDiagnosticId.OptionInvalidVariableAssignment);
-        }
-
-        private AwkCommandParseResult TryApplyLintOption(string value, string optionName)
-        {
-            var lintMode = value switch
+            AwkCommandParseResult TryAddVariableAssignment(string assignment)
             {
-                "" => AwkLintMode.Normal,
-                "fatal" => AwkLintMode.Fatal,
-                "invalid" => AwkLintMode.Normal,
-                "no-ext" => AwkLintMode.Normal,
-                _ => AwkLintMode.Off
-            };
-            if (lintMode == AwkLintMode.Off && value.Length > 0)
+                if (_sourceInputPlanner.TryAddOptionVariableAssignment(assignment, out var error))
+                    return AwkCommandParseResult.KeepParsing;
+
                 return AwkCommandParseResult.Fail(
-                    AwkMessages.FormatInvalidOption(optionName + "=" + value),
-                    AwkDiagnosticId.OptionInvalid);
+                    error.IsEmpty ? AwkMessages.ErrorInvalidVariableAssignment : error,
+                    AwkDiagnosticId.OptionInvalidVariableAssignment);
+            }
 
-            _profile = _profile.WithLintMode(lintMode);
-            return AwkCommandParseResult.KeepParsing;
-        }
+            AwkCommandParseResult TryApplyLintOption(string value, string optionName)
+            {
+                var lintMode = value switch
+                {
+                    "" => AwkLintMode.Normal,
+                    "fatal" => AwkLintMode.Fatal,
+                    "invalid" => AwkLintMode.Normal,
+                    "no-ext" => AwkLintMode.Normal,
+                    _ => AwkLintMode.Off
+                };
+                if (lintMode == AwkLintMode.Off && value.Length > 0)
+                    return AwkCommandParseResult.Fail(
+                        AwkMessages.FormatInvalidOption(optionName + "=" + value),
+                        AwkDiagnosticId.OptionInvalid);
 
-        private static AwkCommandParseResult RejectUnsupportedGnuOption(string option) =>
-            AwkCommandParseResult.Fail(
-                AwkMessages.FormatUnsupportedGnuOption(option),
-                AwkDiagnosticId.UnsupportedPolicy);
+                _profile = _profile.WithLintMode(lintMode);
+                return AwkCommandParseResult.KeepParsing;
+            }
 
-        private AwkCommandParseResult ApplyWOption(CommandLineOptionParser parser, string value)
-        {
-            if (value.Length == 0)
-                return AwkCommandParseResult.Fail(
-                    AwkMessages.ErrorMissingValue,
-                    AwkDiagnosticId.OptionMissingValue);
-
-            var equalsIndex = value.IndexOf('=', StringComparison.Ordinal);
-            var name = equalsIndex < 0 ? value : value[..equalsIndex];
-            var optionValue = equalsIndex < 0
-                ? CommandLineOptionValue.Absent
-                : CommandLineOptionValue.Inline(value[(equalsIndex + 1)..]);
-            if (!AwkOptions.TryResolveWOptionName(name, out var spec))
-                return RejectInvalidWOption(name);
-
-            var spelling = AwkOptionSpelling.W(name);
-            var valueResult = ReadWOptionValue(parser, spec, optionValue, spelling.Display);
-            if (valueResult.Status == AwkOptionValueStatus.Error)
-                return AwkCommandParseResult.Fail(valueResult.Message, valueResult.Id);
-
-            return ApplyOption(spec, valueResult.Value, spelling);
-        }
-
-        private static AwkOptionValueResult ReadWOptionValue(
-            CommandLineOptionParser parser,
-            AwkOptionSpec spec,
-            CommandLineOptionValue inlineValue,
-            string optionName)
-        {
-            return ReadNamedOptionValue(
-                spec,
-                inlineValue,
-                optionName,
-                (out string requiredValue) => AwkOptionValueReader.TryReadW(
-                    parser,
-                    inlineValue,
-                    out requiredValue));
+            static AwkCommandParseResult RejectUnsupportedGnuOption(string option) =>
+                AwkCommandParseResult.Fail(
+                    AwkMessages.FormatUnsupportedGnuOption(option),
+                    AwkDiagnosticId.UnsupportedPolicy);
         }
 
         private static AwkOptionValueResult ReadNamedOptionValue(
@@ -377,11 +382,6 @@ internal static class AwkCommandParser
                     return AwkOptionValueResult.Empty;
             }
         }
-
-        private static AwkCommandParseResult RejectInvalidWOption(string name) =>
-            AwkCommandParseResult.Fail(
-                AwkMessages.FormatInvalidOption(AwkOptionSpelling.W(name).Display),
-                AwkDiagnosticId.OptionInvalid);
 
         private readonly struct AwkCommandParseResult
         {

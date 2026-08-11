@@ -54,6 +54,54 @@ internal sealed class CommandLineOptionParser
 
         item = CommandLineOptionItem.End;
         return false;
+
+        bool TryReadShortGroup(out CommandLineOptionItem item)
+        {
+            if (_shortGroup.Length == 0)
+            {
+                item = CommandLineOptionItem.End;
+                return false;
+            }
+
+            if (_shortIndex >= _shortGroup.Length)
+            {
+                _shortGroup = string.Empty;
+                item = CommandLineOptionItem.End;
+                return false;
+            }
+
+            var option = _shortGroup[_shortIndex];
+            _shortIndex++;
+            if (_shortIndex >= _shortGroup.Length)
+            {
+                _shortGroup = string.Empty;
+            }
+
+            item = new CommandLineOptionItem.ShortOption(option);
+            return true;
+        }
+
+        static bool IsShortOptionGroup(string argument) =>
+            argument.Length > 1 && argument[0] == '-' && argument[1] != '-';
+
+        static bool IsLongOption(string argument) =>
+            argument.Length > 2 && argument[0] == '-' && argument[1] == '-';
+
+        static bool IsDoubleDash(string argument) => argument == "--";
+
+        static CommandLineOptionItem.LongOption ParseLongOption(string argument)
+        {
+            var equalsIndex = argument.IndexOf('=', 2);
+
+            if (equalsIndex < 0)
+            {
+                return new CommandLineOptionItem.LongOption(argument[2..], CommandLineOptionValue.Absent);
+            }
+
+            var name = argument[2..equalsIndex];
+            var value = argument[(equalsIndex + 1)..];
+            return new CommandLineOptionItem.LongOption(name, CommandLineOptionValue.Inline(value));
+        }
     }
 
     public bool TryReadRaw(out string argument)
@@ -84,54 +132,6 @@ internal sealed class CommandLineOptionParser
         _shortGroup = string.Empty;
         _shortIndex = 0;
         return true;
-    }
-
-    private bool TryReadShortGroup(out CommandLineOptionItem item)
-    {
-        if (_shortGroup.Length == 0)
-        {
-            item = CommandLineOptionItem.End;
-            return false;
-        }
-
-        if (_shortIndex >= _shortGroup.Length)
-        {
-            _shortGroup = string.Empty;
-            item = CommandLineOptionItem.End;
-            return false;
-        }
-
-        var option = _shortGroup[_shortIndex];
-        _shortIndex++;
-        if (_shortIndex >= _shortGroup.Length)
-        {
-            _shortGroup = string.Empty;
-        }
-
-        item = new CommandLineOptionItem.ShortOption(option);
-        return true;
-    }
-
-    private static bool IsShortOptionGroup(string argument) =>
-        argument.Length > 1 && argument[0] == '-' && argument[1] != '-';
-
-    private static bool IsLongOption(string argument) =>
-        argument.Length > 2 && argument[0] == '-' && argument[1] == '-';
-
-    private static bool IsDoubleDash(string argument) => argument == "--";
-
-    private static CommandLineOptionItem.LongOption ParseLongOption(string argument)
-    {
-        var equalsIndex = argument.IndexOf('=', 2);
-
-        if (equalsIndex < 0)
-        {
-            return new CommandLineOptionItem.LongOption(argument[2..], CommandLineOptionValue.Absent);
-        }
-
-        var name = argument[2..equalsIndex];
-        var value = argument[(equalsIndex + 1)..];
-        return new CommandLineOptionItem.LongOption(name, CommandLineOptionValue.Inline(value));
     }
 
 }

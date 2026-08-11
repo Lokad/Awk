@@ -100,6 +100,16 @@ internal sealed class AwkTopLevelSyntaxParser
             action.InnerTokens,
             hasExplicitAction: true,
             SpanFrom(keywordToken, action.CloseToken));
+
+        static AwkRuleKind ToRuleKind(AwkTokenKind kind) =>
+            kind switch
+            {
+                AwkTokenKind.Begin => AwkRuleKind.Begin,
+                AwkTokenKind.End => AwkRuleKind.End,
+                AwkTokenKind.BeginFile => AwkRuleKind.BeginFile,
+                AwkTokenKind.EndFile => AwkRuleKind.EndFile,
+                _ => AwkRuleKind.Main
+            };
     }
 
     [Rule]
@@ -229,6 +239,9 @@ internal sealed class AwkTopLevelSyntaxParser
         return new AwkSinglePatternSyntax(
             tokens,
             ParseExpression(tokens) ?? ParseExpressionList(tokens));
+
+        AwkExpressionSyntax? ParseExpressionList(IReadOnlyList<AwkToken> tokens) =>
+            AwkExpressionSyntaxParser.ParseList(_source, tokens);
     }
 
     [Rule]
@@ -254,24 +267,11 @@ internal sealed class AwkTopLevelSyntaxParser
     private AwkExpressionSyntax? ParseExpression(IReadOnlyList<AwkToken> tokens) =>
         AwkExpressionSyntaxParser.Parse(_source, tokens);
 
-    private AwkExpressionSyntax? ParseExpressionList(IReadOnlyList<AwkToken> tokens) =>
-        AwkExpressionSyntaxParser.ParseList(_source, tokens);
-
     private static AwkToken ToToken(AwkTokenKind kind, Pos<string> value) =>
         AwkParsingSupport.ToToken(kind, value);
 
     private static AwkTextSpan SpanFrom(AwkToken start, AwkToken end) =>
         new(start.Span.Start, end.Span.End - start.Span.Start);
-
-    private static AwkRuleKind ToRuleKind(AwkTokenKind kind) =>
-        kind switch
-        {
-            AwkTokenKind.Begin => AwkRuleKind.Begin,
-            AwkTokenKind.End => AwkRuleKind.End,
-            AwkTokenKind.BeginFile => AwkRuleKind.BeginFile,
-            AwkTokenKind.EndFile => AwkRuleKind.EndFile,
-            _ => AwkRuleKind.Main
-        };
 
     internal sealed class ParseResult(IReadOnlyList<TopLevelItem> items)
     {

@@ -15,6 +15,9 @@ internal static class AwkDirectiveParser
         }
 
         return TryParseAtCore(tokens, atIndex, out directive);
+
+        static int FindFirstSignificantIndex(IReadOnlyList<AwkToken> tokens) =>
+            FindNextSignificantIndex(tokens, 0);
     }
 
     public static bool TryParseAt(
@@ -32,6 +35,20 @@ internal static class AwkDirectiveParser
         }
 
         return TryParseAtCore(tokens, atIndex, out directive);
+
+        static bool IsDirectivePosition(IReadOnlyList<AwkToken> tokens, int index)
+        {
+            for (var current = index - 1; current >= 0; current--)
+            {
+                var token = tokens[current];
+                if (token.Kind == AwkTokenKind.Comment)
+                    continue;
+
+                return token.Kind is AwkTokenKind.EndOfFile or AwkTokenKind.NewLine or AwkTokenKind.Semicolon;
+            }
+
+            return true;
+        }
     }
 
     public static bool TryParseIncludeLine(string line, out string path)
@@ -109,23 +126,6 @@ internal static class AwkDirectiveParser
             new AwkTextSpan(atToken.Span.Start, endToken.Span.End - atToken.Span.Start));
         return true;
     }
-
-    private static bool IsDirectivePosition(IReadOnlyList<AwkToken> tokens, int index)
-    {
-        for (var current = index - 1; current >= 0; current--)
-        {
-            var token = tokens[current];
-            if (token.Kind == AwkTokenKind.Comment)
-                continue;
-
-            return token.Kind is AwkTokenKind.EndOfFile or AwkTokenKind.NewLine or AwkTokenKind.Semicolon;
-        }
-
-        return true;
-    }
-
-    private static int FindFirstSignificantIndex(IReadOnlyList<AwkToken> tokens) =>
-        FindNextSignificantIndex(tokens, 0);
 
     private static int FindNextSignificantIndex(IReadOnlyList<AwkToken> tokens, int startIndex)
     {
