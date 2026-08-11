@@ -50,6 +50,39 @@ internal sealed class AwkStatementSyntaxParser
         {
             return AwkStatementParseResult.InvalidResult;
         }
+
+        static List<AwkDiagnostic> CollectParseDiagnostics(
+            IReadOnlyList<AwkStatementSyntax> statements,
+            IReadOnlyList<AwkToken> tokens)
+        {
+            var diagnostics = new List<AwkDiagnostic>();
+            AddStatementDiagnostics(statements, diagnostics);
+            AddPostfixAdjacencyDiagnostic(tokens, diagnostics);
+            return diagnostics;
+
+            static void AddPostfixAdjacencyDiagnostic(
+                IReadOnlyList<AwkToken> tokens,
+                List<AwkDiagnostic> diagnostics)
+            {
+                var token = FindUnexpectedPostfixMutationTrailingToken(
+                    tokens,
+                    PostfixTrailingTokenScanMode.StatementStream);
+                if (token == null)
+                    return;
+
+                const string message = "Unexpected token after postfix update expression.";
+                for (var index = 0; index < diagnostics.Count; index++)
+                {
+                    if (diagnostics[index].Span.Start == token.Value.Span.Start &&
+                        string.Equals(diagnostics[index].Message, message, StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+                }
+
+                diagnostics.Add(new AwkDiagnostic(token.Value.Span, message));
+            }
+        }
     }
 
     private static bool TryProjectParseResult(
@@ -1417,39 +1450,6 @@ internal sealed class AwkStatementSyntaxParser
                 first != null && last != null
                     ? new AwkTextSpan(first.Value.Span.Start, last.Value.Span.End - first.Value.Span.Start)
                     : ifStatement.Span);
-        }
-    }
-
-    private static List<AwkDiagnostic> CollectParseDiagnostics(
-        IReadOnlyList<AwkStatementSyntax> statements,
-        IReadOnlyList<AwkToken> tokens)
-    {
-        var diagnostics = new List<AwkDiagnostic>();
-        AddStatementDiagnostics(statements, diagnostics);
-        AddPostfixAdjacencyDiagnostic(tokens, diagnostics);
-        return diagnostics;
-
-        static void AddPostfixAdjacencyDiagnostic(
-            IReadOnlyList<AwkToken> tokens,
-            List<AwkDiagnostic> diagnostics)
-        {
-            var token = FindUnexpectedPostfixMutationTrailingToken(
-                tokens,
-                PostfixTrailingTokenScanMode.StatementStream);
-            if (token == null)
-                return;
-
-            const string message = "Unexpected token after postfix update expression.";
-            for (var index = 0; index < diagnostics.Count; index++)
-            {
-                if (diagnostics[index].Span.Start == token.Value.Span.Start &&
-                    string.Equals(diagnostics[index].Message, message, StringComparison.Ordinal))
-                {
-                    return;
-                }
-            }
-
-            diagnostics.Add(new AwkDiagnostic(token.Value.Span, message));
         }
     }
 
