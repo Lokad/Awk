@@ -15,7 +15,7 @@ public sealed class AwkSourceLoaderTests
         var program = "BEGIN{print 1}";
         var invocation = Parse(program);
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Same(program, source.Text);
@@ -30,7 +30,7 @@ public sealed class AwkSourceLoaderTests
         fileSystem.AddFile("/lib/common.awk", "function helper(){ return 1 }\n");
         var invocation = Parse("@include \"/lib/common.awk\"\nBEGIN{print helper()}");
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal(new AwkSourceName("<inline:1>"), source.SourceName);
@@ -56,7 +56,7 @@ public sealed class AwkSourceLoaderTests
             "@include \"common\"\n@include \"common\"\nBEGIN{print marker}",
             [new AwkEnvironmentVariable("AWKPATH", "/lib")]);
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{marker=1}\nBEGIN{print marker}", source.Text);
@@ -83,7 +83,7 @@ public sealed class AwkSourceLoaderTests
 
         var invocation = Parse(program.ToString());
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         var segment = Assert.Single(source.Segments);
@@ -107,7 +107,7 @@ public sealed class AwkSourceLoaderTests
             "@include \"bad.awk\"\nBEGIN{print marker}",
             [new AwkEnvironmentVariable("AWKPATH", "/lib")]);
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var failure = Assert.IsType<AwkSourceLoadResult.Failed>(result);
         Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Id);
@@ -123,7 +123,7 @@ public sealed class AwkSourceLoaderTests
         fileSystem.AddFile("/lib/common.awk", "BEGIN{marker=\"included\"}");
         var invocation = Parse("@include \"/lib/common.awk\" # shared directive parser\nBEGIN{print marker}");
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{marker=\"included\"}\nBEGIN{print marker}", source.Text);
@@ -139,7 +139,7 @@ public sealed class AwkSourceLoaderTests
         fileSystem.AddFile("/lib/common.awk", "BEGIN{marker=\"included\"}");
         var invocation = Parse(program);
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal(program, source.Text);
@@ -157,7 +157,7 @@ public sealed class AwkSourceLoaderTests
                 "awk",
                 ["--include", "/lib/common.awk", "--file", "/main.awk"]));
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var sources = LoadedSources(result);
         Assert.Equal(2, sources.Count);
@@ -177,7 +177,7 @@ public sealed class AwkSourceLoaderTests
             "@include \"lib/common.awk\"\nBEGIN{print marker}",
             [new AwkEnvironmentVariable("PWD", "/work")]);
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{marker=\"relative\"}\nBEGIN{print marker}", source.Text);
@@ -192,7 +192,7 @@ public sealed class AwkSourceLoaderTests
         fileSystem.AddFile("/lib/common.awk", "BEGIN{marker=\"in\" \\\n\"clude\"}");
         var invocation = Parse("@include \"/lib/common.awk\"\nBEGIN{print marker}");
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{marker=\"in\" \"clude\"}\nBEGIN{print marker}", source.Text);
@@ -207,7 +207,7 @@ public sealed class AwkSourceLoaderTests
         var fileSystem = new MockFileSystem();
         var invocation = Parse("BEGIN{print 1 \\\n+ 2}");
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{print 1 + 2}", source.Text);
@@ -223,7 +223,7 @@ public sealed class AwkSourceLoaderTests
         var fileSystem = new MockFileSystem();
         var invocation = Parse("BEGIN{value=1 \\\n+ 2}\n{print \"@marker\", value \\\n+ 3}");
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{value=1 + 2}\n{print \"@marker\", value + 3}", source.Text);
@@ -244,7 +244,7 @@ public sealed class AwkSourceLoaderTests
         var fileSystem = new MockFileSystem();
         var invocation = Parse(program);
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal(program, source.Text);
@@ -272,7 +272,7 @@ public sealed class AwkSourceLoaderTests
         var fileSystem = new MockFileSystem();
         var invocation = Parse(program);
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         var binding = AwkBinder.Bind(AwkParser.Parse(source.Text));
@@ -288,7 +288,7 @@ public sealed class AwkSourceLoaderTests
         var fileSystem = new MockFileSystem();
         var invocation = Parse("@include \"/missing.awk\"");
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var failure = Assert.IsType<AwkSourceLoadResult.Failed>(result);
         Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Id);
@@ -306,7 +306,7 @@ public sealed class AwkSourceLoaderTests
         var invocation = AwkCommandParser.Parse(
             AwkTestHarness.BuildInvocation("awk", ["--file", "/script.awk"]));
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var failure = Assert.IsType<AwkSourceLoadResult.Failed>(result);
         Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Id);
@@ -322,7 +322,7 @@ public sealed class AwkSourceLoaderTests
         var fileSystem = new MockFileSystem();
         var invocation = Parse("BEGIN{print _\\\n\"text\"}");
 
-        var result = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
         var binding = AwkBinder.Bind(AwkParser.Parse(source.Text));
@@ -391,7 +391,7 @@ public sealed class AwkSourceLoaderTests
         Assert.Contains(
             invocation.RuntimeArgumentsPlan.Environment,
             variable => variable.Name == "AWKPATH" && variable.Value == "/lib");
-        var sourceLoad = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var sourceLoad = await LoadAsync(fileSystem, invocation);
         var failure = Assert.IsType<AwkSourceLoadResult.Failed>(sourceLoad);
         Assert.Equal(
             "awk: /lib/bad.awk: invalid UTF-8 source\n",
@@ -492,6 +492,18 @@ public sealed class AwkSourceLoaderTests
         result is AwkSourceLoadResult.Loaded loaded
             ? loaded.Sources
             : throw new InvalidOperationException("Expected loaded awk sources.");
+
+    private static Task<AwkSourceLoadResult> LoadAsync(
+        MockFileSystem fileSystem,
+        AwkInvocation invocation)
+    {
+        var runtimeOptions = AwkRuntimeOptions.CreateSystemDefault();
+        return AwkSourceLoader.LoadAsync(
+            fileSystem,
+            invocation,
+            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters),
+            CancellationToken.None);
+    }
 
     private static async Task<AwkTestRunResult> ExecuteAsync(
         MockFileSystem fileSystem,

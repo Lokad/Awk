@@ -10,6 +10,7 @@ internal static partial class AwkSourceLoader
         IAwkHost host,
         AwkSourceLoadPlan plan,
         string includePath,
+        AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
         var resolved = plan.ResolvePath(includePath);
@@ -17,6 +18,7 @@ internal static partial class AwkSourceLoader
                 host,
                 plan,
                 resolved,
+                resources,
                 cancellationToken)
             .ConfigureAwait(false);
         if (script is AwkScriptFileReadResult.Missing && !includePath.EndsWith(".awk", StringComparison.Ordinal))
@@ -26,6 +28,7 @@ internal static partial class AwkSourceLoader
                     host,
                     plan,
                     resolved,
+                    resources,
                     cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -51,7 +54,8 @@ internal static partial class AwkSourceLoader
                 found.Script.Text,
                 found.Script.SourceName,
                 AwkSourceSegmentKind.Include,
-            cancellationToken)
+                resources,
+                cancellationToken)
             .ConfigureAwait(false);
     }
 

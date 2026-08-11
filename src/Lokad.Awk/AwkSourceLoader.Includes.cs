@@ -14,6 +14,7 @@ internal static partial class AwkSourceLoader
         string source,
         AwkSourceName sourceName,
         AwkSourceSegmentKind sourceKind,
+        AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
         var normalization = AwkLineContinuations.Normalize(source);
@@ -79,7 +80,7 @@ internal static partial class AwkSourceLoader
                 normalization.LineContinuations.Slice(
                     sourceChunkStart,
                     lineStart - sourceChunkStart));
-            var include = await TryReadIncludeAsync(host, plan, includePath, cancellationToken)
+            var include = await TryReadIncludeAsync(host, plan, includePath, resources, cancellationToken)
                 .ConfigureAwait(false);
             if (include is SourceExpansionResult.Failed)
                 return include;

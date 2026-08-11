@@ -106,7 +106,7 @@ internal sealed class AwkInputScheduler(
         {
             try
             {
-                state.Counters.RecordHostCall();
+                state.Resources.RecordCleanupHostCall();
                 _ = await host.CloseDescriptorAsync(descriptors[index], CancellationToken.None)
                     .ConfigureAwait(false);
             }
@@ -323,7 +323,6 @@ internal sealed class AwkInputScheduler(
         var descriptorReader = new AwkRecordDescriptorReader(
             host,
             cancellationToken,
-            state.Counters,
             state.Resources);
         return new AwkRecordCursor(
             state,

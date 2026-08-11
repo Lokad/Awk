@@ -6,79 +6,115 @@ namespace Lokad.Awk;
 
 internal static class AwkExecutor
 {
-    public static async Task<AwkExitCode> ExecuteAsync(
+    public static Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         AwkInvocation invocation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(host, invocation, cancellationToken, AwkRuntimeOptions.CreateSystemDefault());
+
+    internal static async Task<AwkExitCode> ExecuteAsync(
+        IAwkHost host,
+        AwkInvocation invocation,
+        CancellationToken cancellationToken,
+        AwkRuntimeOptions runtimeOptions)
     {
-        if (invocation.TerminalResult.IsHelp)
+        var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters);
+
+        async Task<AwkExitCode> AppendResultAsync(
+            AwkFileDescriptor descriptor,
+            ReadOnlyMemory<byte> content,
+            AwkExitCode successExitCode)
         {
+            resources.RecordHostCall();
+            resources.RecordOutputBytes(content.Length);
             var status = await host.AppendAsync(
+                    descriptor,
+                    content,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return status.Succeeded
+                ? successExitCode
+                : AwkDiagnostics.FatalExitCode;
+        }
+
+        try
+        {
+            if (invocation.TerminalResult.IsHelp)
+            {
+                return await AppendResultAsync(
                     invocation.Stdio.StdOut,
                     AwkMessages.HelpMessage,
-                    cancellationToken)
+                    AwkDiagnostics.SuccessExitCode)
                 .ConfigureAwait(false);
-            return status.Succeeded
-                ? AwkDiagnostics.SuccessExitCode
-                : AwkDiagnostics.FatalExitCode;
-        }
+            }
 
-        if (invocation.TerminalResult.IsVersion)
-        {
-            var status = await host.AppendAsync(
-                    invocation.Stdio.StdOut,
-                    AwkMessages.VersionMessage,
-                    cancellationToken)
+            if (invocation.TerminalResult.IsVersion)
+            {
+                return await AppendResultAsync(
+                        invocation.Stdio.StdOut,
+                        AwkMessages.VersionMessage,
+                        AwkDiagnostics.SuccessExitCode)
+                    .ConfigureAwait(false);
+            }
+
+            if (invocation.TerminalResult.IsError)
+            {
+                var failure = AwkDiagnostics.Invocation(
+                    invocation.TerminalResult.ErrorMessage,
+                    invocation.TerminalResult.ErrorId);
+                return await AppendResultAsync(invocation.Stdio.StdErr, failure.Message, failure.ExitCode)
+                    .ConfigureAwait(false);
+            }
+
+            var resolved = await ResolveProgramAsync(host, invocation, resources, cancellationToken)
                 .ConfigureAwait(false);
-            return status.Succeeded
-                ? AwkDiagnostics.SuccessExitCode
-                : AwkDiagnostics.FatalExitCode;
-        }
+            for (var index = 0; index < resolved.Warnings.Count; index++)
+            {
+                var warningExitCode = await AppendResultAsync(
+                        invocation.Stdio.StdErr,
+                        AwkDiagnostics.Warning(resolved.Warnings[index]),
+                        AwkDiagnostics.SuccessExitCode)
+                    .ConfigureAwait(false);
+                if (warningExitCode != AwkDiagnostics.SuccessExitCode)
+                    return warningExitCode;
+            }
 
-        if (invocation.TerminalResult.IsError)
+            if (resolved is AwkProgramResolution.Failed failed)
+            {
+                return await AppendResultAsync(
+                        invocation.Stdio.StdErr,
+                        failed.Diagnostic.Message,
+                        failed.Diagnostic.ExitCode)
+                    .ConfigureAwait(false);
+            }
+
+            if (resolved is not AwkProgramResolution.ResolvedProgram resolvedProgram)
+                throw new System.InvalidOperationException("Unexpected awk program resolution.");
+
+            return await AwkRuntime.ExecuteAsync(
+                    host,
+                    invocation,
+                    resolvedProgram.Program,
+                    cancellationToken,
+                    runtimeOptions,
+                    executableProgram: null,
+                    resources)
+                .ConfigureAwait(false);
+        }
+        catch (AwkRuntimeException exception)
         {
-            var failure = AwkDiagnostics.Invocation(
-                invocation.TerminalResult.ErrorMessage,
-                invocation.TerminalResult.ErrorId);
-            var status = await host.AppendAsync(
+            var failure = AwkDiagnostics.Runtime(exception);
+            runtimeOptions.Counters.RecordHostCall();
+            runtimeOptions.Counters.RecordOutputBytes(failure.Message.Length);
+            var appendStatus = await host.AppendAsync(
                     invocation.Stdio.StdErr,
                     failure.Message,
                     cancellationToken)
                 .ConfigureAwait(false);
-            return status.Succeeded
+            return appendStatus.Succeeded
                 ? failure.ExitCode
                 : AwkDiagnostics.FatalExitCode;
         }
-
-        var resolved = await ResolveProgramAsync(host, invocation, cancellationToken).ConfigureAwait(false);
-        for (var index = 0; index < resolved.Warnings.Count; index++)
-        {
-            var status = await host.AppendAsync(
-                    invocation.Stdio.StdErr,
-                    AwkDiagnostics.Warning(resolved.Warnings[index]),
-                    cancellationToken)
-                .ConfigureAwait(false);
-            if (status.Failed)
-                return AwkDiagnostics.FatalExitCode;
-        }
-
-        if (resolved is AwkProgramResolution.Failed failed)
-        {
-            var status = await host.AppendAsync(
-                    invocation.Stdio.StdErr,
-                    failed.Diagnostic.Message,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            return status.Succeeded
-                ? failed.Diagnostic.ExitCode
-                : AwkDiagnostics.FatalExitCode;
-        }
-
-        if (resolved is not AwkProgramResolution.ResolvedProgram resolvedProgram)
-            throw new System.InvalidOperationException("Unexpected awk program resolution.");
-
-        return await AwkRuntime.ExecuteAsync(host, invocation, resolvedProgram.Program, cancellationToken)
-            .ConfigureAwait(false);
     }
 
     internal static Task<AwkCompiledProgram> CompileAsync(
@@ -103,7 +139,9 @@ internal static class AwkExecutor
             throw new System.InvalidOperationException("Terminal awk invocations cannot be precompiled.");
         }
 
-        var resolved = await ResolveProgramAsync(host, invocation, cancellationToken).ConfigureAwait(false);
+        var runtimeOptions = AwkRuntimeOptions.CreateSystemDefault();
+        var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters);
+        var resolved = await ResolveProgramAsync(host, invocation, resources, cancellationToken).ConfigureAwait(false);
         if (resolved is AwkProgramResolution.Failed failed)
             throw new System.InvalidOperationException(AwkUtf8Codec.Decode(failed.Diagnostic.Message));
 
@@ -120,9 +158,11 @@ internal static class AwkExecutor
     private static async Task<AwkProgramResolution> ResolveProgramAsync(
         IAwkHost host,
         AwkInvocation invocation,
+        AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
-        var sourceLoad = await AwkSourceLoader.LoadAsync(host, invocation, cancellationToken).ConfigureAwait(false);
+        var sourceLoad = await AwkSourceLoader.LoadAsync(host, invocation, resources, cancellationToken)
+            .ConfigureAwait(false);
         if (sourceLoad is AwkSourceLoadResult.Failed failed)
         {
             return AwkProgramResolution.Fail(AwkDiagnostics.SourceLoad(failed.ErrorMessage, failed.Id));

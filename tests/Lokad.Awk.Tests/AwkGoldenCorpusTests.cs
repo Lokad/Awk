@@ -151,7 +151,12 @@ public sealed class AwkGoldenCorpusTests
             return;
         }
 
-        var sourceLoad = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var runtimeOptions = AwkRuntimeOptions.CreateSystemDefault();
+        var sourceLoad = await AwkSourceLoader.LoadAsync(
+            fileSystem,
+            invocation,
+            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters),
+            CancellationToken.None);
         if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)
             return;
 
@@ -182,7 +187,12 @@ public sealed class AwkGoldenCorpusTests
             return;
         }
 
-        var sourceLoad = await AwkSourceLoader.LoadAsync(fileSystem, invocation, CancellationToken.None);
+        var runtimeOptions = AwkRuntimeOptions.CreateSystemDefault();
+        var sourceLoad = await AwkSourceLoader.LoadAsync(
+            fileSystem,
+            invocation,
+            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters),
+            CancellationToken.None);
         if (sourceLoad is not AwkSourceLoadResult.Loaded loaded)
             return;
 

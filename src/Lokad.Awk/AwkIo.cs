@@ -47,7 +47,6 @@ internal sealed class AwkIo
         _descriptorReader = new AwkRecordDescriptorReader(
             host,
             cancellationToken,
-            counters,
             state.Resources);
         _pipes = new AwkPipeRuntime(
             _host,

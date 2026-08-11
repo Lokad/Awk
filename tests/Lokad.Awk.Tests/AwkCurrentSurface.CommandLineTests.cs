@@ -335,6 +335,36 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     }
 
     [Fact]
+    public async Task Awk_RuntimeCountersIncludeSourceLoadingAndExecution()
+    {
+        const string script = "BEGIN{print \"ok\"}\n";
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(
+            () => new AwkUnixTimestampSeconds(0),
+            TimeZoneInfo.Utc,
+            new AwkRandomGenerator(),
+            counters,
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("/script.awk", script);
+        var invocation = AwkCommandParser.Parse(BuildInvocation("awk", "-f", "/script.awk"));
+
+        var exitCode = await AwkExecutor.ExecuteAsync(
+            fileSystem,
+            invocation,
+            CancellationToken.None,
+            options);
+
+        Assert.Equal(AwkExitCode.Success, exitCode);
+        Assert.Equal("ok\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(Encoding.UTF8.GetByteCount(script), counters.BytesRead);
+        Assert.Equal(3, counters.OutputBytes);
+        Assert.Equal(5, counters.HostCalls);
+    }
+
+    [Fact]
     public void Awk_RuntimeOptionsDefaultRegexEngineKeepsDotNetCompatibility()
     {
         var options = AwkRuntimeOptions.CreateSystemDefault();

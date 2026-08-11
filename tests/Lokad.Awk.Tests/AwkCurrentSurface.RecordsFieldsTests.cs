@@ -108,12 +108,10 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             AwkFileDescriptor.StdIn,
             CancellationToken.None,
             AwkIo.InputReadBatchLineCount,
-            counters,
             new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters));
         var descriptorReader = new AwkRecordDescriptorReader(
             fileSystem,
             CancellationToken.None,
-            counters,
             state.Resources);
         using var cursor = new AwkRecordCursor(state, descriptorReader, reader);
         var exception = await Assert.ThrowsAsync<AwkRuntimeException>(

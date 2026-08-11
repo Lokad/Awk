@@ -31,6 +31,8 @@ internal sealed class AwkRuntimeResourceMonitor
         _counters.RecordHostCall();
     }
 
+    public void RecordCleanupHostCall() => _counters.RecordHostCall();
+
     public void RecordExecutionStep()
     {
         var next = AwkRuntimeMemory.CheckedAdd(_executionSteps, 1);

@@ -25,7 +25,7 @@ internal static class AwkRuntime
         AwkProgram program,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions) =>
-        ExecuteAsync(
+        ExecuteWithNewResourceMonitorAsync(
             host,
             invocation,
             program,
@@ -33,13 +33,45 @@ internal static class AwkRuntime
             runtimeOptions,
             executableProgram: null);
 
+    internal static Task<AwkExitCode> ExecuteAsync(
+        IAwkHost host,
+        AwkInvocation invocation,
+        AwkProgram program,
+        CancellationToken cancellationToken,
+        AwkRuntimeOptions runtimeOptions,
+        AwkExecutableProgram? executableProgram) =>
+        ExecuteWithNewResourceMonitorAsync(
+            host,
+            invocation,
+            program,
+            cancellationToken,
+            runtimeOptions,
+            executableProgram);
+
+    private static Task<AwkExitCode> ExecuteWithNewResourceMonitorAsync(
+        IAwkHost host,
+        AwkInvocation invocation,
+        AwkProgram program,
+        CancellationToken cancellationToken,
+        AwkRuntimeOptions runtimeOptions,
+        AwkExecutableProgram? executableProgram) =>
+        ExecuteAsync(
+            host,
+            invocation,
+            program,
+            cancellationToken,
+            runtimeOptions,
+            executableProgram,
+            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters));
+
     internal static async Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         AwkInvocation invocation,
         AwkProgram program,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions,
-        AwkExecutableProgram? executableProgram)
+        AwkExecutableProgram? executableProgram,
+        AwkRuntimeResourceMonitor resources)
     {
         if (executableProgram == null &&
             runtimeOptions.ExecutionEngineKind == AwkExecutionEngineKind.Executable)
@@ -54,6 +86,7 @@ internal static class AwkRuntime
             executionOptions.FieldSeparator,
             cancellationToken,
             runtimeOptions,
+            resources,
             executionOptions.CompatibilityProfile);
         state.InitializeArguments(runtimeArguments.RuntimeArguments);
         state.InitializeEnvironment(runtimeArguments.Environment);

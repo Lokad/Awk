@@ -57,11 +57,12 @@ internal sealed class AwkRuntimeState
         AwkFieldSeparatorSpec fieldSeparator,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions,
+        AwkRuntimeResourceMonitor resources,
         AwkCompatibilityProfile compatibilityProfile)
     {
         Counters = runtimeOptions.Counters;
         Limits = runtimeOptions.Limits;
-        Resources = new AwkRuntimeResourceMonitor(Limits, Counters);
+        Resources = resources;
         MemoryGovernor = AwkMemoryGovernor.Create(Limits, Counters);
         CompatibilityMode = compatibilityProfile.Mode;
         LintMode = compatibilityProfile.LintMode;

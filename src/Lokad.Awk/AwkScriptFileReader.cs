@@ -11,12 +11,14 @@ internal static class AwkScriptFileReader
         IAwkHost host,
         AwkSourceLoadPlan plan,
         AwkResolvedPath path,
+        AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
         static async Task<AwkScriptFileReadResult> TryReadFromAwkPathAsync(
             IAwkHost host,
             AwkSourceLoadPlan plan,
             string rawPath,
+            AwkRuntimeResourceMonitor resources,
             CancellationToken cancellationToken)
         {
             var entries = plan.AwkPathEntries;
@@ -27,7 +29,7 @@ internal static class AwkScriptFileReader
                     ? rawPath
                     : entry + "/" + rawPath;
                 var resolved = plan.ResolvePath(candidate);
-                var script = await TryReadResolvedAsync(host, plan, resolved, cancellationToken)
+                var script = await TryReadResolvedAsync(host, plan, resolved, resources, cancellationToken)
                     .ConfigureAwait(false);
                 if (script is AwkScriptTextReadResult.Found found)
                 {
@@ -44,7 +46,7 @@ internal static class AwkScriptFileReader
             return AwkScriptFileReadResult.MissingFile;
         }
 
-        var direct = await TryReadResolvedAsync(host, plan, path, cancellationToken).ConfigureAwait(false);
+        var direct = await TryReadResolvedAsync(host, plan, path, resources, cancellationToken).ConfigureAwait(false);
         if (direct is AwkScriptTextReadResult.Found found)
         {
             return AwkScriptFileReadResult.FoundScript(new AwkScriptFile(
@@ -59,7 +61,7 @@ internal static class AwkScriptFileReader
         var rawPath = AwkUtf8Codec.Decode(path.Display);
         if (!rawPath.StartsWith('/'))
         {
-            var fromAwkPath = await TryReadFromAwkPathAsync(host, plan, rawPath, cancellationToken)
+            var fromAwkPath = await TryReadFromAwkPathAsync(host, plan, rawPath, resources, cancellationToken)
                 .ConfigureAwait(false);
             if (fromAwkPath is not AwkScriptFileReadResult.Missing)
                 return fromAwkPath;
@@ -72,12 +74,13 @@ internal static class AwkScriptFileReader
         IAwkHost host,
         AwkSourceLoadPlan plan,
         AwkResolvedPath path,
+        AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
         if (plan.TryGetScriptText(path.Absolute, out var cached))
             return cached;
 
-        var result = await ReadResolvedAsync(host, path, cancellationToken).ConfigureAwait(false);
+        var result = await ReadResolvedAsync(host, path, resources, cancellationToken).ConfigureAwait(false);
         plan.CacheScriptText(path.Absolute, result);
         return result;
     }
@@ -85,8 +88,23 @@ internal static class AwkScriptFileReader
     private static async Task<AwkScriptTextReadResult> ReadResolvedAsync(
         IAwkHost host,
         AwkResolvedPath path,
+        AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
+        async Task CloseForCleanupAsync(AwkFileDescriptor descriptor)
+        {
+            try
+            {
+                resources.RecordCleanupHostCall();
+                _ = await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Cleanup cannot replace the failure that interrupted source loading.
+            }
+        }
+
+        resources.RecordHostCall();
         var opened = await host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken)
             .ConfigureAwait(false);
         if (opened.Missing)
@@ -106,26 +124,20 @@ internal static class AwkScriptFileReader
                     host,
                     opened.FileDescriptor,
                     path,
+                    resources,
                     cancellationToken)
                 .ConfigureAwait(false);
         }
         catch
         {
-            try
-            {
-                _ = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception)
-            {
-                // A cleanup failure must not replace a read failure or cancellation.
-            }
+            await CloseForCleanupAsync(opened.FileDescriptor).ConfigureAwait(false);
 
             throw;
         }
 
         try
         {
+            resources.RecordHostCall();
             var closed = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
                 .ConfigureAwait(false);
             if (closed != AwkOperationStatus.Success &&
@@ -136,12 +148,15 @@ internal static class AwkScriptFileReader
                     AwkDiagnosticId.SourceLoadFailure);
             }
         }
-        catch (Exception) when (readResult is AwkScriptTextReadResult.Failed)
+        catch (Exception exception)
         {
-            return readResult;
-        }
-        catch (Exception)
-        {
+            await CloseForCleanupAsync(opened.FileDescriptor).ConfigureAwait(false);
+            if (readResult is AwkScriptTextReadResult.Failed)
+                return readResult;
+
+            if (exception is AwkRuntimeException)
+                throw;
+
             return AwkScriptTextReadResult.Failure(
                 AwkMessages.FormatPathError(path.Display, "Close failed."),
                 AwkDiagnosticId.SourceLoadFailure);
@@ -154,19 +169,18 @@ internal static class AwkScriptFileReader
         IAwkHost host,
         AwkFileDescriptor descriptor,
         AwkResolvedPath path,
+        AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
         try
         {
             var builder = new StringBuilder();
-            var counters = AwkRuntimeCounters.Disabled;
             var reader = new AsyncLineReader(
                 host,
                 descriptor,
                 cancellationToken,
                 int.MaxValue,
-                counters,
-                new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters));
+                resources);
             while (await reader.TryBufferLineAsync().ConfigureAwait(false))
             {
                 var line = reader.ReadLine();

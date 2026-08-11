@@ -7,23 +7,20 @@ internal sealed class AwkRecordDescriptorReader
 {
     private readonly IAwkHost _host;
     private readonly CancellationToken _cancellationToken;
-    private readonly AwkRuntimeCounters _counters;
     private readonly AwkRuntimeResourceMonitor _resources;
 
     public AwkRecordDescriptorReader(
         IAwkHost host,
         CancellationToken cancellationToken,
-        AwkRuntimeCounters counters,
         AwkRuntimeResourceMonitor resources)
     {
         _host = host;
         _cancellationToken = cancellationToken;
-        _counters = counters;
         _resources = resources;
     }
 
     public AsyncLineReader CreateLineReader(AwkFileDescriptor descriptor) =>
-        new(_host, descriptor, _cancellationToken, AwkIo.InputReadBatchLineCount, _counters, _resources);
+        new(_host, descriptor, _cancellationToken, AwkIo.InputReadBatchLineCount, _resources);
 
     public async Task<AwkRecordReadBatch> ReadNextBatchAsync(AwkFileDescriptor descriptor)
     {
