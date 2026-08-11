@@ -14,6 +14,8 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: dynamic extension loading is unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedSystem =
         AwkUtf8Codec.Encode("awk: system() is unsupported in Lokad awk\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorSandboxRedirection =
+        AwkUtf8Codec.Encode("awk: redirections are disabled in sandbox mode\n");
     internal static readonly ReadOnlyMemory<byte> ErrorNegativeFieldReference =
         AwkUtf8Codec.Encode("awk: negative field index\n");
     internal static readonly ReadOnlyMemory<byte> ErrorNegativeBitOperand =

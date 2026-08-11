@@ -136,14 +136,13 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     }
 
     [Fact]
-    public void AwkNoOpCompatibilityOptions_DoNotAlterExecutionOptions()
+    public void AwkNoOpCompatibilityOptions_DoNotAlterCompatibilityProfile()
     {
         var invocation = AwkCommandParser.Parse(AwkTestHarness.BuildInvocation(
             "awk",
             "--re-interval",
             "--use-lc-numeric",
             "--no-optimize",
-            "--sandbox",
             "BEGIN{print 1}"));
 
         Assert.Equal(AwkCompatibilityMode.GnuDefault, invocation.ExecutionOptions.CompatibilityProfile.Mode);
@@ -152,6 +151,17 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
             invocation.ExecutionOptions.CompatibilityProfile.StringUnitMode);
         Assert.False(invocation.ExecutionOptions.CompatibilityProfile.NonDecimalData);
         Assert.Equal(AwkLintMode.Off, invocation.ExecutionOptions.CompatibilityProfile.LintMode);
+    }
+
+    [Fact]
+    public void AwkSandboxOption_EnablesSandboxPolicy()
+    {
+        var invocation = AwkCommandParser.Parse(AwkTestHarness.BuildInvocation(
+            "awk",
+            "--sandbox",
+            "BEGIN{print 1}"));
+
+        Assert.True(invocation.ExecutionOptions.Sandbox);
     }
 
     [Fact]

@@ -1081,6 +1081,30 @@ internal static partial class AwkGoldenCorpus
             [],
             "ok\n"),
 
+        Failing(
+            "sandbox-output-pipe-is-disabled",
+            ["--sandbox", "BEGIN{print \"payload\" | \"attacker-command --flag\"}"],
+            [],
+            2,
+            string.Empty,
+            "awk: redirections are disabled in sandbox mode\n"),
+
+        Failing(
+            "sandbox-output-file-redirection-is-disabled",
+            ["--sandbox", "BEGIN{print \"payload\" > \"/out.txt\"}"],
+            [],
+            2,
+            string.Empty,
+            "awk: redirections are disabled in sandbox mode\n"),
+
+        Failing(
+            "sandbox-input-redirection-is-disabled",
+            ["--sandbox", "BEGIN{getline value < \"/input.txt\"}"],
+            [File("/input.txt", "secret\n")],
+            2,
+            string.Empty,
+            "awk: redirections are disabled in sandbox mode\n"),
+
         Passing(
             "w-mode-options-accepted",
             ["-Wposix", "-W", "traditional", "-W", "lint=fatal", "-W", "no-optimize", "BEGIN{print \"ok\"}"],

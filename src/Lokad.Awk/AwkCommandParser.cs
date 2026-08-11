@@ -16,6 +16,7 @@ internal static class AwkCommandParser
             new(invocation.CommandName, invocation.CurrentDirectory);
         private AwkFieldSeparatorSpec _fieldSeparator = AwkFieldSeparatorSpec.Default;
         private AwkCompatibilityProfile _profile = AwkCompatibilityProfile.Default;
+        private bool _sandbox;
 
         public AwkInvocation Parse()
         {
@@ -248,7 +249,11 @@ internal static class AwkCommandParser
             }
         }
 
-        private AwkInvocationBuilder CreateInvocationBuilder() => new(invocation);
+        private AwkInvocationBuilder CreateInvocationBuilder()
+        {
+            var builder = new AwkInvocationBuilder(invocation);
+            return _sandbox ? builder.WithSandbox() : builder;
+        }
 
         private AwkCommandParseResult ApplyOption(
             AwkOptionSpec spec,
@@ -295,8 +300,10 @@ internal static class AwkCommandParser
                 case AwkOptionAction.NoOptimize:
                 case AwkOptionAction.Optimize:
                 case AwkOptionAction.ReInterval:
-                case AwkOptionAction.Sandbox:
                 case AwkOptionAction.UseLcNumeric:
+                    return AwkCommandParseResult.KeepParsing;
+                case AwkOptionAction.Sandbox:
+                    _sandbox = true;
                     return AwkCommandParseResult.KeepParsing;
                 case AwkOptionAction.NonDecimalData:
                     _profile = _profile.WithNonDecimalData();

@@ -110,7 +110,8 @@ internal static class AwkRuntime
             runtimeOptions.Counters,
             runtimeOptions.Limits,
             state,
-            state.SnapshotEnvironment);
+            state.SnapshotEnvironment,
+            executionOptions.Sandbox);
         using var actionExecutor = new AwkRuntimeActionExecutor(program, executableProgram, state);
         var inputScheduler = new AwkInputScheduler(host, invocation, actionExecutor, state, io, cancellationToken);
         io.BindMainInputReader(inputScheduler);

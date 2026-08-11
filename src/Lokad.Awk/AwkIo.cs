@@ -17,6 +17,7 @@ internal sealed class AwkIo
     private readonly AwkRuntimeState _state;
     private readonly AwkRecordDescriptorReader _descriptorReader;
     private readonly int _maxOutputFiles;
+    private readonly bool _sandbox;
     private AwkRecordCursor? _standardInputReader;
     private MainInputReaderBinding _mainInputReader = MainInputReaderBinding.Unbound;
 
@@ -30,7 +31,8 @@ internal sealed class AwkIo
         AwkRuntimeCounters counters,
         AwkRuntimeLimits limits,
         AwkRuntimeState state,
-        Func<IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment)
+        Func<IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
+        bool sandbox = false)
     {
         _host = new AwkIoHostAdapter(
             host,
@@ -43,6 +45,7 @@ internal sealed class AwkIo
             counters,
             state.Resources);
         _maxOutputFiles = limits.MaxOutputFiles;
+        _sandbox = sandbox;
         _state = state;
         _descriptorReader = new AwkRecordDescriptorReader(
             host,
@@ -74,6 +77,7 @@ internal sealed class AwkIo
 
     public async Task WriteAsync(AwkRedirectedOutput output)
     {
+        ThrowIfSandboxedRedirection();
         var path = output.RedirectionPath;
         if (output.Kind == AwkOutputRedirectionKind.Pipe)
         {
@@ -116,6 +120,7 @@ internal sealed class AwkIo
 
     public async Task<AwkGetlineResult> ReadRedirectedRecordAsync(string path)
     {
+        ThrowIfSandboxedRedirection();
         async Task<AwkInputReaderResult> ResolveInputReaderAsync()
         {
             AwkSpecialPathPolicy.ThrowIfUnsupported(path);
@@ -157,6 +162,7 @@ internal sealed class AwkIo
 
     public async Task<AwkGetlineResult> ReadPipeRecordAsync(string command)
     {
+        ThrowIfSandboxedRedirection();
         var reader = await _pipes.GetInputReaderAsync(command).ConfigureAwait(false);
         return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
     }
@@ -201,6 +207,16 @@ internal sealed class AwkIo
             _state,
             _descriptorReader,
             _host.CreateLineReader(descriptor, InputReadBatchLineCount));
+
+    private void ThrowIfSandboxedRedirection()
+    {
+        if (_sandbox)
+        {
+            throw new AwkRuntimeException(
+                AwkMessages.ErrorSandboxRedirection,
+                AwkDiagnosticId.UnsupportedPolicy);
+        }
+    }
 
     public async Task<AwkIoOperationResult> FlushAllAsync()
     {

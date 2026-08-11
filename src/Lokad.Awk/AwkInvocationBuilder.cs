@@ -13,6 +13,7 @@ internal sealed class AwkInvocationBuilder
     private AwkTerminalInvocationResult _terminalResult = AwkTerminalInvocationResult.None;
     private AwkFieldSeparatorSpec _fieldSeparator = AwkFieldSeparatorSpec.Default;
     private AwkCompatibilityProfile _compatibilityProfile = AwkCompatibilityProfile.Default;
+    private bool _sandbox;
 
     public AwkInvocationBuilder(AwkCommandInvocation invocation)
     {
@@ -42,6 +43,12 @@ internal sealed class AwkInvocationBuilder
         return this;
     }
 
+    public AwkInvocationBuilder WithSandbox()
+    {
+        _sandbox = true;
+        return this;
+    }
+
     public AwkInvocationBuilder WithErrorMessage(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId errorId)
     {
         _terminalResult = AwkTerminalInvocationResult.Error(errorMessage, errorId);
@@ -66,7 +73,7 @@ internal sealed class AwkInvocationBuilder
             _inputPlan,
             _runtimeArgumentsPlan,
             new AwkStdioPlan(_stdIn, _stdOut, _stdErr),
-            new AwkExecutionOptions(_fieldSeparator, _compatibilityProfile),
+            new AwkExecutionOptions(_fieldSeparator, _compatibilityProfile, _sandbox),
             _terminalResult);
 
 }
