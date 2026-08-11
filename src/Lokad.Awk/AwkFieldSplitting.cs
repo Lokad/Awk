@@ -20,9 +20,11 @@ internal readonly struct AwkFieldWidth(AwkFieldSkip skip, AwkFieldWidthLength wi
     public AwkFieldWidthLength Width { get; } = width;
 }
 
-internal readonly struct AwkTextSplitResult(IReadOnlyList<AwkText> fields, IReadOnlyList<AwkText> separators)
+internal readonly struct AwkTextSplitResult(
+    IReadOnlyList<AwkText>? fields,
+    IReadOnlyList<AwkText>? separators)
 {
-    public IReadOnlyList<AwkText> Fields { get; } = fields;
+    public IReadOnlyList<AwkText> Fields => fields ?? [];
 
-    public IReadOnlyList<AwkText> Separators { get; } = separators;
+    public IReadOnlyList<AwkText> Separators => separators ?? [];
 }

@@ -144,16 +144,17 @@ internal sealed class AwkUserFunction : IAwkUserFunction
     private readonly struct RentedFunctionArguments : IDisposable
     {
         private readonly bool _isPooled;
+        private readonly AwkFunctionArgument[]? _values;
 
         private RentedFunctionArguments(int count)
         {
             _isPooled = count > 0;
-            Values = _isPooled
+            _values = _isPooled
                 ? ArrayPool<AwkFunctionArgument>.Shared.Rent(count)
                 : [];
         }
 
-        public AwkFunctionArgument[] Values { get; }
+        public AwkFunctionArgument[] Values => _values ?? [];
 
         public static RentedFunctionArguments Rent(int count) => new(count);
 

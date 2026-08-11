@@ -7,8 +7,8 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkBuiltinContext
 {
-    private readonly IReadOnlyList<AwkExpression> _expressions;
-    private readonly AwkValue[] _values;
+    private readonly IReadOnlyList<AwkExpression>? _expressions;
+    private readonly AwkValue[]? _values;
     private readonly int _valueCount;
     private readonly bool _argumentsAreEvaluated;
 
@@ -35,7 +35,7 @@ internal readonly struct AwkBuiltinContext
         Evaluation = evaluationContext;
     }
 
-    public int ArgumentCount => _argumentsAreEvaluated ? _valueCount : _expressions.Count;
+    public int ArgumentCount => _argumentsAreEvaluated ? _valueCount : _expressions?.Count ?? 0;
 
     public AwkEvaluationContext Evaluation { get; }
 
@@ -43,14 +43,17 @@ internal readonly struct AwkBuiltinContext
 
     public AwkValue GetValue(int index) =>
         _argumentsAreEvaluated
-            ? _values[index]
+            ? (_values ?? throw new InvalidOperationException(
+                "Evaluated builtin arguments are unavailable."))[index]
             : throw new InvalidOperationException(
                 "Unevaluated awk builtin arguments require asynchronous evaluation.");
 
     public ValueTask<AwkValue> GetValueAsync(int index) =>
         _argumentsAreEvaluated
-            ? ValueTask.FromResult(_values[index])
-            : _expressions[index].EvaluateAsync(Evaluation);
+            ? ValueTask.FromResult((_values ?? throw new InvalidOperationException(
+                "Evaluated builtin arguments are unavailable."))[index])
+            : (_expressions ?? throw new InvalidOperationException(
+                "Unevaluated builtin arguments are unavailable."))[index].EvaluateAsync(Evaluation);
 
     public string GetString(int index) =>
         State.FormatStringByteText(GetValue(index)).AsString(State.Counters);

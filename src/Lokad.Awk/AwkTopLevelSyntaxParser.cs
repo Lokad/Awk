@@ -378,23 +378,23 @@ internal sealed class AwkTopLevelSyntaxParser
         AwkToken closeToken,
         IReadOnlyList<AwkToken> innerTokens) : AwkBalancedTokenGroup(openToken, closeToken, innerTokens);
 
-    public readonly struct BlockPart(IReadOnlyList<AwkToken> tokens)
+    public readonly struct BlockPart(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct ParenthesizedPart(IReadOnlyList<AwkToken> tokens)
+    public readonly struct ParenthesizedPart(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct BracketedPart(IReadOnlyList<AwkToken> tokens)
+    public readonly struct BracketedPart(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct PatternPart(IReadOnlyList<AwkToken> tokens)
+    public readonly struct PatternPart(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 }

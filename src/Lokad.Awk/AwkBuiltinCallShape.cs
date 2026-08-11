@@ -3,11 +3,19 @@ using System.Globalization;
 
 namespace Lokad.Awk;
 
-internal readonly record struct AwkBuiltinCallSyntax(
-    AwkBuiltinDefinition Definition,
-    AwkExpressionSyntax Expression,
-    AwkCallableTargetSyntax Target)
+internal readonly struct AwkBuiltinCallSyntax(
+    AwkBuiltinDefinition? definition,
+    AwkExpressionSyntax? expression,
+    AwkCallableTargetSyntax target)
 {
+    public AwkBuiltinDefinition Definition => definition ??
+        throw new InvalidOperationException("The default builtin call has no definition.");
+
+    public AwkExpressionSyntax Expression => expression ??
+        throw new InvalidOperationException("The default builtin call has no expression.");
+
+    public AwkCallableTargetSyntax Target { get; } = target;
+
     public int ArgumentCount => Math.Max(0, Expression.Children.Count - 1);
 
     public AwkSyntaxOptional<AwkExpressionSyntax> GetArgument(int argumentIndex) =>
@@ -54,10 +62,18 @@ internal readonly record struct AwkBuiltinCallSyntax(
     }
 }
 
-internal readonly record struct AwkBuiltinArgumentRoleFailure(
-    int ArgumentIndex,
-    AwkBuiltinArgumentRole Role,
-    AwkExpressionSyntax Argument);
+internal readonly struct AwkBuiltinArgumentRoleFailure(
+    int argumentIndex,
+    AwkBuiltinArgumentRole role,
+    AwkExpressionSyntax? argument)
+{
+    public int ArgumentIndex { get; } = argumentIndex;
+
+    public AwkBuiltinArgumentRole Role { get; } = role;
+
+    public AwkExpressionSyntax Argument => argument ??
+        throw new InvalidOperationException("The default role failure has no argument.");
+}
 
 internal static class AwkBuiltinCallShape
 {

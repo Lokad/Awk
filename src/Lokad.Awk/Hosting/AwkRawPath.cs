@@ -176,7 +176,14 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
 
     private readonly record struct PathSegment(int Start, int Length);
 
-    private readonly record struct PathCreationState(
-        string Source,
-        IReadOnlyList<PathSegment> Segments);
+    private readonly struct PathCreationState(
+        string? source,
+        IReadOnlyList<PathSegment>? segments)
+    {
+        public string Source => source ??
+            throw new InvalidOperationException("The default path creation state has no source.");
+
+        public IReadOnlyList<PathSegment> Segments => segments ??
+            throw new InvalidOperationException("The default path creation state has no segments.");
+    }
 }

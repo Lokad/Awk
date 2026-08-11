@@ -531,10 +531,17 @@ internal sealed class AwkByteFieldSplitter(
 
     private readonly record struct AwkByteRange(int Start, int Length);
 
-    private readonly record struct ResolvedFieldSeparatorPlan(
-        AwkText SeparatorText,
-        bool IgnoresCase,
-        FieldSeparatorPlan Plan);
+    private readonly struct ResolvedFieldSeparatorPlan(
+        AwkText? separatorText,
+        bool ignoresCase,
+        FieldSeparatorPlan plan)
+    {
+        public AwkText SeparatorText => separatorText ?? AwkText.Empty;
+
+        public bool IgnoresCase { get; } = ignoresCase;
+
+        public FieldSeparatorPlan Plan { get; } = plan;
+    }
 
     private readonly struct FieldSeparatorPlan
     {

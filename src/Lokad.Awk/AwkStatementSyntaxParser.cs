@@ -1534,95 +1534,96 @@ internal sealed class AwkStatementSyntaxParser
 
     public readonly struct StatementListItem(
         AwkStatementSyntax? statement,
-        IReadOnlyList<AwkToken> tokens,
+        IReadOnlyList<AwkToken>? tokens,
         ElseContinuation? elseContinuation)
     {
         public AwkStatementSyntax? Statement { get; } = statement;
 
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
 
         public ElseContinuation? ElseContinuation { get; } = elseContinuation;
     }
 
-    public readonly struct StatementSeparator(IReadOnlyList<AwkToken> tokens)
+    public readonly struct StatementSeparator(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct HeaderGap(IReadOnlyList<AwkToken> tokens)
+    public readonly struct HeaderGap(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct ContinuationSeparator(IReadOnlyList<AwkToken> tokens)
+    public readonly struct ContinuationSeparator(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
     public readonly struct StatementBody(
-        IReadOnlyList<AwkToken> tokens,
-        IReadOnlyList<AwkStatementSyntax> statements)
+        IReadOnlyList<AwkToken>? tokens,
+        IReadOnlyList<AwkStatementSyntax>? statements)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
 
-        public IReadOnlyList<AwkStatementSyntax> Statements { get; } = statements;
+        public IReadOnlyList<AwkStatementSyntax> Statements => statements ?? [];
     }
 
-    public readonly struct ElseIntro(IReadOnlyList<AwkToken> tokens)
+    public readonly struct ElseIntro(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
     public readonly struct ElseContinuation(
-        IReadOnlyList<AwkToken> tokens,
-        IReadOnlyList<AwkStatementSyntax> statements)
+        IReadOnlyList<AwkToken>? tokens,
+        IReadOnlyList<AwkStatementSyntax>? statements)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
 
-        public IReadOnlyList<AwkStatementSyntax> Statements { get; } = statements;
+        public IReadOnlyList<AwkStatementSyntax> Statements => statements ?? [];
     }
 
     public readonly struct SwitchBlock(
-        IReadOnlyList<AwkToken> tokens,
-        IReadOnlyList<AwkSwitchCaseSyntax> cases)
+        IReadOnlyList<AwkToken>? tokens,
+        IReadOnlyList<AwkSwitchCaseSyntax>? cases)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
 
-        public IReadOnlyList<AwkSwitchCaseSyntax> Cases { get; } = cases;
+        public IReadOnlyList<AwkSwitchCaseSyntax> Cases => cases ?? [];
     }
 
-    public readonly struct SwitchBlockItem(AwkSwitchCaseSyntax? switchCase, IReadOnlyList<AwkToken> tokens)
+    public readonly struct SwitchBlockItem(AwkSwitchCaseSyntax? switchCase, IReadOnlyList<AwkToken>? tokens)
     {
         public AwkSwitchCaseSyntax? Case { get; } = switchCase;
 
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct SwitchCasePart(AwkSwitchCaseSyntax syntax, IReadOnlyList<AwkToken> tokens)
+    public readonly struct SwitchCasePart(AwkSwitchCaseSyntax? syntax, IReadOnlyList<AwkToken>? tokens)
     {
-        public AwkSwitchCaseSyntax Syntax { get; } = syntax;
+        public AwkSwitchCaseSyntax Syntax => syntax ??
+            throw new InvalidOperationException("The default switch case has no syntax.");
 
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct CaseLabelPart(IReadOnlyList<AwkToken> tokens)
+    public readonly struct CaseLabelPart(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct ExpressionStart(IReadOnlyList<AwkToken> tokens)
+    public readonly struct ExpressionStart(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct SimpleElement(IReadOnlyList<AwkToken> tokens)
+    public readonly struct SimpleElement(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
-    public readonly struct SimpleTail(IReadOnlyList<AwkToken> tokens)
+    public readonly struct SimpleTail(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
     private readonly struct OutputStatementParts(
@@ -1634,11 +1635,11 @@ internal sealed class AwkStatementSyntaxParser
         public AwkSyntaxOptional<AwkOutputRedirectionSyntax> Redirection { get; } = redirection;
     }
 
-    private readonly struct BoundaryDiagnostic(AwkToken token, string message)
+    private readonly struct BoundaryDiagnostic(AwkToken token, string? message)
     {
         public AwkToken Token { get; } = token;
 
-        public string Message { get; } = message;
+        public string Message => message ?? string.Empty;
     }
 
     private enum PostfixTrailingTokenScanMode
@@ -1647,9 +1648,9 @@ internal sealed class AwkStatementSyntaxParser
         StatementStream
     }
 
-    public readonly struct MalformedControlPart(IReadOnlyList<AwkToken> tokens)
+    public readonly struct MalformedControlPart(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 
     public sealed class ParenthesizedGroup(
@@ -1662,8 +1663,8 @@ internal sealed class AwkStatementSyntaxParser
         AwkToken closeToken,
         IReadOnlyList<AwkToken> innerTokens) : AwkBalancedTokenGroup(openToken, closeToken, innerTokens);
 
-    public readonly struct GroupPart(IReadOnlyList<AwkToken> tokens)
+    public readonly struct GroupPart(IReadOnlyList<AwkToken>? tokens)
     {
-        public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
     }
 }

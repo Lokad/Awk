@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
@@ -71,6 +72,48 @@ public sealed class AwkPublicBoundaryTests
         Assert.Equal(default, new AwkSourceIdentity(string.Empty));
         Assert.Equal(default, new AwkRedirectionPath(string.Empty));
         Assert.Equal(default, AwkErrno.None);
+    }
+
+    [Fact]
+    public void Awk_DefaultValueTypesDoNotSilentlyViolateNonNullableContracts()
+    {
+        var nullability = new NullabilityInfoContext();
+        var violations = new List<string>();
+
+        foreach (var type in typeof(Awk).Assembly.GetTypes())
+        {
+            if (!type.IsValueType || type.IsByRefLike || type.ContainsGenericParameters)
+                continue;
+
+            var instance = Activator.CreateInstance(type);
+            foreach (var property in type.GetProperties(
+                BindingFlags.Instance |
+                BindingFlags.Public |
+                BindingFlags.NonPublic |
+                BindingFlags.DeclaredOnly))
+            {
+                if (property.GetMethod is null ||
+                    property.GetIndexParameters().Length != 0 ||
+                    property.PropertyType.IsValueType ||
+                    nullability.Create(property).ReadState != NullabilityState.NotNull)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (property.GetValue(instance) is null)
+                        violations.Add(type.FullName + "." + property.Name + " returned null.");
+                }
+                catch (TargetInvocationException exception)
+                    when (exception.InnerException is InvalidOperationException)
+                {
+                    // Some carriers have no meaningful default. Their getters reject that state explicitly.
+                }
+            }
+        }
+
+        Assert.Empty(violations);
     }
 
     [Fact]

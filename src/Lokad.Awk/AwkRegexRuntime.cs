@@ -445,19 +445,21 @@ internal sealed class AwkRegexRuntime
 
     private readonly struct AwkRegexCacheKey : IEquatable<AwkRegexCacheKey>
     {
+        private readonly string? _pattern;
+
         public AwkRegexCacheKey(
             string pattern,
             bool ignoreCase,
             AwkRegexCacheKind kind,
             AwkRegexEngineKind engineKind)
         {
-            Pattern = pattern;
+            _pattern = pattern;
             IgnoreCase = ignoreCase;
             Kind = kind;
             EngineKind = engineKind;
         }
 
-        private string Pattern { get; }
+        private string Pattern => _pattern ?? string.Empty;
 
         private bool IgnoreCase { get; }
 
@@ -493,10 +495,14 @@ internal sealed class AwkRegexRuntime
         public bool UsesUtf8Adapter => Engine == AwkRegexExecutionEngine.Utf8Adapter;
     }
 
-    internal readonly record struct AwkRegexInputContext(
-        AwkRegexExecutionPolicy ExecutionPolicy,
-        string DotNetText)
+    internal readonly struct AwkRegexInputContext(
+        AwkRegexExecutionPolicy executionPolicy,
+        string? dotNetText)
     {
+        public AwkRegexExecutionPolicy ExecutionPolicy { get; } = executionPolicy;
+
+        public string DotNetText => dotNetText ?? string.Empty;
+
         public bool UsesUtf8Adapter => ExecutionPolicy.UsesUtf8Adapter;
     }
 

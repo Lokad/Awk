@@ -9,7 +9,7 @@ internal enum AwkPipelinePhase
     Lower
 }
 
-internal readonly struct AwkPhaseResult<T>(
+internal sealed class AwkPhaseResult<T>(
     AwkPipelinePhase phase,
     T value,
     IReadOnlyList<AwkDiagnostic> diagnostics,

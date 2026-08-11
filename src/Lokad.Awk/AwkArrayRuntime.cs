@@ -6,9 +6,14 @@ namespace Lokad.Awk;
 
 internal sealed class AwkArrayRuntime
 {
-    private readonly record struct AwkArrayReservation(int Count, IDisposable Lease) : IDisposable
+    private readonly struct AwkArrayReservation(int count, IDisposable? lease) : IDisposable
     {
-        public void Dispose() => Lease.Dispose();
+        public int Count { get; } = count;
+
+        public IDisposable Lease => lease ??
+            throw new InvalidOperationException("The default array reservation has no memory lease.");
+
+        public void Dispose() => lease?.Dispose();
     }
 
     private static readonly AwkArrayName ProcInfoArrayName =
@@ -646,16 +651,33 @@ internal sealed class AwkArrayRuntime
         return bytes;
     }
 
-    private readonly record struct AwkArraySortEntry(
-        AwkArrayKey Key,
-        AwkText KeyText,
-        AwkValue Value,
-        AwkText ValueText,
-        double NumericKey);
+    private readonly struct AwkArraySortEntry(
+        AwkArrayKey key,
+        AwkText? keyText,
+        AwkValue value,
+        AwkText? valueText,
+        double numericKey)
+    {
+        public AwkArrayKey Key { get; } = key;
 
-    private readonly record struct AwkArraySortEntryProjection(
-        AwkArrayRuntime Runtime,
-        AwkArraySortMode Mode);
+        public AwkText KeyText => keyText ?? AwkText.Empty;
+
+        public AwkValue Value { get; } = value;
+
+        public AwkText ValueText => valueText ?? AwkText.Empty;
+
+        public double NumericKey { get; } = numericKey;
+    }
+
+    private readonly struct AwkArraySortEntryProjection(
+        AwkArrayRuntime? runtime,
+        AwkArraySortMode mode)
+    {
+        public AwkArrayRuntime Runtime => runtime ??
+            throw new InvalidOperationException("The default sort projection has no array runtime.");
+
+        public AwkArraySortMode Mode { get; } = mode;
+    }
 
     private enum AwkArraySortMode
     {

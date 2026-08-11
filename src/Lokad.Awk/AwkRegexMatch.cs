@@ -6,15 +6,43 @@ using Lokad.Utf8Regex;
 
 namespace Lokad.Awk;
 
-internal readonly record struct AwkRegexMatch(
-    bool Success,
-    int Index,
-    int Length,
-    int ByteIndex,
-    int ByteLength,
-    AwkText Value,
-    IReadOnlyList<AwkRegexGroup> Groups)
+internal readonly record struct AwkRegexMatch
 {
+    private readonly AwkText? _value;
+    private readonly IReadOnlyList<AwkRegexGroup>? _groups;
+
+    public AwkRegexMatch(
+        bool success,
+        int index,
+        int length,
+        int byteIndex,
+        int byteLength,
+        AwkText value,
+        IReadOnlyList<AwkRegexGroup> groups)
+    {
+        Success = success;
+        Index = index;
+        Length = length;
+        ByteIndex = byteIndex;
+        ByteLength = byteLength;
+        _value = value.ByteLength == 0 ? null : value;
+        _groups = groups.Count == 0 ? null : groups;
+    }
+
+    public bool Success { get; }
+
+    public int Index { get; }
+
+    public int Length { get; }
+
+    public int ByteIndex { get; }
+
+    public int ByteLength { get; }
+
+    public AwkText Value => _value ?? AwkText.Empty;
+
+    public IReadOnlyList<AwkRegexGroup> Groups => _groups ?? [];
+
     public static AwkRegexMatch NoMatch { get; } =
         new(false, 0, 0, 0, 0, AwkText.Empty, []);
 
@@ -284,11 +312,26 @@ internal readonly struct AwkLeasedRegexMatch(
     public void Dispose() => MemoryLease.Dispose();
 }
 
-internal readonly record struct AwkRegexGroup(
-    bool Success,
-    int Index,
-    int Length,
-    AwkText Value);
+internal readonly record struct AwkRegexGroup
+{
+    private readonly AwkText? _value;
+
+    public AwkRegexGroup(bool success, int index, int length, AwkText value)
+    {
+        Success = success;
+        Index = index;
+        Length = length;
+        _value = value.ByteLength == 0 ? null : value;
+    }
+
+    public bool Success { get; }
+
+    public int Index { get; }
+
+    public int Length { get; }
+
+    public AwkText Value => _value ?? AwkText.Empty;
+}
 
 internal readonly record struct AwkRegexMatchPosition(
     bool Success,

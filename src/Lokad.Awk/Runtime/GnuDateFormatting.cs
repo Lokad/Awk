@@ -272,13 +272,26 @@ internal static class GnuDateFormatting
     }
 }
 
-internal readonly record struct GnuDateDirective(
-    char Specifier,
-    GnuDateColonCount ColonCount,
-    GnuDateWidth Width,
-    GnuDatePadding Padding,
-    GnuDateCaseConversion CaseConversion,
-    string Text);
+internal readonly struct GnuDateDirective(
+    char specifier,
+    GnuDateColonCount colonCount,
+    GnuDateWidth width,
+    GnuDatePadding padding,
+    GnuDateCaseConversion caseConversion,
+    string? text)
+{
+    public char Specifier { get; } = specifier;
+
+    public GnuDateColonCount ColonCount { get; } = colonCount;
+
+    public GnuDateWidth Width { get; } = width;
+
+    public GnuDatePadding Padding { get; } = padding;
+
+    public GnuDateCaseConversion CaseConversion { get; } = caseConversion;
+
+    public string Text => text ?? string.Empty;
+}
 
 internal readonly record struct GnuDateColonCount(int Value);
 

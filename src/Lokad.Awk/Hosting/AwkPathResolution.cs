@@ -4,11 +4,12 @@ using System.Globalization;
 
 namespace Lokad.Awk;
 
-internal readonly struct AwkResolvedPath(ReadOnlyMemory<byte> display, AwkPath absolute)
+internal readonly struct AwkResolvedPath(ReadOnlyMemory<byte> display, AwkPath? absolute)
 {
     public ReadOnlyMemory<byte> Display { get; } = display;
 
-    public AwkPath Absolute { get; } = absolute;
+    public AwkPath Absolute => absolute ??
+        throw new InvalidOperationException("The default resolved path has no absolute path.");
 
     public override string ToString() => Absolute.Path;
 }

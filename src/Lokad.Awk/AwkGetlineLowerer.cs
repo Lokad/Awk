@@ -8,6 +8,8 @@ internal readonly record struct AwkGetlineLoweringParts(
 internal readonly struct AwkGetlineLoweringResult
 {
     private readonly bool _succeeded;
+    private readonly AwkGetlineTarget? _target;
+    private readonly AwkGetlineSource? _source;
     private readonly AwkDiagnostic? _diagnostic;
 
     private AwkGetlineLoweringResult(
@@ -17,16 +19,18 @@ internal readonly struct AwkGetlineLoweringResult
         AwkDiagnostic? diagnostic)
     {
         _succeeded = succeeded;
-        Target = target;
-        Source = source;
+        _target = target;
+        _source = source;
         _diagnostic = diagnostic;
     }
 
     public bool Succeeded => _succeeded;
 
-    public AwkGetlineTarget Target { get; }
+    public AwkGetlineTarget Target => _target ??
+        throw new InvalidOperationException("The default getline result has no target.");
 
-    public AwkGetlineSource Source { get; }
+    public AwkGetlineSource Source => _source ??
+        throw new InvalidOperationException("The default getline result has no source.");
 
     public AwkDiagnostic Diagnostic =>
         _diagnostic ?? throw new InvalidOperationException("Successful getline lowering has no diagnostic.");

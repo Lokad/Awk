@@ -2,12 +2,13 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkEvaluationContext
 {
+    private readonly AwkRuntimeState? _state;
     private readonly bool _hasExecutionContext;
     private readonly AwkExecutionContext _executionContext;
 
     public AwkEvaluationContext(AwkRuntimeState state)
     {
-        State = state;
+        _state = state;
         _hasExecutionContext = false;
         _executionContext = default;
     }
@@ -22,7 +23,8 @@ internal readonly struct AwkEvaluationContext
         _executionContext = new AwkExecutionContext(output, io);
     }
 
-    public AwkRuntimeState State { get; }
+    public AwkRuntimeState State => _state ??
+        throw new InvalidOperationException("The default evaluation context has no runtime state.");
 
     public bool TryGetExecutionContext(out AwkExecutionContext context)
     {

@@ -10,9 +10,10 @@ internal enum AwkOutputRedirectionKind
     Coprocess
 }
 
-internal readonly struct AwkOutputRedirection(AwkExpression target, AwkOutputRedirectionKind kind)
+internal readonly struct AwkOutputRedirection(AwkExpression? target, AwkOutputRedirectionKind kind)
 {
-    public AwkExpression Target { get; } = target;
+    public AwkExpression Target => target ??
+        throw new InvalidOperationException("The default output redirection has no target.");
 
     public AwkOutputRedirectionKind Kind { get; } = kind;
 }

@@ -5,13 +5,18 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkProgram
 {
-    public static AwkProgram Empty => new(
-        [],
-        [],
-        [],
-        [],
-        [],
-        new Dictionary<AwkFunctionName, AwkUserFunction>());
+    private static readonly IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> EmptyFunctions =
+        new ReadOnlyDictionary<AwkFunctionName, AwkUserFunction>(
+            new Dictionary<AwkFunctionName, AwkUserFunction>());
+
+    private readonly AwkAction[]? _beginActions;
+    private readonly AwkAction[]? _mainActions;
+    private readonly AwkAction[]? _endActions;
+    private readonly AwkAction[]? _beginFileActions;
+    private readonly AwkAction[]? _endFileActions;
+    private readonly IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? _functions;
+
+    public static AwkProgram Empty => default;
 
     public AwkProgram(
         IReadOnlyList<AwkAction> beginActions,
@@ -31,24 +36,25 @@ internal readonly struct AwkProgram
             return new ReadOnlyDictionary<AwkFunctionName, AwkUserFunction>(copy);
         }
 
-        BeginActions = AwkCollectionSnapshots.Copy(beginActions);
-        MainActions = AwkCollectionSnapshots.Copy(mainActions);
-        EndActions = AwkCollectionSnapshots.Copy(endActions);
-        BeginFileActions = AwkCollectionSnapshots.Copy(beginFileActions);
-        EndFileActions = AwkCollectionSnapshots.Copy(endFileActions);
-        Functions = CopyFunctions(functions);
+        _beginActions = AwkCollectionSnapshots.Copy(beginActions);
+        _mainActions = AwkCollectionSnapshots.Copy(mainActions);
+        _endActions = AwkCollectionSnapshots.Copy(endActions);
+        _beginFileActions = AwkCollectionSnapshots.Copy(beginFileActions);
+        _endFileActions = AwkCollectionSnapshots.Copy(endFileActions);
+        _functions = CopyFunctions(functions);
     }
 
-    public AwkAction[] BeginActions { get; }
+    public AwkAction[] BeginActions => _beginActions ?? [];
 
-    public AwkAction[] MainActions { get; }
+    public AwkAction[] MainActions => _mainActions ?? [];
 
-    public AwkAction[] EndActions { get; }
+    public AwkAction[] EndActions => _endActions ?? [];
 
-    public AwkAction[] BeginFileActions { get; }
+    public AwkAction[] BeginFileActions => _beginFileActions ?? [];
 
-    public AwkAction[] EndFileActions { get; }
+    public AwkAction[] EndFileActions => _endFileActions ?? [];
 
-    public IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> Functions { get; }
+    public IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> Functions =>
+        _functions ?? EmptyFunctions;
 
 }

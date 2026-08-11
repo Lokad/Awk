@@ -354,8 +354,12 @@ internal sealed class AwkInputScheduler(
         }
     }
 
-    private readonly record struct RuntimeArgumentValue(AwkText Text, string Value)
+    private readonly struct RuntimeArgumentValue(AwkText? text, string? value)
     {
+        public AwkText Text => text ?? AwkText.Empty;
+
+        public string Value => value ?? string.Empty;
+
         public bool IsStandardInput => Value is "-" or "/dev/stdin";
     }
 

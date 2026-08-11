@@ -4,6 +4,8 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkOptionSpec
 {
+    private readonly string? _longName;
+
     public AwkOptionSpec(
         AwkOptionAction action,
         string longName,
@@ -12,7 +14,7 @@ internal readonly struct AwkOptionSpec
         AwkShortOptionValuePlacement shortValuePlacement)
     {
         Action = action;
-        LongName = longName;
+        _longName = longName;
         ShortName = shortName;
         ValueCardinality = valueCardinality;
         ShortValuePlacement = shortValuePlacement;
@@ -20,7 +22,7 @@ internal readonly struct AwkOptionSpec
 
     public AwkOptionAction Action { get; }
 
-    public string LongName { get; }
+    public string LongName => _longName ?? string.Empty;
 
     public char ShortName { get; }
 

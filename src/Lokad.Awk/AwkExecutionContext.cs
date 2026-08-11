@@ -3,11 +3,13 @@ using System.Collections.Generic;
 
 namespace Lokad.Awk;
 
-internal readonly struct AwkExecutionContext(AwkOutputSink output, AwkIo io)
+internal readonly struct AwkExecutionContext(AwkOutputSink? output, AwkIo? io)
 {
-    public AwkOutputSink Output { get; } = output;
+    public AwkOutputSink Output => output ??
+        throw new InvalidOperationException("The default execution context has no output sink.");
 
-    public AwkIo Io { get; } = io;
+    public AwkIo Io => io ??
+        throw new InvalidOperationException("The default execution context has no I/O runtime.");
 }
 
 internal sealed class AwkExecutionContextStack
@@ -38,10 +40,7 @@ internal sealed class AwkExecutionContextStack
     }
 }
 
-internal readonly struct AwkExecutionContextScope(AwkExecutionContextStack stack) : IDisposable
+internal readonly struct AwkExecutionContextScope(AwkExecutionContextStack? stack) : IDisposable
 {
-    public void Dispose()
-    {
-        stack.Pop();
-    }
+    public void Dispose() => stack?.Pop();
 }

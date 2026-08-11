@@ -669,18 +669,20 @@ internal sealed class AwkExpressionSyntaxParser
         public AwkExpressionSyntax Expression { get; } = expression;
     }
 
-    public readonly struct ExpressionListTail(AwkToken separator, AwkExpressionSyntax expression)
+    public readonly struct ExpressionListTail(AwkToken separator, AwkExpressionSyntax? expression)
     {
         public AwkToken Separator { get; } = separator;
 
-        public AwkExpressionSyntax Expression { get; } = expression;
+        public AwkExpressionSyntax Expression => expression ??
+            throw new InvalidOperationException("The default expression-list tail has no expression.");
     }
 
-    public readonly struct ArgumentTail(AwkToken separator, AwkExpressionSyntax expression)
+    public readonly struct ArgumentTail(AwkToken separator, AwkExpressionSyntax? expression)
     {
         public AwkToken Separator { get; } = separator;
 
-        public AwkExpressionSyntax Expression { get; } = expression;
+        public AwkExpressionSyntax Expression => expression ??
+            throw new InvalidOperationException("The default argument tail has no expression.");
     }
 
     public interface IBinaryTailPart
@@ -690,43 +692,49 @@ internal sealed class AwkExpressionSyntaxParser
         AwkExpressionSyntax Right { get; }
     }
 
-    public readonly struct MultiplicativeTailPart(AwkToken op, AwkExpressionSyntax right) : IBinaryTailPart
+    public readonly struct MultiplicativeTailPart(AwkToken op, AwkExpressionSyntax? right) : IBinaryTailPart
     {
         public AwkToken Operator { get; } = op;
 
-        public AwkExpressionSyntax Right { get; } = right;
+        public AwkExpressionSyntax Right => right ??
+            throw new InvalidOperationException("The default multiplicative tail has no right operand.");
     }
 
-    public readonly struct AdditiveTailPart(AwkToken op, AwkExpressionSyntax right) : IBinaryTailPart
+    public readonly struct AdditiveTailPart(AwkToken op, AwkExpressionSyntax? right) : IBinaryTailPart
     {
         public AwkToken Operator { get; } = op;
 
-        public AwkExpressionSyntax Right { get; } = right;
+        public AwkExpressionSyntax Right => right ??
+            throw new InvalidOperationException("The default additive tail has no right operand.");
     }
 
-    public readonly struct ComparisonTailPart(AwkToken op, AwkExpressionSyntax right) : IBinaryTailPart
+    public readonly struct ComparisonTailPart(AwkToken op, AwkExpressionSyntax? right) : IBinaryTailPart
     {
         public AwkToken Operator { get; } = op;
 
-        public AwkExpressionSyntax Right { get; } = right;
+        public AwkExpressionSyntax Right => right ??
+            throw new InvalidOperationException("The default comparison tail has no right operand.");
     }
 
-    public readonly struct LogicalAndTailPart(AwkToken op, AwkExpressionSyntax right) : IBinaryTailPart
+    public readonly struct LogicalAndTailPart(AwkToken op, AwkExpressionSyntax? right) : IBinaryTailPart
     {
         public AwkToken Operator { get; } = op;
 
-        public AwkExpressionSyntax Right { get; } = right;
+        public AwkExpressionSyntax Right => right ??
+            throw new InvalidOperationException("The default logical-and tail has no right operand.");
     }
 
-    public readonly struct LogicalOrTailPart(AwkToken op, AwkExpressionSyntax right) : IBinaryTailPart
+    public readonly struct LogicalOrTailPart(AwkToken op, AwkExpressionSyntax? right) : IBinaryTailPart
     {
         public AwkToken Operator { get; } = op;
 
-        public AwkExpressionSyntax Right { get; } = right;
+        public AwkExpressionSyntax Right => right ??
+            throw new InvalidOperationException("The default logical-or tail has no right operand.");
     }
 
-    public readonly struct ConcatenationTail(AwkExpressionSyntax right)
+    public readonly struct ConcatenationTail(AwkExpressionSyntax? right)
     {
-        public AwkExpressionSyntax Right { get; } = right;
+        public AwkExpressionSyntax Right => right ??
+            throw new InvalidOperationException("The default concatenation tail has no right operand.");
     }
 }

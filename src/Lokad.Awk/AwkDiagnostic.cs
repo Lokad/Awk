@@ -5,6 +5,8 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkDiagnostic
 {
+    private readonly string? _message;
+
     public AwkDiagnostic(AwkTextSpan span, string message)
         : this(span, message, AwkDiagnosticId.ParseSyntax)
     {
@@ -22,7 +24,7 @@ internal readonly struct AwkDiagnostic
         AwkSourceLocation? sourceLocation)
     {
         Span = span;
-        Message = message;
+        _message = message;
         Id = id;
         Category = AwkDiagnosticFacts.GetCategory(id);
         SourceLocation = sourceLocation;
@@ -30,7 +32,7 @@ internal readonly struct AwkDiagnostic
 
     public AwkTextSpan Span { get; }
 
-    public string Message { get; }
+    public string Message => _message ?? string.Empty;
 
     public AwkDiagnosticId Id { get; }
 

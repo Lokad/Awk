@@ -431,6 +431,8 @@ internal static class AwkCommandParser
 
         private readonly struct AwkOptionValueResult
         {
+            private readonly string? _value;
+
             private AwkOptionValueResult(
                 AwkOptionValueStatus status,
                 string value,
@@ -438,14 +440,14 @@ internal static class AwkCommandParser
                 AwkDiagnosticId id)
             {
                 Status = status;
-                Value = value;
+                _value = value;
                 Message = message;
                 Id = id;
             }
 
             public AwkOptionValueStatus Status { get; }
 
-            public string Value { get; }
+            public string Value => _value ?? string.Empty;
 
             public ReadOnlyMemory<byte> Message { get; }
 
@@ -469,15 +471,17 @@ internal static class AwkCommandParser
 
         private readonly struct AwkOptionSpelling
         {
+            private readonly string? _display;
+
             private AwkOptionSpelling(AwkOptionSource source, string display)
             {
                 Source = source;
-                Display = display;
+                _display = display;
             }
 
             public AwkOptionSource Source { get; }
 
-            public string Display { get; }
+            public string Display => _display ?? string.Empty;
 
             public string LintDisplay =>
                 Source switch
