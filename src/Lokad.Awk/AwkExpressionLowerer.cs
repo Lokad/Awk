@@ -157,7 +157,10 @@ internal static partial class AwkExpressionLowerer
             if (!TryLowerRegexLiteralPattern(expression, out var regex))
                 return false;
 
-            lowered = AwkExpression.RegexMatch(AwkExpression.FieldZero(), regex, negate: false);
+            lowered = AwkExpression.RegexMatch(
+                AwkExpression.FieldZero(),
+                regex,
+                AwkRegexMatchPolarity.Positive);
             return true;
         }
 
@@ -718,7 +721,9 @@ internal static partial class AwkExpressionLowerer
                 lowered = AwkExpression.RegexMatch(
                     left,
                     literalRegex,
-                    negate: operatorKind == AwkTokenKind.BangTilde);
+                    operatorKind is AwkTokenKind.BangTilde
+                        ? AwkRegexMatchPolarity.Negated
+                        : AwkRegexMatchPolarity.Positive);
                 return true;
             }
 
@@ -729,8 +734,8 @@ internal static partial class AwkExpressionLowerer
             {
                 AwkTokenKind.PipePipe => AwkExpression.LogicalOr(left, right),
                 AwkTokenKind.AmpersandAmpersand => AwkExpression.LogicalAnd(left, right),
-                AwkTokenKind.Tilde => AwkExpression.RegexMatch(left, right, negate: false),
-                AwkTokenKind.BangTilde => AwkExpression.RegexMatch(left, right, negate: true),
+                AwkTokenKind.Tilde => AwkExpression.RegexMatch(left, right, AwkRegexMatchPolarity.Positive),
+                AwkTokenKind.BangTilde => AwkExpression.RegexMatch(left, right, AwkRegexMatchPolarity.Negated),
                 AwkTokenKind.EqualEqual => AwkExpression.Compare(left, right, AwkComparison.Equal),
                 AwkTokenKind.BangEqual => AwkExpression.Compare(left, right, AwkComparison.NotEqual),
                 AwkTokenKind.Less => AwkExpression.Compare(left, right, AwkComparison.LessThan),

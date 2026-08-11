@@ -822,7 +822,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var expression = AwkExpression.RegexMatch(
             AwkExpression.Literal("abc"),
             AwkExpression.Literal("a"),
-            negate: false);
+            AwkRegexMatchPolarity.Positive);
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => expression.EvaluateAsync(new AwkEvaluationContext(state)).AsTask());

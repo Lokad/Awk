@@ -261,7 +261,7 @@ internal abstract partial class AwkExpression
     private sealed class RegexMatchExpression(
         AwkExpression valueExpression,
         AwkExpression patternExpression,
-        bool negate) : AwkExpression
+        AwkRegexMatchPolarity polarity) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
@@ -270,20 +270,20 @@ internal abstract partial class AwkExpression
             var matched = context.State.IsRegexMatch(
                 context.State.CreateRegex(new AwkRegexPattern(pattern)),
                 input);
-            return AwkValue.FromNumber(matched ^ negate ? 1 : 0);
+            return AwkValue.FromNumber(matched != (polarity is AwkRegexMatchPolarity.Negated) ? 1 : 0);
         }
     }
 
     private sealed class PrecompiledRegexMatchExpression(
         AwkExpression valueExpression,
         AwkRegex regex,
-        bool negate) : AwkExpression
+        AwkRegexMatchPolarity polarity) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
             var matched = context.State.IsRegexMatch(regex, input);
-            return AwkValue.FromNumber(matched ^ negate ? 1 : 0);
+            return AwkValue.FromNumber(matched != (polarity is AwkRegexMatchPolarity.Negated) ? 1 : 0);
         }
     }
 
@@ -347,4 +347,10 @@ internal abstract partial class AwkExpression
         And,
         Or
     }
+}
+
+internal enum AwkRegexMatchPolarity
+{
+    Positive,
+    Negated
 }

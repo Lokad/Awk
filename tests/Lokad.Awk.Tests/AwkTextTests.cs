@@ -246,12 +246,12 @@ public sealed class AwkTextTests
         var hexText = AwkText.FromSourceLiteralString(" -0x10 ");
         var octalText = AwkText.FromSourceLiteralString("010");
 
-        Assert.True(decimalText.TryParseNumber(AwkNumberParsingMode.Decimal, requireFullText: false, out var decimalNumber));
+        Assert.True(decimalText.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.Prefix, out var decimalNumber));
         Assert.Equal(-1250, decimalNumber);
-        Assert.False(decimalText.TryParseNumber(AwkNumberParsingMode.Decimal, requireFullText: true, out _));
-        Assert.True(hexText.TryParseNumber(AwkNumberParsingMode.HexadecimalInput, requireFullText: true, out var hexNumber));
+        Assert.False(decimalText.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText, out _));
+        Assert.True(hexText.TryParseNumber(AwkNumberParsingMode.HexadecimalInput, AwkNumberTextExtent.EntireText, out var hexNumber));
         Assert.Equal(-16, hexNumber);
-        Assert.True(octalText.TryParseNumber(AwkNumberParsingMode.NonDecimalData, requireFullText: true, out var octalNumber));
+        Assert.True(octalText.TryParseNumber(AwkNumberParsingMode.NonDecimalData, AwkNumberTextExtent.EntireText, out var octalNumber));
         Assert.Equal(8, octalNumber);
     }
 
@@ -262,12 +262,12 @@ public sealed class AwkTextTests
         var leadingDot = AwkText.FromSourceLiteralString(".5 ");
         var overflow = AwkText.FromSourceLiteralString("1e999");
 
-        Assert.True(incompleteExponent.TryParseNumber(AwkNumberParsingMode.Decimal, requireFullText: false, out var exponentNumber));
+        Assert.True(incompleteExponent.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.Prefix, out var exponentNumber));
         Assert.Equal(1, exponentNumber);
-        Assert.False(incompleteExponent.TryParseNumber(AwkNumberParsingMode.Decimal, requireFullText: true, out _));
-        Assert.True(leadingDot.TryParseNumber(AwkNumberParsingMode.Decimal, requireFullText: true, out var leadingDotNumber));
+        Assert.False(incompleteExponent.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText, out _));
+        Assert.True(leadingDot.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText, out var leadingDotNumber));
         Assert.Equal(0.5, leadingDotNumber);
-        Assert.True(overflow.TryParseNumber(AwkNumberParsingMode.Decimal, requireFullText: true, out var overflowNumber));
+        Assert.True(overflow.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText, out var overflowNumber));
         Assert.Equal(double.PositiveInfinity, overflowNumber);
     }
 }

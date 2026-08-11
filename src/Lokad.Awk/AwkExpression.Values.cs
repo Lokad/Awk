@@ -260,7 +260,7 @@ internal abstract partial class AwkExpression
                 AwkValue.TryParseNumber(
                     text,
                     AwkNumberParsingMode.Decimal,
-                    requireFullText: true,
+                    AwkNumberTextExtent.EntireText,
                     out var decimalValue) &&
                 decimalValue == gnuDefaultValue)
             {

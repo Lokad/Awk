@@ -551,14 +551,14 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public bool TryParseNumber(
         AwkNumberParsingMode numberParsingMode,
-        bool requireFullText,
+        AwkNumberTextExtent textExtent,
         out double number)
     {
         var span = AsSpan();
         if (!TryParseNumberPrefix(span, numberParsingMode, out number, out var end))
             return false;
 
-        if (requireFullText && SkipAsciiWhitespace(span, end) != span.Length)
+        if (textExtent is AwkNumberTextExtent.EntireText && SkipAsciiWhitespace(span, end) != span.Length)
         {
             number = 0;
             return false;

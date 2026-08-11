@@ -390,7 +390,7 @@ internal static partial class AwkBuiltins
                 AwkValue.TryParseNumber(
                     context.GetString(0),
                     AwkNumberParsingMode.NonDecimalData,
-                    requireFullText: true,
+                    AwkNumberTextExtent.EntireText,
                     out var number)
                     ? number
                     : 0);

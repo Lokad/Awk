@@ -59,8 +59,11 @@ internal sealed class AwkConditionClause
     public static AwkConditionClause Comparison(AwkExpression left, AwkExpression right, AwkComparison comparison) =>
         new(AwkExpression.Compare(left, right, comparison));
 
-    public static AwkConditionClause RegexMatch(AwkExpression left, AwkRegex regex, bool negate) =>
-        new(AwkExpression.RegexMatch(left, regex, negate));
+    public static AwkConditionClause RegexMatch(
+        AwkExpression left,
+        AwkRegex regex,
+        AwkRegexMatchPolarity polarity) =>
+        new(AwkExpression.RegexMatch(left, regex, polarity));
 
     public static AwkConditionClause Truthy(AwkExpression expression) =>
         new(expression);

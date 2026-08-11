@@ -8,6 +8,12 @@ internal enum AwkNumberParsingMode
     NonDecimalData
 }
 
+internal enum AwkNumberTextExtent
+{
+    Prefix,
+    EntireText
+}
+
 internal enum AwkValueKind
 {
     Text,
@@ -103,12 +109,12 @@ internal readonly struct AwkValue
     public static bool TryParseNumber(
         string text,
         AwkNumberParsingMode numberParsingMode,
-        bool requireFullText,
+        AwkNumberTextExtent textExtent,
         out double number)
     {
         var valueText = AwkText.FromString(text);
         if (TryParseAwkNumber(valueText, numberParsingMode, out number, out var consumedAll) &&
-            (!requireFullText || consumedAll))
+            (textExtent is AwkNumberTextExtent.Prefix || consumedAll))
         {
             return true;
         }

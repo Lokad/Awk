@@ -123,9 +123,6 @@ internal abstract partial class AwkStatement
             AwkCollectionSnapshots.Copy(body),
             AwkCollectionSnapshots.Copy(elseBody));
 
-    public static AwkStatement ForIn(string loopVariable, string arrayVariable, IReadOnlyList<AwkStatement> body) =>
-        ForIn(AwkVariableName.FromText(loopVariable), AwkArrayName.FromText(arrayVariable), body);
-
     public static AwkStatement ForIn(AwkVariableName loopVariable, AwkArrayName arrayVariable, IReadOnlyList<AwkStatement> body) =>
         new ForInStatement(loopVariable, arrayVariable, AwkCollectionSnapshots.Copy(body));
 

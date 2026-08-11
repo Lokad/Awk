@@ -389,7 +389,7 @@ internal sealed class AwkRuntimeState
         return AwkValue.TryParseNumber(
             text,
             AwkNumberParsingMode.Decimal,
-            requireFullText: true,
+            AwkNumberTextExtent.EntireText,
             out var decimalValue)
                 ? decimalValue
                 : 0;

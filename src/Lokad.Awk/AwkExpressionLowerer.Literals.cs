@@ -42,7 +42,7 @@ internal static partial class AwkExpressionLowerer
             return AwkValue.TryParseNumber(
                 numberText,
                 AwkNumberParsingMode.NonDecimalData,
-                requireFullText: true,
+                AwkNumberTextExtent.EntireText,
                 out numberValue);
         }
 
@@ -95,7 +95,7 @@ internal static partial class AwkExpressionLowerer
             if (AwkValue.TryParseNumber(
                     numberText,
                     AwkNumberParsingMode.NonDecimalData,
-                    requireFullText: true,
+                    AwkNumberTextExtent.EntireText,
                     out numberValue))
             {
                 return true;
@@ -106,7 +106,7 @@ internal static partial class AwkExpressionLowerer
                 AwkValue.TryParseNumber(
                     normalized,
                     AwkNumberParsingMode.Decimal,
-                    requireFullText: true,
+                    AwkNumberTextExtent.EntireText,
                     out numberValue);
         }
     }

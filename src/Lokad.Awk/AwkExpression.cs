@@ -56,11 +56,17 @@ internal abstract partial class AwkExpression
     public static AwkExpression Compare(AwkExpression left, AwkExpression right, AwkComparison comparison) =>
         new ComparisonExpression(left, right, comparison);
 
-    public static AwkExpression RegexMatch(AwkExpression left, AwkExpression pattern, bool negate) =>
-        new RegexMatchExpression(left, pattern, negate);
+    public static AwkExpression RegexMatch(
+        AwkExpression left,
+        AwkExpression pattern,
+        AwkRegexMatchPolarity polarity) =>
+        new RegexMatchExpression(left, pattern, polarity);
 
-    public static AwkExpression RegexMatch(AwkExpression left, AwkRegex regex, bool negate) =>
-        new PrecompiledRegexMatchExpression(left, regex, negate);
+    public static AwkExpression RegexMatch(
+        AwkExpression left,
+        AwkRegex regex,
+        AwkRegexMatchPolarity polarity) =>
+        new PrecompiledRegexMatchExpression(left, regex, polarity);
 
     public static AwkExpression ArrayMembership(AwkArrayIndex index, AwkArrayName arrayName) =>
         new ArrayMembershipExpression(index, arrayName);
