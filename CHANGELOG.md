@@ -2,6 +2,15 @@
 
 ## 0.1.0
 
+- Preflight regex capture memory and capture-array replacement atomically, keep ordinary
+  substitution span-only, and make `gensub` materialize only the group prefix observable through
+  `&` or its highest `\0`-to-`\9` reference.
+- Avoid quadratic array-alias promotion, trim parser and regex temporary storage, and expose exact
+  capture-group costs through deterministic runtime counters.
+- Replace nullable-returning `AwkPath.TryChild` with a conventional boolean/out contract, make
+  default-valued internal text and collection objects safe to inspect, and localize one-use helpers.
+- Share deterministic byte hashing and ASCII case folding across text, numeric parsing, builtins,
+  and compact ordinal array keys without materializing strings.
 - Preserve Unicode scalar values in character-oriented `printf` formatting, govern UTF-8 output
   while it is encoded, and share pooled print staging between the interpreter and executable engine.
 - Defer `$0` recomposition across repeated field assignments, maintain field value and retained-memory

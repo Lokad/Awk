@@ -40,9 +40,9 @@ These limits constrain awk execution without changing successful compatibility b
 - `MaxArrayElements`: associative array elements.
 - `MaxFields`: current-record field materialization budget. The default matches
   `MaxArrayElements`, but hosts can now set a different field policy.
-- `MaxRegexCaptureBytes`: regex capture payloads, preflighted from backend spans before group values
-  are copied. Capture-array replacement separately preflights its complete entry count and retained
-  memory before changing the destination array or `RSTART`/`RLENGTH`.
+- `MaxRegexCaptureBytes`: `match(..., array)` capture payloads, preflighted from backend spans before
+  group values are copied. Capture-array replacement separately preflights its complete entry count
+  and retained memory before changing the destination array or `RSTART`/`RLENGTH`.
 - `MaxRegexRecordSeparatorBytesScanned`: cumulative bytes submitted to the general regex record-
   separator fallback. The 64 MiB default bounds repeated cross-batch searches when a backend cannot
   resume an arbitrary partial match; specialized byte, literal, and byte-run separators do not
@@ -82,9 +82,10 @@ charged separately with a conservative estimate that includes its payload, curre
 layout, and capacity for both optional caches, so populating a cache cannot take retained memory
 outside the execution budget. Retained ordinary array entries additionally charge their key/value
 and small-object overhead.
-Materialized regex matches retain one governed lease for their group structures and copied text
-until the consumer advances or disposes the match. Capture-array replacement transfers the copied
-text portion of that lease into the destination array instead of dropping or double-charging it.
+Materialized regex matches retain one governed lease for their selected group structures and copied
+text until the consumer advances or disposes the match. Capture-array replacement selects all
+groups and transfers the copied text portion of that lease into the destination array instead of
+dropping or double-charging it. `gensub` leases only its observable capture prefix.
 Read-only built-in special arrays such as `FUNCTAB` are static runtime metadata and are not charged
 against the execution memory budget.
 

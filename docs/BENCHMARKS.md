@@ -20,23 +20,25 @@ The counter report prints runtime, date, command, record and byte counts, execut
 size, and the key decode, regex, formatting, VM, byte-comparison, concatenation, rune-slicing,
 record-separator, and memory counters for curated scenarios. Counter runs enable a one-gibibyte
 execution-memory ceiling so the memory peak column reports governed live bytes instead of the
-disabled governor's zero. Record-separator resolutions count effective separator plan rebuilds, bytes scanned measure
-separator search work, and tail bytes moved measure buffer compaction copies. The grouped
-byte-run row deliberately spans multiple host batches without a separator and should scan each
-input byte once. Single-byte, byte-set, literal, paragraph, and recognized punctuation byte-run
+disabled governor's zero. Record-separator resolutions count effective separator plan rebuilds,
+bytes scanned measure separator search work, and tail bytes moved measure buffer compaction copies.
+The grouped byte-run row deliberately spans multiple host batches without a separator and should
+scan each input byte once. Single-byte, byte-set, literal, paragraph, and recognized punctuation byte-run
 separators—including redundant capture or noncapturing wrappers and equivalent punctuation-only
 alternations—retain incremental scan checkpoints. General unbounded regex separators may inspect
-buffered bytes again after another
-batch arrives because neither regex backend exposes resumable partial-match state; they borrow the
+buffered bytes again after another batch arrives because neither regex backend exposes resumable
+partial-match state; they borrow the
 cursor buffer rather than copying an accumulated snapshot, and focused batched-host tests keep
 that correctness fallback distinct from the incremental plans. Regex policy bytes inspected and
 capture groups materialized distinguish routing work from capture work. The capture-array row
-keeps materialized groups and their governed memory visible in the report. Its streaming projection,
-three-key filter, associative aggregation, and two-file comparison rows are deterministic
+keeps complete group materialization and its governed memory visible; the `gensub` selection row
+uses a high-group pattern with only `\1` observable so selective materialization is exact and
+regression-testable. Its streaming projection, three-key filter, associative aggregation, and
+two-file comparison rows are deterministic
 calibration shapes for execution-budget decisions. The UTF-8 rune-slicing row reports bytes
 inspected plus the count and size of sparse indexes, making repeated `substr` complexity visible
-without timing noise. Divide the calibration rows'
-execution steps by records to compare per-record costs; use the raw counts, rather than elapsed
+without timing noise. Divide the calibration rows' execution steps by records to compare per-record
+costs; use the raw counts, rather than elapsed
 time, when estimating how much input a step ceiling permits. Use the report in handoffs when a
 change affects resource or fallback accounting but does not require a full timing baseline.
 
@@ -53,5 +55,5 @@ allocation, regex, VM, record/field splitting, or counter behavior. A snapshot r
 
 Do not commit raw `BenchmarkDotNet.Artifacts/` output. If a stable baseline is needed, copy the
 curated summary into a docs or release artifact with the evidence above. The current baseline is
-`docs/BENCHMARK_SUMMARY_2026-08-10.md`. Release readiness requires benchmark deltas only for changes
+`docs/BENCHMARK_SUMMARY_2026-08-11.md`. Release readiness requires benchmark deltas only for changes
 that can plausibly affect performance or allocation behavior.

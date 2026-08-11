@@ -24,8 +24,11 @@ classification.
 First-match consumers such as `match()`, regex record separators, and `sub()` use first-match
 runtime APIs instead of materializing full match lists. `sub()` and `gsub()` expand whole-match
 references from byte spans without materializing capture groups; capture values are reserved for
-`match(..., array)` and `gensub()`. Full enumeration remains reserved for regex field splitting,
-`patsplit`, `gsub`, and other paths that genuinely need every match.
+`match(..., array)` and the references actually observable by `gensub()`. A `gensub` replacement
+with no `&` or `\0`-to-`\9` reference materializes no groups; otherwise it materializes group zero
+through the highest referenced group, capped by the groups present in the match. Full enumeration
+remains reserved for regex field splitting, `patsplit`, `gsub`, and other paths that genuinely need
+every match.
 Record separators that reduce to one or more bytes from a punctuation-only membership set use an
 incremental byte-run plan, including `([,;])+`, `(?:[,;])+`, and the equivalent quantifier
 inside the wrapper. Equivalent punctuation-only alternations such as `([,]|;)+` use the same
@@ -57,8 +60,8 @@ expression back into a direct literal-pattern operand.
 | Escapes | AWK escapes, octal/hex escapes, GNU word/buffer operators | Translator handles current supported escape set | Adapter must preserve translated escape semantics, including GNU extensions currently accepted |
 | Anchors and dot/newline | AWK line-oriented matching over runtime strings | .NET regex behavior after translation | Adapter must keep current record/string matching semantics; newline behavior changes require explicit tests |
 | Empty matches | `match`, `sub`, `gsub`, `gensub`, split loops must progress | Current loops rely on .NET `Match` and explicit runtime logic | Adapter must expose empty-match positions and allow progress logic equivalent to current behavior |
-| Captures | `match(..., arr)`, replacement expansion, `gensub` captures | .NET `Match.Groups` with UTF-16 indices | Adapter detailed matches materialize group values and byte-aware offsets for AWK capture arrays and replacement expansion |
-| Replacement syntax | `&`, `\&`, backslash literal rules, capture references in `gensub` | `sub`/`gsub` expand whole-match spans; `gensub` expands capture-bearing matches | `AwkReplacement` streams matches into governed UTF-8 builders without retaining the full match sequence |
+| Captures | `match(..., arr)`, replacement expansion, `gensub` captures | .NET `Match.Groups` with UTF-16 indices | Capture arrays materialize all group values and byte-aware offsets; `gensub` materializes only the prefix through its highest observable `\0`-to-`\9` reference |
+| Replacement syntax | `&`, `\&`, backslash literal rules, capture references in `gensub` | `sub`/`gsub` expand whole-match spans; `gensub` expands its selected capture prefix | `AwkReplacement` streams matches into governed UTF-8 builders without retaining the full match sequence |
 | `IGNORECASE` | Dynamic special variable affects regex operations | Runtime recompiles or re-runs with `RegexOptions.IgnoreCase` | Adapter must include `IGNORECASE` in cache keys and dynamic operation behavior |
 | Locale/culture | Current policy is ordinal/C-locale oriented | All regex construction uses `RegexOptions.CultureInvariant`, including dynamic `IGNORECASE` matching | Adapter and compatibility paths must remain independent of the ambient .NET culture |
 | Byte offsets | `--characters-as-bytes` reports byte units for string operations | .NET exposes UTF-16 indices | `match()`, `RSTART`, `RLENGTH`, and capture `start`/`length` use byte units in byte mode and UTF-16-compatible units otherwise |
