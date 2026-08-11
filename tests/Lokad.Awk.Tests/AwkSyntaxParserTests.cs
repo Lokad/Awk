@@ -18,6 +18,28 @@ public sealed class AwkSyntaxParserTests
 
         Assert.Equal(2_048, tokens.Count);
         Assert.True(allocatedBytes < 1_000_000, "Allocated bytes: " + allocatedBytes);
+
+        static AwkExpressionSyntax CreateNestedExpression(int depth)
+        {
+            AwkExpressionSyntax? expression = null;
+            for (var index = depth - 1; index >= 0; index--)
+            {
+                var token = new AwkToken(AwkTokenKind.Number, "1", new AwkTextSpan(index, 1));
+                expression = new AwkExpressionSyntax(
+                    AwkExpressionKind.Binary,
+                    null,
+                    [token],
+                    [],
+                    [],
+                    expression == null ? [] : [expression],
+                    new AwkTextSpan(index, depth - index));
+            }
+
+            return expression ?? throw new InvalidOperationException("An expression depth is required.");
+        }
+
+        static IReadOnlyList<AwkToken> ProjectExpressionTokens(AwkExpressionSyntax expression) =>
+            expression.Tokens;
     }
 
     [Fact]
@@ -108,28 +130,6 @@ public sealed class AwkSyntaxParserTests
         Assert.Single(program.Rules[1].PatternTokens);
         Assert.Equal(AwkTokenKind.Regex, program.Rules[1].PatternTokens[0].Kind);
     }
-
-    private static AwkExpressionSyntax CreateNestedExpression(int depth)
-    {
-        AwkExpressionSyntax? expression = null;
-        for (var index = depth - 1; index >= 0; index--)
-        {
-            var token = new AwkToken(AwkTokenKind.Number, "1", new AwkTextSpan(index, 1));
-            expression = new AwkExpressionSyntax(
-                AwkExpressionKind.Binary,
-                null,
-                [token],
-                [],
-                [],
-                expression == null ? [] : [expression],
-                new AwkTextSpan(index, depth - index));
-        }
-
-        return expression ?? throw new InvalidOperationException("An expression depth is required.");
-    }
-
-    private static IReadOnlyList<AwkToken> ProjectExpressionTokens(AwkExpressionSyntax expression) =>
-        expression.Tokens;
 
     private static IReadOnlyList<AwkToken> ComposeTokenLists(int count)
     {
@@ -306,6 +306,11 @@ public sealed class AwkSyntaxParserTests
                 AwkLValueKind.Variable
             ],
             statements.Select(LValueKind).ToArray());
+
+        static AwkLValueKind? LValueKind(AwkStatementSyntax statement) =>
+            statement.LValue.TryGetValue(out var lValue)
+                ? lValue.Kind
+                : null;
     }
 
     [Fact]
@@ -415,6 +420,12 @@ public sealed class AwkSyntaxParserTests
         Assert.True(getline.HasInputRedirection);
         Assert.Equal(AwkExpressionKind.Variable, RequiredExpression(getline.Target.Expression).Kind);
         Assert.Equal(AwkExpressionKind.Variable, RequiredExpression(getline.Source.Expression).Kind);
+
+        static AwkLValueSyntax RequiredLValue(AwkStatementSyntax statement)
+        {
+            Assert.True(statement.LValue.TryGetValue(out var lValue));
+            return lValue;
+        }
     }
 
     [Fact]
@@ -498,6 +509,13 @@ public sealed class AwkSyntaxParserTests
         Assert.Equal(
             [AwkExpressionKind.Variable, AwkExpressionKind.Regex, AwkExpressionKind.Field],
             functionCall.Children.Select(child => child.Kind).ToArray());
+
+        static AwkExpressionSyntax AssignedValue(AwkStatementSyntax statement)
+        {
+            var expression = RequiredExpression(statement);
+            Assert.Equal(AwkExpressionKind.Assignment, expression.Kind);
+            return expression.Children[1];
+        }
     }
 
     [Fact]
@@ -696,13 +714,6 @@ public sealed class AwkSyntaxParserTests
         Assert.True(allocatedBytes < 1024, "Allocated bytes: " + allocatedBytes);
     }
 
-    private static AwkExpressionSyntax AssignedValue(AwkStatementSyntax statement)
-    {
-        var expression = RequiredExpression(statement);
-        Assert.Equal(AwkExpressionKind.Assignment, expression.Kind);
-        return expression.Children[1];
-    }
-
     private static AwkExpressionSyntax RequiredExpression(AwkStatementSyntax statement) =>
         RequiredExpression(statement.Expression);
 
@@ -711,15 +722,4 @@ public sealed class AwkSyntaxParserTests
         Assert.True(expression.TryGetValue(out var syntax));
         return syntax;
     }
-
-    private static AwkLValueSyntax RequiredLValue(AwkStatementSyntax statement)
-    {
-        Assert.True(statement.LValue.TryGetValue(out var lValue));
-        return lValue;
-    }
-
-    private static AwkLValueKind? LValueKind(AwkStatementSyntax statement) =>
-        statement.LValue.TryGetValue(out var lValue)
-            ? lValue.Kind
-            : null;
 }

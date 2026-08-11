@@ -377,6 +377,24 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(AwkExitCode.Success, systemDefaultExitCode);
         Assert.Equal("1111 2\n", systemDefaultFileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, systemDefaultFileSystem.GetOutput(AwkFileDescriptor.StdErr));
+
+        static string BuildExecutionStepCrossingInput()
+        {
+            const int recordCount = 100_000;
+            var builder = new StringBuilder(recordCount * 26);
+            for (var index = 0; index < recordCount; index++)
+            {
+                builder.Append("sku");
+                builder.Append(index % 101);
+                builder.Append(" region");
+                builder.Append(index % 11);
+                builder.Append(index % 2 == 0 ? " open " : " closed ");
+                builder.Append(index % 100);
+                builder.Append('\n');
+            }
+
+            return builder.ToString();
+        }
     }
 
     [Theory]
@@ -1657,24 +1675,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             limits,
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
-
-    private static string BuildExecutionStepCrossingInput()
-    {
-        const int recordCount = 100_000;
-        var builder = new StringBuilder(recordCount * 26);
-        for (var index = 0; index < recordCount; index++)
-        {
-            builder.Append("sku");
-            builder.Append(index % 101);
-            builder.Append(" region");
-            builder.Append(index % 11);
-            builder.Append(index % 2 == 0 ? " open " : " closed ");
-            builder.Append(index % 100);
-            builder.Append('\n');
-        }
-
-        return builder.ToString();
-    }
 
     private static AwkRuntimeState CreateStateWithMemoryLimit(int maxExecutionMemoryBytes) =>
         AwkTestHarness.CreateRuntimeState(

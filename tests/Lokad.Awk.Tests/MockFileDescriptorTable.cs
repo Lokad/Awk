@@ -91,15 +91,15 @@ internal sealed class MockFileDescriptorTable
         }
 
         return new MockDescriptorReadResult(state.ReadLines(maxLineCount), true);
-    }
 
-    private MockOpenFileState? GetStateForDescriptor(AwkFileDescriptor descriptor)
-    {
-        if (descriptor == AwkFileDescriptor.StdIn)
-            return _stdinState ??= MockOpenFileState.ForRead([]);
+        MockOpenFileState? GetStateForDescriptor(AwkFileDescriptor descriptor)
+        {
+            if (descriptor == AwkFileDescriptor.StdIn)
+                return _stdinState ??= MockOpenFileState.ForRead([]);
 
-        _openFiles.TryGetValue(descriptor, out var state);
-        return state;
+            _openFiles.TryGetValue(descriptor, out var state);
+            return state;
+        }
     }
 }
 

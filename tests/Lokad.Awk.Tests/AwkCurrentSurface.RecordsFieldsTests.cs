@@ -613,37 +613,46 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
     }
 
-    public static TheoryData<string, string, string, int, int> FieldRecompositionCounterCases => new()
+    public static TheoryData<string, string, string, int, int> FieldRecompositionCounterCases
     {
+        get
         {
-            "{$2=\"É\"; print $0}",
-            "café beta\n",
-            "café É\n",
-            1,
-            2
-        },
-        {
-            "BEGIN{OFS=\"|\"} {$2=\"é\"; print $0}",
-            "alpha beta gamma\n",
-            "alpha|é|gamma\n",
-            1,
-            3
-        },
-        {
-            "{NF=4; print $0}",
-            "a b\n",
-            "a b  \n",
-            1,
-            4
-        },
-        {
-            "{for(i=1;i<=NF;i++) $i=$i; print $0}",
-            BuildLargeNonAsciiRecord() + "\n",
-            BuildLargeNonAsciiRecord() + "\n",
-            1,
-            200
+            return new TheoryData<string, string, string, int, int>
+            {
+                {
+                    "{$2=\"É\"; print $0}",
+                    "café beta\n",
+                    "café É\n",
+                    1,
+                    2
+                },
+                {
+                    "BEGIN{OFS=\"|\"} {$2=\"é\"; print $0}",
+                    "alpha beta gamma\n",
+                    "alpha|é|gamma\n",
+                    1,
+                    3
+                },
+                {
+                    "{NF=4; print $0}",
+                    "a b\n",
+                    "a b  \n",
+                    1,
+                    4
+                },
+                {
+                    "{for(i=1;i<=NF;i++) $i=$i; print $0}",
+                    BuildLargeNonAsciiRecord() + "\n",
+                    BuildLargeNonAsciiRecord() + "\n",
+                    1,
+                    200
+                }
+            };
+
+            static string BuildLargeNonAsciiRecord() =>
+                string.Join(" ", Enumerable.Range(1, 200).Select(index => "é" + index));
         }
-    };
+    }
 
     [Theory]
     [MemberData(nameof(FieldRecompositionCounterCases))]
@@ -1251,6 +1260,4 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         AwkTestHarness.AssertNoClrExceptionLeak(stderr);
     }
 
-    private static string BuildLargeNonAsciiRecord() =>
-        string.Join(" ", Enumerable.Range(1, 200).Select(index => "é" + index));
 }

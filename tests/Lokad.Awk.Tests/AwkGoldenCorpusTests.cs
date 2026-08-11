@@ -40,6 +40,10 @@ public sealed class AwkGoldenCorpusTests
 
             yield return [testCase];
         }
+
+        static bool IsSourceLoadingFailure(AwkGoldenCase testCase) =>
+            testCase.ExpectedExitCode != 0 &&
+            testCase.Tags.Contains(AwkGoldenTag.SourceLoading);
     }
 
     public static IEnumerable<object[]> ExpectedFailingCases()
@@ -101,6 +105,31 @@ public sealed class AwkGoldenCorpusTests
         Assert.True(
             HasExecutableCounterActivity(counters) || IsExpectedNoVmDispatchCase(testCase),
             "Expected executable VM counters for golden case: " + testCase.Name);
+
+        static bool HasExecutableCounterActivity(AwkRuntimeCounters counters) =>
+            counters.VmBasicBlockEntries > 0 ||
+            counters.VmInstructions > 0 ||
+            counters.VmFallbackCalls > 0 ||
+            counters.VmPatternFallbacks > 0;
+
+        static bool IsExpectedNoVmDispatchCase(AwkGoldenCase testCase) =>
+            testCase.Name is
+                "missing-input-file-without-beginfile-fails" or
+                "input-directory-without-beginfile-fails" or
+                "main-input-read-open-error-fails" or
+                "empty-inline-script" or
+                "empty-script-file" or
+                "function-only-program";
+
+        static AwkRuntimeOptions CreateExecutableOptions(AwkRuntimeCounters counters) =>
+            new(
+                AwkUnixTimestampSeconds.FromSystemClock,
+                TimeZoneInfo.Local,
+                new AwkRandomGenerator(),
+                counters,
+                AwkRuntimeLimits.CreateDefault(),
+                AwkRegexEngineKind.DotNetCompatibility,
+                executionEngineKind: AwkExecutionEngineKind.Executable);
     }
 
     [Theory]
@@ -211,6 +240,59 @@ public sealed class AwkGoldenCorpusTests
 
         Assert.True(binding.Success, "Expected executable parse success for golden case: " + testCase.Name);
         AssertSyntaxOutlinesForAcceptedSource(testCase.Name, parse.Syntax);
+
+        static void AssertSyntaxOutlinesForAcceptedSource(string caseName, AwkSyntaxProgram syntax)
+        {
+            for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
+            {
+                var function = syntax.Functions[functionIndex];
+                AssertBodyOutline(
+                    caseName + " function " + function.Name,
+                    function.BodyTokens,
+                    function.BodyStatements);
+            }
+
+            for (var ruleIndex = 0; ruleIndex < syntax.Rules.Count; ruleIndex++)
+            {
+                var rule = syntax.Rules[ruleIndex];
+                if (rule.Kind == AwkRuleKind.Main && HasSignificantTokens(rule.PatternTokens))
+                {
+                    if (rule.PatternSyntax is AwkSinglePatternSyntax singlePattern)
+                    {
+                        Assert.NotNull(singlePattern.Expression);
+                        AssertExpressionOutline(caseName + " rule pattern " + ruleIndex, singlePattern.Expression);
+                    }
+                    else
+                    {
+                        var rangePattern = Assert.IsType<AwkRangePatternSyntax>(rule.PatternSyntax);
+                        AssertExpressionOutline(caseName + " rule range start " + ruleIndex, rangePattern.Start.Expression);
+                        AssertExpressionOutline(caseName + " rule range end " + ruleIndex, rangePattern.End.Expression);
+                    }
+                }
+
+                if (rule.HasExplicitAction)
+                {
+                    AssertBodyOutline(
+                        caseName + " rule action " + ruleIndex,
+                        rule.ActionTokens,
+                        rule.ActionStatements);
+                }
+            }
+
+            static void AssertBodyOutline(
+                string context,
+                IReadOnlyList<AwkToken> bodyTokens,
+                IReadOnlyList<AwkStatementSyntax> statements)
+            {
+                if (HasSignificantTokens(bodyTokens))
+                    Assert.NotEmpty(statements);
+
+                for (var statementIndex = 0; statementIndex < statements.Count; statementIndex++)
+                {
+                    AssertStatementOutline(context + " statement " + statementIndex, statements[statementIndex]);
+                }
+            }
+        }
     }
 
     [Fact]
@@ -224,6 +306,38 @@ public sealed class AwkGoldenCorpusTests
             Assert.False(
                 GoldenCaseMatches(testCase, result),
                 "Expected-failing awk case now matches the oracle expectation and should be promoted: " + testCase.Name);
+        }
+
+        static bool GoldenCaseMatches(AwkGoldenCase testCase, AwkTestRunResult result)
+        {
+            if (testCase.ExpectedExitCode != result.ExitCode ||
+                testCase.ExpectedStdErr != result.StdErr ||
+                !GoldenTextMatches(testCase, result.StdOut))
+            {
+                return false;
+            }
+
+            foreach (var expectedFile in testCase.ExpectedFiles)
+            {
+                if (!result.ExpectedFiles.TryGetValue(expectedFile.Path, out var actualContent) ||
+                    actualContent != expectedFile.Content)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+
+            static bool GoldenTextMatches(AwkGoldenCase testCase, string actual)
+            {
+                return testCase.StdOutComparison switch
+                {
+                    AwkGoldenTextComparison.Exact => testCase.ExpectedStdOut == actual,
+                    AwkGoldenTextComparison.UnorderedNonEmptyLines =>
+                        SortedNonEmptyLines(testCase.ExpectedStdOut).SequenceEqual(SortedNonEmptyLines(actual)),
+                    _ => throw new InvalidOperationException("Unknown stdout comparison mode.")
+                };
+            }
         }
     }
 
@@ -255,6 +369,15 @@ public sealed class AwkGoldenCorpusTests
         Assert.Empty(genericInvalidScriptCases);
         Assert.Empty(nonAwkDiagnostics);
         Assert.Empty(clrLeakExpectations);
+
+        static bool LooksLikeClrLeak(string text) =>
+            text.Contains("System.", StringComparison.Ordinal) ||
+            text.Contains("Exception", StringComparison.Ordinal) ||
+            text.Contains("NullReferenceException", StringComparison.Ordinal) ||
+            text.Contains("InvalidOperationException", StringComparison.Ordinal) ||
+            text.Contains("AggregateException", StringComparison.Ordinal) ||
+            text.Contains("\n   at ", StringComparison.Ordinal) ||
+            text.Contains("\r\n   at ", StringComparison.Ordinal);
     }
 
     [Fact]
@@ -290,6 +413,13 @@ public sealed class AwkGoldenCorpusTests
             .ToArray();
 
         Assert.Empty(duplicates);
+
+        static string BuildDuplicateDetectionFingerprint(AwkGoldenCase testCase)
+        {
+            return BuildGoldenCaseFingerprint(testCase, PreserveFingerprintText, includeSupport: true);
+            static string PreserveFingerprintText(string text) => text;
+        }
+        ;
     }
 
     [Fact]
@@ -302,6 +432,14 @@ public sealed class AwkGoldenCorpusTests
             .ToArray();
 
         Assert.Empty(duplicates);
+
+        static string BuildNearDuplicateDetectionFingerprint(AwkGoldenCase testCase)
+        {
+            return BuildGoldenCaseFingerprint(testCase, NormalizeNearDuplicateText, includeSupport: false);
+            static string NormalizeNearDuplicateText(string text) =>
+                text.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
+        }
+        ;
     }
 
     [Fact]
@@ -357,6 +495,18 @@ public sealed class AwkGoldenCorpusTests
         Assert.Empty(missingOracle);
         Assert.Empty(missingHostBehavior);
         Assert.Empty(missingCaveat);
+
+        static bool HasObservableHostBehavior(AwkGoldenCase testCase) =>
+            testCase.ExpectedFiles.Count > 0 ||
+            testCase.InputDirectories.Count > 0 ||
+            testCase.ReadOpenErrors.Count > 0 ||
+            testCase.Tags.Contains(AwkGoldenTag.HostPolicy) ||
+            testCase.Tags.Contains(AwkGoldenTag.HostPolicyBoundary);
+
+        static bool NeedsCompatibilityCaveat(AwkGoldenCase testCase) =>
+            testCase.NondeterminismNote.Length > 0 ||
+            testCase.SupportLevel == AwkGoldenSupportLevel.KnownUnsupported ||
+            testCase.Tags.Contains(AwkGoldenTag.KnownUnsupported);
     }
 
     [Fact]
@@ -367,6 +517,26 @@ public sealed class AwkGoldenCorpusTests
         Assert.Contains("canonical behavior and diagnostic suite", readmeText, StringComparison.Ordinal);
         Assert.Contains("Do not duplicate plain language behavior here unless a host boundary is the point of the test.", readmeText, StringComparison.Ordinal);
         Assert.Contains("Prefer moving ordinary user-visible behavior to the golden corpus.", readmeText, StringComparison.Ordinal);
+
+        static string LocateAwkTestReadme()
+        {
+            return Path.Combine(LocateAwkTestDirectory(), "README.md");
+
+            static string LocateAwkTestDirectory()
+            {
+                var current = new DirectoryInfo(AppContext.BaseDirectory);
+                while (current != null)
+                {
+                    var candidate = Path.Combine(current.FullName, "tests", "Lokad.Awk.Tests");
+                    if (File.Exists(Path.Combine(candidate, "README.md")))
+                        return candidate;
+
+                    current = current.Parent;
+                }
+
+                throw new DirectoryNotFoundException("Could not locate Awk test directory.");
+            }
+        }
     }
 
     [Fact]
@@ -398,117 +568,8 @@ public sealed class AwkGoldenCorpusTests
         }
     }
 
-    private static bool GoldenCaseMatches(AwkGoldenCase testCase, AwkTestRunResult result)
-    {
-        if (testCase.ExpectedExitCode != result.ExitCode ||
-            testCase.ExpectedStdErr != result.StdErr ||
-            !GoldenTextMatches(testCase, result.StdOut))
-        {
-            return false;
-        }
-
-        foreach (var expectedFile in testCase.ExpectedFiles)
-        {
-            if (!result.ExpectedFiles.TryGetValue(expectedFile.Path, out var actualContent) ||
-                actualContent != expectedFile.Content)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     private static bool IsParserDiagnosticCase(AwkGoldenCase testCase) =>
         testCase.Tags.Contains(AwkGoldenTag.CompilerDiagnostic);
-
-    private static bool IsSourceLoadingFailure(AwkGoldenCase testCase) =>
-        testCase.ExpectedExitCode != 0 &&
-        testCase.Tags.Contains(AwkGoldenTag.SourceLoading);
-
-    private static bool HasExecutableCounterActivity(AwkRuntimeCounters counters) =>
-        counters.VmBasicBlockEntries > 0 ||
-        counters.VmInstructions > 0 ||
-        counters.VmFallbackCalls > 0 ||
-        counters.VmPatternFallbacks > 0;
-
-    private static bool IsExpectedNoVmDispatchCase(AwkGoldenCase testCase) =>
-        testCase.Name is
-            "missing-input-file-without-beginfile-fails" or
-            "input-directory-without-beginfile-fails" or
-            "main-input-read-open-error-fails" or
-            "empty-inline-script" or
-            "empty-script-file" or
-            "function-only-program";
-
-    private static AwkRuntimeOptions CreateExecutableOptions(AwkRuntimeCounters counters) =>
-        new(
-            AwkUnixTimestampSeconds.FromSystemClock,
-            TimeZoneInfo.Local,
-            new AwkRandomGenerator(),
-            counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility,
-            executionEngineKind: AwkExecutionEngineKind.Executable);
-
-    private static string LocateAwkTestReadme()
-    {
-        return Path.Combine(LocateAwkTestDirectory(), "README.md");
-    }
-
-    private static string LocateAwkTestDirectory()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current != null)
-        {
-            var candidate = Path.Combine(current.FullName, "tests", "Lokad.Awk.Tests");
-            if (File.Exists(Path.Combine(candidate, "README.md")))
-                return candidate;
-
-            current = current.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate Awk test directory.");
-    }
-
-    private static void AssertSyntaxOutlinesForAcceptedSource(string caseName, AwkSyntaxProgram syntax)
-    {
-        for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
-        {
-            var function = syntax.Functions[functionIndex];
-            AssertBodyOutline(
-                caseName + " function " + function.Name,
-                function.BodyTokens,
-                function.BodyStatements);
-        }
-
-        for (var ruleIndex = 0; ruleIndex < syntax.Rules.Count; ruleIndex++)
-        {
-            var rule = syntax.Rules[ruleIndex];
-            if (rule.Kind == AwkRuleKind.Main && HasSignificantTokens(rule.PatternTokens))
-            {
-                if (rule.PatternSyntax is AwkSinglePatternSyntax singlePattern)
-                {
-                    Assert.NotNull(singlePattern.Expression);
-                    AssertExpressionOutline(caseName + " rule pattern " + ruleIndex, singlePattern.Expression);
-                }
-                else
-                {
-                    var rangePattern = Assert.IsType<AwkRangePatternSyntax>(rule.PatternSyntax);
-                    AssertExpressionOutline(caseName + " rule range start " + ruleIndex, rangePattern.Start.Expression);
-                    AssertExpressionOutline(caseName + " rule range end " + ruleIndex, rangePattern.End.Expression);
-                }
-            }
-
-            if (rule.HasExplicitAction)
-            {
-                AssertBodyOutline(
-                    caseName + " rule action " + ruleIndex,
-                    rule.ActionTokens,
-                    rule.ActionStatements);
-            }
-        }
-    }
 
     private static void AssertStructuredParserDiagnostic(AwkGoldenCase testCase, AwkBindingResult binding)
     {
@@ -531,20 +592,6 @@ public sealed class AwkGoldenCorpusTests
         Assert.Equal(diagnostic.Id, failure.Id);
     }
 
-    private static void AssertBodyOutline(
-        string context,
-        IReadOnlyList<AwkToken> bodyTokens,
-        IReadOnlyList<AwkStatementSyntax> statements)
-    {
-        if (HasSignificantTokens(bodyTokens))
-            Assert.NotEmpty(statements);
-
-        for (var statementIndex = 0; statementIndex < statements.Count; statementIndex++)
-        {
-            AssertStatementOutline(context + " statement " + statementIndex, statements[statementIndex]);
-        }
-    }
-
     private static void AssertStatementOutline(string context, AwkStatementSyntax statement)
     {
         Assert.NotEqual(AwkStatementKind.Unknown, statement.Kind);
@@ -559,7 +606,7 @@ public sealed class AwkGoldenCorpusTests
         var childExpressions = statement.EnumerateChildExpressions().ToArray();
         for (var expressionIndex = 0; expressionIndex < childExpressions.Length; expressionIndex++)
         {
-            AssertExpressionOutline(context + " expression " + expressionIndex, childExpressions[expressionIndex]);
+            AssertOptionalExpressionOutline(context + " expression " + expressionIndex, childExpressions[expressionIndex]);
         }
 
         for (var childIndex = 0; childIndex < statement.BodyStatements.Count; childIndex++)
@@ -576,21 +623,21 @@ public sealed class AwkGoldenCorpusTests
         {
             var switchCase = statement.SwitchCases[caseIndex];
             if (!switchCase.IsDefault)
-                AssertExpressionOutline(context + " case " + caseIndex, switchCase.Expression);
+                AssertOptionalExpressionOutline(context + " case " + caseIndex, switchCase.Expression);
 
             for (var childIndex = 0; childIndex < switchCase.BodyStatements.Count; childIndex++)
             {
                 AssertStatementOutline(context + " case body " + childIndex, switchCase.BodyStatements[childIndex]);
             }
         }
-    }
 
-    private static void AssertExpressionOutline(
-        string context,
-        AwkSyntaxOptional<AwkExpressionSyntax> expression)
-    {
-        Assert.True(expression.TryGetValue(out var syntax), context);
-        AssertExpressionOutline(context, syntax);
+        static void AssertOptionalExpressionOutline(
+            string context,
+            AwkSyntaxOptional<AwkExpressionSyntax> expression)
+        {
+            Assert.True(expression.TryGetValue(out var syntax), context);
+            AssertExpressionOutline(context, syntax);
+        }
     }
 
     private static void AssertExpressionOutline(string context, AwkExpressionSyntax? expression)
@@ -609,26 +656,6 @@ public sealed class AwkGoldenCorpusTests
     private static bool HasSignificantTokens(IReadOnlyList<AwkToken> tokens) =>
         tokens.Any(token => token.Kind is not AwkTokenKind.Comment and not AwkTokenKind.NewLine and not AwkTokenKind.Semicolon);
 
-    private static bool LooksLikeClrLeak(string text) =>
-        text.Contains("System.", StringComparison.Ordinal) ||
-        text.Contains("Exception", StringComparison.Ordinal) ||
-        text.Contains("NullReferenceException", StringComparison.Ordinal) ||
-        text.Contains("InvalidOperationException", StringComparison.Ordinal) ||
-        text.Contains("AggregateException", StringComparison.Ordinal) ||
-        text.Contains("\n   at ", StringComparison.Ordinal) ||
-        text.Contains("\r\n   at ", StringComparison.Ordinal);
-
-    private static bool GoldenTextMatches(AwkGoldenCase testCase, string actual)
-    {
-        return testCase.StdOutComparison switch
-        {
-            AwkGoldenTextComparison.Exact => testCase.ExpectedStdOut == actual,
-            AwkGoldenTextComparison.UnorderedNonEmptyLines =>
-                SortedNonEmptyLines(testCase.ExpectedStdOut).SequenceEqual(SortedNonEmptyLines(actual)),
-            _ => throw new InvalidOperationException("Unknown stdout comparison mode.")
-        };
-    }
-
     private static string[] SortedNonEmptyLines(string text)
     {
         return text
@@ -637,12 +664,6 @@ public sealed class AwkGoldenCorpusTests
             .Order(StringComparer.Ordinal)
             .ToArray();
     }
-
-    private static string BuildDuplicateDetectionFingerprint(AwkGoldenCase testCase) =>
-        BuildGoldenCaseFingerprint(testCase, PreserveFingerprintText, includeSupport: true);
-
-    private static string BuildNearDuplicateDetectionFingerprint(AwkGoldenCase testCase) =>
-        BuildGoldenCaseFingerprint(testCase, NormalizeNearDuplicateText, includeSupport: false);
 
     private static string BuildGoldenCaseFingerprint(
         AwkGoldenCase testCase,
@@ -665,63 +686,63 @@ public sealed class AwkGoldenCorpusTests
             AppendValue(builder, "support", testCase.SupportLevel.ToString());
 
         return builder.ToString();
-    }
 
-    private static void AppendFiles(
-        StringBuilder builder,
-        string label,
-        IReadOnlyList<AwkGoldenFile> files,
-        Func<string, string> normalizeContent)
-    {
-        foreach (var file in files.OrderBy(file => file.Path, StringComparer.Ordinal))
+        static void AppendFiles(
+            StringBuilder builder,
+            string label,
+            IReadOnlyList<AwkGoldenFile> files,
+            Func<string, string> normalizeContent)
         {
-            AppendValue(builder, label + ".path", file.Path);
-            AppendValue(builder, label + ".permission", file.Permission.ToString());
-            AppendValue(builder, label + ".content", normalizeContent(file.Content));
+            foreach (var file in files.OrderBy(file => file.Path, StringComparer.Ordinal))
+            {
+                AppendValue(builder, label + ".path", file.Path);
+                AppendValue(builder, label + ".permission", file.Permission.ToString());
+                AppendValue(builder, label + ".content", normalizeContent(file.Content));
+            }
         }
-    }
 
-    private static void AppendReadOpenErrors(StringBuilder builder, IReadOnlyList<AwkGoldenReadOpenError> errors)
-    {
-        foreach (var error in errors.OrderBy(error => error.Path, StringComparer.Ordinal))
+        static void AppendReadOpenErrors(StringBuilder builder, IReadOnlyList<AwkGoldenReadOpenError> errors)
         {
-            AppendValue(builder, "read-error.path", error.Path);
-            AppendValue(builder, "read-error.message", error.Message);
+            foreach (var error in errors.OrderBy(error => error.Path, StringComparer.Ordinal))
+            {
+                AppendValue(builder, "read-error.path", error.Path);
+                AppendValue(builder, "read-error.message", error.Message);
+            }
         }
-    }
 
-    private static void AppendPaths(
-        StringBuilder builder,
-        string label,
-        IReadOnlyList<AwkGoldenPath> paths)
-    {
-        for (var index = 0; index < paths.Count; index++)
+        static void AppendPaths(
+            StringBuilder builder,
+            string label,
+            IReadOnlyList<AwkGoldenPath> paths)
         {
-            AppendValue(builder, label + "." + index, paths[index].Path);
+            for (var index = 0; index < paths.Count; index++)
+            {
+                AppendValue(builder, label + "." + index, paths[index].Path);
+            }
         }
-    }
 
-    private static void AppendEnvironment(
-        StringBuilder builder,
-        IReadOnlyList<AwkEnvironmentVariable> environment,
-        Func<string, string> normalizeValue)
-    {
-        foreach (var variable in environment.OrderBy(variable => variable.Name, StringComparer.Ordinal))
+        static void AppendEnvironment(
+            StringBuilder builder,
+            IReadOnlyList<AwkEnvironmentVariable> environment,
+            Func<string, string> normalizeValue)
         {
-            AppendValue(builder, "env.name", variable.Name);
-            AppendValue(builder, "env.value", normalizeValue(variable.Value));
+            foreach (var variable in environment.OrderBy(variable => variable.Name, StringComparer.Ordinal))
+            {
+                AppendValue(builder, "env.name", variable.Name);
+                AppendValue(builder, "env.value", normalizeValue(variable.Value));
+            }
         }
-    }
 
-    private static void AppendSequence(
-        StringBuilder builder,
-        string label,
-        IReadOnlyList<string> values,
-        Func<string, string> normalizeValue)
-    {
-        for (var index = 0; index < values.Count; index++)
+        static void AppendSequence(
+            StringBuilder builder,
+            string label,
+            IReadOnlyList<string> values,
+            Func<string, string> normalizeValue)
         {
-            AppendValue(builder, label + "." + index, normalizeValue(values[index]));
+            for (var index = 0; index < values.Count; index++)
+            {
+                AppendValue(builder, label + "." + index, normalizeValue(values[index]));
+            }
         }
     }
 
@@ -734,23 +755,6 @@ public sealed class AwkGoldenCorpusTests
         builder.Append(value);
         builder.Append('\n');
     }
-
-    private static string PreserveFingerprintText(string text) => text;
-
-    private static string NormalizeNearDuplicateText(string text) =>
-        text.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
-
-    private static bool HasObservableHostBehavior(AwkGoldenCase testCase) =>
-        testCase.ExpectedFiles.Count > 0 ||
-        testCase.InputDirectories.Count > 0 ||
-        testCase.ReadOpenErrors.Count > 0 ||
-        testCase.Tags.Contains(AwkGoldenTag.HostPolicy) ||
-        testCase.Tags.Contains(AwkGoldenTag.HostPolicyBoundary);
-
-    private static bool NeedsCompatibilityCaveat(AwkGoldenCase testCase) =>
-        testCase.NondeterminismNote.Length > 0 ||
-        testCase.SupportLevel == AwkGoldenSupportLevel.KnownUnsupported ||
-        testCase.Tags.Contains(AwkGoldenTag.KnownUnsupported);
 
     private static readonly AwkGoldenTag[] FeatureCoverageTags =
     [

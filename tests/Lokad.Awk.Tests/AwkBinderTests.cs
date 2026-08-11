@@ -73,6 +73,18 @@ public sealed class AwkBinderTests
         AssertSemanticDeclaration(binding.SemanticModel, AwkSemanticSymbolKind.FunctionDefinition, "helper");
         AssertSemanticDeclaration(binding.SemanticModel, AwkSemanticSymbolKind.FunctionParameter, "value");
         AssertSemanticUsage(binding.SemanticModel, AwkSemanticSymbolKind.BuiltinFunction, "length");
+
+        static void AssertSemanticDeclaration(
+            AwkSemanticModel model,
+            AwkSemanticSymbolKind kind,
+            string name) =>
+            Assert.Contains(model.Declarations, symbol => symbol.Kind == kind && symbol.Name == name);
+
+        static void AssertSemanticUsage(
+            AwkSemanticModel model,
+            AwkSemanticSymbolKind kind,
+            string name) =>
+            Assert.Contains(model.Usages, symbol => symbol.Kind == kind && symbol.Name == name);
     }
 
     [Fact]
@@ -377,16 +389,4 @@ public sealed class AwkBinderTests
         AwkSemanticSymbolKind kind,
         string name) =>
         Assert.Contains(model.Symbols, symbol => symbol.Kind == kind && symbol.Name == name);
-
-    private static void AssertSemanticDeclaration(
-        AwkSemanticModel model,
-        AwkSemanticSymbolKind kind,
-        string name) =>
-        Assert.Contains(model.Declarations, symbol => symbol.Kind == kind && symbol.Name == name);
-
-    private static void AssertSemanticUsage(
-        AwkSemanticModel model,
-        AwkSemanticSymbolKind kind,
-        string name) =>
-        Assert.Contains(model.Usages, symbol => symbol.Kind == kind && symbol.Name == name);
 }

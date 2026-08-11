@@ -65,6 +65,9 @@ public sealed class AwkProgramTests
 
         Assert.Equal(["value"], function.Parameters.Select(static parameter => parameter.Text));
         Assert.Equal(1, value.AsNumber());
+
+        static AwkVariableName VariableName(string text) =>
+            AwkVariableName.FromText(text);
     }
 
     [Fact]
@@ -78,6 +81,9 @@ public sealed class AwkProgramTests
         var flow = await statement.ExecuteAsync(state, AwkTestHarness.CreateOutputSink(), CreateIo());
 
         Assert.Equal(AwkStatementFlow.ExitProgram, flow);
+
+        static AwkCondition TrueCondition() =>
+            new([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
     }
 
     [Fact]
@@ -200,12 +206,6 @@ public sealed class AwkProgramTests
         Assert.Equal(AwkStatementFlow.Continue, flow);
         Assert.Equal("x\n", host.GetAppendedOutput(new AwkFileDescriptor(3)));
     }
-
-    private static AwkCondition TrueCondition() =>
-        new([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
-
-    private static AwkVariableName VariableName(string text) =>
-        AwkVariableName.FromText(text);
 
     private static AwkIo CreateIo() =>
         new(

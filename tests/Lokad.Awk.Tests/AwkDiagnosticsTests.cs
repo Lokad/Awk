@@ -100,6 +100,16 @@ public sealed class AwkDiagnosticsTests
                 AwkDiagnosticId.UnsupportedPolicy)),
             AwkDiagnosticId.UnsupportedPolicy,
             AwkDiagnosticCategory.UnsupportedPolicy);
+
+        static void AssertFailure(
+            AwkFailureDiagnostic failure,
+            AwkDiagnosticId expectedId,
+            AwkDiagnosticCategory expectedCategory)
+        {
+            Assert.Equal(AwkDiagnostics.FatalExitCode, failure.ExitCode);
+            Assert.Equal(expectedId, failure.Id);
+            Assert.Equal(expectedCategory, failure.Category);
+        }
     }
 
     [Fact]
@@ -112,16 +122,6 @@ public sealed class AwkDiagnosticsTests
 
         Assert.Equal(AwkDiagnosticCategory.Warning, warning.Category);
         Assert.Equal("awk: warning: gensub: third argument `0' treated as 1\n", Decode(AwkDiagnostics.Warning(warning)));
-    }
-
-    private static void AssertFailure(
-        AwkFailureDiagnostic failure,
-        AwkDiagnosticId expectedId,
-        AwkDiagnosticCategory expectedCategory)
-    {
-        Assert.Equal(AwkDiagnostics.FatalExitCode, failure.ExitCode);
-        Assert.Equal(expectedId, failure.Id);
-        Assert.Equal(expectedCategory, failure.Category);
     }
 
     private static string Decode(ReadOnlyMemory<byte> bytes) =>

@@ -123,6 +123,29 @@ public sealed class MockFileSystem : IAwkHost
             return Task.FromResult(OpenForWrite(path, mode));
 
         return Task.FromResult(AwkOpenedFile.MissingFile());
+
+        AwkOpenedFile OpenForRead(AwkPath path)
+        {
+            return _files.OpenForRead(path) switch
+            {
+                MockReadOpenResult.Opened opened =>
+                    AwkOpenedFile.Opened(_descriptors.OpenRead(opened.Content)),
+                MockReadOpenResult.Failure failure => AwkOpenedFile.Failure(failure.Error),
+                MockReadOpenResult.MissingFile => AwkOpenedFile.MissingFile(),
+                _ => AwkOpenedFile.MissingFile()
+            };
+        }
+
+        AwkOpenedFile OpenForWrite(AwkPath path, AwkFileOpenMode mode)
+        {
+            return _files.OpenForWrite(path, mode) switch
+            {
+                MockWriteOpenResult.Opened opened =>
+                    AwkOpenedFile.Opened(_descriptors.OpenWrite(opened.InitialContent, opened.Commit)),
+                MockWriteOpenResult.Failure failure => AwkOpenedFile.Failure(failure.Error),
+                _ => AwkOpenedFile.MissingFile()
+            };
+        }
     }
 
     public Task<AwkOperationStatus> CloseDescriptorAsync(
@@ -166,28 +189,5 @@ public sealed class MockFileSystem : IAwkHost
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(AwkPipeCreationResult.NotSupported(
             new AwkOperationError("MockFileSystem does not create pipes.")));
-    }
-
-    private AwkOpenedFile OpenForRead(AwkPath path)
-    {
-        return _files.OpenForRead(path) switch
-        {
-            MockReadOpenResult.Opened opened =>
-                AwkOpenedFile.Opened(_descriptors.OpenRead(opened.Content)),
-            MockReadOpenResult.Failure failure => AwkOpenedFile.Failure(failure.Error),
-            MockReadOpenResult.MissingFile => AwkOpenedFile.MissingFile(),
-            _ => AwkOpenedFile.MissingFile()
-        };
-    }
-
-    private AwkOpenedFile OpenForWrite(AwkPath path, AwkFileOpenMode mode)
-    {
-        return _files.OpenForWrite(path, mode) switch
-        {
-            MockWriteOpenResult.Opened opened =>
-                AwkOpenedFile.Opened(_descriptors.OpenWrite(opened.InitialContent, opened.Commit)),
-            MockWriteOpenResult.Failure failure => AwkOpenedFile.Failure(failure.Error),
-            _ => AwkOpenedFile.MissingFile()
-        };
     }
 }

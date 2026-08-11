@@ -72,6 +72,52 @@ internal static class AwkOracleCapture
             Console.Error.WriteLine("- " + mismatches[index]);
 
         return 1;
+
+        static void AppendTextDifference(
+            StringBuilder builder,
+            string streamName,
+            string expected,
+            string actual)
+        {
+            if (string.Equals(expected, actual, StringComparison.Ordinal))
+                return;
+
+            var commonLength = Math.Min(expected.Length, actual.Length);
+            var differenceIndex = 0;
+            while (differenceIndex < commonLength && expected[differenceIndex] == actual[differenceIndex])
+                differenceIndex++;
+
+            builder.AppendLine();
+            builder.Append("    ");
+            builder.Append(streamName);
+            builder.Append(" differs at character ");
+            builder.Append(differenceIndex.ToString(CultureInfo.InvariantCulture));
+            builder.Append(" (expected length ");
+            builder.Append(expected.Length.ToString(CultureInfo.InvariantCulture));
+            builder.Append(", oracle length ");
+            builder.Append(actual.Length.ToString(CultureInfo.InvariantCulture));
+            builder.AppendLine("):");
+            builder.Append("      expected: ");
+            builder.AppendLine(FormatTextWindow(expected, differenceIndex));
+            builder.Append("      oracle:   ");
+            builder.Append(FormatTextWindow(actual, differenceIndex));
+
+            static string FormatTextWindow(string value, int differenceIndex)
+            {
+                const int ContextCharacters = 48;
+                var start = Math.Max(0, differenceIndex - ContextCharacters);
+                var length = Math.Min(value.Length - start, ContextCharacters * 2);
+                var escaped = value.AsSpan(start, length)
+                    .ToString()
+                    .Replace("\\", "\\\\", StringComparison.Ordinal)
+                    .Replace("\r", "\\r", StringComparison.Ordinal)
+                    .Replace("\n", "\\n", StringComparison.Ordinal)
+                    .Replace("\t", "\\t", StringComparison.Ordinal)
+                    .Replace("\"", "\\\"", StringComparison.Ordinal);
+                return (start > 0 ? "…" : string.Empty) + '"' + escaped + '"' +
+                    (start + length < value.Length ? "…" : string.Empty);
+            }
+        }
     }
 
     public static async Task WriteAsync(string outputPath, int? limit)
@@ -120,6 +166,29 @@ internal static class AwkOracleCapture
         builder.Insert(0, "Mismatches: " + mismatchCount.ToString(CultureInfo.InvariantCulture) + Environment.NewLine + Environment.NewLine);
         await File.WriteAllTextAsync(outputPath, builder.ToString(), Encoding.UTF8);
         Console.WriteLine("Wrote " + outputPath);
+
+        static void AppendTextBlock(StringBuilder builder, string title, string value)
+        {
+            builder.AppendLine();
+            builder.AppendLine(title + ":");
+            builder.AppendLine("```text");
+            builder.Append(value);
+            if (value.Length == 0 || value[^1] != '\n')
+                builder.AppendLine();
+            builder.AppendLine("```");
+            builder.AppendLine();
+        }
+
+        static string EscapeMarkdown(string value) =>
+            value.Replace("`", "\\`", StringComparison.Ordinal).Replace("\r", string.Empty, StringComparison.Ordinal).Trim();
+
+        static string FormatEnvironment(IReadOnlyList<AwkEnvironmentVariable> environment)
+        {
+            if (environment.Count == 0)
+                return "(none)";
+
+            return string.Join("; ", environment.Select(variable => variable.Name + "=" + variable.Value));
+        }
     }
 
     private static AwkGoldenCase[] GetCapturableCases(int? limit)
@@ -129,27 +198,27 @@ internal static class AwkOracleCapture
             query = query.Take(limit.Value);
 
         return query.ToArray();
+
+        static bool CanCaptureWithoutPathMapping(AwkGoldenCase testCase)
+        {
+            if (testCase.SupportLevel != AwkGoldenSupportLevel.CurrentPass ||
+                testCase.InputFiles.Count != 0 ||
+                testCase.InputDirectories.Count != 0 ||
+                testCase.ReadOpenErrors.Count != 0 ||
+                testCase.ExpectedFiles.Count != 0 ||
+                testCase.StandardInput.Length != 0)
+            {
+                return false;
+            }
+
+            return testCase.Arguments.All(argument => !argument.StartsWith('/'));
+        }
     }
 
     private static bool Matches(AwkGoldenCase testCase, AwkOracleResult result) =>
         result.ExitCode == testCase.ExpectedExitCode &&
         string.Equals(result.StdOut, testCase.ExpectedStdOut, StringComparison.Ordinal) &&
         string.Equals(result.StdErr, testCase.ExpectedStdErr, StringComparison.Ordinal);
-
-    private static bool CanCaptureWithoutPathMapping(AwkGoldenCase testCase)
-    {
-        if (testCase.SupportLevel != AwkGoldenSupportLevel.CurrentPass ||
-            testCase.InputFiles.Count != 0 ||
-            testCase.InputDirectories.Count != 0 ||
-            testCase.ReadOpenErrors.Count != 0 ||
-            testCase.ExpectedFiles.Count != 0 ||
-            testCase.StandardInput.Length != 0)
-        {
-            return false;
-        }
-
-        return testCase.Arguments.All(argument => !argument.StartsWith('/'));
-    }
 
     private static AwkOracleDifferenceClassification ClassifyDifference(AwkGoldenCase testCase)
     {
@@ -179,75 +248,6 @@ internal static class AwkOracleCapture
         };
     }
 
-    private static void AppendTextDifference(
-        StringBuilder builder,
-        string streamName,
-        string expected,
-        string actual)
-    {
-        if (string.Equals(expected, actual, StringComparison.Ordinal))
-            return;
-
-        var commonLength = Math.Min(expected.Length, actual.Length);
-        var differenceIndex = 0;
-        while (differenceIndex < commonLength && expected[differenceIndex] == actual[differenceIndex])
-            differenceIndex++;
-
-        builder.AppendLine();
-        builder.Append("    ");
-        builder.Append(streamName);
-        builder.Append(" differs at character ");
-        builder.Append(differenceIndex.ToString(CultureInfo.InvariantCulture));
-        builder.Append(" (expected length ");
-        builder.Append(expected.Length.ToString(CultureInfo.InvariantCulture));
-        builder.Append(", oracle length ");
-        builder.Append(actual.Length.ToString(CultureInfo.InvariantCulture));
-        builder.AppendLine("):");
-        builder.Append("      expected: ");
-        builder.AppendLine(FormatTextWindow(expected, differenceIndex));
-        builder.Append("      oracle:   ");
-        builder.Append(FormatTextWindow(actual, differenceIndex));
-    }
-
-    private static string FormatTextWindow(string value, int differenceIndex)
-    {
-        const int ContextCharacters = 48;
-        var start = Math.Max(0, differenceIndex - ContextCharacters);
-        var length = Math.Min(value.Length - start, ContextCharacters * 2);
-        var escaped = value.AsSpan(start, length)
-            .ToString()
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal)
-            .Replace("\t", "\\t", StringComparison.Ordinal)
-            .Replace("\"", "\\\"", StringComparison.Ordinal);
-        return (start > 0 ? "…" : string.Empty) + '"' + escaped + '"' +
-            (start + length < value.Length ? "…" : string.Empty);
-    }
-
-    private static void AppendTextBlock(StringBuilder builder, string title, string value)
-    {
-        builder.AppendLine();
-        builder.AppendLine(title + ":");
-        builder.AppendLine("```text");
-        builder.Append(value);
-        if (value.Length == 0 || value[^1] != '\n')
-            builder.AppendLine();
-        builder.AppendLine("```");
-        builder.AppendLine();
-    }
-
-    private static string EscapeMarkdown(string value) =>
-        value.Replace("`", "\\`", StringComparison.Ordinal).Replace("\r", string.Empty, StringComparison.Ordinal).Trim();
-
-    private static string FormatEnvironment(IReadOnlyList<AwkEnvironmentVariable> environment)
-    {
-        if (environment.Count == 0)
-            return "(none)";
-
-        return string.Join("; ", environment.Select(variable => variable.Name + "=" + variable.Value));
-    }
-
     private sealed class AwkOracleRunner(string executable, IReadOnlyList<string> prefixArguments)
     {
         public string DisplayCommand => string.Join(" ", [executable, .. prefixArguments]);
@@ -271,6 +271,14 @@ internal static class AwkOracleCapture
                 throw new InvalidOperationException("awk oracle version command failed: " + FirstLine(result.StdErr));
 
             return result.StdOut.Length > 0 ? result.StdOut.Split('\n')[0] : result.StdErr.Split('\n')[0];
+
+            static string FirstLine(string value)
+            {
+                if (value.Length == 0)
+                    return string.Empty;
+
+                return value.Split('\n')[0].Trim();
+            }
         }
 
         public async Task<string?> TryCaptureVersionAsync()
@@ -296,9 +304,12 @@ internal static class AwkOracleCapture
             return RunProcessAsync(arguments, testCase.Environment);
         }
 
-        public string FormatCommand(IReadOnlyList<string> arguments) =>
-            string.Join(" ", [DisplayCommand, .. arguments.Select(QuoteArgument)]);
-
+        public string FormatCommand(IReadOnlyList<string> arguments)
+        {
+            return string.Join(" ", [DisplayCommand, .. arguments.Select(QuoteArgument)]);
+            static string QuoteArgument(string argument) =>
+                argument.Any(char.IsWhiteSpace) ? "\"" + argument.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"" : argument;
+        }
         private Task<AwkOracleResult> RunProcessAsync(
             IReadOnlyList<string> arguments,
             IReadOnlyList<AwkEnvironmentVariable> environment)
@@ -324,27 +335,16 @@ internal static class AwkOracleCapture
             }
 
             return RunStartedProcessAsync(start);
-        }
 
-        private static async Task<AwkOracleResult> RunStartedProcessAsync(ProcessStartInfo start)
-        {
-            using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start awk oracle.");
-            process.StandardInput.Close();
-            var stdoutTask = process.StandardOutput.ReadToEndAsync();
-            var stderrTask = process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
-            return new AwkOracleResult(process.ExitCode, await stdoutTask, await stderrTask);
-        }
-
-        private static string QuoteArgument(string argument) =>
-            argument.Any(char.IsWhiteSpace) ? "\"" + argument.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"" : argument;
-
-        private static string FirstLine(string value)
-        {
-            if (value.Length == 0)
-                return string.Empty;
-
-            return value.Split('\n')[0].Trim();
+            static async Task<AwkOracleResult> RunStartedProcessAsync(ProcessStartInfo start)
+            {
+                using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start awk oracle.");
+                process.StandardInput.Close();
+                var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                var stderrTask = process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync();
+                return new AwkOracleResult(process.ExitCode, await stdoutTask, await stderrTask);
+            }
         }
     }
 

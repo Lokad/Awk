@@ -112,6 +112,20 @@ internal sealed class AwkGoldenCaseBuilder
     {
         _inputDirectories = ToGoldenPaths(inputDirectories);
         return this;
+
+        static AwkGoldenPath[] ToGoldenPaths(IReadOnlyList<string> paths)
+        {
+            if (paths.Count == 0)
+                return [];
+
+            var converted = new AwkGoldenPath[paths.Count];
+            for (var index = 0; index < paths.Count; index++)
+            {
+                converted[index] = new AwkGoldenPath(paths[index]);
+            }
+
+            return converted;
+        }
     }
 
     public AwkGoldenCaseBuilder WithInputDirectories(IReadOnlyList<AwkGoldenPath> inputDirectories)
@@ -203,20 +217,6 @@ internal sealed class AwkGoldenCaseBuilder
             _supportLevel,
             _tags,
             _nondeterminismNote);
-
-    private static AwkGoldenPath[] ToGoldenPaths(IReadOnlyList<string> paths)
-    {
-        if (paths.Count == 0)
-            return [];
-
-        var converted = new AwkGoldenPath[paths.Count];
-        for (var index = 0; index < paths.Count; index++)
-        {
-            converted[index] = new AwkGoldenPath(paths[index]);
-        }
-
-        return converted;
-    }
 }
 
 public readonly record struct AwkGoldenPath

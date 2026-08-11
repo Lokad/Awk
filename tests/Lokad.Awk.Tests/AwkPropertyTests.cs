@@ -16,10 +16,17 @@ public sealed class AwkPropertyTests
         for (var index = 0; index < 60; index++)
         {
             var expression = GenerateArithmeticExpression(random, depth: 3);
-            var result = await RunAwkAsync("BEGIN{print " + expression.Text + "}", []);
+            var result = await RunAwkWithoutInputArgumentsAsync("BEGIN{print " + expression.Text + "}", []);
 
             Assert.Equal(expression.Value + "\n", result.StdOut);
             Assert.Equal(string.Empty, result.StdErr);
+        }
+
+        static async Task<AwkPropertyRunResult> RunAwkWithoutInputArgumentsAsync(
+            string program,
+            IReadOnlyList<AwkTestInputFile> files)
+        {
+            return await RunAwkAsync(program, files, []).ConfigureAwait(false);
         }
     }
 
@@ -49,6 +56,46 @@ public sealed class AwkPropertyTests
 
         Assert.Equal(expected.ToString(), result.StdOut);
         Assert.Equal(string.Empty, result.StdErr);
+
+        static List<string> GenerateFields(Random random)
+        {
+            var count = 1 + random.Next(6);
+            var fields = new List<string>(count);
+            for (var index = 0; index < count; index++)
+            {
+                fields.Add(GenerateWord(random, 1 + random.Next(8)));
+            }
+
+            return fields;
+        }
+
+        static string JoinWithRandomWhitespace(Random random, List<string> fields)
+        {
+            var builder = new StringBuilder();
+            builder.Append(RandomWhitespace(random));
+            for (var index = 0; index < fields.Count; index++)
+            {
+                if (index > 0)
+                    builder.Append(RandomWhitespace(random));
+
+                builder.Append(fields[index]);
+            }
+
+            builder.Append(RandomWhitespace(random));
+            return builder.ToString();
+
+            static string RandomWhitespace(Random random)
+            {
+                var count = 1 + random.Next(4);
+                var builder = new StringBuilder(count);
+                for (var index = 0; index < count; index++)
+                {
+                    builder.Append(random.Next(2) == 0 ? ' ' : '\t');
+                }
+
+                return builder.ToString();
+            }
+        }
     }
 
     [Fact]
@@ -147,46 +194,6 @@ public sealed class AwkPropertyTests
         };
     }
 
-    private static List<string> GenerateFields(Random random)
-    {
-        var count = 1 + random.Next(6);
-        var fields = new List<string>(count);
-        for (var index = 0; index < count; index++)
-        {
-            fields.Add(GenerateWord(random, 1 + random.Next(8)));
-        }
-
-        return fields;
-    }
-
-    private static string JoinWithRandomWhitespace(Random random, List<string> fields)
-    {
-        var builder = new StringBuilder();
-        builder.Append(RandomWhitespace(random));
-        for (var index = 0; index < fields.Count; index++)
-        {
-            if (index > 0)
-                builder.Append(RandomWhitespace(random));
-
-            builder.Append(fields[index]);
-        }
-
-        builder.Append(RandomWhitespace(random));
-        return builder.ToString();
-    }
-
-    private static string RandomWhitespace(Random random)
-    {
-        var count = 1 + random.Next(4);
-        var builder = new StringBuilder(count);
-        for (var index = 0; index < count; index++)
-        {
-            builder.Append(random.Next(2) == 0 ? ' ' : '\t');
-        }
-
-        return builder.ToString();
-    }
-
     private static string GenerateWord(Random random, int length)
     {
         var builder = new StringBuilder(length);
@@ -196,13 +203,6 @@ public sealed class AwkPropertyTests
         }
 
         return builder.ToString();
-    }
-
-    private static async Task<AwkPropertyRunResult> RunAwkAsync(
-        string program,
-        IReadOnlyList<AwkTestInputFile> files)
-    {
-        return await RunAwkAsync(program, files, []).ConfigureAwait(false);
     }
 
     private static async Task<AwkPropertyRunResult> RunAwkAsync(

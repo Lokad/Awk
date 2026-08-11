@@ -36,6 +36,12 @@ public sealed class AwkFieldFrameTests
         Assert.Equal("alpha", first.AsString());
         Assert.Equal("alpha", second.AsString());
         Assert.Equal(allocationsAfterFirstRead, counters.AwkTextAllocations);
+
+        static List<AwkFieldText> SplitAlphaBeta(AwkText _) =>
+            [
+                AwkFieldText.FromRecordSlice(0, 5),
+            AwkFieldText.FromRecordSlice(6, 4)
+            ];
     }
 
     private static AwkFieldFrame CreateFrame(AwkRuntimeCounters counters) =>
@@ -47,11 +53,5 @@ public sealed class AwkFieldFrameTests
 
     private static AwkMemoryGovernor CreateGovernor(AwkRuntimeCounters counters) =>
         AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
-
-    private static List<AwkFieldText> SplitAlphaBeta(AwkText _) =>
-        [
-            AwkFieldText.FromRecordSlice(0, 5),
-            AwkFieldText.FromRecordSlice(6, 4)
-        ];
 
 }

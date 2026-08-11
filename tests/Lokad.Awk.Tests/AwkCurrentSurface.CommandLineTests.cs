@@ -119,6 +119,20 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         AssertLintMode(AwkLintMode.Normal, "--lint-old");
         AssertLintMode(AwkLintMode.Normal, "-t");
         AssertLintMode(AwkLintMode.Fatal, "--lint=fatal");
+
+        static void AssertLintMode(AwkLintMode expected, params string[] arguments)
+        {
+            var allArguments = new string[arguments.Length + 1];
+            for (var index = 0; index < arguments.Length; index++)
+            {
+                allArguments[index] = arguments[index];
+            }
+
+            allArguments[^1] = "BEGIN{print 1}";
+            var invocation = AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", allArguments));
+
+            Assert.Equal(expected, invocation.ExecutionOptions.CompatibilityProfile.LintMode);
+        }
     }
 
     [Fact]
@@ -159,20 +173,6 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("SKU\nb\nd\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-    }
-
-    private static void AssertLintMode(AwkLintMode expected, params string[] arguments)
-    {
-        var allArguments = new string[arguments.Length + 1];
-        for (var index = 0; index < arguments.Length; index++)
-        {
-            allArguments[index] = arguments[index];
-        }
-
-        allArguments[^1] = "BEGIN{print 1}";
-        var invocation = AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", allArguments));
-
-        Assert.Equal(expected, invocation.ExecutionOptions.CompatibilityProfile.LintMode);
     }
 
     [Fact]

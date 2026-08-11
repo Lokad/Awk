@@ -112,6 +112,9 @@ internal sealed class MockFileTree
         {
             parent.Children[name] = new FileNode(content, AwkFileTreePermission.ReadWrite);
         });
+
+        static MockWriteOpenResult.Failure OperationFailedWrite() =>
+            new MockWriteOpenResult.Failure(new AwkOperationError("Operation failed."));
     }
 
     private DirectoryNode EnsureDirectory(
@@ -197,22 +200,19 @@ internal sealed class MockFileTree
             throw new InvalidOperationException("MockFileSystem requires absolute paths.");
 
         return parsed;
-    }
 
-    private static bool TryParsePath(string path, out AwkPath parsed)
-    {
-        if (string.IsNullOrWhiteSpace(path) || !AwkPath.IsValid(path))
+        static bool TryParsePath(string path, out AwkPath parsed)
         {
-            parsed = AwkPath.Root;
-            return false;
+            if (string.IsNullOrWhiteSpace(path) || !AwkPath.IsValid(path))
+            {
+                parsed = AwkPath.Root;
+                return false;
+            }
+
+            parsed = new AwkPath(path);
+            return true;
         }
-
-        parsed = new AwkPath(path);
-        return true;
     }
-
-    private static MockWriteOpenResult.Failure OperationFailedWrite() =>
-        new MockWriteOpenResult.Failure(new AwkOperationError("Operation failed."));
 
     private abstract class Node;
 
