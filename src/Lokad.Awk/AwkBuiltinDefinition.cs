@@ -220,26 +220,26 @@ internal abstract class AwkBuiltinImplementation
                 ReturnValues(values, argumentCount);
                 throw;
             }
-        }
 
-        private async ValueTask<AwkValue> EvaluateRemainingAsync(
-            AwkBuiltinContext context,
-            AwkValue[] values,
-            int argumentCount,
-            int currentIndex,
-            ValueTask<AwkValue> pending)
-        {
-            try
+            async ValueTask<AwkValue> EvaluateRemainingAsync(
+                AwkBuiltinContext context,
+                AwkValue[] values,
+                int argumentCount,
+                int currentIndex,
+                ValueTask<AwkValue> pending)
             {
-                values[currentIndex] = await pending.ConfigureAwait(false);
-                for (var index = currentIndex + 1; index < argumentCount; index++)
-                    values[index] = await context.GetValueAsync(index).ConfigureAwait(false);
+                try
+                {
+                    values[currentIndex] = await pending.ConfigureAwait(false);
+                    for (var index = currentIndex + 1; index < argumentCount; index++)
+                        values[index] = await context.GetValueAsync(index).ConfigureAwait(false);
 
-                return evaluator(context.WithEvaluatedArguments(values, argumentCount));
-            }
-            finally
-            {
-                ReturnValues(values, argumentCount);
+                    return evaluator(context.WithEvaluatedArguments(values, argumentCount));
+                }
+                finally
+                {
+                    ReturnValues(values, argumentCount);
+                }
             }
         }
 

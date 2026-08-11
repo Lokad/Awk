@@ -36,6 +36,11 @@ internal sealed class AwkSpecialVariableDispatcher(
         recordAssignment(id);
         if (RequiresFieldSplitterUpdate(id))
             ApplyAssignmentEffects(id, formatString(value));
+
+        static bool RequiresFieldSplitterUpdate(AwkSpecialVariableId id) =>
+            id is AwkSpecialVariableId.FieldSeparator or
+                AwkSpecialVariableId.FieldPattern or
+                AwkSpecialVariableId.FieldWidths;
     }
 
     public void ApplyAssignment(AwkSpecialVariableId id, AwkText value)
@@ -59,9 +64,4 @@ internal sealed class AwkSpecialVariableDispatcher(
                 break;
         }
     }
-
-    private static bool RequiresFieldSplitterUpdate(AwkSpecialVariableId id) =>
-        id is AwkSpecialVariableId.FieldSeparator or
-            AwkSpecialVariableId.FieldPattern or
-            AwkSpecialVariableId.FieldWidths;
 }

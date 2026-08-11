@@ -140,14 +140,14 @@ internal sealed record AwkFieldReference(AwkExpression FieldIndexExpression) : A
     {
         var fieldIndex = (int)(await FieldIndexExpression.ResolveNumberAsync(context).ConfigureAwait(false));
         return ResolveField(fieldIndex);
-    }
 
-    private static AwkResolvedReference ResolveField(int fieldIndex)
-    {
-        if (fieldIndex < 0)
-            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        static AwkResolvedReference ResolveField(int fieldIndex)
+        {
+            if (fieldIndex < 0)
+                throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
 
-        return AwkResolvedReference.Field(new AwkFieldIndex(fieldIndex));
+            return AwkResolvedReference.Field(new AwkFieldIndex(fieldIndex));
+        }
     }
 }
 
@@ -190,24 +190,35 @@ internal readonly struct AwkResolvedReference
     public static AwkResolvedReference Field(AwkFieldIndex fieldIndex) =>
         new(AwkResolvedReferenceKind.Field, default, default, default, default, fieldIndex);
 
-    public AwkValue Evaluate(AwkRuntimeState state) =>
-        _kind switch
+    public AwkValue Evaluate(AwkRuntimeState state)
+    {
+        return _kind switch
         {
             AwkResolvedReferenceKind.Scalar => state.ResolveVariableValue(_scalarVariable),
             AwkResolvedReferenceKind.LocalScalar => state.ResolveFunctionLocalValue(
                 _localScalarSlotId,
                 _scalarVariable),
             AwkResolvedReferenceKind.ArrayElement => state.GetArrayAwkValue(_arrayVariable, _arrayIndex),
-            AwkResolvedReferenceKind.Field => EvaluateField(state),
+            AwkResolvedReferenceKind.Field => EvaluateField(state, _fieldIndex),
             _ => AwkValue.Unassigned()
         };
+        static AwkValue EvaluateField(AwkRuntimeState state, AwkFieldIndex fieldIndex)
+        {
+            if (fieldIndex.IsCurrentRecord)
+                return state.GetCurrentRecordValue();
 
+            if (fieldIndex.Value > state.FieldCount)
+                return AwkValue.FromText(string.Empty);
+
+            return state.GetFieldValue(fieldIndex);
+        }
+    }
     public void AssignValue(AwkRuntimeState state, AwkValue value)
     {
         switch (_kind)
         {
             case AwkResolvedReferenceKind.Scalar:
-                AssignScalarValue(state, value);
+                AssignScalarValue(state, value, _scalarVariable);
                 break;
 
             case AwkResolvedReferenceKind.LocalScalar:
@@ -222,28 +233,17 @@ internal readonly struct AwkResolvedReference
                 state.AssignFieldValue(_fieldIndex, value);
                 break;
         }
-    }
 
-    private AwkValue EvaluateField(AwkRuntimeState state)
-    {
-        if (_fieldIndex.IsCurrentRecord)
-            return state.GetCurrentRecordValue();
-
-        if (_fieldIndex.Value > state.FieldCount)
-            return AwkValue.FromText(string.Empty);
-
-        return state.GetFieldValue(_fieldIndex);
-    }
-
-    private void AssignScalarValue(AwkRuntimeState state, AwkValue value)
-    {
-        if (AwkSpecialVariables.TryGetScalar(_scalarVariable, out var id))
+        static void AssignScalarValue(AwkRuntimeState state, AwkValue value, AwkVariableName scalarVariable)
         {
-            state.AssignSpecialVariableValue(id, value);
-            return;
-        }
+            if (AwkSpecialVariables.TryGetScalar(scalarVariable, out var id))
+            {
+                state.AssignSpecialVariableValue(id, value);
+                return;
+            }
 
-        state.AssignVariableValue(_scalarVariable, value);
+            state.AssignVariableValue(scalarVariable, value);
+        }
     }
 }
 

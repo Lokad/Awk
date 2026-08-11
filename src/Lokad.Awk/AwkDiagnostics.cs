@@ -99,28 +99,28 @@ internal static class AwkDiagnostics
         }
 
         return AwkUtf8Codec.Encode("awk: " + LowercaseAsciiInitial(message) + "\n");
-    }
 
-    private static string FormatLocation(AwkSourceLocation location) =>
-        location.SourceName.Text +
-        ":" +
-        location.LineNumber.Value.ToString(CultureInfo.InvariantCulture) +
-        ":" +
-        location.ColumnNumber.Value.ToString(CultureInfo.InvariantCulture);
+        static string FormatLocation(AwkSourceLocation location) =>
+            location.SourceName.Text +
+            ":" +
+            location.LineNumber.Value.ToString(CultureInfo.InvariantCulture) +
+            ":" +
+            location.ColumnNumber.Value.ToString(CultureInfo.InvariantCulture);
 
-    private static string EnsureTrailingNewLine(string message) =>
-        message.EndsWith('\n') ? message : message + "\n";
+        static string EnsureTrailingNewLine(string message) =>
+            message.EndsWith('\n') ? message : message + "\n";
 
-    private static string LowercaseAsciiInitial(string message)
-    {
-        if (message.Length == 0 ||
-            message[0] < 'A' ||
-            message[0] > 'Z')
+        static string LowercaseAsciiInitial(string message)
         {
-            return message;
-        }
+            if (message.Length == 0 ||
+                message[0] < 'A' ||
+                message[0] > 'Z')
+            {
+                return message;
+            }
 
-        return (char)(message[0] - 'A' + 'a') + message[1..];
+            return (char)(message[0] - 'A' + 'a') + message[1..];
+        }
     }
 
 }

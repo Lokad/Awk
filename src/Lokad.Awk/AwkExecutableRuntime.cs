@@ -68,19 +68,19 @@ internal sealed class AwkExecutableProgram
             CompileActions(program.EndFileActions, tables),
             CompileFunctions(program.Functions),
             tables.ToTables());
-    }
 
-    private static AwkExecutableAction[] CompileActions(
-        AwkAction[] actions,
-        AwkExecutableTableBuilder tables)
-    {
-        var executable = new AwkExecutableAction[actions.Length];
-        for (var index = 0; index < actions.Length; index++)
+        static AwkExecutableAction[] CompileActions(
+            AwkAction[] actions,
+            AwkExecutableTableBuilder tables)
         {
-            executable[index] = AwkExecutableAction.Compile(actions[index], tables);
-        }
+            var executable = new AwkExecutableAction[actions.Length];
+            for (var index = 0; index < actions.Length; index++)
+            {
+                executable[index] = AwkExecutableAction.Compile(actions[index], tables);
+            }
 
-        return executable;
+            return executable;
+        }
     }
 
     private static bool AreFallbackOnly(AwkExecutableAction[] actions)
@@ -229,6 +229,11 @@ internal static class AwkExecutableDispatcher
         RecordBudgetCheck(state);
         var depth = NormalizeStackDepth(maxStackDepth);
         return AwkVmFrameScope.Enter(state, depth, EstimateFrameBytes(depth));
+
+        static long EstimateFrameBytes(int stackSlotCount) =>
+            AwkRuntimeMemory.CheckedAdd(
+                VmFrameFixedBytes,
+                AwkRuntimeMemory.EstimateAwkValueArrayBytes(stackSlotCount));
     }
 
     public static void RecordBudgetCheck(AwkRuntimeState state)
@@ -558,79 +563,74 @@ internal static class AwkExecutableDispatcher
         {
             ReturnStack(stack);
         }
-    }
 
-    private static async ValueTask<AwkStatementFlow> ExecuteFallbackActionAsync(
-        AwkExecutableAction action,
-        AwkRuntimeState state,
-        AwkIo io,
-        AwkOutputSink output)
-    {
-        using var frame = EnterFallbackFrame(state);
-        state.Counters.RecordVmBasicBlockEntry();
-        var block = action.Block;
-        if (block.Instructions.Length != 1 || block.Instructions[0].Opcode != AwkOpcode.FallbackAction)
-            throw new InvalidOperationException("Executable action fallback block is malformed.");
+        static async ValueTask<AwkStatementFlow> ExecuteFallbackActionAsync(
+            AwkExecutableAction action,
+            AwkRuntimeState state,
+            AwkIo io,
+            AwkOutputSink output)
+        {
+            using var frame = EnterFallbackFrame(state);
+            state.Counters.RecordVmBasicBlockEntry();
+            var block = action.Block;
+            if (block.Instructions.Length != 1 || block.Instructions[0].Opcode != AwkOpcode.FallbackAction)
+                throw new InvalidOperationException("Executable action fallback block is malformed.");
 
-        var opcode = block.Instructions[0].Opcode;
-        state.Counters.RecordVmInstruction();
-        state.Counters.RecordVmOpcode(opcode);
-        state.Counters.RecordVmFallbackCall();
-        return await action.FallbackAction.ExecuteAsync(state, io, output).ConfigureAwait(false);
-    }
+            var opcode = block.Instructions[0].Opcode;
+            state.Counters.RecordVmInstruction();
+            state.Counters.RecordVmOpcode(opcode);
+            state.Counters.RecordVmFallbackCall();
+            return await action.FallbackAction.ExecuteAsync(state, io, output).ConfigureAwait(false);
+        }
 
-    private static void ExecutePrint(
-        AwkValue[] stack,
-        int offset,
-        int count,
-        AwkRuntimeState state,
-        AwkExecutableRuntimeBindings bindings,
-        AwkOutputSink output)
-    {
-        var outputFieldSeparator = count > 1
-            ? bindings.LoadOutputFieldSeparator(state)
-            : AwkText.Empty;
-        using var segments = AwkPrintRuntime.Stage(
-            stack.AsSpan(offset, count),
-            outputFieldSeparator,
-            bindings.LoadOutputRecordSeparator(state),
-            state);
-        output.Append(segments.Segments);
+        static void ExecutePrint(
+            AwkValue[] stack,
+            int offset,
+            int count,
+            AwkRuntimeState state,
+            AwkExecutableRuntimeBindings bindings,
+            AwkOutputSink output)
+        {
+            var outputFieldSeparator = count > 1
+                ? bindings.LoadOutputFieldSeparator(state)
+                : AwkText.Empty;
+            using var segments = AwkPrintRuntime.Stage(
+                stack.AsSpan(offset, count),
+                outputFieldSeparator,
+                bindings.LoadOutputRecordSeparator(state),
+                state);
+            output.Append(segments.Segments);
+        }
+
+        static AwkValue[] RentStack(int stackSlotCount) =>
+            ArrayPool<AwkValue>.Shared.Rent(stackSlotCount);
+
+        static void ReturnStack(AwkValue[] stack) =>
+            ArrayPool<AwkValue>.Shared.Return(stack, clearArray: true);
+
+        static void ExecuteNumericOperation(
+            AwkValue[] stack,
+            ref int stackCount,
+            AwkOpcode opcode)
+        {
+            var right = stack[--stackCount].AsNumber();
+            var left = stack[--stackCount].AsNumber();
+            var operation = opcode switch
+            {
+                AwkOpcode.Add => AwkNumericOperation.Add,
+                AwkOpcode.Subtract => AwkNumericOperation.Subtract,
+                AwkOpcode.Multiply => AwkNumericOperation.Multiply,
+                AwkOpcode.Divide => AwkNumericOperation.Divide,
+                AwkOpcode.Modulo => AwkNumericOperation.Modulo,
+                AwkOpcode.Power => AwkNumericOperation.Power,
+                _ => throw new ArgumentOutOfRangeException(nameof(opcode))
+            };
+            stack[stackCount++] = AwkValue.FromNumber(AwkNumericOperations.Apply(left, right, operation));
+        }
     }
 
     private static int NormalizeStackDepth(int maxStackDepth) =>
         Math.Max(1, maxStackDepth);
-
-    private static AwkValue[] RentStack(int stackSlotCount) =>
-        ArrayPool<AwkValue>.Shared.Rent(stackSlotCount);
-
-    private static void ReturnStack(AwkValue[] stack) =>
-        ArrayPool<AwkValue>.Shared.Return(stack, clearArray: true);
-
-    private static long EstimateFrameBytes(int stackSlotCount) =>
-        AwkRuntimeMemory.CheckedAdd(
-            VmFrameFixedBytes,
-            AwkRuntimeMemory.EstimateAwkValueArrayBytes(stackSlotCount));
-
-    private static void ExecuteNumericOperation(
-        AwkValue[] stack,
-        ref int stackCount,
-        AwkOpcode opcode)
-    {
-        var right = stack[--stackCount].AsNumber();
-        var left = stack[--stackCount].AsNumber();
-        var operation = opcode switch
-        {
-            AwkOpcode.Add => AwkNumericOperation.Add,
-            AwkOpcode.Subtract => AwkNumericOperation.Subtract,
-            AwkOpcode.Multiply => AwkNumericOperation.Multiply,
-            AwkOpcode.Divide => AwkNumericOperation.Divide,
-            AwkOpcode.Modulo => AwkNumericOperation.Modulo,
-            AwkOpcode.Power => AwkNumericOperation.Power,
-            _ => throw new ArgumentOutOfRangeException(nameof(opcode))
-        };
-        stack[stackCount++] = AwkValue.FromNumber(AwkNumericOperations.Apply(left, right, operation));
-    }
 }
 
 internal readonly struct AwkVmFrameScope : IDisposable

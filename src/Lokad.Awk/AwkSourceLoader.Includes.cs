@@ -117,6 +117,77 @@ internal static partial class AwkSourceLoader
                 normalizedSource.Length - sourceChunkStart));
 
         return SourceExpansionResult.FromSource(AwkExpandedSource.Create(builder.ToString(), segments));
+        static void AppendSourceSegment(
+            StringBuilder builder,
+            List<AwkSourceSegment> segments,
+            AwkSourceName sourceName,
+            AwkSourceSegmentKind sourceKind,
+            string sourceText,
+            int sourceStart,
+            int sourceLength,
+            int lineOffset,
+            int columnOffset,
+            AwkLineContinuationMap lineContinuations)
+        {
+            if (sourceLength == 0)
+                return;
+
+            var span = new AwkTextSpan(builder.Length, sourceLength);
+            builder.Append(sourceText, sourceStart, sourceLength);
+            AddSegment(segments, new AwkSourceSegment(
+                sourceName,
+                sourceKind,
+                span,
+                new AwkLineOffset(lineOffset),
+                new AwkColumnOffset(columnOffset),
+                lineContinuations));
+        }
+
+        static void AppendExpandedSource(
+            StringBuilder builder,
+            List<AwkSourceSegment> segments,
+            AwkExpandedSource source)
+        {
+            if (source.Text.Length == 0)
+                return;
+
+            var offset = builder.Length;
+            builder.Append(source.Text);
+            for (var index = 0; index < source.Segments.Count; index++)
+            {
+                var segment = source.Segments[index];
+                AddSegment(
+                    segments,
+                    new AwkSourceSegment(
+                        segment.SourceName,
+                        segment.Kind,
+                        new AwkTextSpan(segment.Span.Start + offset, segment.Span.Length),
+                        segment.SourceLineOffset,
+                        segment.SourceColumnOffset,
+                        segment.LineContinuations));
+            }
+        }
+
+        static void AppendSyntheticNewLine(
+            StringBuilder builder,
+            List<AwkSourceSegment> segments,
+            AwkSourceSegment? sourceSegment)
+        {
+            var start = builder.Length;
+            builder.Append('\n');
+            if (sourceSegment is { } segment)
+            {
+                AddSegment(
+                    segments,
+                    new AwkSourceSegment(
+                        segment.SourceName,
+                        segment.Kind,
+                        new AwkTextSpan(start, 1),
+                        segment.SourceLineOffset,
+                        segment.SourceColumnOffset,
+                        AwkLineContinuationMap.Empty));
+            }
+        }
     }
 
 }

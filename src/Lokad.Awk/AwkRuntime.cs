@@ -146,12 +146,12 @@ internal static class AwkRuntime
             return exitCode;
 
         return AwkDiagnostics.SuccessExitCode;
-    }
 
-    private static async Task CleanupAfterFailureAsync(AwkInputScheduler inputScheduler, AwkIo io)
-    {
-        await inputScheduler.CloseRemainingDescriptorsForCleanupAsync().ConfigureAwait(false);
-        await io.CloseForCleanupAsync().ConfigureAwait(false);
+        static async Task CleanupAfterFailureAsync(AwkInputScheduler inputScheduler, AwkIo io)
+        {
+            await inputScheduler.CloseRemainingDescriptorsForCleanupAsync().ConfigureAwait(false);
+            await io.CloseForCleanupAsync().ConfigureAwait(false);
+        }
     }
 
 }

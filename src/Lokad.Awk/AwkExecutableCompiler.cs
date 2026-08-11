@@ -146,21 +146,21 @@ internal sealed class AwkExecutableCompiler
 
         Rollback(checkpoint);
         return false;
+
+        void Rollback(Checkpoint checkpoint)
+        {
+            if (_instructions.Count > checkpoint.InstructionCount)
+                _instructions.RemoveRange(checkpoint.InstructionCount, _instructions.Count - checkpoint.InstructionCount);
+
+            _stackDepth = checkpoint.StackDepth;
+            MaxStackDepth = checkpoint.MaxStackDepth;
+        }
     }
 
     private int Add(AwkInstruction instruction)
     {
         _instructions.Add(instruction);
         return _instructions.Count - 1;
-    }
-
-    private void Rollback(Checkpoint checkpoint)
-    {
-        if (_instructions.Count > checkpoint.InstructionCount)
-            _instructions.RemoveRange(checkpoint.InstructionCount, _instructions.Count - checkpoint.InstructionCount);
-
-        _stackDepth = checkpoint.StackDepth;
-        MaxStackDepth = checkpoint.MaxStackDepth;
     }
 
     private readonly record struct Checkpoint(int InstructionCount, int StackDepth, int MaxStackDepth);

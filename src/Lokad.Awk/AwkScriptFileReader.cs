@@ -83,129 +83,129 @@ internal static class AwkScriptFileReader
         var result = await ReadResolvedAsync(host, path, resources, cancellationToken).ConfigureAwait(false);
         plan.CacheScriptText(path.Absolute, result);
         return result;
-    }
 
-    private static async Task<AwkScriptTextReadResult> ReadResolvedAsync(
-        IAwkHost host,
-        AwkResolvedPath path,
-        AwkRuntimeResourceMonitor resources,
-        CancellationToken cancellationToken)
-    {
-        async Task CloseForCleanupAsync(AwkFileDescriptor descriptor)
+        static async Task<AwkScriptTextReadResult> ReadResolvedAsync(
+            IAwkHost host,
+            AwkResolvedPath path,
+            AwkRuntimeResourceMonitor resources,
+            CancellationToken cancellationToken)
         {
+            async Task CloseForCleanupAsync(AwkFileDescriptor descriptor)
+            {
+                try
+                {
+                    resources.RecordCleanupHostCall();
+                    _ = await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // Cleanup cannot replace the failure that interrupted source loading.
+                }
+            }
+
+            resources.RecordHostCall();
+            var opened = await host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken)
+                .ConfigureAwait(false);
+            if (opened.Missing)
+                return AwkScriptTextReadResult.MissingText;
+
+            if (opened.Failed)
+            {
+                return AwkScriptTextReadResult.Failure(
+                    AwkMessages.FormatPathError(path.Display, opened.Error.Message),
+                    AwkDiagnosticId.SourceLoadFailure);
+            }
+
+            AwkScriptTextReadResult readResult;
             try
             {
-                resources.RecordCleanupHostCall();
-                _ = await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
+                readResult = await ReadOpenedSourceAsync(
+                        host,
+                        opened.FileDescriptor,
+                        path,
+                        resources,
+                        cancellationToken)
+                    .ConfigureAwait(false);
             }
-            catch (Exception)
+            catch
             {
-                // Cleanup cannot replace the failure that interrupted source loading.
+                await CloseForCleanupAsync(opened.FileDescriptor).ConfigureAwait(false);
+
+                throw;
             }
-        }
 
-        resources.RecordHostCall();
-        var opened = await host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken)
-            .ConfigureAwait(false);
-        if (opened.Missing)
-            return AwkScriptTextReadResult.MissingText;
-
-        if (opened.Failed)
-        {
-            return AwkScriptTextReadResult.Failure(
-                AwkMessages.FormatPathError(path.Display, opened.Error.Message),
-                AwkDiagnosticId.SourceLoadFailure);
-        }
-
-        AwkScriptTextReadResult readResult;
-        try
-        {
-            readResult = await ReadOpenedSourceAsync(
-                    host,
-                    opened.FileDescriptor,
-                    path,
-                    resources,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch
-        {
-            await CloseForCleanupAsync(opened.FileDescriptor).ConfigureAwait(false);
-
-            throw;
-        }
-
-        try
-        {
-            resources.RecordHostCall();
-            var closed = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
-                .ConfigureAwait(false);
-            if (closed != AwkOperationStatus.Success &&
-                readResult is not AwkScriptTextReadResult.Failed)
+            try
             {
+                resources.RecordHostCall();
+                var closed = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
+                    .ConfigureAwait(false);
+                if (closed != AwkOperationStatus.Success &&
+                    readResult is not AwkScriptTextReadResult.Failed)
+                {
+                    return AwkScriptTextReadResult.Failure(
+                        AwkMessages.FormatPathError(path.Display, "Close failed."),
+                        AwkDiagnosticId.SourceLoadFailure);
+                }
+            }
+            catch (Exception exception)
+            {
+                await CloseForCleanupAsync(opened.FileDescriptor).ConfigureAwait(false);
+                if (readResult is AwkScriptTextReadResult.Failed)
+                    return readResult;
+
+                if (exception is AwkRuntimeException)
+                    throw;
+
                 return AwkScriptTextReadResult.Failure(
                     AwkMessages.FormatPathError(path.Display, "Close failed."),
                     AwkDiagnosticId.SourceLoadFailure);
             }
-        }
-        catch (Exception exception)
-        {
-            await CloseForCleanupAsync(opened.FileDescriptor).ConfigureAwait(false);
-            if (readResult is AwkScriptTextReadResult.Failed)
-                return readResult;
 
-            if (exception is AwkRuntimeException)
-                throw;
+            return readResult;
 
-            return AwkScriptTextReadResult.Failure(
-                AwkMessages.FormatPathError(path.Display, "Close failed."),
-                AwkDiagnosticId.SourceLoadFailure);
-        }
-
-        return readResult;
-    }
-
-    private static async Task<AwkScriptTextReadResult> ReadOpenedSourceAsync(
-        IAwkHost host,
-        AwkFileDescriptor descriptor,
-        AwkResolvedPath path,
-        AwkRuntimeResourceMonitor resources,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var builder = new StringBuilder();
-            var reader = new AsyncLineReader(
-                host,
-                descriptor,
-                cancellationToken,
-                int.MaxValue,
-                resources);
-            while (await reader.TryBufferLineAsync().ConfigureAwait(false))
+            static async Task<AwkScriptTextReadResult> ReadOpenedSourceAsync(
+                IAwkHost host,
+                AwkFileDescriptor descriptor,
+                AwkResolvedPath path,
+                AwkRuntimeResourceMonitor resources,
+                CancellationToken cancellationToken)
             {
-                var line = reader.ReadLine();
-                if (line.IsEmpty)
-                    continue;
-
                 try
                 {
-                    builder.Append(AwkUtf8Codec.Decode(line));
+                    var builder = new StringBuilder();
+                    var reader = new AsyncLineReader(
+                        host,
+                        descriptor,
+                        cancellationToken,
+                        int.MaxValue,
+                        resources);
+                    while (await reader.TryBufferLineAsync().ConfigureAwait(false))
+                    {
+                        var line = reader.ReadLine();
+                        if (line.IsEmpty)
+                            continue;
+
+                        try
+                        {
+                            builder.Append(AwkUtf8Codec.Decode(line));
+                        }
+                        catch (DecoderFallbackException)
+                        {
+                            return AwkScriptTextReadResult.Failure(
+                                AwkMessages.FormatPathError(path.Display, "invalid UTF-8 source"),
+                                AwkDiagnosticId.SourceLoadFailure);
+                        }
+                    }
+
+                    return AwkScriptTextReadResult.FoundText(builder.ToString());
                 }
-                catch (DecoderFallbackException)
+                catch (AwkHostReadException exception)
                 {
                     return AwkScriptTextReadResult.Failure(
-                        AwkMessages.FormatPathError(path.Display, "invalid UTF-8 source"),
+                        AwkMessages.FormatPathError(path.Display, exception.Error.Message),
                         AwkDiagnosticId.SourceLoadFailure);
                 }
             }
-
-            return AwkScriptTextReadResult.FoundText(builder.ToString());
-        }
-        catch (AwkHostReadException exception)
-        {
-            return AwkScriptTextReadResult.Failure(
-                AwkMessages.FormatPathError(path.Display, exception.Error.Message),
-                AwkDiagnosticId.SourceLoadFailure);
         }
     }
 }

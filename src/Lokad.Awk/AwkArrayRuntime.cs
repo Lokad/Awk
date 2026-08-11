@@ -244,6 +244,17 @@ internal sealed class AwkArrayRuntime
             reservation.Dispose();
             throw;
         }
+
+        AwkArrayKey[] SnapshotKeyValues(
+            AwkArrayName arrayName,
+            AwkArraySortOrder order,
+            int count)
+        {
+            if (count == 0)
+                return [];
+
+            return CopyKeyValues(SortEntries(arrayName, order, count));
+        }
     }
 
     public async ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotKeyValuesAsync(
@@ -267,30 +278,19 @@ internal sealed class AwkArrayRuntime
             reservation.Dispose();
             throw;
         }
-    }
 
-    private AwkArrayKey[] SnapshotKeyValues(
-        AwkArrayName arrayName,
-        AwkArraySortOrder order,
-        int count)
-    {
-        if (count == 0)
-            return [];
+        async ValueTask<AwkArrayKey[]> SnapshotKeyValuesAsync(
+            AwkArrayName arrayName,
+            AwkArraySortOrder order,
+            int count,
+            AwkEvaluationContext context)
+        {
+            if (count == 0)
+                return [];
 
-        return CopyKeyValues(SortEntries(arrayName, order, count));
-    }
-
-    private async ValueTask<AwkArrayKey[]> SnapshotKeyValuesAsync(
-        AwkArrayName arrayName,
-        AwkArraySortOrder order,
-        int count,
-        AwkEvaluationContext context)
-    {
-        if (count == 0)
-            return [];
-
-        var entries = await SortEntriesAsync(arrayName, order, count, context).ConfigureAwait(false);
-        return CopyKeyValues(entries);
+            var entries = await SortEntriesAsync(arrayName, order, count, context).ConfigureAwait(false);
+            return CopyKeyValues(entries);
+        }
     }
 
     private AwkLeasedReadOnlyList<AwkArrayKey> SnapshotUnsortedKeyValues(AwkArrayName arrayName)
@@ -723,28 +723,28 @@ internal sealed class AwkArrayRuntime
                 default:
                     return ThenCompareKeys(CompareValues(left, right), left, right);
             }
-        }
 
-        private int ThenCompareKeys(
-            int comparison,
-            AwkArraySortEntry left,
-            AwkArraySortEntry right) =>
-            comparison != 0 ? comparison : CompareKeys(left, right);
+            int ThenCompareKeys(
+                int comparison,
+                AwkArraySortEntry left,
+                AwkArraySortEntry right) =>
+                comparison != 0 ? comparison : CompareKeys(left, right);
+
+            int CompareValues(AwkArraySortEntry left, AwkArraySortEntry right)
+            {
+                counters.RecordByteTextComparison();
+                return left.ValueText.CompareBytes(right.ValueText);
+            }
+
+            static int CompareNumbers(AwkArraySortEntry left, AwkArraySortEntry right) =>
+                left.NumericKey.CompareTo(right.NumericKey);
+        }
 
         private int CompareKeys(AwkArraySortEntry left, AwkArraySortEntry right)
         {
             counters.RecordByteTextComparison();
             return left.KeyText.CompareBytes(right.KeyText);
         }
-
-        private int CompareValues(AwkArraySortEntry left, AwkArraySortEntry right)
-        {
-            counters.RecordByteTextComparison();
-            return left.ValueText.CompareBytes(right.ValueText);
-        }
-
-        private static int CompareNumbers(AwkArraySortEntry left, AwkArraySortEntry right) =>
-            left.NumericKey.CompareTo(right.NumericKey);
 
     }
 }

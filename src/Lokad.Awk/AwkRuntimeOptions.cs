@@ -14,29 +14,11 @@ internal sealed class AwkRuntimeOptions
         AwkRuntimeLimits limits,
         AwkRegexEngineKind regexEngineKind,
         AwkExecutionEngineKind executionEngineKind)
-        : this(
-            currentUnixTimeSeconds,
-            timeZone,
-            CreateSnapshotFactory(randomGenerator),
-            counters,
-            limits,
-            regexEngineKind,
-            executionEngineKind)
     {
-    }
-
-    private AwkRuntimeOptions(
-        Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
-        TimeZoneInfo timeZone,
-        Func<AwkRandomGenerator> createRandomGenerator,
-        AwkRuntimeCounters counters,
-        AwkRuntimeLimits limits,
-        AwkRegexEngineKind regexEngineKind,
-        AwkExecutionEngineKind executionEngineKind)
-    {
+        var randomGeneratorSnapshot = randomGenerator.Clone();
         CurrentUnixTimeSeconds = currentUnixTimeSeconds;
         TimeZone = timeZone;
-        _createRandomGenerator = createRandomGenerator;
+        _createRandomGenerator = randomGeneratorSnapshot.Clone;
         Counters = counters;
         Limits = limits;
         RegexEngineKind = regexEngineKind;
@@ -61,15 +43,9 @@ internal sealed class AwkRuntimeOptions
         new(
             AwkUnixTimestampSeconds.FromSystemClock,
             TimeZoneInfo.Local,
-            static () => new AwkRandomGenerator(),
+            new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
-
-    private static Func<AwkRandomGenerator> CreateSnapshotFactory(AwkRandomGenerator randomGenerator)
-    {
-        var snapshot = randomGenerator.Clone();
-        return snapshot.Clone;
-    }
 }

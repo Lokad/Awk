@@ -143,6 +143,33 @@ internal sealed class AwkLineContinuationMap
 
             materialized = MaterializePoints();
             return Interlocked.CompareExchange(ref _materializedPoints, materialized, null) ?? materialized;
+
+            AwkLineContinuationPoint[] MaterializePoints()
+            {
+                var points = new AwkLineContinuationPoint[Count];
+                var writeIndex = 0;
+                var pending = new Stack<(AwkLineContinuationMap Map, int Offset)>();
+                pending.Push((this, 0));
+                while (pending.Count > 0)
+                {
+                    var (map, offset) = pending.Pop();
+                    if (map._node is AwkLineContinuationMapNode.Concat concat)
+                    {
+                        pending.Push((concat.Second, checked(offset + concat.SecondOffset)));
+                        pending.Push((concat.First, offset));
+                        continue;
+                    }
+
+                    var leaf = (AwkLineContinuationMapNode.Leaf)map._node;
+                    for (var index = 0; index < leaf.Points.Count; index++)
+                    {
+                        points[writeIndex++] = new AwkLineContinuationPoint(
+                            checked(offset + leaf.Points[index].NormalizedOffset));
+                    }
+                }
+
+                return points;
+            }
         }
     }
 
@@ -211,33 +238,6 @@ internal sealed class AwkLineContinuationMap
             return this;
 
         return new AwkLineContinuationMap(this, next, nextOffset);
-    }
-
-    private AwkLineContinuationPoint[] MaterializePoints()
-    {
-        var points = new AwkLineContinuationPoint[Count];
-        var writeIndex = 0;
-        var pending = new Stack<(AwkLineContinuationMap Map, int Offset)>();
-        pending.Push((this, 0));
-        while (pending.Count > 0)
-        {
-            var (map, offset) = pending.Pop();
-            if (map._node is AwkLineContinuationMapNode.Concat concat)
-            {
-                pending.Push((concat.Second, checked(offset + concat.SecondOffset)));
-                pending.Push((concat.First, offset));
-                continue;
-            }
-
-            var leaf = (AwkLineContinuationMapNode.Leaf)map._node;
-            for (var index = 0; index < leaf.Points.Count; index++)
-            {
-                points[writeIndex++] = new AwkLineContinuationPoint(
-                    checked(offset + leaf.Points[index].NormalizedOffset));
-            }
-        }
-
-        return points;
     }
 
     private int FindFirstAfter(int offset)

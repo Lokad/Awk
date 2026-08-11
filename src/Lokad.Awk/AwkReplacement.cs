@@ -11,53 +11,53 @@ internal static class AwkReplacement
             return;
 
         AppendSubstitution(match, replacement.AsSpan(), builder);
-    }
 
-    private static void AppendSubstitution(
-        ReadOnlySpan<byte> match,
-        ReadOnlySpan<byte> replacement,
-        AwkUtf8Builder builder)
-    {
-        for (var index = 0; index < replacement.Length; index++)
+        static void AppendSubstitution(
+            ReadOnlySpan<byte> match,
+            ReadOnlySpan<byte> replacement,
+            AwkUtf8Builder builder)
         {
-            var current = replacement[index];
-            if (current == (byte)'&')
+            for (var index = 0; index < replacement.Length; index++)
             {
-                builder.Append(match);
-                continue;
-            }
-
-            if (current != (byte)'\\')
-            {
-                var literalStart = index;
-                while (index + 1 < replacement.Length &&
-                    replacement[index + 1] is not (byte)'&' and not (byte)'\\')
+                var current = replacement[index];
+                if (current == (byte)'&')
                 {
-                    index++;
+                    builder.Append(match);
+                    continue;
                 }
 
-                builder.Append(replacement.Slice(literalStart, index - literalStart + 1));
-                continue;
+                if (current != (byte)'\\')
+                {
+                    var literalStart = index;
+                    while (index + 1 < replacement.Length &&
+                        replacement[index + 1] is not (byte)'&' and not (byte)'\\')
+                    {
+                        index++;
+                    }
+
+                    builder.Append(replacement.Slice(literalStart, index - literalStart + 1));
+                    continue;
+                }
+
+                var slashStart = index;
+                while (index < replacement.Length && replacement[index] == (byte)'\\')
+                    index++;
+
+                var slashCount = index - slashStart;
+                if (index < replacement.Length && replacement[index] == (byte)'&')
+                {
+                    builder.Append((byte)'\\', slashCount / 2);
+                    if (slashCount % 2 == 0)
+                        builder.Append(match);
+                    else
+                        builder.Append((byte)'&');
+
+                    continue;
+                }
+
+                builder.Append((byte)'\\', slashCount);
+                index--;
             }
-
-            var slashStart = index;
-            while (index < replacement.Length && replacement[index] == (byte)'\\')
-                index++;
-
-            var slashCount = index - slashStart;
-            if (index < replacement.Length && replacement[index] == (byte)'&')
-            {
-                builder.Append((byte)'\\', slashCount / 2);
-                if (slashCount % 2 == 0)
-                    builder.Append(match);
-                else
-                    builder.Append((byte)'&');
-
-                continue;
-            }
-
-            builder.Append((byte)'\\', slashCount);
-            index--;
         }
     }
 }

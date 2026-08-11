@@ -80,24 +80,24 @@ internal sealed class AwkSourceInputPlanner
         }
 
         AddInputPath(value, argvIndex);
-    }
 
-    private void AddInputPath(string value, int argvIndex)
-    {
-        if (value is "-" or "/dev/stdin")
+        void AddInputPath(string value, int argvIndex)
         {
-            _inputArguments.Add(AwkInputArgument.StandardInput(argvIndex));
-            return;
+            if (value is "-" or "/dev/stdin")
+            {
+                _inputArguments.Add(AwkInputArgument.StandardInput(argvIndex));
+                return;
+            }
+
+            var path = AwkPathResolution.ResolveArgument(value, _currentDirectory);
+            _paths.Add(path);
+            _inputArguments.Add(AwkInputArgument.File(path, argvIndex));
         }
 
-        var path = AwkPathResolution.ResolveArgument(value, _currentDirectory);
-        _paths.Add(path);
-        _inputArguments.Add(AwkInputArgument.File(path, argvIndex));
-    }
-
-    private int AddRuntimeArgument(string value)
-    {
-        _runtimeArguments.Add(value);
-        return _runtimeArguments.Count - 1;
+        int AddRuntimeArgument(string value)
+        {
+            _runtimeArguments.Add(value);
+            return _runtimeArguments.Count - 1;
+        }
     }
 }

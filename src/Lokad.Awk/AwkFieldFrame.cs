@@ -62,6 +62,27 @@ internal sealed class AwkFieldFrame(
             return AwkValue.FromText(string.Empty);
 
         return GetCachedFieldValue(index.Value - 1, createFieldValue);
+
+        AwkValue GetCachedFieldValue(int index, Func<AwkText, AwkValue> createFieldValue)
+        {
+            if (_fieldValueCache.TryGetValue(index, out var cached))
+                return cached;
+
+            var fieldText = _fieldTexts[index];
+            var value = createFieldValue(fieldText.Materialize(_recordText, counters, governor));
+            var oldCacheCount = _fieldValueCache.Count;
+            var newRetainedBytes = AdjustEstimate(
+                _retainedMemoryBytes,
+                AwkRuntimeMemory.EstimateDictionaryBufferBytes(oldCacheCount),
+                AwkRuntimeMemory.EstimateDictionaryBufferBytes(oldCacheCount + 1));
+            newRetainedBytes = AwkRuntimeMemory.CheckedAdd(
+                newRetainedBytes,
+                EstimateCachedFieldPayloadBytes(fieldText, value));
+            ReplaceRetainedMemory(newRetainedBytes);
+            _fieldValueCache[index] = value;
+
+            return value;
+        }
     }
 
     public void SetRecordText(AwkText text)
@@ -134,6 +155,32 @@ internal sealed class AwkFieldFrame(
         _fieldPayloadByteLength = newPayloadByteLength;
         MarkRecordForRecomposition(outputFieldSeparator);
         counters.RecordFieldsMaterialized(addedFields);
+
+        long EstimateRetainedBytesAfterFieldAssignment(
+            int fieldIndex,
+            AwkFieldText oldField,
+            AwkFieldText newField,
+            int oldFieldCount,
+            int newFieldCount)
+        {
+            var bytes = AdjustEstimate(
+                _retainedMemoryBytes,
+                AwkRuntimeMemory.EstimateReferenceListBytes(oldFieldCount),
+                AwkRuntimeMemory.EstimateReferenceListBytes(newFieldCount));
+            bytes = AdjustEstimate(bytes, oldField.RetainedTextByteLength, newField.RetainedTextByteLength);
+            if (_fieldValueCache.TryGetValue(fieldIndex, out var oldCachedValue))
+            {
+                return AdjustEstimate(
+                    bytes,
+                    EstimateCachedFieldPayloadBytes(oldField, oldCachedValue),
+                    EstimateCachedFieldPayloadBytes(newField, oldCachedValue));
+            }
+
+            return AdjustEstimate(
+                bytes,
+                AwkRuntimeMemory.EstimateDictionaryBufferBytes(_fieldValueCache.Count),
+                AwkRuntimeMemory.EstimateDictionaryBufferBytes(_fieldValueCache.Count + 1));
+        }
     }
 
     public void AssignFieldCount(
@@ -303,27 +350,6 @@ internal sealed class AwkFieldFrame(
         _fieldsAreSplit = true;
     }
 
-    private AwkValue GetCachedFieldValue(int index, Func<AwkText, AwkValue> createFieldValue)
-    {
-        if (_fieldValueCache.TryGetValue(index, out var cached))
-            return cached;
-
-        var fieldText = _fieldTexts[index];
-        var value = createFieldValue(fieldText.Materialize(_recordText, counters, governor));
-        var oldCacheCount = _fieldValueCache.Count;
-        var newRetainedBytes = AdjustEstimate(
-            _retainedMemoryBytes,
-            AwkRuntimeMemory.EstimateDictionaryBufferBytes(oldCacheCount),
-            AwkRuntimeMemory.EstimateDictionaryBufferBytes(oldCacheCount + 1));
-        newRetainedBytes = AwkRuntimeMemory.CheckedAdd(
-            newRetainedBytes,
-            EstimateCachedFieldPayloadBytes(fieldText, value));
-        ReplaceRetainedMemory(newRetainedBytes);
-        _fieldValueCache[index] = value;
-
-        return value;
-    }
-
     private void ClearSplitFields()
     {
         _fieldTexts = [];
@@ -331,32 +357,6 @@ internal sealed class AwkFieldFrame(
         _fieldsAreSplit = false;
         _recompositionSeparator = AwkText.Empty;
         _fieldPayloadByteLength = 0;
-    }
-
-    private long EstimateRetainedBytesAfterFieldAssignment(
-        int fieldIndex,
-        AwkFieldText oldField,
-        AwkFieldText newField,
-        int oldFieldCount,
-        int newFieldCount)
-    {
-        var bytes = AdjustEstimate(
-            _retainedMemoryBytes,
-            AwkRuntimeMemory.EstimateReferenceListBytes(oldFieldCount),
-            AwkRuntimeMemory.EstimateReferenceListBytes(newFieldCount));
-        bytes = AdjustEstimate(bytes, oldField.RetainedTextByteLength, newField.RetainedTextByteLength);
-        if (_fieldValueCache.TryGetValue(fieldIndex, out var oldCachedValue))
-        {
-            return AdjustEstimate(
-                bytes,
-                EstimateCachedFieldPayloadBytes(oldField, oldCachedValue),
-                EstimateCachedFieldPayloadBytes(newField, oldCachedValue));
-        }
-
-        return AdjustEstimate(
-            bytes,
-            AwkRuntimeMemory.EstimateDictionaryBufferBytes(_fieldValueCache.Count),
-            AwkRuntimeMemory.EstimateDictionaryBufferBytes(_fieldValueCache.Count + 1));
     }
 
     private void PreflightRecomposition(long newRetainedBytes, int recordByteLength)

@@ -71,6 +71,7 @@ internal sealed class AwkRuntimeState
         _timeRuntime = new AwkTimeRuntime(runtimeOptions.CurrentUnixTimeSeconds, runtimeOptions.TimeZone);
         _randomRuntime = new AwkRandomRuntime(runtimeOptions.CreateRandomGenerator(), _timeRuntime);
         _cancellationToken = cancellationToken;
+        AwkSpecialVariableDispatcher? specialVariables = null;
         _variables = new AwkVariables(
             Limits.MaxArrayElements,
             MemoryGovernor,
@@ -118,12 +119,41 @@ internal sealed class AwkRuntimeState
             _fieldSplitter,
             FormatStringByteText,
             RecordSpecialVariableAssignment);
+        specialVariables = _specialVariables;
         _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables);
         _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
         _specialVariables.InitializeScalars(fieldSeparator);
         _recordSeparatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
         _recordSeparatorIgnoresCase = IsIgnoreCaseEnabled();
         _variables.CaptureScalarMemoryBaseline();
+
+        AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable) =>
+            new(ResolveSpecialVariableText(AwkFormattingVariableFacts.SpecialVariableId(variable)));
+
+        void ApplySpecialVariableAssignment(string name, AwkValue value) =>
+            (specialVariables ?? throw new InvalidOperationException("Special variables are not initialized."))
+                .ApplyAssignment(name, value);
+
+        void RecordSpecialVariableAssignment(AwkSpecialVariableId id)
+        {
+            if (id is not (AwkSpecialVariableId.RecordSeparator or AwkSpecialVariableId.IgnoreCase))
+                return;
+
+            var separatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
+            var ignoresCase = IsIgnoreCaseEnabled();
+            if (_recordSeparatorText.Equals(separatorText) &&
+                _recordSeparatorIgnoresCase == ignoresCase)
+            {
+                return;
+            }
+
+            _recordSeparatorText = separatorText;
+            _recordSeparatorIgnoresCase = ignoresCase;
+            _recordSeparatorVersion++;
+        }
+
+        AwkText ResolveOutputFieldSeparator() =>
+            ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator);
     }
 
     public int RecordNumber
@@ -245,12 +275,18 @@ internal sealed class AwkRuntimeState
     public void InitializeArguments(IReadOnlyList<string> arguments)
     {
         SetArgumentCount(arguments.Count);
-        SetArgvIndex(0);
+        SetInitialArgvIndex(0);
 
         _variables.InitializeIndexedArrayExternalStringValues(
             ArgumentVectorArrayName,
             arguments,
             firstIndex: 0);
+
+        void SetArgumentCount(int count) =>
+            AssignSpecialVariableValue(AwkSpecialVariableId.ArgumentCount, CreateNumberValue(count));
+
+        void SetInitialArgvIndex(int index) =>
+            SetArgvIndex(new AwkArgvIndex(index));
     }
 
     public void InitializeEnvironment(IReadOnlyList<AwkEnvironmentVariable> environment)
@@ -270,7 +306,7 @@ internal sealed class AwkRuntimeState
             this,
             static (state, key, value) => new AwkEnvironmentVariable(
                 key.ToByteText(state.Counters, state.MemoryGovernor).AsString(state.Counters),
-                state.FormatString(value)));
+                state.FormatStringByteText(value).AsString(state.Counters)));
         Array.Sort(
             result,
             static (left, right) => StringComparer.Ordinal.Compare(left.Name, right.Name));
@@ -406,9 +442,6 @@ internal sealed class AwkRuntimeState
         AwkVariableName name) =>
         _variableRuntime.ResolveFunctionLocalValue(slotId, name);
 
-    private AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable) =>
-        new(ResolveSpecialVariableText(AwkFormattingVariableFacts.SpecialVariableId(variable)));
-
     public void AssignVariable(AwkIdentifier identifier, string value)
     {
         Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
@@ -457,27 +490,6 @@ internal sealed class AwkRuntimeState
         AwkVariableName name,
         AwkValue value) =>
         _variableRuntime.AssignFunctionLocalValue(slotId, name, value);
-
-    private void ApplySpecialVariableAssignment(string name, AwkValue value) =>
-        _specialVariables.ApplyAssignment(name, value);
-
-    private void RecordSpecialVariableAssignment(AwkSpecialVariableId id)
-    {
-        if (id is not (AwkSpecialVariableId.RecordSeparator or AwkSpecialVariableId.IgnoreCase))
-            return;
-
-        var separatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
-        var ignoresCase = IsIgnoreCaseEnabled();
-        if (_recordSeparatorText.Equals(separatorText) &&
-            _recordSeparatorIgnoresCase == ignoresCase)
-        {
-            return;
-        }
-
-        _recordSeparatorText = separatorText;
-        _recordSeparatorIgnoresCase = ignoresCase;
-        _recordSeparatorVersion++;
-    }
 
     public AwkValue ResolveSpecialVariableValue(AwkSpecialVariableId id) =>
         id == AwkSpecialVariableId.FieldCount
@@ -531,12 +543,6 @@ internal sealed class AwkRuntimeState
 
     public void SetErrno(AwkErrno errno) =>
         AssignVariable(ErrnoVariableName, errno.Text);
-
-    private void SetArgumentCount(int count) =>
-        AssignSpecialVariableValue(AwkSpecialVariableId.ArgumentCount, CreateNumberValue(count));
-
-    private void SetArgvIndex(int index) =>
-        SetArgvIndex(new AwkArgvIndex(index));
 
     private void SetArgvIndex(AwkArgvIndex index) =>
         AssignSpecialVariableValue(AwkSpecialVariableId.ArgumentIndex, CreateNumberValue(index.Value));
@@ -598,9 +604,6 @@ internal sealed class AwkRuntimeState
     public void AssignFieldCount(AwkFieldCount count) =>
         _recordFields.AssignFieldCount(count);
 
-    private AwkText ResolveOutputFieldSeparator() =>
-        ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator);
-
     public AwkArrayKey ComposeArrayKey(AwkArrayKey first, AwkText second)
     {
         var separator = ResolveSubscriptSeparatorText();
@@ -622,9 +625,6 @@ internal sealed class AwkRuntimeState
 
     public AwkText FormatStringByteText(AwkValue value) =>
         _formattingRuntime.FormatStringByteText(value);
-
-    private string FormatString(AwkValue value) =>
-        FormatStringByteText(value).AsString(Counters);
 
     public bool IsRegexMatch(AwkRegex regex, AwkText input) =>
         _regexRuntime.IsMatch(regex, input);

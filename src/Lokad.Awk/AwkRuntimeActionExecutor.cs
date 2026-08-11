@@ -97,6 +97,30 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         }
 
         return AwkStatementFlow.Continue;
+
+        static ValueTask<bool> MatchesExecutableActionAsync(
+            AwkExecutableAction action,
+            AwkRuntimeState state)
+        {
+            if (!action.FallbackAction.IsPatternless)
+                state.Counters.RecordVmPatternFallback();
+
+            return action.FallbackAction.MatchesAsync(state);
+        }
+
+        static AwkActionFlowDecision ResolveRecordActionFlow(AwkStatementFlow flow)
+        {
+            if (flow == AwkStatementFlow.ExitProgram)
+                return AwkActionFlowDecision.Stop(AwkStatementFlow.ExitProgram);
+
+            if (flow == AwkStatementFlow.NextFile)
+                return AwkActionFlowDecision.Stop(AwkStatementFlow.NextFile);
+
+            if (flow == AwkStatementFlow.NextRecord)
+                return AwkActionFlowDecision.Stop(AwkStatementFlow.Continue);
+
+            return AwkActionFlowDecision.ContinueActions();
+        }
     }
 
     public void Dispose()
@@ -143,51 +167,27 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         }
 
         return AwkStatementFlow.Continue;
-    }
 
-    private static ValueTask<bool> MatchesExecutableActionAsync(
-        AwkExecutableAction action,
-        AwkRuntimeState state)
-    {
-        if (!action.FallbackAction.IsPatternless)
-            state.Counters.RecordVmPatternFallback();
-
-        return action.FallbackAction.MatchesAsync(state);
-    }
-
-    private static AwkActionFlowDecision ResolvePhaseActionFlow(
-        AwkStatementFlow flow,
-        AwkActionPhase phase)
-    {
-        if (flow == AwkStatementFlow.ExitProgram)
-            return AwkActionFlowDecision.Stop(AwkStatementFlow.ExitProgram);
-
-        if (flow == AwkStatementFlow.NextRecord)
-            throw new AwkRuntimeException(AwkMessages.ErrorNextOutsideInput);
-
-        if (flow == AwkStatementFlow.NextFile)
+        static AwkActionFlowDecision ResolvePhaseActionFlow(
+            AwkStatementFlow flow,
+            AwkActionPhase phase)
         {
-            if (phase != AwkActionPhase.BeginFile)
-                throw new AwkRuntimeException(AwkMessages.ErrorNextFileOutsideInput);
+            if (flow == AwkStatementFlow.ExitProgram)
+                return AwkActionFlowDecision.Stop(AwkStatementFlow.ExitProgram);
 
-            return AwkActionFlowDecision.Stop(AwkStatementFlow.NextFile);
+            if (flow == AwkStatementFlow.NextRecord)
+                throw new AwkRuntimeException(AwkMessages.ErrorNextOutsideInput);
+
+            if (flow == AwkStatementFlow.NextFile)
+            {
+                if (phase != AwkActionPhase.BeginFile)
+                    throw new AwkRuntimeException(AwkMessages.ErrorNextFileOutsideInput);
+
+                return AwkActionFlowDecision.Stop(AwkStatementFlow.NextFile);
+            }
+
+            return AwkActionFlowDecision.ContinueActions();
         }
-
-        return AwkActionFlowDecision.ContinueActions();
-    }
-
-    private static AwkActionFlowDecision ResolveRecordActionFlow(AwkStatementFlow flow)
-    {
-        if (flow == AwkStatementFlow.ExitProgram)
-            return AwkActionFlowDecision.Stop(AwkStatementFlow.ExitProgram);
-
-        if (flow == AwkStatementFlow.NextFile)
-            return AwkActionFlowDecision.Stop(AwkStatementFlow.NextFile);
-
-        if (flow == AwkStatementFlow.NextRecord)
-            return AwkActionFlowDecision.Stop(AwkStatementFlow.Continue);
-
-        return AwkActionFlowDecision.ContinueActions();
     }
 
     private readonly record struct AwkActionFlowDecision

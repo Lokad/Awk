@@ -40,6 +40,33 @@ internal abstract partial class AwkStatement
             }
 
             return AwkStatementFlow.Continue;
+
+            static async Task EmitPrintAsync(
+                AwkOutputSink output,
+                AwkIo io,
+                AwkOptionalResolvedOutputRedirection target,
+                AwkValue[] values,
+                int valueCount,
+                AwkRuntimeState state)
+            {
+                var outputFieldSeparator = valueCount > 1
+                    ? state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator)
+                    : AwkText.Empty;
+                using var segments = AwkPrintRuntime.Stage(
+                    values.AsSpan(0, valueCount),
+                    outputFieldSeparator,
+                    state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputRecordSeparator),
+                    state);
+                if (!target.HasValue)
+                {
+                    output.Append(segments.Segments);
+                    return;
+                }
+
+                using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor);
+                builder.Append(segments.Segments);
+                await EmitOutputAsync(output, io, target, builder.AsMemory()).ConfigureAwait(false);
+            }
         }
 
         internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
@@ -87,46 +114,19 @@ internal abstract partial class AwkStatement
                 ArrayPool<AwkValue>.Shared.Return(resolvedArguments, clearArray: true);
             }
 
-            await EmitOutputAsync(execution.Output, execution.Io, resolvedTarget, formatted).ConfigureAwait(false);
+            await EmitByteTextOutputAsync(execution.Output, execution.Io, resolvedTarget, formatted).ConfigureAwait(false);
 
             return AwkStatementFlow.Continue;
+
+            static async Task EmitByteTextOutputAsync(
+                AwkOutputSink output,
+                AwkIo io,
+                AwkOptionalResolvedOutputRedirection target,
+                AwkText content)
+            {
+                await EmitOutputAsync(output, io, target, content.AsMemory()).ConfigureAwait(false);
+            }
         }
-    }
-
-    private static async Task EmitPrintAsync(
-        AwkOutputSink output,
-        AwkIo io,
-        AwkOptionalResolvedOutputRedirection target,
-        AwkValue[] values,
-        int valueCount,
-        AwkRuntimeState state)
-    {
-        var outputFieldSeparator = valueCount > 1
-            ? state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator)
-            : AwkText.Empty;
-        using var segments = AwkPrintRuntime.Stage(
-            values.AsSpan(0, valueCount),
-            outputFieldSeparator,
-            state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputRecordSeparator),
-            state);
-        if (!target.HasValue)
-        {
-            output.Append(segments.Segments);
-            return;
-        }
-
-        using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor);
-        builder.Append(segments.Segments);
-        await EmitOutputAsync(output, io, target, builder.AsMemory()).ConfigureAwait(false);
-    }
-
-    private static async Task EmitOutputAsync(
-        AwkOutputSink output,
-        AwkIo io,
-        AwkOptionalResolvedOutputRedirection target,
-        AwkText content)
-    {
-        await EmitOutputAsync(output, io, target, content.AsMemory()).ConfigureAwait(false);
     }
 
     private static async Task EmitOutputAsync(

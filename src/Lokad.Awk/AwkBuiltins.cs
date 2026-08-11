@@ -173,16 +173,16 @@ internal static partial class AwkBuiltins
         AddStatementDefinitions(definitions, SpecialFormDefinitions.Values);
         AddStatementDefinitions(definitions, SpecialSyntaxDefinitions.Values);
         return definitions;
-    }
 
-    private static void AddStatementDefinitions(
-        Dictionary<AwkStatementKind, AwkBuiltinDefinition> destination,
-        IEnumerable<AwkBuiltinDefinition> definitions)
-    {
-        foreach (var definition in definitions)
+        static void AddStatementDefinitions(
+            Dictionary<AwkStatementKind, AwkBuiltinDefinition> destination,
+            IEnumerable<AwkBuiltinDefinition> definitions)
         {
-            if (definition.StatementKind != AwkStatementKind.Unknown)
-                destination.Add(definition.StatementKind, definition);
+            foreach (var definition in definitions)
+            {
+                if (definition.StatementKind != AwkStatementKind.Unknown)
+                    destination.Add(definition.StatementKind, definition);
+            }
         }
     }
 
@@ -233,25 +233,25 @@ internal static partial class AwkBuiltins
     public static ValueTask<AwkValue> EvaluateAsync(
         string name,
         IReadOnlyList<AwkExpression> arguments,
-        AwkEvaluationContext context) =>
-        EvaluateAsyncCore(name, arguments, context);
+        AwkEvaluationContext context)
+    {
+        return EvaluateByNameAsyncCore(name, arguments, context);
+        static ValueTask<AwkValue> EvaluateByNameAsyncCore(
+            string name,
+            IReadOnlyList<AwkExpression> arguments,
+            AwkEvaluationContext context)
+        {
+            if (!Definitions.TryGetValue(name, out var definition))
+                throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(name));
 
+            return EvaluateAsyncCore(definition, name, arguments, context);
+        }
+    }
     public static ValueTask<AwkValue> EvaluateAsync(
         AwkBuiltinDefinition definition,
         IReadOnlyList<AwkExpression> arguments,
         AwkEvaluationContext context) =>
         EvaluateAsyncCore(definition, AwkBuiltins.Name(definition.Id), arguments, context);
-
-    private static ValueTask<AwkValue> EvaluateAsyncCore(
-        string name,
-        IReadOnlyList<AwkExpression> arguments,
-        AwkEvaluationContext context)
-    {
-        if (!Definitions.TryGetValue(name, out var definition))
-            throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(name));
-
-        return EvaluateAsyncCore(definition, name, arguments, context);
-    }
 
     private static ValueTask<AwkValue> EvaluateAsyncCore(
         AwkBuiltinDefinition definition,
@@ -289,8 +289,9 @@ internal static partial class AwkBuiltins
         AwkArity arity,
         AwkBuiltinEvaluator evaluator,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
-        AwkBuiltinLoweringKind loweringKind) =>
-        Function(
+        AwkBuiltinLoweringKind loweringKind)
+    {
+        return FunctionWithLowering(
             id,
             arity,
             AwkBuiltinEffects.Pure,
@@ -298,7 +299,16 @@ internal static partial class AwkBuiltins
             argumentRoles,
             evaluator,
             loweringKind: loweringKind);
-
+        static AwkBuiltinDefinition FunctionWithLowering(
+            AwkBuiltinId id,
+            AwkArity arity,
+            AwkBuiltinEffects effects,
+            AwkBuiltinCompatibility compatibility,
+            IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
+            AwkBuiltinEvaluator evaluator,
+            AwkBuiltinLoweringKind loweringKind) =>
+            Function(id, arity, effects, compatibility, argumentRoles, evaluator, AwkStatementKind.Unknown, loweringKind);
+    }
     private static AwkBuiltinDefinition GnuPure(
         AwkBuiltinId id,
         AwkArity arity,
@@ -422,16 +432,6 @@ internal static partial class AwkBuiltins
             evaluator,
             AwkStatementKind.Unknown,
             AwkBuiltinLoweringKind.Ordinary);
-
-    private static AwkBuiltinDefinition Function(
-        AwkBuiltinId id,
-        AwkArity arity,
-        AwkBuiltinEffects effects,
-        AwkBuiltinCompatibility compatibility,
-        IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
-        AwkBuiltinEvaluator evaluator,
-        AwkBuiltinLoweringKind loweringKind) =>
-        Function(id, arity, effects, compatibility, argumentRoles, evaluator, AwkStatementKind.Unknown, loweringKind);
 
     private static AwkBuiltinDefinition Function(
         AwkBuiltinId id,
