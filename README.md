@@ -25,7 +25,9 @@ if (!Awk.TryParse(invocation, out var awk))
     throw new InvalidOperationException("The invocation is not an awk command.");
 
 IAwkHost host = new ApplicationAwkHost(); // Owns files, streams, pipes, and process policy.
-var exitCode = await awk.ExecuteAsync(host, CancellationToken.None);
+var policy = AwkExecutionPolicy.CreateRestricted()
+    .WithAccessiblePathRoot(new AwkPath("/data"));
+var exitCode = await awk.ExecuteAsync(host, policy, CancellationToken.None);
 ```
 
 `ExecuteAsync` returns an `AwkExitCode`; embedding code can keep the result typed and cross to its
@@ -45,6 +47,15 @@ read, and pipe creation. Open, read, and pipe creation report unsupported capabi
 as structured results so the runtime can produce awk diagnostics without leaking host exceptions.
 Append and command outcomes use `AwkExitCode`; a batch command response must contain exactly one
 result per submitted command.
+
+`AwkExecutionPolicy.CreateRestricted()` disables script-created file redirections and command
+pipes, does not forward mutable `ENVIRON` values to commands if pipes are later enabled, pins time
+and local timezone to the Unix epoch and UTC, and applies finite source, syntax, memory, output,
+host-call, descriptor, and execution budgets. `CreateDefault()` preserves the broader compatibility
+surface. The `--sandbox` command-line option independently disables file and command redirections;
+it does not replace host-side path and descriptor policy.
+
+See [docs/SECURITY.md](docs/SECURITY.md) before executing awk supplied by an untrusted party.
 
 Release notes are tracked in [CHANGELOG.md](CHANGELOG.md).
 
@@ -77,6 +88,7 @@ Detailed runtime contracts live in:
 
 - [docs/UTF8_POLICY.md](docs/UTF8_POLICY.md)
 - [docs/RUNTIME_LIMITS.md](docs/RUNTIME_LIMITS.md)
+- [docs/SECURITY.md](docs/SECURITY.md)
 - [docs/COMPATIBILITY_CONTRACT.md](docs/COMPATIBILITY_CONTRACT.md)
 - [docs/REGEX_COMPATIBILITY.md](docs/REGEX_COMPATIBILITY.md)
 - [docs/VM_ROLLOUT.md](docs/VM_ROLLOUT.md)

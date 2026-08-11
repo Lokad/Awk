@@ -1,17 +1,22 @@
 # Runtime Limits Contract
 
-`AwkRuntimeLimits` is an internal runtime policy object, carried through internal
-`AwkRuntimeOptions`. Defaults preserve current command-line behavior, while tests can opt into
-tight limits to prove deterministic failure semantics.
+Embedding applications configure limits through the public immutable `AwkExecutionPolicy` passed
+to `Awk.ExecuteAsync`. `CreateDefault()` preserves command-line compatibility. The finite
+`CreateRestricted()` preset is the starting point for untrusted awk and can be refined through its
+`With...` methods. Internal execution maps the public policy to `AwkRuntimeLimits` and carries it
+through `AwkRuntimeOptions`.
 
 ## Host Policy Limits
 
-These limits are host-mediated and may be changed by internal hosts/tests through
-`AwkRuntimeOptions`; they are not a stable public embedding API:
+These limits are host-mediated and publicly configurable:
 
 - `MaxHostCalls`: aggregate host operations such as open, read, write, and close across input,
   output, redirections, pipes, source loading, and cleanup for one execution.
 - `MaxOutputFiles`: number of distinct redirected output files.
+- `MaxInputFiles`: number of concurrently open redirected input files.
+- `MaxPipes`: number of concurrently open input and output command pipes.
+- `MaxSourceBytes`: aggregate UTF-8 bytes accepted from inline and host-loaded source units.
+- `MaxIncludeDepth` and `MaxIncludeFiles`: nested and aggregate include-expansion budgets.
 - `MaxOutputBytes`: bytes emitted to host-visible output streams.
 - `MaxRecordBytes`: bytes in one awk-visible input record.
 - `MaxValueBytes`: bytes in one awk-visible text value.
@@ -37,6 +42,8 @@ These limits constrain awk execution without changing successful compatibility b
   budget-check points. A step is not an input record: ordinary scans consume multiple steps per
   record according to their expression and statement shape. The current default is 10,000,000.
 - `MaxFunctionCallDepth`: user-function recursion depth.
+- `MaxSyntaxNestingDepth`: delimiter, statement, and expression-tree depth, checked before binding
+  and execution so hostile nesting cannot exhaust the CLR stack.
 - `MaxArrayElements`: associative array elements.
 - `MaxFields`: current-record field materialization budget. The default matches
   `MaxArrayElements`, but hosts can now set a different field policy.
@@ -48,8 +55,10 @@ These limits constrain awk execution without changing successful compatibility b
   resume an arbitrary partial match; specialized byte, literal, and byte-run separators do not
   consume this budget.
 
-These defaults are intentionally generous or unlimited where ordinary awk scripts historically
-expect no fixed ceiling.
+Compatibility defaults remain intentionally generous or unlimited where ordinary awk scripts
+historically expect no fixed ceiling. The restricted preset makes host calls, records, values,
+output, captures, VM stack, aggregate execution memory, sources, includes, files, pipes, syntax,
+fields, arrays, and execution steps finite.
 
 The ten-million-step default is calibrated against deterministic Release counter-report workloads,
 including projection, multi-key filtering, associative aggregation, and two-file comparison. It
@@ -64,7 +73,7 @@ or default budget can be calibrated without using machine-dependent elapsed time
 
 ## Internal Safety Invariants
 
-These names are not public embedding policy unless a concrete host need appears:
+These batching and cache names remain internal implementation policy:
 
 - `DefaultInputReadBatchLineCount`: maximum lines requested per streaming host read.
 - `DefaultUtf8BuilderInitialCapacity`: initial byte-builder capacity.
