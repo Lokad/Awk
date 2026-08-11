@@ -17,7 +17,7 @@ internal abstract partial class AwkStatement
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var selectedBody = await condition.EvaluateAsync(context).ConfigureAwait(false) ? body : elseBody;
-            return await ExecuteAllAsync(selectedBody, context).ConfigureAwait(false);
+            return await AwkStatementBlockExecutor.ExecuteAsync(selectedBody, context).ConfigureAwait(false);
         }
 
         internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
@@ -66,7 +66,7 @@ internal abstract partial class AwkStatement
                 state.RecordExecutionStep();
                 state.ThrowIfCancellationRequested();
                 state.AssignVariableValue(loopVariable, state.CreateArrayKeyValue(keys[index]));
-                var flow = await ExecuteAllAsync(body, context).ConfigureAwait(false);
+                var flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;
 
@@ -100,7 +100,7 @@ internal abstract partial class AwkStatement
             {
                 state.RecordExecutionStep();
                 state.ThrowIfCancellationRequested();
-                flow = await ExecuteAllAsync(body, context).ConfigureAwait(false);
+                flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;
 
@@ -142,7 +142,7 @@ internal abstract partial class AwkStatement
             {
                 state.RecordExecutionStep();
                 state.ThrowIfCancellationRequested();
-                var flow = await ExecuteAllAsync(body, context).ConfigureAwait(false);
+                var flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;
 
@@ -168,7 +168,7 @@ internal abstract partial class AwkStatement
             {
                 state.RecordExecutionStep();
                 state.ThrowIfCancellationRequested();
-                var flow = await ExecuteAllAsync(body, context).ConfigureAwait(false);
+                var flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;
 
@@ -217,7 +217,9 @@ internal abstract partial class AwkStatement
 
             for (var index = selectedArmIndex; index >= 0 && index < arms.Length; index++)
             {
-                var flow = await ExecuteAllAsync(arms[index].Statements, context).ConfigureAwait(false);
+                var flow = await AwkStatementBlockExecutor
+                    .ExecuteAsync(arms[index].Statements, context)
+                    .ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;
 

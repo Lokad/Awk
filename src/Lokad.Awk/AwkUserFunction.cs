@@ -110,28 +110,19 @@ internal sealed class AwkUserFunction : IAwkUserFunction
             if (_statements.Length == 0)
                 return AwkValue.FromText(string.Empty);
 
-            if (!context.TryGetExecutionContext(out var execution))
+            if (!context.TryGetExecutionContext(out _))
                 return AwkValue.FromText(string.Empty);
 
-            for (var index = 0; index < _statements.Length; index++)
-            {
-                state.RecordExecutionStep();
-                state.ThrowIfCancellationRequested();
-                var flow = await _statements[index]
-                    .ExecuteAsync(context)
-                    .ConfigureAwait(false);
-                await execution.Output.FlushAsync(execution.Io).ConfigureAwait(false);
-                if (flow == AwkStatementFlow.ReturnFunction)
-                    return state.TryConsumeFunctionReturnValue(out var value) ? value : AwkValue.FromText(string.Empty);
+            var flow = await AwkStatementBlockExecutor
+                .ExecuteAsync(_statements, context)
+                .ConfigureAwait(false);
+            if (flow == AwkStatementFlow.ReturnFunction)
+                return state.TryConsumeFunctionReturnValue(out var value) ? value : AwkValue.FromText(string.Empty);
 
-                if (flow is AwkStatementFlow.BreakLoop or AwkStatementFlow.ContinueLoop)
-                    throw new AwkRuntimeException(flow == AwkStatementFlow.BreakLoop
-                        ? AwkMessages.ErrorBreakOutsideLoop
-                        : AwkMessages.ErrorContinueOutsideLoop);
-
-                if (flow != AwkStatementFlow.Continue)
-                    return AwkValue.FromText(string.Empty);
-            }
+            if (flow is AwkStatementFlow.BreakLoop or AwkStatementFlow.ContinueLoop)
+                throw new AwkRuntimeException(flow == AwkStatementFlow.BreakLoop
+                    ? AwkMessages.ErrorBreakOutsideLoop
+                    : AwkMessages.ErrorContinueOutsideLoop);
 
             return AwkValue.FromText(string.Empty);
         }

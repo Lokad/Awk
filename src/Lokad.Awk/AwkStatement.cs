@@ -189,25 +189,7 @@ internal abstract partial class AwkStatement
     private static AwkExecutionContext RequireExecutionContext(AwkEvaluationContext context) =>
         context.TryGetExecutionContext(out var execution)
             ? execution
-            : throw new InvalidOperationException("Statement execution requires an awk IO context.");
-
-    private static async ValueTask<AwkStatementFlow> ExecuteAllAsync(
-        AwkStatement[] statements,
-        AwkEvaluationContext context)
-    {
-        var execution = RequireExecutionContext(context);
-        for (var index = 0; index < statements.Length; index++)
-        {
-            context.State.RecordExecutionStep();
-            context.State.ThrowIfCancellationRequested();
-            var flow = await statements[index].ExecuteAsync(context).ConfigureAwait(false);
-            await execution.Output.FlushAsync(execution.Io).ConfigureAwait(false);
-            if (flow != AwkStatementFlow.Continue)
-                return flow;
-        }
-
-        return AwkStatementFlow.Continue;
-    }
+            : throw new InvalidOperationException("Statement execution requires an awk I/O context.");
 
     private sealed class NoOpStatement : AwkStatement
     {

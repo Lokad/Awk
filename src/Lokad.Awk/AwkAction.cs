@@ -34,23 +34,17 @@ internal readonly struct AwkAction
 
         using var executionContext = state.PushExecutionContext(output, io);
         var evaluationContext = new AwkEvaluationContext(state, output, io);
-        for (var index = 0; index < statements.Length; index++)
-        {
-            state.RecordExecutionStep();
-            state.ThrowIfCancellationRequested();
-            var flow = await statements[index].ExecuteAsync(evaluationContext).ConfigureAwait(false);
-            await output.FlushAsync(io).ConfigureAwait(false);
-            if (flow is AwkStatementFlow.NextRecord or AwkStatementFlow.NextFile or AwkStatementFlow.ExitProgram)
-                return flow;
+        var flow = await AwkStatementBlockExecutor
+            .ExecuteAsync(statements, evaluationContext)
+            .ConfigureAwait(false);
 
-            if (flow == AwkStatementFlow.BreakLoop)
-                throw new AwkRuntimeException(AwkMessages.ErrorBreakOutsideLoop);
+        if (flow == AwkStatementFlow.BreakLoop)
+            throw new AwkRuntimeException(AwkMessages.ErrorBreakOutsideLoop);
 
-            if (flow == AwkStatementFlow.ContinueLoop)
-                throw new AwkRuntimeException(AwkMessages.ErrorContinueOutsideLoop);
-        }
+        if (flow == AwkStatementFlow.ContinueLoop)
+            throw new AwkRuntimeException(AwkMessages.ErrorContinueOutsideLoop);
 
-        return AwkStatementFlow.Continue;
+        return flow;
     }
 
 }
