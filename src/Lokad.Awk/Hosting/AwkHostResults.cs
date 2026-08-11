@@ -97,6 +97,63 @@ public enum AwkOpenedFileStatus
 /// <param name="Write">The descriptor to which pipe input can be appended.</param>
 public readonly record struct AwkPipeDescriptors(AwkFileDescriptor Read, AwkFileDescriptor Write);
 
+/// <summary>Represents the outcome of asking an <see cref="IAwkHost"/> to create a pipe.</summary>
+public readonly struct AwkPipeCreationResult
+{
+    private AwkPipeCreationResult(
+        AwkPipeCreationStatus status,
+        AwkPipeDescriptors descriptors,
+        AwkOperationError error)
+    {
+        Status = status;
+        Descriptors = descriptors;
+        Error = error;
+    }
+
+    /// <summary>Gets the outcome category.</summary>
+    public AwkPipeCreationStatus Status { get; }
+
+    /// <summary>Gets the created descriptors when <see cref="Success"/> is true.</summary>
+    public AwkPipeDescriptors Descriptors { get; }
+
+    /// <summary>Gets the host-shaped error when pipe creation did not succeed.</summary>
+    public AwkOperationError Error { get; }
+
+    /// <summary>Gets whether the pipe was created.</summary>
+    public bool Success => Status == AwkPipeCreationStatus.Success;
+
+    /// <summary>Gets whether the host does not support the requested pipe capability.</summary>
+    public bool Unsupported => Status == AwkPipeCreationStatus.Unsupported;
+
+    /// <summary>Gets whether the host failed while attempting to create the pipe.</summary>
+    public bool Failed => Status == AwkPipeCreationStatus.Failure;
+
+    /// <summary>Creates a successful result carrying both pipe descriptors.</summary>
+    public static AwkPipeCreationResult Created(AwkPipeDescriptors descriptors) =>
+        new(AwkPipeCreationStatus.Success, descriptors, default);
+
+    /// <summary>Creates a result indicating that the host does not support pipe creation.</summary>
+    public static AwkPipeCreationResult NotSupported(AwkOperationError error) =>
+        new(AwkPipeCreationStatus.Unsupported, default, error);
+
+    /// <summary>Creates a failed result carrying an awk-shaped host error.</summary>
+    public static AwkPipeCreationResult Failure(AwkOperationError error) =>
+        new(AwkPipeCreationStatus.Failure, default, error);
+}
+
+/// <summary>Identifies the outcome of creating a pipe through an <see cref="IAwkHost"/>.</summary>
+public enum AwkPipeCreationStatus
+{
+    /// <summary>The host failed while attempting to create the pipe.</summary>
+    Failure,
+
+    /// <summary>The pipe was created successfully.</summary>
+    Success,
+
+    /// <summary>The host does not support the requested pipe capability.</summary>
+    Unsupported
+}
+
 /// <summary>Identifies how the runtime intends to use a newly created pipe.</summary>
 public enum AwkPipeMode
 {

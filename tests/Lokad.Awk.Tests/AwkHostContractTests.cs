@@ -58,6 +58,28 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             host.GetAppendedOutput(AwkFileDescriptor.StdErr));
     }
 
+    [Theory]
+    [InlineData(false, "awk: pipe creation failed: Pipe allocation failed.\n")]
+    [InlineData(true, "awk: pipe creation is unsupported: Pipes are disabled.\n")]
+    public async Task Awk_PipeCreationFailureIsAnAwkDiagnostic(bool unsupported, string expectedError)
+    {
+        var host = new TestOperationVisitor([]);
+        host.EnqueueAwkPipeCreationResult(
+            unsupported
+                ? AwkPipeCreationResult.NotSupported(new AwkOperationError("Pipes are disabled."))
+                : AwkPipeCreationResult.Failure(new AwkOperationError("Pipe allocation failed.")));
+        host.EnqueueAppendExitCode(0);
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+            "awk",
+            "BEGIN{print \"payload\" | \"consumer\"}"));
+
+        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(expectedError, host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        Assert.Empty(host.CommandInvocations);
+    }
+
     [Fact]
     public async Task Awk_FailedPipeDescriptorCloseIsAnAwkDiagnostic()
     {

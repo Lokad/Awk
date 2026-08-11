@@ -58,7 +58,9 @@ public interface IAwkHost
 
     /// <summary>
     /// Creates the descriptors used by an awk pipe. A pipeline connects to a running command;
-    /// an accumulator captures bytes for a later command invocation.
+    /// an accumulator captures bytes for a later command invocation. Unsupported capabilities and
+    /// host failures must be returned as an <see cref="AwkPipeCreationResult"/>, not thrown as host
+    /// exceptions.
     /// </summary>
-    Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken);
+    Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken);
 }

@@ -16,6 +16,8 @@ Unsupported features must fail deterministically before partially performing sur
 effects. The current policy is to reject dynamic loading, namespaces, strongly typed regex
 constants, indirect function calls, arrays of arrays, unsupported special files, and two-way
 coprocesses with exact awk-shaped diagnostics. One-way input and output pipes are host-mediated.
+Hosts report unsupported or failed pipe creation through `AwkPipeCreationResult`; the runtime maps
+that result to an awk diagnostic and never relies on a host exception for capability discovery.
 
 When the runtime opens a pipe, the child `AwkCommandInvocation` retains the parent's resolved
 working directory and receives a deterministic snapshot of the current awk `ENVIRON` array. Thus

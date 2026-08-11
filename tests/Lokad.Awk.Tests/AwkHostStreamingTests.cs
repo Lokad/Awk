@@ -88,11 +88,12 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             return Task.FromResult(AwkExitCode.Success);
         }
 
-        public Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
+        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Assert.Equal(AwkPipeMode.Pipeline, mode);
-            return Task.FromResult(new AwkPipeDescriptors(PipeReadDescriptor, PipeWriteDescriptor));
+            return Task.FromResult(AwkPipeCreationResult.Created(
+                new AwkPipeDescriptors(PipeReadDescriptor, PipeWriteDescriptor)));
         }
 
         public Task<AwkOperationStatus> CloseDescriptorAsync(

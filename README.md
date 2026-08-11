@@ -41,8 +41,10 @@ The result snapshots line offsets. Hosts keep successful read content unchanged 
 next read starts on the same descriptor or that descriptor is closed; descriptors have independent
 buffer lifetimes.
 `IAwkHost` contains only the effects used by the runtime: command execution, append, open, close,
-read, and pipe creation. Append and command outcomes use `AwkExitCode`; a batch command response
-must contain exactly one result per submitted command.
+read, and pipe creation. Open, read, and pipe creation report unsupported capabilities and failures
+as structured results so the runtime can produce awk diagnostics without leaking host exceptions.
+Append and command outcomes use `AwkExitCode`; a batch command response must contain exactly one
+result per submitted command.
 
 Release notes are tracked in [CHANGELOG.md](CHANGELOG.md).
 

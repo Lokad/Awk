@@ -161,9 +161,11 @@ public sealed class MockFileSystem : IAwkHost
         return Task.FromResult(result.Result);
     }
 
-    public Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
+    public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
     {
-        throw new NotSupportedException("MockFileSystem does not create pipes.");
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(AwkPipeCreationResult.NotSupported(
+            new AwkOperationError("MockFileSystem does not create pipes.")));
     }
 
     private AwkOpenedFile OpenForRead(AwkPath path)

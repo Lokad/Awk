@@ -71,10 +71,16 @@ internal sealed class AwkIoHostAdapter(
         ThrowIfAppendFailed(descriptor, status);
     }
 
-    public Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode)
+    public async Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode)
     {
         resources.RecordHostCall();
-        return host.CreatePipeAsync(mode, cancellationToken);
+        var result = await host.CreatePipeAsync(mode, cancellationToken).ConfigureAwait(false);
+        if (result.Success)
+            return result.Descriptors;
+
+        throw new AwkRuntimeException(
+            AwkMessages.FormatPipeCreationError(result.Status, result.Error.Message),
+            AwkDiagnosticId.HostIoFailure);
     }
 
     public AwkCommandInvocation CreateOutputPipeCommand(string commandName, AwkFileDescriptor stdIn) =>

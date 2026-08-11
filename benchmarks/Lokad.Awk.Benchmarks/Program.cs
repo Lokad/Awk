@@ -1507,8 +1507,9 @@ internal sealed class BenchmarkHost : IAwkHost
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Benchmark host does not run external commands.");
 
-    public Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken) =>
-        throw new NotSupportedException("Benchmark host does not create pipes.");
+    public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken) =>
+        Task.FromResult(AwkPipeCreationResult.NotSupported(
+            new AwkOperationError("Benchmark host does not create pipes.")));
 
     private static ulong Hash(ulong current, ReadOnlySpan<byte> content)
     {

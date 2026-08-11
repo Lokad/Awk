@@ -167,6 +167,14 @@ internal static class AwkMessages
             status +
             "\n");
 
+    internal static ReadOnlyMemory<byte> FormatPipeCreationError(
+        AwkPipeCreationStatus status,
+        string message) =>
+        AwkUtf8Codec.Encode(
+            status == AwkPipeCreationStatus.Unsupported
+                ? "awk: pipe creation is unsupported: " + message + "\n"
+                : "awk: pipe creation failed: " + message + "\n");
+
     internal static ReadOnlyMemory<byte> FormatDescriptorReadError(
         AwkFileDescriptor descriptor,
         string message) =>

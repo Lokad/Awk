@@ -38,11 +38,11 @@ public sealed class TestOperationVisitor : IAwkHost
         return builder.ToString();
     }
 
-    public Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
+    public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var operation = Dequeue<TestHostOperation.CreatePipe>("pipe descriptors");
-        return Task.FromResult(operation.Descriptors);
+        return Task.FromResult(operation.Result);
     }
 
     public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
@@ -129,7 +129,12 @@ public sealed class TestOperationVisitor : IAwkHost
 
     public void EnqueueAwkPipeDescriptors(AwkPipeDescriptors descriptors)
     {
-        _operations.Enqueue(new TestHostOperation.CreatePipe(descriptors));
+        _operations.Enqueue(new TestHostOperation.CreatePipe(AwkPipeCreationResult.Created(descriptors)));
+    }
+
+    public void EnqueueAwkPipeCreationResult(AwkPipeCreationResult result)
+    {
+        _operations.Enqueue(new TestHostOperation.CreatePipe(result));
     }
 
     public void EnqueueAppendExitCode(int exitCode)
@@ -172,7 +177,7 @@ public sealed class TestOperationVisitor : IAwkHost
     {
         public sealed record RunCommands(IReadOnlyList<AwkExitCode> ExitCodes) : TestHostOperation;
 
-        public sealed record CreatePipe(AwkPipeDescriptors Descriptors) : TestHostOperation;
+        public sealed record CreatePipe(AwkPipeCreationResult Result) : TestHostOperation;
 
         public sealed record Append(AwkExitCode ExitCode) : TestHostOperation;
 
