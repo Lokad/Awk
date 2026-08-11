@@ -35,6 +35,12 @@ internal static partial class AwkGoldenCorpus
             "[12:ab] [34:cd]\n"),
 
         Passing(
+            "gensub-capture-references-stop-at-nine",
+            ["BEGIN{print gensub(/(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)/,\"<\\\\9>|<\\\\10>\",\"1\",\"abcdefghij\")}"],
+            [],
+            "<i>|<a0>\n"),
+
+        Passing(
             "sub-and-gsub-explicit-targets",
             ["BEGIN{s=\"a1b2\"; gsub(/[0-9]/,\"X\",s); print s; sub(/X/,\"Y\",s); print s; a[\"k\"]=\"p1q2\"; gsub(/[0-9]/,\"Z\",a[\"k\"]); print a[\"k\"]} {$2=\"b2\"; gsub(/[0-9]/,\"X\",$2); print $0}", "/file.txt"],
             [File("/file.txt", "a b\n")],

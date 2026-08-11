@@ -32,6 +32,31 @@ internal static class AwkRegexSubstitution
         int maxReplacements,
         out int replacementCount)
     {
+        static AwkRegexCapturePlan ResolveGensubCapturePlan(AwkText replacement)
+        {
+            var maximumGroupIndex = -1;
+            var bytes = replacement.AsSpan();
+            for (var index = 0; index < bytes.Length; index++)
+            {
+                if (bytes[index] == (byte)'&')
+                {
+                    maximumGroupIndex = Math.Max(maximumGroupIndex, 0);
+                    continue;
+                }
+
+                if (bytes[index] != (byte)'\\' || index + 1 >= bytes.Length)
+                    continue;
+
+                var escaped = bytes[++index];
+                if (escaped is >= (byte)'0' and <= (byte)'9')
+                    maximumGroupIndex = Math.Max(maximumGroupIndex, escaped - (byte)'0');
+            }
+
+            return maximumGroupIndex < 0
+                ? AwkRegexCapturePlan.None
+                : AwkRegexCapturePlan.ThroughGroup(maximumGroupIndex);
+        }
+
         var spanReplacementKind = replacement.AsSpan().IndexOfAny((byte)'&', (byte)'\\') < 0
             ? SpanReplacementKind.Literal
             : SpanReplacementKind.Substitution;
@@ -64,9 +89,10 @@ internal static class AwkRegexSubstitution
                 out replacementCount);
         }
 
+        var capturePlan = ResolveGensubCapturePlan(replacement);
         if (targetOccurrence == 0 && maxReplacements == 1)
         {
-            var matches = new FirstValueMatchSource(state, regex, input);
+            var matches = new FirstValueMatchSource(state, regex, input, capturePlan);
             return ReplaceGensubMatches(
                 state,
                 input,
@@ -77,7 +103,8 @@ internal static class AwkRegexSubstitution
                 out replacementCount);
         }
 
-        var allValueMatches = new ValueMatchSource(state.EnumerateRegexMatches(regex, input));
+        var allValueMatches = new ValueMatchSource(
+            state.EnumerateRegexMatches(regex, input, capturePlan));
         return ReplaceGensubMatches(
             state,
             input,
@@ -294,7 +321,8 @@ internal static class AwkRegexSubstitution
     private struct FirstValueMatchSource(
         AwkRuntimeState state,
         AwkRegex regex,
-        AwkText input) : IMatchSource<AwkRegexMatch>
+        AwkText input,
+        AwkRegexCapturePlan capturePlan) : IMatchSource<AwkRegexMatch>
     {
         private AwkLeasedRegexMatch _currentMatch = AwkLeasedRegexMatch.NoMatch;
         private bool _read;
@@ -310,7 +338,7 @@ internal static class AwkRegexSubstitution
             }
 
             _read = true;
-            _currentMatch = state.MatchRegexValue(regex, input);
+            _currentMatch = state.MatchRegexValue(regex, input, capturePlan);
             match = _currentMatch.Match;
             return match.Success;
         }

@@ -106,12 +106,17 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-    public AwkLeasedRegexMatch MatchValue(AwkRegex regex, AwkText input, AwkMemoryGovernor governor)
+    public AwkLeasedRegexMatch MatchValue(
+        AwkRegex regex,
+        AwkText input,
+        AwkMemoryGovernor governor,
+        AwkRegexCapturePlan capturePlan)
     {
         return MatchValue(
             regex,
             input,
             governor,
+            capturePlan,
             AwkRuntimeLimits.Unlimited,
             AwkRegexSearchOffset.Start,
             out _);
@@ -126,6 +131,7 @@ internal sealed class AwkRegexRuntime
             regex,
             input,
             governor,
+            AwkRegexCapturePlan.All,
             maxCaptureBytes,
             AwkRegexSearchOffset.Start,
             out _);
@@ -134,6 +140,7 @@ internal sealed class AwkRegexRuntime
         AwkRegex regex,
         AwkText input,
         AwkMemoryGovernor governor,
+        AwkRegexCapturePlan capturePlan,
         long maxCaptureBytes,
         AwkRegexSearchOffset searchOffset,
         out AwkRegexMatchSpan matchSpan)
@@ -143,6 +150,7 @@ internal sealed class AwkRegexRuntime
             regex,
             input,
             governor,
+            capturePlan,
             maxCaptureBytes,
             searchOffset,
             inputContext,
@@ -153,6 +161,7 @@ internal sealed class AwkRegexRuntime
         AwkRegex regex,
         AwkText input,
         AwkMemoryGovernor governor,
+        AwkRegexCapturePlan capturePlan,
         long maxCaptureBytes,
         AwkRegexSearchOffset searchOffset,
         AwkRegexInputContext inputContext,
@@ -177,6 +186,7 @@ internal sealed class AwkRegexRuntime
                 matchSpan.ByteIndex,
                 matchSpan.ByteLength,
                 inputContext.ExecutionPolicy.CoordinatePolicy,
+                capturePlan,
                 maxCaptureBytes,
                 _counters,
                 governor);
@@ -201,6 +211,7 @@ internal sealed class AwkRegexRuntime
             return AwkRegexMatch.FromUtf8Match(
                 match,
                 inputContext.ExecutionPolicy.CoordinatePolicy,
+                capturePlan,
                 maxCaptureBytes,
                 _counters,
                 governor);
@@ -269,10 +280,11 @@ internal sealed class AwkRegexRuntime
     public AwkRegexMatchEnumerator EnumerateMatchValues(
         AwkRegex regex,
         AwkText input,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        AwkRegexCapturePlan capturePlan)
     {
         _throwIfCancellationRequested();
-        return new AwkRegexMatchEnumerator(this, regex, input, governor);
+        return new AwkRegexMatchEnumerator(this, regex, input, governor, capturePlan);
     }
 
     public AwkRegexMatchSpanEnumerator EnumerateMatchSpans(AwkRegex regex, AwkText input)
@@ -509,6 +521,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
     private readonly AwkRegex _regex;
     private readonly AwkText _input;
     private readonly AwkMemoryGovernor _governor;
+    private readonly AwkRegexCapturePlan _capturePlan;
     private readonly AwkRegexRuntime.AwkRegexInputContext _inputContext;
     private AwkLeasedRegexMatch _currentMatch = AwkLeasedRegexMatch.NoMatch;
     private AwkRegexSearchOffset _nextOffset = AwkRegexSearchOffset.Start;
@@ -519,12 +532,14 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
         AwkRegexRuntime runtime,
         AwkRegex regex,
         AwkText input,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        AwkRegexCapturePlan capturePlan)
     {
         _runtime = runtime;
         _regex = regex;
         _input = input;
         _governor = governor;
+        _capturePlan = capturePlan;
         _inputContext = runtime.CaptureInputContext(regex, input);
     }
 
@@ -543,6 +558,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
             _regex,
             _input,
             _governor,
+            _capturePlan,
             AwkRuntimeLimits.Unlimited,
             _nextOffset,
             _inputContext,

@@ -628,8 +628,11 @@ internal sealed class AwkRuntimeState
     public bool IsRegexMatch(AwkRegex regex, AwkText input) =>
         _regexRuntime.IsMatch(regex, input);
 
-    public AwkLeasedRegexMatch MatchRegexValue(AwkRegex regex, AwkText input) =>
-        _regexRuntime.MatchValue(regex, input, MemoryGovernor);
+    public AwkLeasedRegexMatch MatchRegexValue(
+        AwkRegex regex,
+        AwkText input,
+        AwkRegexCapturePlan capturePlan) =>
+        _regexRuntime.MatchValue(regex, input, MemoryGovernor, capturePlan);
 
     public AwkLeasedRegexMatch MatchRegexCaptureValue(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchCaptureValue(regex, input, MemoryGovernor, Limits.MaxRegexCaptureBytes);
@@ -649,8 +652,11 @@ internal sealed class AwkRuntimeState
     public AwkRegex CreateRegex(AwkRegexPattern pattern) =>
         _regexRuntime.Create(pattern);
 
-    public AwkRegexMatchEnumerator EnumerateRegexMatches(AwkRegex regex, AwkText input) =>
-        _regexRuntime.EnumerateMatchValues(regex, input, MemoryGovernor);
+    public AwkRegexMatchEnumerator EnumerateRegexMatches(
+        AwkRegex regex,
+        AwkText input,
+        AwkRegexCapturePlan capturePlan) =>
+        _regexRuntime.EnumerateMatchValues(regex, input, MemoryGovernor, capturePlan);
 
     public AwkRegexMatchSpanEnumerator EnumerateRegexMatchSpans(AwkRegex regex, AwkText input) =>
         _regexRuntime.EnumerateMatchSpans(regex, input);

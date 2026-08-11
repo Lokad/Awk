@@ -162,13 +162,53 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var input = AwkText.FromString("a", counters);
         var baselineTextAllocations = counters.AwkTextAllocations;
 
-        using var leasedMatch = runtime.MatchValue(regex, input, AwkMemoryGovernor.Disabled);
+        using var leasedMatch = runtime.MatchValue(
+            regex,
+            input,
+            AwkMemoryGovernor.Disabled,
+            AwkRegexCapturePlan.All);
         var match = leasedMatch.Match;
 
         Assert.True(match.Success);
         Assert.Equal(2, match.Groups.Count);
         Assert.Same(match.Groups[0].Value, match.Value);
         Assert.Equal(baselineTextAllocations + 2, counters.AwkTextAllocations);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Awk_CaptureMatchMaterializesOnlyTheSelectedGroupPrefix(bool useUtf8Adapter)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var runtime = new AwkRegexRuntime(
+            static () => false,
+            AwkStringUnitMode.Utf8Rune,
+            static () => { },
+            counters,
+            useUtf8Adapter
+                ? AwkRegexEngineKind.Utf8Adapter
+                : AwkRegexEngineKind.DotNetCompatibility);
+        var regex = runtime.Create(new AwkRegexPattern("(a)(b)(c)(d)"));
+        var input = AwkText.FromString("abcd", counters);
+        var baselineTextAllocations = counters.AwkTextAllocations;
+
+        using var leasedMatch = runtime.MatchValue(
+            regex,
+            input,
+            AwkMemoryGovernor.Disabled,
+            AwkRegexCapturePlan.ThroughGroup(2));
+        var match = leasedMatch.Match;
+
+        Assert.True(match.Success);
+        Assert.Equal("abcd", match.Value.AsString());
+        Assert.Collection(
+            match.Groups,
+            group => Assert.Equal("abcd", group.Value.AsString()),
+            group => Assert.Equal("a", group.Value.AsString()),
+            group => Assert.Equal("b", group.Value.AsString()));
+        Assert.Equal(3, counters.RegexGroupsMaterialized);
+        Assert.Equal(baselineTextAllocations + 3, counters.AwkTextAllocations);
     }
 
     [Fact]
@@ -184,6 +224,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             byteIndex: 2,
             byteLength: 1,
             AwkRegexCoordinatePolicy.Byte,
+            AwkRegexCapturePlan.All,
             AwkRuntimeLimits.Unlimited,
             counters,
             AwkMemoryGovernor.Disabled);

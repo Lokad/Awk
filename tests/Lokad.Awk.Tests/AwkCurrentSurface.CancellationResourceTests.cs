@@ -254,7 +254,11 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var regex = runtime.Create(new AwkRegexPattern("a"));
         var input = AwkText.FromString(new string('a', 32));
 
-        using var matches = runtime.EnumerateMatchValues(regex, input, AwkMemoryGovernor.Disabled);
+        using var matches = runtime.EnumerateMatchValues(
+            regex,
+            input,
+            AwkMemoryGovernor.Disabled,
+            AwkRegexCapturePlan.All);
         Assert.Throws<OperationCanceledException>(() =>
         {
             while (matches.MoveNext(out _))
@@ -1125,7 +1129,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var input = AwkText.FromString("aaaa");
 
         var matchCount = 0;
-        using (var matches = state.EnumerateRegexMatches(regex, input))
+        using (var matches = state.EnumerateRegexMatches(regex, input, AwkRegexCapturePlan.All))
         {
             while (matches.MoveNext(out _))
             {
@@ -1152,7 +1156,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("aaaa");
 
-        using (var leasedMatch = state.MatchRegexValue(regex, input))
+        using (var leasedMatch = state.MatchRegexValue(regex, input, AwkRegexCapturePlan.All))
         {
             var match = leasedMatch.Match;
 
@@ -1190,7 +1194,8 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("a");
 
-        var exception = Assert.Throws<AwkRuntimeException>(() => state.MatchRegexValue(regex, input));
+        var exception = Assert.Throws<AwkRuntimeException>(() =>
+            state.MatchRegexValue(regex, input, AwkRegexCapturePlan.All));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal(0, state.MemoryGovernor.CurrentCommittedBytes);

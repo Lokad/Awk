@@ -70,19 +70,35 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    public async Task Awk_SubstitutionMaterializesGroupsOnlyForGensub()
+    public async Task Awk_SubstitutionMaterializesOnlyObservableGroups()
     {
         var substitution = await RunAsync(
             ["BEGIN{s=\"xx\"; gsub(/(x)/,\"<&>\",s); print s}"]);
-        var gensub = await RunAsync(
-            ["BEGIN{print gensub(/(x)/,\"<\\\\1>\",\"g\",\"xx\")}"]);
+        var gensub = await RunAsync([
+            "BEGIN{print gensub(/(x)(a)?(b)?(c)?(d)?(e)?(f)?(g)?(h)?(i)?(j)?/," +
+            "\"<\\\\1>\",\"g\",\"xx\")}"
+        ]);
+        var wholeMatch = await RunAsync([
+            "BEGIN{print gensub(/(x)(a)?(b)?(c)?(d)?(e)?(f)?(g)?(h)?(i)?(j)?/," +
+            "\"<&>\",\"g\",\"xx\")}"
+        ]);
+        var escapedOnly = await RunAsync([
+            "BEGIN{print gensub(/(x)(a)?(b)?(c)?(d)?(e)?(f)?(g)?(h)?(i)?(j)?/," +
+            "\"<\\\\q>\",\"g\",\"xx\")}"
+        ]);
 
         Assert.Equal(0, substitution.ExitCode);
         Assert.Equal(0, gensub.ExitCode);
+        Assert.Equal(0, wholeMatch.ExitCode);
+        Assert.Equal(0, escapedOnly.ExitCode);
         Assert.Equal("<x><x>\n", substitution.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("<x><x>\n", gensub.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("<x><x>\n", wholeMatch.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("<q><q>\n", escapedOnly.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, substitution.Counters.RegexGroupsMaterialized);
-        Assert.True(gensub.Counters.RegexGroupsMaterialized > 0);
+        Assert.Equal(4, gensub.Counters.RegexGroupsMaterialized);
+        Assert.Equal(2, wholeMatch.Counters.RegexGroupsMaterialized);
+        Assert.Equal(0, escapedOnly.Counters.RegexGroupsMaterialized);
     }
 
     [Fact]

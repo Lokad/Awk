@@ -1031,6 +1031,13 @@ internal static class BenchmarkCounterReport
             recordCount: 0,
             counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
+            "counter gensub capture selection",
+            "BEGIN{print gensub(/(x)(a)?(b)?(c)?(d)?(e)?(f)?(g)?(h)?(i)?(j)?/,\"<\\\\1>\",\"g\",\"xx\")}",
+            ["BEGIN{print gensub(/(x)(a)?(b)?(c)?(d)?(e)?(f)?(g)?(h)?(i)?(j)?/,\"<\\\\1>\",\"g\",\"xx\")}"],
+            [],
+            recordCount: 0,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+        new(
             "counter regex pattern gap",
             "BEGIN{s=\"abc\"; print match(s,/\\`a/)}",
             ["BEGIN{s=\"abc\"; print match(s,/\\`a/)}"],
