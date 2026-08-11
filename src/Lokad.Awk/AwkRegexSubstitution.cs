@@ -32,31 +32,6 @@ internal static class AwkRegexSubstitution
         int maxReplacements,
         out int replacementCount)
     {
-        static AwkRegexCapturePlan ResolveGensubCapturePlan(AwkText replacement)
-        {
-            var maximumGroupIndex = -1;
-            var bytes = replacement.AsSpan();
-            for (var index = 0; index < bytes.Length; index++)
-            {
-                if (bytes[index] == (byte)'&')
-                {
-                    maximumGroupIndex = Math.Max(maximumGroupIndex, 0);
-                    continue;
-                }
-
-                if (bytes[index] != (byte)'\\' || index + 1 >= bytes.Length)
-                    continue;
-
-                var escaped = bytes[++index];
-                if (escaped is >= (byte)'0' and <= (byte)'9')
-                    maximumGroupIndex = Math.Max(maximumGroupIndex, escaped - (byte)'0');
-            }
-
-            return maximumGroupIndex < 0
-                ? AwkRegexCapturePlan.None
-                : AwkRegexCapturePlan.ThroughGroup(maximumGroupIndex);
-        }
-
         var spanReplacementKind = replacement.AsSpan().IndexOfAny((byte)'&', (byte)'\\') < 0
             ? SpanReplacementKind.Literal
             : SpanReplacementKind.Substitution;
@@ -89,7 +64,8 @@ internal static class AwkRegexSubstitution
                 out replacementCount);
         }
 
-        var capturePlan = ResolveGensubCapturePlan(replacement);
+        using var replacementPlan = AwkGensubReplacementPlan.Rent(replacement);
+        var capturePlan = replacementPlan.CapturePlan;
         if (targetOccurrence == 0 && maxReplacements == 1)
         {
             var matches = new FirstValueMatchSource(state, regex, input, capturePlan);
@@ -100,6 +76,7 @@ internal static class AwkRegexSubstitution
                 targetOccurrence,
                 maxReplacements,
                 matches,
+                replacementPlan,
                 out replacementCount);
         }
 
@@ -112,6 +89,7 @@ internal static class AwkRegexSubstitution
             targetOccurrence,
             maxReplacements,
             allValueMatches,
+            replacementPlan,
             out replacementCount);
     }
 
@@ -142,6 +120,7 @@ internal static class AwkRegexSubstitution
         int targetOccurrence,
         int maxReplacements,
         TMatchSource matches,
+        AwkGensubReplacementPlan replacementPlan,
         out int replacementCount)
         where TMatchSource : struct, IMatchSource<AwkRegexMatch>
         => ReplaceMatches<AwkRegexMatch, TMatchSource, GensubMatchReplacement>(
@@ -151,7 +130,7 @@ internal static class AwkRegexSubstitution
             targetOccurrence,
             maxReplacements,
             matches,
-            default,
+            new GensubMatchReplacement(replacementPlan),
             out replacementCount);
 
     private static AwkText ReplaceMatches<TMatch, TMatchSource, TReplacement>(
@@ -266,7 +245,8 @@ internal static class AwkRegexSubstitution
         }
     }
 
-    private readonly record struct GensubMatchReplacement : IMatchReplacement<AwkRegexMatch>
+    private readonly struct GensubMatchReplacement(
+        AwkGensubReplacementPlan replacementPlan) : IMatchReplacement<AwkRegexMatch>
     {
         public int GetByteIndex(in AwkRegexMatch match) => match.ByteIndex;
 
@@ -276,8 +256,7 @@ internal static class AwkRegexSubstitution
             AwkText input,
             in AwkRegexMatch match,
             AwkText replacement,
-            AwkUtf8Builder builder) =>
-            AwkReplacement.AppendGensub(match, replacement, builder);
+            AwkUtf8Builder builder) => replacementPlan.Append(match, builder);
     }
 
     private interface IMatchSource<TMatch> : IDisposable
