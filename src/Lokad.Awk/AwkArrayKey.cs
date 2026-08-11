@@ -90,15 +90,21 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         builder.Append(FormatOrdinalBytes(_ordinal, buffer));
     }
 
-    public bool Equals(AwkArrayKey other) =>
-        IsOrdinal
+    public bool Equals(AwkArrayKey other)
+    {
+        return IsOrdinal
             ? other.IsOrdinal
                 ? _ordinal == other._ordinal
                 : OrdinalEqualsText(_ordinal, other.Text)
             : other.IsOrdinal
                 ? OrdinalEqualsText(other._ordinal, Text)
                 : Text.Equals(other.Text);
-
+        static bool OrdinalEqualsText(int ordinal, AwkText text)
+        {
+            Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
+            return text.AsSpan().SequenceEqual(FormatOrdinalBytes(ordinal, buffer));
+        }
+    }
     public override bool Equals(object? obj) =>
         obj is AwkArrayKey other && Equals(other);
 
@@ -111,12 +117,6 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         AsString(AwkRuntimeCounters.Disabled);
 
     private AwkText Text => _text ?? AwkText.Empty;
-
-    private static bool OrdinalEqualsText(int ordinal, AwkText text)
-    {
-        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        return text.AsSpan().SequenceEqual(FormatOrdinalBytes(ordinal, buffer));
-    }
 
     private static ReadOnlySpan<byte> FormatOrdinalBytes(int ordinal, Span<byte> buffer)
     {

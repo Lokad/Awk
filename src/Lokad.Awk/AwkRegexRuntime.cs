@@ -43,12 +43,15 @@ internal sealed class AwkRegexRuntime
         try
         {
             _counters.RecordRegexCompile();
-            return Cache(key, CreateRegex(pattern, ignoreCase));
+            return Cache(key, CreatePatternRegex(pattern, ignoreCase));
         }
         catch (ArgumentException)
         {
             throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
         }
+
+        AwkRegex CreatePatternRegex(AwkRegexPattern pattern, bool ignoreCase) =>
+            CreateRegex(AwkRegex.TranslatePattern(pattern), ignoreCase);
     }
 
     public AwkRegex CreateLiteral(AwkRegexLiteralText literal)
@@ -299,6 +302,35 @@ internal sealed class AwkRegexRuntime
         return new AwkRegexInputContext(
             executionPolicy,
             executionPolicy.UsesUtf8Adapter ? string.Empty : input.AsString(_counters));
+
+        AwkRegexExecutionPolicy ResolveExecutionPolicy(AwkRegex regex, AwkText input)
+        {
+            var coordinatePolicy = _stringUnitMode is AwkStringUnitMode.Byte
+                ? AwkRegexCoordinatePolicy.Byte
+                : AwkRegexCoordinatePolicy.Utf16;
+
+            if (regex.RequiresDotNetFallback)
+            {
+                return new AwkRegexExecutionPolicy(
+                    AwkRegexExecutionEngine.DotNet,
+                    AwkRegexDotNetRouteReason.PatternGap,
+                    coordinatePolicy);
+            }
+
+            if (_engineKind == AwkRegexEngineKind.Utf8Adapter ||
+                (_stringUnitMode is AwkStringUnitMode.Byte && input.ContainsNonAscii(_counters)))
+            {
+                return new AwkRegexExecutionPolicy(
+                    AwkRegexExecutionEngine.Utf8Adapter,
+                    AwkRegexDotNetRouteReason.NotApplicable,
+                    coordinatePolicy);
+            }
+
+            return new AwkRegexExecutionPolicy(
+                AwkRegexExecutionEngine.DotNet,
+                AwkRegexDotNetRouteReason.ConfiguredEngine,
+                coordinatePolicy);
+        }
     }
 
     private Match Match(AwkRegex regex, string input, int startAt)
@@ -332,9 +364,6 @@ internal sealed class AwkRegexRuntime
         _regexCache.Set(key, regex);
         return regex;
     }
-
-    private AwkRegex CreateRegex(AwkRegexPattern pattern, bool ignoreCase) =>
-        CreateRegex(AwkRegex.TranslatePattern(pattern), ignoreCase);
 
     private AwkRegex CreateRegex(string translatedPattern, bool ignoreCase)
     {
@@ -402,35 +431,6 @@ internal sealed class AwkRegexRuntime
                 regex.Pattern,
                 AwkRegex.ResolveOptions(ignoreCase),
                 AwkRegex.MatchTimeout));
-    }
-
-    private AwkRegexExecutionPolicy ResolveExecutionPolicy(AwkRegex regex, AwkText input)
-    {
-        var coordinatePolicy = _stringUnitMode is AwkStringUnitMode.Byte
-            ? AwkRegexCoordinatePolicy.Byte
-            : AwkRegexCoordinatePolicy.Utf16;
-
-        if (regex.RequiresDotNetFallback)
-        {
-            return new AwkRegexExecutionPolicy(
-                AwkRegexExecutionEngine.DotNet,
-                AwkRegexDotNetRouteReason.PatternGap,
-                coordinatePolicy);
-        }
-
-        if (_engineKind == AwkRegexEngineKind.Utf8Adapter ||
-            (_stringUnitMode is AwkStringUnitMode.Byte && input.ContainsNonAscii(_counters)))
-        {
-            return new AwkRegexExecutionPolicy(
-                AwkRegexExecutionEngine.Utf8Adapter,
-                AwkRegexDotNetRouteReason.NotApplicable,
-                coordinatePolicy);
-        }
-
-        return new AwkRegexExecutionPolicy(
-            AwkRegexExecutionEngine.DotNet,
-            AwkRegexDotNetRouteReason.ConfiguredEngine,
-            coordinatePolicy);
     }
 
     private void RecordDotNetTextRoute(AwkRegexExecutionPolicy policy)

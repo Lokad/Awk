@@ -204,6 +204,12 @@ internal readonly record struct AwkRegexMatch
             matchLease.Dispose();
             throw;
         }
+
+        static int SelectCoordinate(
+            AwkRegexCoordinatePolicy coordinatePolicy,
+            int byteValue,
+            int utf16Value) =>
+            coordinatePolicy == AwkRegexCoordinatePolicy.Byte ? byteValue : utf16Value;
     }
 
     public static AwkLeasedRegexMatch FromUtf8Match(
@@ -283,13 +289,13 @@ internal readonly record struct AwkRegexMatch
             matchLease.Dispose();
             throw;
         }
-    }
 
-    private static int SelectCoordinate(
-        AwkRegexCoordinatePolicy coordinatePolicy,
-        int byteValue,
-        int utf16Value) =>
-        coordinatePolicy == AwkRegexCoordinatePolicy.Byte ? byteValue : utf16Value;
+        static int SelectCoordinate(
+            AwkRegexCoordinatePolicy coordinatePolicy,
+            int byteValue,
+            int utf16Value) =>
+            coordinatePolicy == AwkRegexCoordinatePolicy.Byte ? byteValue : utf16Value;
+    }
 
 }
 

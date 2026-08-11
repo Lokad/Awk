@@ -270,23 +270,23 @@ internal abstract partial class AwkExpression
 
             value = 0;
             return false;
-        }
 
-        private static bool IsPortableDecimalLiteral(string text)
-        {
-            if (text.Length == 0)
-                return false;
-
-            for (var index = 0; index < text.Length; index++)
+            static bool IsPortableDecimalLiteral(string text)
             {
-                var ch = text[index];
-                if (ch is >= '0' and <= '9' or '.' or '+' or '-' or 'e' or 'E')
-                    continue;
+                if (text.Length == 0)
+                    return false;
 
-                return false;
+                for (var index = 0; index < text.Length; index++)
+                {
+                    var ch = text[index];
+                    if (ch is >= '0' and <= '9' or '.' or '+' or '-' or 'e' or 'E')
+                        continue;
+
+                    return false;
+                }
+
+                return true;
             }
-
-            return true;
         }
     }
 }

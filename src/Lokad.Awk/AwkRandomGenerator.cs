@@ -53,6 +53,37 @@ internal sealed class AwkRandomGenerator
         _seed = seed;
         SeedState(unchecked((uint)seed.Value));
         return previousSeed;
+
+        void SeedState(uint seed)
+        {
+            _shuffleNeedsInitialization = true;
+            _state[0] = seed;
+            for (var index = 1; index < Degree; index++)
+            {
+                _state[index] = GoodRand(unchecked((int)_state[index - 1]));
+            }
+
+            _frontIndex = Separation;
+            _rearIndex = 0;
+            for (var index = 0; index < 10 * Degree; index++)
+            {
+                _ = NextInteger();
+            }
+
+            static uint GoodRand(int value)
+            {
+                if (value == 0)
+                    value = 123459876;
+
+                var high = value / 127773;
+                var low = value % 127773;
+                value = (16807 * low) - (2836 * high);
+                if (value < 0)
+                    value += 0x7fffffff;
+
+                return unchecked((uint)value);
+            }
+        }
     }
 
     public double NextDouble()
@@ -66,37 +97,6 @@ internal sealed class AwkRandomGenerator
             if (value != 1.0)
                 return value;
         }
-    }
-
-    private void SeedState(uint seed)
-    {
-        _shuffleNeedsInitialization = true;
-        _state[0] = seed;
-        for (var index = 1; index < Degree; index++)
-        {
-            _state[index] = GoodRand(unchecked((int)_state[index - 1]));
-        }
-
-        _frontIndex = Separation;
-        _rearIndex = 0;
-        for (var index = 0; index < 10 * Degree; index++)
-        {
-            _ = NextInteger();
-        }
-    }
-
-    private static uint GoodRand(int value)
-    {
-        if (value == 0)
-            value = 123459876;
-
-        var high = value / 127773;
-        var low = value % 127773;
-        value = (16807 * low) - (2836 * high);
-        if (value < 0)
-            value += 0x7fffffff;
-
-        return unchecked((uint)value);
     }
 
     private long NextInteger()
@@ -117,26 +117,26 @@ internal sealed class AwkRandomGenerator
         _shuffleState = _shuffleBuffer[shuffleIndex];
         _shuffleBuffer[shuffleIndex] = replacement;
         return _shuffleState;
-    }
 
-    private long NextOldInteger()
-    {
-        _state[_frontIndex] = unchecked(_state[_frontIndex] + _state[_rearIndex]);
-        var result = (long)((_state[_frontIndex] >> 1) & 0x7fffffff);
-
-        _frontIndex++;
-        if (_frontIndex >= Degree)
+        long NextOldInteger()
         {
-            _frontIndex = 0;
-            _rearIndex++;
-        }
-        else
-        {
-            _rearIndex++;
-            if (_rearIndex >= Degree)
-                _rearIndex = 0;
-        }
+            _state[_frontIndex] = unchecked(_state[_frontIndex] + _state[_rearIndex]);
+            var result = (long)((_state[_frontIndex] >> 1) & 0x7fffffff);
 
-        return result;
+            _frontIndex++;
+            if (_frontIndex >= Degree)
+            {
+                _frontIndex = 0;
+                _rearIndex++;
+            }
+            else
+            {
+                _rearIndex++;
+                if (_rearIndex >= Degree)
+                    _rearIndex = 0;
+            }
+
+            return result;
+        }
     }
 }

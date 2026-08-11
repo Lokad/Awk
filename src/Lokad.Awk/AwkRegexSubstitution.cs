@@ -91,47 +91,47 @@ internal static class AwkRegexSubstitution
             allValueMatches,
             replacementPlan,
             out replacementCount);
+
+        static AwkText ReplaceSpans<TMatchSource>(
+            AwkRuntimeState state,
+            AwkText input,
+            AwkText replacement,
+            SpanReplacementKind replacementKind,
+            int targetOccurrence,
+            int maxReplacements,
+            TMatchSource matches,
+            out int replacementCount)
+            where TMatchSource : struct, IMatchSource<AwkRegexMatchSpan>
+            => ReplaceMatches<AwkRegexMatchSpan, TMatchSource, SpanMatchReplacement>(
+                state,
+                input,
+                replacement,
+                targetOccurrence,
+                maxReplacements,
+                matches,
+                new SpanMatchReplacement(replacementKind),
+                out replacementCount);
+
+        static AwkText ReplaceGensubMatches<TMatchSource>(
+            AwkRuntimeState state,
+            AwkText input,
+            AwkText replacement,
+            int targetOccurrence,
+            int maxReplacements,
+            TMatchSource matches,
+            AwkGensubReplacementPlan replacementPlan,
+            out int replacementCount)
+            where TMatchSource : struct, IMatchSource<AwkRegexMatch>
+            => ReplaceMatches<AwkRegexMatch, TMatchSource, GensubMatchReplacement>(
+                state,
+                input,
+                replacement,
+                targetOccurrence,
+                maxReplacements,
+                matches,
+                new GensubMatchReplacement(replacementPlan),
+                out replacementCount);
     }
-
-    private static AwkText ReplaceSpans<TMatchSource>(
-        AwkRuntimeState state,
-        AwkText input,
-        AwkText replacement,
-        SpanReplacementKind replacementKind,
-        int targetOccurrence,
-        int maxReplacements,
-        TMatchSource matches,
-        out int replacementCount)
-        where TMatchSource : struct, IMatchSource<AwkRegexMatchSpan>
-        => ReplaceMatches<AwkRegexMatchSpan, TMatchSource, SpanMatchReplacement>(
-            state,
-            input,
-            replacement,
-            targetOccurrence,
-            maxReplacements,
-            matches,
-            new SpanMatchReplacement(replacementKind),
-            out replacementCount);
-
-    private static AwkText ReplaceGensubMatches<TMatchSource>(
-        AwkRuntimeState state,
-        AwkText input,
-        AwkText replacement,
-        int targetOccurrence,
-        int maxReplacements,
-        TMatchSource matches,
-        AwkGensubReplacementPlan replacementPlan,
-        out int replacementCount)
-        where TMatchSource : struct, IMatchSource<AwkRegexMatch>
-        => ReplaceMatches<AwkRegexMatch, TMatchSource, GensubMatchReplacement>(
-            state,
-            input,
-            replacement,
-            targetOccurrence,
-            maxReplacements,
-            matches,
-            new GensubMatchReplacement(replacementPlan),
-            out replacementCount);
 
     private static AwkText ReplaceMatches<TMatch, TMatchSource, TReplacement>(
         AwkRuntimeState state,

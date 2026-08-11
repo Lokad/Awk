@@ -43,29 +43,29 @@ internal abstract partial class AwkExpression
                 ReturnParts(formattedParts);
                 throw;
             }
-        }
 
-        private async ValueTask<AwkValue> EvaluateRemainingAsync(
-            AwkEvaluationContext context,
-            AwkText[] formattedParts,
-            int currentIndex,
-            ValueTask<AwkValue> pending)
-        {
-            try
+            async ValueTask<AwkValue> EvaluateRemainingAsync(
+                AwkEvaluationContext context,
+                AwkText[] formattedParts,
+                int currentIndex,
+                ValueTask<AwkValue> pending)
             {
-                var current = await pending.ConfigureAwait(false);
-                formattedParts[currentIndex] = context.State.FormatStringByteText(current);
-                for (var index = currentIndex + 1; index < _parts.Length; index++)
+                try
                 {
-                    var value = await _parts[index].EvaluateAsync(context).ConfigureAwait(false);
-                    formattedParts[index] = context.State.FormatStringByteText(value);
-                }
+                    var current = await pending.ConfigureAwait(false);
+                    formattedParts[currentIndex] = context.State.FormatStringByteText(current);
+                    for (var index = currentIndex + 1; index < _parts.Length; index++)
+                    {
+                        var value = await _parts[index].EvaluateAsync(context).ConfigureAwait(false);
+                        formattedParts[index] = context.State.FormatStringByteText(value);
+                    }
 
-                return CreateValue(context, formattedParts);
-            }
-            finally
-            {
-                ReturnParts(formattedParts);
+                    return CreateValue(context, formattedParts);
+                }
+                finally
+                {
+                    ReturnParts(formattedParts);
+                }
             }
         }
 
@@ -116,19 +116,19 @@ internal abstract partial class AwkExpression
             compiler.Emit(ToOpcode(operation));
             compiler.Replace(popped: 2, pushed: 1);
             return true;
-        }
 
-        private static AwkOpcode ToOpcode(AwkNumericOperation operation) =>
-            operation switch
-            {
-                AwkNumericOperation.Add => AwkOpcode.Add,
-                AwkNumericOperation.Subtract => AwkOpcode.Subtract,
-                AwkNumericOperation.Multiply => AwkOpcode.Multiply,
-                AwkNumericOperation.Divide => AwkOpcode.Divide,
-                AwkNumericOperation.Modulo => AwkOpcode.Modulo,
-                AwkNumericOperation.Power => AwkOpcode.Power,
-                _ => throw new ArgumentOutOfRangeException(nameof(operation))
-            };
+            static AwkOpcode ToOpcode(AwkNumericOperation operation) =>
+                operation switch
+                {
+                    AwkNumericOperation.Add => AwkOpcode.Add,
+                    AwkNumericOperation.Subtract => AwkOpcode.Subtract,
+                    AwkNumericOperation.Multiply => AwkOpcode.Multiply,
+                    AwkNumericOperation.Divide => AwkOpcode.Divide,
+                    AwkNumericOperation.Modulo => AwkOpcode.Modulo,
+                    AwkNumericOperation.Power => AwkOpcode.Power,
+                    _ => throw new ArgumentOutOfRangeException(nameof(operation))
+                };
+        }
     }
 
     private sealed class NegateExpression(AwkExpression expression) : AwkExpression
@@ -215,46 +215,46 @@ internal abstract partial class AwkExpression
                 EmitOr(compiler);
 
             return true;
-        }
 
-        private void EmitAnd(AwkExecutableCompiler compiler)
-        {
-            var startDepth = compiler.StackDepth;
-            compiler.EmitExpressionOrFallback(left);
-            var falseJump = compiler.EmitJumpIfFalse();
-            compiler.Pop();
+            void EmitAnd(AwkExecutableCompiler compiler)
+            {
+                var startDepth = compiler.StackDepth;
+                compiler.EmitExpressionOrFallback(left);
+                var falseJump = compiler.EmitJumpIfFalse();
+                compiler.Pop();
 
-            compiler.EmitExpressionOrFallback(right);
-            compiler.Emit(AwkOpcode.Truthiness);
-            var endJump = compiler.EmitJump();
-            var resultDepth = compiler.StackDepth;
+                compiler.EmitExpressionOrFallback(right);
+                compiler.Emit(AwkOpcode.Truthiness);
+                var endJump = compiler.EmitJump();
+                var resultDepth = compiler.StackDepth;
 
-            compiler.SetStackDepth(startDepth);
-            compiler.PatchJumpTarget(falseJump, compiler.CurrentOffset);
-            EmitBooleanConstant(compiler, value: false);
+                compiler.SetStackDepth(startDepth);
+                compiler.PatchJumpTarget(falseJump, compiler.CurrentOffset);
+                EmitBooleanConstant(compiler, value: false);
 
-            compiler.PatchJumpTarget(endJump, compiler.CurrentOffset);
-            compiler.SetStackDepth(resultDepth);
-        }
+                compiler.PatchJumpTarget(endJump, compiler.CurrentOffset);
+                compiler.SetStackDepth(resultDepth);
+            }
 
-        private void EmitOr(AwkExecutableCompiler compiler)
-        {
-            var startDepth = compiler.StackDepth;
-            compiler.EmitExpressionOrFallback(left);
-            var evaluateRightJump = compiler.EmitJumpIfFalse();
-            compiler.Pop();
+            void EmitOr(AwkExecutableCompiler compiler)
+            {
+                var startDepth = compiler.StackDepth;
+                compiler.EmitExpressionOrFallback(left);
+                var evaluateRightJump = compiler.EmitJumpIfFalse();
+                compiler.Pop();
 
-            EmitBooleanConstant(compiler, value: true);
-            var endJump = compiler.EmitJump();
-            var resultDepth = compiler.StackDepth;
+                EmitBooleanConstant(compiler, value: true);
+                var endJump = compiler.EmitJump();
+                var resultDepth = compiler.StackDepth;
 
-            compiler.SetStackDepth(startDepth);
-            compiler.PatchJumpTarget(evaluateRightJump, compiler.CurrentOffset);
-            compiler.EmitExpressionOrFallback(right);
-            compiler.Emit(AwkOpcode.Truthiness);
+                compiler.SetStackDepth(startDepth);
+                compiler.PatchJumpTarget(evaluateRightJump, compiler.CurrentOffset);
+                compiler.EmitExpressionOrFallback(right);
+                compiler.Emit(AwkOpcode.Truthiness);
 
-            compiler.PatchJumpTarget(endJump, compiler.CurrentOffset);
-            compiler.SetStackDepth(resultDepth);
+                compiler.PatchJumpTarget(endJump, compiler.CurrentOffset);
+                compiler.SetStackDepth(resultDepth);
+            }
         }
     }
 

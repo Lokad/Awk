@@ -135,6 +135,7 @@ internal readonly struct AwkValue
 
     public double AsNumber()
     {
+        var kind = _kind;
         if (TryGetDeferredNumberParsingMode(out var numberParsingMode))
         {
             return TryParseAwkNumber(ByteText, numberParsingMode, out var number, out _)
@@ -143,6 +144,25 @@ internal readonly struct AwkValue
         }
 
         return HasArithmeticNumber ? _number : 0;
+
+        bool TryGetDeferredNumberParsingMode(out AwkNumberParsingMode numberParsingMode)
+        {
+            switch (kind)
+            {
+                case AwkValueKind.DeferredDecimalText:
+                    numberParsingMode = AwkNumberParsingMode.Decimal;
+                    return true;
+                case AwkValueKind.DeferredHexadecimalText:
+                    numberParsingMode = AwkNumberParsingMode.HexadecimalInput;
+                    return true;
+                case AwkValueKind.DeferredNonDecimalText:
+                    numberParsingMode = AwkNumberParsingMode.NonDecimalData;
+                    return true;
+                default:
+                    numberParsingMode = default;
+                    return false;
+            }
+        }
     }
 
     public bool TryGetNumber(out double number)
@@ -219,25 +239,6 @@ internal readonly struct AwkValue
     private bool HasComparisonNumber =>
         _kind is AwkValueKind.Number or AwkValueKind.NumericString or AwkValueKind.Unassigned;
 
-    private bool TryGetDeferredNumberParsingMode(out AwkNumberParsingMode numberParsingMode)
-    {
-        switch (_kind)
-        {
-            case AwkValueKind.DeferredDecimalText:
-                numberParsingMode = AwkNumberParsingMode.Decimal;
-                return true;
-            case AwkValueKind.DeferredHexadecimalText:
-                numberParsingMode = AwkNumberParsingMode.HexadecimalInput;
-                return true;
-            case AwkValueKind.DeferredNonDecimalText:
-                numberParsingMode = AwkNumberParsingMode.NonDecimalData;
-                return true;
-            default:
-                numberParsingMode = default;
-                return false;
-        }
-    }
-
     private static bool TryParseAwkNumber(
         AwkText text,
         AwkNumberParsingMode numberParsingMode,
@@ -255,42 +256,42 @@ internal readonly struct AwkValue
         number = 0;
         consumedAll = false;
         return false;
-    }
 
-    private static bool TryParseSignedInfinity(AwkText text, out double number, out bool consumedAll)
-    {
-        var span = text.AsSpan();
-        var index = SkipAsciiWhitespace(span, 0);
-        number = 0;
-        consumedAll = false;
-
-        if (index >= span.Length || span[index] is not ((byte)'+' or (byte)'-'))
-            return false;
-
-        var sign = span[index] == (byte)'-' ? -1 : 1;
-        index++;
-        if (index + 3 > span.Length ||
-            AwkByteFacts.ToAsciiLower(span[index]) != (byte)'i' ||
-            AwkByteFacts.ToAsciiLower(span[index + 1]) != (byte)'n' ||
-            AwkByteFacts.ToAsciiLower(span[index + 2]) != (byte)'f')
+        static bool TryParseSignedInfinity(AwkText text, out double number, out bool consumedAll)
         {
-            return false;
-        }
+            var span = text.AsSpan();
+            var index = SkipAsciiWhitespace(span, 0);
+            number = 0;
+            consumedAll = false;
 
-        index += 3;
-        consumedAll = SkipAsciiWhitespace(span, index) == span.Length;
-        if (!consumedAll)
-            return false;
+            if (index >= span.Length || span[index] is not ((byte)'+' or (byte)'-'))
+                return false;
 
-        number = sign > 0 ? double.PositiveInfinity : double.NegativeInfinity;
-        return true;
-    }
-
-    private static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index)
-    {
-        while (index < span.Length && span[index] is (byte)' ' or (byte)'\t' or (byte)'\n' or (byte)'\r')
+            var sign = span[index] == (byte)'-' ? -1 : 1;
             index++;
+            if (index + 3 > span.Length ||
+                AwkByteFacts.ToAsciiLower(span[index]) != (byte)'i' ||
+                AwkByteFacts.ToAsciiLower(span[index + 1]) != (byte)'n' ||
+                AwkByteFacts.ToAsciiLower(span[index + 2]) != (byte)'f')
+            {
+                return false;
+            }
 
-        return index;
+            index += 3;
+            consumedAll = SkipAsciiWhitespace(span, index) == span.Length;
+            if (!consumedAll)
+                return false;
+
+            number = sign > 0 ? double.PositiveInfinity : double.NegativeInfinity;
+            return true;
+
+            static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index)
+            {
+                while (index < span.Length && span[index] is (byte)' ' or (byte)'\t' or (byte)'\n' or (byte)'\r')
+                    index++;
+
+                return index;
+            }
+        }
     }
 }

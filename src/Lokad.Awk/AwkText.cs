@@ -66,6 +66,23 @@ internal sealed class AwkText : IEquatable<AwkText>
             var runeLength = CountRunes(AsSpan());
             Volatile.Write(ref _textFacts, runeLength + 1);
             return runeLength;
+
+            static int CountRunes(ReadOnlySpan<byte> bytes)
+            {
+                var count = 0;
+                var remaining = bytes;
+                while (!remaining.IsEmpty)
+                {
+                    var status = Rune.DecodeFromUtf8(remaining, out _, out var consumed);
+                    if (status != OperationStatus.Done)
+                        throw new InvalidOperationException("AwkText contains invalid UTF-8.");
+
+                    count++;
+                    remaining = remaining[consumed..];
+                }
+
+                return count;
+            }
         }
     }
 
@@ -171,6 +188,25 @@ internal sealed class AwkText : IEquatable<AwkText>
 
         RecordOwnedBytesAllocation(bytes.Length, governor);
         return CreateTrustedOwnedBytes(bytes, counters);
+
+        static void RecordOwnedBytesAllocation(int length, AwkMemoryGovernor governor)
+        {
+            if (length <= 0)
+                return;
+
+            governor.Reserve(length);
+            try
+            {
+                governor.CommitReserved(length);
+            }
+            catch
+            {
+                governor.ReleaseReserved(length);
+                throw;
+            }
+
+            governor.ReleaseCommitted(length);
+        }
     }
 
     internal static AwkText CopyTrustedBytes(
@@ -615,72 +651,72 @@ internal sealed class AwkText : IEquatable<AwkText>
             concatenation.RightPart = null;
             return bytes;
         }
-    }
 
-    private void CopyConcatenationTo(Span<byte> destination)
-    {
-        var pending = ArrayPool<AwkText>.Shared.Rent(16);
-        var pendingCount = 1;
-        var destinationOffset = 0;
-        pending[0] = this;
-        try
+        void CopyConcatenationTo(Span<byte> destination)
         {
-            while (pendingCount > 0)
+            var pending = ArrayPool<AwkText>.Shared.Rent(16);
+            var pendingCount = 1;
+            var destinationOffset = 0;
+            pending[0] = this;
+            try
             {
-                var current = pending[--pendingCount];
-                var currentConcatenation = current._concatenation;
-                if (currentConcatenation is null)
+                while (pendingCount > 0)
                 {
-                    var source = current._bytes.AsSpan(current._byteOffset, current._byteLength);
-                    source.CopyTo(destination[destinationOffset..]);
-                    destinationOffset += source.Length;
-                    continue;
+                    var current = pending[--pendingCount];
+                    var currentConcatenation = current._concatenation;
+                    if (currentConcatenation is null)
+                    {
+                        var source = current._bytes.AsSpan(current._byteOffset, current._byteLength);
+                        source.CopyTo(destination[destinationOffset..]);
+                        destinationOffset += source.Length;
+                        continue;
+                    }
+
+                    var materialized = Volatile.Read(ref currentConcatenation.MaterializedBytes);
+                    if (materialized is not null)
+                    {
+                        materialized.CopyTo(destination[destinationOffset..]);
+                        destinationOffset += materialized.Length;
+                        continue;
+                    }
+
+                    var left = currentConcatenation.LeftPart;
+                    var right = currentConcatenation.RightPart;
+                    if (left is null || right is null)
+                    {
+                        materialized = Volatile.Read(ref currentConcatenation.MaterializedBytes);
+                        if (materialized is null)
+                            throw new InvalidOperationException("Concatenated text lost both its parts and materialized bytes.");
+
+                        materialized.CopyTo(destination[destinationOffset..]);
+                        destinationOffset += materialized.Length;
+                        continue;
+                    }
+
+                    EnsurePendingCapacity(2);
+                    pending[pendingCount++] = right;
+                    pending[pendingCount++] = left;
                 }
 
-                var materialized = Volatile.Read(ref currentConcatenation.MaterializedBytes);
-                if (materialized is not null)
-                {
-                    materialized.CopyTo(destination[destinationOffset..]);
-                    destinationOffset += materialized.Length;
-                    continue;
-                }
-
-                var left = currentConcatenation.LeftPart;
-                var right = currentConcatenation.RightPart;
-                if (left is null || right is null)
-                {
-                    materialized = Volatile.Read(ref currentConcatenation.MaterializedBytes);
-                    if (materialized is null)
-                        throw new InvalidOperationException("Concatenated text lost both its parts and materialized bytes.");
-
-                    materialized.CopyTo(destination[destinationOffset..]);
-                    destinationOffset += materialized.Length;
-                    continue;
-                }
-
-                EnsurePendingCapacity(2);
-                pending[pendingCount++] = right;
-                pending[pendingCount++] = left;
+                if (destinationOffset != destination.Length)
+                    throw new InvalidOperationException("Concatenated text length does not match its retained parts.");
+            }
+            finally
+            {
+                ArrayPool<AwkText>.Shared.Return(pending, clearArray: true);
             }
 
-            if (destinationOffset != destination.Length)
-                throw new InvalidOperationException("Concatenated text length does not match its retained parts.");
-        }
-        finally
-        {
-            ArrayPool<AwkText>.Shared.Return(pending, clearArray: true);
-        }
+            void EnsurePendingCapacity(int additionalCount)
+            {
+                if (pendingCount <= pending.Length - additionalCount)
+                    return;
 
-        void EnsurePendingCapacity(int additionalCount)
-        {
-            if (pendingCount <= pending.Length - additionalCount)
-                return;
-
-            var expanded = ArrayPool<AwkText>.Shared.Rent(
-                AwkRuntimeMemory.CheckedAdd(pendingCount, additionalCount));
-            pending.AsSpan(0, pendingCount).CopyTo(expanded);
-            ArrayPool<AwkText>.Shared.Return(pending, clearArray: true);
-            pending = expanded;
+                var expanded = ArrayPool<AwkText>.Shared.Rent(
+                    AwkRuntimeMemory.CheckedAdd(pendingCount, additionalCount));
+                pending.AsSpan(0, pendingCount).CopyTo(expanded);
+                ArrayPool<AwkText>.Shared.Return(pending, clearArray: true);
+                pending = expanded;
+            }
         }
     }
 
@@ -758,25 +794,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         return bytes;
     }
 
-    private static void RecordOwnedBytesAllocation(int length, AwkMemoryGovernor governor)
-    {
-        if (length <= 0)
-            return;
-
-        governor.Reserve(length);
-        try
-        {
-            governor.CommitReserved(length);
-        }
-        catch
-        {
-            governor.ReleaseReserved(length);
-            throw;
-        }
-
-        governor.ReleaseCommitted(length);
-    }
-
     private static void ThrowIfInvalidUtf8(ReadOnlySpan<byte> bytes)
     {
         var remaining = bytes;
@@ -790,23 +807,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         }
     }
 
-    private static int CountRunes(ReadOnlySpan<byte> bytes)
-    {
-        var count = 0;
-        var remaining = bytes;
-        while (!remaining.IsEmpty)
-        {
-            var status = Rune.DecodeFromUtf8(remaining, out _, out var consumed);
-            if (status != OperationStatus.Done)
-                throw new InvalidOperationException("AwkText contains invalid UTF-8.");
-
-            count++;
-            remaining = remaining[consumed..];
-        }
-
-        return count;
-    }
-
     private static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index)
     {
         while (index < span.Length && span[index] is (byte)' ' or (byte)'\t' or (byte)'\n' or (byte)'\r')
@@ -817,93 +817,8 @@ internal sealed class AwkText : IEquatable<AwkText>
         return index;
     }
 
-    private static bool TryParseNonDecimalNumber(
-        ReadOnlySpan<byte> span,
-        int start,
-        AwkNumberParsingMode numberParsingMode,
-        out double number,
-        out int end)
-    {
-        number = 0;
-        end = start;
-        var index = start;
-        var sign = 1;
-        var hasExplicitSign = false;
-        if (index < span.Length && span[index] is (byte)'+' or (byte)'-')
-        {
-            hasExplicitSign = true;
-            sign = span[index] == (byte)'-' ? -1 : 1;
-            index++;
-        }
-
-        if (index + 2 < span.Length &&
-            span[index] == (byte)'0' &&
-            span[index + 1] is (byte)'x' or (byte)'X' &&
-            IsHexDigit(span[index + 2]))
-        {
-            index += 2;
-            var value = 0L;
-            while (index < span.Length && IsHexDigit(span[index]))
-            {
-                var digit = HexValue(span[index]);
-                if (value > (long.MaxValue - digit) / 16)
-                    return false;
-
-                value = (value * 16) + digit;
-                index++;
-            }
-
-            number = sign * value;
-            end = index;
-            return true;
-        }
-
-        if (numberParsingMode != AwkNumberParsingMode.NonDecimalData ||
-            hasExplicitSign ||
-            index + 1 >= span.Length ||
-            span[index] != (byte)'0' ||
-            !IsDecimalDigit(span[index + 1]))
-        {
-            return false;
-        }
-
-        var digitStart = index;
-        while (index < span.Length && IsDecimalDigit(span[index]))
-            index++;
-
-        if (index < span.Length && span[index] is (byte)'.' or (byte)'e' or (byte)'E')
-            return false;
-
-        var octalValue = 0L;
-        for (var digitIndex = digitStart + 1; digitIndex < index; digitIndex++)
-        {
-            var digit = span[digitIndex] - (byte)'0';
-            if (digit > 7 || octalValue > (long.MaxValue - digit) / 8)
-                return false;
-
-            octalValue = (octalValue * 8) + digit;
-        }
-
-        number = octalValue;
-        end = index;
-        return true;
-    }
-
     private static bool IsDecimalDigit(byte value) =>
         value is >= (byte)'0' and <= (byte)'9';
-
-    private static bool IsHexDigit(byte value) =>
-        IsDecimalDigit(value) ||
-        value is >= (byte)'a' and <= (byte)'f' ||
-        value is >= (byte)'A' and <= (byte)'F';
-
-    private static int HexValue(byte value)
-    {
-        if (value <= (byte)'9')
-            return value - (byte)'0';
-
-        return AwkByteFacts.ToAsciiLower(value) - (byte)'a' + 10;
-    }
 
     private static bool TryParseNumberPrefix(
         ReadOnlySpan<byte> span,
@@ -920,62 +835,147 @@ internal sealed class AwkText : IEquatable<AwkText>
         }
 
         return TryParseDecimalNumber(span, start, out number, out end);
-    }
 
-    private static bool TryParseDecimalNumber(
-        ReadOnlySpan<byte> span,
-        int start,
-        out double number,
-        out int end)
-    {
-        number = 0;
-        end = start;
-        var index = start;
-        if (index < span.Length && span[index] is (byte)'+' or (byte)'-')
-            index++;
-
-        var digitCount = 0;
-        while (index < span.Length && IsDecimalDigit(span[index]))
+        static bool TryParseNonDecimalNumber(
+            ReadOnlySpan<byte> span,
+            int start,
+            AwkNumberParsingMode numberParsingMode,
+            out double number,
+            out int end)
         {
-            digitCount++;
-            index++;
+            number = 0;
+            end = start;
+            var index = start;
+            var sign = 1;
+            var hasExplicitSign = false;
+            if (index < span.Length && span[index] is (byte)'+' or (byte)'-')
+            {
+                hasExplicitSign = true;
+                sign = span[index] == (byte)'-' ? -1 : 1;
+                index++;
+            }
+
+            if (index + 2 < span.Length &&
+                span[index] == (byte)'0' &&
+                span[index + 1] is (byte)'x' or (byte)'X' &&
+                IsHexDigit(span[index + 2]))
+            {
+                index += 2;
+                var value = 0L;
+                while (index < span.Length && IsHexDigit(span[index]))
+                {
+                    var digit = HexValue(span[index]);
+                    if (value > (long.MaxValue - digit) / 16)
+                        return false;
+
+                    value = (value * 16) + digit;
+                    index++;
+                }
+
+                number = sign * value;
+                end = index;
+                return true;
+            }
+
+            if (numberParsingMode != AwkNumberParsingMode.NonDecimalData ||
+                hasExplicitSign ||
+                index + 1 >= span.Length ||
+                span[index] != (byte)'0' ||
+                !IsDecimalDigit(span[index + 1]))
+            {
+                return false;
+            }
+
+            var digitStart = index;
+            while (index < span.Length && IsDecimalDigit(span[index]))
+                index++;
+
+            if (index < span.Length && span[index] is (byte)'.' or (byte)'e' or (byte)'E')
+                return false;
+
+            var octalValue = 0L;
+            for (var digitIndex = digitStart + 1; digitIndex < index; digitIndex++)
+            {
+                var digit = span[digitIndex] - (byte)'0';
+                if (digit > 7 || octalValue > (long.MaxValue - digit) / 8)
+                    return false;
+
+                octalValue = (octalValue * 8) + digit;
+            }
+
+            number = octalValue;
+            end = index;
+            return true;
+
+            static bool IsHexDigit(byte value) =>
+                IsDecimalDigit(value) ||
+                value is >= (byte)'a' and <= (byte)'f' ||
+                value is >= (byte)'A' and <= (byte)'F';
+
+            static int HexValue(byte value)
+            {
+                if (value <= (byte)'9')
+                    return value - (byte)'0';
+
+                return AwkByteFacts.ToAsciiLower(value) - (byte)'a' + 10;
+            }
         }
 
-        if (index < span.Length && span[index] == (byte)'.')
+        static bool TryParseDecimalNumber(
+            ReadOnlySpan<byte> span,
+            int start,
+            out double number,
+            out int end)
         {
-            index++;
+            number = 0;
+            end = start;
+            var index = start;
+            if (index < span.Length && span[index] is (byte)'+' or (byte)'-')
+                index++;
+
+            var digitCount = 0;
             while (index < span.Length && IsDecimalDigit(span[index]))
             {
                 digitCount++;
                 index++;
             }
-        }
 
-        if (digitCount == 0)
-            return false;
-
-        if (index < span.Length && span[index] is (byte)'e' or (byte)'E')
-        {
-            var exponentStart = index;
-            index++;
-            if (index < span.Length && span[index] is (byte)'+' or (byte)'-')
+            if (index < span.Length && span[index] == (byte)'.')
+            {
                 index++;
+                while (index < span.Length && IsDecimalDigit(span[index]))
+                {
+                    digitCount++;
+                    index++;
+                }
+            }
 
-            var exponentDigitStart = index;
-            while (index < span.Length && IsDecimalDigit(span[index]))
+            if (digitCount == 0)
+                return false;
+
+            if (index < span.Length && span[index] is (byte)'e' or (byte)'E')
+            {
+                var exponentStart = index;
                 index++;
+                if (index < span.Length && span[index] is (byte)'+' or (byte)'-')
+                    index++;
 
-            if (exponentDigitStart == index)
-                index = exponentStart;
+                var exponentDigitStart = index;
+                while (index < span.Length && IsDecimalDigit(span[index]))
+                    index++;
+
+                if (exponentDigitStart == index)
+                    index = exponentStart;
+            }
+
+            if (!Utf8Parser.TryParse(span[start..index], out number, out var consumed) || consumed != index - start)
+            {
+                number = 0;
+                return false;
+            }
+
+            end = index;
+            return true;
         }
-
-        if (!Utf8Parser.TryParse(span[start..index], out number, out var consumed) || consumed != index - start)
-        {
-            number = 0;
-            return false;
-        }
-
-        end = index;
-        return true;
     }
 }

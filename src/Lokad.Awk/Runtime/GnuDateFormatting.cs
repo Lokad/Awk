@@ -42,145 +42,221 @@ internal static class GnuDateFormatting
         }
 
         return builder.ToString();
-    }
 
-    private static bool TryReadDirective(
-        string format,
-        int directiveStart,
-        ref int index,
-        out GnuDateDirective directive)
-    {
-        var padding = GnuDatePadding.Default;
-        var caseConversion = GnuDateCaseConversion.None;
-
-        while (index < format.Length)
+        static bool TryReadDirective(
+            string format,
+            int directiveStart,
+            ref int index,
+            out GnuDateDirective directive)
         {
-            switch (format[index])
+            var padding = GnuDatePadding.Default;
+            var caseConversion = GnuDateCaseConversion.None;
+
+            while (index < format.Length)
             {
-                case '-':
-                    padding = GnuDatePadding.None;
-                    index++;
-                    continue;
-                case '_':
-                    padding = GnuDatePadding.Space;
-                    index++;
-                    continue;
-                case '0':
-                    padding = GnuDatePadding.Zero;
-                    index++;
-                    continue;
-                case '^':
-                    caseConversion = GnuDateCaseConversion.Uppercase;
-                    index++;
-                    continue;
-                case '#':
-                    caseConversion = GnuDateCaseConversion.SwapCase;
-                    index++;
-                    continue;
+                switch (format[index])
+                {
+                    case '-':
+                        padding = GnuDatePadding.None;
+                        index++;
+                        continue;
+                    case '_':
+                        padding = GnuDatePadding.Space;
+                        index++;
+                        continue;
+                    case '0':
+                        padding = GnuDatePadding.Zero;
+                        index++;
+                        continue;
+                    case '^':
+                        caseConversion = GnuDateCaseConversion.Uppercase;
+                        index++;
+                        continue;
+                    case '#':
+                        caseConversion = GnuDateCaseConversion.SwapCase;
+                        index++;
+                        continue;
+                }
+
+                break;
             }
 
-            break;
+            var colonCount = 0;
+            while (index < format.Length && format[index] == ':')
+            {
+                colonCount++;
+                index++;
+            }
+
+            var width = 0;
+            while (index < format.Length && char.IsDigit(format[index]))
+            {
+                width = width * 10 + (format[index] - '0');
+                index++;
+            }
+
+            if (index < format.Length && format[index] is 'E' or 'O')
+                index++;
+
+            if (index >= format.Length)
+            {
+                directive = default;
+                return false;
+            }
+
+            directive = new GnuDateDirective(
+                format[index],
+                new GnuDateColonCount(colonCount),
+                new GnuDateWidth(width),
+                padding,
+                caseConversion,
+                format[directiveStart..(index + 1)]);
+            return true;
         }
 
-        var colonCount = 0;
-        while (index < format.Length && format[index] == ':')
+        static string FormatDirective(DateTimeOffset value, GnuDateDirective directive)
         {
-            colonCount++;
-            index++;
+            if (directive.ColonCount.Value > 0 && directive.Specifier != 'z')
+            {
+                throw new GnuDateFormatException(directive.Text);
+            }
+
+            return directive.Specifier switch
+            {
+                '%' => "%",
+                'n' => "\n",
+                't' => "\t",
+                'H' => value.ToString("HH", Culture),
+                'I' => value.ToString("hh", Culture),
+                'k' => value.Hour.ToString(Culture).PadLeft(2, ' '),
+                'l' => (value.Hour % 12 == 0 ? 12 : value.Hour % 12).ToString(Culture).PadLeft(2, ' '),
+                'M' => value.ToString("mm", Culture),
+                'N' => FormatNanoseconds(value),
+                'p' => value.ToString("tt", Culture),
+                'P' => value.ToString("tt", Culture).ToLowerInvariant(),
+                'r' => Format(value, "%I:%M:%S %p"),
+                'R' => Format(value, "%H:%M"),
+                's' => value.ToUnixTimeSeconds().ToString(Culture),
+                'S' => value.ToString("ss", Culture),
+                'T' => Format(value, "%H:%M:%S"),
+                'X' => Format(value, "%H:%M:%S"),
+                '+' => Format(value, "%a %b %e %H:%M:%S %Z %Y"),
+                'z' => FormatOffset(value.Offset, directive.ColonCount),
+                'Z' => value.Offset == TimeSpan.Zero ? "UTC" : FormatOffsetWithColonCount(value.Offset, 1),
+                'a' => value.ToString("ddd", Culture),
+                'A' => value.ToString("dddd", Culture),
+                'b' => value.ToString("MMM", Culture),
+                'B' => value.ToString("MMMM", Culture),
+                'c' => Format(value, "%a %b %e %H:%M:%S %Y"),
+                'C' => (value.Year / 100).ToString(Culture).PadLeft(2, '0'),
+                'd' => value.ToString("dd", Culture),
+                'D' => Format(value, "%m/%d/%y"),
+                'e' => value.Day.ToString(Culture).PadLeft(2, ' '),
+                'F' => Format(value, "%Y-%m-%d"),
+                'g' => (ISOWeek.GetYear(value.DateTime) % 100).ToString(Culture).PadLeft(2, '0'),
+                'G' => ISOWeek.GetYear(value.DateTime).ToString(Culture),
+                'h' => value.ToString("MMM", Culture),
+                'j' => value.DayOfYear.ToString(Culture).PadLeft(3, '0'),
+                'm' => value.ToString("MM", Culture),
+                'q' => (((value.Month - 1) / 3) + 1).ToString(Culture),
+                'u' => (value.DayOfWeek == DayOfWeek.Sunday ? 7 : (int)value.DayOfWeek).ToString(Culture),
+                'U' => GetWeekNumber(value, mondayFirst: false).ToString(Culture).PadLeft(2, '0'),
+                'V' => ISOWeek.GetWeekOfYear(value.DateTime).ToString(Culture).PadLeft(2, '0'),
+                'w' => ((int)value.DayOfWeek).ToString(Culture),
+                'W' => GetWeekNumber(value, mondayFirst: true).ToString(Culture).PadLeft(2, '0'),
+                'x' => Format(value, "%m/%d/%y"),
+                'y' => value.ToString("yy", Culture),
+                'Y' => value.ToString("yyyy", Culture),
+                _ => throw new GnuDateFormatException(directive.Text)
+            };
+
+            static string FormatNanoseconds(DateTimeOffset value)
+            {
+                var ticksWithinSecond = value.Ticks % TimeSpan.TicksPerSecond;
+                var nanoseconds = ticksWithinSecond * 100;
+                return nanoseconds.ToString(Culture).PadLeft(9, '0');
+            }
+
+            static string FormatOffsetWithColonCount(TimeSpan offset, int colonCount) =>
+                FormatOffset(offset, new GnuDateColonCount(colonCount));
+
+            static int GetWeekNumber(DateTimeOffset value, bool mondayFirst)
+            {
+                var firstWeekDay = mondayFirst ? DayOfWeek.Monday : DayOfWeek.Sunday;
+                var firstDayOfYear = new DateTime(value.Year, 1, 1).DayOfWeek;
+                var firstWeekStart = ((int)firstWeekDay - (int)firstDayOfYear + 7) % 7;
+                var dayOfYear = value.DayOfYear - 1;
+                if (dayOfYear < firstWeekStart)
+                {
+                    return 0;
+                }
+
+                return ((dayOfYear - firstWeekStart) / 7) + 1;
+            }
         }
 
-        var width = 0;
-        while (index < format.Length && char.IsDigit(format[index]))
+        static string ApplyCaseConversion(string input, GnuDateCaseConversion caseConversion)
         {
-            width = width * 10 + (format[index] - '0');
-            index++;
+            return caseConversion switch
+            {
+                GnuDateCaseConversion.Uppercase => input.ToUpperInvariant(),
+                GnuDateCaseConversion.SwapCase => SwapCase(input),
+                _ => input
+            };
+            static string SwapCase(string input)
+            {
+                var chars = input.ToCharArray();
+                for (var index = 0; index < chars.Length; index++)
+                {
+                    var ch = chars[index];
+                    chars[index] = char.IsUpper(ch)
+                        ? char.ToLowerInvariant(ch)
+                        : char.IsLower(ch)
+                            ? char.ToUpperInvariant(ch)
+                            : ch;
+                }
+
+                return new string(chars);
+            }
         }
+        ;
 
-        if (index < format.Length && format[index] is 'E' or 'O')
-            index++;
-
-        if (index >= format.Length)
+        static string ApplyPadding(string input, GnuDatePadding padding, GnuDateWidth width)
         {
-            directive = default;
-            return false;
-        }
+            if (padding == GnuDatePadding.None)
+            {
+                var unpadded = input.TrimStart('0', ' ');
+                return unpadded.Length == 0 && input.Length > 0 ? "0" : unpadded;
+            }
 
-        directive = new GnuDateDirective(
-            format[index],
-            new GnuDateColonCount(colonCount),
-            new GnuDateWidth(width),
-            padding,
-            caseConversion,
-            format[directiveStart..(index + 1)]);
-        return true;
+            if (padding == GnuDatePadding.Space)
+            {
+                input = ReplaceLeading(input, '0', ' ');
+            }
+            else if (padding == GnuDatePadding.Zero)
+            {
+                input = ReplaceLeading(input, ' ', '0');
+            }
+
+            if (width.Value > input.Length)
+            {
+                input = input.PadLeft(width.Value, padding.PaddingCharacter());
+            }
+
+            return input;
+
+            static string ReplaceLeading(string input, char from, char to)
+            {
+                var chars = input.ToCharArray();
+                for (var index = 0; index < chars.Length && chars[index] == from; index++)
+                {
+                    chars[index] = to;
+                }
+
+                return new string(chars);
+            }
+        }
     }
-
-    private static string FormatDirective(DateTimeOffset value, GnuDateDirective directive)
-    {
-        if (directive.ColonCount.Value > 0 && directive.Specifier != 'z')
-        {
-            throw new GnuDateFormatException(directive.Text);
-        }
-
-        return directive.Specifier switch
-        {
-            '%' => "%",
-            'n' => "\n",
-            't' => "\t",
-            'H' => value.ToString("HH", Culture),
-            'I' => value.ToString("hh", Culture),
-            'k' => value.Hour.ToString(Culture).PadLeft(2, ' '),
-            'l' => (value.Hour % 12 == 0 ? 12 : value.Hour % 12).ToString(Culture).PadLeft(2, ' '),
-            'M' => value.ToString("mm", Culture),
-            'N' => FormatNanoseconds(value),
-            'p' => value.ToString("tt", Culture),
-            'P' => value.ToString("tt", Culture).ToLowerInvariant(),
-            'r' => Format(value, "%I:%M:%S %p"),
-            'R' => Format(value, "%H:%M"),
-            's' => value.ToUnixTimeSeconds().ToString(Culture),
-            'S' => value.ToString("ss", Culture),
-            'T' => Format(value, "%H:%M:%S"),
-            'X' => Format(value, "%H:%M:%S"),
-            '+' => Format(value, "%a %b %e %H:%M:%S %Z %Y"),
-            'z' => FormatOffset(value.Offset, directive.ColonCount),
-            'Z' => value.Offset == TimeSpan.Zero ? "UTC" : FormatOffset(value.Offset, 1),
-            'a' => value.ToString("ddd", Culture),
-            'A' => value.ToString("dddd", Culture),
-            'b' => value.ToString("MMM", Culture),
-            'B' => value.ToString("MMMM", Culture),
-            'c' => Format(value, "%a %b %e %H:%M:%S %Y"),
-            'C' => (value.Year / 100).ToString(Culture).PadLeft(2, '0'),
-            'd' => value.ToString("dd", Culture),
-            'D' => Format(value, "%m/%d/%y"),
-            'e' => value.Day.ToString(Culture).PadLeft(2, ' '),
-            'F' => Format(value, "%Y-%m-%d"),
-            'g' => (ISOWeek.GetYear(value.DateTime) % 100).ToString(Culture).PadLeft(2, '0'),
-            'G' => ISOWeek.GetYear(value.DateTime).ToString(Culture),
-            'h' => value.ToString("MMM", Culture),
-            'j' => value.DayOfYear.ToString(Culture).PadLeft(3, '0'),
-            'm' => value.ToString("MM", Culture),
-            'q' => (((value.Month - 1) / 3) + 1).ToString(Culture),
-            'u' => (value.DayOfWeek == DayOfWeek.Sunday ? 7 : (int)value.DayOfWeek).ToString(Culture),
-            'U' => GetWeekNumber(value, mondayFirst: false).ToString(Culture).PadLeft(2, '0'),
-            'V' => ISOWeek.GetWeekOfYear(value.DateTime).ToString(Culture).PadLeft(2, '0'),
-            'w' => ((int)value.DayOfWeek).ToString(Culture),
-            'W' => GetWeekNumber(value, mondayFirst: true).ToString(Culture).PadLeft(2, '0'),
-            'x' => Format(value, "%m/%d/%y"),
-            'y' => value.ToString("yy", Culture),
-            'Y' => value.ToString("yyyy", Culture),
-            _ => throw new GnuDateFormatException(directive.Text)
-        };
-    }
-
-    private static string FormatNanoseconds(DateTimeOffset value)
-    {
-        var ticksWithinSecond = value.Ticks % TimeSpan.TicksPerSecond;
-        var nanoseconds = ticksWithinSecond * 100;
-        return nanoseconds.ToString(Culture).PadLeft(9, '0');
-    }
-
-    private static string FormatOffset(TimeSpan offset, int colonCount) =>
-        FormatOffset(offset, new GnuDateColonCount(colonCount));
 
     private static string FormatOffset(TimeSpan offset, GnuDateColonCount colonCount)
     {
@@ -195,80 +271,6 @@ internal static class GnuDateFormatting
             _ when absoluteOffset.Minutes != 0 => string.Create(Culture, $"{sign}{absoluteOffset.Hours:00}:{absoluteOffset.Minutes:00}"),
             _ => string.Create(Culture, $"{sign}{absoluteOffset.Hours:00}")
         };
-    }
-
-    private static string ApplyCaseConversion(string input, GnuDateCaseConversion caseConversion) =>
-        caseConversion switch
-        {
-            GnuDateCaseConversion.Uppercase => input.ToUpperInvariant(),
-            GnuDateCaseConversion.SwapCase => SwapCase(input),
-            _ => input
-        };
-
-    private static string ApplyPadding(string input, GnuDatePadding padding, GnuDateWidth width)
-    {
-        if (padding == GnuDatePadding.None)
-        {
-            var unpadded = input.TrimStart('0', ' ');
-            return unpadded.Length == 0 && input.Length > 0 ? "0" : unpadded;
-        }
-
-        if (padding == GnuDatePadding.Space)
-        {
-            input = ReplaceLeading(input, '0', ' ');
-        }
-        else if (padding == GnuDatePadding.Zero)
-        {
-            input = ReplaceLeading(input, ' ', '0');
-        }
-
-        if (width.Value > input.Length)
-        {
-            input = input.PadLeft(width.Value, padding.PaddingCharacter());
-        }
-
-        return input;
-    }
-
-    private static string ReplaceLeading(string input, char from, char to)
-    {
-        var chars = input.ToCharArray();
-        for (var index = 0; index < chars.Length && chars[index] == from; index++)
-        {
-            chars[index] = to;
-        }
-
-        return new string(chars);
-    }
-
-    private static string SwapCase(string input)
-    {
-        var chars = input.ToCharArray();
-        for (var index = 0; index < chars.Length; index++)
-        {
-            var ch = chars[index];
-            chars[index] = char.IsUpper(ch)
-                ? char.ToLowerInvariant(ch)
-                : char.IsLower(ch)
-                    ? char.ToUpperInvariant(ch)
-                    : ch;
-        }
-
-        return new string(chars);
-    }
-
-    private static int GetWeekNumber(DateTimeOffset value, bool mondayFirst)
-    {
-        var firstWeekDay = mondayFirst ? DayOfWeek.Monday : DayOfWeek.Sunday;
-        var firstDayOfYear = new DateTime(value.Year, 1, 1).DayOfWeek;
-        var firstWeekStart = ((int)firstWeekDay - (int)firstDayOfYear + 7) % 7;
-        var dayOfYear = value.DayOfYear - 1;
-        if (dayOfYear < firstWeekStart)
-        {
-            return 0;
-        }
-
-        return ((dayOfYear - firstWeekStart) / 7) + 1;
     }
 }
 
