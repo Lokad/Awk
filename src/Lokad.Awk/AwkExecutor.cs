@@ -28,9 +28,9 @@ internal static class AwkExecutor
         {
             resources.RecordHostCall();
             resources.RecordOutputBytes(content.Length);
-            var status = await host.AppendAsync(
-                    descriptor,
-                    content,
+            var status = await AwkHostBoundaryPolicy.AwaitAsync(
+                    host.AppendAsync(descriptor, content, cancellationToken),
+                    runtimeOptions.HostOperationTimeout,
                     cancellationToken)
                 .ConfigureAwait(false);
             return status.Succeeded
@@ -74,6 +74,10 @@ internal static class AwkExecutor
                     runtimeOptions.AccessiblePathRoot,
                     runtimeOptions.CleanupTimeout,
                     runtimeOptions.AllowSourceIncludes,
+                    runtimeOptions.ExposeEnvironment,
+                    runtimeOptions.HostOperationTimeout,
+                    runtimeOptions.ExposeHostErrorDetails,
+                    runtimeOptions.MaxHostErrorBytes,
                     cancellationToken)
                 .ConfigureAwait(false);
             for (var index = 0; index < resolved.Warnings.Count; index++)
@@ -116,9 +120,9 @@ internal static class AwkExecutor
             runtimeOptions.Counters.RecordOutputBytes(failure.Message.Length);
             try
             {
-                var appendStatus = await host.AppendAsync(
-                        invocation.Stdio.StdErr,
-                        failure.Message,
+                var appendStatus = await AwkHostBoundaryPolicy.AwaitAsync(
+                        host.AppendAsync(invocation.Stdio.StdErr, failure.Message, cancellationToken),
+                        runtimeOptions.HostOperationTimeout,
                         cancellationToken)
                     .ConfigureAwait(false);
                 return appendStatus.Succeeded
@@ -138,9 +142,12 @@ internal static class AwkExecutor
         {
             try
             {
-                _ = await host.AppendAsync(
-                        invocation.Stdio.StdErr,
-                        AwkMessages.ErrorUnexpectedFailure,
+                _ = await AwkHostBoundaryPolicy.AwaitAsync(
+                        host.AppendAsync(
+                            invocation.Stdio.StdErr,
+                            AwkMessages.ErrorUnexpectedFailure,
+                            cancellationToken),
+                        runtimeOptions.HostOperationTimeout,
                         cancellationToken)
                     .ConfigureAwait(false);
                 return AwkDiagnostics.FatalExitCode;
@@ -183,6 +190,10 @@ internal static class AwkExecutor
                 runtimeOptions.AccessiblePathRoot,
                 runtimeOptions.CleanupTimeout,
                 runtimeOptions.AllowSourceIncludes,
+                runtimeOptions.ExposeEnvironment,
+                runtimeOptions.HostOperationTimeout,
+                runtimeOptions.ExposeHostErrorDetails,
+                runtimeOptions.MaxHostErrorBytes,
                 cancellationToken)
             .ConfigureAwait(false);
         if (resolved is AwkProgramResolution.Failed failed)
@@ -205,6 +216,10 @@ internal static class AwkExecutor
         AwkPath? accessiblePathRoot,
         TimeSpan cleanupTimeout,
         bool allowSourceIncludes,
+        bool exposeEnvironment,
+        TimeSpan hostOperationTimeout,
+        bool exposeHostErrorDetails,
+        int maxHostErrorBytes,
         CancellationToken cancellationToken)
     {
         var sourceLoad = await AwkSourceLoader.LoadAsync(
@@ -214,7 +229,11 @@ internal static class AwkExecutor
                 cancellationToken,
                 accessiblePathRoot,
                 cleanupTimeout,
-                allowSourceIncludes)
+                allowSourceIncludes,
+                exposeEnvironment,
+                hostOperationTimeout,
+                exposeHostErrorDetails,
+                maxHostErrorBytes)
             .ConfigureAwait(false);
         if (sourceLoad is AwkSourceLoadResult.Failed failed)
         {

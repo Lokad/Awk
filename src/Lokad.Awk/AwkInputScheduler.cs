@@ -19,9 +19,17 @@ internal sealed class AwkInputScheduler(
     CancellationToken cancellationToken,
     AwkPath? accessiblePathRoot = null,
     TimeSpan? cleanupTimeout = null,
-    bool allowDynamicMainInputPaths = true) : IAwkInputRecordReader
+    bool allowDynamicMainInputPaths = true,
+    TimeSpan? hostOperationTimeout = null,
+    bool exposeHostErrorDetails = true,
+    int maxHostErrorBytes = 4 << 10,
+    AwkCleanupDeadline? cleanupDeadline = null) : IAwkInputRecordReader
 {
-    private readonly TimeSpan _cleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _hostOperationTimeout = hostOperationTimeout ?? TimeSpan.FromMinutes(5);
+    private readonly TimeSpan _closeOperationTimeout =
+        Min(hostOperationTimeout ?? TimeSpan.FromMinutes(5), cleanupTimeout ?? TimeSpan.FromSeconds(30));
+    private readonly AwkCleanupDeadline _cleanupDeadline =
+        cleanupDeadline ?? new AwkCleanupDeadline(cleanupTimeout ?? TimeSpan.FromSeconds(30));
     private readonly HashSet<AwkFileDescriptor> _ownedDescriptors = [];
     private readonly AwkRecordProcessor _recordProcessor = new(state);
     private OpenMainInput? _currentInput;
@@ -104,8 +112,10 @@ internal sealed class AwkInputScheduler(
                 AwkHostPathPolicy.ThrowIfDenied(path.Absolute, accessiblePathRoot);
                 state.BeginInputFile(AwkUtf8Codec.Decode(path.Display), inputArgument.ArgvIndex);
                 state.Resources.RecordHostCall();
-                var opened = await host
-                    .OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken)
+                var opened = await AwkHostBoundaryPolicy.AwaitAsync(
+                        host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken),
+                        _hostOperationTimeout,
+                        cancellationToken)
                     .ConfigureAwait(false);
                 if (!opened.Success)
                 {
@@ -198,7 +208,7 @@ internal sealed class AwkInputScheduler(
                     throw CreateOpenFailure(path, opened);
 
                 state.SetErrno(opened.Failed
-                    ? AwkErrno.FromHostMessage(opened.Error.Message)
+                    ? AwkErrno.FromHostMessage(ResolveHostError(opened.Error))
                     : AwkErrno.NoSuchFileOrDirectory);
                 var flow = await ExecuteBeginFileActionsAsync().ConfigureAwait(false);
                 if (flow == AwkStatementFlow.ExitProgram)
@@ -209,10 +219,10 @@ internal sealed class AwkInputScheduler(
 
                 return false;
 
-                static AwkRuntimeException CreateOpenFailure(AwkResolvedPath path, AwkOpenedFile opened) =>
+                AwkRuntimeException CreateOpenFailure(AwkResolvedPath path, AwkOpenedFile opened) =>
                     new(
                         opened.Failed
-                            ? AwkMessages.FormatPathError(path.Display, opened.Error.Message)
+                            ? AwkMessages.FormatPathError(path.Display, ResolveHostError(opened.Error))
                             : AwkMessages.FormatPathError(path.Display),
                         AwkDiagnosticId.HostIoFailure);
             }
@@ -222,7 +232,10 @@ internal sealed class AwkInputScheduler(
                 var descriptorReader = new AwkRecordDescriptorReader(
                     host,
                     cancellationToken,
-                    state.Resources);
+                    state.Resources,
+                    _hostOperationTimeout,
+                    exposeHostErrorDetails,
+                    maxHostErrorBytes);
                 return new AwkRecordCursor(
                     state,
                     descriptorReader,
@@ -285,9 +298,8 @@ internal sealed class AwkInputScheduler(
             try
             {
                 state.Resources.RecordCleanupHostCall();
-                _ = await host.CloseDescriptorAsync(descriptors[index], CancellationToken.None)
-                    .WaitAsync(_cleanupTimeout)
-                    .ConfigureAwait(false);
+                await _cleanupDeadline.AwaitAsync(
+                    host.CloseDescriptorAsync(descriptors[index], CancellationToken.None)).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -359,8 +371,10 @@ internal sealed class AwkInputScheduler(
         try
         {
             state.Resources.RecordHostCall();
-            var closed = await host.CloseDescriptorAsync(descriptor, CancellationToken.None)
-                .WaitAsync(_cleanupTimeout)
+            var closed = await AwkHostBoundaryPolicy.AwaitAsync(
+                    host.CloseDescriptorAsync(descriptor, CancellationToken.None),
+                    _closeOperationTimeout,
+                    CancellationToken.None)
                 .ConfigureAwait(false);
             if (closed != AwkOperationStatus.Success)
             {
@@ -375,6 +389,17 @@ internal sealed class AwkInputScheduler(
             throw;
         }
     }
+
+    private static string ResolveHostErrorCore(
+        AwkOperationError error,
+        bool exposeDetails,
+        int maxErrorBytes) =>
+        AwkHostBoundaryPolicy.ResolveError(error, exposeDetails, maxErrorBytes);
+
+    private string ResolveHostError(AwkOperationError error) =>
+        ResolveHostErrorCore(error, exposeHostErrorDetails, maxHostErrorBytes);
+
+    private static TimeSpan Min(TimeSpan left, TimeSpan right) => left <= right ? left : right;
 
     private readonly struct RuntimeArgumentValue(AwkText? text, string? value)
     {

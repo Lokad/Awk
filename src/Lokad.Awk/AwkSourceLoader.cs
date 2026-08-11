@@ -13,13 +13,21 @@ internal static partial class AwkSourceLoader
         CancellationToken cancellationToken,
         AwkPath? accessiblePathRoot = null,
         TimeSpan? cleanupTimeout = null,
-        bool allowSourceIncludes = true)
+        bool allowSourceIncludes = true,
+        bool exposeEnvironment = true,
+        TimeSpan? hostOperationTimeout = null,
+        bool exposeHostErrorDetails = true,
+        int maxHostErrorBytes = 4 << 10)
     {
         var plan = AwkSourceLoadPlan.FromInvocation(
             invocation,
             accessiblePathRoot,
             cleanupTimeout,
-            allowSourceIncludes);
+            allowSourceIncludes,
+            exposeEnvironment,
+            hostOperationTimeout,
+            exposeHostErrorDetails,
+            maxHostErrorBytes);
         resources.ThrowIfSourceUnitCountExceeded(plan.SourceCount);
         var sources = new List<AwkSourceUnit>(plan.SourceCount);
         var inlineSourceIndex = 0;

@@ -35,7 +35,7 @@ public sealed class AwkSourceLoaderTests
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(
-            "awk: /script.awk: Close failed.\n",
+            "awk: host operation timed out\n",
             host.GetAppendedOutput(AwkFileDescriptor.StdErr));
     }
 

@@ -21,7 +21,11 @@ internal sealed class AwkRuntimeOptions
         TimeSpan? cleanupTimeout = null,
         bool forwardCommandEnvironment = true,
         bool allowSourceIncludes = true,
-        bool allowDynamicMainInputPaths = true)
+        bool allowDynamicMainInputPaths = true,
+        TimeSpan? hostOperationTimeout = null,
+        bool exposeEnvironment = true,
+        bool exposeHostErrorDetails = true,
+        int maxHostErrorBytes = 4 << 10)
     {
         var randomGeneratorSnapshot = randomGenerator.Clone();
         CurrentUnixTimeSeconds = currentUnixTimeSeconds;
@@ -39,6 +43,10 @@ internal sealed class AwkRuntimeOptions
         ForwardCommandEnvironment = forwardCommandEnvironment;
         AllowSourceIncludes = allowSourceIncludes;
         AllowDynamicMainInputPaths = allowDynamicMainInputPaths;
+        HostOperationTimeout = hostOperationTimeout ?? TimeSpan.FromMinutes(5);
+        ExposeEnvironment = exposeEnvironment;
+        ExposeHostErrorDetails = exposeHostErrorDetails;
+        MaxHostErrorBytes = maxHostErrorBytes;
     }
 
     public Func<AwkUnixTimestampSeconds> CurrentUnixTimeSeconds { get; }
@@ -71,6 +79,14 @@ internal sealed class AwkRuntimeOptions
 
     public bool AllowDynamicMainInputPaths { get; }
 
+    public TimeSpan HostOperationTimeout { get; }
+
+    public bool ExposeEnvironment { get; }
+
+    public bool ExposeHostErrorDetails { get; }
+
+    public int MaxHostErrorBytes { get; }
+
     public static AwkRuntimeOptions CreateSystemDefault() => Create(AwkExecutionPolicy.CreateDefault());
 
     public static AwkRuntimeOptions Create(AwkExecutionPolicy policy) =>
@@ -89,5 +105,9 @@ internal sealed class AwkRuntimeOptions
             policy.CleanupTimeout,
             policy.ForwardCommandEnvironment,
             policy.AllowSourceIncludes,
-            policy.AllowDynamicMainInputPaths);
+            policy.AllowDynamicMainInputPaths,
+            policy.HostOperationTimeout,
+            policy.ExposeEnvironment,
+            policy.ExposeHostErrorDetails,
+            policy.MaxHostErrorBytes);
 }

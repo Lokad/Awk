@@ -49,11 +49,11 @@ Append and command outcomes use `AwkExitCode`; a batch command response must con
 result per submitted command.
 
 `AwkExecutionPolicy.CreateRestricted()` disables script-created file redirections and command
-pipes, does not forward mutable `ENVIRON` values to commands if pipes are later enabled, pins time
-and local timezone to the Unix epoch and UTC, and applies finite source, syntax, memory, output,
-host-call, descriptor, and execution budgets. `CreateDefault()` preserves the broader compatibility
-surface. The `--sandbox` command-line option independently disables file and command redirections;
-it does not replace host-side path and descriptor policy.
+pipes, `@include`, and changed `ARGV` input paths; hides the invocation environment and host-error
+details; pins time and local timezone to the Unix epoch and UTC; and applies finite frontend,
+runtime, IO, regex, memory, and host-operation budgets. `CreateDefault()` preserves the broader
+compatibility surface. The `--sandbox` command-line option independently disables file and command
+redirections; it does not replace host-side path and descriptor policy.
 
 See [docs/SECURITY.md](docs/SECURITY.md) before executing awk supplied by an untrusted party.
 

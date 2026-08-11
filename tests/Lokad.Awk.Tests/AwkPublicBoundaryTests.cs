@@ -23,9 +23,14 @@ public sealed class AwkPublicBoundaryTests
         Assert.False(restricted.AllowFileRedirections);
         Assert.False(restricted.AllowSourceIncludes);
         Assert.False(restricted.AllowDynamicMainInputPaths);
+        Assert.False(restricted.ExposeEnvironment);
+        Assert.False(restricted.ExposeHostErrorDetails);
         Assert.Equal(42, customized.MaxOutputBytes);
         Assert.True(customized.AllowCommandPipes);
         Assert.False(restricted.AllowCommandPipes);
+        Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxInputBytes);
+        Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxRecords);
+        Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxRegexOperations);
         Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxExecutionMemoryBytes);
         Assert.Equal("/jail", Assert.IsType<AwkPath>(rooted.AccessiblePathRoot).Path);
     }
@@ -303,6 +308,142 @@ public sealed class AwkPublicBoundaryTests
         Assert.Equal(
             "awk: array sort comparison limit exceeded\n",
             host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_RestrictedPresetHidesInvocationEnvironment()
+    {
+        var invocation = AwkCommandInvocation.CreateWithStandardDescriptors(
+            "awk",
+            ["BEGIN{print (\"SECRET\" in ENVIRON)}"],
+            [new AwkEnvironmentVariable("SECRET", "sensitive")]);
+        Assert.True(Awk.TryParse(invocation, out var tool));
+        var host = new MockFileSystem();
+
+        var exitCode = await tool.ExecuteAsync(
+            host,
+            AwkExecutionPolicy.CreateRestricted(),
+            CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.Success, exitCode);
+        Assert.Equal("0\n", host.GetOutput(AwkFileDescriptor.StdOut));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_RestrictedPresetDoesNotSearchAwkPath()
+    {
+        var invocation = AwkTestHarness.BuildInvocation(
+            "awk",
+            ["-f", "program.awk"],
+            [new AwkEnvironmentVariable("AWKPATH", "/lib")]);
+        var tool = AwkTestHarness.ParseAwk(invocation);
+        var host = new MockFileSystem();
+        host.AddFile("/lib/program.awk", "BEGIN{print \"unreachable\"}");
+
+        var exitCode = await tool.ExecuteAsync(
+            host,
+            AwkExecutionPolicy.CreateRestricted(),
+            CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(1, host.ReadOpenCount);
+        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Contains("No such file or directory", host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_RestrictedPresetSanitizesStructuredHostErrors()
+    {
+        var host = new MockFileSystem();
+        host.AddReadOpenError("/input.txt", "sensitive host path and credential");
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "{print}",
+            "/input.txt"));
+
+        var exitCode = await tool.ExecuteAsync(
+            host,
+            AwkExecutionPolicy.CreateRestricted(),
+            CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(
+            "awk: /input.txt: Operation failed.\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.DoesNotContain("sensitive", host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_HostErrorByteLimitUsesGenericDiagnostic()
+    {
+        var host = new MockFileSystem();
+        host.AddReadOpenError("/input.txt", "host failure details");
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "{print}",
+            "/input.txt"));
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxHostErrorBytes(4);
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(
+            "awk: /input.txt: Operation failed.\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_ArgumentLimitAppliesBeforeInvocationPlanning()
+    {
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "BEGIN{print \"unreachable\"}",
+            "/one.txt"));
+        var host = new MockFileSystem();
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxArguments(1);
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal("awk: command argument limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_EnvironmentByteLimitAppliesBeforeInvocationPlanning()
+    {
+        var invocation = AwkTestHarness.BuildInvocation(
+            "awk",
+            ["BEGIN{print \"unreachable\"}"],
+            [new AwkEnvironmentVariable("TOKEN", "secret")]);
+        var tool = AwkTestHarness.ParseAwk(invocation);
+        var host = new MockFileSystem();
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxEnvironmentBytes(4);
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(
+            "awk: command environment limit exceeded\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_HostOperationTimeoutBoundsUncooperativeReads()
+    {
+        var pendingRead = new TaskCompletionSource<AwkReadResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new MockFileSystem
+        {
+            ReadLinesAsyncOverride = (_, _, _) => pendingRead.Task
+        };
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print}"));
+        var policy = AwkExecutionPolicy.CreateDefault()
+            .WithHostOperationTimeout(TimeSpan.FromMilliseconds(10));
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal("awk: host operation timed out\n", host.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Fact]

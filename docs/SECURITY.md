@@ -10,13 +10,17 @@ sandbox.
 
 Use `AwkExecutionPolicy.CreateRestricted()` for awk supplied by an untrusted party. It:
 
-- disables script-created file redirections and command pipes;
-- omits the mutable awk `ENVIRON` snapshot from commands if command pipes are subsequently enabled;
+- disables script-created file redirections, command pipes, `@include`, and runtime replacement of
+  command-line main-input paths through `ARGV`;
+- hides the invocation environment from `ENVIRON` and `AWKPATH`, and does not forward it to commands
+  if command pipes are subsequently enabled;
+- replaces structured host failure details with a generic diagnostic;
 - fixes `systime()`, zero-argument `srand()`, and local time formatting to the Unix epoch and UTC;
-- applies finite execution, syntax, source, include, memory, value, record, output, host-call,
-  descriptor, pipe, field, array, regex, and stack budgets; and
-- applies a cooperative wall-time limit and bounds command completion and each best-effort cleanup
-  close.
+- applies finite invocation, frontend, execution, input, sort, syntax, source, include, memory,
+  value, record, output, host-call, descriptor, pipe, field, symbol, array, regex, and stack budgets;
+  and
+- applies a cooperative wall-time limit, a deadline to every ordinary host operation, a command
+  deadline, and one aggregate deadline to best-effort cleanup in each execution phase.
 
 Set an `AccessiblePathRoot` when the host exposes a virtual subtree. This is a lexical check over
 canonical `AwkPath` values. A host mapping those values to an operating-system filesystem must still
@@ -48,8 +52,9 @@ platform-specific preload variables.
 
 `--sandbox` disables awk file redirections, input pipes, and output pipes before a host capability is
 called. Main input and source files still cross `IAwkHost`, allowing an embedding application to
-provide explicitly authorized inputs. The public restricted policy is preferable because it also
-adds finite budgets and deterministic time.
+provide explicitly authorized inputs. The public restricted policy additionally freezes the source
+and main-input capability sets, hides the environment and host details, and adds finite budgets and
+deterministic time.
 
 ## Files And Descriptors
 
@@ -57,6 +62,8 @@ Main input, `getline`, output redirections, `-f`, `-i`, `@include`, and `AWKPATH
 are host-mediated. Relative paths may move from the current directory toward the virtual root.
 Above-root paths are rejected as awk diagnostics. Configure `AccessiblePathRoot` or enforce an
 equivalent host capability root if the virtual root is broader than the intended execution scope.
+Under the restricted preset, the invocation's explicit `-f`, `-i`, and original main-input paths
+remain capabilities, while script-originated `@include`, `AWKPATH`, and changed `ARGV` paths do not.
 
 Standard paths such as `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, and their supported `/dev/fd`
 forms refer only to descriptors supplied in `AwkCommandInvocation`. A host should reject any other
@@ -73,16 +80,21 @@ Frontend delimiter and syntax-tree depth are checked before binding or execution
 deeply nested calls and flat left-associated expression trees, which otherwise consume the CLR
 evaluation stack independently of awk function recursion.
 
-Source bytes are charged before decoding or expansion, and include depth/count are checked before a
-deeper include is followed. Input files, output files, and command pipes have independent open-count
-budgets. Retained awk memory is governed in aggregate when `MaxExecutionMemoryBytes` is finite;
-per-value, per-record, per-array, field, builder, regex, output, and VM-stack ceilings provide
+Source units and bytes are charged before decoding and again for the fully expanded compilation
+source. Character, token, diagnostic, identifier, and symbol limits bound frontend breadth.
+Regex pattern size, group count, compilation work, cache retention, and match operations have
+separate budgets. Runtime input bytes and records, sort comparisons, invocation arguments and
+environment, open descriptors, and host-visible output are also independently bounded by the
+restricted preset. Retained awk memory is governed in aggregate when `MaxExecutionMemoryBytes` is
+finite; per-value, per-record, per-array, field, builder, regex, output, and VM-stack ceilings provide
 additional preflight checks.
 
 Execution steps are deterministic accounting, not a wall-clock CPU guarantee. Cancellation is
-cooperative, and a malicious or defective host can ignore cancellation or continue side effects
-after a timed-out task. The host must implement its own deadlines and backpressure. Operating-system
-isolation remains necessary when process availability is a security requirement.
+cooperative. Lokad.Awk stops awaiting a host operation at `HostOperationTimeout`, but .NET cannot
+forcibly stop a malicious or defective host task: it may ignore cancellation or continue side
+effects after the caller has received a timeout. The host must implement its own deadlines and
+backpressure. Operating-system isolation remains necessary when process availability is a security
+requirement.
 
 ## Trusted Computing Base
 

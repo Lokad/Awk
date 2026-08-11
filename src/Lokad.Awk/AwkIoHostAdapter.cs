@@ -18,10 +18,18 @@ internal sealed class AwkIoHostAdapter(
     AwkPath? accessiblePathRoot = null,
     TimeSpan? commandTimeout = null,
     TimeSpan? cleanupTimeout = null,
-    bool forwardCommandEnvironment = true)
+    bool forwardCommandEnvironment = true,
+    TimeSpan? hostOperationTimeout = null,
+    bool exposeHostErrorDetails = true,
+    int maxHostErrorBytes = 4 << 10,
+    AwkCleanupDeadline? cleanupDeadline = null)
 {
     private readonly TimeSpan _commandTimeout = commandTimeout ?? TimeSpan.FromMinutes(5);
-    private readonly TimeSpan _cleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _hostOperationTimeout = hostOperationTimeout ?? TimeSpan.FromMinutes(5);
+    private readonly TimeSpan _closeOperationTimeout =
+        Min(hostOperationTimeout ?? TimeSpan.FromMinutes(5), cleanupTimeout ?? TimeSpan.FromSeconds(30));
+    private readonly AwkCleanupDeadline _cleanupDeadline =
+        cleanupDeadline ?? new AwkCleanupDeadline(cleanupTimeout ?? TimeSpan.FromSeconds(30));
 
     public AwkResolvedPath ResolvePath(string path)
     {
@@ -45,7 +53,7 @@ internal sealed class AwkIoHostAdapter(
 
         resources.RecordHostCall();
         resources.RecordOutputBytes(content.Length);
-        var status = await host.AppendAsync(stdOut, content, cancellationToken).ConfigureAwait(false);
+        var status = await AwaitHostAsync(host.AppendAsync(stdOut, content, cancellationToken)).ConfigureAwait(false);
         ThrowIfAppendFailed(stdOut, status);
     }
 
@@ -56,7 +64,7 @@ internal sealed class AwkIoHostAdapter(
 
         resources.RecordHostCall();
         resources.RecordOutputBytes(content.Length);
-        var status = await host.AppendAsync(stdErr, content, cancellationToken).ConfigureAwait(false);
+        var status = await AwaitHostAsync(host.AppendAsync(stdErr, content, cancellationToken)).ConfigureAwait(false);
         ThrowIfAppendFailed(stdErr, status);
     }
 
@@ -67,19 +75,19 @@ internal sealed class AwkIoHostAdapter(
 
         resources.RecordHostCall();
         resources.RecordOutputBytes(content.Length);
-        var status = await host.AppendAsync(descriptor, content, cancellationToken).ConfigureAwait(false);
+        var status = await AwaitHostAsync(host.AppendAsync(descriptor, content, cancellationToken)).ConfigureAwait(false);
         ThrowIfAppendFailed(descriptor, status);
     }
 
     public async Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode)
     {
         resources.RecordHostCall();
-        var result = await host.CreatePipeAsync(mode, cancellationToken).ConfigureAwait(false);
+        var result = await AwaitHostAsync(host.CreatePipeAsync(mode, cancellationToken)).ConfigureAwait(false);
         if (result.Success)
             return result.Descriptors;
 
         throw new AwkRuntimeException(
-            AwkMessages.FormatPipeCreationError(result.Status, result.Error.Message),
+            AwkMessages.FormatPipeCreationError(result.Status, ResolveError(result.Error)),
             AwkDiagnosticId.HostIoFailure);
     }
 
@@ -132,17 +140,21 @@ internal sealed class AwkIoHostAdapter(
         return exitCodes[0];
     }
 
-    public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode)
+    public async Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode)
     {
         AwkHostPathPolicy.ThrowIfDenied(path, accessiblePathRoot);
         resources.RecordHostCall();
-        return host.OpenFileAsync(path, mode, cancellationToken);
+        return await AwaitHostAsync(host.OpenFileAsync(path, mode, cancellationToken)).ConfigureAwait(false);
     }
 
     public async Task CloseDescriptorAsync(AwkFileDescriptor descriptor)
     {
         resources.RecordHostCall();
-        var closed = await host.CloseDescriptorAsync(descriptor, cancellationToken).ConfigureAwait(false);
+        var closed = await AwkHostBoundaryPolicy.AwaitAsync(
+                host.CloseDescriptorAsync(descriptor, cancellationToken),
+                _closeOperationTimeout,
+                cancellationToken)
+            .ConfigureAwait(false);
         if (closed != AwkOperationStatus.Success)
         {
             throw new AwkRuntimeException(
@@ -154,9 +166,8 @@ internal sealed class AwkIoHostAdapter(
     public async Task CloseDescriptorForCleanupAsync(AwkFileDescriptor descriptor)
     {
         resources.RecordCleanupHostCall();
-        _ = await host.CloseDescriptorAsync(descriptor, CancellationToken.None)
-            .WaitAsync(_cleanupTimeout)
-            .ConfigureAwait(false);
+        await _cleanupDeadline.AwaitAsync(
+            host.CloseDescriptorAsync(descriptor, CancellationToken.None)).ConfigureAwait(false);
     }
 
     public AsyncLineReader CreateLineReader(AwkFileDescriptor descriptor, int maxLineCount) =>
@@ -166,7 +177,18 @@ internal sealed class AwkIoHostAdapter(
             cancellationToken,
             maxLineCount,
             resources,
-            countAsRuntimeInput: true);
+            countAsRuntimeInput: true,
+            hostOperationTimeout: _hostOperationTimeout,
+            exposeHostErrorDetails: exposeHostErrorDetails,
+            maxHostErrorBytes: maxHostErrorBytes);
+
+    public string ResolveError(AwkOperationError error) =>
+        AwkHostBoundaryPolicy.ResolveError(error, exposeHostErrorDetails, maxHostErrorBytes);
+
+    private Task<T> AwaitHostAsync<T>(Task<T> operation) =>
+        AwkHostBoundaryPolicy.AwaitAsync(operation, _hostOperationTimeout, cancellationToken);
+
+    private static TimeSpan Min(TimeSpan left, TimeSpan right) => left <= right ? left : right;
 
     private static void ThrowIfAppendFailed(AwkFileDescriptor descriptor, AwkExitCode status)
     {

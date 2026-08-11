@@ -51,6 +51,9 @@ dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benc
   rollback path for production users.
 - Memory governor: include reserve/commit/release counts, governed peak live bytes, and tests or
   benchmarks that exercise arrays, builders, output, VM frames, and known allocation-heavy paths.
+- Host containment: verify that the restricted preset freezes source and main-input capabilities,
+  hides `ENVIRON` and structured host errors, bounds an uncooperative host operation, and applies one
+  aggregate cleanup deadline. Confirm that timeout and host failures remain awk-shaped diagnostics.
 - Benchmarks: include before/after median time, allocation, throughput, and counter deltas for the
   changed scenarios when a comparable baseline exists. For newly curated scenarios, record the
   current baseline and command so the next change has a comparison point. Checked-in benchmark

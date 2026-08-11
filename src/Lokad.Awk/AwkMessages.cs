@@ -142,6 +142,12 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: command pipe timed out\n");
     internal static readonly ReadOnlyMemory<byte> ErrorExecutionTimeout =
         AwkUtf8Codec.Encode("awk: execution timed out\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorHostOperationTimeout =
+        AwkUtf8Codec.Encode("awk: host operation timed out\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorArgumentLimit =
+        AwkUtf8Codec.Encode("awk: command argument limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorEnvironmentLimit =
+        AwkUtf8Codec.Encode("awk: command environment limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidPath =
         AwkUtf8Codec.Encode("awk: invalid path\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnexpectedFailure =

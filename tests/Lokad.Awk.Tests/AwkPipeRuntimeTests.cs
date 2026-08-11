@@ -58,7 +58,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
     }
 
     [Fact]
-    public async Task Awk_CleanupDescriptorCallHasIndependentTimeout()
+    public async Task Awk_CleanupDescriptorsShareOneAggregateDeadline()
     {
         var pendingClose = new TaskCompletionSource<AwkOperationStatus>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -79,8 +79,13 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             new AwkRuntimeResourceMonitor(limits, AwkRuntimeCounters.Disabled),
             cleanupTimeout: TimeSpan.FromMilliseconds(10));
 
-        await Assert.ThrowsAsync<TimeoutException>(
-            () => adapter.CloseDescriptorForCleanupAsync(new AwkFileDescriptor(82)));
+        await adapter.CloseDescriptorForCleanupAsync(new AwkFileDescriptor(82));
+        await Task.Delay(20);
+
+        var secondClose = adapter.CloseDescriptorForCleanupAsync(new AwkFileDescriptor(83));
+
+        Assert.True(secondClose.IsCompletedSuccessfully);
+        await secondClose;
     }
 
     [Fact]

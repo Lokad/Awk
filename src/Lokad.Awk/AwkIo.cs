@@ -41,7 +41,11 @@ internal sealed class AwkIo
         AwkPath? accessiblePathRoot = null,
         TimeSpan? commandTimeout = null,
         TimeSpan? cleanupTimeout = null,
-        bool forwardCommandEnvironment = true)
+        bool forwardCommandEnvironment = true,
+        TimeSpan? hostOperationTimeout = null,
+        bool exposeHostErrorDetails = true,
+        int maxHostErrorBytes = 4 << 10,
+        AwkCleanupDeadline? cleanupDeadline = null)
     {
         _host = new AwkIoHostAdapter(
             host,
@@ -56,7 +60,11 @@ internal sealed class AwkIo
             accessiblePathRoot,
             commandTimeout,
             cleanupTimeout,
-            forwardCommandEnvironment);
+            forwardCommandEnvironment,
+            hostOperationTimeout,
+            exposeHostErrorDetails,
+            maxHostErrorBytes,
+            cleanupDeadline);
         _maxOutputFiles = limits.MaxOutputFiles;
         _maxInputFiles = limits.MaxInputFiles;
         _sandbox = sandbox;
@@ -66,7 +74,10 @@ internal sealed class AwkIo
         _descriptorReader = new AwkRecordDescriptorReader(
             host,
             cancellationToken,
-            state.Resources);
+            state.Resources,
+            hostOperationTimeout,
+            exposeHostErrorDetails,
+            maxHostErrorBytes);
         _pipes = new AwkPipeRuntime(
             _host,
             _maxOutputFiles,
@@ -125,7 +136,7 @@ internal sealed class AwkIo
             if (!opened.Success)
             {
                 throw new AwkRuntimeException(opened.Failed
-                    ? AwkMessages.FormatPathError(targetPath.Display, opened.Error.Message)
+                    ? AwkMessages.FormatPathError(targetPath.Display, _host.ResolveError(opened.Error))
                     : AwkMessages.FormatPathError(targetPath.Display),
                     AwkDiagnosticId.HostIoFailure);
             }
@@ -162,7 +173,9 @@ internal sealed class AwkIo
             if (!opened.Success)
             {
                 var error = opened.Failed
-                    ? AwkIoError.FromOpenFailure(targetPath.Display, AwkErrno.FromHostMessage(opened.Error.Message))
+                    ? AwkIoError.FromOpenFailure(
+                        targetPath.Display,
+                        AwkErrno.FromHostMessage(_host.ResolveError(opened.Error)))
                     : AwkIoError.FromMissingPath(targetPath.Display);
                 return AwkInputReaderResult.Failure(error);
             }

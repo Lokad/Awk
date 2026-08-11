@@ -24,6 +24,9 @@ public sealed class MockFileSystem : IAwkHost
 
     public Func<AwkFileDescriptor, int, AwkReadResult>? ReadLinesOverride { get; set; }
 
+    public Func<AwkFileDescriptor, int, CancellationToken, Task<AwkReadResult>>?
+        ReadLinesAsyncOverride { get; set; }
+
     public Exception? OpenFileException { get; set; }
 
     public int OpenFileCount => _descriptors.OpenFileCount;
@@ -178,6 +181,9 @@ public sealed class MockFileSystem : IAwkHost
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxLineCount);
+
+        if (ReadLinesAsyncOverride is { } readLinesAsyncOverride)
+            return readLinesAsyncOverride(fileDescriptor, maxLineCount, cancellationToken);
 
         var readLinesOverride = ReadLinesOverride;
         var result = readLinesOverride == null

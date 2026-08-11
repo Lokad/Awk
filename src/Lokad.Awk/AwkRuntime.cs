@@ -89,7 +89,10 @@ internal static class AwkRuntime
             resources,
             executionOptions.CompatibilityProfile);
         state.InitializeArguments(runtimeArguments.RuntimeArguments);
-        state.InitializeEnvironment(runtimeArguments.Environment);
+        state.InitializeEnvironment(
+            runtimeOptions.ExposeEnvironment
+                ? runtimeArguments.Environment
+                : Array.Empty<AwkEnvironmentVariable>());
         state.InitializeProcInfo();
         if (executableProgram == null)
             state.InitializeFunctions(program.Functions);
@@ -100,6 +103,7 @@ internal static class AwkRuntime
             state.AssignVariableFromExternalText(variable);
         }
 
+        var cleanupDeadline = new AwkCleanupDeadline(runtimeOptions.CleanupTimeout);
         var io = new AwkIo(
             host,
             runtimeArguments.CurrentDirectory,
@@ -117,7 +121,11 @@ internal static class AwkRuntime
             runtimeOptions.AccessiblePathRoot,
             runtimeOptions.CommandTimeout,
             runtimeOptions.CleanupTimeout,
-            runtimeOptions.ForwardCommandEnvironment);
+            runtimeOptions.ForwardCommandEnvironment,
+            runtimeOptions.HostOperationTimeout,
+            runtimeOptions.ExposeHostErrorDetails,
+            runtimeOptions.MaxHostErrorBytes,
+            cleanupDeadline);
         using var actionExecutor = new AwkRuntimeActionExecutor(program, executableProgram, state);
         var inputScheduler = new AwkInputScheduler(
             host,
@@ -128,7 +136,11 @@ internal static class AwkRuntime
             cancellationToken,
             runtimeOptions.AccessiblePathRoot,
             runtimeOptions.CleanupTimeout,
-            runtimeOptions.AllowDynamicMainInputPaths);
+            runtimeOptions.AllowDynamicMainInputPaths,
+            runtimeOptions.HostOperationTimeout,
+            runtimeOptions.ExposeHostErrorDetails,
+            runtimeOptions.MaxHostErrorBytes,
+            cleanupDeadline);
         io.BindMainInputReader(inputScheduler);
         try
         {
@@ -146,7 +158,10 @@ internal static class AwkRuntime
             var failure = AwkDiagnostics.Runtime(exception);
             runtimeOptions.Counters.RecordHostCall();
             runtimeOptions.Counters.RecordOutputBytes(failure.Message.Length);
-            var appendStatus = await host.AppendAsync(stdio.StdErr, failure.Message, cancellationToken)
+            var appendStatus = await AwkHostBoundaryPolicy.AwaitAsync(
+                    host.AppendAsync(stdio.StdErr, failure.Message, cancellationToken),
+                    runtimeOptions.HostOperationTimeout,
+                    cancellationToken)
                 .ConfigureAwait(false);
             return appendStatus.Succeeded
                 ? failure.ExitCode

@@ -8,11 +8,11 @@ namespace Lokad.Awk;
 /// <summary>Represents a parsed awk command that can be executed against an explicit host.</summary>
 public sealed class Awk
 {
-    private readonly AwkInvocation _invocation;
+    private readonly AwkCommandInvocation _command;
 
-    private Awk(AwkInvocation invocation)
+    private Awk(AwkCommandInvocation command)
     {
-        _invocation = invocation;
+        _command = command;
     }
 
     /// <summary>
@@ -36,7 +36,7 @@ public sealed class Awk
             return false;
         }
 
-        awk = new Awk(AwkCommandParser.Parse(invocation));
+        awk = new Awk(invocation);
         return true;
     }
 
@@ -45,7 +45,10 @@ public sealed class Awk
     public Task<AwkExitCode> ExecuteAsync(IAwkHost host, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(host);
-        return AwkExecutor.ExecuteAsync(host, _invocation, cancellationToken);
+        return AwkExecutor.ExecuteAsync(
+            host,
+            AwkCommandParser.Parse(_command),
+            cancellationToken);
     }
 
     /// <summary>Executes the parsed command under an explicit capability and resource policy.</summary>
@@ -60,7 +63,7 @@ public sealed class Awk
             ? ExecuteWithTimeoutAsync(host, policy, timeout, cancellationToken)
             : AwkExecutor.ExecuteAsync(
                 host,
-                _invocation,
+                AwkCommandParser.Parse(_command, policy),
                 cancellationToken,
                 AwkRuntimeOptions.Create(policy));
     }
@@ -77,9 +80,10 @@ public sealed class Awk
             timeoutSource.Token);
         try
         {
+            var invocation = AwkCommandParser.Parse(_command, policy);
             return await AwkExecutor.ExecuteAsync(
                     host,
-                    _invocation,
+                    invocation,
                     executionSource.Token,
                     AwkRuntimeOptions.Create(policy))
                 .ConfigureAwait(false);
@@ -89,9 +93,12 @@ public sealed class Awk
         {
             try
             {
-                _ = await host.AppendAsync(
-                        _invocation.Stdio.StdErr,
-                        AwkMessages.ErrorExecutionTimeout,
+                _ = await AwkHostBoundaryPolicy.AwaitAsync(
+                        host.AppendAsync(
+                            _command.StdErr,
+                            AwkMessages.ErrorExecutionTimeout,
+                            cancellationToken),
+                        policy.HostOperationTimeout,
                         cancellationToken)
                     .ConfigureAwait(false);
             }

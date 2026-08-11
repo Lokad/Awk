@@ -27,6 +27,12 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets whether the mutable awk <c>ENVIRON</c> snapshot is forwarded to pipe commands.</summary>
     public bool ForwardCommandEnvironment { get; private init; } = true;
 
+    /// <summary>Gets whether invocation environment variables are exposed through <c>ENVIRON</c> and <c>AWKPATH</c>.</summary>
+    public bool ExposeEnvironment { get; private init; } = true;
+
+    /// <summary>Gets whether structured host error details may be included in awk diagnostics.</summary>
+    public bool ExposeHostErrorDetails { get; private init; } = true;
+
     /// <summary>Gets the optional lexical root for every host-opened path.</summary>
     public AwkPath? AccessiblePathRoot { get; private init; }
 
@@ -39,10 +45,13 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum duration allowed for a host command requested by a pipe.</summary>
     public TimeSpan CommandTimeout { get; private init; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>Gets the maximum duration allowed for one ordinary host operation.</summary>
+    public TimeSpan HostOperationTimeout { get; private init; } = TimeSpan.FromMinutes(5);
+
     /// <summary>Gets the optional cooperative wall-time limit for the complete awk execution.</summary>
     public TimeSpan? ExecutionTimeout { get; private init; }
 
-    /// <summary>Gets the maximum duration allowed for each best-effort cleanup host call.</summary>
+    /// <summary>Gets the aggregate deadline for best-effort cleanup calls in one execution phase.</summary>
     public TimeSpan CleanupTimeout { get; private init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Gets the maximum number of interpreted execution steps.</summary>
@@ -144,6 +153,21 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum lexical diagnostics produced by the frontend.</summary>
     public int MaxFrontendDiagnostics { get; private init; } = int.MaxValue;
 
+    /// <summary>Gets the maximum command argument count admitted before invocation planning.</summary>
+    public int MaxArguments { get; private init; } = 100_000;
+
+    /// <summary>Gets the maximum aggregate UTF-8 bytes across command arguments.</summary>
+    public long MaxArgumentBytes { get; private init; } = 64L << 20;
+
+    /// <summary>Gets the maximum environment entry count admitted before invocation planning.</summary>
+    public int MaxEnvironmentEntries { get; private init; } = 100_000;
+
+    /// <summary>Gets the maximum aggregate UTF-8 bytes across environment names and values.</summary>
+    public long MaxEnvironmentBytes { get; private init; } = 64L << 20;
+
+    /// <summary>Gets the maximum UTF-8 byte length of a host error admitted to diagnostics.</summary>
+    public int MaxHostErrorBytes { get; private init; } = 4 << 10;
+
     /// <summary>Gets the maximum nested <c>@include</c> depth.</summary>
     public int MaxIncludeDepth { get; private init; } = 128;
 
@@ -162,9 +186,12 @@ public sealed record AwkExecutionPolicy
             AllowSourceIncludes = false,
             AllowDynamicMainInputPaths = false,
             ForwardCommandEnvironment = false,
+            ExposeEnvironment = false,
+            ExposeHostErrorDetails = false,
             TimeProvider = AwkFixedTimeProvider.UnixEpoch,
             TimeZone = TimeZoneInfo.Utc,
             CommandTimeout = TimeSpan.FromSeconds(10),
+            HostOperationTimeout = TimeSpan.FromSeconds(10),
             ExecutionTimeout = TimeSpan.FromSeconds(30),
             CleanupTimeout = TimeSpan.FromSeconds(5),
             MaxExecutionSteps = 1_000_000,
@@ -200,6 +227,11 @@ public sealed record AwkExecutionPolicy
             MaxFrontendCharacters = 512 << 10,
             MaxFrontendTokens = 250_000,
             MaxFrontendDiagnostics = 256,
+            MaxArguments = 1_024,
+            MaxArgumentBytes = 4L << 20,
+            MaxEnvironmentEntries = 1_024,
+            MaxEnvironmentBytes = 1L << 20,
+            MaxHostErrorBytes = 1 << 10,
             MaxIncludeDepth = 16,
             MaxIncludeFiles = 64
         };
@@ -223,6 +255,14 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with command-environment forwarding configured.</summary>
     public AwkExecutionPolicy WithCommandEnvironment(bool forward) =>
         this with { ForwardCommandEnvironment = forward };
+
+    /// <summary>Returns a copy with invocation-environment exposure configured.</summary>
+    public AwkExecutionPolicy WithEnvironmentExposure(bool expose) =>
+        this with { ExposeEnvironment = expose };
+
+    /// <summary>Returns a copy with structured host-error detail exposure configured.</summary>
+    public AwkExecutionPolicy WithHostErrorDetails(bool expose) =>
+        this with { ExposeHostErrorDetails = expose };
 
     /// <summary>Returns a copy that restricts host-opened paths to the supplied lexical root.</summary>
     public AwkExecutionPolicy WithAccessiblePathRoot(AwkPath root)
@@ -248,6 +288,10 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the command completion timeout configured.</summary>
     public AwkExecutionPolicy WithCommandTimeout(TimeSpan timeout) =>
         this with { CommandTimeout = RequirePositive(timeout) };
+
+    /// <summary>Returns a copy with the ordinary host-operation timeout configured.</summary>
+    public AwkExecutionPolicy WithHostOperationTimeout(TimeSpan timeout) =>
+        this with { HostOperationTimeout = RequirePositive(timeout) };
 
     /// <summary>Returns a copy with the cooperative execution timeout configured.</summary>
     public AwkExecutionPolicy WithExecutionTimeout(TimeSpan timeout) =>
@@ -388,6 +432,26 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the frontend diagnostic budget configured.</summary>
     public AwkExecutionPolicy WithMaxFrontendDiagnostics(int value) =>
         this with { MaxFrontendDiagnostics = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the command argument-count budget configured.</summary>
+    public AwkExecutionPolicy WithMaxArguments(int value) =>
+        this with { MaxArguments = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the aggregate command argument-byte budget configured.</summary>
+    public AwkExecutionPolicy WithMaxArgumentBytes(long value) =>
+        this with { MaxArgumentBytes = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the environment entry-count budget configured.</summary>
+    public AwkExecutionPolicy WithMaxEnvironmentEntries(int value) =>
+        this with { MaxEnvironmentEntries = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the aggregate environment-byte budget configured.</summary>
+    public AwkExecutionPolicy WithMaxEnvironmentBytes(long value) =>
+        this with { MaxEnvironmentBytes = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the host-error byte budget configured.</summary>
+    public AwkExecutionPolicy WithMaxHostErrorBytes(int value) =>
+        this with { MaxHostErrorBytes = RequirePositive(value) };
 
     /// <summary>Returns a copy with the include-depth budget configured.</summary>
     public AwkExecutionPolicy WithMaxIncludeDepth(int value) =>
