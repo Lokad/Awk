@@ -7,43 +7,64 @@ namespace Lokad.Awk;
 
 internal static class AwkSpecialVariables
 {
-    private static readonly IReadOnlyDictionary<AwkSpecialVariableId, AwkSpecialVariableDefinition> DefinitionsById =
+    private static readonly IReadOnlyDictionary<AwkSpecialVariableId, AwkSpecialVariableDefinition> DefinitionsById;
+
+    private static readonly Dictionary<string, AwkSpecialVariableDefinition> DefinitionsByName;
+
+    static AwkSpecialVariables()
+    {
+        DefinitionsById =
         new Dictionary<AwkSpecialVariableId, AwkSpecialVariableDefinition>
         {
             [AwkSpecialVariableId.ArgumentCount] = Scalar(AwkSpecialVariableId.ArgumentCount, "ARGC"),
             [AwkSpecialVariableId.ArgumentIndex] = Scalar(AwkSpecialVariableId.ArgumentIndex, "ARGIND"),
-            [AwkSpecialVariableId.BinMode] = Scalar(AwkSpecialVariableId.BinMode, "BINMODE", AwkValue.FromText("0")),
-            [AwkSpecialVariableId.ConversionFormat] = Scalar(AwkSpecialVariableId.ConversionFormat, "CONVFMT", AwkValue.FromText("%.6g")),
+            [AwkSpecialVariableId.BinMode] = ScalarWithInitialValue(AwkSpecialVariableId.BinMode, "BINMODE", AwkValue.FromText("0")),
+            [AwkSpecialVariableId.ConversionFormat] = ScalarWithInitialValue(AwkSpecialVariableId.ConversionFormat, "CONVFMT", AwkValue.FromText("%.6g")),
             [AwkSpecialVariableId.Errno] = Scalar(AwkSpecialVariableId.Errno, "ERRNO"),
             [AwkSpecialVariableId.FieldWidths] = Scalar(AwkSpecialVariableId.FieldWidths, "FIELDWIDTHS"),
             [AwkSpecialVariableId.FileName] = Scalar(AwkSpecialVariableId.FileName, "FILENAME"),
             [AwkSpecialVariableId.FileRecordNumber] = Scalar(AwkSpecialVariableId.FileRecordNumber, "FNR"),
-            [AwkSpecialVariableId.FieldPattern] = Scalar(AwkSpecialVariableId.FieldPattern, "FPAT", AwkValue.FromText("[^ \t\n]+")),
+            [AwkSpecialVariableId.FieldPattern] = ScalarWithInitialValue(AwkSpecialVariableId.FieldPattern, "FPAT", AwkValue.FromText("[^ \t\n]+")),
             [AwkSpecialVariableId.FieldSeparator] = Scalar(AwkSpecialVariableId.FieldSeparator, "FS"),
-            [AwkSpecialVariableId.IgnoreCase] = Scalar(AwkSpecialVariableId.IgnoreCase, "IGNORECASE", AwkValue.FromNumber(0)),
-            [AwkSpecialVariableId.Lint] = Scalar(AwkSpecialVariableId.Lint, "LINT", AwkValue.FromText("0")),
+            [AwkSpecialVariableId.IgnoreCase] = ScalarWithInitialValue(AwkSpecialVariableId.IgnoreCase, "IGNORECASE", AwkValue.FromNumber(0)),
+            [AwkSpecialVariableId.Lint] = ScalarWithInitialValue(AwkSpecialVariableId.Lint, "LINT", AwkValue.FromText("0")),
             [AwkSpecialVariableId.FieldCount] = Scalar(AwkSpecialVariableId.FieldCount, "NF"),
             [AwkSpecialVariableId.RecordNumber] = Scalar(AwkSpecialVariableId.RecordNumber, "NR"),
-            [AwkSpecialVariableId.OutputFormat] = Scalar(AwkSpecialVariableId.OutputFormat, "OFMT", AwkValue.FromText("%.6g")),
-            [AwkSpecialVariableId.OutputFieldSeparator] = Scalar(AwkSpecialVariableId.OutputFieldSeparator, "OFS", AwkValue.FromText(" ")),
-            [AwkSpecialVariableId.OutputRecordSeparator] = Scalar(AwkSpecialVariableId.OutputRecordSeparator, "ORS", AwkValue.FromText("\n")),
-            [AwkSpecialVariableId.Precision] = Scalar(AwkSpecialVariableId.Precision, "PREC", AwkValue.FromText("53")),
-            [AwkSpecialVariableId.RegexLength] = Scalar(AwkSpecialVariableId.RegexLength, "RLENGTH", AwkValue.FromNumber(0)),
-            [AwkSpecialVariableId.RoundingMode] = Scalar(AwkSpecialVariableId.RoundingMode, "ROUNDMODE", AwkValue.FromText("N")),
-            [AwkSpecialVariableId.RecordSeparator] = Scalar(AwkSpecialVariableId.RecordSeparator, "RS", AwkValue.FromText("\n")),
-            [AwkSpecialVariableId.RegexStart] = Scalar(AwkSpecialVariableId.RegexStart, "RSTART", AwkValue.FromNumber(0)),
+            [AwkSpecialVariableId.OutputFormat] = ScalarWithInitialValue(AwkSpecialVariableId.OutputFormat, "OFMT", AwkValue.FromText("%.6g")),
+            [AwkSpecialVariableId.OutputFieldSeparator] = ScalarWithInitialValue(AwkSpecialVariableId.OutputFieldSeparator, "OFS", AwkValue.FromText(" ")),
+            [AwkSpecialVariableId.OutputRecordSeparator] = ScalarWithInitialValue(AwkSpecialVariableId.OutputRecordSeparator, "ORS", AwkValue.FromText("\n")),
+            [AwkSpecialVariableId.Precision] = ScalarWithInitialValue(AwkSpecialVariableId.Precision, "PREC", AwkValue.FromText("53")),
+            [AwkSpecialVariableId.RegexLength] = ScalarWithInitialValue(AwkSpecialVariableId.RegexLength, "RLENGTH", AwkValue.FromNumber(0)),
+            [AwkSpecialVariableId.RoundingMode] = ScalarWithInitialValue(AwkSpecialVariableId.RoundingMode, "ROUNDMODE", AwkValue.FromText("N")),
+            [AwkSpecialVariableId.RecordSeparator] = ScalarWithInitialValue(AwkSpecialVariableId.RecordSeparator, "RS", AwkValue.FromText("\n")),
+            [AwkSpecialVariableId.RegexStart] = ScalarWithInitialValue(AwkSpecialVariableId.RegexStart, "RSTART", AwkValue.FromNumber(0)),
             [AwkSpecialVariableId.RecordTerminator] = Scalar(AwkSpecialVariableId.RecordTerminator, "RT"),
-            [AwkSpecialVariableId.SubscriptSeparator] = Scalar(AwkSpecialVariableId.SubscriptSeparator, "SUBSEP", AwkValue.FromText("\u001c")),
-            [AwkSpecialVariableId.TextDomain] = Scalar(AwkSpecialVariableId.TextDomain, "TEXTDOMAIN", AwkValue.FromText("messages")),
-            [AwkSpecialVariableId.ArgumentVector] = Array(AwkSpecialVariableId.ArgumentVector, "ARGV", readOnly: false, nonReplaceable: false),
-            [AwkSpecialVariableId.Environment] = Array(AwkSpecialVariableId.Environment, "ENVIRON", readOnly: false, nonReplaceable: false),
-            [AwkSpecialVariableId.FunctionTable] = Array(AwkSpecialVariableId.FunctionTable, "FUNCTAB", readOnly: true, nonReplaceable: false),
-            [AwkSpecialVariableId.ProcInfo] = Array(AwkSpecialVariableId.ProcInfo, "PROCINFO", readOnly: false, nonReplaceable: false),
-            [AwkSpecialVariableId.SymbolTable] = Array(AwkSpecialVariableId.SymbolTable, "SYMTAB", readOnly: false, nonReplaceable: true)
+            [AwkSpecialVariableId.SubscriptSeparator] = ScalarWithInitialValue(AwkSpecialVariableId.SubscriptSeparator, "SUBSEP", AwkValue.FromText("\u001c")),
+            [AwkSpecialVariableId.TextDomain] = ScalarWithInitialValue(AwkSpecialVariableId.TextDomain, "TEXTDOMAIN", AwkValue.FromText("messages")),
+            [AwkSpecialVariableId.ArgumentVector] = Array(AwkSpecialVariableId.ArgumentVector, "ARGV", AwkSpecialArrayMutationPolicy.Mutable),
+            [AwkSpecialVariableId.Environment] = Array(AwkSpecialVariableId.Environment, "ENVIRON", AwkSpecialArrayMutationPolicy.Mutable),
+            [AwkSpecialVariableId.FunctionTable] = Array(AwkSpecialVariableId.FunctionTable, "FUNCTAB", AwkSpecialArrayMutationPolicy.ReadOnly),
+            [AwkSpecialVariableId.ProcInfo] = Array(AwkSpecialVariableId.ProcInfo, "PROCINFO", AwkSpecialArrayMutationPolicy.Mutable),
+            [AwkSpecialVariableId.SymbolTable] = Array(AwkSpecialVariableId.SymbolTable, "SYMTAB", AwkSpecialArrayMutationPolicy.NonReplaceable)
         };
 
-    private static readonly Dictionary<string, AwkSpecialVariableDefinition> DefinitionsByName =
-        DefinitionsById.Values.ToDictionary(definition => definition.Name, StringComparer.Ordinal);
+        DefinitionsByName = DefinitionsById.Values.ToDictionary(definition => definition.Name, StringComparer.Ordinal);
+
+        static AwkSpecialScalarVariableDefinition Scalar(AwkSpecialVariableId id, string name) =>
+            new(id, name, AwkSpecialScalarInitialValue.None);
+
+        static AwkSpecialScalarVariableDefinition ScalarWithInitialValue(
+            AwkSpecialVariableId id,
+            string name,
+            AwkValue initialValue) =>
+            new(id, name, AwkSpecialScalarInitialValue.Some(initialValue));
+
+        static AwkSpecialArrayVariableDefinition Array(
+            AwkSpecialVariableId id,
+            string name,
+            AwkSpecialArrayMutationPolicy mutationPolicy) =>
+            new(id, name, mutationPolicy);
+    }
 
     public static IEnumerable<AwkSpecialVariableDefinition> All => DefinitionsById.Values;
 
@@ -105,26 +126,4 @@ internal static class AwkSpecialVariables
     public static bool TryGetScalar(AwkVariableName name, out AwkSpecialVariableId id) =>
         TryGetScalar(name.Text, out id);
 
-    private static AwkSpecialScalarVariableDefinition Scalar(AwkSpecialVariableId id, string name) =>
-        new(id, name, AwkSpecialScalarInitialValue.None);
-
-    private static AwkSpecialScalarVariableDefinition Scalar(AwkSpecialVariableId id, string name, AwkValue initialValue) =>
-        new(id, name, AwkSpecialScalarInitialValue.Some(initialValue));
-
-    private static AwkSpecialArrayVariableDefinition Array(
-        AwkSpecialVariableId id,
-        string name,
-        bool readOnly,
-        bool nonReplaceable)
-    {
-        var policy = (readOnly, nonReplaceable) switch
-        {
-            (false, false) => AwkSpecialArrayMutationPolicy.Mutable,
-            (true, false) => AwkSpecialArrayMutationPolicy.ReadOnly,
-            (false, true) => AwkSpecialArrayMutationPolicy.NonReplaceable,
-            (true, true) => throw new ArgumentException("A special array cannot be both read-only and non-replaceable.")
-        };
-
-        return new AwkSpecialArrayVariableDefinition(id, name, policy);
-    }
 }

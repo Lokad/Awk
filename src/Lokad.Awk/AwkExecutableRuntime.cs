@@ -39,13 +39,29 @@ internal sealed class AwkExecutableProgram
 
     public AwkExecutableTables Tables { get; }
 
-    public bool UsesFallbackOnly =>
-        AreFallbackOnly(BeginActions) &&
-        AreFallbackOnly(MainActions) &&
-        AreFallbackOnly(EndActions) &&
-        AreFallbackOnly(BeginFileActions) &&
-        AreFallbackOnly(EndFileActions) &&
-        Functions.Values.All(static function => function.UsesFallbackOnly);
+    public bool UsesFallbackOnly
+    {
+        get
+        {
+            return AreFallbackOnly(BeginActions) &&
+                AreFallbackOnly(MainActions) &&
+                AreFallbackOnly(EndActions) &&
+                AreFallbackOnly(BeginFileActions) &&
+                AreFallbackOnly(EndFileActions) &&
+                Functions.Values.All(static function => function.UsesFallbackOnly);
+
+            static bool AreFallbackOnly(AwkExecutableAction[] actions)
+            {
+                for (var index = 0; index < actions.Length; index++)
+                {
+                    if (!actions[index].UsesFallbackOnly)
+                        return false;
+                }
+
+                return true;
+            }
+        }
+    }
 
     public static AwkExecutableProgram Compile(AwkProgram program)
     {
@@ -83,16 +99,6 @@ internal sealed class AwkExecutableProgram
         }
     }
 
-    private static bool AreFallbackOnly(AwkExecutableAction[] actions)
-    {
-        for (var index = 0; index < actions.Length; index++)
-        {
-            if (!actions[index].UsesFallbackOnly)
-                return false;
-        }
-
-        return true;
-    }
 }
 
 internal sealed class AwkExecutableAction
