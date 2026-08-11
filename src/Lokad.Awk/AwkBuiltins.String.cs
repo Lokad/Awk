@@ -69,9 +69,7 @@ internal static partial class AwkBuiltins
                     ? value is >= (byte)'a' and <= (byte)'z'
                         ? (byte)(value - 32)
                         : value
-                    : value is >= (byte)'A' and <= (byte)'Z'
-                        ? (byte)(value + 32)
-                        : value;
+                    : AwkByteFacts.ToAsciiLower(value);
 
             var bytes = source.AsSpan();
             var firstChange = -1;

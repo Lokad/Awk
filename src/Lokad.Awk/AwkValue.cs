@@ -270,9 +270,9 @@ internal readonly struct AwkValue
         var sign = span[index] == (byte)'-' ? -1 : 1;
         index++;
         if (index + 3 > span.Length ||
-            FoldAscii(span[index]) != (byte)'i' ||
-            FoldAscii(span[index + 1]) != (byte)'n' ||
-            FoldAscii(span[index + 2]) != (byte)'f')
+            AwkByteFacts.ToAsciiLower(span[index]) != (byte)'i' ||
+            AwkByteFacts.ToAsciiLower(span[index + 1]) != (byte)'n' ||
+            AwkByteFacts.ToAsciiLower(span[index + 2]) != (byte)'f')
         {
             return false;
         }
@@ -293,9 +293,4 @@ internal readonly struct AwkValue
 
         return index;
     }
-
-    private static byte FoldAscii(byte value) =>
-        value is >= (byte)'A' and <= (byte)'Z'
-            ? (byte)(value + 32)
-            : value;
 }

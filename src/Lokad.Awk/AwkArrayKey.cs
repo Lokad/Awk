@@ -22,7 +22,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         _kind = AwkArrayKeyKind.Text;
         _text = text;
         _ordinal = 0;
-        _hashCode = ComputeHash(text);
+        _hashCode = text.GetHashCode();
     }
 
     public static AwkArrayKey FromOrdinal(int ordinal) =>
@@ -33,7 +33,8 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         _kind = AwkArrayKeyKind.Ordinal;
         _text = AwkText.Empty;
         _ordinal = ordinal;
-        _hashCode = ComputeHash(ordinal);
+        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
+        _hashCode = AwkByteFacts.GetOrdinalHashCode(FormatOrdinalBytes(ordinal, buffer));
     }
 
     public static AwkArrayKey FromArgvIndex(AwkArgvIndex index) =>
@@ -103,40 +104,13 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     public override int GetHashCode() =>
         _kind == AwkArrayKeyKind.Text && _text is null
-            ? ComputeHash(AwkText.Empty)
+            ? AwkText.Empty.GetHashCode()
             : _hashCode;
 
     public override string ToString() =>
         AsString(AwkRuntimeCounters.Disabled);
 
     private AwkText Text => _text ?? AwkText.Empty;
-
-    private static int ComputeHash(AwkText text)
-    {
-        var span = text.AsSpan();
-        return ComputeHash(span);
-    }
-
-    private static int ComputeHash(int ordinal)
-    {
-        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        return ComputeHash(FormatOrdinalBytes(ordinal, buffer));
-    }
-
-    private static int ComputeHash(ReadOnlySpan<byte> span)
-    {
-        unchecked
-        {
-            var hash = (int)2166136261;
-            for (var index = 0; index < span.Length; index++)
-            {
-                hash ^= span[index];
-                hash *= 16777619;
-            }
-
-            return hash;
-        }
-    }
 
     private static bool OrdinalEqualsText(int ordinal, AwkText text)
     {

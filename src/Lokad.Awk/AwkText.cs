@@ -556,21 +556,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     public override bool Equals(object? obj) =>
         obj is AwkText other && Equals(other);
 
-    public override int GetHashCode()
-    {
-        unchecked
-        {
-            var hash = (int)2166136261;
-            var span = AsSpan();
-            for (var index = 0; index < span.Length; index++)
-            {
-                hash ^= span[index];
-                hash *= 16777619;
-            }
-
-            return hash;
-        }
-    }
+    public override int GetHashCode() => AwkByteFacts.GetOrdinalHashCode(AsSpan());
 
     public override string ToString() => AsString();
 
@@ -821,11 +807,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         return count;
     }
 
-    private static byte FoldAscii(byte value) =>
-        value is >= (byte)'A' and <= (byte)'Z'
-            ? (byte)(value + 32)
-            : value;
-
     private static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index)
     {
         while (index < span.Length && span[index] is (byte)' ' or (byte)'\t' or (byte)'\n' or (byte)'\r')
@@ -921,7 +902,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (value <= (byte)'9')
             return value - (byte)'0';
 
-        return FoldAscii(value) - (byte)'a' + 10;
+        return AwkByteFacts.ToAsciiLower(value) - (byte)'a' + 10;
     }
 
     private static bool TryParseNumberPrefix(

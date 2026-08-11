@@ -8,13 +8,15 @@ public sealed class AwkArrayKeyTests
     public void AwkArrayKey_UsesAwkTextByteEquality()
     {
         var fromString = new AwkArrayKey("café");
-        var fromText = new AwkArrayKey(AwkText.FromHostBytes("café"u8.ToArray()));
+        var text = AwkText.FromHostBytes("café"u8.ToArray());
+        var fromText = new AwkArrayKey(text);
         var values = new Dictionary<AwkArrayKey, string>
         {
             [fromString] = "value"
         };
 
         Assert.Equal(fromString, fromText);
+        Assert.Equal(text.GetHashCode(), fromText.GetHashCode());
         Assert.Equal(fromString.GetHashCode(), fromText.GetHashCode());
         Assert.Equal("value", values[fromText]);
         Assert.Equal("café", fromText.AsString(AwkRuntimeCounters.Disabled));
