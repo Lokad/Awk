@@ -1,150 +1,30 @@
 # Changelog
 
+## 0.2.0
+
+- Expanded awk compatibility across multi-source programs, `print` and `printf`, scalar regexes,
+  switch fallthrough, dynamic record separators, paragraph mode, numeric conversions, and function
+  argument semantics.
+- Reworked input and `getline` around one streaming, `RS`-aware record cursor that preserves buffered
+  data and `RT` across separator changes, reports host failures, and reliably closes descriptors.
+- Strengthened the public host boundary with typed exit, read, and pipe outcomes; validated invocation,
+  path, and descriptor inputs; and a smaller `IAwkHost` contract.
+- Added a public restricted execution policy that freezes source and main-input capabilities, hides
+  the environment and host-error details, and applies lexical path roots, deterministic time,
+  uniform host deadlines, and finite invocation, frontend, runtime, IO, regex, and memory budgets.
+- Enforced `--sandbox` redirection denial, bounded hostile syntax, regex, and sort work, randomized
+  associative-array hashing, isolated pipe environments, and converted path, timeout, and unexpected
+  host failures to stable diagnostics.
+- Made resource-limit failures preflight and remain atomic across arrays, fields, records, output,
+  formatting, regex captures and replacements, source loading, transient arrays, and VM stack growth.
+- Kept UTF-8 hot paths byte-native while fixing Unicode `printf`, culture-independent regex matching,
+  conversion formatting, numeric precision, and byte-oriented replacement and sorting behavior.
+- Reduced allocation and nonlinear work across parsing, includes, concatenation, field splitting,
+  record recomposition, regex compilation and scans, function calls, and array sorting, with refreshed
+  deterministic counter and benchmark evidence.
+- Simplified and typed the frontend, interpreter, and executable engine contracts while keeping the
+  interpreter as the default and executable mode opt-in.
+
 ## 0.1.0
 
-- Preflight regex capture memory and capture-array replacement atomically, keep ordinary
-  substitution span-only, and make `gensub` materialize only the group prefix observable through
-  `&` or its highest `\0`-to-`\9` reference.
-- Avoid quadratic array-alias promotion, trim parser and regex temporary storage, and expose exact
-  capture-group costs through deterministic runtime counters.
-- Replace nullable-returning `AwkPath.TryChild` with a conventional boolean/out contract, make
-  default-valued internal text and collection objects safe to inspect, and localize one-use helpers.
-- Share deterministic byte hashing and ASCII case folding across text, numeric parsing, builtins,
-  and compact ordinal array keys without materializing strings.
-- Preserve Unicode scalar values in character-oriented `printf` formatting, govern UTF-8 output
-  while it is encoded, and share pooled print staging between the interpreter and executable engine.
-- Defer `$0` recomposition across repeated field assignments, maintain field value and retained-memory
-  totals incrementally, and preflight the final record state before any observable mutation.
-- Reuse each .NET regex input adapter throughout a match scan, materialize captured byte spans through
-  the runtime governor, and count retained deferred-concatenation nodes in all value stores.
-- Use diagnostic identifiers as the single diagnostic classification, replace sentinel-based getline
-  and lvalue lowering with explicit results, and document every remaining polymorphic contract.
-- Reuse source-line metadata across nested frontend parses, build expression lexer tokens directly,
-  remove the redundant combined range-pattern parse, and add a generated rule-count scaling
-  benchmark so frontend complexity and allocation regressions are visible.
-- Give executable actions and functions one actual block, remove dormant labels, body/storage enums,
-  duplicate name/fallback tables, and unused operand storage, and replace generic integer operands
-  with opcode-checked typed indexes, counts, targets, comparisons, and flags.
-- Derive `print` separators from expression order, centralize field-separator classification without
-  adding hot-path allocations, and remove unused decoded getline, diagnostic, parameter-binding,
-  output-sink, and redirected-output conveniences.
-- Keep one complete invocation constructor and an explicitly named standard-descriptor factory,
-  align the README and internal callers with that boundary, and avoid allocating when recognizing
-  whitespace-only programs.
-- Bind every inline, `-f`, and `-i` source unit into one awk program namespace so declarations work
-  across files, function-only libraries are valid, and duplicate functions are diagnosed instead of
-  being overwritten during program assembly.
-- Short-circuit built-in array-sort comparisons after the first decisive key, count only comparisons
-  actually performed, and reuse the preflight element count when snapshotting ordinary and virtual
-  arrays.
-- Materialize `ARGV`, `ENVIRON`, `PROCINFO`, and `FUNCTAB` directly into runtime slots; snapshot
-  `SYMTAB` keys without temporary sets or arrays; and avoid speculative parser, binder, and validator
-  capacities whose final sizes are not known.
-- Remove no-op compatibility-option state, dormant decoded record and field caches, the runtime-state
-  plan wrapper, and test-only builtin enumerators; model string units with the existing enum and make
-  two-token top-level searches single-pass.
-- Preflight array sorting by the selected comparison and output modes, then project source entries
-  and destination slots directly; built-in sorts no longer reserve user-comparator buffers or
-  allocate intermediate value dictionaries and result arrays.
-- Carry compatibility as one typed runtime profile, remove immutable byte-mode delegates from hot
-  string/regex/field paths, cache normalized `AWKPATH` entries per source-load plan, and pre-size
-  runtime collections whose final count is already known.
-- Consolidate byte-native case conversion, remove test-only runtime and compatibility-audit
-  surfaces, and align numeric diagnostics, single-use helpers, and ordinal string operations with
-  the repository C# guidelines.
-- Preserve numeric values and full precision through `printf`, custom `OFMT`/`CONVFMT`, `asort`,
-  user sort comparators, and host environment snapshots instead of formatting and reparsing them;
-  project array values to text only for value-string sort modes that consume that projection.
-- Preserve scalar type, missing-value state, and array-storage identity when forwarding function
-  locals; let omitted parameters become frame-owned arrays; and match GNU awk when
-  `typeof(array[index])` materializes the array without inserting the element.
-- Apply `CONVFMT` consistently at comparison, regex, substitution, switch, record, field, separator,
-  array-order, and host string boundaries while keeping record and field separator classification
-  byte-native.
-- Track intentional field-separator and `SYMTAB` string crossings while avoiding symbol-table
-  encode/decode round trips during value snapshots.
-- Avoid allocations on missing-array probes, parse unsupported frontend directives once, and model
-  action-flow, input-record, and separator-cache states explicitly.
-- Refresh the checked-in ShortRun and deterministic runtime-counter baseline on .NET 10.0.8 with
-  reproducible host, SDK, command, timing, allocation, and memory-governor evidence.
-- Enforce `MaxHostCalls` once across every input and output path, retain source-open failures rather
-  than treating them as missing files, and reject successful host reads that permit more data
-  without making progress.
-- Bound indexed access to deeply composed token lists by materializing one thread-safe snapshot on
-  demand, avoiding accidental quadratic parsing work.
-- Preflight runtime-owned UTF-8 copies, field materialization, regex captures, records, and formatted
-  output before allocation or visible mutation, with runtime-counter coverage for deliberate string
-  compatibility boundaries.
-- Return `AwkExitCode` through the public and internal execution pipeline, validate file descriptor
-  identifiers at construction, and remove the unused string-based path-resolution facade.
-- Remove forwarding async state machines, read-only collection wrappers, zero-argument pool rents,
-  and unused runtime conveniences; cache rune counts alongside ASCII classification without adding
-  per-value storage.
-- Share postfix trailing-token scanning, function-local assignment, pooled argument-buffer handling,
-  and async array-sort entry selection; keep single-purpose numeric sort parsing scoped to its caller.
-- Recognize capture-group and noncapturing-group wrappers and equivalent punctuation-only
-  alternations around byte-run record separators, preserving greedy cross-batch `RT` while
-  scanning the adversarial counter workloads once instead of invoking the general regex backend.
-- Keep regex replacements byte-native through `sub`, `gsub`, and `gensub`, share the
-  single/all traversal engines without allocating on the single-match route, return the original
-  input before building output when a requested numbered occurrence is absent, and reuse pooled
-  argument, frame, and slot storage for interpreted user-function calls.
-- Bypass per-line include parsing for ordinary source files, cache successful canonical include
-  reads, compose continuation maps without copying their existing offsets on every append, append
-  contiguous expanded-source chunks in batches, binary-search source maps, and defer physical-line
-  indexing until a diagnostic actually needs it.
-- Share owned and record-slice field traversal, preserve source names and coordinates as value
-  types, follow interface naming conventions, and remove dead text-conversion and source
-  projection plumbing.
-- Remove the duplicate test-only benchmark harness, test-only synchronous sort facade,
-  zero-consumer metadata properties, and forwarding-only runtime conveniences; centralize getline
-  read-failure conversion; and document buffered record-cursor invariants.
-- Route main input and all `getline` sources through one streaming, `RS`-aware record cursor;
-  preserve unread buffered bytes across separator changes without draining descriptors to EOF,
-  and retain paragraph field-splitting semantics when `getline` assigns `$0`.
-- Snapshot host-provided line offsets and document borrowed read-content lifetimes per descriptor,
-  while keeping independent compiled executions safe to run concurrently against separate hosts.
-- Replace nullable regex backend state and flush-all sentinels with explicit variants, keep lowered
-  identifiers strongly typed, consolidate substitution traversal, and remove dead runtime helpers
-  and the forwarding frontend classifier.
-- Match awk paragraph-mode record semantics for whitespace-only lines, lone carriage returns, and
-  single-character field separators, with GNU awk oracle coverage for the corrected edge cases.
-- Keep `FS=""`, `FPAT`, and `FIELDWIDTHS` record fields as lazy byte slices until a value actually
-  escapes the record, pass redirected print buffers directly to the host boundary, and materialize
-  ordinal array keys once per snapshot.
-- Retain typed array names through local and global resolution, centralize shared sort and numeric
-  classification rules, and remove dead string runtime adapters, queued-IO variants, separator
-  state, and production-only test buffers.
-- Make helper defaults explicit at call sites, trust internal non-nullable contracts after public
-  validation, and keep one-use parsing, sizing, and UTF-8 details scoped to their callers.
-- Make case-insensitive regex matching independent of the ambient .NET culture, consistently with
-  the runtime's C-locale-oriented compatibility policy.
-- Preserve record boundaries and `RT` for every running-program `RS` transition, including newline
-  to custom, custom to newline, paragraph, literal, byte-set, non-ASCII, and regex separators.
-- Separate host read failures from EOF through structured `AwkReadResult` outcomes; main input,
-  `getline`, and source loading now surface failed reads instead of silently truncating input.
-- Close prepared inputs, explicit inputs, redirections, pipes, and source descriptors after runtime
-  failure or cancellation without allowing cleanup failures to replace the primary exception.
-- Preserve the invocation working directory and the current awk `ENVIRON` snapshot when creating
-  host commands for input and output pipes.
-- Narrow `IAwkHost` to the six capabilities used by the runtime, type append and command statuses
-  as `AwkExitCode`, reject malformed command result batches, and diagnose failed descriptor closes.
-- Make governed regex enumerations and array-key snapshots return explicit disposable leases, and
-  reject access after the reservation has been released.
-- Share byte-oriented scanning through a pull-style record cursor while retaining bounded
-  cancellation checks, separator-specific matching, and the batched default-newline path.
-- Remove the duplicate runtime-facade layer and dead string-based replacement helpers so variable,
-  array, record, formatting, and regex operations have one resource-checked state boundary.
-- Replace boxed source-loading and lowering outcomes with typed success, missing, and failure cases
-  that cannot pair a status with the wrong payload.
-- Simplify runtime-limit variants with validated record copies, use execution-step terminology
-  consistently, and reject compiler stack underflow instead of silently clamping it.
-- Validate public API inputs, snapshot caller-owned invocation collections, and make default host
-  error/path-segment values safe to inspect.
-- Accept parenthesized argument lists for `print` and `printf` statements.
-- Evaluate regex constants against the current record in scalar expression contexts.
-- Document and test that strict UTF-8 ingress is unchanged by C locale settings.
-- Raise the default execution-step budget from one million to ten million after calibrating
-  representative streaming workloads; explicitly injected tighter limits remain enforced, and
-  sufficiently large aggregations can still exhaust the finite default.
 - Initial standalone extraction target for Lokad.Awk.
