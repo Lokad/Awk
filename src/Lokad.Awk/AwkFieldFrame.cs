@@ -205,40 +205,40 @@ internal sealed class AwkFieldFrame(
         MarkRecordForRecomposition(outputFieldSeparator);
     }
 
-    private AwkText ComposeRecordText(AwkText outputFieldSeparator, List<AwkFieldText> fieldTexts)
-    {
-        if (fieldTexts.Count == 0)
-            return AwkText.Empty;
-
-        var separator = outputFieldSeparator.AsSpan();
-        var byteLength = EstimateComposedRecordByteLength(
-            separator.Length,
-            fieldTexts.Count,
-            _fieldPayloadByteLength);
-
-        if (byteLength == 0)
-            return AwkText.Empty;
-
-        var bytes = AwkText.AllocateOwnedBytes(byteLength, governor);
-        var offset = 0;
-        for (var index = 0; index < fieldTexts.Count; index++)
-        {
-            if (index > 0 && !separator.IsEmpty)
-            {
-                separator.CopyTo(bytes.AsSpan(offset));
-                offset += separator.Length;
-            }
-
-            var field = fieldTexts[index].AsSpan(_recordText);
-            field.CopyTo(bytes.AsSpan(offset));
-            offset += field.Length;
-        }
-
-        return AwkText.FromTrustedOwnedBytes(bytes, counters);
-    }
-
     private void EnsureRecordText()
     {
+        AwkText ComposeRecordText(AwkText outputFieldSeparator, List<AwkFieldText> fieldTexts)
+        {
+            if (fieldTexts.Count == 0)
+                return AwkText.Empty;
+
+            var separator = outputFieldSeparator.AsSpan();
+            var byteLength = EstimateComposedRecordByteLength(
+                separator.Length,
+                fieldTexts.Count,
+                _fieldPayloadByteLength);
+
+            if (byteLength == 0)
+                return AwkText.Empty;
+
+            var bytes = AwkText.AllocateOwnedBytes(byteLength, governor);
+            var offset = 0;
+            for (var index = 0; index < fieldTexts.Count; index++)
+            {
+                if (index > 0 && !separator.IsEmpty)
+                {
+                    separator.CopyTo(bytes.AsSpan(offset));
+                    offset += separator.Length;
+                }
+
+                var field = fieldTexts[index].AsSpan(_recordText);
+                field.CopyTo(bytes.AsSpan(offset));
+                offset += field.Length;
+            }
+
+            return AwkText.FromTrustedOwnedBytes(bytes, counters);
+        }
+
         if (_recordTextIsCurrent)
             return;
 
@@ -254,6 +254,18 @@ internal sealed class AwkFieldFrame(
     private void EnsureFields(
         Func<AwkText, IReadOnlyList<AwkFieldText>> splitFields)
     {
+        static List<AwkFieldText> CopyFieldTexts(IReadOnlyList<AwkFieldText> source)
+        {
+            if (source.Count == 0)
+                return [];
+
+            var copy = new List<AwkFieldText>(source.Count);
+            for (var index = 0; index < source.Count; index++)
+                copy.Add(source[index]);
+
+            return copy;
+        }
+
         if (_fieldsAreSplit)
             return;
 
@@ -268,18 +280,6 @@ internal sealed class AwkFieldFrame(
         counters.RecordFieldsMaterialized(_fieldTexts.Count);
         _fieldValueCache = [];
         _fieldsAreSplit = true;
-    }
-
-    private static List<AwkFieldText> CopyFieldTexts(IReadOnlyList<AwkFieldText> source)
-    {
-        if (source.Count == 0)
-            return [];
-
-        var copy = new List<AwkFieldText>(source.Count);
-        for (var index = 0; index < source.Count; index++)
-            copy.Add(source[index]);
-
-        return copy;
     }
 
     private static List<AwkFieldText> CreateRecordSlices(

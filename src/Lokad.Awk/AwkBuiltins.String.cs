@@ -57,6 +57,52 @@ internal static partial class AwkBuiltins
         AwkBuiltinContext context,
         AwkCaseConversion conversion)
     {
+        static bool TryConvertAsciiCase(
+            AwkText source,
+            AwkCaseConversion conversion,
+            AwkRuntimeCounters counters,
+            AwkMemoryGovernor governor,
+            out AwkText result)
+        {
+            static byte FoldAsciiCase(byte value, AwkCaseConversion conversion) =>
+                conversion is AwkCaseConversion.Upper
+                    ? value is >= (byte)'a' and <= (byte)'z'
+                        ? (byte)(value - 32)
+                        : value
+                    : value is >= (byte)'A' and <= (byte)'Z'
+                        ? (byte)(value + 32)
+                        : value;
+
+            var bytes = source.AsSpan();
+            var firstChange = -1;
+            for (var index = 0; index < bytes.Length; index++)
+            {
+                var value = bytes[index];
+                if (value > 0x7F)
+                {
+                    result = AwkText.Empty;
+                    return false;
+                }
+
+                if (FoldAsciiCase(value, conversion) != value && firstChange < 0)
+                    firstChange = index;
+            }
+
+            if (firstChange < 0)
+            {
+                result = source;
+                return true;
+            }
+
+            var converted = AwkText.AllocateOwnedBytes(bytes.Length, governor);
+            bytes.CopyTo(converted);
+            for (var index = firstChange; index < converted.Length; index++)
+                converted[index] = FoldAsciiCase(converted[index], conversion);
+
+            result = AwkText.FromTrustedOwnedBytes(converted, counters);
+            return true;
+        }
+
         if (context.ArgumentCount != 1)
             return AwkValue.FromText(string.Empty);
 
@@ -77,54 +123,6 @@ internal static partial class AwkBuiltins
             ? decoded.ToUpperInvariant()
             : decoded.ToLowerInvariant());
     }
-
-    private static bool TryConvertAsciiCase(
-        AwkText source,
-        AwkCaseConversion conversion,
-        AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
-        out AwkText result)
-    {
-        var bytes = source.AsSpan();
-        var firstChange = -1;
-        for (var index = 0; index < bytes.Length; index++)
-        {
-            var value = bytes[index];
-            if (value > 0x7F)
-            {
-                result = AwkText.Empty;
-                return false;
-            }
-
-            if (FoldAsciiCase(value, conversion) != value && firstChange < 0)
-                firstChange = index;
-        }
-
-        if (firstChange < 0)
-        {
-            result = source;
-            return true;
-        }
-
-        var converted = AwkText.AllocateOwnedBytes(bytes.Length, governor);
-        bytes.CopyTo(converted);
-        for (var index = firstChange; index < converted.Length; index++)
-        {
-            converted[index] = FoldAsciiCase(converted[index], conversion);
-        }
-
-        result = AwkText.FromTrustedOwnedBytes(converted, counters);
-        return true;
-    }
-
-    private static byte FoldAsciiCase(byte value, AwkCaseConversion conversion) =>
-        conversion is AwkCaseConversion.Upper
-            ? value is >= (byte)'a' and <= (byte)'z'
-                ? (byte)(value - 32)
-                : value
-            : value is >= (byte)'A' and <= (byte)'Z'
-                ? (byte)(value + 32)
-                : value;
 
     private enum AwkCaseConversion
     {

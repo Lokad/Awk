@@ -121,6 +121,17 @@ internal static partial class AwkExpressionLowerer
 
     private static bool TryParseNumericLiteral(string numberText, out double numberValue)
     {
+        static string? NormalizeTrailingDotExponentLiteral(string numberText)
+        {
+            for (var index = 1; index + 1 < numberText.Length; index++)
+            {
+                if (numberText[index] == '.' && numberText[index + 1] is ('e' or 'E'))
+                    return numberText[..(index + 1)] + "0" + numberText[(index + 1)..];
+            }
+
+            return null;
+        }
+
         if (AwkValue.TryParseNumber(
                 numberText,
                 AwkNumberParsingMode.NonDecimalData,
@@ -137,16 +148,5 @@ internal static partial class AwkExpressionLowerer
                 AwkNumberParsingMode.Decimal,
                 requireFullText: true,
                 out numberValue);
-    }
-
-    private static string? NormalizeTrailingDotExponentLiteral(string numberText)
-    {
-        for (var index = 1; index + 1 < numberText.Length; index++)
-        {
-            if (numberText[index] == '.' && numberText[index + 1] is ('e' or 'E'))
-                return numberText[..(index + 1)] + "0" + numberText[(index + 1)..];
-        }
-
-        return null;
     }
 }
