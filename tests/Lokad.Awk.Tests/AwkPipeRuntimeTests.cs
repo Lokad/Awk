@@ -5,6 +5,27 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 {
     [Fact]
+    public async Task Awk_RestrictedPolicyDoesNotForwardMutableEnvironmentToCommands()
+    {
+        var host = new TestOperationVisitor([]);
+        host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(
+            new AwkFileDescriptor(90),
+            new AwkFileDescriptor(91)));
+        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueAppendExitCode(0);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+            "awk",
+            "BEGIN{ENVIRON[\"TOKEN\"]=\"secret\"; print \"payload\" | \"consumer\"; exit}"));
+        var policy = AwkExecutionPolicy.CreateRestricted().WithCommandPipes(true);
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.Success, exitCode);
+        Assert.Empty(Assert.Single(host.CommandInvocations).Environment);
+    }
+
+    [Fact]
     public async Task Awk_CommandHostCallHasIndependentTimeout()
     {
         var pendingCommand = new TaskCompletionSource<IReadOnlyList<AwkExitCode>>(

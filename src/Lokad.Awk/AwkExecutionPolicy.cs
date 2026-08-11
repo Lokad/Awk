@@ -18,6 +18,9 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets whether awk input and output command pipes are allowed.</summary>
     public bool AllowCommandPipes { get; private init; } = true;
 
+    /// <summary>Gets whether the mutable awk <c>ENVIRON</c> snapshot is forwarded to pipe commands.</summary>
+    public bool ForwardCommandEnvironment { get; private init; } = true;
+
     /// <summary>Gets the optional lexical root for every host-opened path.</summary>
     public AwkPath? AccessiblePathRoot { get; private init; }
 
@@ -102,6 +105,7 @@ public sealed record AwkExecutionPolicy
         {
             AllowFileRedirections = false,
             AllowCommandPipes = false,
+            ForwardCommandEnvironment = false,
             TimeProvider = AwkFixedTimeProvider.UnixEpoch,
             TimeZone = TimeZoneInfo.Utc,
             CommandTimeout = TimeSpan.FromSeconds(10),
@@ -135,6 +139,10 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with command-pipe capability configured.</summary>
     public AwkExecutionPolicy WithCommandPipes(bool allowed) =>
         this with { AllowCommandPipes = allowed };
+
+    /// <summary>Returns a copy with command-environment forwarding configured.</summary>
+    public AwkExecutionPolicy WithCommandEnvironment(bool forward) =>
+        this with { ForwardCommandEnvironment = forward };
 
     /// <summary>Returns a copy that restricts host-opened paths to the supplied lexical root.</summary>
     public AwkExecutionPolicy WithAccessiblePathRoot(AwkPath root)

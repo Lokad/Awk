@@ -17,7 +17,8 @@ internal sealed class AwkIoHostAdapter(
     AwkRuntimeResourceMonitor resources,
     AwkPath? accessiblePathRoot = null,
     TimeSpan? commandTimeout = null,
-    TimeSpan? cleanupTimeout = null)
+    TimeSpan? cleanupTimeout = null,
+    bool forwardCommandEnvironment = true)
 {
     private readonly TimeSpan _commandTimeout = commandTimeout ?? TimeSpan.FromMinutes(5);
     private readonly TimeSpan _cleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
@@ -86,7 +87,7 @@ internal sealed class AwkIoHostAdapter(
         new(
             commandName,
             Array.Empty<string>(),
-            snapshotEnvironment(),
+            SnapshotCommandEnvironment(),
             currentDirectory,
             stdIn,
             stdOut,
@@ -96,11 +97,14 @@ internal sealed class AwkIoHostAdapter(
         new(
             commandName,
             Array.Empty<string>(),
-            snapshotEnvironment(),
+            SnapshotCommandEnvironment(),
             currentDirectory,
             stdIn,
             stdOut,
             stdErr);
+
+    private IReadOnlyList<AwkEnvironmentVariable> SnapshotCommandEnvironment() =>
+        forwardCommandEnvironment ? snapshotEnvironment() : [];
 
     public async Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command)
     {

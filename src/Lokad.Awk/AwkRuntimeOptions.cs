@@ -18,7 +18,8 @@ internal sealed class AwkRuntimeOptions
         bool allowCommandPipes = true,
         AwkPath? accessiblePathRoot = null,
         TimeSpan? commandTimeout = null,
-        TimeSpan? cleanupTimeout = null)
+        TimeSpan? cleanupTimeout = null,
+        bool forwardCommandEnvironment = true)
     {
         var randomGeneratorSnapshot = randomGenerator.Clone();
         CurrentUnixTimeSeconds = currentUnixTimeSeconds;
@@ -33,6 +34,7 @@ internal sealed class AwkRuntimeOptions
         AccessiblePathRoot = accessiblePathRoot;
         CommandTimeout = commandTimeout ?? TimeSpan.FromMinutes(5);
         CleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
+        ForwardCommandEnvironment = forwardCommandEnvironment;
     }
 
     public Func<AwkUnixTimestampSeconds> CurrentUnixTimeSeconds { get; }
@@ -59,6 +61,8 @@ internal sealed class AwkRuntimeOptions
 
     public TimeSpan CleanupTimeout { get; }
 
+    public bool ForwardCommandEnvironment { get; }
+
     public static AwkRuntimeOptions CreateSystemDefault() => Create(AwkExecutionPolicy.CreateDefault());
 
     public static AwkRuntimeOptions Create(AwkExecutionPolicy policy) =>
@@ -74,5 +78,6 @@ internal sealed class AwkRuntimeOptions
             policy.AllowCommandPipes,
             policy.AccessiblePathRoot,
             policy.CommandTimeout,
-            policy.CleanupTimeout);
+            policy.CleanupTimeout,
+            policy.ForwardCommandEnvironment);
 }
