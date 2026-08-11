@@ -1,4 +1,3 @@
-using System.Collections;
 using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
@@ -6,16 +5,16 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFieldFrameTests
 {
     [Fact]
-    public void AwkFieldFrame_StoresSplitterListWithoutEnumerableCopy()
+    public void AwkFieldFrame_AdoptsConcreteSplitterList()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var frame = CreateFrame(counters);
         frame.SetRecordText(AwkText.FromString("alpha beta", counters, CreateGovernor(counters)));
-        var fieldList = new IndexOnlyFieldList(
-            [
-                AwkFieldText.FromRecordSlice(0, 5),
-                AwkFieldText.FromRecordSlice(6, 4)
-            ]);
+        List<AwkFieldText> fieldList =
+        [
+            AwkFieldText.FromRecordSlice(0, 5),
+            AwkFieldText.FromRecordSlice(6, 4)
+        ];
 
         var count = frame.GetFieldCount(_ => fieldList);
 
@@ -49,21 +48,10 @@ public sealed class AwkFieldFrameTests
     private static AwkMemoryGovernor CreateGovernor(AwkRuntimeCounters counters) =>
         AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
 
-    private static IReadOnlyList<AwkFieldText> SplitAlphaBeta(AwkText _) =>
+    private static List<AwkFieldText> SplitAlphaBeta(AwkText _) =>
         [
             AwkFieldText.FromRecordSlice(0, 5),
             AwkFieldText.FromRecordSlice(6, 4)
         ];
 
-    private sealed class IndexOnlyFieldList(IReadOnlyList<AwkFieldText> values) : IReadOnlyList<AwkFieldText>
-    {
-        public int Count => values.Count;
-
-        public AwkFieldText this[int index] => values[index];
-
-        public IEnumerator<AwkFieldText> GetEnumerator() =>
-            throw new InvalidOperationException("Enumeration would copy the splitter result.");
-
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-    }
 }

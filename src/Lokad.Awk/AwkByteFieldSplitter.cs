@@ -42,7 +42,7 @@ internal sealed class AwkByteFieldSplitter(
         };
     }
 
-    public IReadOnlyList<AwkFieldText> SplitRecordFieldsBySeparator(
+    public List<AwkFieldText> SplitRecordFieldsBySeparator(
         AwkText line,
         AwkFieldSeparatorSpec separator)
     {
@@ -59,7 +59,7 @@ internal sealed class AwkByteFieldSplitter(
         };
     }
 
-    public IReadOnlyList<AwkFieldText> SplitParagraphRecordFieldsBySeparator(
+    public List<AwkFieldText> SplitParagraphRecordFieldsBySeparator(
         AwkText line,
         AwkFieldSeparatorSpec separator)
     {
@@ -143,7 +143,7 @@ internal sealed class AwkByteFieldSplitter(
         return new AwkTextSplitResult(fields, separators ?? []);
     }
 
-    public IReadOnlyList<AwkFieldText> PatsplitRecordFields(AwkText input, string pattern)
+    public List<AwkFieldText> PatsplitRecordFields(AwkText input, string pattern)
     {
         var regex = createRegex(new AwkRegexPattern(pattern));
         var fields = new List<AwkFieldText>();
@@ -197,10 +197,10 @@ internal sealed class AwkByteFieldSplitter(
         return new AwkTextSplitResult(fields, separators);
     }
 
-    private static IReadOnlyList<AwkFieldText> SplitWhitespaceRecordFields(AwkText line) =>
+    private static List<AwkFieldText> SplitWhitespaceRecordFields(AwkText line) =>
         line.ByteLength == 0
             ? []
-            : ScanWhitespaceFields<RecordListFieldSink, IReadOnlyList<AwkFieldText>>(
+            : ScanWhitespaceFields<RecordListFieldSink, List<AwkFieldText>>(
                 line,
                 new RecordListFieldSink());
 
@@ -226,12 +226,12 @@ internal sealed class AwkByteFieldSplitter(
         return new AwkTextSplitResult(fields, separators);
     }
 
-    private static IReadOnlyList<AwkFieldText> SplitCharacterRecordFields(AwkText line, bool splitBytes)
+    private static List<AwkFieldText> SplitCharacterRecordFields(AwkText line, bool splitBytes)
     {
         if (line.ByteLength == 0)
             return [];
 
-        return ScanCharacterFields<RecordListFieldSink, IReadOnlyList<AwkFieldText>>(
+        return ScanCharacterFields<RecordListFieldSink, List<AwkFieldText>>(
             line,
             splitBytes,
             new RecordListFieldSink(splitBytes ? line.ByteLength : 0));
@@ -272,17 +272,14 @@ internal sealed class AwkByteFieldSplitter(
         return new AwkTextSplitResult(fields, separators);
     }
 
-    private static AwkFieldText[] SplitSingleByteLiteralRecordFields(AwkText line, byte separator)
+    private static List<AwkFieldText> SplitSingleByteLiteralRecordFields(AwkText line, byte separator)
     {
         var content = line.AsSpan();
         var fieldCount = CountSingleByteFields(content, separator);
-        var fields = new AwkFieldText[fieldCount];
-        ScanSingleByteFields<RecordArrayFieldSink, AwkFieldText[]>(
+        return ScanSingleByteFields<RecordListFieldSink, List<AwkFieldText>>(
             line,
             separator,
-            new RecordArrayFieldSink(fields));
-
-        return fields;
+            new RecordListFieldSink(fieldCount));
     }
 
     private static List<AwkFieldText> SplitSingleByteParagraphRecordFields(AwkText line, byte separator)
@@ -336,8 +333,8 @@ internal sealed class AwkByteFieldSplitter(
         return new AwkTextSplitResult(fields, separators);
     }
 
-    private IReadOnlyList<AwkFieldText> SplitRegexRecordFields(AwkText line, AwkRegex separator)
-        => ScanRegexFields<RecordListFieldSink, IReadOnlyList<AwkFieldText>>(
+    private List<AwkFieldText> SplitRegexRecordFields(AwkText line, AwkRegex separator)
+        => ScanRegexFields<RecordListFieldSink, List<AwkFieldText>>(
             line,
             separator,
             new RecordListFieldSink());
@@ -499,7 +496,7 @@ internal sealed class AwkByteFieldSplitter(
         public readonly AwkText[] Complete() => fields;
     }
 
-    private readonly struct RecordListFieldSink : IFieldSink<IReadOnlyList<AwkFieldText>>
+    private readonly struct RecordListFieldSink : IFieldSink<List<AwkFieldText>>
     {
         private readonly List<AwkFieldText> _fields;
 
@@ -516,17 +513,7 @@ internal sealed class AwkByteFieldSplitter(
         public void Add(AwkByteRange field) =>
             _fields.Add(AwkFieldText.FromRecordSlice(field.Start, field.Length));
 
-        public IReadOnlyList<AwkFieldText> Complete() => _fields;
-    }
-
-    private struct RecordArrayFieldSink(AwkFieldText[] fields) : IFieldSink<AwkFieldText[]>
-    {
-        private int _next;
-
-        public void Add(AwkByteRange field) =>
-            fields[_next++] = AwkFieldText.FromRecordSlice(field.Start, field.Length);
-
-        public readonly AwkFieldText[] Complete() => fields;
+        public List<AwkFieldText> Complete() => _fields;
     }
 
     private readonly record struct AwkByteRange(int Start, int Length);

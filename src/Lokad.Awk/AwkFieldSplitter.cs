@@ -29,7 +29,7 @@ internal sealed class AwkFieldSplitter(
 
     private AwkFieldSeparatorSpec _fieldSeparator = fieldSeparator;
     private string _fieldPattern = string.Empty;
-    private IReadOnlyList<AwkFieldWidth> _fieldWidths = [];
+    private List<AwkFieldWidth> _fieldWidths = [];
     private AwkFieldSplittingMode _fieldSplittingMode;
     private AwkRecordFieldSplittingMode _recordFieldSplittingMode;
 
@@ -51,7 +51,7 @@ internal sealed class AwkFieldSplitter(
 
     public void AssignFieldWidths(AwkText value)
     {
-        static IReadOnlyList<AwkFieldWidth> ParseFieldWidths(ReadOnlySpan<byte> text)
+        static List<AwkFieldWidth> ParseFieldWidths(ReadOnlySpan<byte> text)
         {
             static bool IsWhitespace(byte value) =>
                 value is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n' or (byte)'\v' or (byte)'\f';
@@ -112,7 +112,7 @@ internal sealed class AwkFieldSplitter(
             _fieldSplittingMode = AwkFieldSplittingMode.FieldWidths;
     }
 
-    public IReadOnlyList<AwkFieldText> SplitRecordFields(AwkText line)
+    public List<AwkFieldText> SplitRecordFields(AwkText line)
     {
         static int AddFieldWidthUnits(int position, int value)
         {
@@ -122,9 +122,9 @@ internal sealed class AwkFieldSplitter(
             return position + value;
         }
 
-        IReadOnlyList<AwkFieldText> SplitFieldWidthRecordFields()
+        List<AwkFieldText> SplitFieldWidthRecordFields()
         {
-            IReadOnlyList<AwkFieldText> SplitRuneFields()
+            List<AwkFieldText> SplitRuneFields()
             {
                 static void AdvanceRuneOffset(
                     ReadOnlySpan<byte> content,
@@ -169,7 +169,7 @@ internal sealed class AwkFieldSplitter(
                 return fields;
             }
 
-            IReadOnlyList<AwkFieldText> SplitByteFields()
+            List<AwkFieldText> SplitByteFields()
             {
                 static void ThrowIfNotUtf8Boundary(AwkText text, int position)
                 {
