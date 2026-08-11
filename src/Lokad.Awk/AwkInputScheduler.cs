@@ -16,7 +16,8 @@ internal sealed class AwkInputScheduler(
     AwkRuntimeActionExecutor actionExecutor,
     AwkRuntimeState state,
     AwkIo io,
-    CancellationToken cancellationToken) : IAwkInputRecordReader
+    CancellationToken cancellationToken,
+    AwkPath? accessiblePathRoot = null) : IAwkInputRecordReader
 {
     private readonly HashSet<AwkFileDescriptor> _ownedDescriptors = [];
     private readonly AwkRecordProcessor _recordProcessor = new(state);
@@ -90,6 +91,7 @@ internal sealed class AwkInputScheduler(
                 }
 
                 var path = ResolveRuntimePath(inputArgument, runtimeArgument);
+                AwkHostPathPolicy.ThrowIfDenied(path.Absolute, accessiblePathRoot);
                 state.BeginInputFile(AwkUtf8Codec.Decode(path.Display), inputArgument.ArgvIndex);
                 state.Resources.RecordHostCall();
                 var opened = await host

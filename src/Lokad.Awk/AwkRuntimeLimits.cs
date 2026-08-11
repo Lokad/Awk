@@ -13,6 +13,11 @@ internal sealed record AwkRuntimeLimits
     public const int DefaultMaxBuilderBytes = 64 << 20;
     public const long DefaultMaxRegexRecordSeparatorBytesScanned = 64L << 20;
     public const int DefaultMaxOutputFiles = 10_000;
+    public const int DefaultMaxInputFiles = 10_000;
+    public const int DefaultMaxPipes = 1_024;
+    public const long DefaultMaxSourceBytes = 64L << 20;
+    public const int DefaultMaxIncludeDepth = 128;
+    public const int DefaultMaxIncludeFiles = 1_024;
     public const int DefaultInputReadBatchLineCount = 128;
     public const int DefaultUtf8BuilderInitialCapacity = 256;
     public const int DefaultRegexCacheSize = 128;
@@ -53,7 +58,42 @@ internal sealed record AwkRuntimeLimits
 
     public int MaxOutputFiles { get; private init; } = DefaultMaxOutputFiles;
 
+    public int MaxInputFiles { get; private init; } = DefaultMaxInputFiles;
+
+    public int MaxPipes { get; private init; } = DefaultMaxPipes;
+
+    public long MaxSourceBytes { get; private init; } = DefaultMaxSourceBytes;
+
+    public int MaxIncludeDepth { get; private init; } = DefaultMaxIncludeDepth;
+
+    public int MaxIncludeFiles { get; private init; } = DefaultMaxIncludeFiles;
+
     public static AwkRuntimeLimits CreateDefault() => new();
+
+    public static AwkRuntimeLimits FromPolicy(AwkExecutionPolicy policy) =>
+        new()
+        {
+            MaxExecutionSteps = policy.MaxExecutionSteps,
+            MaxFunctionCallDepth = policy.MaxFunctionCallDepth,
+            MaxSyntaxNestingDepth = policy.MaxSyntaxNestingDepth,
+            MaxHostCalls = policy.MaxHostCalls,
+            MaxRecordBytes = policy.MaxRecordBytes,
+            MaxValueBytes = policy.MaxValueBytes,
+            MaxOutputBytes = policy.MaxOutputBytes,
+            MaxArrayElements = policy.MaxArrayElements,
+            MaxFields = policy.MaxFields,
+            MaxBuilderBytes = policy.MaxBuilderBytes,
+            MaxRegexCaptureBytes = policy.MaxRegexCaptureBytes,
+            MaxRegexRecordSeparatorBytesScanned = policy.MaxRegexRecordSeparatorBytesScanned,
+            MaxVmStackBytes = policy.MaxVmStackBytes,
+            MaxExecutionMemoryBytes = policy.MaxExecutionMemoryBytes,
+            MaxOutputFiles = policy.MaxOutputFiles,
+            MaxInputFiles = policy.MaxInputFiles,
+            MaxPipes = policy.MaxPipes,
+            MaxSourceBytes = policy.MaxSourceBytes,
+            MaxIncludeDepth = policy.MaxIncludeDepth,
+            MaxIncludeFiles = policy.MaxIncludeFiles
+        };
 
     public AwkRuntimeLimits WithMaxExecutionSteps(int value) =>
         this with { MaxExecutionSteps = RequirePositive(value) };
@@ -99,6 +139,21 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxOutputFiles(int value) =>
         this with { MaxOutputFiles = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxInputFiles(int value) =>
+        this with { MaxInputFiles = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxPipes(int value) =>
+        this with { MaxPipes = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxSourceBytes(long value) =>
+        this with { MaxSourceBytes = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxIncludeDepth(int value) =>
+        this with { MaxIncludeDepth = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxIncludeFiles(int value) =>
+        this with { MaxIncludeFiles = RequirePositive(value) };
 
     private static int RequirePositive(int value) =>
         value > 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));

@@ -17,7 +17,10 @@ internal sealed class AwkIo
     private readonly AwkRuntimeState _state;
     private readonly AwkRecordDescriptorReader _descriptorReader;
     private readonly int _maxOutputFiles;
+    private readonly int _maxInputFiles;
     private readonly bool _sandbox;
+    private readonly bool _allowFileRedirections;
+    private readonly bool _allowCommandPipes;
     private AwkRecordCursor? _standardInputReader;
     private MainInputReaderBinding _mainInputReader = MainInputReaderBinding.Unbound;
 
@@ -32,7 +35,10 @@ internal sealed class AwkIo
         AwkRuntimeLimits limits,
         AwkRuntimeState state,
         Func<IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
-        bool sandbox = false)
+        bool sandbox = false,
+        bool allowFileRedirections = true,
+        bool allowCommandPipes = true,
+        AwkPath? accessiblePathRoot = null)
     {
         _host = new AwkIoHostAdapter(
             host,
@@ -43,9 +49,13 @@ internal sealed class AwkIo
             cancellationToken,
             snapshotEnvironment,
             counters,
-            state.Resources);
+            state.Resources,
+            accessiblePathRoot);
         _maxOutputFiles = limits.MaxOutputFiles;
+        _maxInputFiles = limits.MaxInputFiles;
         _sandbox = sandbox;
+        _allowFileRedirections = allowFileRedirections;
+        _allowCommandPipes = allowCommandPipes;
         _state = state;
         _descriptorReader = new AwkRecordDescriptorReader(
             host,
@@ -54,6 +64,7 @@ internal sealed class AwkIo
         _pipes = new AwkPipeRuntime(
             _host,
             _maxOutputFiles,
+            limits.MaxPipes,
             () => _descriptors.OutputFileCount,
             CreateRecordCursor);
         _specialPaths = new AwkSpecialPathPolicy(stdIn, stdOut, stdErr);
@@ -77,13 +88,15 @@ internal sealed class AwkIo
 
     public async Task WriteAsync(AwkRedirectedOutput output)
     {
-        ThrowIfSandboxedRedirection();
         var path = output.RedirectionPath;
         if (output.Kind == AwkOutputRedirectionKind.Pipe)
         {
+            ThrowIfCommandPipeDisabled();
             await _pipes.WriteOutputAsync(path, output.Content).ConfigureAwait(false);
             return;
         }
+
+        ThrowIfFileRedirectionDisabled();
 
         AwkSpecialPathPolicy.ThrowIfUnsupported(path.Text);
 
@@ -120,7 +133,7 @@ internal sealed class AwkIo
 
     public async Task<AwkGetlineResult> ReadRedirectedRecordAsync(string path)
     {
-        ThrowIfSandboxedRedirection();
+        ThrowIfFileRedirectionDisabled();
         async Task<AwkInputReaderResult> ResolveInputReaderAsync()
         {
             AwkSpecialPathPolicy.ThrowIfUnsupported(path);
@@ -135,6 +148,9 @@ internal sealed class AwkIo
             var absolutePath = targetPath.Absolute;
             if (_descriptors.TryGetInput(absolutePath, out var existing))
                 return AwkInputReaderResult.Success(existing);
+
+            if (_descriptors.InputFileCount >= _maxInputFiles)
+                throw new AwkRuntimeException(AwkMessages.ErrorInputFileLimit, AwkDiagnosticId.RuntimeResourceLimit);
 
             var opened = await _host.OpenFileAsync(targetPath.Absolute, AwkFileOpenMode.Read).ConfigureAwait(false);
             if (!opened.Success)
@@ -162,7 +178,7 @@ internal sealed class AwkIo
 
     public async Task<AwkGetlineResult> ReadPipeRecordAsync(string command)
     {
-        ThrowIfSandboxedRedirection();
+        ThrowIfCommandPipeDisabled();
         var reader = await _pipes.GetInputReaderAsync(command).ConfigureAwait(false);
         return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
     }
@@ -208,12 +224,36 @@ internal sealed class AwkIo
             _descriptorReader,
             _host.CreateLineReader(descriptor, InputReadBatchLineCount));
 
-    private void ThrowIfSandboxedRedirection()
+    private void ThrowIfFileRedirectionDisabled()
     {
         if (_sandbox)
         {
             throw new AwkRuntimeException(
                 AwkMessages.ErrorSandboxRedirection,
+                AwkDiagnosticId.UnsupportedPolicy);
+        }
+
+        if (!_allowFileRedirections)
+        {
+            throw new AwkRuntimeException(
+                AwkMessages.ErrorFileRedirectionsDisabled,
+                AwkDiagnosticId.UnsupportedPolicy);
+        }
+    }
+
+    private void ThrowIfCommandPipeDisabled()
+    {
+        if (_sandbox)
+        {
+            throw new AwkRuntimeException(
+                AwkMessages.ErrorSandboxRedirection,
+                AwkDiagnosticId.UnsupportedPolicy);
+        }
+
+        if (!_allowCommandPipes)
+        {
+            throw new AwkRuntimeException(
+                AwkMessages.ErrorCommandPipesDisabled,
                 AwkDiagnosticId.UnsupportedPolicy);
         }
     }

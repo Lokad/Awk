@@ -14,13 +14,16 @@ internal sealed class AwkIoHostAdapter(
     CancellationToken cancellationToken,
     Func<IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
     AwkRuntimeCounters counters,
-    AwkRuntimeResourceMonitor resources)
+    AwkRuntimeResourceMonitor resources,
+    AwkPath? accessiblePathRoot = null)
 {
     public AwkResolvedPath ResolvePath(string path)
     {
         try
         {
-            return AwkPathResolution.ResolveArgument(path, currentDirectory);
+            var resolved = AwkPathResolution.ResolveArgument(path, currentDirectory);
+            AwkHostPathPolicy.ThrowIfDenied(resolved.Absolute, accessiblePathRoot);
+            return resolved;
         }
         catch (FormatException)
         {
@@ -119,6 +122,7 @@ internal sealed class AwkIoHostAdapter(
 
     public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode)
     {
+        AwkHostPathPolicy.ThrowIfDenied(path, accessiblePathRoot);
         resources.RecordHostCall();
         return host.OpenFileAsync(path, mode, cancellationToken);
     }

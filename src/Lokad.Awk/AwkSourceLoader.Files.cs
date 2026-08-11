@@ -10,9 +10,11 @@ internal static partial class AwkSourceLoader
         IAwkHost host,
         AwkSourceLoadPlan plan,
         string includePath,
+        int includeDepth,
         AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
+        resources.RecordInclude(includeDepth);
         var resolved = plan.ResolvePath(includePath);
         var script = await AwkScriptFileReader.TryReadAsync(
                 host,
@@ -54,6 +56,7 @@ internal static partial class AwkSourceLoader
                 found.Script.Text,
                 found.Script.SourceName,
                 AwkSourceSegmentKind.Include,
+                includeDepth,
                 resources,
                 cancellationToken)
             .ConfigureAwait(false);

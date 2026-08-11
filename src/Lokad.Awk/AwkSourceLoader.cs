@@ -10,9 +10,10 @@ internal static partial class AwkSourceLoader
         IAwkHost host,
         AwkInvocation invocation,
         AwkRuntimeResourceMonitor resources,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AwkPath? accessiblePathRoot = null)
     {
-        var plan = AwkSourceLoadPlan.FromInvocation(invocation);
+        var plan = AwkSourceLoadPlan.FromInvocation(invocation, accessiblePathRoot);
         var sources = new List<AwkSourceUnit>(plan.SourceCount);
         var inlineSourceIndex = 0;
         for (var index = 0; index < plan.SourceCount; index++)
@@ -21,6 +22,7 @@ internal static partial class AwkSourceLoader
             if (source is AwkSourceReference.InlineSource inline)
             {
                 inlineSourceIndex++;
+                resources.RecordSourceBytes(AwkUtf8Codec.GetEncodedByteCount(inline.InlineScript));
                 var sourceName = new AwkSourceName($"<inline:{inlineSourceIndex}>");
                 var expanded = await ExpandIncludesAsync(
                         host,
@@ -28,6 +30,7 @@ internal static partial class AwkSourceLoader
                         inline.InlineScript,
                         sourceName,
                         AwkSourceSegmentKind.Inline,
+                        includeDepth: 0,
                         resources,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -48,6 +51,7 @@ internal static partial class AwkSourceLoader
                         host,
                         plan,
                         AwkUtf8Codec.Decode(includePath.Display),
+                        includeDepth: 1,
                         resources,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -90,6 +94,7 @@ internal static partial class AwkSourceLoader
                     found.Script.Text,
                     found.Script.SourceName,
                     AwkSourceSegmentKind.File,
+                    includeDepth: 0,
                     resources,
                     cancellationToken)
                 .ConfigureAwait(false);

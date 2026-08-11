@@ -14,6 +14,8 @@ internal sealed class AwkIoDescriptorTable
 
     public int OutputFileCount => _outputFiles.Count;
 
+    public int InputFileCount => _inputFiles.Count;
+
     public bool TryGetOutput(AwkPath path, out AwkFileDescriptor descriptor) =>
         _outputFiles.TryGetValue(path, out descriptor);
 

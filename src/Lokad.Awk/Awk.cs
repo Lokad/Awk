@@ -47,4 +47,19 @@ public sealed class Awk
         ArgumentNullException.ThrowIfNull(host);
         return AwkExecutor.ExecuteAsync(host, _invocation, cancellationToken);
     }
+
+    /// <summary>Executes the parsed command under an explicit capability and resource policy.</summary>
+    public Task<AwkExitCode> ExecuteAsync(
+        IAwkHost host,
+        AwkExecutionPolicy policy,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(policy);
+        return AwkExecutor.ExecuteAsync(
+            host,
+            _invocation,
+            cancellationToken,
+            AwkRuntimeOptions.Create(policy));
+    }
 }

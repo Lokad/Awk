@@ -1478,6 +1478,11 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(AwkRuntimeLimits.DefaultMaxArrayElements, limits.MaxArrayElements);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxFields, limits.MaxFields);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxOutputFiles, limits.MaxOutputFiles);
+        Assert.Equal(AwkRuntimeLimits.DefaultMaxInputFiles, limits.MaxInputFiles);
+        Assert.Equal(AwkRuntimeLimits.DefaultMaxPipes, limits.MaxPipes);
+        Assert.Equal(AwkRuntimeLimits.DefaultMaxSourceBytes, limits.MaxSourceBytes);
+        Assert.Equal(AwkRuntimeLimits.DefaultMaxIncludeDepth, limits.MaxIncludeDepth);
+        Assert.Equal(AwkRuntimeLimits.DefaultMaxIncludeFiles, limits.MaxIncludeFiles);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxBuilderBytes, limits.MaxBuilderBytes);
         Assert.Equal(
             AwkRuntimeLimits.DefaultMaxRegexRecordSeparatorBytesScanned,
@@ -1539,6 +1544,41 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(
             "awk: program nesting limit exceeded.\n",
             fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task Awk_PublicInputFileLimitFailsBeforeOpeningAnotherRedirection()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("/one.txt", "one\n");
+        fileSystem.AddFile("/two.txt", "two\n");
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+            "awk",
+            "BEGIN{getline one < \"/one.txt\"; getline two < \"/two.txt\"}"));
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxInputFiles(1);
+
+        var exitCode = await tool.ExecuteAsync(fileSystem, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal("awk: input file limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, fileSystem.OpenFileCount);
+    }
+
+    [Fact]
+    public async Task Awk_PublicIncludeDepthLimitFailsBeforeReadingDeeperSource()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("/one.awk", "@include \"/two.awk\"\n");
+        fileSystem.AddFile("/two.awk", "@include \"/three.awk\"\n");
+        fileSystem.AddFile("/three.awk", "BEGIN{print \"unreachable\"}\n");
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/one.awk"));
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxIncludeDepth(1);
+
+        var exitCode = await tool.ExecuteAsync(fileSystem, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal("awk: include depth limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, fileSystem.OpenFileCount);
     }
 
     [Fact]

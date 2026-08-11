@@ -1,12 +1,110 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
 
 public sealed class AwkPublicBoundaryTests
 {
+    [Fact]
+    public void AwkExecutionPolicy_ProvidesImmutableCompatibleAndRestrictedPresets()
+    {
+        var compatible = AwkExecutionPolicy.CreateDefault();
+        var restricted = AwkExecutionPolicy.CreateRestricted();
+        var customized = restricted.WithCommandPipes(true).WithMaxOutputBytes(42);
+        var rooted = compatible.WithAccessiblePathRoot(new AwkPath("/jail"));
+
+        Assert.True(compatible.AllowCommandPipes);
+        Assert.True(compatible.AllowFileRedirections);
+        Assert.False(restricted.AllowCommandPipes);
+        Assert.False(restricted.AllowFileRedirections);
+        Assert.Equal(42, customized.MaxOutputBytes);
+        Assert.True(customized.AllowCommandPipes);
+        Assert.False(restricted.AllowCommandPipes);
+        Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxExecutionMemoryBytes);
+        Assert.Equal("/jail", Assert.IsType<AwkPath>(rooted.AccessiblePathRoot).Path);
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_PublicExecutionOverloadEnforcesSourceBudget()
+    {
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "BEGIN{print \"unreachable\"}"));
+        var host = new MockFileSystem();
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxSourceBytes(8);
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: source byte limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_RestrictedPresetDeniesFileRedirections()
+    {
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "BEGIN{print \"secret\" > \"/out.txt\"}"));
+        var host = new MockFileSystem();
+
+        var exitCode = await tool.ExecuteAsync(
+            host,
+            AwkExecutionPolicy.CreateRestricted(),
+            CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.False(host.FileExists("/out.txt"));
+        Assert.Equal(
+            "awk: file redirections are disabled by execution policy\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_PathRootDeniesMainInputOutsideRoot()
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/outside.txt", "secret\n");
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "{print}",
+            "/outside.txt"));
+        var policy = AwkExecutionPolicy.CreateDefault()
+            .WithAccessiblePathRoot(new AwkPath("/jail"));
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(
+            "awk: path is outside the execution policy root\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Fact]
+    public async Task AwkExecutionPolicy_PathRootDeniesSourceOutsideRoot()
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/outside.awk", "BEGIN{print \"unreachable\"}\n");
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
+            "awk",
+            "-f",
+            "/outside.awk"));
+        var policy = AwkExecutionPolicy.CreateDefault()
+            .WithAccessiblePathRoot(new AwkPath("/jail"));
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal(
+            "awk: path is outside the execution policy root\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+    }
+
     [Fact]
     public void AwkCommandInvocation_SnapshotsCallerOwnedCollections()
     {

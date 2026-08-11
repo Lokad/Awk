@@ -7,6 +7,7 @@ namespace Lokad.Awk;
 internal sealed class AwkPipeRuntime(
     AwkIoHostAdapter host,
     int maxOutputRedirections,
+    int maxPipes,
     Func<int> outputFileCount,
     Func<AwkFileDescriptor, AwkRecordCursor> createRecordCursor)
 {
@@ -26,6 +27,8 @@ internal sealed class AwkPipeRuntime(
         {
             if (_outputPipes.TryGetValue(command, out var existing))
                 return existing;
+
+            ThrowIfPipeLimitReached();
 
             if (outputFileCount() + _outputPipes.Count >= maxOutputRedirections)
                 throw new AwkRuntimeException(AwkMessages.ErrorOutputFileLimit, AwkDiagnosticId.HostIoFailure);
@@ -56,6 +59,8 @@ internal sealed class AwkPipeRuntime(
         {
             if (_inputPipes.TryGetValue(command, out var existing))
                 return existing;
+
+            ThrowIfPipeLimitReached();
 
             var descriptors = await host.CreatePipeAsync(AwkPipeMode.Pipeline).ConfigureAwait(false);
             try
@@ -93,6 +98,12 @@ internal sealed class AwkPipeRuntime(
         var exitCode = await pipe.CloseAsync(host).ConfigureAwait(false);
         _outputPipes.Remove(command);
         return AwkPipeCloseResult.Closed(exitCode);
+    }
+
+    private void ThrowIfPipeLimitReached()
+    {
+        if (_outputPipes.Count + _inputPipes.Count >= maxPipes)
+            throw new AwkRuntimeException(AwkMessages.ErrorPipeLimit, AwkDiagnosticId.RuntimeResourceLimit);
     }
 
     public async Task<AwkPipeCloseResult> CloseInputAsync(string command)

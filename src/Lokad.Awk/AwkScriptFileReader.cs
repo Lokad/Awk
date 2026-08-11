@@ -14,6 +14,7 @@ internal static class AwkScriptFileReader
         AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
+        plan.ThrowIfDenied(path.Absolute);
         static async Task<AwkScriptFileReadResult> TryReadFromAwkPathAsync(
             IAwkHost host,
             AwkSourceLoadPlan plan,
@@ -182,6 +183,7 @@ internal static class AwkScriptFileReader
                     while (await reader.TryBufferLineAsync().ConfigureAwait(false))
                     {
                         var line = reader.ReadLine();
+                        resources.RecordSourceBytes(line.Length);
                         if (line.IsEmpty)
                             continue;
 

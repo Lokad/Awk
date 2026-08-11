@@ -5,6 +5,29 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 {
     [Fact]
+    public async Task Awk_PublicPipeLimitFailsBeforeCreatingAnotherPipe()
+    {
+        var host = new TestOperationVisitor([]);
+        host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(
+            new AwkFileDescriptor(70),
+            new AwkFileDescriptor(71)));
+        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueAppendExitCode(0);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueAppendExitCode(0);
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
+            "awk",
+            "BEGIN{print \"one\" | \"first\"; print \"two\" | \"second\"}"));
+        var policy = AwkExecutionPolicy.CreateDefault().WithMaxPipes(1);
+
+        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exitCode);
+        Assert.Equal("awk: pipe limit exceeded\n", host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal("first", Assert.Single(host.CommandInvocations).CommandName);
+    }
+
+    [Fact]
     public async Task Awk_PipeCommandReceivesCurrentEnvironmentAndInvocationDirectory()
     {
         var host = new TestOperationVisitor([]);

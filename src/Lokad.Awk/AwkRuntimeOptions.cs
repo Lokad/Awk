@@ -13,7 +13,10 @@ internal sealed class AwkRuntimeOptions
         AwkRuntimeCounters counters,
         AwkRuntimeLimits limits,
         AwkRegexEngineKind regexEngineKind,
-        AwkExecutionEngineKind executionEngineKind)
+        AwkExecutionEngineKind executionEngineKind,
+        bool allowFileRedirections = true,
+        bool allowCommandPipes = true,
+        AwkPath? accessiblePathRoot = null)
     {
         var randomGeneratorSnapshot = randomGenerator.Clone();
         CurrentUnixTimeSeconds = currentUnixTimeSeconds;
@@ -23,6 +26,9 @@ internal sealed class AwkRuntimeOptions
         Limits = limits;
         RegexEngineKind = regexEngineKind;
         ExecutionEngineKind = executionEngineKind;
+        AllowFileRedirections = allowFileRedirections;
+        AllowCommandPipes = allowCommandPipes;
+        AccessiblePathRoot = accessiblePathRoot;
     }
 
     public Func<AwkUnixTimestampSeconds> CurrentUnixTimeSeconds { get; }
@@ -39,13 +45,24 @@ internal sealed class AwkRuntimeOptions
 
     public AwkExecutionEngineKind ExecutionEngineKind { get; }
 
-    public static AwkRuntimeOptions CreateSystemDefault() =>
+    public bool AllowFileRedirections { get; }
+
+    public bool AllowCommandPipes { get; }
+
+    public AwkPath? AccessiblePathRoot { get; }
+
+    public static AwkRuntimeOptions CreateSystemDefault() => Create(AwkExecutionPolicy.CreateDefault());
+
+    public static AwkRuntimeOptions Create(AwkExecutionPolicy policy) =>
         new(
             AwkUnixTimestampSeconds.FromSystemClock,
             TimeZoneInfo.Local,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
+            AwkRuntimeLimits.FromPolicy(policy),
             AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            AwkExecutionEngineKind.Interpreter,
+            policy.AllowFileRedirections,
+            policy.AllowCommandPipes,
+            policy.AccessiblePathRoot);
 }

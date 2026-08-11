@@ -90,6 +90,22 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: memory limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorExecutionStepLimit =
         AwkUtf8Codec.Encode("awk: execution step limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorInputFileLimit =
+        AwkUtf8Codec.Encode("awk: input file limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorPipeLimit =
+        AwkUtf8Codec.Encode("awk: pipe limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorSourceLimit =
+        AwkUtf8Codec.Encode("awk: source byte limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorIncludeDepthLimit =
+        AwkUtf8Codec.Encode("awk: include depth limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorIncludeFileLimit =
+        AwkUtf8Codec.Encode("awk: include file limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorFileRedirectionsDisabled =
+        AwkUtf8Codec.Encode("awk: file redirections are disabled by execution policy\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorCommandPipesDisabled =
+        AwkUtf8Codec.Encode("awk: command pipes are disabled by execution policy\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorPathOutsideExecutionRoot =
+        AwkUtf8Codec.Encode("awk: path is outside the execution policy root\n");
     internal static readonly ReadOnlyMemory<byte> ErrorLengthArrayArgument =
         AwkUtf8Codec.Encode("awk: length: received array argument\n");
     internal static readonly ReadOnlyMemory<byte> ErrorSwitchIsGnuExtension =
