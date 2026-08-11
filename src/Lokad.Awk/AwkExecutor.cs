@@ -228,9 +228,18 @@ internal static class AwkExecutor
             throw new System.InvalidOperationException("Unexpected awk source load result.");
 
         var source = loaded.CompilationSource;
-        var parsed = AwkParser.Parse(source.Text, maxSyntaxNestingDepth);
+        resources.ThrowIfFrontendCharactersExceeded(source.Text.Length);
+        cancellationToken.ThrowIfCancellationRequested();
+        var parsed = AwkParser.Parse(
+            source.Text,
+            maxSyntaxNestingDepth,
+            resources.Limits.MaxFrontendTokens,
+            resources.Limits.MaxFrontendDiagnostics,
+            cancellationToken);
         var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings);
+        cancellationToken.ThrowIfCancellationRequested();
         var binding = AwkBinder.Bind(parsed, invocation.ExecutionOptions.CompatibilityProfile);
+        cancellationToken.ThrowIfCancellationRequested();
         var phase = binding.PhaseResult;
         if (!phase.Success)
         {

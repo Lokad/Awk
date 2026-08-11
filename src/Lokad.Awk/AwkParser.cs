@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading;
 
 namespace Lokad.Awk;
 
@@ -8,8 +9,26 @@ internal static class AwkParser
         => Parse(source, int.MaxValue);
 
     public static AwkParseResult Parse(string source, int maxSyntaxNestingDepth)
+        => Parse(
+            source,
+            maxSyntaxNestingDepth,
+            int.MaxValue,
+            int.MaxValue,
+            CancellationToken.None);
+
+    public static AwkParseResult Parse(
+        string source,
+        int maxSyntaxNestingDepth,
+        int maxTokens,
+        int maxDiagnostics,
+        CancellationToken cancellationToken)
     {
-        var syntax = AwkSyntaxParser.Parse(source, maxSyntaxNestingDepth);
+        var syntax = AwkSyntaxParser.Parse(
+            source,
+            maxSyntaxNestingDepth,
+            maxTokens,
+            maxDiagnostics,
+            cancellationToken);
         if (syntax.Diagnostics.Count == 0)
         {
             return new AwkParseResult(AwkPhaseResult<AwkSyntaxProgram>.SuccessResult(

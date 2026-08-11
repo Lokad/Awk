@@ -16,6 +16,8 @@ internal sealed record AwkRuntimeLimits
     public const int DefaultMaxInputFiles = 10_000;
     public const int DefaultMaxPipes = 1_024;
     public const long DefaultMaxSourceBytes = 64L << 20;
+    public const int DefaultMaxSourceUnits = 10_000;
+    public const long DefaultMaxExpandedSourceBytes = 64L << 20;
     public const int DefaultMaxIncludeDepth = 128;
     public const int DefaultMaxIncludeFiles = 1_024;
     public const int DefaultInputReadBatchLineCount = 128;
@@ -64,6 +66,16 @@ internal sealed record AwkRuntimeLimits
 
     public long MaxSourceBytes { get; private init; } = DefaultMaxSourceBytes;
 
+    public int MaxSourceUnits { get; private init; } = DefaultMaxSourceUnits;
+
+    public long MaxExpandedSourceBytes { get; private init; } = DefaultMaxExpandedSourceBytes;
+
+    public int MaxFrontendCharacters { get; private init; } = int.MaxValue;
+
+    public int MaxFrontendTokens { get; private init; } = int.MaxValue;
+
+    public int MaxFrontendDiagnostics { get; private init; } = int.MaxValue;
+
     public int MaxIncludeDepth { get; private init; } = DefaultMaxIncludeDepth;
 
     public int MaxIncludeFiles { get; private init; } = DefaultMaxIncludeFiles;
@@ -91,6 +103,11 @@ internal sealed record AwkRuntimeLimits
             MaxInputFiles = policy.MaxInputFiles,
             MaxPipes = policy.MaxPipes,
             MaxSourceBytes = policy.MaxSourceBytes,
+            MaxSourceUnits = policy.MaxSourceUnits,
+            MaxExpandedSourceBytes = policy.MaxExpandedSourceBytes,
+            MaxFrontendCharacters = policy.MaxFrontendCharacters,
+            MaxFrontendTokens = policy.MaxFrontendTokens,
+            MaxFrontendDiagnostics = policy.MaxFrontendDiagnostics,
             MaxIncludeDepth = policy.MaxIncludeDepth,
             MaxIncludeFiles = policy.MaxIncludeFiles
         };
@@ -148,6 +165,21 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxSourceBytes(long value) =>
         this with { MaxSourceBytes = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxSourceUnits(int value) =>
+        this with { MaxSourceUnits = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxExpandedSourceBytes(long value) =>
+        this with { MaxExpandedSourceBytes = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxFrontendCharacters(int value) =>
+        this with { MaxFrontendCharacters = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxFrontendTokens(int value) =>
+        this with { MaxFrontendTokens = RequirePositive(value) };
+
+    public AwkRuntimeLimits WithMaxFrontendDiagnostics(int value) =>
+        this with { MaxFrontendDiagnostics = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxIncludeDepth(int value) =>
         this with { MaxIncludeDepth = RequirePositive(value) };

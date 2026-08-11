@@ -11,6 +11,7 @@ internal sealed class AwkRuntimeResourceMonitor
     private long _outputBytes;
     private long _regexRecordSeparatorBytesScanned;
     private long _sourceBytes;
+    private long _expandedSourceBytes;
     private int _includeFiles;
 
     public AwkRuntimeResourceMonitor(AwkRuntimeLimits limits, AwkRuntimeCounters counters)
@@ -18,6 +19,8 @@ internal sealed class AwkRuntimeResourceMonitor
         _limits = limits;
         _counters = counters;
     }
+
+    public AwkRuntimeLimits Limits => _limits;
 
     public void RecordHostCall()
     {
@@ -98,6 +101,34 @@ internal sealed class AwkRuntimeResourceMonitor
             throw new AwkRuntimeException(AwkMessages.ErrorSourceLimit, AwkDiagnosticId.RuntimeResourceLimit);
 
         _sourceBytes = next;
+    }
+
+    public void ThrowIfSourceUnitCountExceeded(int count)
+    {
+        if (count > _limits.MaxSourceUnits)
+            throw new AwkRuntimeException(AwkMessages.ErrorSourceUnitLimit, AwkDiagnosticId.RuntimeResourceLimit);
+    }
+
+    public void RecordExpandedSourceBytes(long byteCount)
+    {
+        if (byteCount <= 0)
+            return;
+
+        var next = AwkRuntimeMemory.CheckedAdd(_expandedSourceBytes, byteCount);
+        if (next > _limits.MaxExpandedSourceBytes)
+        {
+            throw new AwkRuntimeException(
+                AwkMessages.ErrorExpandedSourceLimit,
+                AwkDiagnosticId.RuntimeResourceLimit);
+        }
+
+        _expandedSourceBytes = next;
+    }
+
+    public void ThrowIfFrontendCharactersExceeded(int count)
+    {
+        if (count > _limits.MaxFrontendCharacters)
+            throw new AwkRuntimeException(AwkMessages.ErrorFrontendCharacterLimit, AwkDiagnosticId.RuntimeResourceLimit);
     }
 
     public void RecordInclude(int depth)

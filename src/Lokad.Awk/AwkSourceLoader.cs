@@ -20,6 +20,7 @@ internal static partial class AwkSourceLoader
             accessiblePathRoot,
             cleanupTimeout,
             allowSourceIncludes);
+        resources.ThrowIfSourceUnitCountExceeded(plan.SourceCount);
         var sources = new List<AwkSourceUnit>(plan.SourceCount);
         var inlineSourceIndex = 0;
         for (var index = 0; index < plan.SourceCount; index++)
@@ -46,6 +47,7 @@ internal static partial class AwkSourceLoader
                 if (expanded is not SourceExpansionResult.Loaded loaded)
                     throw new System.InvalidOperationException("Unexpected source expansion result.");
 
+                RecordExpandedSource(loaded.Source.Text);
                 sources.Add(new AwkSourceUnit(sourceName, loaded.Source.Text, loaded.Source.Segments));
                 continue;
             }
@@ -67,6 +69,7 @@ internal static partial class AwkSourceLoader
                 if (include is not SourceExpansionResult.Loaded loaded)
                     throw new System.InvalidOperationException("Unexpected source expansion result.");
 
+                RecordExpandedSource(loaded.Source.Text);
                 sources.Add(new AwkSourceUnit(
                     new AwkSourceName(AwkUtf8Codec.Decode(includePath.Display)),
                     loaded.Source.Text,
@@ -110,6 +113,7 @@ internal static partial class AwkSourceLoader
             if (expandedScript is not SourceExpansionResult.Loaded expandedFile)
                 throw new System.InvalidOperationException("Unexpected source expansion result.");
 
+            RecordExpandedSource(expandedFile.Source.Text);
             sources.Add(new AwkSourceUnit(
                 found.Script.SourceName,
                 expandedFile.Source.Text,
@@ -117,5 +121,13 @@ internal static partial class AwkSourceLoader
         }
 
         return AwkSourceLoadResult.FromSources(sources);
+
+        void RecordExpandedSource(string text)
+        {
+            if (sources.Count > 0)
+                resources.RecordExpandedSourceBytes(1);
+
+            resources.RecordExpandedSourceBytes(AwkUtf8Codec.GetEncodedByteCount(text));
+        }
     }
 }

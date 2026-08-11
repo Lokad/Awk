@@ -99,6 +99,21 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum aggregate UTF-8 bytes loaded as awk source.</summary>
     public long MaxSourceBytes { get; private init; } = 64L << 20;
 
+    /// <summary>Gets the maximum number of top-level source units in one invocation.</summary>
+    public int MaxSourceUnits { get; private init; } = 10_000;
+
+    /// <summary>Gets the maximum UTF-8 bytes in the fully expanded compilation source.</summary>
+    public long MaxExpandedSourceBytes { get; private init; } = 64L << 20;
+
+    /// <summary>Gets the maximum UTF-16 characters admitted to the frontend.</summary>
+    public int MaxFrontendCharacters { get; private init; } = int.MaxValue;
+
+    /// <summary>Gets the maximum token count produced by the frontend.</summary>
+    public int MaxFrontendTokens { get; private init; } = int.MaxValue;
+
+    /// <summary>Gets the maximum lexical diagnostics produced by the frontend.</summary>
+    public int MaxFrontendDiagnostics { get; private init; } = int.MaxValue;
+
     /// <summary>Gets the maximum nested <c>@include</c> depth.</summary>
     public int MaxIncludeDepth { get; private init; } = 128;
 
@@ -140,6 +155,11 @@ public sealed record AwkExecutionPolicy
             MaxInputFiles = 64,
             MaxPipes = 8,
             MaxSourceBytes = 4L << 20,
+            MaxSourceUnits = 256,
+            MaxExpandedSourceBytes = 4L << 20,
+            MaxFrontendCharacters = 512 << 10,
+            MaxFrontendTokens = 250_000,
+            MaxFrontendDiagnostics = 256,
             MaxIncludeDepth = 16,
             MaxIncludeFiles = 64
         };
@@ -268,6 +288,26 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the aggregate source-byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxSourceBytes(long value) =>
         this with { MaxSourceBytes = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the top-level source-unit budget configured.</summary>
+    public AwkExecutionPolicy WithMaxSourceUnits(int value) =>
+        this with { MaxSourceUnits = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the expanded compilation-source byte budget configured.</summary>
+    public AwkExecutionPolicy WithMaxExpandedSourceBytes(long value) =>
+        this with { MaxExpandedSourceBytes = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the frontend character budget configured.</summary>
+    public AwkExecutionPolicy WithMaxFrontendCharacters(int value) =>
+        this with { MaxFrontendCharacters = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the frontend token budget configured.</summary>
+    public AwkExecutionPolicy WithMaxFrontendTokens(int value) =>
+        this with { MaxFrontendTokens = RequirePositive(value) };
+
+    /// <summary>Returns a copy with the frontend diagnostic budget configured.</summary>
+    public AwkExecutionPolicy WithMaxFrontendDiagnostics(int value) =>
+        this with { MaxFrontendDiagnostics = RequirePositive(value) };
 
     /// <summary>Returns a copy with the include-depth budget configured.</summary>
     public AwkExecutionPolicy WithMaxIncludeDepth(int value) =>

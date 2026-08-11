@@ -1,13 +1,21 @@
 using System.Collections.Generic;
+using System.Threading;
 using Lokad.Parsing.Lexer;
 
 namespace Lokad.Awk;
 
 internal static class AwkLexer
 {
-    public static List<AwkToken> Tokenize(string source)
+    public static List<AwkToken> Tokenize(string source) =>
+        Tokenize(source, int.MaxValue, CancellationToken.None);
+
+    public static List<AwkToken> Tokenize(
+        string source,
+        int maxTokens,
+        CancellationToken cancellationToken)
     {
-        var lexer = new Lexer(source);
+        cancellationToken.ThrowIfCancellationRequested();
+        var lexer = new Lexer(source, maxTokens, cancellationToken);
         return lexer.Tokenize();
     }
 
@@ -16,22 +24,32 @@ internal static class AwkLexer
         private readonly string _source;
         private readonly List<AwkToken> _lexemes;
         private readonly List<AwkToken> _tokens = [];
+        private readonly int _maxTokens;
+        private readonly CancellationToken _cancellationToken;
         private int _position;
         private int _lexemeIndex;
         private bool _canStartRegex = true;
 
-        public Lexer(string source)
+        public Lexer(string source, int maxTokens, CancellationToken cancellationToken)
         {
             _source = source;
-            _lexemes = ReadContextFreeLexemes(source);
+            _maxTokens = maxTokens;
+            _cancellationToken = cancellationToken;
+            _lexemes = ReadContextFreeLexemes(source, cancellationToken);
 
-            static List<AwkToken> ReadContextFreeLexemes(string source)
+            static List<AwkToken> ReadContextFreeLexemes(
+                string source,
+                CancellationToken cancellationToken)
             {
                 var reader = new ReflectionTokenReader<AwkTokenKind>();
                 var result = reader.ReadAllTokens(source);
                 var lexemes = new List<AwkToken>(result.Tokens.Count);
+                var index = 0;
                 foreach (var token in result.Tokens)
                 {
+                    if ((index++ & 1023) == 0)
+                        cancellationToken.ThrowIfCancellationRequested();
+
                     lexemes.Add(AwkToken.FromSource(
                         token.Length == 0
                             ? token.Token
@@ -48,6 +66,9 @@ internal static class AwkLexer
         {
             while (true)
             {
+                if ((_tokens.Count & 1023) == 0)
+                    _cancellationToken.ThrowIfCancellationRequested();
+
                 SkipLexemesBeforePosition();
                 if (_lexemeIndex >= _lexemes.Count)
                     break;
@@ -234,6 +255,13 @@ internal static class AwkLexer
 
         private void AddToken(AwkTokenKind kind, int start, int length)
         {
+            if (_tokens.Count >= _maxTokens)
+            {
+                throw new AwkRuntimeException(
+                    AwkMessages.ErrorFrontendTokenLimit,
+                    AwkDiagnosticId.RuntimeResourceLimit);
+            }
+
             _tokens.Add(AwkToken.FromSource(kind, _source, new AwkTextSpan(start, length)));
             _position = start + length;
             _canStartRegex = AwkRegexStart.CanStartAfter(kind);

@@ -96,6 +96,16 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: pipe limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorSourceLimit =
         AwkUtf8Codec.Encode("awk: source byte limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorSourceUnitLimit =
+        AwkUtf8Codec.Encode("awk: source unit limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorExpandedSourceLimit =
+        AwkUtf8Codec.Encode("awk: expanded source byte limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorFrontendCharacterLimit =
+        AwkUtf8Codec.Encode("awk: frontend character limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorFrontendTokenLimit =
+        AwkUtf8Codec.Encode("awk: frontend token limit exceeded\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorFrontendDiagnosticLimit =
+        AwkUtf8Codec.Encode("awk: frontend diagnostic limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorIncludeDepthLimit =
         AwkUtf8Codec.Encode("awk: include depth limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorIncludeFileLimit =

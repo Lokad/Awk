@@ -9,7 +9,8 @@ internal static class AwkFrontendDiagnosticPolicy
     public static void AddLexicalDiagnostics(
         string source,
         IReadOnlyList<AwkToken> tokens,
-        List<AwkDiagnostic> diagnostics)
+        List<AwkDiagnostic> diagnostics,
+        int maxDiagnostics = int.MaxValue)
     {
         for (var index = 0; index < tokens.Count; index++)
         {
@@ -20,11 +21,11 @@ internal static class AwkFrontendDiagnosticPolicy
                     text.StartsWith("@/", StringComparison.Ordinal)
                     ? AwkDiagnosticId.ParseInvalidRegex
                     : AwkDiagnosticId.ParseSyntax;
-                diagnostics.Add(new AwkDiagnostic(tokens[index].Span, "Unrecognized awk token.", id));
+                AddDiagnostic(new AwkDiagnostic(tokens[index].Span, "Unrecognized awk token.", id));
             }
             else if (TryGetUnsupportedDiagnostic(source, tokens, index, out var unsupportedMessage))
             {
-                diagnostics.Add(new AwkDiagnostic(
+                AddDiagnostic(new AwkDiagnostic(
                     tokens[index].Span,
                     AwkUtf8Codec.Decode(unsupportedMessage).TrimEnd('\r', '\n'),
                     AwkDiagnosticId.UnsupportedPolicy));
@@ -56,7 +57,7 @@ internal static class AwkFrontendDiagnosticPolicy
 
                 if (escaped == 'x')
                 {
-                    diagnostics.Add(new AwkDiagnostic(
+                    AddDiagnostic(new AwkDiagnostic(
                         token.Span,
                         AwkMessages.FormatStringHexEscapeWarning(),
                         AwkDiagnosticId.WarningStringEscape));
@@ -69,7 +70,7 @@ internal static class AwkFrontendDiagnosticPolicy
                 if (AwkEscapes.TryDecodeSimpleEscape(escaped, out _))
                     continue;
 
-                diagnostics.Add(new AwkDiagnostic(
+                AddDiagnostic(new AwkDiagnostic(
                     token.Span,
                     AwkMessages.FormatStringEscapeWarning(escaped),
                     AwkDiagnosticId.WarningStringEscape));
@@ -80,11 +81,23 @@ internal static class AwkFrontendDiagnosticPolicy
         {
             if (!AwkRegexSyntaxValidator.IsValidLiteral(token))
             {
-                diagnostics.Add(new AwkDiagnostic(
+                AddDiagnostic(new AwkDiagnostic(
                     token.Span,
                     "Invalid regular expression.",
                     AwkDiagnosticId.ParseInvalidRegex));
             }
+        }
+
+        void AddDiagnostic(AwkDiagnostic diagnostic)
+        {
+            if (diagnostics.Count >= maxDiagnostics)
+            {
+                throw new AwkRuntimeException(
+                    AwkMessages.ErrorFrontendDiagnosticLimit,
+                    AwkDiagnosticId.RuntimeResourceLimit);
+            }
+
+            diagnostics.Add(diagnostic);
         }
 
         static bool TryGetUnsupportedDiagnostic(
