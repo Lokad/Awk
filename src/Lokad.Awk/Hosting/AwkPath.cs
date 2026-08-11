@@ -25,6 +25,11 @@ public sealed class AwkPath
         Path = "/";
     }
 
+    private AwkPath(string path, AwkPathConstruction _)
+    {
+        Path = path;
+    }
+
     /// <summary>Gets the canonical absolute path text.</summary>
     public string Path { get; }
 
@@ -126,14 +131,15 @@ public sealed class AwkPath
         AwkPathSegment segment,
         [NotNullWhen(true)] out AwkPath? child)
     {
-        if (!AwkPathSegment.IsValid(segment.Name))
+        var name = segment.Name;
+        if (name.Length == 0)
         {
             child = null;
             return false;
         }
 
-        var combined = IsRoot ? "/" + segment.Name : Path + "/" + segment.Name;
-        child = new AwkPath(combined);
+        var combined = IsRoot ? "/" + name : Path + "/" + name;
+        child = new AwkPath(combined, AwkPathConstruction.Validated);
         return true;
     }
 
@@ -162,6 +168,11 @@ public sealed class AwkPath
 
     /// <inheritdoc />
     public override int GetHashCode() => Path.GetHashCode(StringComparison.Ordinal);
+
+    private enum AwkPathConstruction
+    {
+        Validated
+    }
 }
 
 /// <summary>Represents one validated component of an <see cref="AwkPath"/>.</summary>
@@ -179,6 +190,11 @@ public readonly record struct AwkPathSegment
         _name = name;
     }
 
+    private AwkPathSegment(string name, AwkPathSegmentConstruction _)
+    {
+        _name = name;
+    }
+
     /// <summary>Gets the segment text.</summary>
     public string Name => _name ?? string.Empty;
 
@@ -187,7 +203,7 @@ public readonly record struct AwkPathSegment
     {
         if (name is not null && IsValid(name))
         {
-            segment = new AwkPathSegment(name);
+            segment = new AwkPathSegment(name, AwkPathSegmentConstruction.Validated);
             return true;
         }
 
@@ -212,6 +228,11 @@ public readonly record struct AwkPathSegment
 
     /// <inheritdoc />
     public override string ToString() => Name;
+
+    private enum AwkPathSegmentConstruction
+    {
+        Validated
+    }
 }
 
 /// <summary>Represents a failure to resolve a well-formed awk path.</summary>
