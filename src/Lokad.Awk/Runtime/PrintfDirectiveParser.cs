@@ -3,10 +3,13 @@ namespace Lokad.Awk;
 internal static class PrintfDirectiveParser
 {
     public static PrintfDirective Read<TArguments>(
-        string format, int index, AwkCompatibilityMode mode, ref PrintfArgumentCursor<TArguments> arguments)
+        string format, int index, AwkCompatibilityMode mode, ref PrintfArgumentCursor<TArguments> arguments,
+        Action? checkpoint = null)
         where TArguments : IPrintfArguments
     {
+        checkpoint?.Invoke();
         var cursor = index + 1;
+        long nextCheckpoint = cursor;
         var flags = PrintfFlags.None;
         var width = new PrintfWidthValue(0);
         var precision = PrintfPrecisionValue.None;
@@ -21,6 +24,11 @@ internal static class PrintfDirectiveParser
         // arguments and validate explicit positions.
         while (cursor < format.Length)
         {
+            if (cursor >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = (long)cursor + AwkExecutionGovernor.WorkChunkBytes;
+            }
             specifier = format[cursor++];
             switch (specifier)
             {
@@ -34,7 +42,7 @@ internal static class PrintfDirectiveParser
                             continue;
                     }
                     cursor--;
-                    var value = ReadDigits(format, ref cursor);
+                    var value = ReadDigits(format, ref cursor, checkpoint);
                     if (part == PrintfDirectivePart.Width)
                         width = new(value);
                     else
@@ -59,7 +67,7 @@ internal static class PrintfDirectiveParser
                 case '*':
                     if (part == PrintfDirectivePart.Complete)
                         goto Finish;
-                    var control = ReadControlPosition(format, ref cursor, mode);
+                    var control = ReadControlPosition(format, ref cursor, mode, checkpoint);
                     var number = arguments.ReadDynamicNumber(control);
                     if (part == PrintfDirectivePart.Width)
                         width = ResolveWidth(number, ref flags);
@@ -110,14 +118,16 @@ internal static class PrintfDirectiveParser
         // Preserve the entire unfinished directive rather than parsing its tail again.
         specifier = '\0';
         Finish:
+        checkpoint?.Invoke();
         return new(flags, width, precision, PrintfConversionFacts.Parse(specifier), position, cursor - 1);
     }
 
-    private static PrintfArgumentPosition ReadControlPosition(string format, ref int cursor, AwkCompatibilityMode mode)
+    private static PrintfArgumentPosition ReadControlPosition(string format, ref int cursor, AwkCompatibilityMode mode, Action? checkpoint)
     {
+        checkpoint?.Invoke();
         if (mode != AwkCompatibilityMode.GnuDefault || cursor >= format.Length || !char.IsAsciiDigit(format[cursor]))
             return default;
-        var value = ReadDigits(format, ref cursor);
+        var value = ReadDigits(format, ref cursor, checkpoint);
         if (cursor >= format.Length || format[cursor] != '$')
             throw new AwkRuntimeException(AwkMessages.ErrorPrintfPositionSuffix);
         cursor++;
@@ -148,11 +158,18 @@ internal static class PrintfDirectiveParser
         return PrintfPrecisionValue.Specified((int)value);
     }
 
-    private static int ReadDigits(string format, ref int cursor)
+    private static int ReadDigits(string format, ref int cursor, Action? checkpoint)
     {
+        checkpoint?.Invoke();
         var value = 0;
+        long nextCheckpoint = cursor;
         while (cursor < format.Length && char.IsAsciiDigit(format[cursor]))
         {
+            if (cursor >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = (long)cursor + AwkExecutionGovernor.WorkChunkBytes;
+            }
             var digit = format[cursor++] - '0';
             if (value > (int.MaxValue - digit) / 10)
                 throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);

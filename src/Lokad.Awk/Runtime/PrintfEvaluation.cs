@@ -24,9 +24,12 @@ internal static class PrintfEvaluation
         where TArguments : IPrintfArguments
     {
         if (format.Length == 0)
+        {
+            checkpoint?.Invoke();
             return AwkText.Empty;
+        }
 
-        using var output = new PrintfByteOutput(limits, counters, governor);
+        using var output = new PrintfByteOutput(limits, counters, governor, checkpoint);
         var argumentCursor = new PrintfArgumentCursor<TArguments>(arguments, missingArgumentPolicy, format, counters, governor, checkpoint);
 
         long nextCheckpoint = 0;
@@ -79,7 +82,7 @@ internal static class PrintfEvaluation
             }
 
             var directiveStart = index;
-            var directive = PrintfDirectiveParser.Read(format, index, compatibilityMode, ref argumentCursor);
+            var directive = PrintfDirectiveParser.Read(format, index, compatibilityMode, ref argumentCursor, checkpoint);
             index = directive.EndIndex;
             var flags = directive.Flags;
             var width = directive.Width;
@@ -97,10 +100,11 @@ internal static class PrintfEvaluation
                 {
                     output.PreflightAdditionalBytes(width.Value);
                     var value = arguments.GetString(argumentIndex);
+                    checkpoint?.Invoke();
                     if (precision.HasValue)
-                        value = TruncateToRuneCount(value, precision.Value);
+                        value = TruncateToRuneCount(value, precision.Value, checkpoint);
 
-                    AppendWithWidth(output, value, width.Value, flags.LeftJustify, zeroPad: false);
+                    AppendWithWidth(output, value, width.Value, flags.LeftJustify, zeroPad: false, checkpoint);
                 }
 
                 continue;
@@ -111,11 +115,12 @@ internal static class PrintfEvaluation
                 if (!argumentCursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
                     continue;
                 var number = arguments.GetNumber(argumentIndex);
+                checkpoint?.Invoke();
                 if (!double.IsFinite(number))
                 {
                     var special = FormatNonfinite(number, directive.Conversion, flags, compatibilityMode);
                     output.PreflightAdditionalBytes(Math.Max(width.Value, special.Length));
-                    AppendWithWidth(output, special, width.Value, flags.LeftJustify, zeroPad: false);
+                    AppendWithWidth(output, special, width.Value, flags.LeftJustify, zeroPad: false, checkpoint);
                 }
                 else if (directive.Conversion.IsInteger())
                     AppendInteger(output, number, directive.Conversion, flags, width.Value, precision);
@@ -123,14 +128,17 @@ internal static class PrintfEvaluation
                 {
                     var hexadecimal = AwkHexFloatFormat.CreateFinite(number, precision, flags, directive.Conversion.IsUppercase());
                     output.PreflightAdditionalBytes(Math.Max(width.Value, hexadecimal.ByteCount));
-                    AppendWithWidth(output, hexadecimal.Format(), width.Value, flags.LeftJustify, flags.ZeroPad);
+                    checkpoint?.Invoke();
+                    var formatted = hexadecimal.Format();
+                    checkpoint?.Invoke();
+                    AppendWithWidth(output, formatted, width.Value, flags.LeftJustify, flags.ZeroPad, checkpoint);
                 }
                 else
                 {
                     output.PreflightAdditionalBytes(Math.Max(
                         width.Value, EstimateFloatByteCount(number, directive.Conversion, precision)));
-                    var formatted = FormatFloat(number, directive.Conversion, precision, flags);
-                    AppendWithWidth(output, formatted, width.Value, flags.LeftJustify, flags.ZeroPad);
+                    var formatted = FormatFloat(number, directive.Conversion, precision, flags, checkpoint);
+                    AppendWithWidth(output, formatted, width.Value, flags.LeftJustify, flags.ZeroPad, checkpoint);
                 }
                 continue;
             }
@@ -140,7 +148,7 @@ internal static class PrintfEvaluation
             {
                 if (argumentCursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
                 {
-                    var formatted = FormatCharacter(arguments, argumentIndex);
+                    var formatted = FormatCharacter(arguments, argumentIndex, checkpoint);
                     output.PreflightAdditionalBytes(Math.Max(
                         width.Value,
                         AwkUtf8Codec.GetEncodedByteCount(formatted)));
@@ -149,7 +157,7 @@ internal static class PrintfEvaluation
                         formatted,
                         width.Value,
                         flags.LeftJustify,
-                        zeroPad: false);
+                        zeroPad: false, checkpoint);
                 }
 
                 continue;
@@ -158,7 +166,10 @@ internal static class PrintfEvaluation
             output.Append(format.AsSpan(directiveStart, index - directiveStart + 1));
         }
 
-        return output.ToAwkText();
+        checkpoint?.Invoke();
+        var result = output.ToAwkText();
+        checkpoint?.Invoke();
+        return result;
 
         static void AppendInteger(
             PrintfByteOutput output, double number, PrintfConversion conversion, PrintfFlags flags,
@@ -278,8 +289,9 @@ internal static class PrintfEvaluation
             double value,
             PrintfConversion conversion,
             PrintfPrecisionValue precision,
-            PrintfFlags flags)
+            PrintfFlags flags, Action? checkpoint)
         {
+            checkpoint?.Invoke();
             var digits = precision.HasValue ? precision.Value : 6;
             if (conversion is PrintfConversion.GeneralLower or PrintfConversion.GeneralUpper && digits == 0)
                 digits = 1;
@@ -292,12 +304,14 @@ internal static class PrintfEvaluation
                 _ => "G" + digits.ToString(CultureInfo.InvariantCulture)
             };
             var formatted = value.ToString(formatSpecifier, CultureInfo.InvariantCulture);
-            formatted = NormalizeFloatExponent(formatted, conversion);
-            formatted = ApplyAlternateFloatForm(formatted, flags.AlternateForm, conversion, digits);
+            checkpoint?.Invoke();
+            formatted = NormalizeFloatExponent(formatted, conversion, checkpoint);
+            formatted = ApplyAlternateFloatForm(formatted, flags.AlternateForm, conversion, digits, checkpoint);
             return ApplyNumericSign(formatted, value < 0, flags.ForceSign, flags.LeadingSpace, signedConversion: true);
 
-            static string ApplyAlternateFloatForm(string formatted, bool alternateForm, PrintfConversion conversion, int precision)
+            static string ApplyAlternateFloatForm(string formatted, bool alternateForm, PrintfConversion conversion, int precision, Action? checkpoint)
             {
+                checkpoint?.Invoke();
                 if (!alternateForm)
                 {
                     return formatted;
@@ -314,22 +328,31 @@ internal static class PrintfEvaluation
                 if (conversion is PrintfConversion.GeneralLower or PrintfConversion.GeneralUpper)
                 {
                     var significantPrecision = precision == 0 ? 1 : precision;
-                    var significantDigits = CountSignificantDigits(mantissa);
+                    var significantDigits = CountSignificantDigits(mantissa, checkpoint);
                     if (significantDigits < significantPrecision)
                     {
                         mantissa += new string('0', significantPrecision - significantDigits);
                     }
                 }
 
-                return mantissa + exponent;
+                checkpoint?.Invoke();
+                var result = mantissa + exponent;
+                checkpoint?.Invoke();
+                return result;
 
-                static int CountSignificantDigits(string mantissa)
+                static int CountSignificantDigits(string mantissa, Action? checkpoint)
                 {
                     var count = 0;
+                    long nextCheckpoint = 0;
                     var sawNonZero = false;
                     var hasDigit = false;
                     for (var index = 0; index < mantissa.Length; index++)
                     {
+                        if (index >= nextCheckpoint)
+                        {
+                            checkpoint?.Invoke();
+                            nextCheckpoint = (long)index + AwkExecutionGovernor.WorkChunkBytes;
+                        }
                         var current = mantissa[index];
                         if (!char.IsDigit(current))
                         {
@@ -348,8 +371,9 @@ internal static class PrintfEvaluation
                 }
             }
 
-            static string NormalizeFloatExponent(string formatted, PrintfConversion conversion)
+            static string NormalizeFloatExponent(string formatted, PrintfConversion conversion, Action? checkpoint)
             {
+                checkpoint?.Invoke();
                 var exponentIndex = formatted.IndexOfAny(['e', 'E']);
                 if (exponentIndex < 0)
                 {
@@ -367,11 +391,13 @@ internal static class PrintfEvaluation
 
                 while (exponent.Length > 2 && exponent[0] == '0')
                 {
+                    checkpoint?.Invoke();
                     exponent = exponent[1..];
                 }
 
                 while (exponent.Length < 2)
                 {
+                    checkpoint?.Invoke();
                     exponent = "0" + exponent;
                 }
 
@@ -379,9 +405,9 @@ internal static class PrintfEvaluation
             }
         }
 
-        static void AppendWithWidth(PrintfByteOutput output, string text, int width, bool leftJustify, bool zeroPad)
+        static void AppendWithWidth(PrintfByteOutput output, string text, int width, bool leftJustify, bool zeroPad, Action? checkpoint)
         {
-            var textWidth = CountRunes(text);
+            var textWidth = CountRunes(text, checkpoint);
             if (width <= 0 || textWidth >= width)
             {
                 output.Append(text);
@@ -409,12 +435,23 @@ internal static class PrintfEvaluation
             output.AppendAscii(zeroPad ? '0' : ' ', width - textWidth);
             output.Append(text);
 
-            static int CountRunes(string text)
+            static int CountRunes(string text, Action? checkpoint)
             {
+                checkpoint?.Invoke();
                 var count = 0;
-                foreach (var _ in text.EnumerateRunes())
+                var utf16Length = 0;
+                long nextCheckpoint = 0;
+                foreach (var rune in text.EnumerateRunes())
+                {
+                    if (utf16Length >= nextCheckpoint)
+                    {
+                        checkpoint?.Invoke();
+                        nextCheckpoint = (long)utf16Length + AwkExecutionGovernor.WorkChunkBytes;
+                    }
                     count++;
-
+                    utf16Length += rune.Utf16SequenceLength;
+                }
+                checkpoint?.Invoke();
                 return count;
             }
         }
@@ -455,15 +492,22 @@ internal static class PrintfEvaluation
             return AwkRuntimeMemory.CheckedAdd(digits, overhead);
         }
 
-        static string TruncateToRuneCount(string text, int maximumRuneCount)
+        static string TruncateToRuneCount(string text, int maximumRuneCount, Action? checkpoint)
         {
+            checkpoint?.Invoke();
             if (maximumRuneCount <= 0 || text.Length == 0)
                 return string.Empty;
 
             var runeCount = 0;
             var utf16Length = 0;
+            long nextCheckpoint = 0;
             foreach (var rune in text.EnumerateRunes())
             {
+                if (utf16Length >= nextCheckpoint)
+                {
+                    checkpoint?.Invoke();
+                    nextCheckpoint = (long)utf16Length + AwkExecutionGovernor.WorkChunkBytes;
+                }
                 if (runeCount == maximumRuneCount)
                     break;
 
@@ -471,20 +515,26 @@ internal static class PrintfEvaluation
                 utf16Length += rune.Utf16SequenceLength;
             }
 
-            return utf16Length == text.Length ? text : text[..utf16Length];
+            checkpoint?.Invoke();
+            var truncated = utf16Length == text.Length ? text : text[..utf16Length];
+            checkpoint?.Invoke();
+            return truncated;
         }
 
-        static string FormatCharacter(IPrintfArguments arguments, int index)
+        static string FormatCharacter(IPrintfArguments arguments, int index, Action? checkpoint)
         {
+            checkpoint?.Invoke();
             if (arguments.IsNumeric(index))
             {
                 var code = (long)arguments.GetNumber(index);
+                checkpoint?.Invoke();
                 return code >= 0 && code <= int.MaxValue && Rune.IsValid((int)code)
                     ? new Rune((int)code).ToString()
                     : string.Empty;
             }
 
             var value = arguments.GetString(index);
+            checkpoint?.Invoke();
             return value.Length == 0 ? string.Empty : Rune.GetRuneAt(value, 0).ToString();
         }
     }
@@ -531,12 +581,14 @@ internal static class PrintfEvaluation
         private readonly AwkRuntimeCounters _counters;
         private readonly AwkMemoryGovernor _governor;
         private readonly AwkUtf8Builder _builder;
+        private readonly Action? _checkpoint;
 
         public PrintfByteOutput(
             AwkRuntimeLimits limits,
             AwkRuntimeCounters counters,
-            AwkMemoryGovernor governor)
+            AwkMemoryGovernor governor, Action? checkpoint)
         {
+            _checkpoint = checkpoint;
             _limits = limits;
             _counters = counters;
             _governor = governor;
@@ -547,9 +599,16 @@ internal static class PrintfEvaluation
 
         public void Append(ReadOnlySpan<char> text)
         {
+            var longText = text.Length >= AwkExecutionGovernor.WorkChunkBytes;
+            if (longText)
+                _checkpoint?.Invoke();
             var byteCount = AwkUtf8Codec.GetEncodedByteCount(text);
+            if (longText)
+                _checkpoint?.Invoke();
             PreflightAdditionalBytes(byteCount);
             _builder.AppendUtf8(text);
+            if (longText)
+                _checkpoint?.Invoke();
         }
 
         public void AppendAscii(char value)
@@ -571,8 +630,13 @@ internal static class PrintfEvaluation
             if (value > 0x7F)
                 throw new ArgumentOutOfRangeException(nameof(value));
 
+            var longPadding = count >= AwkExecutionGovernor.WorkChunkBytes;
+            if (longPadding)
+                _checkpoint?.Invoke();
             PreflightAdditionalBytes(count);
             _builder.Append((byte)value, count);
+            if (longPadding)
+                _checkpoint?.Invoke();
         }
 
         public void PreflightAdditionalBytes(int byteCount)

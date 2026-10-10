@@ -329,6 +329,21 @@ check within their loops. These callbacks do not charge bytes again: existing of
 admission remains separate. Interrupted rune scans publish no partial count/index, and sparse-index
 reservations remain live during construction and are released on failure.
 
+Printf's inner flag, width/precision and positional-control digit scans now use the same
+cancellation callback at roughly 4 KiB of UTF-16 input. String width and precision scans track
+consumed UTF-16 units, so surrogate pairs crossing a threshold cannot skip the next checkpoint.
+Significant-digit and exponent normalization helpers also propagate the callback. These checks
+do not add logical byte/fuel charges. Conversion/formatting and result-copy boundaries are checked
+before pending output is returned; canceled formatting discards its staged builder and releases
+transient reservations. No callback is retained in the returned text.
+
+String/number conversion, .NET float formatting, hexadecimal string construction, UTF-8 encoding,
+buffer copies and large span padding fills remain one-shot framework work. Existing output/value/
+builder/allocation preflights still precede construction; checks before/after these calls observe
+cancellation cooperatively without making the underlying call interruptible. Integer/octal and
+hexadecimal significand loops are fixed-size work for a double/ulong. Formatting caches and lazy
+runtime-text materialization remain part of the broader text/framework audit.
+
 Binding, symbol/semantic passes, lowering, function parameter/layout construction and executable
 compilation now propagate the caller's existing cancellation callback through their traversals.
 Owned contextual lexer comment/string/regex scans, literal scans/decoding and string-escape diagnostics
@@ -353,8 +368,8 @@ callback, so a canceled run cannot poison that cache. Source/token/nesting/diagn
 admitted frontend data; they do not promise a CPU deadline. Array allocation, token-array sorting,
 List.ToArray/AddRange, StringBuilder.ToString and substring/string construction remain one-shot
 framework boundaries. Checks surround completed construction/publication where applicable; a
-canceled caller receives no completed parse result. Later regex translation/analysis, remaining
-formatting helpers and lazy runtime-text materialization remain under audit. No universal bounded
+canceled caller receives no completed parse result. Later regex translation/analysis and lazy
+runtime-text materialization remain under audit. No universal bounded
 cancellation latency or forced CPU preemption is claimed.
 Utf8Parser decimal conversion, span search/comparison, UTF-8/string conversions, invariant Unicode
 casing, and .NET and UTF-8 regex constructors do not accept caller cancellation;

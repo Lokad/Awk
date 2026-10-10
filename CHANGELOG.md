@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Printf flag/digit parsing, Unicode width/precision traversal and floating-point
+  postprocessing now propagate cooperative cancellation without extra fuel charges.
+  Pending formatted output is discarded on cancellation and builder reservations are
+  released. Numeric formatting/encoding/copy/padding framework calls remain documented
+  one-shot boundaries with existing output and memory preflights.
+
 - Grammar reductions, token preparation/navigation, source/include assembly, directives,
   continuation maps and diagnostic mapping now propagate cooperative cancellation.
   Interrupted frontend cache construction publishes no partial snapshot and can be retried;
@@ -20,7 +26,7 @@
   conversion and printf numeric arguments now reuse the execution's cancellation callback.
   Interrupted rune scans publish no partial cache and release index reservations.
   Logical byte admission and positive explicit fuel quotas retain their semantics.
-  Frontend, remaining formatting helpers and regex translation/backend coverage remain under audit.
+  Runtime text materialization and regex translation/backend coverage remain under audit.
 
 - Ordinary and restricted execution no longer have an implicit fuel cutoff, matching
   current lython defaults. MaxExecutionSteps reports zero when unset; existing positive
