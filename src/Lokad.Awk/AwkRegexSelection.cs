@@ -8,16 +8,21 @@ namespace Lokad.Awk;
 internal readonly record struct AwkRegexSelection(bool RequiresLongest, int MaximumScalars,
     bool RequiresCaptureSelection = false)
 {
-    public static AwkRegexSelection Analyze(string pattern)
+    public static AwkRegexSelection Analyze(string pattern, Action? checkpoint = null, AwkMemoryGovernor? governor = null)
     {
-        var frames = new Stack<Frame>();
+        governor ??= AwkMemoryGovernor.Disabled;
+        using var storage = governor.CreateTransientLease();
+        Frame[] frames = [];
+        var depth = 0;
         var frame = new Frame();
+        long nextCheckpoint = 0;
         for (var index = 0; index < pattern.Length; index++)
         {
+            AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
             switch (pattern[index])
             {
                 case '[':
-                    var end = BracketEnd(pattern, index);
+                    var end = BracketEnd(pattern, index, checkpoint);
                     if (end < 0)
                         return default;
                     index = end;
@@ -32,7 +37,7 @@ internal readonly record struct AwkRegexSelection(bool RequiresLongest, int Maxi
                         return default;
                     if (escaped is 'p' or 'P' && index + 1 < pattern.Length && pattern[index + 1] == '{')
                     {
-                        var close = pattern.IndexOf('}', index + 2);
+                        var close = AwkRegexConstruction.IndexOf(pattern, '}', index + 2, checkpoint);
                         if (close < 0)
                             return default;
                         index = close;
@@ -49,7 +54,7 @@ internal readonly record struct AwkRegexSelection(bool RequiresLongest, int Maxi
                     var zeroWidth = false;
                     if (index + 1 < pattern.Length && pattern[index + 1] == '?')
                     {
-                        if (!TryReadGroupHeader(pattern, ref index, out zeroWidth))
+                        if (!TryReadGroupHeader(pattern, ref index, out zeroWidth, checkpoint))
                             return default;
                         if (pattern[index] == ')')
                         {
@@ -57,18 +62,36 @@ internal readonly record struct AwkRegexSelection(bool RequiresLongest, int Maxi
                             break;
                         }
                     }
-                    frames.Push(frame);
+                    if (depth == frames.Length)
+                    {
+                        var capacity = Math.Max(4, AwkRuntimeMemory.CheckedToInt32(
+                            AwkRuntimeMemory.CheckedMultiply(frames.Length, 2)));
+                        storage.ReserveAdditional(AwkRuntimeMemory.EstimateRegexAnalysisFrameArrayBytes(capacity));
+                        var next = new Frame[capacity];
+                        for (var copied = 0; copied < depth;)
+                        {
+                            checkpoint?.Invoke();
+                            var count = Math.Min(64, depth - copied);
+                            frames.AsSpan(copied, count).CopyTo(next.AsSpan(copied, count));
+                            copied += count;
+                        }
+                        checkpoint?.Invoke();
+                        storage.Release(AwkRuntimeMemory.EstimateRegexAnalysisFrameArrayBytes(frames.Length));
+                        frames = next;
+                    }
+                    frames[depth++] = frame;
                     frame = new Frame { ZeroWidth = zeroWidth, Captures = captures };
                     break;
                 case ')':
-                    if (frames.Count == 0)
+                    if (depth == 0)
                         return default;
                     var group = frame.Finish();
                     if (frame.ZeroWidth)
                         group = Width.Empty;
                     else if (frame.Captures)
                         group = group with { HasCapture = true, NestedCapture = group.HasCapture || group.NestedCapture };
-                    frame = frames.Pop();
+                    frame = frames[--depth];
+                    frames[depth] = default;
                     frame.Add(group);
                     break;
                 case '|':
@@ -108,7 +131,8 @@ internal readonly record struct AwkRegexSelection(bool RequiresLongest, int Maxi
             }
         }
 
-        if (frames.Count != 0)
+        checkpoint?.Invoke();
+        if (depth != 0)
             return default;
         var result = frame.Finish();
         var longest = result.Ambiguous && result.Variable;
@@ -116,24 +140,27 @@ internal readonly record struct AwkRegexSelection(bool RequiresLongest, int Maxi
             result.HasCapture && (longest || result.CaptureAmbiguous));
     }
 
-    internal static int BracketEnd(string pattern, int opening)
+    internal static int BracketEnd(string pattern, int opening, Action? checkpoint = null)
     {
         var index = opening + 1;
+        long nextCheckpoint = 0;
         if (index < pattern.Length && pattern[index] == '^')
             index++;
         if (index < pattern.Length && pattern[index] == ']')
             index++;
         for (; index < pattern.Length; index++)
         {
+            AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
             if (pattern[index] == '\\')
                 index++;
             else if (pattern[index] == ']')
                 return index;
         }
+        checkpoint?.Invoke();
         return -1;
     }
 
-    private static bool TryReadGroupHeader(string pattern, ref int index, out bool zeroWidth)
+    private static bool TryReadGroupHeader(string pattern, ref int index, out bool zeroWidth, Action? checkpoint)
     {
         zeroWidth = false;
         var header = index + 2;
@@ -155,16 +182,18 @@ internal readonly record struct AwkRegexSelection(bool RequiresLongest, int Maxi
                 return true;
             case '<':
             case '\'':
-                var close = pattern.IndexOf(pattern[header] == '<' ? '>' : '\'', header + 1);
-                if (close < 0 || pattern.AsSpan(header + 1, close - header - 1).Contains('-'))
+                var close = AwkRegexConstruction.IndexOf(pattern, pattern[header] == '<' ? '>' : '\'', header + 1, checkpoint);
+                if (close < 0 || AwkRegexConstruction.Contains(pattern.AsSpan(header + 1, close - header - 1), '-', checkpoint))
                     return false;
                 index = close;
                 return true;
             default:
                 // Whitespace/comment mode, atomic groups and conditionals retain their
                 // inherited backend semantics; they are outside the awk ERE contract.
+                long nextCheckpoint = 0;
                 for (var option = header; option < pattern.Length; option++)
                 {
+                    AwkRegexConstruction.CheckProgress(option, ref nextCheckpoint, checkpoint);
                     if (pattern[option] is ':' or ')')
                     {
                         index = option;
@@ -236,7 +265,7 @@ internal readonly record struct AwkRegexSelection(bool RequiresLongest, int Maxi
         private static int Multiply(int left, int right) => (int)Math.Min(int.MaxValue, (long)left * right);
     }
 
-    private sealed class Frame
+    private struct Frame
     {
         private Width _sequence;
         private Width _atom;
@@ -283,16 +312,17 @@ internal sealed class AwkLongestRegex
     public Regex Regex { get; }
     public int[] Groups { get; }
 
-    public static AwkLongestRegex Create(AwkRegex source, AwkRegexCaseSensitivity caseSensitivity)
+    public static AwkLongestRegex Create(AwkRegex source, AwkRegexCaseSensitivity caseSensitivity, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         var names = source.Backend switch
         {
             AwkDotNetRegexBackend dotNet => dotNet.Value.GetGroupNames(),
             AwkUtf8RegexBackend utf8 => utf8.Value.GetGroupNames(),
             _ => throw new InvalidOperationException("Unknown regex backend.")
         };
-        var prefixName = UniqueName(names, "LokadPrefix");
-        var wholeName = UniqueName(names, "LokadWhole");
+        var prefixName = UniqueName(names, "LokadPrefix", checkpoint);
+        var wholeName = UniqueName(names, "LokadWhole", checkpoint);
         var maximum = source.Selection.MaximumScalars;
         var length = maximum == int.MaxValue ? "*" : "{0," + maximum.ToString(CultureInfo.InvariantCulture) + "}";
         var prefix = @"\k<" + prefixName + ">";
@@ -301,38 +331,58 @@ internal sealed class AwkLongestRegex
         // selects the longest endpoint using a capture-free right-to-left probe.
         // The original expression then captures left-to-right at that exact endpoint.
         // Every assertion sees the complete input, including before startAt.
-        var stripped = StripCaptures(source.Pattern);
+        var stripped = StripCaptures(source.Pattern, checkpoint);
         var pattern = @"\G(?<" + prefixName + ">" + AwkRegexScalarPattern.AnyScalar + @"*?)(?=(?:" +
             stripped + @"))(?=(?<" +
             wholeName + ">" + AwkRegexScalarPattern.AnyScalar + length + @")(?<=\G" + prefix + "(?:" +
             stripped + ")))(?:" + source.Pattern + @")(?<=\G" + prefix + whole + ")";
+        checkpoint?.Invoke();
         var regex = new Regex(pattern, AwkRegex.ResolveOptions(caseSensitivity), AwkRegex.MatchTimeout);
+        checkpoint?.Invoke();
         var groups = new int[names.Length];
         for (var index = 0; index < groups.Length; index++)
+        {
+            if ((index & 63) == 0) checkpoint?.Invoke();
             groups[index] = regex.GroupNumberFromName(index == 0 ? wholeName : names[index]);
+        }
+        checkpoint?.Invoke();
         return new AwkLongestRegex(regex, groups);
     }
 
-    private static string UniqueName(string[] names, string candidate)
+    private static string UniqueName(string[] names, string candidate, Action? checkpoint)
     {
-        while (Array.IndexOf(names, candidate) >= 0)
+        while (ContainsName())
             candidate += "_";
+        checkpoint?.Invoke();
         return candidate;
+
+        bool ContainsName()
+        {
+            for (var index = 0; index < names.Length; index++)
+            {
+                if ((index & 63) == 0) checkpoint?.Invoke();
+                if (AwkRegexConstruction.Equals(names[index], candidate, checkpoint))
+                    return true;
+            }
+            return false;
+        }
     }
 
-    private static string StripCaptures(string pattern)
+    private static string StripCaptures(string pattern, Action? checkpoint)
     {
         var builder = new StringBuilder(pattern.Length);
+        long nextCheckpoint = 0;
         for (var index = 0; index < pattern.Length; index++)
         {
+            AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
             if (pattern[index] == '\\' && index + 1 < pattern.Length)
                 builder.Append(pattern[index]).Append(pattern[++index]);
             else if (pattern[index] == '[')
             {
-                var end = AwkRegexSelection.BracketEnd(pattern, index);
+                var end = AwkRegexSelection.BracketEnd(pattern, index, checkpoint);
                 if (end < 0)
                     throw new ArgumentException("Invalid regex bracket.");
-                builder.Append(pattern, index, end + 1 - index);
+                AwkRegexConstruction.Append(builder, pattern, index, end + 1 - index, checkpoint);
                 index = end;
             }
             else if (pattern[index] == '(' && (index + 1 >= pattern.Length || pattern[index + 1] != '?'))
@@ -341,7 +391,7 @@ internal sealed class AwkLongestRegex
                 (pattern[index + 2] == '\'' || (pattern[index + 2] == '<' &&
                     index + 3 < pattern.Length && pattern[index + 3] is not ('=' or '!'))))
             {
-                index = pattern.IndexOf(pattern[index + 2] == '<' ? '>' : '\'', index + 3);
+                index = AwkRegexConstruction.IndexOf(pattern, pattern[index + 2] == '<' ? '>' : '\'', index + 3, checkpoint);
                 builder.Append("(?:");
             }
             else if (pattern[index] == '|')
@@ -354,7 +404,7 @@ internal sealed class AwkLongestRegex
             else
                 builder.Append(pattern[index]);
         }
-        return builder.ToString();
+        return AwkRegexConstruction.Finish(builder, checkpoint);
     }
 }
 

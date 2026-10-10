@@ -6,20 +6,16 @@ internal static class AwkRegexEscapes
 {
     public static string Decode(string pattern, AwkCompatibilityMode mode, Action? checkpoint = null)
     {
-        var slash = pattern.IndexOf('\\', StringComparison.Ordinal);
+        var slash = AwkRegexConstruction.IndexOf(pattern, '\\', 0, checkpoint);
         if (slash < 0)
             return pattern;
         var builder = new StringBuilder(pattern.Length);
-        builder.Append(pattern, 0, slash);
+        AwkRegexConstruction.Append(builder, pattern, 0, slash, checkpoint);
         Span<char> buffer = stackalloc char[2];
-        var nextCheckpoint = slash;
+        long nextCheckpoint = slash;
         for (var index = slash; index < pattern.Length; index++)
         {
-            if (index >= nextCheckpoint)
-            {
-                checkpoint?.Invoke();
-                nextCheckpoint = index + 1024;
-            }
+            AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
             if (pattern[index] != '\\' || index + 1 >= pattern.Length)
             {
                 builder.Append(pattern[index]);
@@ -56,7 +52,7 @@ internal static class AwkRegexEscapes
             else
                 builder.Append('\\').Append(escaped);
         }
-        return builder.ToString();
+        return AwkRegexConstruction.Finish(builder, checkpoint);
     }
 
     private static bool IsMetacharacter(char value) => ".*+(){}[]|?^$\\".Contains(value);
@@ -65,14 +61,10 @@ internal static class AwkRegexEscapes
     {
         if (mode == AwkCompatibilityMode.Posix)
             return false;
-        var nextCheckpoint = 0;
+        long nextCheckpoint = 0;
         for (var index = 0; index + 1 < pattern.Length; index++)
         {
-            if (index >= nextCheckpoint)
-            {
-                checkpoint?.Invoke();
-                nextCheckpoint = index + 1024;
-            }
+            AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
             if (pattern[index] != '\\')
                 continue;
             index++;

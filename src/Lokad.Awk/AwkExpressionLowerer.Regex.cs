@@ -34,11 +34,12 @@ internal static partial class AwkExpressionLowerer
         try
         {
             checkpoint?.Invoke();
-            regex = AwkRegex.Create(
+            var prepared = AwkRegex.Create(
                 new AwkRegexPattern(pattern),
                 AwkRegexCaseSensitivity.CaseSensitive,
-                compatibilityMode);
+                compatibilityMode, checkpoint);
             checkpoint?.Invoke();
+            regex = prepared;
             return true;
         }
         catch (ArgumentException)

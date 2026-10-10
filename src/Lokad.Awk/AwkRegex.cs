@@ -16,14 +16,15 @@ internal sealed class AwkRegex
     private readonly bool _hasFixedCaseSensitivity;
 
     private AwkRegex(string pattern, AwkRegexBackend backend, bool hasFixedCaseSensitivity = false,
-        AwkRegexSelection? selection = null, string? erePattern = null)
+        AwkRegexSelection? selection = null, string? erePattern = null, Action? checkpoint = null)
     {
         Pattern = pattern;
         ErePattern = erePattern ?? pattern;
-        RequiresDotNetFallback = RequiresDotNetEngine(pattern);
+        RequiresDotNetFallback = RequiresDotNetEngine(pattern, checkpoint);
         Backend = backend;
         GroupCount = backend.GroupCount;
-        Selection = selection ?? AwkRegexSelection.Analyze(pattern);
+        checkpoint?.Invoke();
+        Selection = selection ?? AwkRegexSelection.Analyze(pattern, checkpoint);
         _hasFixedCaseSensitivity = hasFixedCaseSensitivity;
     }
 
@@ -47,40 +48,43 @@ internal sealed class AwkRegex
     public static AwkRegex Create(
         AwkRegexPattern pattern,
         AwkRegexCaseSensitivity caseSensitivity,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
     {
-        var ere = TranslatePattern(pattern, compatibilityMode);
-        return CreateDotNet(AwkRegexScalarPattern.Translate(ere), caseSensitivity,
-            selection: AwkRegexSelection.Analyze(ere), erePattern: ere);
+        var ere = TranslatePattern(pattern, compatibilityMode, checkpoint);
+        return CreateDotNet(AwkRegexScalarPattern.Translate(ere, checkpoint), caseSensitivity,
+            selection: AwkRegexSelection.Analyze(ere, checkpoint), erePattern: ere, checkpoint: checkpoint);
     }
 
     internal static AwkRegex CreateDotNet(
         string translatedPattern,
         AwkRegexCaseSensitivity caseSensitivity,
         bool hasFixedCaseSensitivity = false,
-        AwkRegexSelection? selection = null, string? erePattern = null) =>
-        new(
-            translatedPattern,
-            AwkRegexBackend.DotNet(
-                caseSensitivity,
-                new Regex(translatedPattern, ResolveOptions(caseSensitivity), MatchTimeout)),
-            hasFixedCaseSensitivity, selection, erePattern);
+        AwkRegexSelection? selection = null, string? erePattern = null, Action? checkpoint = null)
+    {
+        checkpoint?.Invoke();
+        var compiled = new Regex(translatedPattern, ResolveOptions(caseSensitivity), MatchTimeout);
+        checkpoint?.Invoke();
+        return new AwkRegex(translatedPattern, AwkRegexBackend.DotNet(caseSensitivity, compiled),
+            hasFixedCaseSensitivity, selection, erePattern, checkpoint);
+    }
 
     internal static AwkRegex CreateUtf8(
         string translatedPattern,
         AwkRegexCaseSensitivity caseSensitivity,
         bool hasFixedCaseSensitivity = false,
-        AwkRegexSelection? selection = null, string? erePattern = null) =>
-        new(
-            translatedPattern,
-            AwkRegexBackend.Utf8(
-                caseSensitivity,
-                new Utf8RegexEngine(translatedPattern, ResolveOptions(caseSensitivity), MatchTimeout)),
-            hasFixedCaseSensitivity, selection, erePattern);
+        AwkRegexSelection? selection = null, string? erePattern = null, Action? checkpoint = null)
+    {
+        checkpoint?.Invoke();
+        var compiled = new Utf8RegexEngine(translatedPattern, ResolveOptions(caseSensitivity), MatchTimeout);
+        checkpoint?.Invoke();
+        return new AwkRegex(translatedPattern, AwkRegexBackend.Utf8(caseSensitivity, compiled),
+            hasFixedCaseSensitivity, selection, erePattern, checkpoint);
+    }
 
-    internal static bool RequiresDotNetEngine(string translatedPattern) =>
-        translatedPattern.Contains(@"\A", StringComparison.Ordinal) ||
-        translatedPattern.Contains(@"\z", StringComparison.Ordinal);
+    internal static bool RequiresDotNetEngine(string translatedPattern, Action? checkpoint = null) =>
+        AwkRegexConstruction.IndexOf(translatedPattern, @"\A", 0, checkpoint) >= 0 ||
+        AwkRegexConstruction.IndexOf(translatedPattern, @"\z", 0, checkpoint) >= 0;
 
     internal static RegexOptions ResolveOptions(AwkRegexCaseSensitivity caseSensitivity) =>
         RegexOptions.CultureInvariant |
@@ -90,21 +94,23 @@ internal sealed class AwkRegex
 
     public static string TranslatePattern(AwkRegexPattern pattern,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null)
+        Action? checkpoint = null, AwkMemoryLease? resultLease = null)
     {
-        return Translate(pattern.Text, compatibilityMode, checkpoint);
-        static string Translate(string pattern, AwkCompatibilityMode mode, Action? checkpoint)
+        return Translate(pattern.Text, compatibilityMode, checkpoint, resultLease);
+        static string Translate(string pattern, AwkCompatibilityMode mode, Action? checkpoint, AwkMemoryLease? resultLease)
         {
-            return TranslatePosixCharacterClasses(TranslateEscapes(AwkRegexEscapes.Decode(pattern, mode, checkpoint), mode));
-            static string TranslateEscapes(string pattern, AwkCompatibilityMode mode)
+            return TranslatePosixCharacterClasses(TranslateEscapes(AwkRegexEscapes.Decode(pattern, mode, checkpoint), mode, checkpoint), checkpoint, resultLease);
+            static string TranslateEscapes(string pattern, AwkCompatibilityMode mode, Action? checkpoint)
             {
                 StringBuilder? builder = null;
                 var bracketStart = -1;
                 var bracketFirstItem = -1;
                 var posixTokenEnd = -1;
                 var groupDepth = 0;
+                long nextCheckpoint = 0;
                 for (var index = 0; index < pattern.Length; index++)
                 {
+                    AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
                     var current = pattern[index];
                     if (current != '\\' || index + 1 >= pattern.Length)
                     {
@@ -124,14 +130,15 @@ internal sealed class AwkRegex
                     AppendOperator(output, escaped);
                 }
 
-                return builder?.ToString() ?? pattern;
+                checkpoint?.Invoke();
+                return builder is null ? pattern : AwkRegexConstruction.Finish(builder, checkpoint);
 
                 StringBuilder GetBuilder(int index)
                 {
                     if (builder is not null)
                         return builder;
                     builder = new StringBuilder(pattern.Length);
-                    builder.Append(pattern, 0, index);
+                    AwkRegexConstruction.Append(builder, pattern, 0, index, checkpoint);
                     return builder;
                 }
 
@@ -203,7 +210,7 @@ internal sealed class AwkRegex
                     }
                     else if (value == '[' && index + 1 < pattern.Length && pattern[index + 1] is ':' or '=' or '.')
                     {
-                        var end = pattern.IndexOf(pattern[index + 1] + "]", index + 2, StringComparison.Ordinal);
+                        var end = AwkRegexConstruction.IndexOf(pattern, pattern[index + 1] + "]", index + 2, checkpoint);
                         if (end >= 0)
                             posixTokenEnd = end + 1;
                     }
@@ -221,17 +228,19 @@ internal sealed class AwkRegex
                 }
             }
 
-            static string TranslatePosixCharacterClasses(string pattern)
+            static string TranslatePosixCharacterClasses(string pattern, Action? checkpoint, AwkMemoryLease? resultLease)
             {
-                if (!pattern.Contains("[:", System.StringComparison.Ordinal) &&
-                    !pattern.Contains("[=", System.StringComparison.Ordinal) &&
-                    !pattern.Contains("[.", System.StringComparison.Ordinal))
+                if (AwkRegexConstruction.IndexOf(pattern, "[:", 0, checkpoint) < 0 &&
+                    AwkRegexConstruction.IndexOf(pattern, "[=", 0, checkpoint) < 0 &&
+                    AwkRegexConstruction.IndexOf(pattern, "[.", 0, checkpoint) < 0)
                     return pattern;
 
                 StringBuilder? builder = null;
                 var copied = 0;
+                long nextCheckpoint = 0;
                 for (var index = 0; index < pattern.Length; index++)
                 {
+                    AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
                     if (pattern[index] == '\\')
                     {
                         index++;
@@ -241,17 +250,19 @@ internal sealed class AwkRegex
                     if (pattern[index] != '[')
                         continue;
 
-                    var end = FindBracketExpressionEnd(pattern, index + 1);
+                    var end = FindBracketExpressionEnd(pattern, index + 1, checkpoint);
                     if (end < 0)
                         return pattern;
 
+                    checkpoint?.Invoke();
                     var content = pattern.Substring(index + 1, end - index - 1);
-                    var translated = TranslatePosixClassTokens(content);
-                    if (!string.Equals(content, translated, System.StringComparison.Ordinal))
+                    checkpoint?.Invoke();
+                    var translated = TranslatePosixClassTokens(content, checkpoint, resultLease);
+                    if (!AwkRegexConstruction.Equals(content, translated, checkpoint))
                     {
                         builder ??= new StringBuilder(pattern.Length);
-                        builder.Append(pattern, copied, index + 1 - copied);
-                        builder.Append(translated);
+                        AwkRegexConstruction.Append(builder, pattern, copied, index + 1 - copied, checkpoint);
+                        AwkRegexConstruction.Append(builder, translated, 0, translated.Length, checkpoint);
                         copied = end;
                     }
 
@@ -261,12 +272,13 @@ internal sealed class AwkRegex
                 if (builder == null)
                     return pattern;
 
-                builder.Append(pattern, copied, pattern.Length - copied);
-                return builder.ToString();
+                AwkRegexConstruction.Append(builder, pattern, copied, pattern.Length - copied, checkpoint);
+                return AwkRegexConstruction.Finish(builder, checkpoint);
 
-                static int FindBracketExpressionEnd(string pattern, int start)
+                static int FindBracketExpressionEnd(string pattern, int start, Action? checkpoint)
                 {
                     var index = start;
+                    long nextCheckpoint = 0;
                     var posixTokenMarker = '\0';
                     if (index < pattern.Length && pattern[index] == '^')
                         index++;
@@ -276,6 +288,7 @@ internal sealed class AwkRegex
 
                     for (; index < pattern.Length; index++)
                     {
+                        AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
                         if (pattern[index] == '\\')
                         {
                             index++;
@@ -308,38 +321,41 @@ internal sealed class AwkRegex
                     return -1;
                 }
 
-                static string TranslatePosixClassTokens(string content)
+                static string TranslatePosixClassTokens(string content, Action? checkpoint, AwkMemoryLease? resultLease)
                 {
-                    return TranslatePosixEquivalenceAndCollatingTokens(content)
-                        .Replace("[:alnum:]", "\\p{L}\\p{Nd}", System.StringComparison.Ordinal)
-                        .Replace("[:alpha:]", "\\p{L}", System.StringComparison.Ordinal)
-                        .Replace("[:blank:]", " \\t", System.StringComparison.Ordinal)
-                        .Replace("[:cntrl:]", "\\p{Cc}", System.StringComparison.Ordinal)
-                        .Replace("[:digit:]", "0-9", System.StringComparison.Ordinal)
-                        .Replace("[:graph:]", "\\x21-\\x7E", System.StringComparison.Ordinal)
-                        .Replace("[:lower:]", "\\p{Ll}", System.StringComparison.Ordinal)
-                        .Replace("[:print:]", "\\x20-\\x7E", System.StringComparison.Ordinal)
-                        .Replace("[:punct:]", "\\p{P}", System.StringComparison.Ordinal)
-                        .Replace("[:space:]", "\\s", System.StringComparison.Ordinal)
-                        .Replace("[:upper:]", "\\p{Lu}", System.StringComparison.Ordinal)
-                        .Replace("[:xdigit:]", "0-9A-Fa-f", System.StringComparison.Ordinal);
+                    var translated = TranslatePosixEquivalenceAndCollatingTokens(content, checkpoint);
+                    translated = AwkRegexConstruction.Replace(translated, "[:alnum:]", "\\p{L}\\p{Nd}", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:alpha:]", "\\p{L}", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:blank:]", " \\t", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:cntrl:]", "\\p{Cc}", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:digit:]", "0-9", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:graph:]", "\\x21-\\x7E", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:lower:]", "\\p{Ll}", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:print:]", "\\x20-\\x7E", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:punct:]", "\\p{P}", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:space:]", "\\s", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:upper:]", "\\p{Lu}", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:xdigit:]", "0-9A-Fa-f", checkpoint, resultLease);
+                    return translated;
 
-                    static string TranslatePosixEquivalenceAndCollatingTokens(string content)
+                    static string TranslatePosixEquivalenceAndCollatingTokens(string content, Action? checkpoint)
                     {
-                        var tokenStart = content.IndexOf('[', System.StringComparison.Ordinal);
+                        var tokenStart = AwkRegexConstruction.IndexOf(content, '[', 0, checkpoint);
                         if (tokenStart < 0)
                             return content;
 
                         StringBuilder? builder = null;
                         var copied = 0;
+                        long nextCheckpoint = 0;
                         for (var index = tokenStart; index + 4 < content.Length; index++)
                         {
+                            AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
                             if (content[index] != '[' || content[index + 1] is not ('=' or '.'))
                                 continue;
 
                             var marker = content[index + 1];
                             var closing = marker.ToString() + "]";
-                            var closingIndex = content.IndexOf(closing, index + 2, System.StringComparison.Ordinal);
+                            var closingIndex = AwkRegexConstruction.IndexOf(content, closing, index + 2, checkpoint);
                             if (closingIndex < 0)
                                 continue;
 
@@ -348,7 +364,7 @@ internal sealed class AwkRegex
                             if (symbolLength == 1)
                             {
                                 builder ??= new StringBuilder(content.Length);
-                                builder.Append(content, copied, index - copied);
+                                AwkRegexConstruction.Append(builder, content, copied, index - copied, checkpoint);
                                 AppendBracketLiteral(builder, content[symbolStart]);
                                 copied = closingIndex + 2;
                             }
@@ -359,8 +375,8 @@ internal sealed class AwkRegex
                         if (builder == null)
                             return content;
 
-                        builder.Append(content, copied, content.Length - copied);
-                        return builder.ToString();
+                        AwkRegexConstruction.Append(builder, content, copied, content.Length - copied, checkpoint);
+                        return AwkRegexConstruction.Finish(builder, checkpoint);
 
                         static void AppendBracketLiteral(StringBuilder builder, char value)
                         {

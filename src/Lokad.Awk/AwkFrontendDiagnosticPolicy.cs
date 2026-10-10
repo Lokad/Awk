@@ -257,10 +257,10 @@ internal static class AwkRegexSyntaxValidator
         try
         {
             checkpoint?.Invoke();
-            AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(pattern, maxPatternBytes, maxGroups);
+            AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(pattern, maxPatternBytes, maxGroups, checkpoint);
             var translated = AwkRegexScalarPattern.Translate(
-                AwkRegex.TranslatePattern(new AwkRegexPattern(pattern), compatibilityMode, checkpoint));
-            AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(translated, maxPatternBytes, maxGroups);
+                AwkRegex.TranslatePattern(new AwkRegexPattern(pattern), compatibilityMode, checkpoint), checkpoint);
+            AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(translated, maxPatternBytes, maxGroups, checkpoint);
             checkpoint?.Invoke();
             _ = new Regex(
                 translated,

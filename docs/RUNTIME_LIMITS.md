@@ -371,6 +371,21 @@ The first regex decoding pass reserves its temporary UTF-16 builder/string buffe
 before allocation and releases that lease after compilation, including failed attempts.
 Patterns without escapes and compiled cache hits need no decoding-buffer lease.
 
+Runtime ERE width/capture analysis stores value frames in exact arrays. Admission precedes
+allocation/growth and holds the old buffer while the new buffer is allocated and copied.
+Copying checks cancellation in bounded item windows; only the completed buffer replaces
+its predecessor. Plain patterns require no frame array. All analysis storage releases
+when analysis returns or throws, including malformed patterns and canceled copies.
+
+POSIX character-class token replacement measures its exact UTF-16 output and admits one
+result string before allocation. Bounded searches/copies fill that string directly;
+no intermediate replacement StringBuilder buffer is required. Chained replacement
+results remain charged through the entire pattern preparation and final cache
+publication, then release. Absent/identity replacements and an empty final result share
+existing storage and require no result charge. Cache hits allocate no preparation lease.
+Native constructors and compiled cache storage retain their separate documented bounds;
+this working-storage qualification does not establish exact backend heap accounting.
+
 ## Mutation Semantics
 
 Getline evaluates its source expression and then resolves its destination before opening or
@@ -539,6 +554,29 @@ composite-token, expression-token and continuation-map snapshots publish only co
 canceled construction can be retried and retains no callback. Frontend checks do not charge runtime
 fuel, and source spans, diagnostic budgets and host mediation retain their contracts.
 
+Awk-owned regex preparation receives the caller checkpoint through escape and POSIX-class
+translation, scalar atom translation, ERE width/capture analysis, source/translated pattern-byte
+and group-breadth scans, cache-weight measurement and longest-match capture-map preparation.
+Source scans/searches/copies use roughly 4 KiB UTF-16 windows; category/range/group-map walks
+check at bounded item intervals. Short-token searches overlap windows, and byte measurement
+keeps UTF-16 surrogate pairs together. Group-breadth admission preserves its existing construct
+count, including noncapturing groups. These checks add no logical fuel or work charges.
+
+A final checkpoint precedes publication in the wrapper, native UTF-8, native .NET, longest-match
+and existing structured POSIX caches. Observed cancellation releases decoding scratch and
+returns no completed construction from that operation; a later uncanceled attempt can retry.
+Completed regexes and shared category metadata retain no caller construction callback. Existing
+translations, selection behavior and backend versions are unchanged.
+
+The shared supplementary Unicode category table receives no caller checkpoint: its fixed walk
+of 1,048,576 scalars initializes independently, with caller checks before/after accessing it.
+A canceled caller cannot poison this Lazy metadata cache. List.Sort, StringBuilder.ToString,
+substring/concatenation, Regex.Escape and native regex constructors remain one-shot framework or
+dependency calls, with checks at owned boundaries; checkpoints do not forcibly interrupt them.
+Admission for other translated text, scalar/range analysis, shared metadata, separator/caches and
+remaining framework/pool/backend allocations remains under audit. This cancellation qualification does
+not establish universal bounded latency or complete memory accounting for regex preparation.
+
 The installed Lokad.Parsing 1.1.0 TokenReader.ReadAllTokens/ReadAllTokensUpTo APIs and StreamParser
 delegate have no caller cancellation argument. Checks run before/after dependency calls and within
 owned reductions, but dependency token matching, parser shifts and first-time shared grammar
@@ -547,8 +585,8 @@ callback, so a canceled run cannot poison that cache. Source/token/nesting/diagn
 admitted frontend data; they do not promise a CPU deadline. Array allocation, token-array sorting,
 List.ToArray/AddRange, StringBuilder.ToString and substring/string construction remain one-shot
 framework boundaries. Checks surround completed construction/publication where applicable; a
-canceled caller receives no completed parse result. Later regex translation/analysis and remaining
-runtime text callers remain under audit. No universal bounded
+canceled caller receives no completed parse result. Remaining runtime text and memory-admission
+boundaries remain under audit. No universal bounded
 cancellation latency or forced CPU preemption is claimed.
 Utf8Parser decimal conversion, span search/comparison, UTF-8/string conversions, invariant Unicode
 casing, and .NET and UTF-8 regex constructors do not accept caller cancellation;

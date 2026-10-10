@@ -240,12 +240,13 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public void Awk_Utf8RegexAdapterEnumerationObservesCancellationChecks()
     {
         var checks = 0;
+        var enumerating = false;
         var runtime = new AwkRegexRuntime(
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             () =>
             {
-                checks++;
+                if (enumerating) checks++;
                 if (checks > 5)
                     throw new OperationCanceledException();
             },
@@ -253,6 +254,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRegexEngineKind.Utf8Adapter);
         var regex = runtime.Create(new AwkRegexPattern("a"));
         var input = AwkText.FromString(new string('a', 32));
+        enumerating = true;
 
         using var matches = runtime.EnumerateMatchValues(
             regex,

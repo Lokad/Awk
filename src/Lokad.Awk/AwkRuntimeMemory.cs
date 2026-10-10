@@ -110,6 +110,13 @@ internal static class AwkRuntimeMemory
     public static long EstimateGensubReplacementPartArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, 16);
 
+    public static long EstimateUtf16StringBytes(int characterCount) =>
+        characterCount <= 0 ? 0 : CheckedAdd(StringObjectBytes, CheckedMultiply(characterCount, sizeof(char)));
+
+    // Width analysis uses value frames: three width facts and three flags.
+    public static long EstimateRegexAnalysisFrameArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, 48);
+
     public static long EstimateRegexCoordinateArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, sizeof(long));
 

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Runtime regex width analysis now admits exact value-frame buffers, including old/new
+  overlap during growth, and releases them on completion or failure. POSIX token
+  replacement admits one exact result string, keeps its charge through preparation
+  and cache publication, and removes the intermediate builder buffer. No-op and empty
+  results share existing storage. Cancellation, shortfalls and invalid regexes release
+  staging; matching behavior and logical execution charges remain unchanged.
+
+- Awk-owned regex preparation now checks cancellation during dialect translation,
+  scalar/width analysis, pattern/group limit scans and cache-weight measurement.
+  Final checks precede all compiled-regex cache publications. Interrupted decoding
+  releases scratch and can be retried; completed regexes and shared Unicode metadata
+  retain no construction callback. Existing matching behavior and logical charges
+  are unchanged. Native constructors and shared metadata initialization remain
+  noninterruptible boundaries.
+
 - Finite-memory execution now admits exact print/printf argument and segment arrays.
   Numeric print values and separators keep their formatting charge through append;
   printf results stay charged through pending redirected writes. Failure releases

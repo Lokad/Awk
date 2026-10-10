@@ -10,12 +10,14 @@ internal static class AwkRegexScalarPattern
     private const string BmpBoundary = @"(?![\uD800-\uDFFF])";
     private static readonly Lazy<CategoryRange[]> SupplementaryCategories = new(BuildCategoryRanges);
 
-    public static string Translate(string pattern)
+    public static string Translate(string pattern, Action? checkpoint = null)
     {
         StringBuilder? builder = null;
         var copied = 0;
+        long nextCheckpoint = 0;
         for (var index = 0; index < pattern.Length; index++)
         {
+            AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
             var start = index;
             string? replacement = null;
             var end = index + 1;
@@ -25,13 +27,13 @@ internal static class AwkRegexScalarPattern
                     if (++index < pattern.Length)
                     {
                         end = index + 1;
-                        if (TryReadCategory(pattern, index, out var mask, out end))
+                        if (TryReadCategory(pattern, index, out var mask, out end, checkpoint))
                         {
-                            replacement = CategoryAtom(pattern[(index - 1)..end], mask);
+                            replacement = CategoryAtom(pattern[(index - 1)..end], mask, checkpoint);
                         }
                         else if (TryShorthandCategory(pattern[index], out mask))
                         {
-                            replacement = CategoryAtom(pattern[(index - 1)..end], mask);
+                            replacement = CategoryAtom(pattern[(index - 1)..end], mask, checkpoint);
                         }
                     }
                     break;
@@ -43,12 +45,12 @@ internal static class AwkRegexScalarPattern
                     replacement = @"\z";
                     break;
                 case '[':
-                    end = FindBracketEnd(pattern, index + 1);
+                    end = AwkRegexSelection.BracketEnd(pattern, index, checkpoint);
                     if (end < 0)
                         return pattern;
 
                     end++;
-                    replacement = TranslateBracket(pattern[(index + 1)..(end - 1)]);
+                    replacement = TranslateBracket(pattern[(index + 1)..(end - 1)], checkpoint);
                     break;
                 case '(' when end < pattern.Length && pattern[end] == ')':
                     // Keep the observable empty capture while avoiding an empty-group
@@ -69,23 +71,25 @@ internal static class AwkRegexScalarPattern
             if (replacement is not null)
             {
                 builder ??= new StringBuilder(pattern.Length);
-                builder.Append(pattern, copied, start - copied);
-                builder.Append(replacement);
+                AwkRegexConstruction.Append(builder, pattern, copied, start - copied, checkpoint);
+                AwkRegexConstruction.Append(builder, replacement, 0, replacement.Length, checkpoint);
                 copied = end;
             }
 
             index = end - 1;
         }
 
+        checkpoint?.Invoke();
         if (builder is null)
             return pattern;
 
-        builder.Append(pattern, copied, pattern.Length - copied);
-        return builder.ToString();
+        AwkRegexConstruction.Append(builder, pattern, copied, pattern.Length - copied, checkpoint);
+        return AwkRegexConstruction.Finish(builder, checkpoint);
     }
 
-    private static string? TranslateBracket(string content)
+    private static string? TranslateBracket(string content, Action? checkpoint)
     {
+        long nextCheckpoint = 0;
         // The adapter's value-match prefilter folds a one-letter ASCII class even
         // without IgnoreCase. Canonical literal atoms avoid that ambiguity while
         // retaining byte-native matching and the class's exact set of characters.
@@ -95,8 +99,10 @@ internal static class AwkRegexScalarPattern
             var hasLower = false;
             var hasUpper = false;
             var singleLetter = true;
-            foreach (var value in content)
+            for (var scan = 0; scan < content.Length; scan++)
             {
+                AwkRegexConstruction.CheckProgress(scan, ref nextCheckpoint, checkpoint);
+                var value = content[scan];
                 if (!char.IsAsciiLetter(value) || char.ToLowerInvariant(value) != lower)
                 {
                     singleLetter = false;
@@ -107,6 +113,7 @@ internal static class AwkRegexScalarPattern
             }
             if (singleLetter)
             {
+                checkpoint?.Invoke();
                 var upper = char.ToUpperInvariant(lower);
                 return hasLower && hasUpper
                     ? "(?:" + lower + "|" + upper + ")"
@@ -114,6 +121,7 @@ internal static class AwkRegexScalarPattern
             }
         }
 
+        nextCheckpoint = 0;
         var negated = content.StartsWith('^');
         var index = negated ? 1 : 0;
         var bmp = new StringBuilder(content.Length);
@@ -121,12 +129,13 @@ internal static class AwkRegexScalarPattern
         var requiresTranslation = negated;
         while (index < content.Length)
         {
+            AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
             var start = index;
-            var scalar = ReadAtom(content, ref index, out var categoryMask);
+            var scalar = ReadAtom(content, ref index, out var categoryMask, checkpoint);
             if (scalar >= 0 && index + 1 < content.Length && content[index] == '-')
             {
                 var rangeEnd = index + 1;
-                var last = ReadAtom(content, ref rangeEnd, out _);
+                var last = ReadAtom(content, ref rangeEnd, out _, checkpoint);
                 if (last >= 0)
                 {
                     if (last < scalar)
@@ -144,25 +153,27 @@ internal static class AwkRegexScalarPattern
             }
             else
             {
-                bmp.Append(content, start, index - start);
+                AwkRegexConstruction.Append(bmp, content, start, index - start, checkpoint);
                 if (categoryMask != 0)
                 {
                     requiresTranslation = true;
-                    AddCategoryRanges(supplementary, categoryMask);
+                    AddCategoryRanges(supplementary, categoryMask, checkpoint);
                 }
             }
         }
 
+        checkpoint?.Invoke();
         if (!requiresTranslation)
             return null;
 
         var positive = new StringBuilder();
         if (bmp.Length > 0)
             positive.Append(BmpBoundary).Append('[').Append(bmp).Append(']');
-        AppendSupplementaryRanges(positive, supplementary);
+        AppendSupplementaryRanges(positive, supplementary, checkpoint);
         if (positive.Length == 0)
             positive.Append("(?!)");
 
+        checkpoint?.Invoke();
         return negated
             ? "(?:(?!(?:" + positive + "))" + AnyScalar + ")"
             : "(?:" + positive + ")";
@@ -182,7 +193,7 @@ internal static class AwkRegexScalarPattern
         }
     }
 
-    private static int ReadAtom(string content, ref int index, out uint categoryMask)
+    private static int ReadAtom(string content, ref int index, out uint categoryMask, Action? checkpoint)
     {
         categoryMask = 0;
         var value = content[index++];
@@ -198,7 +209,7 @@ internal static class AwkRegexScalarPattern
             return -1;
 
         var escaped = content[index++];
-        if (TryReadCategory(content, index - 1, out categoryMask, out var end))
+        if (TryReadCategory(content, index - 1, out categoryMask, out var end, checkpoint))
         {
             index = end;
             return -1;
@@ -209,7 +220,7 @@ internal static class AwkRegexScalarPattern
 
         if (escaped is 'p' or 'P' && index < content.Length && content[index] == '{')
         {
-            var closing = content.IndexOf('}', index + 1);
+            var closing = AwkRegexConstruction.IndexOf(content, '}', index + 1, checkpoint);
             if (closing >= 0)
                 index = closing + 1;
             return -1;
@@ -219,40 +230,24 @@ internal static class AwkRegexScalarPattern
         return char.IsAsciiLetterOrDigit(escaped) ? -1 : escaped;
     }
 
-    private static int FindBracketEnd(string pattern, int index)
-    {
-        if (index < pattern.Length && pattern[index] == '^')
-            index++;
-        if (index < pattern.Length && pattern[index] == ']')
-            index++;
-        for (; index < pattern.Length; index++)
-        {
-            if (pattern[index] == '\\')
-                index++;
-            else if (pattern[index] == ']')
-                return index;
-        }
-
-        return -1;
-    }
-
-    private static string CategoryAtom(string bmpPattern, uint categoryMask)
+    private static string CategoryAtom(string bmpPattern, uint categoryMask, Action? checkpoint)
     {
         var supplementary = new List<ScalarRange>();
-        AddCategoryRanges(supplementary, categoryMask);
+        AddCategoryRanges(supplementary, categoryMask, checkpoint);
         var atom = new StringBuilder();
         atom.Append(BmpBoundary).Append(bmpPattern);
-        AppendSupplementaryRanges(atom, supplementary);
+        AppendSupplementaryRanges(atom, supplementary, checkpoint);
+        checkpoint?.Invoke();
         return "(?:" + atom + ")";
     }
 
-    private static bool TryReadCategory(string pattern, int index, out uint mask, out int end)
+    private static bool TryReadCategory(string pattern, int index, out uint mask, out int end, Action? checkpoint)
     {
         mask = 0;
         end = index + 1;
         if (pattern[index] is not ('p' or 'P') || end >= pattern.Length || pattern[end] != '{')
             return false;
-        var closing = pattern.IndexOf('}', end + 1);
+        var closing = AwkRegexConstruction.IndexOf(pattern, '}', end + 1, checkpoint);
         if (closing < 0)
             return false;
 
@@ -353,24 +348,37 @@ internal static class AwkRegexScalarPattern
         return ranges.ToArray();
     }
 
-    private static void AddCategoryRanges(List<ScalarRange> ranges, uint mask)
+    private static void AddCategoryRanges(List<ScalarRange> ranges, uint mask, Action? checkpoint)
     {
-        foreach (var range in SupplementaryCategories.Value)
+        // Shared metadata initialization must never capture a caller's cancellation callback.
+        // Its fixed scalar walk is noninterruptible; check the caller before and after it.
+        checkpoint?.Invoke();
+        var categories = SupplementaryCategories.Value;
+        checkpoint?.Invoke();
+        for (var index = 0; index < categories.Length; index++)
         {
+            if ((index & 63) == 0) checkpoint?.Invoke();
+            var range = categories[index];
             if ((mask & Bit(range.Category)) != 0)
                 ranges.Add(new ScalarRange(range.First, range.Last));
         }
     }
 
-    private static void AppendSupplementaryRanges(StringBuilder builder, List<ScalarRange> ranges)
+    private static void AppendSupplementaryRanges(StringBuilder builder, List<ScalarRange> ranges, Action? checkpoint)
     {
+        checkpoint?.Invoke();
         ranges.Sort(static (left, right) => left.First.CompareTo(right.First));
+        checkpoint?.Invoke();
         for (var index = 0; index < ranges.Count; index++)
         {
+            if ((index & 63) == 0) checkpoint?.Invoke();
             var first = ranges[index].First;
             var last = ranges[index].Last;
             while (index + 1 < ranges.Count && ranges[index + 1].First <= last + 1)
+            {
+                if ((index & 63) == 0) checkpoint?.Invoke();
                 last = Math.Max(last, ranges[++index].Last);
+            }
 
             var firstHigh = 0xD800 + ((first - 0x10000) >> 10);
             var lastHigh = 0xD800 + ((last - 0x10000) >> 10);
@@ -393,6 +401,8 @@ internal static class AwkRegexScalarPattern
             if (lastLow != 0xDFFF)
                 AppendPair(lastHigh, lastHigh, 0xDC00, lastLow);
         }
+
+        checkpoint?.Invoke();
 
         void AppendPair(int firstHigh, int lastHigh, int firstLow, int lastLow)
         {

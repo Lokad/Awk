@@ -207,6 +207,17 @@ internal sealed class AwkMemoryLease : IDisposable
         _byteCount = nextByteCount;
     }
 
+    public void Release(long byteCount)
+    {
+        var governor = _governor;
+        if (governor is null)
+            return;
+        if (byteCount < 0 || byteCount > _byteCount)
+            throw new InvalidOperationException("Cannot release more bytes than remain in the memory lease.");
+        governor.ReleaseCommitted(byteCount);
+        _byteCount -= byteCount;
+    }
+
     public void Transfer(long byteCount)
     {
         if (_governor is null)
