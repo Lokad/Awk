@@ -244,6 +244,14 @@ sink disposal. A warning admission failure preserves previously queued diagnosti
 
 ## Mutation Semantics
 
+Mktime's decimal/whitespace scanning admits at most 4096 bytes between shared work
+and cancellation checks. Gregorian normalization uses bounded integer state without
+per-year loops or text buffers. Injected time-zone rule views are immutable invocation
+metadata, copied once. Automatic ambiguous-zone conversion preflights and releases a
+40-byte temporary two-offset buffer through the memory governor; UTC, fixed-zone and
+ordinary unambiguous conversions require no such buffer. Conversion failures retain
+no reservations or output mutations.
+
 Resource failures must occur before the observable mutation when the current surface requires it:
 array insertions, array replacement, field-list growth, record processing, output writes, regex
 capture array replacement, text-value copies, formatted output construction, and VM stack growth

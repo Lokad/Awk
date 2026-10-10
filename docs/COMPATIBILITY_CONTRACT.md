@@ -88,6 +88,33 @@ the initial typing model, and ordinary array scalar conversion qualifies the fri
 diagnostic; these controls are not claimed as exact native array-case agreement.
 Nested arrays remain a separate rollout requirement.
 
+## Calendar Conversion
+
+mktime normalizes month, day, hour, minute and second overflow with proleptic Gregorian
+arithmetic, including year zero and negative years. The input year and normalized year
+must fit GNU's signed tm-year range after subtracting 1900. Month/day/time fields must
+fit signed 32-bit integers, and the minimum integer month is rejected; native scanf
+narrowing of oversized components is not reproduced. Six signed decimal prefixes are
+required, using ASCII C whitespace; trailing text is ignored after conversion. An
+absent or malformed optional DST field selects automatic behavior.
+
+A true UTC flag ignores DST and uses no local-zone rules. Otherwise the embedding
+policy's injected TimeZoneInfo supplies offsets. DST zero selects standard time;
+positive DST selects the applicable daylight adjustment even outside the season.
+Without an applicable daylight adjustment, explicit positive DST uses one hour, as
+GNU does in fixed zones. Omitted/negative DST uses automatic zone conversion;
+ambiguous wall times select the later occurrence consistently. Native GNU can choose
+the other occurrence depending on earlier mktime calls. Invalid wall times use the
+standard offset supplied by TimeZoneInfo. Standard base-offset adjustments and
+negative/half-hour daylight changes are retained.
+
+UTC and fixed-offset zones support the full tm-year range using long timestamp
+arithmetic. Dynamic zone conversion requires a normalized local year from 1 through
+9999, matching the TimeZoneInfo rule domain; out-of-range dates return -1. Zone rules
+are immutable invocation metadata and are copied once, with no environment lookup.
+Returned timestamps retain awk's binary64 rounding. strftime's existing DateTimeOffset
+range is a separate contract; broad mktime support does not extend that formatter.
+
 ## Split Separators
 
 `split` capture arrays contain only actual separators; `patsplit` retains its complete

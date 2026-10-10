@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Threading.Tasks;
 
 namespace Lokad.Awk;
@@ -560,59 +559,11 @@ internal static partial class AwkBuiltins
 
         static AwkValue EvaluateMktime(AwkBuiltinContext context)
         {
-            static double MakeTime(string dateSpec, TimeZoneInfo timeZone)
-            {
-                var text = dateSpec.AsSpan();
-                Span<int> values = stackalloc int[6];
-                var position = 0;
-                for (var index = 0; index < values.Length; index++)
-                {
-                    while (position < text.Length && char.IsWhiteSpace(text[position]))
-                        position++;
-
-                    var partStart = position;
-                    while (position < text.Length && !char.IsWhiteSpace(text[position]))
-                        position++;
-
-                    if (partStart == position)
-                        return -1;
-
-                    if (!int.TryParse(
-                            text[partStart..position],
-                            NumberStyles.Integer,
-                            CultureInfo.InvariantCulture,
-                            out values[index]))
-                    {
-                        return -1;
-                    }
-                }
-
-                try
-                {
-                    var local = new DateTime(
-                        values[0],
-                        values[1],
-                        values[2],
-                        values[3],
-                        values[4],
-                        values[5],
-                        DateTimeKind.Unspecified);
-                    return new DateTimeOffset(local, timeZone.GetUtcOffset(local)).ToUnixTimeSeconds();
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                    return -1;
-                }
-            }
-
             if (context.ArgumentCount is < 1 or > 2)
                 return AwkValue.FromNumber(-1);
 
-            var timeZone = context.ArgumentCount == 2 && context.GetValue(1).IsTruthy()
-                ? TimeZoneInfo.Utc
-                : context.State.TimeZone;
-            context.State.Counters.RecordStringInteropFallback();
-            return AwkValue.FromNumber(MakeTime(context.GetString(0), timeZone));
+            var utc = context.ArgumentCount == 2 && context.GetValue(1).IsTruthy();
+            return AwkValue.FromNumber(context.State.MakeCalendarTime(context.GetByteText(0), utc));
         }
 
         static AwkValue EvaluateStrftime(AwkBuiltinContext context)

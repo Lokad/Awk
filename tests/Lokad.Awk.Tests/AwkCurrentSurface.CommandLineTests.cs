@@ -494,8 +494,8 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("café\nCAFÉ\n1970\n0\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(4, counters.StringInteropFallbacks);
-        Assert.True(counters.AwkTextAsStringCalls >= 4);
+        Assert.Equal(3, counters.StringInteropFallbacks);
+        Assert.Equal(3, counters.AwkTextAsStringCalls);
     }
 
     [Fact]

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Normalized mktime calendar overflow with bounded byte-native Gregorian arithmetic,
+  including year zero and negative years. UTC/fixed zones support GNU's tm-year range;
+  dynamic zones use injected TimeZoneInfo rules, explicit DST fields and a deterministic
+  later-occurrence ambiguity policy. Parsing checks shared work/cancellation limits,
+  and ambiguous-offset buffers are memory-governed.
+
 - Preserved untyped array elements and argument origins during typeof/isarray, with
   one-time index effects, shared initial typing, and scalar copies on assignment/return.
   Empty user-function returns now have unassigned type. Grouped variable arguments use

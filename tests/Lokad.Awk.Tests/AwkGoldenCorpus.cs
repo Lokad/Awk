@@ -95,6 +95,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(SplitSeparatorCaptureCases(), AwkGoldenTag.Field, AwkGoldenTag.Array, AwkGoldenTag.Function),
         .. Tagged(SpecialArrayReadCases(), AwkGoldenTag.Array, AwkGoldenTag.Function),
         .. Tagged(UntypedStateCases(), AwkGoldenTag.Array, AwkGoldenTag.Function),
+        .. Tagged(CalendarNormalizationCases(), AwkGoldenTag.Function),
 
         .. Tagged(FormattingSyntaxCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
 

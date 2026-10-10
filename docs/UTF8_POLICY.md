@@ -123,8 +123,12 @@ bit, scanning remaining digits without magnitude-sized arrays or strings. It rou
 to the final binary64 precision, including subnormal precision. Nondecimal conversion errors
 retain the original bytes for text operations and become friendly diagnostics upon numeric use.
 
+Mktime scans signed decimal prefixes and ASCII whitespace directly in UTF-8 with
+bounded stack state, without decoding or string interop. Scanning admits byte chunks
+through the shared work/cancellation governor; calendar normalization takes bounded work.
+
 Some builtins intentionally remain .NET string operations. `printf`, `sprintf`, custom numeric
-formatting, `strftime`, `mktime`, GNU date-format directive handling, and non-ASCII
+formatting, `strftime`, GNU date-format directive handling, and non-ASCII
 `tolower`/`toupper` are counted through formatting or string interop fallback counters. ASCII-only
 `tolower` and `toupper` use a byte fast path over `AwkText` and do not claim a Unicode casing
 fallback.

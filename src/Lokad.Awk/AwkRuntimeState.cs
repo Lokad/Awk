@@ -426,6 +426,9 @@ internal sealed class AwkRuntimeState
 
     public AwkUnixTimestampSeconds CurrentUnixTimeSeconds() => _timeRuntime.CurrentUnixTimeSeconds();
 
+    public long MakeCalendarTime(AwkText specification, bool utc) =>
+        _timeRuntime.MakeTime(specification, utc, Resources, MemoryGovernor);
+
     public double ResolveSourceNumberLiteral(string text, double gnuDefaultValue)
     {
         if (CompatibilityMode == AwkCompatibilityMode.GnuDefault)
