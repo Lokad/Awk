@@ -251,6 +251,13 @@ sink disposal. A warning admission failure preserves previously queued diagnosti
 
 ## Mutation Semantics
 
+Getline evaluates its source expression and then resolves its destination before opening or
+reading the stream. Destination indices run once even at EOF or a host read failure; their
+changes to `RS` affect that read. Resolving an absent array element or field uses the existing
+memory, array and field admission preflights. EOF does not assign the destination or rebuild
+`$0`, although an admitted field reference can extend `NF`. A source name is captured before
+destination evaluation, so changing its source variable cannot redirect the pending read.
+
 Mktime's decimal/whitespace scanning admits at most 4096 bytes between shared work
 and cancellation checks. Gregorian normalization uses bounded integer state without
 per-year loops or text buffers. Injected time-zone rule views are immutable invocation

@@ -68,6 +68,10 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(RegexProfileCompatibilityCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Regex),
         .. Tagged(RangeParagraphCompatibilityCases(), AwkGoldenTag.Pattern, AwkGoldenTag.Record, AwkGoldenTag.Field, AwkGoldenTag.Regex),
         .. Tagged(ParagraphEofCompatibilityCases(), AwkGoldenTag.Record, AwkGoldenTag.Field, AwkGoldenTag.Regex),
+        .. Tagged(GetlineExpressionCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Record, AwkGoldenTag.Field),
+        .. Tagged(GetlineDestinationCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Record, AwkGoldenTag.Field),
+        .. Tagged(GetlinePostfixCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Record, AwkGoldenTag.Field),
+        .. Tagged(GetlineFailureCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Record, AwkGoldenTag.Field),
 
         .. Tagged(HostPolicyCases(), AwkGoldenTag.HostPolicy),
 
@@ -3212,27 +3216,24 @@ internal static partial class AwkGoldenCorpus
             [File("/extra.txt", "one\ntwo")],
             "one[<LF>]\ntwo[]\n"),
 
-        PassingWithStdErr(
+        Passing(
             "getline-missing-file-sets-errno",
             ["BEGIN{getline seen < \"/missing.txt\"; print ERRNO}"],
             [],
-            "No such file or directory\n",
-            "awk: /missing.txt: No such file or directory\n"),
+            "No such file or directory\n"),
 
-        PassingWithStdErr(
+        Passing(
             "getline-success-preserves-prior-errno",
             ["BEGIN{getline missing < \"/missing.txt\"; getline seen < \"/extra.txt\"; print seen, ERRNO}"],
             [File("/extra.txt", "ok\n")],
-            "ok No such file or directory\n",
-            "awk: /missing.txt: No such file or directory\n"),
+            "ok No such file or directory\n"),
 
-        PassingWithReadOpenErrorsAndStdErr(
+        PassingWithReadOpenErrors(
             "getline-read-open-error-sets-errno",
             ["BEGIN{print (getline seen < \"/locked.txt\"), ERRNO}"],
             [File("/locked.txt", "secret\n")],
             [ReadOpenError("/locked.txt", "Permission denied")],
-            "-1 Permission denied\n",
-            "awk: /locked.txt: Permission denied\n"),
+            "-1 Permission denied\n"),
 
         FailingWithReadOpenErrors(
             "main-input-read-open-error-fails",
@@ -3298,7 +3299,7 @@ internal static partial class AwkGoldenCorpus
             "-1 \n",
             "awk: warning: fflush: `/missing.txt' is not an open file, pipe or co-process\n"),
 
-        PassingWithStdErr(
+        Passing(
             "getline-file-expression-return-values",
             ["BEGIN{print (getline x < \"/extra.txt\"), x; print (getline x < \"/extra.txt\"), x; print (getline y < \"/missing.txt\"), ERRNO}"],
             [File("/extra.txt", "alpha\n")],
@@ -3343,19 +3344,17 @@ internal static partial class AwkGoldenCorpus
             "before\n",
             "awk: /inet special files are unsupported in Lokad awk\n")
         ];
-            static AwkGoldenCase PassingWithReadOpenErrorsAndStdErr(
+            static AwkGoldenCase PassingWithReadOpenErrors(
                 string name,
                 IReadOnlyList<string> arguments,
                 IReadOnlyList<AwkGoldenFile> inputFiles,
                 IReadOnlyList<AwkGoldenReadOpenError> readOpenErrors,
-                string expectedStdOut,
-                string expectedStdErr)
+                string expectedStdOut)
             {
                 return AwkGoldenCaseBuilder
                     .Create(name, arguments, inputFiles)
                     .WithReadOpenErrors(readOpenErrors)
                     .WithStdOut(expectedStdOut)
-                    .WithStdErr(expectedStdErr)
                     .Build();
             }
 

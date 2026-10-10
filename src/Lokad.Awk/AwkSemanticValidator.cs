@@ -361,6 +361,16 @@ internal static class AwkSemanticValidator
             ValidateControlStatementShape(statement, diagnostics);
             ValidateArgumentlessStatementShape(statement, diagnostics);
             ValidateControlFlowUsage(statement, context, diagnostics);
+            var getlineTarget = statement.Payload switch
+            {
+                AwkGetlineStatementSyntaxPayload getline => getline.Getline.Target.Expression,
+                AwkInputPipeExpressionStatementSyntaxPayload pipe when !pipe.InputPipeGetline.IsCoprocess =>
+                    pipe.InputPipeGetline.Target.Expression,
+                _ => AwkSyntaxOptional<AwkExpressionSyntax>.None
+            };
+            if (getlineTarget.TryGetValue(out var destination) && AwkGetlineLowerer.IsPostfixFieldTarget(destination))
+                diagnostics.Add(AwkGetlineLowerer.PostfixFieldTargetDiagnostic(destination));
+
             foreach (var expression in statement.EnumerateChildExpressions())
                 ValidateExpressionSemantics(expression, context, diagnostics);
 
@@ -476,6 +486,16 @@ internal static class AwkSemanticValidator
             AwkStatementValidationContext context,
             List<AwkDiagnostic> diagnostics)
         {
+            if (expression.Kind == AwkExpressionKind.FunctionCall &&
+                AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
+                AwkBuiltins.IsName(target.Name, AwkBuiltinId.Getline) &&
+                AwkGetlineLowerer.TryResolveExpressionCallParts(expression, out var parts) &&
+                parts.Target.TryGetValue(out var destination) && AwkGetlineLowerer.IsPostfixFieldTarget(destination))
+            {
+                diagnostics.Add(AwkGetlineLowerer.PostfixFieldTargetDiagnostic(destination));
+                return;
+            }
+
             if (expression.Kind != AwkExpressionKind.FunctionCall ||
                 !AwkBuiltinCallShape.TryCreateKnownCallable(expression, out var call) ||
                 !AwkCompatibilityNames.EnablesBuiltin(call.Definition, context.Scope.CompatibilityMode) ||
@@ -521,7 +541,7 @@ internal static class AwkSemanticValidator
                 !AwkExpressionSyntaxFacts.TryGetIdentifier(expression.Children[0], out var identifier) ||
                 !AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Getline) ||
                 !AwkGetlineLowerer.TryResolveExpressionCallParts(expression, out var parts) ||
-                parts.RequiresInputRedirection)
+                parts.HasRedirection)
             {
                 return;
             }

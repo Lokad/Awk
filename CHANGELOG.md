@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- Recoverable getline open/read failures now return -1 and set GNU ERRNO without
+  writing a runtime stderr diagnostic or consuming output budget. Record, RT and
+  destination values are preserved after destination resolution. Fatal main-input,
+  resource and host-policy failures, and command stderr, keep their existing behavior.
+
+- Bare file-redirection and command-pipe getline now work in expression positions,
+  including status assignments, comparisons, arithmetic and control conditions.
+  File source expressions stop before following concatenation/comparison/logical
+  operators; optional targets use variable, array and field syntax. Pipe commands
+  remain host-mediated.
+
+- Direct postfix field mutations used as getline destinations now receive a specific
+  diagnostic before execution. Use $(i++) or $(i--) for a destination index mutation.
+  GNU's accidental direct-field form can discard records or abort on numeric fields;
+  those reference bugs are excluded from the compatibility target.
+
+- Getline now resolves its source and then its destination before opening or reading input.
+  Destination index side effects run once on successful reads, EOF and host read failures;
+  missing array elements and fields are admitted without assigning a record at EOF.
+  Destination changes to RS affect the upcoming read, including main input and pipes.
+
 - Paragraph reads that discard only leading blank lines now carry an explicit EOF
   directive to clear GNU RT without admitting a record. Main input applies it before
   ENDFILE; empty/repeated EOF and read failures preserve RT. File admission preserves

@@ -474,10 +474,18 @@ command-line policy.
 batch carries an explicit `AwkReadCompletion`, and its offsets identify strictly increasing starts
 for every line after the first. `MoreData` must contain at least one byte; only `EndOfFile` may be
 an empty success. A failure contains an `AwkOperationError`; it is never interpreted as EOF.
-Main-input failures are fatal, redirected and pipe `getline` failures return `-1` and set `ERRNO`,
-and source open/read failures retain the source path in their diagnostic. A failed source open is
-not treated as a missing source. Host-provided CLR exception text is not used as a user-visible
-diagnostic.
+Ordinary main-input read failures and main-input open failures are fatal. Recoverable `getline`
+open/read failures return `-1` and set GNU `ERRNO` without writing a runtime diagnostic to stderr,
+even when the status is discarded. Disabled GNU names remain ordinary variables in other profiles.
+Failure preserves the record, RT and existing target value; destination resolution still admits
+missing fields/array elements and evaluates index side effects before reading. Success and EOF
+preserve a previous ERRNO. Recoverable failure consumes no output budget or stderr host call.
+
+Unsupported host capabilities, policy denials, resource limits and malformed UTF-8 retain fatal
+awk diagnostics; they are not recoverable IO results. Command stderr remains host-mediated and
+is preserved independently of a pipe getline result. Source open/read failures retain the source
+path in their diagnostic. A failed source open is not treated as a missing source. Host-provided
+CLR exception text is not used as a user-visible diagnostic.
 
 Line-start offsets are snapshotted by `AwkReadResult`. Successful content is borrowed: the host
 keeps it unchanged and alive until the next read begins on the same descriptor or that descriptor
@@ -486,6 +494,34 @@ is closed. Reads on other descriptors do not end that lifetime.
 Main input and every `getline` source use the current `RS`, including paragraph and regex modes.
 Changing `RS` preserves already-buffered bytes and continues pulling batches only as the next
 record requires; a separator change never drains the descriptor to EOF merely to hand off state.
+
+Bare redirected `getline < file` and `command | getline [target]` are supported
+expressions in each compatibility profile, including assignments, comparisons,
+conditions, loops and function results. Parenthesize a concatenated or assigned file
+source: `getline < ("da" "ta")` reads `data`, while `getline < "da" "ta"`
+concatenates the read status with `ta`. A pipe command admits concatenation without
+parentheses. Following arithmetic/concatenation acts on pipe getline's status.
+Targets admit variables, indexed arrays and fields; source evaluation stays async and
+all file/pipe IO passes through `IAwkHost`. Source and status syntax is separate from
+builtin positional-argument validation. Getline captures the source name and then
+resolves its destination before opening or reading input, including at EOF or a read
+failure. Destination index changes to RS affect that read; the same resolved location
+receives a successful record. EOF can admit an empty array element or extend NF without
+assigning the destination or rebuilding $0.
+
+Direct postfix field mutations such as `getline $i++` and `getline $i--` are rejected
+before execution, including in unreachable code, with a destination-specific diagnostic.
+Use `getline $(i++)` or `getline $(i--)` to mutate the field index while assigning input.
+The GNU manual distinguishes field mutations from
+[index mutations](https://www.gnu.org/software/gawk/manual/html_node/Increment-Ops.html).
+GNU 5.2/5.4's grammar accidentally accepts direct postfix field destinations: its
+postfix instruction leaves a numeric value where getline expects an assignment address.
+Some reads discard the record; successful reads with a nonzero numeric field can abort
+both references. These outcomes are reference bugs and excluded from the compatibility
+target. A native crash or an apparently successful record discard is never an oracle
+for a valid getline assignment. Ordinary field mutations and parenthesized index
+mutations retain their existing semantics. Repeated blank-only pipe EOF metadata
+remains pending.
 
 Paragraph EOF preserves a removed final newline in GNU RT. Single-byte literal FS
 adds an implicit LF boundary; multibyte literal and regex FS preserve LF unless their

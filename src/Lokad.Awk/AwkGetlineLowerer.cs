@@ -1,9 +1,19 @@
 namespace Lokad.Awk;
 
+internal enum AwkGetlineSourceKind
+{
+    MainInput,
+    RedirectedFile,
+    InputPipe
+}
+
 internal readonly record struct AwkGetlineLoweringParts(
     AwkSyntaxOptional<AwkExpressionSyntax> Target,
     AwkSyntaxOptional<AwkExpressionSyntax> Source,
-    bool RequiresInputRedirection);
+    AwkGetlineSourceKind SourceKind)
+{
+    public bool HasRedirection => SourceKind != AwkGetlineSourceKind.MainInput;
+}
 
 internal readonly struct AwkGetlineLoweringResult
 {
@@ -50,6 +60,16 @@ internal readonly struct AwkGetlineLoweringResult
 
 internal static class AwkGetlineLowerer
 {
+    internal static bool IsPostfixFieldTarget(AwkExpressionSyntax target) =>
+        target.Kind == AwkExpressionKind.Postfix && target.Children.Count == 1 &&
+        target.Children[0].Kind == AwkExpressionKind.Field &&
+        AwkExpressionSyntaxFacts.IsIncrementOrDecrementExpression(target);
+
+    internal static AwkDiagnostic PostfixFieldTargetDiagnostic(AwkExpressionSyntax target) =>
+        new(target.Span,
+            "Postfix field mutation is not a getline destination; put index mutations inside $(...).",
+            AwkDiagnosticId.BindInvalidProgram);
+
     public static bool TryResolveStatementParts(
         AwkGetlineSyntax syntax,
         out AwkGetlineLoweringParts parts)
@@ -76,7 +96,9 @@ internal static class AwkGetlineLowerer
             return false;
         }
 
-        parts = new AwkGetlineLoweringParts(target, source, syntax.HasInputRedirection);
+        parts = new AwkGetlineLoweringParts(target, source, syntax.HasInputRedirection
+            ? AwkGetlineSourceKind.RedirectedFile
+            : AwkGetlineSourceKind.MainInput);
         return true;
     }
 
@@ -91,19 +113,24 @@ internal static class AwkGetlineLowerer
             return false;
         }
 
-        var hasSource = false;
+        var sourceKind = AwkGetlineSourceKind.MainInput;
         for (var index = 0; index < expression.OperatorTokens.Count; index++)
         {
             if (expression.OperatorTokens[index].Kind == AwkTokenKind.Less)
             {
-                hasSource = true;
+                sourceKind = AwkGetlineSourceKind.RedirectedFile;
+                break;
+            }
+            if (expression.OperatorTokens[index].Kind == AwkTokenKind.Pipe)
+            {
+                sourceKind = AwkGetlineSourceKind.InputPipe;
                 break;
             }
         }
 
         var target = AwkSyntaxOptional<AwkExpressionSyntax>.None;
         var source = AwkSyntaxOptional<AwkExpressionSyntax>.None;
-        if (hasSource)
+        if (sourceKind != AwkGetlineSourceKind.MainInput)
         {
             if (expression.Children.Count == 3)
                 target = expression.Children[1];
@@ -121,7 +148,7 @@ internal static class AwkGetlineLowerer
             return false;
         }
 
-        parts = new AwkGetlineLoweringParts(target, source, hasSource);
+        parts = new AwkGetlineLoweringParts(target, source, sourceKind);
         return true;
     }
 
@@ -145,6 +172,9 @@ internal static class AwkGetlineLowerer
 
         if (parts.Target.TryGetValue(out var targetExpression))
         {
+            if (IsPostfixFieldTarget(targetExpression))
+                return AwkGetlineLoweringResult.Failure(PostfixFieldTargetDiagnostic(targetExpression));
+
             var targetResult = AwkLValueLowerer.Lower(targetExpression, scope);
             if (!targetResult.Succeeded)
                 return AwkGetlineLoweringResult.Failure(
@@ -164,10 +194,12 @@ internal static class AwkGetlineLowerer
                 return AwkGetlineLoweringResult.Failure(diagnostic);
             }
 
-            source = AwkGetlineSource.Redirection(sourceExpression);
+            source = parts.SourceKind == AwkGetlineSourceKind.InputPipe
+                ? AwkGetlineSource.InputPipe(sourceExpression)
+                : AwkGetlineSource.Redirection(sourceExpression);
         }
 
-        if (parts.RequiresInputRedirection && source is not AwkRedirectionGetlineSource)
+        if (parts.HasRedirection && !parts.Source.HasValue)
         {
             return AwkGetlineLoweringResult.Failure(InvalidGetline(
                 parts.Source.TryGetValue(out var sourceExpression)

@@ -17,16 +17,15 @@ internal static class AwkGetlineRuntime
         AwkExecutionContext execution,
         AwkPendingDiagnosticPolicy pendingDiagnosticPolicy)
     {
-        static async ValueTask ApplyResultAsync(
-            AwkGetlineTarget target,
+        static void ApplyResult(
+            AwkResolvedGetlineTarget target,
             AwkGetlineSource source,
             AwkEvaluationContext context,
-            AwkExecutionContext execution,
             AwkGetlineResult result)
         {
             if (result.HasRecord)
             {
-                if (target is AwkCurrentRecordGetlineTarget)
+                if (target.IsCurrentRecord)
                 {
                     context.State.PreflightCurrentRecordAdmission(
                         result.RecordText, result.Terminator, result.FieldSplittingMode);
@@ -40,11 +39,7 @@ internal static class AwkGetlineRuntime
                     context.State.SetRecordTerminator(result.Terminator);
                 }
 
-                await target.AssignRecordAsync(
-                        context,
-                        result.RecordText,
-                        result.FieldSplittingMode)
-                    .ConfigureAwait(false);
+                target.AssignRecord(context.State, result.RecordText, result.FieldSplittingMode);
             }
             else if (result.ClearsRecordTerminator)
             {
@@ -53,10 +48,6 @@ internal static class AwkGetlineRuntime
             else if (result.Failed)
             {
                 context.State.SetErrno(result.Error.Errno);
-                if (result.Error.HasDiagnostic)
-                {
-                    await execution.Io.WriteStandardErrorAsync(result.Error.Diagnostic).ConfigureAwait(false);
-                }
             }
         }
 
@@ -70,10 +61,11 @@ internal static class AwkGetlineRuntime
             await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
         }
 
-        var result = await source.ReadAsync(context, execution).ConfigureAwait(false);
+        var resolvedSource = await source.ResolveAsync(context).ConfigureAwait(false);
+        var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
+        var result = await resolvedSource.ReadAsync(execution).ConfigureAwait(false);
 
-        await ApplyResultAsync(target, source, context, execution, result)
-            .ConfigureAwait(false);
+        ApplyResult(resolvedTarget, source, context, result);
         return result;
     }
 }

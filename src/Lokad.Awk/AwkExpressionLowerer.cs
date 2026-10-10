@@ -503,6 +503,11 @@ internal static partial class AwkExpressionLowerer
                 }
 
                 lowered = null;
+                // Getline's optional target and redirection are syntax, not positional
+                // builtin arguments: a bare redirected call has only its source child.
+                if (definition.LoweringKind == AwkBuiltinLoweringKind.Getline)
+                    return TryLowerGetlineCall(expression, scope, out lowered);
+
                 if (!AwkBuiltinCallShape.TryCreate(definition, expression, out var call) ||
                     !AwkBuiltinCallShape.AcceptsArgumentCount(definition, call.ArgumentCount) ||
                     !AwkBuiltinCallShape.AcceptsArgumentRoles(call, scope))
@@ -514,8 +519,6 @@ internal static partial class AwkExpressionLowerer
                 {
                     case AwkBuiltinLoweringKind.Length:
                         return TryLowerLengthCall(call, scope, out lowered);
-                    case AwkBuiltinLoweringKind.Getline:
-                        return TryLowerGetlineCall(expression, scope, out lowered);
                     case AwkBuiltinLoweringKind.IsArray:
                         return TryLowerIsArrayCall(call, scope, out lowered);
                     case AwkBuiltinLoweringKind.TypeOf:

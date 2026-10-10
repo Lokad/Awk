@@ -471,23 +471,56 @@ internal sealed class AwkExpressionSyntaxParser
     [Rule]
     public AwkExpressionSyntax GetlineTarget(
         [AwkT(AwkTokenKind.Getline)] Pos<string> getline,
-        [NT(0)] AwkExpressionSyntax target) =>
-        CreateGetlineCall(getline, target, null, null);
+        [NT] GetlineDestination target) =>
+        CreateGetlineCall(getline, target.Expression, null, null);
 
     [Rule]
     public AwkExpressionSyntax GetlineSource(
         [AwkT(AwkTokenKind.Getline)] Pos<string> getline,
         [AwkT(AwkTokenKind.Less)] Pos<string> less,
-        [NT] AwkExpressionSyntax source) =>
+        [NT(4)] AwkExpressionSyntax source) =>
         CreateGetlineCall(getline, null, less, source);
 
     [Rule]
     public AwkExpressionSyntax GetlineTargetSource(
         [AwkT(AwkTokenKind.Getline)] Pos<string> getline,
-        [NT(0)] AwkExpressionSyntax target,
+        [NT] GetlineDestination target,
         [AwkT(AwkTokenKind.Less)] Pos<string> less,
-        [NT] AwkExpressionSyntax source) =>
-        CreateGetlineCall(getline, target, less, source);
+        [NT(4)] AwkExpressionSyntax source) =>
+        CreateGetlineCall(getline, target.Expression, less, source);
+
+    [Rule]
+    public GetlineDestination GetlineVariableDestination(
+        [AwkT(AwkTokenKind.Identifier, AwkTokenKind.SpacedIdentifier)] Pos<string> target) =>
+        new(Variable(target));
+
+    [Rule]
+    public GetlineDestination GetlineArrayDestination(
+        [AwkT(AwkTokenKind.Identifier)] Pos<string> target,
+        [AwkT(AwkTokenKind.LeftBracket)] Pos<string> open,
+        [NT] AwkExpressionSyntax firstIndex,
+        [AwkL(Min = 0)] ArgumentTail[] tails,
+        [AwkT(AwkTokenKind.RightBracket)] Pos<string> close) =>
+        new(ArrayElement(Variable(target), open, firstIndex, tails, close));
+
+    [Rule]
+    public GetlineDestination GetlineFieldDestination(
+        [AwkT(AwkTokenKind.Dollar)] Pos<string> dollar,
+        [NT(0)] AwkExpressionSyntax index) =>
+        new(Field(dollar, index));
+
+    [Rule]
+    public GetlineDestination GetlineUnaryFieldDestination(
+        [AwkT(AwkTokenKind.Dollar)] Pos<string> dollar,
+        [AwkT(AwkTokenKind.Bang, AwkTokenKind.Plus, AwkTokenKind.Minus)] Pos<string> op,
+        [NT(2)] AwkExpressionSyntax operand) =>
+        new(FieldWithUnaryIndex(dollar, op, operand));
+
+    public readonly struct GetlineDestination(AwkExpressionSyntax? expression)
+    {
+        public AwkExpressionSyntax Expression => expression ??
+            throw new InvalidOperationException("The default getline destination has no expression.");
+    }
 
     [Rule(Rank = 1)]
     public AwkExpressionSyntax Power(
@@ -558,7 +591,8 @@ internal sealed class AwkExpressionSyntaxParser
             AwkTokenKind.Less,
             AwkTokenKind.LessEqual,
             AwkTokenKind.Greater,
-            AwkTokenKind.GreaterEqual)] Pos<string> op,
+            AwkTokenKind.GreaterEqual,
+            AwkTokenKind.Pipe)] Pos<string> op,
         [NT(5)] AwkExpressionSyntax right) =>
         new(AwkParsingSupport.ToToken(op), right);
 
@@ -599,12 +633,18 @@ internal sealed class AwkExpressionSyntaxParser
         {
             var last = operands[^1];
             operands.RemoveAt(operands.Count - 1);
-            operands[^1] = CreateNode(AwkExpressionKind.Binary, operands[^1], last, [operators[^1]]);
+            operands[^1] = operators[^1].Kind == AwkTokenKind.Pipe
+                ? AttachInputPipe(operands[^1], last, operators[^1])
+                : CreateNode(AwkExpressionKind.Binary, operands[^1], last, [operators[^1]]);
             operators.RemoveAt(operators.Count - 1);
         }
 
-        static int Precedence(AwkTokenKind kind) =>
-            kind is AwkTokenKind.Tilde or AwkTokenKind.BangTilde ? 1 : 2;
+        static int Precedence(AwkTokenKind kind) => kind switch
+        {
+            AwkTokenKind.Pipe => 3,
+            AwkTokenKind.Tilde or AwkTokenKind.BangTilde => 1,
+            _ => 2
+        };
 
         static AwkExpressionSyntax Membership(
             AwkExpressionSyntax left,
@@ -614,6 +654,55 @@ internal sealed class AwkExpressionSyntaxParser
             if (right.Kind != AwkExpressionKind.Variable)
                 return CreateTokenNode(AwkExpressionKind.Unknown, op);
             return CreateNode(AwkExpressionKind.Binary, left, right, [op]);
+        }
+    }
+
+    private static AwkExpressionSyntax AttachInputPipe(
+        AwkExpressionSyntax command, AwkExpressionSyntax right, AwkToken pipe)
+    {
+        // Pipe getline is a simple expression after its command has been read.
+        // Arithmetic and concatenation following getline operate on its status.
+        // Traverse iteratively: the frontend checks tree depth after syntax parsing.
+        var containers = new Stack<AwkExpressionSyntax>();
+        while (right.Kind is AwkExpressionKind.Binary or AwkExpressionKind.Concatenation)
+        {
+            containers.Push(right);
+            right = right.Children[0];
+        }
+
+        var expression = AttachRead(command, right, pipe);
+        while (containers.TryPop(out var container))
+            expression = CreateNode(container.Kind, expression, container.Children[1], container.OperatorTokens);
+        return expression;
+
+        static AwkExpressionSyntax AttachRead(
+            AwkExpressionSyntax command, AwkExpressionSyntax right, AwkToken pipe)
+        {
+            if (right.Kind != AwkExpressionKind.FunctionCall || right.Children.Count == 0 ||
+                !AwkExpressionSyntaxFacts.TryGetIdentifier(right.Children[0], out var identifier) ||
+                !AwkBuiltins.IsName(identifier.Name, AwkBuiltinId.Getline) ||
+                right.DelimiterTokens.Count != 0)
+            {
+                return CreateTokenNode(AwkExpressionKind.Unknown, pipe);
+            }
+            if (right.OperatorTokens.Count == 1 && right.OperatorTokens[0].Kind == AwkTokenKind.Less)
+            {
+                var withoutSource = CreateNode(AwkExpressionKind.FunctionCall, right.FirstToken,
+                    right.Children[^2].LastToken, right.Children.Take(right.Children.Count - 1).ToArray(), [], [], []);
+                return CreateNode(AwkExpressionKind.Binary, CreatePipeCall(command, withoutSource, pipe),
+                    right.Children[^1], right.OperatorTokens);
+            }
+            if (right.OperatorTokens.Count != 0)
+                return CreateTokenNode(AwkExpressionKind.Unknown, pipe);
+            return CreatePipeCall(command, right, pipe);
+        }
+
+        static AwkExpressionSyntax CreatePipeCall(
+            AwkExpressionSyntax command, AwkExpressionSyntax read, AwkToken pipe)
+        {
+            var children = new List<AwkExpressionSyntax>(read.Children) { command };
+            return CreateNode(AwkExpressionKind.FunctionCall, command.FirstToken,
+                read.LastToken, children, [pipe], [], []);
         }
     }
 

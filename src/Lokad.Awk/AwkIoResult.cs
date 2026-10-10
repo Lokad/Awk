@@ -62,29 +62,16 @@ internal static class AwkCloseDirectionParser
     }
 }
 
-internal readonly struct AwkIoError(AwkErrno errno, ReadOnlyMemory<byte> diagnostic)
+internal readonly struct AwkIoError(AwkErrno errno)
 {
-    public static AwkIoError None { get; } = new(AwkErrno.None, ReadOnlyMemory<byte>.Empty);
+    public static AwkIoError None { get; } = new(AwkErrno.None);
 
     public static AwkIoError RedirectionNeverOpened { get; } =
-        new(AwkErrno.RedirectionNeverOpened, ReadOnlyMemory<byte>.Empty);
+        new(AwkErrno.RedirectionNeverOpened);
 
-    public static AwkIoError FromMissingPath(ReadOnlyMemory<byte> path) =>
-        new(AwkErrno.NoSuchFileOrDirectory, AwkMessages.FormatPathError(path));
-
-    public static AwkIoError FromOpenFailure(ReadOnlyMemory<byte> path, AwkErrno errno) =>
-        new(errno, AwkMessages.FormatPathError(path, errno.Text));
-
-    public static AwkIoError FromReadFailure(AwkFileDescriptor descriptor, AwkOperationError error) =>
-        new(
-            AwkErrno.FromHostMessage(error.Message),
-            AwkMessages.FormatDescriptorReadError(descriptor, error.Message));
+    public static AwkIoError FromErrno(AwkErrno errno) => new(errno);
 
     public AwkErrno Errno { get; } = errno;
-
-    public ReadOnlyMemory<byte> Diagnostic { get; } = diagnostic;
-
-    public bool HasDiagnostic => !Diagnostic.IsEmpty;
 }
 
 internal readonly struct AwkIoOperationResult(AwkIoOperationStatus status, AwkIoError error, int statusCode)

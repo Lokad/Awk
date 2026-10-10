@@ -45,7 +45,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("-1 Device read failed\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(
-            "awk: file descriptor 3: read failed: Device read failed\n",
+            string.Empty,
             host.GetOutput(AwkFileDescriptor.StdErr));
     }
 

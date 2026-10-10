@@ -64,7 +64,7 @@ public sealed class AwkParagraphEofTests
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("-1 0 0 2 kept sentinel [seed fields]\n", host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: file descriptor 3: read failed: Device read failed\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, counters.RecordsRead);
         Assert.Equal(2, reads);
         Assert.Equal(1, counters.StringDecodes); // Host file lookup; no record decoding.

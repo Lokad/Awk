@@ -67,6 +67,13 @@ internal abstract record AwkReference
     /// <summary>Resolves the concrete mutable location after evaluating any field or array index.</summary>
     protected abstract ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context);
 
+    internal async ValueTask<AwkResolvedReference> ResolveGetlineTargetAsync(AwkEvaluationContext context)
+    {
+        var target = await ResolveTargetAsync(context).ConfigureAwait(false);
+        target.PrepareForGetline(context.State);
+        return target;
+    }
+
     /// <summary>Returns the scalar name only when this reference directly addresses a scalar.</summary>
     internal virtual bool TryGetScalarName(out AwkVariableName variable)
     {
@@ -232,6 +239,21 @@ internal readonly struct AwkResolvedReference
     {
         if (_kind is AwkResolvedReferenceKind.Field && _fieldIndex.IsNamedField)
             state.ExtendFieldCountForReference(_fieldIndex);
+    }
+
+    public void PrepareForGetline(AwkRuntimeState state)
+    {
+        if (_kind is AwkResolvedReferenceKind.Field)
+        {
+            if (_fieldIndex.IsNamedField)
+                state.ExtendFieldCountForReference(_fieldIndex);
+        }
+        else
+        {
+            // Resolving the lvalue admits missing scalar/array slots even at EOF.
+            // Reads already preflight their memory and array limits before admission.
+            _ = Evaluate(state);
+        }
     }
 
     public void AssignValue(AwkRuntimeState state, AwkValue value)

@@ -88,33 +88,50 @@ internal abstract record AwkGetlineTarget
     public static AwkGetlineTarget ReferenceTarget(AwkReference reference) =>
         new AwkReferenceGetlineTarget(reference);
 
-    /// <summary>Assigns one byte-native input record while applying the target's record or scalar semantics.</summary>
-    public abstract ValueTask AssignRecordAsync(
-        AwkEvaluationContext context,
-        AwkText record,
-        AwkRecordFieldSplittingMode fieldSplittingMode);
+    /// <summary>Resolves and admits the destination before opening or reading its input.</summary>
+    public abstract ValueTask<AwkResolvedGetlineTarget> ResolveAsync(AwkEvaluationContext context);
 }
 
 internal sealed record AwkCurrentRecordGetlineTarget : AwkGetlineTarget
 {
-    public override ValueTask AssignRecordAsync(
-        AwkEvaluationContext context,
-        AwkText record,
-        AwkRecordFieldSplittingMode fieldSplittingMode)
-    {
-        context.State.SetRecordFieldSplittingMode(fieldSplittingMode);
-        context.State.SetCurrentRecord(record);
-        return default;
-    }
+    public override ValueTask<AwkResolvedGetlineTarget> ResolveAsync(AwkEvaluationContext context) =>
+        ValueTask.FromResult(AwkResolvedGetlineTarget.CurrentRecord);
 }
 
 internal sealed record AwkReferenceGetlineTarget(AwkReference Reference) : AwkGetlineTarget
 {
-    public override ValueTask AssignRecordAsync(
-        AwkEvaluationContext context,
-        AwkText record,
-        AwkRecordFieldSplittingMode fieldSplittingMode) =>
-        Reference.AssignValueAsync(context, context.State.CreateNumericStringValue(record));
+    public override async ValueTask<AwkResolvedGetlineTarget> ResolveAsync(AwkEvaluationContext context) =>
+        AwkResolvedGetlineTarget.ReferenceTarget(
+            await Reference.ResolveGetlineTargetAsync(context).ConfigureAwait(false));
+}
+
+internal readonly struct AwkResolvedGetlineTarget
+{
+    private readonly bool _hasReference;
+    private readonly AwkResolvedReference _reference;
+
+    private AwkResolvedGetlineTarget(AwkResolvedReference reference)
+    {
+        _hasReference = true;
+        _reference = reference;
+    }
+
+    public static AwkResolvedGetlineTarget CurrentRecord => default;
+    public static AwkResolvedGetlineTarget ReferenceTarget(AwkResolvedReference reference) => new(reference);
+    public bool IsCurrentRecord => !_hasReference;
+
+    public void AssignRecord(AwkRuntimeState state, AwkText record, AwkRecordFieldSplittingMode fieldSplittingMode)
+    {
+        if (_hasReference)
+        {
+            _reference.AssignValue(state, state.CreateNumericStringValue(record));
+        }
+        else
+        {
+            state.SetRecordFieldSplittingMode(fieldSplittingMode);
+            state.SetCurrentRecord(record);
+        }
+    }
 }
 
 internal abstract record AwkGetlineSource
@@ -130,44 +147,60 @@ internal abstract record AwkGetlineSource
     /// <summary>Gets whether a read advances the scheduler's main-input stream and record counters.</summary>
     public abstract bool ReadsMainInput { get; }
 
-    /// <summary>Reads one <c>RS</c>-delimited record and returns an awk-shaped getline result.</summary>
-    public abstract ValueTask<AwkGetlineResult> ReadAsync(
-        AwkEvaluationContext context,
-        AwkExecutionContext execution);
+    /// <summary>Captures the source name before evaluating the destination.</summary>
+    public abstract ValueTask<AwkResolvedGetlineSource> ResolveAsync(AwkEvaluationContext context);
 }
 
 internal sealed record AwkMainInputGetlineSource : AwkGetlineSource
 {
     public override bool ReadsMainInput => true;
 
-    public override ValueTask<AwkGetlineResult> ReadAsync(
-        AwkEvaluationContext context,
-        AwkExecutionContext execution) =>
-        new(execution.Io.ReadMainRecordAsync());
+    public override ValueTask<AwkResolvedGetlineSource> ResolveAsync(AwkEvaluationContext context) =>
+        ValueTask.FromResult(AwkResolvedGetlineSource.MainInput);
 }
 
 internal sealed record AwkRedirectionGetlineSource(AwkExpression Expression) : AwkGetlineSource
 {
     public override bool ReadsMainInput => false;
 
-    public override async ValueTask<AwkGetlineResult> ReadAsync(
-        AwkEvaluationContext context,
-        AwkExecutionContext execution) =>
-        await execution.Io.ReadRedirectedRecordAsync(await Expression
-            .ResolveStringAsync(context)
-            .ConfigureAwait(false)).ConfigureAwait(false);
+    public override async ValueTask<AwkResolvedGetlineSource> ResolveAsync(AwkEvaluationContext context) =>
+        AwkResolvedGetlineSource.Redirection(
+            await Expression.ResolveStringAsync(context).ConfigureAwait(false));
 }
 
 internal sealed record AwkInputPipeGetlineSource(AwkExpression Expression) : AwkGetlineSource
 {
     public override bool ReadsMainInput => false;
 
-    public override async ValueTask<AwkGetlineResult> ReadAsync(
-        AwkEvaluationContext context,
-        AwkExecutionContext execution) =>
-        await execution.Io.ReadPipeRecordAsync(await Expression
-            .ResolveStringAsync(context)
-            .ConfigureAwait(false)).ConfigureAwait(false);
+    public override async ValueTask<AwkResolvedGetlineSource> ResolveAsync(AwkEvaluationContext context) =>
+        AwkResolvedGetlineSource.InputPipe(
+            await Expression.ResolveStringAsync(context).ConfigureAwait(false));
+}
+
+internal readonly struct AwkResolvedGetlineSource
+{
+    private readonly AwkGetlineSourceKind _kind;
+    private readonly string? _name;
+
+    private AwkResolvedGetlineSource(AwkGetlineSourceKind kind, string name)
+    {
+        _kind = kind;
+        _name = name;
+    }
+
+    public static AwkResolvedGetlineSource MainInput => default;
+    public static AwkResolvedGetlineSource Redirection(string name) => new(AwkGetlineSourceKind.RedirectedFile, name);
+    public static AwkResolvedGetlineSource InputPipe(string name) => new(AwkGetlineSourceKind.InputPipe, name);
+
+    public ValueTask<AwkGetlineResult> ReadAsync(AwkExecutionContext execution) => _kind switch
+    {
+        AwkGetlineSourceKind.MainInput => new(execution.Io.ReadMainRecordAsync()),
+        AwkGetlineSourceKind.RedirectedFile => new(execution.Io.ReadRedirectedRecordAsync(SourceName)),
+        AwkGetlineSourceKind.InputPipe => new(execution.Io.ReadPipeRecordAsync(SourceName)),
+        _ => throw new InvalidOperationException("Unknown getline source kind.")
+    };
+
+    private string SourceName => _name ?? throw new InvalidOperationException("Missing getline source name.");
 }
 
 internal abstract record AwkFflushTarget

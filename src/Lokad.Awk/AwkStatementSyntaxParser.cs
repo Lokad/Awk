@@ -1001,6 +1001,18 @@ internal sealed class AwkStatementSyntaxParser
             if (pipeIndex < 0)
                 return AwkSyntaxOptional<AwkInputPipeGetlineSyntax>.None;
 
+            // Assignments and status operators surrounding pipe getline belong to
+            // the expression grammar. Retain the statement outline only for a
+            // complete standalone read (and the explicit unsupported coprocess).
+            if (tokens[pipeIndex].Kind == AwkTokenKind.Pipe &&
+                ParseExpression(tokens) is { } expression &&
+                (expression.Kind != AwkExpressionKind.FunctionCall ||
+                 expression.OperatorTokens.Count != 1 ||
+                 expression.OperatorTokens[0].Kind != AwkTokenKind.Pipe))
+            {
+                return AwkSyntaxOptional<AwkInputPipeGetlineSyntax>.None;
+            }
+
             var rightIndex = AwkTokenNavigation.SkipNonSignificant(tokens, pipeIndex + 1, tokens.Count);
             if (rightIndex >= tokens.Count ||
                 tokens[rightIndex].Kind is not (AwkTokenKind.Identifier or AwkTokenKind.Getline) ||

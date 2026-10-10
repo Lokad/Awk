@@ -1,0 +1,83 @@
+namespace Lokad.Awk.Tests;
+
+public sealed class AwkGetlinePostfixTests
+{
+    public static IEnumerable<object[]> PipeCases()
+    {
+        foreach (var testCase in AwkGoldenCorpus.PipeGetlinePostfixCases())
+            foreach (var executable in new[] { false, true })
+                foreach (var utf8 in new[] { false, true })
+                    yield return [testCase, executable, utf8];
+    }
+
+    [Theory]
+    [MemberData(nameof(PipeCases))]
+    public async Task PipeTargetsAssignOrRejectBeforeHostEffects(
+        AwkGoldenCase testCase, bool executable, bool utf8)
+    {
+        var files = AwkTestHarness.BuildFileSystem(testCase);
+        var host = new AwkGetlinePipeTestHost(files);
+        var invocation = AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
+            utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
+            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
+
+        if (executable && testCase.ExpectedExitCode != 0)
+        {
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                AwkExecutor.CompileAsync(host, invocation, CancellationToken.None));
+            Assert.Equal(testCase.ExpectedStdErr, error.Message);
+            Assert.Equal(string.Empty, files.GetOutput(AwkFileDescriptor.StdErr));
+        }
+        else
+        {
+            AwkExitCode exit;
+            if (executable)
+            {
+                var compiled = await AwkExecutor.CompileAsync(host, invocation, CancellationToken.None);
+                exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
+            }
+            else
+            {
+                exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation),
+                    CancellationToken.None, options);
+            }
+            Assert.Equal(testCase.ExpectedExitCode, exit.Value);
+            Assert.Equal(testCase.ExpectedStdErr, files.GetOutput(AwkFileDescriptor.StdErr));
+        }
+
+        Assert.Equal(testCase.ExpectedStdOut, files.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(0, host.OpenPipeCount);
+        if (testCase.ExpectedExitCode != 0)
+        {
+            Assert.Empty(host.Commands);
+            Assert.Empty(host.Writes);
+            Assert.Equal(0, files.ReadOpenCount);
+            Assert.Equal(0, counters.VmBasicBlockEntries);
+            Assert.Equal(0, counters.VmPatternFallbacks);
+        }
+        else
+        {
+            var command = Assert.Single(host.Commands);
+            Assert.Equal("cat data", command.CommandName);
+            Assert.Equal(invocation.CurrentDirectory, command.CurrentDirectory);
+            Assert.Contains(command.Environment, entry => entry.Name == "LC_ALL" && entry.Value == "C.UTF-8");
+            if (executable)
+                Assert.True(counters.VmBasicBlockEntries > 0 || counters.VmPatternFallbacks > 0);
+        }
+    }
+
+    [Theory]
+    [InlineData("BEGIN{print \"before\";if(0)getline $i++ < \"data\"}")]
+    [InlineData("BEGIN{print \"before\";if(0)\"cat data\" | getline $i--}")]
+    [InlineData("function unused(){getline $0++}BEGIN{print \"before\"}")]
+    public void InvalidDestinationIsRejectedInUnreachableCode(string script)
+    {
+        var program = AwkBinder.Bind(AwkParser.Parse(script));
+
+        Assert.Contains(program.Diagnostics, diagnostic => diagnostic.Message ==
+            "Postfix field mutation is not a getline destination; put index mutations inside $(...).");
+    }
+}

@@ -1081,7 +1081,7 @@ internal static partial class AwkGoldenCorpus
             .WithInputDirectories([new AwkGoldenPath("/d")])
             .WithStandardInput("line\n")
             .WithStdOut("-1\n-1 No such file or directory\n")
-            .WithStdErr("awk: missing: No such file or directory\nawk: warning: fflush: `missing' is not an open file, pipe or co-process\n")
+            .WithStdErr("awk: warning: fflush: `missing' is not an open file, pipe or co-process\n")
             .Build();
 
         yield return AwkGoldenCaseBuilder
