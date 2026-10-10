@@ -22,35 +22,44 @@ internal sealed class AwkArrayRuntime
     private static readonly AwkArrayKey ProcInfoSortedInKey =
         new(AwkText.FromSourceLiteralString("sorted_in"));
 
+    private static readonly AwkArraySortOrder DefaultIndexOrder =
+        new AwkArraySortOrder.BuiltinOrder(AwkArrayBuiltinSortOrder.IndexStringAscending);
+
     private static readonly AwkText MatchStartCaptureKeyPart =
         AwkText.FromSourceLiteralString("start");
 
     private static readonly AwkText MatchLengthCaptureKeyPart =
         AwkText.FromSourceLiteralString("length");
 
-    private static readonly IComparer<AwkArraySortEntry> IndexStringAscendingComparer =
+    private static readonly AwkArraySortEntryComparer IndexStringAscendingComparer =
         new AwkArraySortEntryComparer(AwkArraySortMode.IndexStringAscending, AwkRuntimeCounters.Disabled);
 
-    private static readonly IComparer<AwkArraySortEntry> IndexStringDescendingComparer =
+    private static readonly AwkArraySortEntryComparer IndexStringDescendingComparer =
         new AwkArraySortEntryComparer(AwkArraySortMode.IndexStringDescending, AwkRuntimeCounters.Disabled);
 
-    private static readonly IComparer<AwkArraySortEntry> IndexNumberAscendingComparer =
+    private static readonly AwkArraySortEntryComparer IndexNumberAscendingComparer =
         new AwkArraySortEntryComparer(AwkArraySortMode.IndexNumberAscending, AwkRuntimeCounters.Disabled);
 
-    private static readonly IComparer<AwkArraySortEntry> IndexNumberDescendingComparer =
+    private static readonly AwkArraySortEntryComparer IndexNumberDescendingComparer =
         new AwkArraySortEntryComparer(AwkArraySortMode.IndexNumberDescending, AwkRuntimeCounters.Disabled);
 
-    private static readonly IComparer<AwkArraySortEntry> ValueStringAscendingComparer =
+    private static readonly AwkArraySortEntryComparer ValueStringAscendingComparer =
         new AwkArraySortEntryComparer(AwkArraySortMode.ValueStringAscending, AwkRuntimeCounters.Disabled);
 
-    private static readonly IComparer<AwkArraySortEntry> ValueStringDescendingComparer =
+    private static readonly AwkArraySortEntryComparer ValueStringDescendingComparer =
         new AwkArraySortEntryComparer(AwkArraySortMode.ValueStringDescending, AwkRuntimeCounters.Disabled);
 
-    private static readonly IComparer<AwkArraySortEntry> ValueNumberAscendingComparer =
+    private static readonly AwkArraySortEntryComparer ValueNumberAscendingComparer =
         new AwkArraySortEntryComparer(AwkArraySortMode.ValueNumberAscending, AwkRuntimeCounters.Disabled);
 
-    private static readonly IComparer<AwkArraySortEntry> ValueNumberDescendingComparer =
+    private static readonly AwkArraySortEntryComparer ValueNumberDescendingComparer =
         new AwkArraySortEntryComparer(AwkArraySortMode.ValueNumberDescending, AwkRuntimeCounters.Disabled);
+
+    private static readonly AwkArraySortEntryComparer ValueTypeAscendingComparer =
+        new AwkArraySortEntryComparer(AwkArraySortMode.ValueTypeAscending, AwkRuntimeCounters.Disabled);
+
+    private static readonly AwkArraySortEntryComparer ValueTypeDescendingComparer =
+        new AwkArraySortEntryComparer(AwkArraySortMode.ValueTypeDescending, AwkRuntimeCounters.Disabled);
 
     private readonly AwkRuntimeState _state;
     private readonly AwkVariables _variables;
@@ -185,6 +194,8 @@ internal sealed class AwkArrayRuntime
         AwkArraySortOrder order,
         AwkEvaluationContext context)
     {
+        if (order is AwkArraySortOrder.DefaultOrder)
+            order = DefaultIndexOrder;
         var source = _variableRuntime.ResolveOrPromoteArrayName(sourceArrayName);
         using var reservation = ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
         var entries = await SortEntriesAsync(source, order, reservation.Count, context).ConfigureAwait(false);
@@ -386,7 +397,7 @@ internal sealed class AwkArrayRuntime
             return false;
 
         order = AwkArraySortOrder.Parse(text.AsString(_state.Counters));
-        return true;
+        return order is not AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.Unsorted };
     }
 
     private ValueTask<AwkArraySortEntry[]> SortEntriesAsync(
@@ -481,7 +492,7 @@ internal sealed class AwkArrayRuntime
             }
 
             if (!runtime._state.TryGetUserFunction(order.FunctionName, out var function))
-                throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(order.FunctionName.Text));
+                throw new AwkRuntimeException(AwkMessages.FormatUndefinedSortComparison(order.FunctionName.Text));
 
             var entries = runtime.SnapshotSortEntries(arrayName, count, AwkArraySortMode.UserFunction);
             await SortWithUserFunctionAsync(entries, function, context).ConfigureAwait(false);
@@ -505,7 +516,7 @@ internal sealed class AwkArrayRuntime
             var mode = sortOrder switch
             {
                 AwkArraySortOrder.DefaultOrder =>
-                    AwkArraySortMode.ValueStringAscending,
+                    AwkArraySortMode.ValueTypeAscending,
                 AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexStringAscending } =>
                     AwkArraySortMode.IndexStringAscending,
                 AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.IndexStringDescending } =>
@@ -522,6 +533,12 @@ internal sealed class AwkArrayRuntime
                     AwkArraySortMode.ValueNumberAscending,
                 AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueNumberDescending } =>
                     AwkArraySortMode.ValueNumberDescending,
+                AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueTypeAscending } =>
+                    AwkArraySortMode.ValueTypeAscending,
+                AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.ValueTypeDescending } =>
+                    AwkArraySortMode.ValueTypeDescending,
+                AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.Unsorted } =>
+                    AwkArraySortMode.Unsorted,
                 AwkArraySortOrder.UnknownBuiltinOrder unknown =>
                     throw new AwkRuntimeException(AwkMessages.FormatUndefinedSortComparison(unknown.Text)),
                 _ => throw new InvalidOperationException("Unknown awk array sort order.")
@@ -539,6 +556,8 @@ internal sealed class AwkArrayRuntime
                 AwkArraySortMode.ValueStringDescending => ValueStringDescendingComparer,
                 AwkArraySortMode.ValueNumberAscending => ValueNumberAscendingComparer,
                 AwkArraySortMode.ValueNumberDescending => ValueNumberDescendingComparer,
+                AwkArraySortMode.ValueTypeAscending => ValueTypeAscendingComparer,
+                AwkArraySortMode.ValueTypeDescending => ValueTypeDescendingComparer,
                 _ => ValueStringAscendingComparer
             };
             return new AwkArraySortPlan(mode, comparer);
@@ -551,6 +570,8 @@ internal sealed class AwkArrayRuntime
 
         var plan = ResolveSortPlan(order, _state.Counters);
         var entries = SnapshotSortEntries(arrayName, count, plan.Mode);
+        if (plan.Mode == AwkArraySortMode.Unsorted)
+            return entries;
         try
         {
             Array.Sort(entries, new AwkBudgetedSortComparer(plan.Comparer, _state));
@@ -570,23 +591,23 @@ internal sealed class AwkArrayRuntime
     }
 
     private sealed class AwkBudgetedSortComparer(
-        IComparer<AwkArraySortEntry> comparer,
+        AwkArraySortEntryComparer comparer,
         AwkRuntimeState state) : IComparer<AwkArraySortEntry>
     {
         public int Compare(AwkArraySortEntry left, AwkArraySortEntry right)
         {
             state.Resources.RecordSortComparison();
-            return comparer.Compare(left, right);
+            return comparer.Compare(left, right, state);
         }
     }
 
     private readonly struct AwkArraySortPlan
     {
-        private readonly IComparer<AwkArraySortEntry>? _comparer;
+        private readonly AwkArraySortEntryComparer? _comparer;
 
         public AwkArraySortPlan(
             AwkArraySortMode mode,
-            IComparer<AwkArraySortEntry> comparer)
+            AwkArraySortEntryComparer comparer)
         {
             Mode = mode;
             _comparer = comparer;
@@ -594,7 +615,7 @@ internal sealed class AwkArrayRuntime
 
         public AwkArraySortMode Mode { get; }
 
-        public IComparer<AwkArraySortEntry> Comparer => _comparer ?? ValueStringAscendingComparer;
+        public AwkArraySortEntryComparer Comparer => _comparer ?? ValueTypeAscendingComparer;
     }
 
     private AwkArraySortEntry[] SnapshotSortEntries(
@@ -605,7 +626,8 @@ internal sealed class AwkArrayRuntime
         static double ResolveNumericSortKey(
             AwkText key,
             AwkValue value,
-            AwkArraySortMode sortMode)
+            AwkArraySortMode sortMode,
+            AwkRuntimeState state)
         {
             if (sortMode is AwkArraySortMode.ValueNumberAscending or AwkArraySortMode.ValueNumberDescending)
                 return value.AsNumber();
@@ -613,13 +635,7 @@ internal sealed class AwkArrayRuntime
             if (sortMode is not (AwkArraySortMode.IndexNumberAscending or AwkArraySortMode.IndexNumberDescending))
                 return 0;
 
-            return key.TryParseAwkNumber(
-                    AwkNumberParsingMode.Decimal,
-                    out var number,
-                    out var consumedAll) &&
-                consumedAll
-                    ? number
-                    : 0;
+            return state.CreateByteTextValue(key).AsNumber();
         }
 
         static AwkArraySortEntry Project(
@@ -629,17 +645,22 @@ internal sealed class AwkArrayRuntime
         {
             var runtime = projection.Runtime;
             var keyText = key.ToByteText(runtime._state.Counters, runtime._state.MemoryGovernor);
-            var valueText = projection.Mode is
-                AwkArraySortMode.ValueStringAscending or
-                AwkArraySortMode.ValueStringDescending
+            var stringValueOrder = projection.Mode is AwkArraySortMode.ValueStringAscending or AwkArraySortMode.ValueStringDescending;
+            var typeValueOrder = projection.Mode is AwkArraySortMode.ValueTypeAscending or AwkArraySortMode.ValueTypeDescending;
+            var valueText = stringValueOrder || typeValueOrder && !value.IsNumberValue
                     ? runtime._state.FormatStringByteText(value)
                     : AwkText.Empty;
+            // GNU's explicit string-value projection materializes nonfinite numbers as
+            // strings in asort's destination. The source and other modes retain their type.
+            var projectedValue = stringValueOrder && value.IsNumberValue && !double.IsFinite(value.AsNumber())
+                    ? runtime._state.CreateByteTextValue(valueText)
+                    : value;
             return new AwkArraySortEntry(
                 key,
                 keyText,
-                value,
+                projectedValue,
                 valueText,
-                ResolveNumericSortKey(keyText, value, projection.Mode));
+                ResolveNumericSortKey(keyText, value, projection.Mode, runtime._state));
         }
 
         return _variables.SnapshotArrayValues(
@@ -742,7 +763,10 @@ internal sealed class AwkArrayRuntime
         IndexStringAscending,
         IndexStringDescending,
         IndexNumberAscending,
-        IndexNumberDescending
+        IndexNumberDescending,
+        ValueTypeAscending,
+        ValueTypeDescending,
+        Unsorted
     }
 
     private enum AwkArraySortOutput
@@ -753,9 +777,9 @@ internal sealed class AwkArrayRuntime
 
     private sealed class AwkArraySortEntryComparer(
         AwkArraySortMode mode,
-        AwkRuntimeCounters counters) : IComparer<AwkArraySortEntry>
+        AwkRuntimeCounters counters)
     {
-        public int Compare(AwkArraySortEntry left, AwkArraySortEntry right)
+        public int Compare(AwkArraySortEntry left, AwkArraySortEntry right, AwkRuntimeState state)
         {
             switch (mode)
             {
@@ -766,13 +790,17 @@ internal sealed class AwkArrayRuntime
                 case AwkArraySortMode.IndexNumberAscending:
                     return ThenCompareKeys(CompareNumbers(left, right), left, right);
                 case AwkArraySortMode.IndexNumberDescending:
-                    return ThenCompareKeys(CompareNumbers(right, left), left, right);
+                    return ThenCompareKeys(CompareNumbers(right, left), right, left);
                 case AwkArraySortMode.ValueStringDescending:
-                    return ThenCompareKeys(CompareValues(right, left), left, right);
+                    return ThenCompareKeys(CompareValues(right, left), right, left);
                 case AwkArraySortMode.ValueNumberAscending:
-                    return ThenCompareKeys(CompareNumbers(left, right), left, right);
+                    return ThenCompareKeys(CompareNumericValues(left, right), left, right);
                 case AwkArraySortMode.ValueNumberDescending:
-                    return ThenCompareKeys(CompareNumbers(right, left), left, right);
+                    return ThenCompareKeys(CompareNumericValues(right, left), right, left);
+                case AwkArraySortMode.ValueTypeAscending:
+                    return ThenCompareKeys(CompareTypes(left, right), left, right);
+                case AwkArraySortMode.ValueTypeDescending:
+                    return ThenCompareKeys(CompareTypes(right, left), right, left);
                 default:
                     return ThenCompareKeys(CompareValues(left, right), left, right);
             }
@@ -789,9 +817,33 @@ internal sealed class AwkArrayRuntime
                 return left.ValueText.CompareBytes(right.ValueText);
             }
 
+            int CompareNumericValues(AwkArraySortEntry left, AwkArraySortEntry right)
+            {
+                var comparison = CompareNumbers(left, right);
+                if (comparison != 0)
+                    return comparison;
+                counters.RecordByteTextComparison();
+                return state.FormatStringByteText(left.Value).CompareBytes(state.FormatStringByteText(right.Value));
+            }
+
+            int CompareTypes(AwkArraySortEntry left, AwkArraySortEntry right)
+            {
+                var leftNumeric = left.Value.TryGetNumber(out var leftNumber);
+                var rightNumeric = right.Value.TryGetNumber(out var rightNumber);
+                if (leftNumeric && rightNumeric)
+                    return CompareSortNumbers(leftNumber, rightNumber);
+                if (leftNumeric != rightNumeric)
+                    return leftNumeric ? -1 : 1;
+                return CompareValues(left, right);
+            }
+
             static int CompareNumbers(AwkArraySortEntry left, AwkArraySortEntry right) =>
-                left.NumericKey.CompareTo(right.NumericKey);
+                CompareSortNumbers(left.NumericKey, right.NumericKey);
         }
+
+        private static int CompareSortNumbers(double left, double right) =>
+            double.IsNaN(left) ? (double.IsNaN(right) ? 0 : 1) :
+            double.IsNaN(right) ? -1 : left.CompareTo(right);
 
         private int CompareKeys(AwkArraySortEntry left, AwkArraySortEntry right)
         {

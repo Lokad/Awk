@@ -349,6 +349,10 @@ public sealed class AwkBenchmarkCounterTests
         var numeric = await RunAsync([Program("@val_num_asc")]);
         var valueString = await RunAsync([Program("@val_str_asc")]);
         var userFunction = await RunAsync([Program("cmp")]);
+        var defaultOrder = await RunAsync([Program("")]);
+        var typeAscending = await RunAsync([Program("@val_type_asc")]);
+        var typeDescending = await RunAsync([Program("@val_type_desc")]);
+        var unsorted = await RunAsync([Program("@unsorted")]);
 
         Assert.Equal("32\n", numeric.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("32\n", valueString.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -357,6 +361,14 @@ public sealed class AwkBenchmarkCounterTests
             numeric.Counters.AwkTextAllocations + entryCount,
             valueString.Counters.AwkTextAllocations);
         Assert.Equal(numeric.Counters.AwkTextAllocations, userFunction.Counters.AwkTextAllocations);
+        foreach (var result in new[] { defaultOrder, typeAscending, typeDescending, unsorted })
+        {
+            Assert.Equal("32\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(numeric.Counters.AwkTextAllocations, result.Counters.AwkTextAllocations);
+            Assert.InRange(result.Counters.StringDecodes, 0, numeric.Counters.StringDecodes);
+        }
+        Assert.Equal(0, unsorted.Counters.ByteTextComparisons);
+        Assert.True(unsorted.Counters.ExecutionSteps < defaultOrder.Counters.ExecutionSteps);
     }
 
     [Theory]
@@ -365,7 +377,13 @@ public sealed class AwkBenchmarkCounterTests
     [InlineData("@val_str_asc", "2", "1", 1)]
     [InlineData("@val_str_asc", "1", "1", 2)]
     [InlineData("@val_num_asc", "2", "1", 0)]
-    [InlineData("@val_num_asc", "1", "1", 1)]
+    [InlineData("@val_num_asc", "1", "1", 2)]
+    [InlineData("@val_num_asc", "\"02\"", "\"2\"", 1)]
+    [InlineData("@val_type_asc", "2", "1", 0)]
+    [InlineData("@val_type_asc", "1", "1", 1)]
+    [InlineData("@val_type_asc", "1", "\"0\"", 0)]
+    [InlineData("@val_type_asc", "\"aa\"", "\"b\"", 1)]
+    [InlineData("@val_type_desc", "1", "1", 1)]
     public async Task Awk_ArraySortEvaluatesOnlyRequiredTextTieBreakers(
         string order,
         string firstValue,

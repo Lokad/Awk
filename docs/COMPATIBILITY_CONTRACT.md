@@ -53,12 +53,14 @@ Signed `%d`/`%i` format the full decimal integer of any finite double without sa
 the directive's width, precision and applicable flags. `%g` precision zero means one
 significant digit. These policies do not add arbitrary-precision arithmetic.
 
-Nonfinite conversions share a profile-aware path. GNU/default and traditional modes
+Explicit nonfinite numeric directives share a profile-aware path. GNU/default and traditional modes
 use signed `inf`/`nan` spellings and space padding, following GNU 5.4. POSIX mode uses
 the C formatting spellings and sign flags. GNU 5.4 recurses indefinitely on POSIX
 nonfinite formats; these cases are qualified against the working GNU 5.2 reference.
 GNU 5.2's default nonfinite width bypass is a documented version difference, rather
-than Lokad's current padding policy.
+than Lokad's current padding policy. Default `print`, numeric-to-string conversion, and
+`%s` retain signed lowercase `+inf`, `-inf`, `+nan`, and `-nan` in all profiles,
+including POSIX. These scalar conversions preserve the NaN sign.
 
 GNU/default mode supports positional values and dynamic width/precision, such as
 `%2$s` and `%3$*1$.*2$f`. Values are evaluated in their original argument order before
@@ -163,6 +165,32 @@ Lokad's existing pre-execution validation and exit-code-2 diagnostic contract. G
 zero/one-argument variadic calls at runtime, potentially after earlier output, and reports
 fixed-arity parse failures with exit code 1; these diagnostic differences are classified
 separately from matching successful/runtime-failure behavior.
+
+## Array Sorting And Traversal
+
+Default `asort` groups numeric values before pure strings. Numbers, numeric input
+strings, and unassigned values compare numerically; unassigned values compare as zero.
+Pure strings compare by their UTF-8 bytes. Default `asorti` orders the indices as
+strings independently of the values. Both functions preserve typed values and array
+aliases, and support separate destinations and in-place replacement.
+
+The predefined selectors include `@ind_str_asc/desc`, `@ind_num_asc/desc`,
+`@val_str_asc/desc`, `@val_num_asc/desc`, `@val_type_asc/desc`, and `@unsorted`.
+They are accepted by `asort`, `asorti`, and `PROCINFO["sorted_in"]`. Descending
+selectors reverse their tie-breaks too. Numeric index ordering converts numeric
+prefixes using the invocation's conversion profile. Numeric value ordering breaks
+numeric ties by the values' string forms, then by index; type ordering breaks
+numeric ties directly by index. Numeric sorts place NaN after other numbers in
+ascending order, separately from arithmetic NaN comparison rules.
+
+Explicit string-value `asort` materializes nonfinite numeric values as pure strings
+in its destination, matching GNU; a separate source retains its original types.
+`@unsorted` preserves all entries without imposing a portable traversal order.
+Unknown selectors and undefined comparator functions produce awk diagnostics.
+
+This contract covers scalar array elements. Subarray ordering requires the pending
+arrays-of-arrays feature, and IGNORECASE-aware string sorting remains pending.
+See [GNU array sorting](https://www.gnu.org/software/gawk/manual/html_node/Array-Sorting-Functions.html).
 
 ## Unsupported Capabilities
 

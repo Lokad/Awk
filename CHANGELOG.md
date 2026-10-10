@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added `@val_type_asc`, `@val_type_desc`, and `@unsorted` for sorting and traversal.
+  Default asort now groups and orders numeric values before strings; default asorti
+  orders indices. Repaired descending tie-breaks, numeric-prefix index conversion,
+  numeric-value text ties, and NaN ordering. Array replacements preflight resource
+  failures, and unsorted traversal uses only a governed key snapshot.
+- Preserved signed NaN in byte-native default scalar formatting across all profiles.
+  Explicit string-value sorting also preserves GNU's nonfinite destination types.
+
 - Added variadic `and`, `or`, and `xor`, unsigned bitwise results, and GNU 5.4 oversized
   shift behavior. Fractions truncate after negative-value checks; complete folds preserve
   exactly representable high bits. Native out-of-range casts have an explicit portable

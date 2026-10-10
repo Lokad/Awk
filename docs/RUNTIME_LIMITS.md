@@ -188,6 +188,14 @@ enumeration also reserves its returned key snapshot. `asort` and `asorti` write 
 directly into the replacement array, so their preflight does not charge obsolete dictionary or
 projection buffers.
 
+Type-aware modes retain numeric values without eagerly formatting them. Numeric
+value modes format only equal numeric values for their string tie-break. Every actual
+comparison retains its work/cancellation checkpoint and sort-comparison limit.
+`@unsorted` traversal reserves only the returned key snapshot and performs no sort
+comparisons; unsorted `asort`/`asorti` still reserve their entry snapshot and preflight
+the destination replacement. Memory and comparison failures preserve source values
+and the destination and release transient reservations.
+
 Runtime diagnostic queues charge their retained messages and backing capacity to the
 same memory governor. Admission reserves message bytes and any new backing array while
 the old array is still live, before adding a warning. Conservative per-message headroom

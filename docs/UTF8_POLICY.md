@@ -86,6 +86,12 @@ outside that set. Math warning arguments cross to invariant diagnostic strings w
 six-significant-digit precision; this diagnostic-only boundary does not decode awk text.
 The output sink precharges warning-message retention and normalization/UTF-8 headroom.
 
+Default scalar formatting emits signed `inf`/`nan` directly as ASCII bytes in every
+profile, retaining the NaN sign without decoding. Type-aware numeric sorts avoid
+value-string projection; numeric-value ties use the ordinary byte-text conversion
+path, including its separately counted custom CONVFMT boundary. Predefined string
+and index tie-breaks compare UTF-8 bytes without decoding.
+
 `strtonum` preserves numeric arguments without formatting or decoding. Pure-string base
 selection and prefix conversion stay on UTF-8 bytes, including octal fallback and hex
 fractions/exponents. Hex float conversion retains at most 64 significand bits plus a sticky

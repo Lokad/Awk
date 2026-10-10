@@ -103,6 +103,9 @@ internal static class AwkNumberFormatter
         if (double.IsNegativeInfinity(value))
             return CopyAscii("-inf"u8, counters, governor);
 
+        if (double.IsNaN(value))
+            return CopyAscii(BitConverter.DoubleToInt64Bits(value) < 0 ? "-nan"u8 : "+nan"u8, counters, governor);
+
         Span<byte> buffer = stackalloc byte[MaxFormattedDoubleBytes];
         if (!Utf8Formatter.TryFormat(value, buffer, out var formattedBytes, new StandardFormat('G', 6)))
             throw new InvalidOperationException("Unable to format an awk numeric value.");

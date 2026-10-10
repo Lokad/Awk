@@ -28,6 +28,9 @@ internal abstract class AwkArraySortOrder
             "@val_str_desc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.ValueStringDescending),
             "@val_num_asc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.ValueNumberAscending),
             "@val_num_desc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.ValueNumberDescending),
+            "@val_type_asc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.ValueTypeAscending),
+            "@val_type_desc" => new BuiltinOrder(AwkArrayBuiltinSortOrder.ValueTypeDescending),
+            "@unsorted" => new BuiltinOrder(AwkArrayBuiltinSortOrder.Unsorted),
             _ => new UnknownBuiltinOrder(text)
         };
     }
@@ -59,5 +62,8 @@ internal enum AwkArrayBuiltinSortOrder
     ValueStringAscending,
     ValueStringDescending,
     ValueNumberAscending,
-    ValueNumberDescending
+    ValueNumberDescending,
+    ValueTypeAscending,
+    ValueTypeDescending,
+    Unsorted
 }
