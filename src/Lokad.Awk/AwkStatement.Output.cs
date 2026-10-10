@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections.Generic;
 using System;
 using System.Threading.Tasks;
@@ -19,25 +18,19 @@ internal abstract partial class AwkStatement
             var state = context.State;
             var execution = RequireExecutionContext(context);
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
-            var values = ArrayPool<AwkValue>.Shared.Rent(expressions.Length);
-            try
-            {
-                for (var index = 0; index < expressions.Length; index++)
-                    values[index] = await expressions[index].EvaluateAsync(context).ConfigureAwait(false);
+            using var buffer = AwkValueBuffer.Rent(expressions.Length, state.MemoryGovernor);
+            var values = buffer.Values;
+            for (var index = 0; index < expressions.Length; index++)
+                values[index] = await expressions[index].EvaluateAsync(context).ConfigureAwait(false);
 
-                await EmitPrintAsync(
-                        execution.Output,
-                        execution.Io,
-                        resolvedTarget,
-                        values,
-                        expressions.Length,
-                        state)
-                    .ConfigureAwait(false);
-            }
-            finally
-            {
-                ArrayPool<AwkValue>.Shared.Return(values, clearArray: true);
-            }
+            await EmitPrintAsync(
+                    execution.Output,
+                    execution.Io,
+                    resolvedTarget,
+                    values,
+                    expressions.Length,
+                    state)
+                .ConfigureAwait(false);
 
             return AwkStatementFlow.Continue;
 
@@ -50,12 +43,12 @@ internal abstract partial class AwkStatement
                 AwkRuntimeState state)
             {
                 var outputFieldSeparator = valueCount > 1
-                    ? state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator)
-                    : AwkText.Empty;
+                    ? state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator)
+                    : AwkValue.FromText(AwkText.Empty);
                 using var segments = AwkPrintRuntime.Stage(
                     values.AsSpan(0, valueCount),
                     outputFieldSeparator,
-                    state.ResolveSpecialVariableText(AwkSpecialVariableId.OutputRecordSeparator),
+                    state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator),
                     state);
                 if (!target.HasValue)
                 {
@@ -95,10 +88,11 @@ internal abstract partial class AwkStatement
             var execution = RequireExecutionContext(context);
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
             var formatText = await format.ResolveStringAsync(context).ConfigureAwait(false);
-            var resolvedArguments = ArrayPool<AwkValue>.Shared.Rent(arguments.Length);
+            using var formattedTextLease = state.MemoryGovernor.CreateTransientLease();
             AwkText formatted;
-            try
+            using (var buffer = AwkValueBuffer.Rent(arguments.Length, state.MemoryGovernor))
             {
+                var resolvedArguments = buffer.Values;
                 for (var i = 0; i < arguments.Length; i++)
                     resolvedArguments[i] = await arguments[i].EvaluateAsync(context).ConfigureAwait(false);
 
@@ -109,11 +103,8 @@ internal abstract partial class AwkStatement
                     state.Counters,
                     state.MemoryGovernor,
                     state.CompatibilityMode,
-                    state.CancellationCheckpoint);
-            }
-            finally
-            {
-                ArrayPool<AwkValue>.Shared.Return(resolvedArguments, clearArray: true);
+                    state.CancellationCheckpoint,
+                    formattedTextLease);
             }
 
             await EmitByteTextOutputAsync(execution.Output, execution.Io, resolvedTarget, formatted, state.CancellationCheckpoint)

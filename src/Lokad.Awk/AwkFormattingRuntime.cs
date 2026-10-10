@@ -17,17 +17,19 @@ internal sealed class AwkFormattingRuntime(
     private string _conversionFormatString = string.Empty;
     private bool _hasConversionFormatString;
 
-    public AwkText FormatPrintByteText(AwkValue value)
+    public AwkText FormatPrintByteText(AwkValue value) => FormatPrintByteText(value, null);
+
+    public AwkText FormatPrintByteText(AwkValue value, AwkMemoryLease? retainedTextLease)
     {
         value = value.ForceScalar();
         if (!value.IsNumberValue || !value.TryGetNumber(out var number))
             return value.ByteText;
 
         if (AwkNumberFormatter.IsInteger(number))
-            return AwkNumberFormatter.ToAwkText(number, counters, governor);
+            return AwkNumberFormatter.ToAwkText(number, counters, governor, retainedTextLease);
 
         if (UsesDefaultFormat(AwkFormattingVariable.OutputFormat))
-            return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor);
+            return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor, retainedTextLease);
 
         counters.RecordFormattingFallback();
         return PrintfEvaluation.FormatByteText(
@@ -38,7 +40,8 @@ internal sealed class AwkFormattingRuntime(
             counters,
             governor,
             compatibilityMode,
-            checkpoint);
+            checkpoint,
+            retainedTextLease);
     }
 
     public AwkText FormatStringByteText(AwkValue value) => FormatStringByteText(value, null);
@@ -74,7 +77,8 @@ internal sealed class AwkFormattingRuntime(
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null)
+        Action? checkpoint = null,
+        AwkMemoryLease? retainedTextLease = null)
         where TArguments : IPrintfArguments
     {
         counters.RecordFormattingFallback();
@@ -87,7 +91,8 @@ internal sealed class AwkFormattingRuntime(
             counters,
             governor,
             compatibilityMode,
-            checkpoint);
+            checkpoint,
+            retainedTextLease);
     }
 
     private bool UsesDefaultFormat(AwkFormattingVariable variable)

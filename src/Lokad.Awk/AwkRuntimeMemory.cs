@@ -95,6 +95,9 @@ internal static class AwkRuntimeMemory
     public static long EstimateDictionaryBufferBytes(int count) =>
         count <= 0 ? 0 : CheckedAdd(DictionaryObjectBytes, CheckedMultiply(DictionaryEntryBytes, count));
 
+    public static long EstimateAwkTextArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, ReferenceBytes);
+
     public static long EstimateAwkValueArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, AwkValueBytes);
 

@@ -774,6 +774,9 @@ internal sealed class AwkRuntimeState
     public AwkText FormatPrintByteText(AwkValue value) =>
         _formattingRuntime.FormatPrintByteText(value);
 
+    public AwkText FormatPrintByteText(AwkValue value, AwkMemoryLease retainedTextLease) =>
+        _formattingRuntime.FormatPrintByteText(value, retainedTextLease);
+
     public AwkText FormatStringByteText(AwkValue value) =>
         _formattingRuntime.FormatStringByteText(value);
 

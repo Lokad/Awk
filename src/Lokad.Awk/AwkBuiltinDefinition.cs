@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -205,35 +204,37 @@ internal abstract class AwkBuiltinImplementation
                     context.WithEvaluatedArguments(Array.Empty<AwkValue>(), argumentCount)));
             }
 
-            var values = ArrayPool<AwkValue>.Shared.Rent(argumentCount);
+            var buffer = AwkValueBuffer.Rent(argumentCount, context.Evaluation.State.MemoryGovernor);
+            var values = buffer.Values;
             try
             {
                 for (var index = 0; index < argumentCount; index++)
                 {
                     var pending = context.GetValueAsync(index);
                     if (!pending.IsCompletedSuccessfully)
-                        return EvaluateRemainingAsync(context, values, argumentCount, index, pending);
+                        return EvaluateRemainingAsync(context, buffer, argumentCount, index, pending);
 
                     values[index] = pending.Result;
                 }
 
                 var result = evaluator(context.WithEvaluatedArguments(values, argumentCount));
-                ReturnValues(values, argumentCount);
+                buffer.Dispose();
                 return ValueTask.FromResult(result);
             }
             catch
             {
-                ReturnValues(values, argumentCount);
+                buffer.Dispose();
                 throw;
             }
 
             async ValueTask<AwkValue> EvaluateRemainingAsync(
                 AwkBuiltinContext context,
-                AwkValue[] values,
+                AwkValueBuffer buffer,
                 int argumentCount,
                 int currentIndex,
                 ValueTask<AwkValue> pending)
             {
+                var values = buffer.Values;
                 try
                 {
                     values[currentIndex] = await pending.ConfigureAwait(false);
@@ -244,16 +245,11 @@ internal abstract class AwkBuiltinImplementation
                 }
                 finally
                 {
-                    ReturnValues(values, argumentCount);
+                    buffer.Dispose();
                 }
             }
         }
 
-        private static void ReturnValues(AwkValue[] values, int argumentCount)
-        {
-            Array.Clear(values, 0, argumentCount);
-            ArrayPool<AwkValue>.Shared.Return(values);
-        }
     }
 
     private sealed class AsyncBuiltinImplementation(AwkAsyncBuiltinEvaluator evaluator) : AwkBuiltinImplementation

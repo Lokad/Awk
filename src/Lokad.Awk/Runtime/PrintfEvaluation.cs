@@ -663,7 +663,7 @@ internal static class PrintfEvaluation
                 _counters.RecordUtf8Encode();
 
             if (_retainedTextLease is null)
-                return _builder.CopyToAwkText(_counters);
+                return _builder.CopyToAwkText(_counters, _checkpoint);
 
             _retainedTextLease.ReserveAdditional(AwkRuntimeMemory.EstimateTextBytes(_builder.Length));
             return AwkText.CopyTrustedBytes(_builder.AsSpan(), _counters,

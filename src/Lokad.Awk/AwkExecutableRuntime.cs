@@ -274,7 +274,7 @@ internal static class AwkExecutableDispatcher
         using var frame = EnterFrame(state, stackSlotCount);
         state.Counters.RecordVmBasicBlockEntry();
         var block = action.Block;
-        var stack = RentStack(stackSlotCount);
+        var stack = RentStack(stackSlotCount, state.MemoryGovernor);
         try
         {
             var stackCount = 0;
@@ -592,7 +592,7 @@ internal static class AwkExecutableDispatcher
         }
         finally
         {
-            ReturnStack(stack);
+            ReturnStack(stack, state.MemoryGovernor);
         }
 
         static async ValueTask<AwkStatementFlow> ExecuteFallbackActionAsync(
@@ -623,21 +623,27 @@ internal static class AwkExecutableDispatcher
             AwkOutputSink output)
         {
             var outputFieldSeparator = count > 1
-                ? bindings.LoadOutputFieldSeparator(state)
-                : AwkText.Empty;
+                ? bindings.LoadOutputFieldSeparatorValue(state)
+                : AwkValue.FromText(AwkText.Empty);
             using var segments = AwkPrintRuntime.Stage(
                 stack.AsSpan(offset, count),
                 outputFieldSeparator,
-                bindings.LoadOutputRecordSeparator(state),
+                bindings.LoadOutputRecordSeparatorValue(state),
                 state);
             output.Append(segments.Segments);
         }
 
-        static AwkValue[] RentStack(int stackSlotCount) =>
-            ArrayPool<AwkValue>.Shared.Rent(stackSlotCount);
+        // The frame lease already admits this exact array, including its header.
+        static AwkValue[] RentStack(int stackSlotCount, AwkMemoryGovernor governor) =>
+            governor.IsEnabled ? new AwkValue[stackSlotCount] : ArrayPool<AwkValue>.Shared.Rent(stackSlotCount);
 
-        static void ReturnStack(AwkValue[] stack) =>
-            ArrayPool<AwkValue>.Shared.Return(stack, clearArray: true);
+        static void ReturnStack(AwkValue[] stack, AwkMemoryGovernor governor)
+        {
+            if (governor.IsEnabled)
+                Array.Clear(stack);
+            else
+                ArrayPool<AwkValue>.Shared.Return(stack, clearArray: true);
+        }
 
         static void ExecuteNumericOperation(
             AwkValue[] stack,
@@ -850,14 +856,14 @@ internal sealed class AwkExecutableRuntimeBindings
             _scalars[index] = new AwkExecutableScalarBinding(tables.ScalarSymbols[index]);
     }
 
-    public AwkText LoadOutputFieldSeparator(AwkRuntimeState state) =>
-        LoadSpecialScalarText(
+    public AwkValue LoadOutputFieldSeparatorValue(AwkRuntimeState state) =>
+        LoadSpecialScalarValue(
             ref _outputFieldSeparatorSlotId,
             AwkSpecialVariableId.OutputFieldSeparator,
             state);
 
-    public AwkText LoadOutputRecordSeparator(AwkRuntimeState state) =>
-        LoadSpecialScalarText(
+    public AwkValue LoadOutputRecordSeparatorValue(AwkRuntimeState state) =>
+        LoadSpecialScalarValue(
             ref _outputRecordSeparatorSlotId,
             AwkSpecialVariableId.OutputRecordSeparator,
             state);
@@ -895,7 +901,7 @@ internal sealed class AwkExecutableRuntimeBindings
         return slotId;
     }
 
-    private static AwkText LoadSpecialScalarText(
+    private static AwkValue LoadSpecialScalarValue(
         ref AwkOptionalGlobalSlotId optionalSlotId,
         AwkSpecialVariableId id,
         AwkRuntimeState state)
@@ -906,7 +912,7 @@ internal sealed class AwkExecutableRuntimeBindings
             optionalSlotId = AwkOptionalGlobalSlotId.FromValue(slotId);
         }
 
-        return state.FormatStringByteText(state.GetGlobalScalarValue(slotId));
+        return state.GetGlobalScalarValue(slotId);
     }
 
     private struct AwkExecutableScalarBinding(AwkExecutableScalarSymbol symbol)

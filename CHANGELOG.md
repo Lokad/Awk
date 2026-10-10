@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Finite-memory execution now admits exact print/printf argument and segment arrays.
+  Numeric print values and separators keep their formatting charge through append;
+  printf results stay charged through pending redirected writes. Failure releases
+  staging and preserves earlier output. Ordinary built-in argument buffers are also
+  admitted across delayed evaluation. VM stacks use their already admitted exact
+  capacity, while unlimited execution keeps pooling. Print staging and printf result
+  copying observe cancellation without extra logical execution charges.
+
 - String-value array sorting now admits newly formatted numeric text for the full
   staging lifetime, including custom CONVFMT results. Numeric tie comparisons release
   their formatting charge after each comparison. Existing text values stay shared;

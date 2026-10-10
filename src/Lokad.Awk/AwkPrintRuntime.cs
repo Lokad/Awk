@@ -7,40 +7,65 @@ internal static class AwkPrintRuntime
 {
     public static AwkPrintSegments Stage(
         ReadOnlySpan<AwkValue> values,
-        AwkText outputFieldSeparator,
-        AwkText outputRecordSeparator,
+        AwkValue outputFieldSeparator,
+        AwkValue outputRecordSeparator,
         AwkRuntimeState state)
     {
         ArgumentOutOfRangeException.ThrowIfZero(values.Length);
         var capacity = AwkRuntimeMemory.CheckedToInt32(
             AwkRuntimeMemory.CheckedMultiply(values.Length, 2));
-        var segments = ArrayPool<AwkText>.Shared.Rent(capacity);
-        var count = 0;
+        state.CancellationCheckpoint();
+        var lease = state.MemoryGovernor.ReserveTransient(AwkRuntimeMemory.EstimateAwkTextArrayBytes(capacity));
+        var pooled = !state.MemoryGovernor.IsEnabled;
+        AwkText[] segments;
         try
         {
-            for (var index = 0; index < values.Length; index++)
-            {
-                if (index > 0)
-                    segments[count++] = outputFieldSeparator;
-
-                segments[count++] = state.FormatPrintByteText(values[index]);
-            }
-
-            segments[count++] = outputRecordSeparator;
-            return new AwkPrintSegments(segments, count);
+            segments = pooled ? ArrayPool<AwkText>.Shared.Rent(capacity) : new AwkText[capacity];
         }
         catch
         {
-            ArrayPool<AwkText>.Shared.Return(segments, clearArray: true);
+            lease.Dispose();
+            throw;
+        }
+        var count = 0;
+        try
+        {
+            var separator = values.Length > 1 ? state.FormatStringByteText(outputFieldSeparator, lease) : AwkText.Empty;
+            var terminator = state.FormatStringByteText(outputRecordSeparator, lease);
+            for (var index = 0; index < values.Length; index++)
+            {
+                if ((index & 63) == 0)
+                    state.CancellationCheckpoint();
+                if (index > 0)
+                    segments[count++] = separator;
+
+                segments[count++] = state.FormatPrintByteText(values[index], lease);
+            }
+
+            segments[count++] = terminator;
+            state.CancellationCheckpoint();
+            return new AwkPrintSegments(segments, count, lease, pooled);
+        }
+        catch
+        {
+            if (pooled)
+                ArrayPool<AwkText>.Shared.Return(segments, clearArray: true);
+            lease.Dispose();
             throw;
         }
     }
 }
 
-internal readonly struct AwkPrintSegments(AwkText[] values, int count) : IDisposable
+internal readonly struct AwkPrintSegments(AwkText[] values, int count, AwkMemoryLease lease, bool pooled) : IDisposable
 {
     public ReadOnlySpan<AwkText> Segments => values.AsSpan(0, count);
 
-    public void Dispose() =>
-        ArrayPool<AwkText>.Shared.Return(values, clearArray: true);
+    public void Dispose()
+    {
+        if (pooled)
+            ArrayPool<AwkText>.Shared.Return(values, clearArray: true);
+        else
+            Array.Clear(values);
+        lease.Dispose();
+    }
 }

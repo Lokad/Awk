@@ -145,12 +145,17 @@ public sealed class AwkPrintfCancellationTests
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
         var governor = AwkMemoryGovernor.Create(limits, counters);
         var total = 0;
+        var encodesAtCheckpoint = new List<long>();
         var arguments = new TestArguments("界", 0);
         Assert.Equal(20006, PrintfEvaluation.FormatByteText(format, arguments, PrintfMissingArgumentPolicy.Throw,
-            limits, counters, governor, checkpoint: () => total++).RuneLength);
+            limits, counters, governor, checkpoint: () =>
+            {
+                total++;
+                encodesAtCheckpoint.Add(counters.Utf8Encodes);
+            }).RuneLength);
         counters = AwkRuntimeCounters.CreateEnabled();
         governor = AwkMemoryGovernor.Create(limits, counters);
-        var cancelAt = afterCopy ? total : total - 1;
+        var cancelAt = afterCopy ? total : encodesAtCheckpoint.FindLastIndex(static encodes => encodes == 0) + 1;
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
         void Checkpoint()

@@ -313,8 +313,30 @@ new nonfinite text that its explicit string projection materializes in the desti
 finite numeric values retain their type. Transfer occurs with destination publication,
 so neither staging nor mutation admission requests the same payload twice. Failed
 formatting, admission or comparison releases staging and preserves both arrays.
-These checks add no logical execution steps. Print/printf argument and segment buffer
-admission remains a separate audit; this contract covers sort-owned formatted text.
+These checks add no logical execution steps.
+
+Print/printf statements admit argument-array capacity before evaluating their value
+arguments, retaining the existing format and redirection evaluation order.
+Finite-memory runs allocate exactly the admitted number of value slots, while unlimited
+runs keep pooling. Print staging also admits its exact segment-reference array before
+formatting. Newly formatted numeric OFMT values and numeric OFS/ORS text remain charged
+beside the segments; already owned text stays shared. Unused OFS is not formatted for
+single-value print. Printf result text is admitted while its formatting builder is live
+and remains charged until standard-output append or the redirected host write completes.
+Printf arguments release before append; print arguments remain live through staging.
+Ordinary synchronously implemented built-ins, including sprintf, use the same admitted
+value buffers through evaluator completion, including delayed argument evaluation.
+Zero-argument calls allocate no argument buffer; lazy special forms retain their own
+argument semantics.
+
+Failures and cancellation release argument, segment and formatting leases and preserve
+previously staged output. Both interpreter and executable print use the same staging
+contract. Finite-memory VM stacks allocate exactly the value array admitted by the
+existing frame lease, avoiding a larger pool bucket without a duplicate stack charge.
+Unlimited stacks continue pooling. Print staging checks during long value walks, and
+all printf final result copies receive the runtime checkpoint. These checks add no fuel.
+Array allocation/clearing remains a framework boundary; host backpressure and cancellation
+retain the existing host/cleanup contracts.
 
 Type-aware modes retain numeric values without eagerly formatting them. Numeric
 value modes format only equal numeric values for their string tie-break. Every actual
