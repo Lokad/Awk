@@ -65,6 +65,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(ProfileNameCompatibilityCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Function, AwkGoldenTag.Variable),
 
         .. Tagged(FieldModeCompatibilityCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Variable, AwkGoldenTag.Regex),
+        .. Tagged(RegexProfileCompatibilityCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Regex),
 
         .. Tagged(HostPolicyCases(), AwkGoldenTag.HostPolicy),
 
@@ -1077,7 +1078,7 @@ internal static partial class AwkGoldenCorpus
             [],
             "@f(\n1\n"),
 
-        Passing(
+        PassingWithStdErr(
             "mode-options-accepted",
             [
                 "-b",
@@ -1095,7 +1096,8 @@ internal static partial class AwkGoldenCorpus
                 "BEGIN{print \"ok\"}"
             ],
             [],
-            "ok\n"),
+            "ok\n",
+            "awk: warning: `--posix' overrides `--characters-as-bytes'\n"),
 
         Passing(
             "characters-as-bytes-string-functions",

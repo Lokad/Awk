@@ -86,6 +86,34 @@ internal static class AwkRegexScalarPattern
 
     private static string? TranslateBracket(string content)
     {
+        // The adapter's value-match prefilter folds a one-letter ASCII class even
+        // without IgnoreCase. Canonical literal atoms avoid that ambiguity while
+        // retaining byte-native matching and the class's exact set of characters.
+        if (content.Length > 0 && char.IsAsciiLetter(content[0]))
+        {
+            var lower = char.ToLowerInvariant(content[0]);
+            var hasLower = false;
+            var hasUpper = false;
+            var singleLetter = true;
+            foreach (var value in content)
+            {
+                if (!char.IsAsciiLetter(value) || char.ToLowerInvariant(value) != lower)
+                {
+                    singleLetter = false;
+                    break;
+                }
+                hasLower |= value == lower;
+                hasUpper |= value != lower;
+            }
+            if (singleLetter)
+            {
+                var upper = char.ToUpperInvariant(lower);
+                return hasLower && hasUpper
+                    ? "(?:" + lower + "|" + upper + ")"
+                    : (hasLower ? lower : upper).ToString();
+            }
+        }
+
         var negated = content.StartsWith('^');
         var index = negated ? 1 : 0;
         var bmp = new StringBuilder(content.Length);

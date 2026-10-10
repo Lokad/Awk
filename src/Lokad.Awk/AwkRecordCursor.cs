@@ -576,6 +576,30 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 if (separatorBytes.Length == 0)
                     return ParagraphSeparator.Instance;
 
+                if (_state.CompatibilityMode == AwkCompatibilityMode.Posix)
+                {
+                    var first = separatorBytes[0];
+                    if (first > 0x7F)
+                    {
+                        // GNU's multibyte POSIX scanner selects the first byte and consumes
+                        // the complete input character with that prefix, including a different rune.
+                        var (minimum, maximum) = first switch
+                        {
+                            <= 0xDF => ((first & 0x1F) << 6, ((first & 0x1F) << 6) + 0x3F),
+                            <= 0xEF => (Math.Max(0x800, (first & 0x0F) << 12),
+                                first == 0xED ? 0xD7FF : ((first & 0x0F) << 12) + 0xFFF),
+                            _ => (Math.Max(0x10000, (first & 0x07) << 18),
+                                Math.Min(0x10FFFF, ((first & 0x07) << 18) + 0x3FFFF))
+                        };
+                        var pattern = "[" + char.ConvertFromUtf32(minimum) + "-" + char.ConvertFromUtf32(maximum) + "]";
+                        return new RegexSeparator(_state.CreateRegex(new AwkRegexPattern(pattern)));
+                    }
+                    return first == (byte)'\n'
+                        ? NewlineSeparator.Instance
+                        : new SingleByteSeparator(first,
+                            AwkRecordTerminator.FromText(AwkText.FromTrustedOwnedBytes([first], _state.Counters)));
+                }
+
                 if (separatorBytes is [(byte)'\n'])
                     return NewlineSeparator.Instance;
 
@@ -593,9 +617,8 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 if (TryCreateByteRun(separatorBytes, out var byteRun))
                     return byteRun;
 
-                if (separatorText.RuneLength == 1 ||
-                    (_state.ResolveRegexCaseSensitivity() is AwkRegexCaseSensitivity.CaseSensitive &&
-                        IsLiteralPattern(separatorBytes)))
+                if (_state.ResolveRegexCaseSensitivity() is AwkRegexCaseSensitivity.CaseSensitive &&
+                    (separatorText.RuneLength == 1 || IsLiteralPattern(separatorBytes)))
                     return new LiteralSeparator(separatorText, AwkRecordTerminator.FromText(separatorText));
 
                 return new RegexSeparator(_state.CreateRegex(

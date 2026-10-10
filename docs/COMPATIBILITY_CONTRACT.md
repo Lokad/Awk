@@ -41,6 +41,11 @@ GNU-only, but its diagnostic occurs when the call executes, matching the native 
 both destination arrays remain unchanged. GNU regular-expression profile differences
 remain incompletely qualified; this is not a claim of full POSIX or GNU profile conformance.
 
+Regex escapes follow the selected profile in both literal and dynamic patterns;
+see `REGEX_COMPATIBILITY.md` for numeric decoding and remaining gaps. POSIX RS selects
+its first UTF-8 byte and consumes a whole matching input scalar. POSIX mode overrides
+the requested byte-unit option, independent of option order, and emits a warning.
+
 ## Field Splitting Modes
 
 GNU mode initializes PROCINFO["FS"] to "FS". Assigning FS, FPAT or FIELDWIDTHS selects

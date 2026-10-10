@@ -139,6 +139,9 @@ fallback.
 
 ## Byte Mode
 
+When combined with `--posix`, `--characters-as-bytes` is overridden with a warning;
+normal Unicode scalar string units apply, independent of option order.
+
 `--characters-as-bytes` changes string-function units to UTF-8 bytes for valid UTF-8 text. Regex
 matching over non-ASCII byte-mode input is supported for valid UTF-8 through the byte-native
 adapter. `match()`, `RSTART`, `RLENGTH`, and capture-array `start`/`length` report byte units in

@@ -38,7 +38,8 @@ internal static class AwkSyntaxParser
             parsingSource,
             tokens,
             budget,
-            cancellationToken);
+            cancellationToken,
+            compatibilityMode);
         return parser.ParseProgram();
     }
 
@@ -46,7 +47,8 @@ internal static class AwkSyntaxParser
         AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
         AwkFrontendBudget budget,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AwkCompatibilityMode compatibilityMode)
     {
         private readonly AwkParsingSource _source = source;
         private readonly IReadOnlyList<AwkToken> _tokens = tokens;
@@ -233,7 +235,8 @@ internal static class AwkSyntaxParser
                     _source.Text,
                     _tokens,
                     _diagnostics,
-                    budget);
+                    budget,
+                    compatibilityMode);
         }
     }
 

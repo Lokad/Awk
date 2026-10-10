@@ -22,6 +22,7 @@ internal sealed class AwkRegexRuntime
     private readonly AwkBoundedCache<AwkRegexCacheKey, AwkLongestRegex> _longestRegexCache;
     private readonly AwkBoundedCache<AwkRegexCacheKey, PosixCompilation> _posixRegexCache;
     private readonly AwkMemoryGovernor _memoryGovernor;
+    private readonly AwkCompatibilityMode _compatibilityMode;
 
     public AwkRegexRuntime(
         Func<AwkRegexCaseSensitivity> resolveCaseSensitivity,
@@ -46,7 +47,8 @@ internal sealed class AwkRegexRuntime
         AwkRuntimeCounters counters,
         AwkRegexEngineKind engineKind,
         AwkRuntimeResourceMonitor resources,
-        AwkMemoryGovernor? memoryGovernor = null)
+        AwkMemoryGovernor? memoryGovernor = null,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         _resolveCaseSensitivity = resolveCaseSensitivity;
         _stringUnitMode = stringUnitMode;
@@ -55,6 +57,7 @@ internal sealed class AwkRegexRuntime
         _engineKind = engineKind;
         _resources = resources;
         _memoryGovernor = memoryGovernor ?? AwkMemoryGovernor.Create(resources.Limits, counters);
+        _compatibilityMode = compatibilityMode;
         var cachePartitionBytes = Math.Max(1, resources.Limits.MaxRegexCacheBytes / 5);
         _regexCache = new AwkBoundedCache<AwkRegexCacheKey, AwkRegex>(
             MaxCachedRegexes,
@@ -104,7 +107,7 @@ internal sealed class AwkRegexRuntime
             AwkRegexCaseSensitivity caseSensitivity)
         {
             ThrowIfPatternExceedsLimits(pattern.Text);
-            var ere = AwkRegex.TranslatePattern(pattern);
+            var ere = AwkRegex.TranslatePattern(pattern, _compatibilityMode);
             var selection = AwkRegexSelection.Analyze(ere);
             var translated = AwkRegexScalarPattern.Translate(ere);
             ThrowIfPatternExceedsLimits(translated);

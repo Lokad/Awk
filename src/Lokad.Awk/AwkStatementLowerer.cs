@@ -556,7 +556,7 @@ internal static class AwkStatementLowerer
                     if (!switchCase.Expression.TryGetValue(out var caseExpression))
                         return false;
 
-                    if (AwkExpressionLowerer.TryLowerRegexLiteralPattern(caseExpression, out var regex))
+                    if (AwkExpressionLowerer.TryLowerRegexLiteralPattern(caseExpression, out var regex, scope.CompatibilityMode))
                     {
                         arms.Add(new AwkSwitchCase(AwkSwitchCasePattern.FromRegex(regex), body));
                         continue;

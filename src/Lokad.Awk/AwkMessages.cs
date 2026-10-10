@@ -92,6 +92,8 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: byte-mode FS=\"\" over non-ASCII text is unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedByteModeFieldWidths =
         AwkUtf8Codec.Encode("awk: byte-mode FIELDWIDTHS cannot split a UTF-8 character in Lokad awk\n");
+    internal static readonly ReadOnlyMemory<byte> WarningPosixOverridesCharactersAsBytes =
+        AwkUtf8Codec.Encode("awk: warning: `--posix' overrides `--characters-as-bytes'\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidFieldWidths =
         AwkUtf8Codec.Encode("awk: invalid FIELDWIDTHS value\n");
     internal static readonly ReadOnlyMemory<byte> ErrorFieldWidthsStarNotLast =

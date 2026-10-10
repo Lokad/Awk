@@ -131,6 +131,7 @@ internal static partial class AwkProgramLowerer
 
             static bool TryLowerSyntaxRegexPattern(
                 AwkRuleSyntax rule,
+                AwkLoweringScope scope,
                 [NotNullWhen(true)] out AwkPattern? pattern)
             {
                 static bool IsSingleRegexPattern(AwkPatternSyntax pattern)
@@ -153,15 +154,15 @@ internal static partial class AwkProgramLowerer
                 pattern = null;
                 if (rule.PatternSyntax is AwkSinglePatternSyntax singlePattern &&
                     IsSingleRegexPattern(singlePattern) &&
-                    AwkExpressionLowerer.TryLowerRegexLiteralPattern(singlePattern.Expression, out var regex))
+                    AwkExpressionLowerer.TryLowerRegexLiteralPattern(singlePattern.Expression, out var regex, scope.CompatibilityMode))
                 {
                     pattern = AwkPattern.Regex(regex);
                     return true;
                 }
 
                 if (rule.PatternSyntax is not AwkRangePatternSyntax rangePattern ||
-                    !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.Start.Expression, out var start) ||
-                    !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.End.Expression, out var end))
+                    !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.Start.Expression, out var start, scope.CompatibilityMode) ||
+                    !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.End.Expression, out var end, scope.CompatibilityMode))
                 {
                     return false;
                 }
@@ -250,7 +251,7 @@ internal static partial class AwkProgramLowerer
                 return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, statements));
             }
 
-            if (TryLowerSyntaxRegexPattern(rule, out var regexPattern))
+            if (TryLowerSyntaxRegexPattern(rule, scope, out var regexPattern))
             {
                 return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(regexPattern, statements));
             }

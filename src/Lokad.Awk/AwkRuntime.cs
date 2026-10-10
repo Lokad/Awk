@@ -145,6 +145,10 @@ internal static class AwkRuntime
         io.BindMainInputReader(inputScheduler);
         try
         {
+            if (executionOptions.CompatibilityProfile.OverridesCharactersAsBytes)
+                await io.WriteStandardErrorAsync(AwkMessages.WarningPosixOverridesCharactersAsBytes)
+                    .ConfigureAwait(false);
+
             var beginFlow = await actionExecutor.ExecuteBeginActionsAsync(state, io).ConfigureAwait(false);
             if (beginFlow != AwkStatementFlow.ExitProgram)
                 await inputScheduler.ProcessRemainingInputAsync().ConfigureAwait(false);

@@ -156,10 +156,11 @@ internal static partial class AwkExpressionLowerer
 
         static bool TryLowerRegexLiteral(
             AwkExpressionSyntax expression,
+            AwkLoweringScope scope,
             [NotNullWhen(true)] out AwkExpression? lowered)
         {
             lowered = null;
-            if (!TryLowerRegexLiteralPattern(expression, out var regex))
+            if (!TryLowerRegexLiteralPattern(expression, out var regex, scope.CompatibilityMode))
                 return false;
 
             lowered = AwkExpression.RegexMatch(
@@ -746,7 +747,7 @@ internal static partial class AwkExpressionLowerer
                 return false;
 
             if (operatorKind is AwkTokenKind.Tilde or AwkTokenKind.BangTilde &&
-                TryLowerRegexLiteralPattern(rightSyntax, out var literalRegex))
+                TryLowerRegexLiteralPattern(rightSyntax, out var literalRegex, scope.CompatibilityMode))
             {
                 lowered = AwkExpression.RegexMatch(
                     left,
@@ -849,7 +850,7 @@ internal static partial class AwkExpressionLowerer
             case AwkExpressionKind.String:
                 return TryLowerString(expression, out lowered);
             case AwkExpressionKind.Regex:
-                return TryLowerRegexLiteral(expression, out lowered);
+                return TryLowerRegexLiteral(expression, scope, out lowered);
             case AwkExpressionKind.Variable:
                 return TryLowerVariable(expression, scope, out lowered);
             case AwkExpressionKind.Group:

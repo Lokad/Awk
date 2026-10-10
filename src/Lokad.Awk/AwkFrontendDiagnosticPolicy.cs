@@ -21,7 +21,8 @@ internal static class AwkFrontendDiagnosticPolicy
         string source,
         IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics,
-        AwkFrontendBudget budget)
+        AwkFrontendBudget budget,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         for (var index = 0; index < tokens.Count; index++)
         {
@@ -102,7 +103,8 @@ internal static class AwkFrontendDiagnosticPolicy
             if (!AwkRegexSyntaxValidator.IsValidLiteral(
                     token,
                     budget.MaxRegexPatternBytes,
-                    budget.MaxRegexGroups))
+                    budget.MaxRegexGroups,
+                    compatibilityMode))
             {
                 AddDiagnostic(new AwkDiagnostic(
                     token.Span,
@@ -227,7 +229,8 @@ internal static class AwkRegexSyntaxValidator
     public static bool IsValidLiteral(
         AwkToken token,
         long maxPatternBytes,
-        int maxGroups)
+        int maxGroups,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         var text = token.Text;
         string pattern;
@@ -240,7 +243,7 @@ internal static class AwkRegexSyntaxValidator
             return false;
         }
 
-        return IsValidPattern(pattern, maxPatternBytes, maxGroups);
+        return IsValidPattern(pattern, maxPatternBytes, maxGroups, compatibilityMode);
     }
 
     public static bool IsValidPattern(string pattern)
@@ -249,13 +252,14 @@ internal static class AwkRegexSyntaxValidator
     private static bool IsValidPattern(
         string pattern,
         long maxPatternBytes,
-        int maxGroups)
+        int maxGroups,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         try
         {
             AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(pattern, maxPatternBytes, maxGroups);
             var translated = AwkRegexScalarPattern.Translate(
-                AwkRegex.TranslatePattern(new AwkRegexPattern(pattern)));
+                AwkRegex.TranslatePattern(new AwkRegexPattern(pattern), compatibilityMode));
             AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(translated, maxPatternBytes, maxGroups);
             _ = new Regex(
                 translated,

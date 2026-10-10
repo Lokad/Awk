@@ -16,6 +16,36 @@ String comparisons, index, and sorting use the invariant scalar/byte policy reco
 `COMPATIBILITY_CONTRACT.md`; regex Unicode case/word equivalence still follows its
 separate backend compatibility contract.
 
+The compatibility profile also governs literal and dynamic escape translation, including
+precompiled rule, operator and switch patterns. GNU word/space/buffer operators are enabled
+only in GNU mode and are ordinary escaped characters in POSIX/traditional modes. Unknown
+escapes such as `\d`, `\A`, `\p` and `\q` denote literal characters rather than .NET
+operators. Octal/hexadecimal metacharacters retain their ERE effect in GNU/POSIX mode;
+traditional mode quotes them. POSIX mode does not decode hexadecimal regex escapes.
+Numeric decoding precedes ERE escape interpretation: GNU `\134w` is a word operator,
+whereas `\134y` is a literal y. Bracket escapes retain character-class context.
+
+ASCII letter classes containing one letter in either or both cases are normalized to
+equivalent literal atoms. This avoids the UTF-8 adapter 0.2.0 boolean-match prefilter's
+incorrect case folding for classes such as `[W]` and `[Ww]`, while retaining byte-native
+matching, quantifiers and capture numbering.
+
+POSIX record separators select their first UTF-8 byte. For a non-ASCII prefix, the
+scanner consumes the complete input scalar with that leading byte; it can therefore
+consume a different scalar from the one written in RS. Traditional mode retains
+multi-character regex RS. `--posix` overrides `--characters-as-bytes` in either option
+order and emits an ordinary warning before execution.
+In GNU mode, a one-byte RS remains literal and case-sensitive. A non-ASCII single-scalar
+RS uses regex matching when IGNORECASE is enabled, preserving case equivalence for that
+separator; it retains the byte-native literal plan when case-sensitive.
+
+This qualification does not establish full profile conformance. Unknown-escape warnings,
+some ERE grammar/numeric-byte escapes, mixed regex/expression range parsing, paragraph
+terminators and non-ASCII paragraph FS, and Unicode word boundaries remain open.
+GNU 5.4 MinRX also loses uppercase members in classes such as `[[:alpha:]A]`; GNU 5.2
+and GNU 5.4 with `GAWK_GNU_MATCHERS=1` retain them. These reference differences must
+remain explicit when selecting compatibility expectations.
+
 Regex routing evidence uses dedicated counters. `RegexDotNetTextMatches` counts `AwkText`
 regex operations routed through the .NET string engine, whether that engine is the configured
 default or a compatibility fallback. `RegexPatternGapFallbacks` counts translated patterns such as
@@ -80,9 +110,11 @@ the older matchers. Consequently, matching GNU 5.2.1 capture output alone does n
 POSIX subexpression selection. The benchmark reference remains separately pinned. See
 [GNU's matcher documentation](https://www.gnu.org/software/gawk/manual/html_node/Choosing-Matchers.html).
 
-Inherited backend extensions, including named/noncapturing groups, arbitrary lookarounds,
-backreferences, balancing groups, conditionals, atomic groups, search-offset anchors, and
+Some inherited backend constructs, including named/noncapturing groups, arbitrary lookarounds,
+balancing groups, conditionals, atomic groups, and
 whitespace/comment mode, retain their existing compatibility search and capture semantics.
+Escape sequences follow the awk profile rules above: backend escapes such as `\k`, `\G`
+and `\p` are ordinary escaped characters, and numeric escapes follow awk decoding.
 The legacy endpoint constraint's private groups remain hidden from user captures and counters.
 These extensions are outside the traditional awk ERE contract. POSIX 2024/GNU 5.4 minimized
 repetitions remain a separate compatibility follow-up.

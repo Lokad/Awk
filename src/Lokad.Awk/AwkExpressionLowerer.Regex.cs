@@ -22,7 +22,8 @@ internal static partial class AwkExpressionLowerer
 
     public static bool TryLowerRegexLiteralPattern(
         AwkExpressionSyntax? expression,
-        [NotNullWhen(true)] out AwkRegex? regex)
+        [NotNullWhen(true)] out AwkRegex? regex,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         regex = null;
         if (!TryReadRegexLiteralPattern(expression, out var pattern))
@@ -32,7 +33,8 @@ internal static partial class AwkExpressionLowerer
         {
             regex = AwkRegex.Create(
                 new AwkRegexPattern(pattern),
-                AwkRegexCaseSensitivity.CaseSensitive);
+                AwkRegexCaseSensitivity.CaseSensitive,
+                compatibilityMode);
             return true;
         }
         catch (ArgumentException)

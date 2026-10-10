@@ -100,7 +100,8 @@ internal sealed class AwkRuntimeState
             Counters,
             runtimeOptions.RegexEngineKind,
             resources,
-            MemoryGovernor);
+            MemoryGovernor,
+            CompatibilityMode);
         _stringRuntime = new AwkStringRuntime(stringUnitMode, Resources.RecordByteWork);
         _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryGovernor, CompatibilityMode);
         _fieldSplitter = new AwkFieldSplitter(
@@ -205,6 +206,7 @@ internal sealed class AwkRuntimeState
     public bool ExitRequested => _executionControl.ExitRequested;
 
     public AwkCompatibilityMode CompatibilityMode { get; }
+
 
     public AwkLintMode LintMode { get; }
 

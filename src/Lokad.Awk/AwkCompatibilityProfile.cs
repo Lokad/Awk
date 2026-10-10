@@ -2,6 +2,8 @@ namespace Lokad.Awk;
 
 internal readonly struct AwkCompatibilityProfile
 {
+    private readonly AwkStringUnitMode _requestedStringUnitMode;
+
     public AwkCompatibilityProfile(
         AwkCompatibilityMode mode,
         AwkStringUnitMode stringUnitMode,
@@ -9,7 +11,7 @@ internal readonly struct AwkCompatibilityProfile
         AwkLintMode lintMode)
     {
         Mode = mode;
-        StringUnitMode = stringUnitMode;
+        _requestedStringUnitMode = stringUnitMode;
         NonDecimalData = nonDecimalData;
         LintMode = lintMode;
     }
@@ -23,7 +25,11 @@ internal readonly struct AwkCompatibilityProfile
 
     public AwkCompatibilityMode Mode { get; }
 
-    public AwkStringUnitMode StringUnitMode { get; }
+    public AwkStringUnitMode StringUnitMode =>
+        Mode == AwkCompatibilityMode.Posix ? AwkStringUnitMode.Utf8Rune : _requestedStringUnitMode;
+
+    public bool OverridesCharactersAsBytes =>
+        Mode == AwkCompatibilityMode.Posix && _requestedStringUnitMode == AwkStringUnitMode.Byte;
 
     public bool NonDecimalData { get; }
 
@@ -32,7 +38,7 @@ internal readonly struct AwkCompatibilityProfile
     public AwkCompatibilityProfile WithMode(AwkCompatibilityMode mode) =>
         new(
             mode,
-            StringUnitMode,
+            _requestedStringUnitMode,
             NonDecimalData,
             LintMode);
 
@@ -40,10 +46,10 @@ internal readonly struct AwkCompatibilityProfile
         new(Mode, AwkStringUnitMode.Byte, NonDecimalData, LintMode);
 
     public AwkCompatibilityProfile WithNonDecimalData() =>
-        new(Mode, StringUnitMode, true, LintMode);
+        new(Mode, _requestedStringUnitMode, true, LintMode);
 
     public AwkCompatibilityProfile WithLintMode(AwkLintMode lintMode) =>
-        new(Mode, StringUnitMode, NonDecimalData, lintMode);
+        new(Mode, _requestedStringUnitMode, NonDecimalData, lintMode);
 }
 
 internal enum AwkStringUnitMode

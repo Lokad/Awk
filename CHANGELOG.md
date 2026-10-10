@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Regex escape translation now follows GNU/POSIX/traditional profiles for literal and
+  dynamic patterns. Unknown escapes denote ordinary characters; numeric escapes retain
+  the selected profile's metacharacter rules. POSIX RS follows its first-byte scanner,
+  POSIX mode overrides byte-unit options with a warning, and GNU IGNORECASE applies to
+  non-ASCII single-scalar RS. Equivalent ASCII letter
+  class atoms avoid incorrect UTF-8 adapter boolean case folding. Remaining warning,
+  ERE grammar, paragraph, range-parser and Unicode boundary gaps stay open.
+
 - Compatibility profiles now govern lexical keywords, reserved names, callable binding,
   formal parameters and GNU special-variable effects. Disabled GNU names can be ordinary
   variables, arrays or user functions; local names retain their lexical classification.
