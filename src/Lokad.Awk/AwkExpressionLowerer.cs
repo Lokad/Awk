@@ -368,6 +368,7 @@ internal static partial class AwkExpressionLowerer
 
                     var separator = AwkExpression.Variable(
                         AwkVariableName.FromText(AwkSpecialVariables.Name(AwkSpecialVariableId.FieldSeparator)));
+                    var isRegexLiteral = false;
                     if (call.ArgumentCount >= 3)
                     {
                         if (!call.GetArgument(2).TryGetValue(out var separatorSyntax) ||
@@ -375,12 +376,13 @@ internal static partial class AwkExpressionLowerer
                         {
                             return false;
                         }
+                        isRegexLiteral = TryReadRegexLiteralPattern(separatorSyntax, out _);
                     }
 
                     if (!call.TryGetOptionalArrayIdentifierArgument(3, out var separatorArrayName))
                         return false;
 
-                    lowered = AwkExpression.Split(value, arrayName, separator, separatorArrayName);
+                    lowered = AwkExpression.Split(value, arrayName, separator, separatorArrayName, isRegexLiteral);
                     return true;
                 }
 

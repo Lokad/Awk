@@ -108,6 +108,10 @@ internal static class AwkRuntimeMemory
             ListObjectBytes,
             EstimateArrayBufferBytes(capacity, sizeof(int) * 2));
 
+    public static long EstimateFieldTextListBytes(int count) =>
+        count <= 0 ? 0 : CheckedAdd(ListObjectBytes,
+            EstimateArrayBufferBytes(Math.Max(4, count), 24));
+
     public static long EstimateSplitBufferBytes(
         int inputByteLength,
         int fieldListCount,
@@ -117,10 +121,17 @@ internal static class AwkRuntimeMemory
 
         var fieldCount = CheckedAdd(inputByteLength, 1);
         var bytes = CheckedMultiply(EstimateReferenceListBytes(fieldCount), fieldListCount);
+        // Captures carry an index as well as text. A growing list can retain up to
+        // twice the maximum published count while building the split result.
         return captureMode is AwkSeparatorCaptureMode.Capture
-            ? CheckedAdd(bytes, EstimateReferenceListBytes(CheckedAdd(fieldCount, 1)))
+            ? CheckedAdd(bytes, EstimateSeparatorCaptureListBytes(
+                CheckedToInt32(CheckedMultiply(CheckedAdd(fieldCount, 1), 2))))
             : bytes;
     }
+
+    public static long EstimateSeparatorCaptureListBytes(int count) =>
+        count <= 0 ? 0 : CheckedAdd(ListObjectBytes,
+            EstimateArrayBufferBytes(Math.Max(4, count), 16));
 
     private static long EstimateArrayBufferBytes(int count, int elementBytes)
     {

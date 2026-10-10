@@ -5,6 +5,7 @@ namespace Lokad.Awk;
 internal sealed class AwkRecordFieldRuntime(
     AwkFieldSplitter fieldSplitter,
     Func<string, AwkValue> createStringValue,
+    Func<AwkText, AwkValue> createStringByteText,
     Func<AwkText, AwkValue> createNumericByteText,
     Func<AwkValue, AwkText> formatStringByteText,
     Func<AwkText> resolveOutputFieldSeparator,
@@ -12,13 +13,16 @@ internal sealed class AwkRecordFieldRuntime(
     AwkRuntimeCounters counters,
     AwkMemoryGovernor governor,
     int maxFields,
-    Action<long> throwIfValueBytesExceeded)
+    Action<long> throwIfValueBytesExceeded,
+    Action<int> recordByteWork)
 {
     private readonly AwkFieldFrame _frame = new(
         counters,
         governor,
         maxFields,
-        throwIfValueBytesExceeded);
+        throwIfValueBytesExceeded,
+        formatStringByteText,
+        recordByteWork);
 
     public AwkText CurrentRecordByteText => _frame.RecordAwkText;
 
@@ -27,7 +31,9 @@ internal sealed class AwkRecordFieldRuntime(
 
     public AwkValue FieldCountValue => _frame.GetFieldCountValue(SplitCurrentFields);
 
-    public AwkValue CurrentRecordValue => _frame.GetRecordValue(createNumericByteText);
+    public AwkValue CurrentRecordValue => _frame.GetRecordValue(createNumericByteText, createStringByteText);
+
+    public void PrepareOutputFieldSeparatorAssignment() => _frame.PrepareOutputFieldSeparatorAssignment();
 
     public void ResetRecord() => _frame.ResetRecord();
 
@@ -82,7 +88,6 @@ internal sealed class AwkRecordFieldRuntime(
             index,
             value,
             resolveOutputFieldSeparator(),
-            formatStringByteText,
             SplitCurrentFields);
     }
 

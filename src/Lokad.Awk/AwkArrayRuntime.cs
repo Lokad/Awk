@@ -361,7 +361,7 @@ internal sealed class AwkArrayRuntime
         AwkArrayName fieldArrayName,
         IReadOnlyList<AwkText> fields,
         AwkArrayName separatorArrayName,
-        IReadOnlyList<AwkText> separators)
+        IReadOnlyList<AwkCapturedSeparator> separators)
     {
         var resolvedFieldArrayName = _variableRuntime.ResolveOrPromoteArrayName(fieldArrayName);
         var resolvedSeparatorArrayName = _variableRuntime.ResolveOrPromoteArrayName(separatorArrayName);

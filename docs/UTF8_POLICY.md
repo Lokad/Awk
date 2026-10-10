@@ -51,6 +51,19 @@ the record or eagerly split its fields. FPAT pattern decoding occurs when fields
 actually requested. Literal one-character separators count Unicode scalars and remain
 case-sensitive; see `docs/RECORD_SEMANTICS.md` for the classified native differences.
 
+Pure numeric field assignment retains no formatted text. Record reconstruction converts
+those values under the current CONVFMT, using the ordinary byte-native default formatter
+or the counted custom-format compatibility boundary. Formatted UTF-8 text and both field
+buffers remain governed until the complete new record is preflighted and published.
+Reconstruction does not decode the previous record. Counter tests distinguish assignment
+without text allocation from deferred conversion and record allocation.
+
+Separator capture results carry their explicit field indices. Byte-native literal,
+whitespace, and character split paths preserve sparse membership without decoding or
+allocating text for absent boundaries. Actual empty separators share `AwkText.Empty`.
+The capture buffer estimate includes 16-byte indexed entries, headers, and list growth
+headroom; field and separator arrays are preflighted together before publication.
+
 Boundary counters classify the subsystem that crossed the string boundary. An `AwkText.AsString()`
 call is the low-level interop request, `AwkTextAsStringDecodeMisses` records cache misses, and
 higher-level counters such as `FormattingFallbacks`, `StringInteropFallbacks`,

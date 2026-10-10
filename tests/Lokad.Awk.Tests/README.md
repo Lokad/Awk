@@ -44,6 +44,10 @@ from benchmark tooling without referencing BenchmarkDotNet or an external proces
 The optional native driver's `--driver-smoke` integration checks require explicitly
 selected GNU awk and stay outside ordinary test execution.
 
+Tests that force garbage collection or measure thread-local allocation should use
+`AwkAllocationMeasurementCollection` so unrelated collections cannot interfere with
+their measured loops. Keep their allocation ceilings unchanged when adding isolation.
+
 ## Review Gates
 
 Every new awk feature, compatibility decision, or diagnostic needs a golden case unless the behavior is only observable at a narrower structural layer. Parser and runtime refactors should state which duplicate current-surface or end-to-end tests were removed, narrowed, or intentionally retained.

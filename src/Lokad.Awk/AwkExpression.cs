@@ -115,14 +115,15 @@ internal abstract partial class AwkExpression
         new MatchExpression(value, pattern, captureArrayName);
 
     public static AwkExpression Split(AwkExpression value, AwkArrayName arrayName, AwkExpression separator) =>
-        new SplitExpression(value, arrayName, separator, AwkOptionalIdentifier.None);
+        new SplitExpression(value, arrayName, separator, AwkOptionalIdentifier.None, false);
 
     public static AwkExpression Split(
         AwkExpression value,
         AwkArrayName arrayName,
         AwkExpression separator,
-        AwkOptionalIdentifier separatorArrayName) =>
-        new SplitExpression(value, arrayName, separator, separatorArrayName);
+        AwkOptionalIdentifier separatorArrayName,
+        bool isRegexLiteral = false) =>
+        new SplitExpression(value, arrayName, separator, separatorArrayName, isRegexLiteral);
 
     public static AwkExpression Patsplit(AwkExpression value, AwkArrayName arrayName, AwkExpression pattern) =>
         new PatsplitExpression(value, arrayName, pattern, AwkOptionalIdentifier.None);

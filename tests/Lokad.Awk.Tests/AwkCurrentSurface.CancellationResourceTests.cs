@@ -1484,7 +1484,8 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_FieldCountMemoryLimitFailsBeforeExpandingFields()
     {
-        var state = CreateStateWithMemoryLimit(300);
+        // Admit the original field's value-type buffer while rejecting 30 fields.
+        var state = CreateStateWithMemoryLimit(500);
         state.SetCurrentRecord(AwkText.FromString("a", state.Counters, state.MemoryGovernor));
 
         var exception = Assert.Throws<AwkRuntimeException>(() => state.AssignFieldCount(30));
@@ -1579,7 +1580,8 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_SubstitutionFieldReferenceMemoryLimitFailsBeforeExtendingFields()
     {
-        var state = CreateStateWithMemoryLimit(300);
+        // Admit the original field's value-type buffer while rejecting 30 fields.
+        var state = CreateStateWithMemoryLimit(500);
         state.SetCurrentRecord(AwkText.FromString("a", state.Counters, state.MemoryGovernor));
         Assert.Equal(1, state.FieldCount);
 

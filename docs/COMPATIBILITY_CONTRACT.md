@@ -38,6 +38,21 @@ or one terminating semicolon; a completed braced or null body needs no separator
 An additional semicolon creates another null statement and prevents attachment.
 These syntax errors are reported before execution, including unreachable bodies.
 
+## Split Separators
+
+`split` capture arrays contain only actual separators; `patsplit` retains its complete
+before/between/after capture contract. Both kinds of captured text have the same numeric
+input classification as split fields. See `RECORD_SEMANTICS.md` for indices, empty input,
+whitespace boundaries, and atomic replacement.
+
+The direct regex literal `/ /` in a split separator argument means a literal space;
+the string `" "` uses whitespace splitting. Other single-character separators follow
+GNU awk 5.4's literal-character rule, including `/./` as a literal dot. GNU awk 5.2.1
+instead treats `/./` as a regex, and has a POSIX-mode difference for `/ /`. Versioned
+comparisons classify these differences separately. A parenthesized regex expression
+is evaluated against the current record and its Boolean result becomes the separator;
+it does not acquire the direct literal argument rule.
+
 ## Exponentiation Syntax
 
 Unary `!`, `+`, and `-` may be chained without grouping, including `!!x`, `- -x`,

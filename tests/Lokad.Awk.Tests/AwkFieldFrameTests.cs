@@ -55,7 +55,7 @@ public sealed class AwkFieldFrameTests
     {
         var governor = AwkMemoryGovernor.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(500));
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { });
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { }, value => value.ByteText, _ => { });
         var priorPlan = CreatePlan(0, ",");
         frame.SetRecordText(AwkText.FromSourceLiteralString("keep"), priorPlan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -85,7 +85,7 @@ public sealed class AwkFieldFrameTests
     {
         var governor = AwkMemoryGovernor.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4_096));
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { });
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { }, value => value.ByteText, _ => { });
         var plan = CreatePlan(mode, new string('x', 200));
         frame.SetRecordText(AwkText.FromSourceLiteralString("keep"), plan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -107,7 +107,7 @@ public sealed class AwkFieldFrameTests
     {
         var governor = AwkMemoryGovernor.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4_096));
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1, _ => { });
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1, _ => { }, value => value.ByteText, _ => { });
         var plan = CreatePlan(0, ",");
         frame.SetRecordText(AwkText.FromSourceLiteralString("a,b"), plan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -140,6 +140,8 @@ public sealed class AwkFieldFrameTests
             counters,
             CreateGovernor(counters),
             maxFields: 1_000,
+            _ => { },
+            value => value.ByteText,
             _ => { });
 
     private static AwkMemoryGovernor CreateGovernor(AwkRuntimeCounters counters) =>

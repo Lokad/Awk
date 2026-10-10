@@ -69,6 +69,20 @@ Failures use awk-shaped diagnostics and do not leak CLR exception text. Byte and
 use `awk: memory limit exceeded`; execution-step, host-call, and output-file ceilings use their
 dedicated awk diagnostics.
 
+Numeric field conversion is deferred until record reconstruction. Its temporary formatted
+text, field buffers, and destination record are governed while the old record remains live;
+the field-buffer estimate includes 24-byte value-type entries and object/array headers.
+The complete composed value is checked before fields or `$0` are replaced. OFS assignment
+reserves its scalar growth before requesting this reconstruction, so either failure preserves
+the previous separator and dirty numeric fields. Each converted field checks cancellation
+before formatting and charges its resulting byte work against the shared execution allowance.
+
+Split separator arrays charge their actual published entries, including actual empty
+separators between characters, and exclude absent boundaries. The two replacement arrays
+preflight their element counts and combined retained memory before either is published.
+Transient capture buffers account for indexed 16-byte entries and list growth headroom.
+This applies to `split` and `patsplit` without merging their different boundary rules.
+
 ## Compatibility Policy Limits
 
 These limits constrain awk execution without changing successful compatibility behavior:

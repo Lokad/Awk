@@ -85,7 +85,9 @@ internal sealed class AwkRuntimeState
             ApplySpecialVariableAssignment,
             Resources.ThrowIfValueBytesExceeded,
             () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
-                .FieldCountValue);
+                .FieldCountValue,
+            () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
+                .PrepareOutputFieldSeparatorAssignment());
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryGovernor,
@@ -116,6 +118,7 @@ internal sealed class AwkRuntimeState
         _recordFields = new AwkRecordFieldRuntime(
             _fieldSplitter,
             CreateStringValue,
+            CreateByteTextValue,
             CreateNumericStringValue,
             FormatStringByteText,
             ResolveOutputFieldSeparator,
@@ -125,7 +128,8 @@ internal sealed class AwkRuntimeState
             Counters,
             MemoryGovernor,
             Limits.MaxFields,
-            Resources.ThrowIfValueBytesExceeded);
+            Resources.ThrowIfValueBytesExceeded,
+            Resources.RecordByteWork);
         recordFields = _recordFields;
         _specialVariables = new AwkSpecialVariableDispatcher(
             _variables,

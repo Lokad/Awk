@@ -51,9 +51,7 @@ internal sealed class AwkByteFieldSplitter(
         {
             var content = line.AsSpan();
             if (content.Length == 0)
-                return new AwkTextSplitResult(
-                    [],
-                    captureMode is AwkSeparatorCaptureMode.Capture ? [AwkText.Empty] : []);
+                return new AwkTextSplitResult([], []);
 
             if (captureMode is AwkSeparatorCaptureMode.Omit)
             {
@@ -64,24 +62,26 @@ internal sealed class AwkByteFieldSplitter(
             }
 
             var fields = new List<AwkText>();
-            var separators = new List<AwkText>();
+            var separators = new List<AwkCapturedSeparator>();
             var scanner = new AwkWhitespaceFieldScanner(line);
             while (scanner.MoveNext(out var field, out var precedingSeparator))
             {
-                separators.Add(SliceTrustedFieldText(
-                    content,
-                    precedingSeparator.Start,
-                    precedingSeparator.Length,
-                    counters));
+                if (precedingSeparator.Length > 0)
+                    separators.Add(new AwkCapturedSeparator(fields.Count, SliceTrustedFieldText(
+                        content,
+                        precedingSeparator.Start,
+                        precedingSeparator.Length,
+                        counters)));
 
                 fields.Add(SliceTrustedFieldText(content, field.Start, field.Length, counters));
             }
 
-            separators.Add(SliceTrustedFieldText(
-                content,
-                scanner.TrailingSeparator.Start,
-                scanner.TrailingSeparator.Length,
-                counters));
+            if (scanner.TrailingSeparator.Length > 0)
+                separators.Add(new AwkCapturedSeparator(fields.Count, SliceTrustedFieldText(
+                    content,
+                    scanner.TrailingSeparator.Start,
+                    scanner.TrailingSeparator.Length,
+                    counters)));
 
             return new AwkTextSplitResult(fields, separators);
         }
@@ -93,9 +93,7 @@ internal sealed class AwkByteFieldSplitter(
             AwkRuntimeCounters counters)
         {
             if (line.ByteLength == 0)
-                return new AwkTextSplitResult(
-                    [],
-                    captureMode is AwkSeparatorCaptureMode.Capture ? [AwkText.Empty] : []);
+                return new AwkTextSplitResult([], []);
 
             var fields = ScanCharacterFields<OwnedListFieldSink, IReadOnlyList<AwkText>>(
                 line,
@@ -109,8 +107,9 @@ internal sealed class AwkByteFieldSplitter(
             if (captureMode is AwkSeparatorCaptureMode.Omit)
                 return new AwkTextSplitResult(fields, []);
 
-            var separators = new AwkText[fields.Count + 1];
-            Array.Fill(separators, AwkText.Empty);
+            var separators = new AwkCapturedSeparator[Math.Max(0, fields.Count - 1)];
+            for (var index = 0; index < separators.Length; index++)
+                separators[index] = new AwkCapturedSeparator(index + 1, AwkText.Empty);
             return new AwkTextSplitResult(fields, separators);
         }
 
@@ -134,16 +133,17 @@ internal sealed class AwkByteFieldSplitter(
             }
 
             var fields = new List<AwkText>();
-            var separators = new List<AwkText> { AwkText.Empty };
+            var separators = new List<AwkCapturedSeparator>();
             var capturingScanner = new AwkSingleByteFieldScanner(line, separator);
             while (capturingScanner.MoveNext(out var field, out var trailingSeparator))
             {
                 fields.Add(SliceTrustedFieldText(content, field.Start, field.Length, counters));
-                separators.Add(SliceTrustedFieldText(
-                    content,
-                    trailingSeparator.Start,
-                    trailingSeparator.Length,
-                    counters));
+                if (trailingSeparator.Length > 0)
+                    separators.Add(new AwkCapturedSeparator(fields.Count, SliceTrustedFieldText(
+                        content,
+                        trailingSeparator.Start,
+                        trailingSeparator.Length,
+                        counters)));
             }
 
             return new AwkTextSplitResult(fields, separators);
@@ -165,7 +165,7 @@ internal sealed class AwkByteFieldSplitter(
             }
 
             var fields = new List<AwkText>();
-            var separators = new List<AwkText> { AwkText.Empty };
+            var separators = new List<AwkCapturedSeparator>();
             var content = line.AsSpan();
             var position = 0;
             using var matches = enumerateMatchSpans(separator, line);
@@ -175,12 +175,12 @@ internal sealed class AwkByteFieldSplitter(
                 if (match.ByteLength == 0)
                     continue;
                 fields.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
-                separators.Add(SliceTrustedFieldText(content, match.ByteIndex, match.ByteLength, counters));
+                separators.Add(new AwkCapturedSeparator(fields.Count,
+                    SliceTrustedFieldText(content, match.ByteIndex, match.ByteLength, counters)));
                 position = match.ByteIndex + match.ByteLength;
             }
 
             fields.Add(SliceTrustedFieldText(content, position, content.Length - position, counters));
-            separators.Add(AwkText.Empty);
             return new AwkTextSplitResult(fields, separators);
         }
     }
@@ -360,7 +360,7 @@ internal sealed class AwkByteFieldSplitter(
 
         var fields = new List<AwkText>();
         var separators = captureMode is AwkSeparatorCaptureMode.Capture
-            ? new List<AwkText>()
+            ? new List<AwkCapturedSeparator>()
             : null;
         var content = input.AsSpan();
         var position = 0;
@@ -374,14 +374,16 @@ internal sealed class AwkByteFieldSplitter(
             if (match.ByteLength > 0)
                 previousNonEmptyEnd = match.ByteIndex + match.ByteLength;
             if (separators != null)
-                separators.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
+                separators.Add(new AwkCapturedSeparator(fields.Count,
+                    SliceTrustedFieldText(content, position, match.ByteIndex - position, counters)));
 
             fields.Add(SliceTrustedFieldText(content, match.ByteIndex, match.ByteLength, counters));
             position = match.ByteIndex + match.ByteLength;
         }
 
         if (separators != null)
-            separators.Add(SliceTrustedFieldText(content, position, content.Length - position, counters));
+            separators.Add(new AwkCapturedSeparator(fields.Count,
+                SliceTrustedFieldText(content, position, content.Length - position, counters)));
 
         return new AwkTextSplitResult(fields, separators ?? []);
     }

@@ -296,7 +296,7 @@ public sealed class AwkBenchmarkCounterTests
             "BEGIN{split(\"a,b\", parts, \",\", seps); a[\"b\"]=2; a[\"a\"]=1; PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"; s=\"a1b22\"; gsub(/[0-9]+/,\"#\",s); x=\"caf\u00e9\" \"caf\u00e9\"; print length(seps), s, length(x), (\"caf\u00e9\" > \"caff\"); for(k in a) print k, a[k]}"]);
 
         Assert.Equal(0, exitCode);
-        Assert.Equal("3 a#b# 8 1\na 1\nb 2\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("1 a#b# 8 1\na 1\nb 2\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.SeparatorCaptureFallbacks > 0);
         Assert.True(counters.RegexMatches > 0);
         Assert.True(counters.ByteTextComparisons > 0);

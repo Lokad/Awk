@@ -11,7 +11,8 @@ internal abstract partial class AwkExpression
         AwkExpression valueExpression,
         AwkArrayName arrayName,
         AwkExpression separatorExpression,
-        AwkOptionalIdentifier separatorArrayName) : AwkExpression
+        AwkOptionalIdentifier separatorArrayName,
+        bool isRegexLiteral) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
@@ -20,7 +21,7 @@ internal abstract partial class AwkExpression
             return AwkValue.FromNumber(context.State.SplitIntoArray(
                 input,
                 arrayName,
-                AwkFieldSeparatorSpec.FromText(separator),
+                isRegexLiteral ? AwkFieldSeparatorSpec.FromRegexLiteral(separator) : AwkFieldSeparatorSpec.FromText(separator),
                 separatorArrayName));
         }
     }

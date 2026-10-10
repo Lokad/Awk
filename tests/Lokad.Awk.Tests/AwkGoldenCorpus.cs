@@ -91,6 +91,8 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(SortingCompatibilityCases(), AwkGoldenTag.Array, AwkGoldenTag.Function),
         .. Tagged(IgnoreCaseCompatibilityCases(), AwkGoldenTag.Array, AwkGoldenTag.Function),
         .. Tagged(GrammarBoundaryCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
+        .. Tagged(NumericFieldConversionCases(), AwkGoldenTag.Field, AwkGoldenTag.Variable),
+        .. Tagged(SplitSeparatorCaptureCases(), AwkGoldenTag.Field, AwkGoldenTag.Array, AwkGoldenTag.Function),
 
         .. Tagged(FormattingSyntaxCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
 

@@ -89,6 +89,28 @@ GNU awk 5.2.1 and 5.4.0 have an internal `unwind_stack` failure when a function 
 Lokad.Awk preserves the intended record flow in this case. Its golden expectation is an
 explicit reference divergence; it is not counted as an exact native match.
 
+## Split Separator Captures
+
+`split` replaces both destination arrays with the fields and separators actually present.
+Literal and regex splitting publish a separator at index `i` after field `i`; they do not
+invent entries at zero or after the final field. Whitespace splitting publishes a leading
+run at zero and a trailing run at the field count only when those runs exist. Input containing
+only whitespace has zero fields and one separator at zero. Empty input clears both arrays.
+
+An empty separator divides input into characters and publishes actual empty separators
+between them, at indices 1 through `n-1`. For example, splitting `abc` this way produces three
+fields and two separator entries. Normal mode uses Unicode scalars; byte mode retains its
+existing ASCII-only policy for empty separators. Regex splitting ignores zero-length matches.
+
+`patsplit` keeps its separate rule: nonempty input publishes the text before, between, and
+after matched fields at indices zero through `n`, including empty text at those positions.
+If no field matches, entry zero contains the complete input. Field and separator text both
+retain input-style numeric classification and original spelling, including numeric captures.
+
+Replacement checks the actual entry counts and combined retained memory for both arrays
+before publishing either. Capture buffers retain explicit indices and include governed
+growth headroom. A resource failure or cancelled scan preserves both previous destinations.
+
 ## Assigned NF Values
 
 Reading `NF` materializes the current record's fields once. Assigning `NF` uses the
@@ -106,6 +128,28 @@ count. NF and `SYMTAB["NF"]` use the same read/write contract, including type qu
 and mutable references. Retained NF text participates in the frame's memory estimate,
 is preserved on failed assignments, and is released when the record resets.
 
+## Numeric Fields And Record Reconstruction
+
+Assigning a numeric value to a field preserves that numeric value without formatting it.
+Reconstructing `$0` converts numeric fields using the then-current `CONVFMT`; changing
+`CONVFMT` between assignment and reconstruction therefore affects the record. Printing a
+field uses `OFMT` independently, and string concatenation uses `CONVFMT`. Neither operation
+freezes the field's text for a later reconstruction. String and strnum fields retain their
+original spelling. The ordinary exact-integer conversion rule still applies.
+
+Field and NF writes retain the separator from the latest mutation until `$0` is observed.
+An assignment to `OFS`, including assignment of its current value, reconstructs a dirty
+record containing numeric fields before replacing the separator. It uses the previous
+separator and the current conversion format. A subsequent field or NF mutation can require
+another reconstruction under a later format. Reconstructed `$0` is a string even when all
+its bytes look numeric; the assigned fields keep their own values and types.
+
+Numeric conversion preflights the complete record's byte size and retained memory before
+publishing any replacement fields or record. Temporary field buffers and formatted text
+are governed while the previous record remains live. A failed reconstruction or OFS write
+preserves the fields, dirty record, and previous OFS, and releases its temporary charges.
+Each numeric conversion also checks cancellation and consumes the shared byte-work budget.
+
 ## Classified GNU Reference Differences
 
 Correctness comparisons with GNU awk 5.2.1 and a local 5.4.0 build expose these quirks:
@@ -122,6 +166,11 @@ Correctness comparisons with GNU awk 5.2.1 and a local 5.4.0 build expose these 
 - GNU 5.2.1 also ignores indirect assignments to `SYMTAB["NF"]` for record resizing
   and overwrites their value on the next NF read. Lokad follows its shared-variable
   contract for NF as well; its indirect assignment/update case is explicitly classified.
+- GNU 5.2.1 and 5.4.0 do not invoke the ordinary OFS setter for `SYMTAB["OFS"]` writes.
+  Their cached separator and numeric reconstruction checkpoint can therefore differ
+  from direct OFS assignment. Lokad uses the same setter for both access paths. The
+  corresponding direct-write programs provide the native oracle for these classified
+  indirect-write expectations.
 
 These cases have explicit golden expectations and must be classified when using a native
 reference. They do not count as exact native matches.

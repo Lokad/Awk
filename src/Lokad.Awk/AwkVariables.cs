@@ -26,6 +26,7 @@ internal sealed class AwkVariables
     private readonly AwkArrayStorage _arrays;
     private readonly AwkSymbolTableArray _symbolTable;
     private readonly Func<AwkValue>? _resolveFieldCountValue;
+    private readonly Action _prepareOutputFieldSeparatorAssignment;
     private bool _governScalarMemory;
 
     private readonly struct AwkScalarSlot(AwkVariableName name, AwkScalarState state)
@@ -73,7 +74,8 @@ internal sealed class AwkVariables
         Func<AwkText, AwkValue> createDeferredTextValue,
         Action<string, AwkValue> applyScalarAssignment,
         Action<long> throwIfValueBytesExceeded,
-        Func<AwkValue>? resolveFieldCountValue = null)
+        Func<AwkValue>? resolveFieldCountValue = null,
+        Action? prepareOutputFieldSeparatorAssignment = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxArrayElements);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSymbols);
@@ -90,6 +92,7 @@ internal sealed class AwkVariables
         _applyScalarAssignment = applyScalarAssignment;
         _throwIfValueBytesExceeded = throwIfValueBytesExceeded;
         _resolveFieldCountValue = resolveFieldCountValue;
+        _prepareOutputFieldSeparatorAssignment = prepareOutputFieldSeparatorAssignment ?? (() => { });
         _arrays = new AwkArrayStorage(_arrayKeyComparer);
         _symbolTable = new AwkSymbolTableArray(
             EnumerateScalarInventory,
@@ -463,7 +466,7 @@ internal sealed class AwkVariables
         AwkArrayName fieldArrayName,
         IReadOnlyList<AwkText> fields,
         AwkArrayName separatorArrayName,
-        IReadOnlyList<AwkText> separators)
+        IReadOnlyList<AwkCapturedSeparator> separators)
     {
         if (!fieldArrayName.IsFunctionLocal)
             AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(fieldArrayName.Text);
@@ -475,7 +478,15 @@ internal sealed class AwkVariables
             fieldArrayName,
             CreateIndexedArraySlots(fields, firstIndex: 1, AwkVariableSlot.FromExternalText),
             separatorArrayName,
-            CreateIndexedArraySlots(separators, firstIndex: 0, AwkVariableSlot.FromText));
+            CreateSeparatorArraySlots());
+
+        Dictionary<AwkArrayKey, AwkVariableSlot> CreateSeparatorArraySlots()
+        {
+            var slots = CreateArraySlots(separators.Count);
+            foreach (var separator in separators)
+                slots[AwkArrayKey.FromOrdinal(separator.FieldIndex)] = AwkVariableSlot.FromExternalText(separator.Text);
+            return slots;
+        }
 
         void ReplaceArraySlots(
             AwkArrayName firstName,
@@ -705,6 +716,8 @@ internal sealed class AwkVariables
             : 0;
         var newCharge = Math.Max(0, EstimateScalarBytes(slot) - baseline);
         using var mutation = ReserveMemoryMutation(newCharge, oldCharge);
+        if (AwkSpecialVariables.IsName(_scalarSlots[id.Value].Name.Text, AwkSpecialVariableId.OutputFieldSeparator))
+            _prepareOutputFieldSeparatorAssignment();
         _scalarSlots[id.Value] = _scalarSlots[id.Value].WithState(oldState.WithSlot(slot, newCharge));
         mutation.Commit();
     }

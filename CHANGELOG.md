@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Made split separator arrays sparse: only actual separators are published, including
+  empty separators between character fields. Numeric captures retain input classification;
+  patsplit keeps its complete boundary captures. Direct `/ /` uses literal-space splitting.
+  Both replacement arrays preflight actual counts and memory together, with indexed capture
+  buffers and growth headroom governed during scanning.
+
+- Deferred numeric field conversion until record reconstruction under the current CONVFMT.
+  OFS writes preserve the prior separator and freeze dirty numeric records before replacement;
+  direct and SYMTAB writes share this behavior. Reconstructed records retain string type.
+  Conversion preflights complete record size and memory, releases temporary charges on failure,
+  and checks the shared work/cancellation allowance. Field-buffer estimates now include
+  value-type entries and headers.
+
 - Enforced expression newline boundaries and non-associative relational comparisons,
   while preserving grouped results, match precedence, array membership, and assignment
   operands. Added valid rule-pattern and range continuations, rejected extra null statements
