@@ -72,6 +72,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(GetlineDestinationCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Record, AwkGoldenTag.Field),
         .. Tagged(GetlinePostfixCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Record, AwkGoldenTag.Field),
         .. Tagged(GetlineFailureCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Record, AwkGoldenTag.Field),
+        .. Tagged(ParagraphPipeEofCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Record, AwkGoldenTag.Field),
 
         .. Tagged(HostPolicyCases(), AwkGoldenTag.HostPolicy),
 

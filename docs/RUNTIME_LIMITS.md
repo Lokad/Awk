@@ -72,6 +72,13 @@ These limits are host-mediated and publicly configurable:
   `ExposeHostErrorDetails` disables such disclosure entirely; the restricted preset uses a generic
   message.
 
+Input pipes retain blank-only paragraph bytes at EOF so repeated paragraph reads can clear RT
+and a later RS change can reinterpret the buffered bytes. This capacity is charged through the
+UTF-8 builder and aggregate memory governor, remains bounded by `MaxBuilderBytes`, and is released
+on close. Large blank-only pipes can therefore reach a memory ceiling without admitting records.
+Cached prefix scans inspect new bytes once across batches; repeated EOF adds no scan work or
+host reads. Files and main input keep their existing paragraph-leader discard behavior.
+
 Failures use awk-shaped diagnostics and do not leak CLR exception text. Byte and memory ceilings
 use `awk: memory limit exceeded`; execution-step, host-call, and output-file ceilings use their
 dedicated awk diagnostics.

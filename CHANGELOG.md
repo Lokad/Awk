@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Input pipes now retain blank-only paragraph bytes at EOF, matching GNU's repeated
+  RT clearing and allowing a later RS change to read those bytes. Prefix scans are
+  cached across batches and repeated EOF. Retained capacity stays under the memory
+  governor and is released on close; regular-file and main-input EOF behavior is preserved.
+
 - Recoverable getline open/read failures now return -1 and set GNU ERRNO without
   writing a runtime stderr diagnostic or consuming output budget. Record, RT and
   destination values are preserved after destination resolution. Fatal main-input,
@@ -25,7 +30,7 @@
 
 - Paragraph reads that discard only leading blank lines now carry an explicit EOF
   directive to clear GNU RT without admitting a record. Main input applies it before
-  ENDFILE; empty/repeated EOF and read failures preserve RT. File admission preserves
+  ENDFILE; empty input, repeated file EOF and read failures preserve RT. File admission preserves
   the current record unless BEGINFILE actions require the established empty frame.
 
 - Mixed regex/expression range endpoints now lower in either order, with default or

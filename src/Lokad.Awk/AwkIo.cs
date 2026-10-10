@@ -85,7 +85,7 @@ internal sealed class AwkIo
             _maxOutputFiles,
             limits.MaxPipes,
             () => _descriptors.OutputFileCount,
-            CreateRecordCursor,
+            CreatePipeRecordCursor,
             NextRedirectionOrder);
         _specialPaths = new AwkSpecialPathPolicy(stdIn, stdOut, stdErr);
         _counters = counters;
@@ -246,10 +246,18 @@ internal sealed class AwkIo
     }
 
     private AwkRecordCursor CreateRecordCursor(AwkFileDescriptor descriptor) =>
+        CreateRecordCursor(descriptor, AwkParagraphLeaderPolicy.Discard);
+
+    private AwkRecordCursor CreatePipeRecordCursor(AwkFileDescriptor descriptor) =>
+        CreateRecordCursor(descriptor, AwkParagraphLeaderPolicy.Retain);
+
+    private AwkRecordCursor CreateRecordCursor(
+        AwkFileDescriptor descriptor, AwkParagraphLeaderPolicy paragraphLeaderPolicy) =>
         new(
             _state,
             _descriptorReader,
-            _host.CreateLineReader(descriptor, InputReadBatchLineCount));
+            _host.CreateLineReader(descriptor, InputReadBatchLineCount),
+            paragraphLeaderPolicy);
 
     private void ThrowIfFileRedirectionDisabled()
     {

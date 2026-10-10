@@ -4,6 +4,12 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
+internal enum AwkParagraphLeaderPolicy
+{
+    Discard,
+    Retain
+}
+
 /// <summary>
 /// Pulls records from one descriptor while preserving unread input across <c>RS</c> changes.
 /// </summary>
@@ -12,6 +18,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private readonly AwkRuntimeState _state;
     private readonly AwkRecordDescriptorReader _descriptorReader;
     private readonly AwkFileDescriptor _descriptor;
+    private readonly AwkParagraphLeaderPolicy _paragraphLeaderPolicy;
     private AsyncLineReader? _lineReader;
     private AwkUtf8Builder? _buffer;
     // All buffered-search positions are absolute indexes into _buffer. The
@@ -26,6 +33,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private bool _descriptorReachedEof;
     private bool _hasConsumedDescriptorBytes;
     private bool _discardedParagraphLeader;
+    private int _paragraphLeaderScanLength;
     // General regex searches borrow the current buffer. The optional reserved
     // prefix prevents ^ from re-anchoring after a record has been consumed;
     // the offset pair caches the byte-to-UTF-16 coordinate conversion.
@@ -38,11 +46,13 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     public AwkRecordCursor(
         AwkRuntimeState state,
         AwkRecordDescriptorReader descriptorReader,
-        AsyncLineReader lineReader)
+        AsyncLineReader lineReader,
+        AwkParagraphLeaderPolicy paragraphLeaderPolicy = AwkParagraphLeaderPolicy.Discard)
     {
         _state = state;
         _descriptorReader = descriptorReader;
         _descriptor = lineReader.Descriptor;
+        _paragraphLeaderPolicy = paragraphLeaderPolicy;
         _lineReader = lineReader;
     }
 
@@ -442,8 +452,27 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 if (_pendingSeparatorStart >= 0)
                     return ContinueParagraphSeparator(content);
 
-                var recordStart = SkipParagraphNewlines(content);
+                var previousLeaderLength = _paragraphLeaderScanLength;
+                var recordStart = SkipParagraphNewlines(content, previousLeaderLength);
                 _discardedParagraphLeader |= recordStart > 0;
+                if (_paragraphLeaderPolicy == AwkParagraphLeaderPolicy.Retain)
+                {
+                    RecordSeparatorScan(recordStart - previousLeaderLength);
+                    _hasConsumedDescriptorBytes |= recordStart > 0;
+                    // GNU keeps all-blank pipe input buffered at paragraph EOF. A later
+                    // RS change can read it; repeated paragraph reads only clear RT.
+                    // Cache the scanned prefix so batch growth and repeated EOF are linear.
+                    if (recordStart == content.Length ||
+                        !_descriptorReachedEof && recordStart == content.Length - 1 &&
+                        content[recordStart] == (byte)'\r')
+                    {
+                        _paragraphLeaderScanLength = recordStart;
+                        return _descriptorReachedEof
+                            ? ParagraphEndOfFile(ParagraphSeparator.Instance)
+                            : BufferedReadResult.NeedMoreData;
+                    }
+                }
+
                 _bufferStart += recordStart;
                 _regexOffsetBufferStart = -1;
                 content = content[recordStart..];
@@ -532,9 +561,8 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                         AwkRecordFieldSplittingMode.Paragraph);
                 }
 
-                static int SkipParagraphNewlines(ReadOnlySpan<byte> content)
+                static int SkipParagraphNewlines(ReadOnlySpan<byte> content, int position)
                 {
-                    var position = 0;
                     while (TryReadNewline(content, position, out var newlineLength))
                         position += newlineLength;
 
@@ -743,6 +771,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         _scanOffset = _bufferStart;
         _pendingSeparatorStart = -1;
         _pendingSeparatorEnd = -1;
+        _paragraphLeaderScanLength = 0;
     }
 
     private BufferedReadResult ConsumeRecord(

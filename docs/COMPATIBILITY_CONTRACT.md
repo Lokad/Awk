@@ -520,15 +520,17 @@ Some reads discard the record; successful reads with a nonzero numeric field can
 both references. These outcomes are reference bugs and excluded from the compatibility
 target. A native crash or an apparently successful record discard is never an oracle
 for a valid getline assignment. Ordinary field mutations and parenthesized index
-mutations retain their existing semantics. Repeated blank-only pipe EOF metadata
-remains pending.
+mutations retain their existing semantics.
 
 Paragraph EOF preserves a removed final newline in GNU RT. Single-byte literal FS
 adds an implicit LF boundary; multibyte literal and regex FS preserve LF unless their
 pattern matches it. Lokad's CRLF paragraph recognition remains an explicit input-policy
 divergence from GNU's LF scanner. Blank-only paragraph reads clear GNU RT through a
 distinct EOF result, before main-input ENDFILE, without admitting a record. Empty input,
-later EOF without consumed leaders and failed reads preserve RT. Main file admission
+later file EOF without consumed leaders and failed reads preserve RT. Input pipes retain
+blank-only paragraph bytes at EOF: repeated reads clear GNU RT, and a subsequent RS
+change can admit records from those buffered bytes. No additional host read is needed.
+Builder and aggregate memory limits govern this retained capacity. Main file admission
 resets fields only when BEGINFILE actions are present. See `RECORD_SEMANTICS.md` for
 qualified behavior and the retained expression/diagnostic/source-specific EOF differences.
 

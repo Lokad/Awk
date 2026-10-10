@@ -47,14 +47,20 @@ Range state survives file boundaries and is independent for each rule.
 Blank-only paragraph input clears GNU `RT` when a read discards the leading newlines
 and reaches EOF. This is an explicit EOF result, without record admission or replacement
 of `$0`, fields, destination variables or record counters. Main input applies it before
-`ENDFILE`. Empty input, later EOF with no discarded bytes and failed reads preserve RT;
+`ENDFILE`. Empty input, later file EOF with no discarded bytes and failed reads preserve RT;
 POSIX/traditional RT remains ordinary. Host checks cover blank lines and CRLF split
 across batches, including command-pipe reads.
 
-The native survey retains separate unresolved getline expression syntax and failure
-diagnostic differences. GNU command pipes also repeatedly clear RT after blank-only
-EOF; Lokad's directive follows actual byte consumption once, matching regular-file
-controls. This source-specific EOF difference remains open. Both GNU versions can
+Input pipes retain blank-only paragraph bytes at EOF, matching GNU's pipe buffer behavior.
+Repeated paragraph reads clear GNU RT again without admitting a record or reading the host.
+A later RS change can read the retained bytes as records; regex anchors account for the
+earlier paragraph scan. Close/reopen starts a fresh cursor. Files and main input discard
+paragraph leaders and keep their established EOF behavior. Cached prefix scans avoid
+rescanning retained leaders on repeated EOF or after each host batch. Retained buffer
+capacity stays under the builder and aggregate memory limits and is released on close.
+CRLF recognition remains the same host-input policy, including split batches.
+
+Both GNU versions can
 truncate an assigned RT value to the next paragraph terminator's length without copying
 the terminator bytes. Lokad retains the actual consumed separator. GNU 5.2.1 additionally
 corrupts an ordinary non-GNU RT variable; GNU 5.4.0 preserves that ordinary variable.
