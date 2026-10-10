@@ -6,7 +6,6 @@ internal sealed record PairedSample(bool LibraryFirst, int LibraryIterations, in
     public double LibraryMs => LibraryTotalMs / LibraryIterations;
     public double ReferenceMs => ReferenceTotalMs / ReferenceIterations;
 }
-
 internal sealed record TimingSummary(string Status, string Reason, double LibraryMedianMs,
     double ReferenceMedianMs, double Ratio, double RatioLow, double RatioHigh, string Interpretation);
 
@@ -67,4 +66,3 @@ internal static class PairedStatistics
     }
 
 }
-

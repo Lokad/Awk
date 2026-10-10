@@ -63,4 +63,3 @@ internal static class MachineQuietProbe
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetSystemTimes(out ulong idle, out ulong kernel, out ulong user);
 }
-
