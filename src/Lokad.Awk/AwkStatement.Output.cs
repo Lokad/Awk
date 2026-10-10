@@ -64,7 +64,7 @@ internal abstract partial class AwkStatement
                 }
 
                 using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor);
-                builder.Append(segments.Segments);
+                builder.Append(segments.Segments, state.CancellationCheckpoint);
                 await EmitOutputAsync(output, io, target, builder.AsMemory()).ConfigureAwait(false);
             }
         }
@@ -116,7 +116,8 @@ internal abstract partial class AwkStatement
                 ArrayPool<AwkValue>.Shared.Return(resolvedArguments, clearArray: true);
             }
 
-            await EmitByteTextOutputAsync(execution.Output, execution.Io, resolvedTarget, formatted).ConfigureAwait(false);
+            await EmitByteTextOutputAsync(execution.Output, execution.Io, resolvedTarget, formatted, state.CancellationCheckpoint)
+                .ConfigureAwait(false);
 
             return AwkStatementFlow.Continue;
 
@@ -124,9 +125,10 @@ internal abstract partial class AwkStatement
                 AwkOutputSink output,
                 AwkIo io,
                 AwkOptionalResolvedOutputRedirection target,
-                AwkText content)
+                AwkText content,
+                Action checkpoint)
             {
-                await EmitOutputAsync(output, io, target, content.AsMemory()).ConfigureAwait(false);
+                await EmitOutputAsync(output, io, target, content.AsMemory(checkpoint)).ConfigureAwait(false);
             }
         }
     }

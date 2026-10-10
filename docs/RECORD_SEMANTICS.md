@@ -29,6 +29,15 @@ which also preserves the host's borrowed-buffer lifetime and avoids duplicate in
 Tail and batch copies use the execution's cancellation callback; failed staging and cursor disposal
 release their builder charge.
 
+Owned separator search/classification, byte-run extension and paragraph leader/separator
+loops observe cancellation during scanning. Interrupted searches retain unread records,
+terminator bytes and delivered host batches; continued runs resume from the last completed
+batch. Short literal searches include window overlap so a whole UTF-8 separator can cross
+a checkpoint boundary. The regex cursor counts UTF-16 prefix coordinates in whole-scalar
+chunks and publishes both cached coordinates after success. Retry cannot reuse a new byte
+position with a stale UTF-16 position. This changes neither record grammar nor logical
+scan charges; long literal needles remain a framework boundary with checks on both sides.
+
 With `RS=""`, leading empty lines are skipped and a run of at least two newlines
 separates paragraphs. A final single newline is removed from `$0` and retained in GNU
 `RT`; a record ending without a newline has empty `RT`. POSIX/traditional modes keep
@@ -191,6 +200,10 @@ Admitting a record, assigning `$0`, or starting a file resets NF to the computed
 count. NF and `SYMTAB["NF"]` use the same read/write contract, including type queries
 and mutable references. Retained NF text participates in the frame's memory estimate,
 is preserved on failed assignments, and is released when the record resets.
+
+Single-byte and classified ASCII byte-set RS plans reuse immutable shared one-byte
+terminator text, including NUL and newline. This removes per-plan terminator storage
+without changing matched bytes, RT value admission or separator-scan work charges.
 
 ## Numeric Fields And Record Reconstruction
 

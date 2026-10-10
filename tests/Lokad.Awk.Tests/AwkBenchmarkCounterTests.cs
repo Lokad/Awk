@@ -411,11 +411,11 @@ public sealed class AwkBenchmarkCounterTests
                 result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(rows, result.Counters.FieldSplits);
             Assert.Equal(0, result.Counters.Utf8Encodes);
-            // Both FPAT assignments validate immediately, including the pattern never used by a record.
+            // Each FPAT assignment prepares both case variants, including the unused pattern.
             // The source-pattern boundary adds one decode; records stay byte-native.
             Assert.InRange(result.Counters.StringDecodes, 0, usesRegex ? 3 : 0);
             Assert.Equal(0, result.Counters.RegexDotNetTextMatches);
-            Assert.Equal(usesRegex ? 2 : 0, result.Counters.RegexCompiles);
+            Assert.Equal(usesRegex ? 4 : 0, result.Counters.RegexCompiles);
         }
     }
 
@@ -773,7 +773,7 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    public async Task Awk_RegexFieldSeparatorPlanIsResolvedOnceForRepeatedRecords()
+    public async Task Awk_BothRegexFieldSeparatorVariantsArePreparedOnceForRepeatedRecords()
     {
         const int rowCount = 32;
         var input = BuildRepeatedSeparatedRows(rowCount, fieldCount: 3, ',');
@@ -785,7 +785,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, exitCode);
         Assert.Equal("96\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(rowCount, counters.FieldSplits);
-        Assert.Equal(1, counters.RegexCompiles);
+        Assert.Equal(2, counters.RegexCompiles);
         Assert.Equal(1, counters.AwkTextAsStringCalls);
         Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
     }

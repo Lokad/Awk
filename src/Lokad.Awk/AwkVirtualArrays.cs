@@ -17,7 +17,8 @@ internal sealed class AwkSymbolTableArray(
     Func<AwkArrayName, bool> containsArray,
     Func<IEnumerable<AwkArrayName>> getArrayNames,
     Func<AwkVariableSlot, AwkValue> createValue,
-    Action<string, AwkValue> assignScalarValue)
+    Action<string, AwkValue> assignScalarValue,
+    Action? checkpoint = null)
 {
     public static bool IsName(string name) =>
         string.Equals(name, AwkVariables.SymbolTableName, StringComparison.Ordinal);
@@ -96,7 +97,7 @@ internal sealed class AwkSymbolTableArray(
                 : tryResolveScalar(name, out var slotId) && tryGetScalar(slotId, out var slot)
                     ? createValue(slot).AsScalarCopy()
                     : AwkValue.Unassigned();
-            result[index++] = project(state, new AwkArrayKey(name.Text), value);
+            result[index++] = project(state, new AwkArrayKey(name.Text, checkpoint), value);
         }
 
         return result;
@@ -106,31 +107,40 @@ internal sealed class AwkSymbolTableArray(
     {
         var index = 0;
         foreach (var name in EnumerateNames())
-            destination[index++] = new AwkArrayKey(name.Text);
+            destination[index++] = new AwkArrayKey(name.Text, checkpoint);
     }
 
     private IEnumerable<AwkVariableName> EnumerateNames()
     {
+        checkpoint?.Invoke();
+        var visited = 0;
         var globals = getGlobalNames();
         foreach (var name in globals)
         {
+            if ((visited++ & 63) == 0)
+                checkpoint?.Invoke();
             if (!IsName(name.Text))
                 yield return name;
         }
 
         foreach (var scalar in getScalars())
         {
+            if ((visited++ & 63) == 0)
+                checkpoint?.Invoke();
             if (!IsName(scalar.Name.Text) && !globals.Contains(scalar.Name))
                 yield return scalar.Name;
         }
 
         foreach (var arrayName in getArrayNames())
         {
+            if ((visited++ & 63) == 0)
+                checkpoint?.Invoke();
             var name = arrayName.Text;
             var variableName = new AwkVariableName(arrayName.Identifier);
             if (!IsName(name) && !globals.Contains(variableName) && !tryResolveScalar(variableName, out _))
                 yield return variableName;
         }
+        checkpoint?.Invoke();
     }
 
     private static AwkIdentifier ParseName(string name)

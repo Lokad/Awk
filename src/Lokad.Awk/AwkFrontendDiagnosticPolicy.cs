@@ -83,61 +83,8 @@ internal static class AwkFrontendDiagnosticPolicy
         {
             var text = token.TextSpan;
             var start = token.Kind == AwkTokenKind.InternationalizedString ? 2 : 1;
-            var end = text.Length - 1;
-            long nextCheckpoint = start;
-            for (var index = start; index < end; index++)
-            {
-                if (index >= nextCheckpoint)
-                {
-                    checkpoint?.Invoke();
-                    nextCheckpoint = (long)index + 1024;
-                }
-                if (text[index] != '\\' || index + 1 >= end)
-                    continue;
-
-                index++;
-                var escaped = text[index];
-                var unicodeStatus = AwkEscapes.ReadUnicodeEscape(text, ref index, end, compatibilityMode, out _);
-                if (unicodeStatus != AwkUnicodeEscapeStatus.None)
-                {
-                    if (unicodeStatus != AwkUnicodeEscapeStatus.Valid)
-                    {
-                        AddDiagnostic(new AwkDiagnostic(
-                            token.Span,
-                            unicodeStatus == AwkUnicodeEscapeStatus.MissingDigits
-                                ? AwkMessages.FormatStringUnicodeMissingDigitsWarning()
-                                : AwkMessages.FormatStringUnicodeInvalidScalarWarning(),
-                            AwkDiagnosticId.WarningStringEscape));
-                    }
-                    continue;
-                }
-
-                if (compatibilityMode == AwkCompatibilityMode.Posix && escaped is 'u' or 'x')
-                    continue;
-
-                if (AwkEscapes.TryReadNumericEscape(text, ref index, end, out _))
-                    continue;
-
-                if (escaped == 'x')
-                {
-                    AddDiagnostic(new AwkDiagnostic(
-                        token.Span,
-                        AwkMessages.FormatStringHexEscapeWarning(),
-                        AwkDiagnosticId.WarningStringEscape));
-                    continue;
-                }
-
-                if (AwkLineContinuations.TrySkipAfterBackslash(text, ref index, end))
-                    continue;
-
-                if (AwkEscapes.TryDecodeSimpleEscape(escaped, out _))
-                    continue;
-
-                AddDiagnostic(new AwkDiagnostic(
-                    token.Span,
-                    AwkMessages.FormatStringEscapeWarning(escaped),
-                    AwkDiagnosticId.WarningStringEscape));
-            }
+            AwkEscapes.ReportStringWarnings(text[start..^1], compatibilityMode, budget.StringEscapeWarnings,
+                warning => AddDiagnostic(new AwkDiagnostic(token.Span, warning)), checkpoint);
         }
 
         void AddRegexDiagnosticIfInvalid(AwkToken token)

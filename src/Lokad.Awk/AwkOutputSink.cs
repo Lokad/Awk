@@ -9,16 +9,19 @@ internal sealed class AwkOutputSink : IDisposable
     private readonly AwkUtf8Builder _standardOutput;
     private readonly List<AwkDiagnostic> _diagnostics = [];
     private readonly AwkMemoryGovernor _governor;
+    private readonly Action? _checkpoint;
     private long _diagnosticBufferBytes;
     private long _diagnosticMessageBytes;
 
     public AwkOutputSink(
         AwkRuntimeLimits limits,
         AwkMemoryGovernor governor,
-        AwkRuntimeCounters counters)
+        AwkRuntimeCounters counters,
+        Action? checkpoint = null)
     {
         _standardOutput = new AwkUtf8Builder(limits, governor);
         _governor = governor;
+        _checkpoint = checkpoint;
         counters.RecordOutputSinkCreation();
     }
 
@@ -27,7 +30,7 @@ internal sealed class AwkOutputSink : IDisposable
         if (value.ByteLength == 0)
             return;
 
-        _standardOutput.Append(value);
+        _standardOutput.Append(value, _checkpoint);
     }
 
     public void Append(ReadOnlySpan<AwkText> values)
@@ -35,7 +38,7 @@ internal sealed class AwkOutputSink : IDisposable
         if (values.IsEmpty)
             return;
 
-        _standardOutput.Append(values);
+        _standardOutput.Append(values, _checkpoint);
     }
 
     public void Append(ReadOnlyMemory<byte> content)
@@ -43,7 +46,7 @@ internal sealed class AwkOutputSink : IDisposable
         if (content.IsEmpty)
             return;
 
-        _standardOutput.Append(content);
+        _standardOutput.Append(content.Span, _checkpoint);
     }
 
     public void ReportDiagnostic(AwkDiagnostic diagnostic)

@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- SYMTAB inventory, key encoding and ordinary array snapshots now pass cancellation
+  checkpoints through long scans. Standard-output staging uses the runtime checkpoint
+  for large byte copies and preserves earlier output when interrupted. ASCII record
+  separators reuse fixed shared terminator text instead of allocating per-plan arrays
+  and one-byte values. Logical execution charges and memory admission are unchanged.
+
+- Owned record-separator scans and classification now check cancellation in byte
+  chunks, including byte sets/runs and paragraph leaders/continuations. Short literal
+  searches keep separator overlap across windows; long needles retain the framework
+  path. Interrupted scans preserve unread records and delivered batches. UTF-16 regex
+  offset counting uses whole-scalar chunks and publishes its cache only after success.
+  Logical scan/fuel charges and regex engines are unchanged.
+
+- Ordinary unknown-string escapes now warn once across source literals, -v/-F and
+  consumed assignment operands. Missing hex/Unicode digits and invalid Unicode values
+  retain per-occurrence warnings. Typed history preserves the first warning's source
+  location and resets for each compiled execution; duplicate warnings do not consume
+  the frontend diagnostic budget. Unknown non-ASCII escapes render complete scalars.
+
+- FS, enabled FPAT and regex RS assignments now prepare both case variants before
+  publishing storage or parser metadata. Unicode warnings follow special-variable
+  reassignment and fresh compiled execution; malformed regex RS fails at assignment.
+  Same-value/case changes reuse prepared regexes, and byte-native separator fast
+  paths remain available. Compilation quota failures preserve prior values/fields.
+
+- POSIX/byte-mode option warnings now precede source-loading, parsing and external
+  assignment failures and are retained once per compiled execution. They share the
+  frontend diagnostic cap. Documented and covered optimization/interval aliases and
+  invariant numeric-locale behavior across profiles and option spellings.
+
+- Added a public language compatibility matrix with golden evidence and POSIX/GNU
+  references. Documented the intentional main-input directory limitation: unhandled host
+  failures remain fatal; existing BEGINFILE recovery and redirected getline are preserved.
+  New GNU language features and host system() remain later-release work.
+
 - Failed record reads now preserve buffered input: newline consumption and switching
   to buffered RS commit after admission/copying, delivered host batches survive failed
   appends, and paragraph leaders remain with their record through batch boundaries.

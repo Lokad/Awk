@@ -134,7 +134,7 @@ public sealed class AwkPublicBoundaryTests
         var host = new MockFileSystem();
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
             "awk",
-            "BEGIN{x=\"\\q\\q\\q\"}"));
+            "BEGIN{x=\"\\x\\x\\x\"}"));
         var policy = AwkExecutionPolicy.CreateDefault().WithMaxFrontendDiagnostics(2);
 
         var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);

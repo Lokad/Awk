@@ -9,7 +9,8 @@ internal sealed class AwkSpecialVariableDispatcher(
     Action<AwkSpecialVariableId> recordAssignment,
     AwkMemoryGovernor memoryGovernor,
     AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
-    Action? checkpoint = null)
+    Action? checkpoint = null,
+    Action<AwkText>? validateRecordSeparator = null)
 {
     private static readonly AwkArrayName ProcInfo = AwkArrayName.FromText("PROCINFO");
     private static readonly AwkArrayKey FieldModeKey = new(AwkText.FromSourceLiteralString("FS"));
@@ -87,10 +88,17 @@ internal sealed class AwkSpecialVariableDispatcher(
                 parser = FieldParser.Widths;
                 publish = parser != _parser;
                 break;
-            case AwkSpecialVariableId.RecordSeparator when IsSeparatorParser(_parser):
+            case AwkSpecialVariableId.RecordSeparator:
                 text = formatString(value);
-                SelectSeparator(ResolveText(AwkSpecialVariableId.FieldSeparator), text,
-                    !text.Equals(ResolveText(id)));
+                validateRecordSeparator?.Invoke(text);
+                if (IsSeparatorParser(_parser))
+                {
+                    var changed = !text.Equals(ResolveText(id));
+                    var separator = ResolveText(AwkSpecialVariableId.FieldSeparator);
+                    if (changed)
+                        fieldSplitter.ValidateFieldSeparator(separator, resetHistory: true);
+                    SelectSeparator(separator, text, changed);
+                }
                 break;
         }
 

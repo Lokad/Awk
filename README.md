@@ -98,6 +98,7 @@ Detailed runtime contracts live in:
 - [docs/RUNTIME_LIMITS.md](docs/RUNTIME_LIMITS.md)
 - [docs/SECURITY.md](docs/SECURITY.md)
 - [docs/COMPATIBILITY_CONTRACT.md](docs/COMPATIBILITY_CONTRACT.md)
+- [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)
 - [docs/REGEX_COMPATIBILITY.md](docs/REGEX_COMPATIBILITY.md)
 - [docs/VM_ROLLOUT.md](docs/VM_ROLLOUT.md)
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md)

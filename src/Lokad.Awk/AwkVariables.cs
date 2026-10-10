@@ -111,7 +111,8 @@ internal sealed class AwkVariables
             _arrays.Contains,
             () => _arrays.Names,
             CreateValue,
-            SetScalarValueFromSymbolTable);
+            SetScalarValueFromSymbolTable,
+            checkpoint);
 
         bool TryResolveScalarSlot(AwkVariableName name, out AwkGlobalSlotId slotId) =>
             _scalarSlotsByName.TryGetValue(name, out slotId);
@@ -664,7 +665,12 @@ internal sealed class AwkVariables
         var snapshot = new TResult[count];
         var writeIndex = 0;
         foreach (var pair in slots)
+        {
+            if ((writeIndex & 63) == 0)
+                _checkpoint?.Invoke();
             snapshot[writeIndex++] = project(state, pair.Key, CreateValue(pair.Value));
+        }
+        _checkpoint?.Invoke();
 
         return snapshot;
     }
@@ -720,7 +726,12 @@ internal sealed class AwkVariables
         var slots = GetOrCreateArraySlots(name);
         var writeIndex = 0;
         foreach (var key in slots.Keys)
+        {
+            if ((writeIndex & 63) == 0)
+                _checkpoint?.Invoke();
             destination[writeIndex++] = key;
+        }
+        _checkpoint?.Invoke();
     }
 
     public void RemoveFunctionLocalArray(AwkArrayName name)

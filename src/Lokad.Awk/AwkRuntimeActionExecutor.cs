@@ -17,7 +17,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
     {
         _program = program;
         _executableProgram = executableProgram;
-        _output = new AwkOutputSink(state.Limits, state.MemoryGovernor, state.Counters);
+        _output = new AwkOutputSink(state.Limits, state.MemoryGovernor, state.Counters, state.CancellationCheckpoint);
     }
 
     public bool HasBeginFileActions => _program.BeginFileActions.Length > 0;

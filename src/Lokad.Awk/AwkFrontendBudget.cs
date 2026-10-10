@@ -13,7 +13,8 @@ internal sealed class AwkFrontendBudget
         int maxIdentifierBytes,
         long maxRegexPatternBytes,
         int maxRegexGroups,
-        Action reserveRegexLiteralCompilations)
+        Action reserveRegexLiteralCompilations,
+        AwkStringEscapeWarnings? stringEscapeWarnings = null)
     {
         MaxSyntaxNestingDepth = maxSyntaxNestingDepth;
         MaxTokens = maxTokens;
@@ -22,7 +23,10 @@ internal sealed class AwkFrontendBudget
         MaxRegexPatternBytes = maxRegexPatternBytes;
         MaxRegexGroups = maxRegexGroups;
         _reserveRegexLiteralCompilations = reserveRegexLiteralCompilations;
+        StringEscapeWarnings = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
     }
+
+    public AwkStringEscapeWarnings StringEscapeWarnings { get; }
 
     public int MaxSyntaxNestingDepth { get; }
 
@@ -48,7 +52,8 @@ internal sealed class AwkFrontendBudget
             int.MaxValue,
             static () => { });
 
-    public static AwkFrontendBudget FromResources(AwkRuntimeResourceMonitor resources, int previousDiagnostics = 0) =>
+    public static AwkFrontendBudget FromResources(AwkRuntimeResourceMonitor resources, int previousDiagnostics = 0,
+        AwkStringEscapeWarnings? stringEscapeWarnings = null) =>
         new(
             resources.Limits.MaxSyntaxNestingDepth,
             resources.Limits.MaxFrontendTokens,
@@ -56,5 +61,6 @@ internal sealed class AwkFrontendBudget
             resources.Limits.MaxIdentifierBytes,
             resources.Limits.MaxRegexPatternBytes,
             resources.Limits.MaxRegexGroups,
-            () => resources.ReserveRegexCompilations(2));
+            () => resources.ReserveRegexCompilations(2),
+            stringEscapeWarnings);
 }

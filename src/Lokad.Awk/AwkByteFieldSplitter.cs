@@ -13,12 +13,19 @@ internal sealed class AwkByteFieldSplitter(
     AwkStringUnitMode stringUnitMode,
     Action throwIfCancellationRequested,
     AwkMemoryGovernor memoryGovernor,
-    AwkRuntimeCounters runtimeCounters)
+    AwkRuntimeCounters runtimeCounters,
+    Action<object>? resetRegexWarningSite = null)
 {
     private ResolvedFieldSeparatorPlan? _resolvedSeparator;
 
+    public void ResetWarningHistory()
+    {
+        resetRegexWarningSite?.Invoke(this);
+        _resolvedSeparator = null;
+    }
+
     public void ValidateSeparator(AwkFieldSeparatorSpec separator) =>
-        _ = ResolveSeparator(separator, runtimeCounters, resolveRegexCaseSensitivity());
+        _ = ResolveSeparator(separator, runtimeCounters, resolveRegexCaseSensitivity(), prepareBothCases: true);
 
     public AwkTextSplitResult SplitBySeparator(
         AwkText line,
@@ -269,7 +276,8 @@ internal sealed class AwkByteFieldSplitter(
     private FieldSeparatorPlan ResolveSeparator(
         AwkFieldSeparatorSpec separator,
         AwkRuntimeCounters counters,
-        AwkRegexCaseSensitivity caseSensitivity)
+        AwkRegexCaseSensitivity caseSensitivity,
+        bool prepareBothCases = false)
     {
         if (separator.UsesWhitespaceSemantics)
             return FieldSeparatorPlan.Whitespace;
@@ -284,7 +292,8 @@ internal sealed class AwkByteFieldSplitter(
             ReferenceEquals(resolvedSeparator.SeparatorText, separatorText) &&
             resolvedSeparator.CaseSensitivity == caseSensitivity &&
             resolvedSeparator.PatternOrigin == separator.PatternOrigin &&
-            ReferenceEquals(resolvedSeparator.WarningSite, separator.WarningSite))
+            ReferenceEquals(resolvedSeparator.WarningSite, separator.WarningSite) &&
+            (!prepareBothCases || resolvedSeparator.PreparedBothCases))
         {
             return resolvedSeparator.Plan;
         }
@@ -298,15 +307,27 @@ internal sealed class AwkByteFieldSplitter(
         else
         {
             var regexText = separatorText.AsString(counters, throwIfCancellationRequested);
-            plan = FieldSeparatorPlan.FromRegex(
-                separatorText.GetRuneLength(throwIfCancellationRequested) > 1
-                    ? createRegex(new AwkRegexPattern(regexText, separator.PatternOrigin, separator.WarningSite ?? this), caseSensitivity)
-                    : createLiteralRegex(new AwkRegexLiteralText(regexText), caseSensitivity));
+            AwkRegex regex;
+            if (separatorText.GetRuneLength(throwIfCancellationRequested) > 1)
+            {
+                var pattern = new AwkRegexPattern(regexText, separator.PatternOrigin, separator.WarningSite ?? this);
+                if (prepareBothCases)
+                {
+                    var sensitive = createRegex(pattern, AwkRegexCaseSensitivity.CaseSensitive);
+                    var insensitive = createRegex(pattern, AwkRegexCaseSensitivity.IgnoreCase);
+                    regex = caseSensitivity == AwkRegexCaseSensitivity.CaseSensitive ? sensitive : insensitive;
+                }
+                else
+                    regex = createRegex(pattern, caseSensitivity);
+            }
+            else
+                regex = createLiteralRegex(new AwkRegexLiteralText(regexText), caseSensitivity);
+            plan = FieldSeparatorPlan.FromRegex(regex);
         }
 
         throwIfCancellationRequested();
         _resolvedSeparator = new ResolvedFieldSeparatorPlan(separatorText, caseSensitivity, plan,
-            separator.PatternOrigin, separator.WarningSite);
+            separator.PatternOrigin, separator.WarningSite, prepareBothCases);
         return plan;
 
         static bool TryGetSingleByteLiteralSeparator(AwkText separator, out byte separatorByte)
@@ -574,7 +595,8 @@ internal sealed class AwkByteFieldSplitter(
         AwkRegexCaseSensitivity caseSensitivity,
         FieldSeparatorPlan plan,
         AwkRegexPatternOrigin patternOrigin,
-        object? warningSite)
+        object? warningSite,
+        bool preparedBothCases)
     {
         public AwkText SeparatorText => separatorText ?? AwkText.Empty;
 
@@ -585,6 +607,8 @@ internal sealed class AwkByteFieldSplitter(
         public AwkRegexPatternOrigin PatternOrigin { get; } = patternOrigin;
 
         public object? WarningSite { get; } = warningSite;
+
+        public bool PreparedBothCases { get; } = preparedBothCases;
     }
 
     private readonly struct FieldSeparatorPlan

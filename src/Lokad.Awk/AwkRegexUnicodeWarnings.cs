@@ -66,5 +66,11 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryGovernor governor, AwkCom
         _bufferBytes = bufferBytes;
     }
 
+    public void Reset(object site)
+    {
+        if (_sites is not null && _sites.Remove(site, out var previous))
+            governor.ReleaseCommitted(previous.Bytes);
+    }
+
     private readonly record struct Entry(string? Pattern, int CompiledCases, long Bytes);
 }

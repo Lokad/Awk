@@ -14,6 +14,29 @@ host deadline or caller cancellation prevents runtime actions from starting. Com
 retains warnings without writing them to the compilation host. Reusing the artifact does
 not reload sources, and emits warnings once for each execution.
 
+Ordinary unknown-string escape history uses four fixed 64-bit words shared across
+option decoding, lexical diagnostics and consumed assignment operands. Duplicate
+unknown warnings are suppressed before frontend diagnostic admission; missing-hex
+and Unicode warnings retain per-occurrence admission. Typed diagnostic metadata seeds
+fresh execution history when a compiled artifact is reused. History is recorded only
+after a warning is admitted, so a rejected warning can be retried. Runtime diagnostic
+messages/queues retain their memory governor and output/host limits. Long warning scans
+check cancellation in bounded chunks; this adds no operation quota.
+
+SYMTAB inventory checks cancellation while visiting declared globals, scalar slots and
+arrays, including duplicate names that produce no output. Its snapshot keys use the
+same checkpoint during UTF-8 encoding and hashing; ordinary array key/value snapshots
+check while iterating. Snapshot admission and logical execution charges remain separate.
+Standard-output staging passes the runtime checkpoint to the shared byte builder. A
+cancelled append publishes no new output length, preserves earlier staged bytes and
+releases pending reservations; an admitted larger buffer may remain retained until
+sink disposal. Interpreter and executable actions share this output sink.
+
+ASCII record terminators use one fixed shared table of 128 valid UTF-8 values. Byte-set
+plans retain only their bounded membership masks, without a per-plan terminator array
+or new one-byte text objects. The table is process metadata, not a growing execution
+cache; returned RT values continue to use ordinary value-memory admission.
+
 ## Invocation And Frontend Limits
 
 The invocation is checked against `MaxArguments`, `MaxArgumentBytes`, `MaxEnvironmentEntries`, and
@@ -125,6 +148,16 @@ These limits constrain awk execution without changing successful compatibility b
   `MaxArrayElements`, but hosts can now set a different field policy.
 - `MaxRegexPatternBytes` and `MaxRegexGroups`: breadth limits checked before compiling source or
   runtime regex patterns.
+FS, enabled FPAT and ordinary regex RS assignments prepare both case variants before
+publishing the new scalar, splitting mode, PROCINFO entry or record-separator version.
+Each cache miss counts toward MaxRegexCompilations. A quota that admits the first
+variant and rejects the second preserves the prior variable/record/metadata state;
+retry can reuse the admitted variant but must still admit the other. Same-value
+assignments and IGNORECASE changes reuse qualified variants. Recognized byte-native
+RS forms do not require backend compilation. Unicode warning history can reset
+independently of the shared compiled cache, and diagnostic memory/output admission
+still applies to each warning. This adds no new fuel quota or package dependency.
+
 - `MaxRegexCompilations` and `MaxRegexCacheBytes`: aggregate compilation work and estimated retained
   regex-cache capacity. Observable ERE selection compiles its structured program on first use,
   counts that compilation, and retains it in a bounded cache keyed by pattern and effective case
@@ -172,6 +205,14 @@ Variadic bitwise calls evaluate every argument once using those expression check
 their unsigned fold adds no separate allowance or short circuit, even after a zero operand.
 Both engines flush standard output at statement boundaries so host admission and already emitted
 output agree when a later statement exhausts the allowance.
+
+Owned byte-set/run and paragraph record scans, including leaders, continued runs and
+separator classification, check cancellation while scanning 4,096-byte chunks. Single-byte
+and short literal searches use framework windows with literal overlap; separators longer
+than 4,096 bytes retain one framework search with checks before and after. UTF-16 prefix
+counting uses whole-scalar UTF-8 chunks and publishes the byte/UTF-16 cache pair only after
+successful counting. These checks do not add logical fuel or scan-byte charges. There is
+no CPU-preemption guarantee inside an indivisible framework or dependency call.
 
 Explicit fuel additionally charges one step per started 4,096-byte chunk of offered
 input: field splitting, FIELDWIDTHS parsing, Unicode string length, string search and slicing,
@@ -467,3 +508,10 @@ pattern/group/cache/memory limits bound admitted data, but matching timeouts do 
 time. Structured POSIX compilation/matching retains internal checkpoints and operation-local deadlines.
 Host work can ignore its token after the runtime stops awaiting it. Fuel removal does not make any
 of these backend calls preemptible or change the documented host/cleanup deadlines.
+
+## Compatibility Option Diagnostics
+
+Compatibility option warnings, including POSIX overriding byte units, share the
+frontend diagnostic cap with option Unicode and source diagnostics. They are admitted
+before source loading and retained in compiled artifacts; runtime execution emits each
+admitted warning once. They do not change logical fuel or text-byte accounting.

@@ -45,6 +45,7 @@ internal static class AwkExecutor
         AwkExecutableProgram? executableProgram)
     {
         var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken);
+        var stringEscapeWarnings = new AwkStringEscapeWarnings();
 
         async Task<AwkExitCode> AppendResultAsync(
             AwkFileDescriptor descriptor,
@@ -68,8 +69,8 @@ internal static class AwkExecutor
             var optionDiagnosticCount = 0;
             if (compiledResolution is null)
             {
-                var optionWarnings = invocation.GetOptionUnicodeWarnings(resources.Limits.MaxFrontendDiagnostics,
-                    cancellationToken);
+                var optionWarnings = invocation.GetOptionWarnings(resources.Limits.MaxFrontendDiagnostics,
+                    cancellationToken, stringEscapeWarnings);
                 optionDiagnosticCount = optionWarnings.Count;
                 foreach (var warning in optionWarnings)
                 {
@@ -111,6 +112,7 @@ internal static class AwkExecutor
                     invocation,
                     resources,
                     optionDiagnosticCount,
+                    stringEscapeWarnings,
                     runtimeOptions.AccessiblePathRoot,
                     runtimeOptions.CleanupTimeout,
                     runtimeOptions.AllowSourceIncludes,
@@ -129,6 +131,7 @@ internal static class AwkExecutor
                     .ConfigureAwait(false);
                 if (warningExitCode != AwkDiagnostics.SuccessExitCode)
                     return warningExitCode;
+                stringEscapeWarnings.Record(resolved.Warnings[index].StringEscapeWarning);
             }
 
             if (resolved is AwkProgramResolution.Failed failed)
@@ -150,7 +153,8 @@ internal static class AwkExecutor
                     cancellationToken,
                     runtimeOptions,
                     executableProgram,
-                    resources)
+                    resources,
+                    stringEscapeWarnings)
                 .ConfigureAwait(false);
         }
         catch (AwkRuntimeException exception)
@@ -223,13 +227,15 @@ internal static class AwkExecutor
 
         var runtimeOptions = AwkRuntimeOptions.CreateSystemDefault();
         var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken);
-        var optionWarnings = invocation.GetOptionUnicodeWarnings(resources.Limits.MaxFrontendDiagnostics,
-            cancellationToken);
+        var stringEscapeWarnings = new AwkStringEscapeWarnings();
+        var optionWarnings = invocation.GetOptionWarnings(resources.Limits.MaxFrontendDiagnostics,
+            cancellationToken, stringEscapeWarnings);
         var resolved = await ResolveProgramAsync(
                 host,
                 invocation,
                 resources,
                 optionWarnings.Count,
+                stringEscapeWarnings,
                 runtimeOptions.AccessiblePathRoot,
                 runtimeOptions.CleanupTimeout,
                 runtimeOptions.AllowSourceIncludes,
@@ -257,6 +263,7 @@ internal static class AwkExecutor
         AwkInvocation invocation,
         AwkRuntimeResourceMonitor resources,
         int previousDiagnostics,
+        AwkStringEscapeWarnings stringEscapeWarnings,
         AwkPath? accessiblePathRoot,
         TimeSpan cleanupTimeout,
         bool allowSourceIncludes,
@@ -292,7 +299,7 @@ internal static class AwkExecutor
         cancellationToken.ThrowIfCancellationRequested();
         var parsed = AwkParser.Parse(
             source.Text,
-            AwkFrontendBudget.FromResources(resources, previousDiagnostics),
+            AwkFrontendBudget.FromResources(resources, previousDiagnostics, stringEscapeWarnings),
             cancellationToken,
             invocation.ExecutionOptions.CompatibilityProfile.Mode);
         var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings, cancellationToken.ThrowIfCancellationRequested);

@@ -79,6 +79,8 @@ internal sealed class AwkRegexRuntime
             MaxCachedRegexes, cachePartitionBytes);
     }
 
+    public void ResetWarningSite(object site) => _unicodeWarnings.Reset(site);
+
     public AwkRegex Create(AwkRegexPattern pattern) =>
         Create(pattern, _resolveCaseSensitivity(), hasFixedCaseSensitivity: false);
 

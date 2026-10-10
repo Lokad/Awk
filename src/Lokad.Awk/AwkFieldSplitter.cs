@@ -17,7 +17,8 @@ internal sealed class AwkFieldSplitter(
     AwkMemoryGovernor memoryGovernor,
     AwkRuntimeCounters counters,
     Action<int>? recordByteWork = null,
-    AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+    AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+    Action<object>? resetRegexWarningSite = null)
 {
     private static readonly AwkFieldSeparatorSpec NewlineSeparator = AwkFieldSeparatorSpec.FromText("\n");
     private readonly AwkByteFieldSplitter _byteSplitter = new(
@@ -28,7 +29,8 @@ internal sealed class AwkFieldSplitter(
         stringUnitMode,
         throwIfCancellationRequested,
         memoryGovernor,
-        counters);
+        counters,
+        resetRegexWarningSite);
 
     private AwkFieldSeparatorSpec _fieldSeparator = fieldSeparator;
     private AwkText _fieldPattern = AwkText.Empty;
@@ -54,13 +56,21 @@ internal sealed class AwkFieldSplitter(
         _fieldSplittingMode = AwkFieldSplittingMode.FieldPattern;
     }
 
-    public void ValidateFieldSeparator(AwkText value)
+    public void ValidateFieldSeparator(AwkText value, bool resetHistory = false)
     {
+        if (resetHistory || !value.Equals(_fieldSeparator.ByteText))
+            _byteSplitter.ResetWarningHistory();
         _byteSplitter.ValidateSeparator(AwkFieldSeparatorSpec.FromByteText(value));
     }
 
-    public void ValidateFieldPattern(AwkText value) =>
-        _ = createRegex(new AwkRegexPattern(value.AsString(counters, throwIfCancellationRequested), warningSite: this), resolveRegexCaseSensitivity());
+    public void ValidateFieldPattern(AwkText value)
+    {
+        if (!value.Equals(_fieldPattern))
+            resetRegexWarningSite?.Invoke(this);
+        var pattern = new AwkRegexPattern(value.AsString(counters, throwIfCancellationRequested), warningSite: this);
+        _ = createRegex(pattern, AwkRegexCaseSensitivity.CaseSensitive);
+        _ = createRegex(pattern, AwkRegexCaseSensitivity.IgnoreCase);
+    }
 
     public long EstimateFieldWidthsMemory(AwkText value)
     {

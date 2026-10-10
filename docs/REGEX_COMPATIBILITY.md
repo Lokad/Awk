@@ -42,10 +42,27 @@ code. Runtime Unicode warnings track the expression's last pattern and compiled 
 variants, independently of the shared regex cache. Distinct expressions each warn;
 repeating the same pattern at one expression does not. Pattern changes reset that
 history, and each compiled execution has fresh history. Pending warnings survive a
-later runtime failure. General unknown-ERE warnings remain unfinished, as does GNU's
-assignment-time compilation of both case variants for FS/FPAT/RS; Lokad can emit fewer
-Unicode warnings for these special variables. Command-option/include decoding and
-regex character-unit alignment remain separate compatibility work.
+later runtime failure. FS and enabled FPAT prepare both case variants at assignment;
+regex RS does so in default/traditional mode, including startup assignments before
+BEGIN and programs that exit without reading input. POSIX RS keeps its first-byte
+policy. Literal and recognized byte-set/run separators retain their byte-native plans.
+Malformed regex RS fails at assignment rather than waiting for input.
+
+Special-variable warning history is separate for FS, FPAT and RS. Same-value
+assignments and IGNORECASE changes reuse prepared variants; changing away and back
+replays Unicode warnings even when the compiled regex cache already contains the
+pattern. An RS change also refreshes FS preparation while FS parsing is active.
+Each compiled execution has fresh runtime history. Assignment preparation completes
+before scalar storage, splitting modes, PROCINFO metadata and RS version are published.
+See [assignment goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SpecialRegexAssignments.cs)
+and [admission/reuse checks](../tests/Lokad.Awk.Tests/AwkSpecialRegexAssignmentTests.cs).
+Ordinary unknown-string escapes share typed invocation-wide history across source,
+options and consumed operands; repeated unknown escapes warn once. Missing-hex and
+Unicode warnings remain per occurrence. First source locations survive compiled reuse,
+and each execution has fresh history. Unknown non-ASCII diagnostics render complete
+scalars under the strict UTF-8 policy. General unknown-ERE warnings remain unfinished.
+Regex scalar casing/boundary engine defects belong upstream in Lokad.Utf8Regex;
+Awk retains dialect translation and qualified dependency integration.
 
 An unmatched closing `)` denotes a literal character, including in patterns without
 backslashes. Balanced groups and parentheses inside brackets keep their ERE meanings.
@@ -65,7 +82,7 @@ In GNU mode, a one-byte RS remains literal and case-sensitive. A non-ASCII singl
 RS uses regex matching when IGNORECASE is enabled, preserving case equivalence for that
 separator; it retains the byte-native literal plan when case-sensitive.
 
-This qualification does not establish full profile conformance. Unknown-escape warnings,
+This qualification does not establish full profile conformance. Unknown-ERE warnings,
 some ERE grammar/numeric-byte escapes, source-specific repeated pipe EOF/RT,
 and Unicode word boundaries remain open.
 GNU 5.4 MinRX also loses uppercase members in classes such as `[[:alpha:]A]`; GNU 5.2

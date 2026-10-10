@@ -60,6 +60,57 @@ internal static class AwkEscapes
         return decodedText;
     }
 
+    public static void ReportStringWarnings(ReadOnlySpan<char> text, AwkCompatibilityMode mode,
+        AwkStringEscapeWarnings history, Action<AwkStringEscapeWarning> report, Action? checkpoint = null)
+    {
+        checkpoint?.Invoke();
+        long nextCheckpoint = 0;
+        for (var index = 0; index + 1 < text.Length; index++)
+        {
+            if (index >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = (long)index + 1024;
+            }
+            if (text[index] != '\\')
+                continue;
+            index++;
+            var escaped = text[index];
+            var unicode = ReadUnicodeEscape(text, ref index, text.Length, mode, out _);
+            if (unicode != AwkUnicodeEscapeStatus.None)
+            {
+                if (unicode != AwkUnicodeEscapeStatus.Valid)
+                    report(new(unicode == AwkUnicodeEscapeStatus.MissingDigits
+                        ? AwkStringEscapeWarningKind.MissingUnicodeDigits
+                        : AwkStringEscapeWarningKind.InvalidUnicodeScalar));
+                continue;
+            }
+            if (mode == AwkCompatibilityMode.Posix && escaped is 'u' or 'x')
+                continue;
+            if (TryReadNumericEscape(text, ref index, text.Length, out _))
+                continue;
+            if (escaped == 'x')
+            {
+                report(new(AwkStringEscapeWarningKind.MissingHexDigits));
+                continue;
+            }
+            if (AwkLineContinuations.TrySkipAfterBackslash(text, ref index, text.Length) ||
+                TryDecodeSimpleEscape(escaped, out _))
+                continue;
+            var status = Rune.DecodeFromUtf16(text[index..], out var scalar, out var consumed);
+            if (status != System.Buffers.OperationStatus.Done)
+                scalar = Rune.ReplacementChar;
+            index += Math.Max(1, consumed) - 1;
+            var warning = new AwkStringEscapeWarning(AwkStringEscapeWarningKind.Unknown, scalar);
+            if (!history.HasReported(warning))
+            {
+                report(warning);
+                history.Record(warning);
+            }
+        }
+        checkpoint?.Invoke();
+    }
+
     public static void ReportUnicodeWarnings(string text, AwkCompatibilityMode mode, Action<string> report,
         Action? checkpoint = null)
     {

@@ -151,6 +151,67 @@ public sealed class AwkCompiledWarningTests
         }
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task PosixByteOverrideWarningIsRetainedOncePerCompiledExecution(bool executable, bool utf8)
+    {
+        const string warning = "awk: warning: `--posix' overrides `--characters-as-bytes'\n";
+        var source = new MockFileSystem();
+        var compiled = await AwkExecutor.CompileAsync(source,
+            AwkTestHarness.BuildInvocation("awk", "-b", "--posix", "BEGIN{print \"ok\"}"),
+            CancellationToken.None);
+        Assert.Equal(warning, Assert.Single(compiled.Warnings).Message);
+        Assert.Equal(string.Empty, source.GetOutput(AwkFileDescriptor.StdErr));
+        for (var run = 0; run < 2; run++)
+        {
+            var host = new MockFileSystem();
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var options = Options(executable, utf8, counters);
+            var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options, compiled.ExecutableProgram);
+            Assert.Equal(AwkExitCode.Success, exit);
+            Assert.Equal("ok\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(warning, host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+            if (executable)
+                Assert.True(counters.VmBasicBlockEntries > 0);
+        }
+    }
+
+    [Theory]
+    [InlineData("FS", false, false)]
+    [InlineData("FS", false, true)]
+    [InlineData("FS", true, false)]
+    [InlineData("FS", true, true)]
+    [InlineData("FPAT", false, false)]
+    [InlineData("FPAT", false, true)]
+    [InlineData("FPAT", true, false)]
+    [InlineData("FPAT", true, true)]
+    [InlineData("RS", false, false)]
+    [InlineData("RS", false, true)]
+    [InlineData("RS", true, false)]
+    [InlineData("RS", true, true)]
+    public async Task SpecialRegexWarningsAreFreshForEveryCompiledExecution(string variable, bool executable, bool utf8)
+    {
+        const string warning = "awk: warning: no hex digits in `\\u' escape sequence\n";
+        var source = new MockFileSystem();
+        var invocation = AwkTestHarness.BuildInvocation("awk", "BEGIN{" + variable + "=\"\\\\u\";print \"ok\";exit}");
+        var compiled = await AwkExecutor.CompileAsync(source, invocation, CancellationToken.None);
+        Assert.Empty(compiled.Warnings);
+        foreach (var host in new[] { new MockFileSystem(), new MockFileSystem() })
+        {
+            var options = Options(executable, utf8, AwkRuntimeCounters.CreateEnabled());
+            var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
+            Assert.Equal(AwkExitCode.Success, exit);
+            Assert.Equal("ok\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(warning + warning, host.GetOutput(AwkFileDescriptor.StdErr));
+            if (executable)
+                Assert.True(options.Counters.VmBasicBlockEntries > 0);
+        }
+    }
+
     private static AwkRuntimeOptions Options(bool executable, bool utf8, AwkRuntimeCounters counters,
         AwkRuntimeLimits? limits = null, TimeSpan? hostTimeout = null) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,

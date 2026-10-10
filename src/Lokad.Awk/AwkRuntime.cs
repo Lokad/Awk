@@ -71,7 +71,8 @@ internal static class AwkRuntime
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions,
         AwkExecutableProgram? executableProgram,
-        AwkRuntimeResourceMonitor resources)
+        AwkRuntimeResourceMonitor resources,
+        AwkStringEscapeWarnings? stringEscapeWarnings = null)
     {
         if (executableProgram == null &&
             runtimeOptions.ExecutionEngineKind == AwkExecutionEngineKind.Executable)
@@ -94,7 +95,8 @@ internal static class AwkRuntime
             cancellationToken,
             runtimeOptions,
             resources,
-            executionOptions.CompatibilityProfile);
+            executionOptions.CompatibilityProfile,
+            stringEscapeWarnings);
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeArguments(runtimeArguments.RuntimeArguments);
         state.InitializeEnvironment(
@@ -151,10 +153,6 @@ internal static class AwkRuntime
             foreach (var variable in runtimeArguments.Variables)
                 state.AssignVariableFromExternalText(variable);
             await actionExecutor.Output.FlushDiagnosticsAsync(io).ConfigureAwait(false);
-            if (executionOptions.CompatibilityProfile.OverridesCharactersAsBytes)
-                await io.WriteStandardErrorAsync(AwkMessages.WarningPosixOverridesCharactersAsBytes)
-                    .ConfigureAwait(false);
-
             var beginFlow = await actionExecutor.ExecuteBeginActionsAsync(state, io).ConfigureAwait(false);
             if (beginFlow != AwkStatementFlow.ExitProgram)
                 await inputScheduler.ProcessRemainingInputAsync().ConfigureAwait(false);

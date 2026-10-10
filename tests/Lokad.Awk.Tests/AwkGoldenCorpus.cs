@@ -29,6 +29,10 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(CommandLineRuntimeCases(), AwkGoldenTag.CommandLine),
 
+        .. Tagged(CompatibilityContractCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Io, AwkGoldenTag.Record),
+
+        .. Tagged(OptionCompatibilityCases(), AwkGoldenTag.CommandLine),
+
         .. Tagged(ArgumentSchedulingCompatibilityRepairs(), AwkGoldenTag.CommandLine, AwkGoldenTag.Record),
 
         .. Tagged(PatternCases(), AwkGoldenTag.Pattern),
@@ -41,9 +45,12 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(FrontendWarningCases(), AwkGoldenTag.Expression),
 
+        .. Tagged(StringEscapeWarningCases(), AwkGoldenTag.Expression, AwkGoldenTag.CommandLine),
+
         .. Tagged(UnicodeStringCases(), AwkGoldenTag.Expression),
 
         .. Tagged(UnicodeRegexCases(), AwkGoldenTag.Expression, AwkGoldenTag.Regex),
+        .. Tagged(SpecialRegexAssignmentCases(), AwkGoldenTag.Variable, AwkGoldenTag.CommandLine, AwkGoldenTag.Regex),
         .. Tagged(UnicodeCallerCases(), AwkGoldenTag.CommandLine),
 
         .. Tagged(AssignmentOperandCompatibilityRepairs(), AwkGoldenTag.Expression),

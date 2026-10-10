@@ -117,9 +117,12 @@ public sealed class AwkGoldenCorpusTests
                 "missing-input-file-without-beginfile-fails" or
                 "input-directory-without-beginfile-fails" or
                 "main-input-read-open-error-fails" or
+                "option-contract-warning-before-assignment-failure-0" or
+                "option-contract-warning-before-assignment-failure-1" or
                 "empty-inline-script" or
                 "empty-script-file" or
-                "function-only-program";
+                "function-only-program" or
+                "special-regex-invalid-rs-startup";
 
         static AwkRuntimeOptions CreateExecutableOptions(AwkRuntimeCounters counters) =>
             new(

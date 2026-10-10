@@ -33,6 +33,7 @@ internal sealed class AwkRuntimeState
     private readonly AwkTimeRuntime _timeRuntime;
     private readonly AwkVariables _variables;
     private readonly AwkRegexRuntime _regexRuntime;
+    private readonly AwkStringEscapeWarnings _stringEscapeWarnings;
     private readonly AwkStringRuntime _stringRuntime;
     private readonly AwkArrayRuntime _arrayRuntime;
     private readonly AwkFormattingRuntime _formattingRuntime;
@@ -55,13 +56,15 @@ internal sealed class AwkRuntimeState
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions,
         AwkRuntimeResourceMonitor resources,
-        AwkCompatibilityProfile compatibilityProfile)
+        AwkCompatibilityProfile compatibilityProfile,
+        AwkStringEscapeWarnings? stringEscapeWarnings = null)
     {
         Counters = runtimeOptions.Counters;
         Limits = runtimeOptions.Limits;
         Resources = resources;
         MemoryGovernor = AwkMemoryGovernor.Create(Limits, Counters);
         CompatibilityMode = compatibilityProfile.Mode;
+        _stringEscapeWarnings = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
         LintMode = compatibilityProfile.LintMode;
         NonDecimalData = compatibilityProfile.NonDecimalData;
         var stringUnitMode = compatibilityProfile.StringUnitMode;
@@ -119,7 +122,8 @@ internal sealed class AwkRuntimeState
             MemoryGovernor,
             Counters,
             Resources.RecordByteWork,
-            CompatibilityMode);
+            CompatibilityMode,
+            _regexRuntime.ResetWarningSite);
         _recordFields = new AwkRecordFieldRuntime(
             _fieldSplitter,
             CreateStringValue,
@@ -144,7 +148,8 @@ internal sealed class AwkRuntimeState
             RecordSpecialVariableAssignment,
             MemoryGovernor,
             CompatibilityMode,
-            CancellationCheckpoint);
+            CancellationCheckpoint,
+            ValidateRecordSeparator);
         specialVariables = _specialVariables;
         _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables, CancellationCheckpoint);
         _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
@@ -550,12 +555,11 @@ internal sealed class AwkRuntimeState
         {
             using var decoding = MemoryGovernor.ReserveTransient(assignment.RawValue.Contains('\\')
                 ? AwkRuntimeMemory.EstimateEscapeDecodingBytes(assignment.RawValue.Length) : 0);
-            AwkEscapes.ReportUnicodeWarnings(assignment.RawValue, CompatibilityMode,
-                message =>
+            AwkEscapes.ReportStringWarnings(assignment.RawValue, CompatibilityMode, _stringEscapeWarnings,
+                warning =>
                 {
                     if (TryGetExecutionContext(out var execution))
-                        execution.Output.ReportDiagnostic(new AwkDiagnostic(default, message,
-                            AwkDiagnosticId.WarningStringEscape));
+                        execution.Output.ReportDiagnostic(new AwkDiagnostic(default, warning));
                 }, ThrowIfCancellationRequested);
             AssignVariableFromExternalText(assignment.Identifier,
                 AwkEscapes.DecodeSourceString(assignment.RawValue, CompatibilityMode, ThrowIfCancellationRequested));
@@ -799,6 +803,17 @@ internal sealed class AwkRuntimeState
 
     public AwkRegex CreateRegex(AwkRegexPattern pattern) =>
         _regexRuntime.Create(pattern);
+
+    public AwkRegex CreateRegex(AwkRegexPattern pattern, AwkRegexCaseSensitivity sensitivity) =>
+        _regexRuntime.Create(pattern, sensitivity);
+
+    private void ValidateRecordSeparator(AwkText value)
+    {
+        if (value.Equals(_recordSeparatorText))
+            return;
+        _regexRuntime.ResetWarningSite(this);
+        AwkRecordCursor.ValidateSeparator(this, value);
+    }
 
     private void ReportRegexUnicodeWarning(string message)
     {

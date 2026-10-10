@@ -30,24 +30,33 @@ internal sealed class AwkInvocation
 
     public AwkTerminalInvocationResult TerminalResult { get; }
 
-    public IReadOnlyList<AwkDiagnostic> GetOptionUnicodeWarnings(int maxDiagnostics, CancellationToken cancellationToken)
+    public IReadOnlyList<AwkDiagnostic> GetOptionWarnings(int maxDiagnostics, CancellationToken cancellationToken,
+        AwkStringEscapeWarnings? stringEscapeWarnings = null)
     {
-        if (ExecutionOptions.CompatibilityProfile.Mode == AwkCompatibilityMode.Posix)
-            return [];
+        cancellationToken.ThrowIfCancellationRequested();
+        var history = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
         List<AwkDiagnostic>? warnings = null;
+        if (ExecutionOptions.CompatibilityProfile.OverridesCharactersAsBytes)
+        {
+            if (maxDiagnostics <= 0)
+                throw new AwkRuntimeException(AwkMessages.ErrorFrontendDiagnosticLimit,
+                    AwkDiagnosticId.RuntimeResourceLimit);
+            warnings = [new AwkDiagnostic(default, AwkMessages.WarningPosixOverridesCharactersAsBytes,
+                AwkDiagnosticId.WarningRuntime)];
+        }
         foreach (var assignment in RuntimeArgumentsPlan.Variables)
         {
             if (assignment.Source == AwkVariableAssignmentSource.InputArgument ||
-                !assignment.RawValue.Contains("\\u", StringComparison.Ordinal))
+                !assignment.RawValue.Contains('\\'))
                 continue;
-            AwkEscapes.ReportUnicodeWarnings(assignment.RawValue, ExecutionOptions.CompatibilityProfile.Mode,
-                message =>
+            AwkEscapes.ReportStringWarnings(assignment.RawValue, ExecutionOptions.CompatibilityProfile.Mode,
+                history, warning =>
                 {
                     if ((warnings?.Count ?? 0) >= maxDiagnostics)
                         throw new AwkRuntimeException(AwkMessages.ErrorFrontendDiagnosticLimit,
                             AwkDiagnosticId.RuntimeResourceLimit);
                     warnings ??= [];
-                    warnings.Add(new AwkDiagnostic(default, message, AwkDiagnosticId.WarningStringEscape));
+                    warnings.Add(new AwkDiagnostic(default, warning));
                 }, cancellationToken.ThrowIfCancellationRequested);
         }
         return warnings is null ? [] : warnings;

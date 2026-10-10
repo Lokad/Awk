@@ -3,6 +3,10 @@
 Lokad.Awk targets command-line compatibility for common valid-UTF-8 awk workflows while keeping
 host effects explicit and mediated.
 
+The [language compatibility matrix](COMPATIBILITY_MATRIX.md) records supported,
+partial, planned and intentionally excluded behavior, with golden evidence and
+POSIX/GNU references. Its status rows do not claim complete profile conformance.
+
 ## Command-Line Behavior
 
 The golden corpus owns compatibility for option parsing, `-F`, `-v`, script files, repeated
@@ -46,6 +50,35 @@ see `REGEX_COMPATIBILITY.md` for numeric decoding and remaining gaps. POSIX RS s
 its first UTF-8 byte and consumes a whole matching input scalar. POSIX mode overrides
 the requested byte-unit option, independent of option order, and emits a warning.
 
+## Command-Line Compatibility Aliases
+
+`-s`/`--no-optimize`, `-O`/`--optimize` and `-r`/`--re-interval` are accepted
+compatibility aliases, including their `-W` spellings. They do not select an engine or
+change optimization policy. Interval expressions are already enabled in every profile;
+`--re-interval` does not add a separate regex mode. The interpreter remains the default,
+and executable selection is an explicit embedding option.
+
+`-N`/`--use-lc-numeric` is also an accepted compatibility alias. Numeric parsing and
+formatting retain invariant-culture decimal syntax, including under POSIX/traditional
+profiles. Supplied LC_ALL, LC_NUMERIC and LANG strings remain environment data rather
+than locale selectors. A comma-decimal string such as "1,5" converts from its numeric
+prefix as 1; it does not become 1.5. Locale-aware numeric execution is outside this
+release. This is an explicit difference from GNU's numeric-locale option, not a claim
+that a recognized flag enables its GNU capability.
+
+After successful option parsing, the final profile governs compatibility warnings.
+POSIX overrides byte units in either option order and warns once before source IO,
+source diagnostics or external-variable assignment. The warning is retained by compiled
+programs and emitted once on every execution, with no compilation-time stderr write.
+It shares the frontend diagnostic cap with option Unicode and source warnings.
+Later failures retain admitted warnings; failed warning publication prevents runtime
+startup. Existing lint aliases normalize to normal/fatal modes; full GNU uninitialized
+read/extension lint coverage and distinct invalid/no-ext selection remain incomplete,
+as recorded in the matrix. These aliases do not promise full GNU lint conformance.
+
+See the [option contract goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.OptionCompatibility.cs)
+and [GNU options](https://www.gnu.org/software/gawk/manual/html_node/Options.html).
+
 ## Command Assignments and Includes
 
 The final compatibility profile governs `-v` and `-F` escape decoding, even when the
@@ -76,6 +109,15 @@ strings treat `\u` and `\x` as plain `u` and `x` without GNU warnings. Ordinary 
 and simple escapes retain their existing behavior. Warnings are lexical, retain source
 locations and occur even when the containing expression never executes.
 
+Ordinary unknown escapes warn once per escaped UTF-8 leading byte across source
+literals, `-v`/`-F` options and consumed assignment operands. Options warn before
+source loading; source warnings retain the first lexical location; input assignments
+warn only when consumed. Deleting an operand or exiting in BEGIN does not warn for it.
+Missing hex/Unicode digits and invalid Unicode scalars warn per occurrence in the
+profiles that support them. Compiled runs have independent history, including concurrent
+reuse. Diagnostics render the complete escaped scalar rather than GNU's possibly invalid
+single UTF-8 byte. Escaped backslashes do not start another decoding/warning pass.
+
 String decoding runs once. A decoded backslash is passed as string data; if that
 string is later used as a regular expression, it crosses the separate regex translation
 boundary. Regex literals and runtime patterns also support profile-aware `\u` decoding
@@ -83,8 +125,9 @@ before ERE interpretation. Invalid scalars produce a quoted literal `?`; literal
 warnings are lexical, and runtime warnings track the last pattern and compiled case
 variants at each expression. Shared regex cache hits do not suppress warnings from
 another expression, and compiled executions have independent warning history.
-General unknown-ERE warnings, assignment-time FS/FPAT/RS warning parity, command-option
-values and include paths remain pending compatibility work.
+FS, enabled FPAT and ordinary regex RS prepare both case variants at assignment;
+changed values reset their warning history independently of the compiled cache.
+Include filenames remain raw text. General unknown-ERE warnings remain pending.
 
 ## Field Splitting Modes
 
@@ -507,6 +550,28 @@ exception.
 User-visible failures are newline-terminated UTF-8 bytes at the host boundary. Runtime resource
 failures introduced through internal runtime options use current-surface tests unless they become
 command-line policy.
+
+## Main Input Directories
+
+GNU awk normally warns and skips directories named as main-input operands; POSIX and
+traditional modes treat them as fatal. Lokad.Awk deliberately retains fatal unhandled
+host open/read failure behavior in every profile for this release. Already published
+stdout is preserved, later input operands are not processed, and a failed named operand
+does not trigger stdin fallback. This includes main-input `getline`. An existing GNU
+BEGINFILE handler can explicitly suppress any open failure with `nextfile`, or exit;
+that program-directed recovery is not automatic directory detection/skipping. See
+`beginfile-missing-file-nextfile-suppresses-error` in the
+[input-phase goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs). Redirected
+`getline < path` remains recoverable: an ordinary host IO failure returns -1 without a
+runtime stderr diagnostic, setting ERRNO only where the selected profile enables it.
+
+`IAwkHost` reports open failures without a typed directory/file-kind result. The runtime
+does not infer file kinds from host diagnostic text or access the filesystem directly.
+GNU directory skipping would require a separately designed host contract. Hosts may
+choose their own directory error wording; the golden filesystem pins `Is a directory`.
+The distinction is an intentional compatibility limitation, not a silent GNU capability.
+See [GNU's directory-input rules](https://www.gnu.org/software/gawk/manual/html_node/Command_002dline-directories.html)
+and the [contract goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.CompatibilityContract.cs).
 
 ## Host Read Protocol
 
