@@ -28,7 +28,7 @@ public sealed class AwkExecutionGovernorTests
     [InlineData("BEGIN{IGNORECASE=1;print (\"AbC\"==\"aBc\"),(\"B\"<\"a\");IGNORECASE=0;print \"A\"==\"a\"}", "")]
     [InlineData("BEGIN{IGNORECASE=1;print index(\"abABa\",\"Ba\"),index(\"caf\u00e9\u00c9x\",\"\u00e9X\")}", "")]
     [InlineData("BEGIN{IGNORECASE=1;a[\"b\"]=\"a\";a[\"B\"]=\"A\";a[\"a\"]=\"B\";n=asort(a,b);for(i=1;i<=n;i++)print b[i]}", "")]
-    public async Task EnginesAndObservationalCountersAdmitTheSameWork(string program, string input)
+    public async Task ExplicitFuelAndObservationalCountersAdmitTheSameWork(string program, string input)
     {
         var compiled = await CompileAsync(program);
         for (var limit = 1; limit <= 80; limit++)

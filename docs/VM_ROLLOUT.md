@@ -62,13 +62,15 @@ executable-expression API.
 
 ## Budget And Limits
 
-Both engines consume the logical allowance documented in `RUNTIME_LIMITS.md`. The VM emits
+Both engines preserve cancellation checkpoints and honor the optional explicit fuel allowance
+in `RUNTIME_LIMITS.md`. Ordinary/restricted defaults have no fuel cutoff; explicit positive limits
+retain result/host-effect and admission parity. Observational counters do not enable a quota. The VM emits
 `CheckBudget` for compiled expression nodes and `CheckStatementBudget` for statements; the
 latter flushes preceding standard output before admitting the next statement. Constant folding
 retains the omitted expression's admission, and short-circuit branches admit only executed work.
 Fallback expressions and blocks use interpreter checkpoints; frame/dispatch wrappers check
 cancellation and memory without consuming extra execution steps. Host calls retain their
-100,000-call default cap and also consume the common execution allowance. Regex searches,
+100,000-call default cap and also consume an explicitly configured common fuel allowance. Regex searches,
 comparisons, and bounded byte work use the same governor in both engines. VM stacks and
 temporary buffers use the same memory governor contract as arrays and UTF-8 builders: reserve
 before mutation, commit after success, release when shrinking. Opcode frames charge the estimated

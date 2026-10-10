@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Ordinary and restricted execution no longer have an implicit fuel cutoff, matching
+  current lython defaults. MaxExecutionSteps reports zero when unset; existing positive
+  WithMaxExecutionSteps(int) quotas remain enforced, including int.MaxValue. Cancellation,
+  restricted deadlines, memory/structural limits and host controls remain. Disabled fuel,
+  regex-call, sort-comparison and separator-scan quotas keep no admission totals; counters
+  remain observational. Long builtin/backend cancellation coverage remains under audit.
+
 - `-v` and `-F` now decode escapes under the final compatibility profile and apply
   assignments in their original mixed option order. Assignment operands decode when
   consumed, including updated ARGV entries; a BEGIN exit leaves them untouched.

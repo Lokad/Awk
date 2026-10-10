@@ -259,3 +259,9 @@ Warm embedded Lokad.Awk public full invocation versus GNU awk CLI. Both include 
 | startup-tiny/control | 1 | 6 | Qualified | 0.021 | 1.165 | 55.956 [54.920, 57.596] | Lokad.Awk faster |
 
 <!-- END GENERATED AWK COMPARISON -->
+
+Execution fuel is now opt-in in both policy presets. Deterministic ExecutionSteps counters observe
+logical work without enabling admission limits. Configure a positive WithMaxExecutionSteps only
+when the benchmark is testing explicit fuel; normal correctness/smoke runs use cancellation
+watchdogs and independently configured finite memory/host limits. Historical timing reports keep
+their original source/policy identity and do not qualify timings for the changed default policy.

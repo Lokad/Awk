@@ -86,24 +86,30 @@ evaluation stack independently of awk function recursion.
 Source units and bytes are charged before decoding and again for the fully expanded compilation
 source. Character, token, diagnostic, identifier, and symbol limits bound frontend breadth.
 Regex pattern size, group count, compilation work, and cache retention have separate budgets.
-Regex searches, sort comparisons, and repeated separator scans consume the shared execution
-allowance; optional secondary ceilings remain configurable. Runtime input bytes and records, invocation arguments and
+Regex searches, sort comparisons, and repeated separator scans observe cancellation and any
+explicit fuel allowance; their optional secondary ceilings remain configurable. Runtime input bytes and records, invocation arguments and
 environment, open descriptors, and host-visible output are also independently bounded by the
 restricted preset. Retained awk memory is governed in aggregate when `MaxExecutionMemoryBytes` is
 finite; per-value, per-record, per-array, field, builder, regex, output, and VM-stack ceilings provide
 additional preflight checks.
 
-Both policy presets use 50 million execution steps and 100,000 ordinary host calls, aligned with
-Lokad.Lython. Compatibility allows 1,000 active function frames; restricted execution retains 32.
+Both policy presets have no implicit fuel cutoff and retain 100,000 ordinary host calls, aligned
+with current Lokad.Lython defaults. MaxExecutionSteps is zero when unset; positive explicit quotas
+remain enforced. The default aggregate memory budget remains unlimited; restricted memory is finite.
+Choose finite memory with WithMaxExecutionMemoryBytes and pass cancellation or an owned deadline. Compatibility allows 1,000 active function frames; restricted execution retains 32.
 Nested calls suspend at entry and unwind, including during argument evaluation, so completed
 tasks do not turn deep awk recursion into CLR stack exhaustion. Byte-oriented built-ins and
-regex rescans charge input chunks in addition to expression and statement admission.
+regex rescans retain cooperative checkpoints; explicit fuel charges input chunks in addition to
+expression and statement admission. Numeric/Unicode scanning checkpoints remain under audit;
+framework/regex construction and conversion calls may finish before cancellation is observed.
 The memory governor, mutation preflight, backend regex timeouts, and host/cleanup deadlines remain
 independent safeguards. Runtime warning queues also govern message retention, backing-array
 growth, and diagnostic formatting headroom, so repeated math warnings cannot grow an
 unbounded queue outside the memory budget.
 
-Execution steps are deterministic accounting, not a wall-clock CPU guarantee. Cancellation is
+Explicit execution steps are deterministic accounting, not a wall-clock CPU guarantee.
+Ordinary execution has no default CPU/fuel ceiling; the restricted preset retains its cooperative
+30-second deadline. Optional secondary quotas do not replace caller/deadline ownership. Cancellation is
 cooperative. Lokad.Awk stops awaiting a host operation at `HostOperationTimeout`, but .NET cannot
 forcibly stop a malicious or defective host task: it may ignore cancellation or continue side
 effects after the caller has received a timeout. The host must implement its own deadlines and

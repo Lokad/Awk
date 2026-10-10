@@ -44,7 +44,8 @@ internal sealed class AwkRuntimeResourceMonitor
                 throw new AwkRuntimeException(AwkMessages.ErrorHostCallLimit);
         }
 
-        _hostCalls++;
+        if (_limits.MaxHostCalls != AwkRuntimeLimits.Unlimited)
+            _hostCalls++;
         _counters.RecordHostCall();
     }
 
@@ -94,23 +95,27 @@ internal sealed class AwkRuntimeResourceMonitor
 
     public void RecordRegexOperation(int inputBytes)
     {
-        var next = AwkRuntimeMemory.CheckedAdd(_regexOperations, 1);
+        var next = _limits.MaxRegexOperations == AwkRuntimeLimits.Unlimited
+            ? 0 : AwkRuntimeMemory.CheckedAdd(_regexOperations, 1);
         if (next > _limits.MaxRegexOperations)
             throw new AwkRuntimeException(AwkMessages.ErrorRegexOperationLimit, AwkDiagnosticId.RuntimeResourceLimit);
 
         _execution.Check(1 + AwkExecutionGovernor.ByteWorkSteps(inputBytes), _cancellationToken);
-        _regexOperations = next;
+        if (_limits.MaxRegexOperations != AwkRuntimeLimits.Unlimited)
+            _regexOperations = next;
         _counters.RecordRegexMatch();
     }
 
     public void RecordSortComparison()
     {
-        var next = AwkRuntimeMemory.CheckedAdd(_sortComparisons, 1);
+        var next = _limits.MaxSortComparisons == AwkRuntimeLimits.Unlimited
+            ? 0 : AwkRuntimeMemory.CheckedAdd(_sortComparisons, 1);
         if (next > _limits.MaxSortComparisons)
             throw new AwkRuntimeException(AwkMessages.ErrorSortComparisonLimit, AwkDiagnosticId.RuntimeResourceLimit);
 
         RecordExecutionStep();
-        _sortComparisons = next;
+        if (_limits.MaxSortComparisons != AwkRuntimeLimits.Unlimited)
+            _sortComparisons = next;
     }
 
     public void RecordOutputBytes(long byteCount)
@@ -135,7 +140,8 @@ internal sealed class AwkRuntimeResourceMonitor
         if (byteCount <= 0)
             return;
 
-        var next = AwkRuntimeMemory.CheckedAdd(_regexRecordSeparatorBytesScanned, byteCount);
+        var next = _limits.MaxRegexRecordSeparatorBytesScanned == AwkRuntimeLimits.Unlimited
+            ? 0 : AwkRuntimeMemory.CheckedAdd(_regexRecordSeparatorBytesScanned, byteCount);
         if (next > _limits.MaxRegexRecordSeparatorBytesScanned)
         {
             throw new AwkRuntimeException(
@@ -143,7 +149,8 @@ internal sealed class AwkRuntimeResourceMonitor
                 AwkDiagnosticId.RuntimeResourceLimit);
         }
 
-        _regexRecordSeparatorBytesScanned = next;
+        if (_limits.MaxRegexRecordSeparatorBytesScanned != AwkRuntimeLimits.Unlimited)
+            _regexRecordSeparatorBytesScanned = next;
         _counters.RecordRecordSeparatorBytesScanned(byteCount);
     }
 

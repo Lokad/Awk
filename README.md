@@ -18,7 +18,7 @@ using Lokad.Awk;
 
 var invocation = AwkCommandInvocation.CreateWithStandardDescriptors(
     "awk",
-    ["-F,", "NR > 1 { total += $3 } END { print total }", "/sales.csv"],
+    ["-F,", "NR > 1 { total += $3 } END { print total }", "/data/sales.csv"],
     [new AwkEnvironmentVariable("PWD", "/")]);
 
 if (!Awk.TryParse(invocation, out var awk))
@@ -27,7 +27,8 @@ if (!Awk.TryParse(invocation, out var awk))
 IAwkHost host = new ApplicationAwkHost(); // Owns files, streams, pipes, and process policy.
 var policy = AwkExecutionPolicy.CreateRestricted()
     .WithAccessiblePathRoot(new AwkPath("/data"));
-var exitCode = await awk.ExecuteAsync(host, policy, CancellationToken.None);
+using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+var exitCode = await awk.ExecuteAsync(host, policy, cancellation.Token);
 ```
 
 `ExecuteAsync` returns an `AwkExitCode`; embedding code can keep the result typed and cross to its
@@ -54,6 +55,13 @@ details; pins time and local timezone to the Unix epoch and UTC; and applies fin
 runtime, IO, regex, memory, and host-operation budgets. `CreateDefault()` preserves the broader
 compatibility surface. The `--sandbox` command-line option independently disables file and command
 redirections; it does not replace host-side path and descriptor policy.
+
+Both presets have no implicit execution-fuel cutoff. Pass a caller cancellation token or configure
+WithExecutionTimeout. Ordinary finite-memory execution can use
+`AwkExecutionPolicy.CreateDefault().WithMaxExecutionMemoryBytes(64L << 20)`; restricted execution
+already has finite memory and a 30-second cooperative deadline. Positive explicit
+WithMaxExecutionSteps quotas remain enforced. Some long builtin/backend calls still have coarse
+cancellation boundaries; see the runtime-limit contract for their current limits.
 
 See [docs/SECURITY.md](docs/SECURITY.md) before executing awk supplied by an untrusted party.
 

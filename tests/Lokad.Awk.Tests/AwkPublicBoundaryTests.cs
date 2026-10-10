@@ -30,7 +30,7 @@ public sealed class AwkPublicBoundaryTests
         Assert.False(restricted.AllowCommandPipes);
         Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxInputBytes);
         Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxRecords);
-        Assert.Equal(50_000_000, compatible.MaxExecutionSteps);
+        Assert.Equal(0, compatible.MaxExecutionSteps);
         Assert.Equal(compatible.MaxExecutionSteps, restricted.MaxExecutionSteps);
         Assert.Equal(100_000, compatible.MaxHostCalls);
         Assert.Equal(compatible.MaxHostCalls, restricted.MaxHostCalls);

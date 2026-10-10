@@ -109,8 +109,11 @@ This applies to `split` and `patsplit` without merging their different boundary 
 
 These limits constrain awk execution without changing successful compatibility behavior:
 
-- `MaxExecutionSteps`: one shared logical-work allowance for either engine. Both presets default
-  to 50,000,000 steps, aligned with Lokad.Lython. Explicit overrides remain effective.
+- `MaxExecutionSteps`: an optional shared logical-work allowance for either engine. Both presets
+  report zero by default, meaning no fuel limit, aligned with current Lokad.Lython defaults.
+  The public int property and `WithMaxExecutionSteps(int)` signature are preserved. The builder
+  accepts positive finite quotas only, including int.MaxValue; zero/negative arguments still fail.
+  Default zero is absence, rather than a finite allowance or a silently ignored explicit quota.
 - `MaxFunctionCallDepth`: active user-function frames. The compatibility default is 1,000,
   aligned with Lokad.Lython; the restricted preset retains 32. Nested function invocations
   suspend at entry and unwind to keep completed asynchronous operations from growing the CLR
@@ -129,8 +132,8 @@ These limits constrain awk execution without changing successful compatibility b
   constraints, and structured programs. Iterative compilation preflights expanded interval nodes
   and temporary memory before construction, and observes cancellation and a two-second deadline.
 - `MaxRegexOperations`: optional secondary ceiling on aggregate regex search/match calls,
-  including cache hits. It defaults to unlimited in both presets; searches draw from the common
-  execution allowance. Explicit `WithMaxRegexOperations` overrides retain their existing diagnostic.
+  including cache hits. It defaults to unlimited in both presets; searches observe cancellation
+  and any explicit common fuel allowance. Explicit `WithMaxRegexOperations` overrides retain their existing diagnostic.
 - `MaxRegexCaptureBytes`: `match(..., array)` capture payloads, preflighted from backend spans before
   group values are copied. Capture-array replacement separately preflights its complete entry count
   and retained memory before changing the destination array or `RSTART`/`RLENGTH`.
@@ -143,23 +146,24 @@ These limits constrain awk execution without changing successful compatibility b
   extensions retain their existing selection constraint and two-second backend timeout.
 - `MaxRegexRecordSeparatorBytesScanned`: cumulative bytes submitted to the general regex record-
   separator fallback. It defaults to unlimited in both presets; every repeated backend search
-  consumes the common execution allowance for its offered search span. Explicit overrides retain
+  checks cancellation and consumes any explicitly configured fuel for its offered search span. Explicit overrides retain
   their existing diagnostic. Specialized byte, literal, and byte-run separators do not consume
   this secondary ceiling. Case-sensitive multi-character separators containing no regex
   metacharacters use the literal cursor, preserving only a possible partial separator at
   batch boundaries instead of submitting overlapping suffixes to the regex backend.
 - `MaxSortComparisons`: optional secondary ceiling on built-in and user-defined array-sort
   comparisons. It defaults to unlimited in both presets; each comparison checks cancellation
-  and consumes one execution step. Explicit overrides retain their existing diagnostic.
+  and consumes one step only when explicit fuel is configured; counters remain observational. Explicit overrides retain their existing diagnostic.
 
 Compatibility defaults remain intentionally generous or unlimited where ordinary awk scripts
-historically expect no fixed ceiling. The restricted preset makes invocation, frontend, host-call,
-input, record, value, output, symbol, regex, sort, VM-stack, aggregate execution-memory, source,
-include, file, pipe, syntax, field, array, and execution-step work finite. It also supplies a
+historically expect no fixed ceiling. The restricted preset makes invocation/frontend breadth, host calls,
+input, records, values, output, symbols, regex breadth/cache, VM stacks, aggregate runtime
+memory, source/includes, descriptors, syntax, fields and arrays finite. Aggregate regex-call,
+sort-comparison, separator-scan and fuel ceilings remain opt-in in both presets. It also supplies a
 cooperative `ExecutionTimeout`; caller cancellation continues to take precedence and remains
 observable as cancellation.
 
-The execution governor charges one step for each evaluated expression node, dispatched statement,
+With positive explicit fuel, the execution governor charges one step for each evaluated expression node, dispatched statement,
 admitted input record, scanned main-input operand position, loop iteration, user-function invocation,
 ordinary host entry, regex search, and sort comparison. Short-circuited expressions charge only the
 selected path. VM lowering retains
@@ -169,7 +173,7 @@ their unsigned fold adds no separate allowance or short circuit, even after a ze
 Both engines flush standard output at statement boundaries so host admission and already emitted
 output agree when a later statement exhausts the allowance.
 
-Byte-oriented built-in work additionally charges one step per started 4,096-byte chunk of offered
+Explicit fuel additionally charges one step per started 4,096-byte chunk of offered
 input: field splitting, FIELDWIDTHS parsing, Unicode string length, string search and slicing,
 pure-string `strtonum` conversion,
 separator scanning, and each regex search's remaining input. Regex rescans charge the offered
@@ -185,7 +189,10 @@ reserve/commit/release, and size limits retain their awk-specific policy. To mig
 independent CPU ceilings, configure `WithMaxExecutionSteps`; keep the secondary `With...` overrides
 only when a separate regex, scan-byte, or comparison ceiling is wanted.
 
-`AwkRuntimeCounters.ExecutionSteps` exposes the charged total. The Release counter-report workflow
+Without explicit fuel, the same checkpoints observe cancellation without accumulating an admission
+total. Unlimited regex-call, sort-comparison and separator-scan quotas likewise maintain no dedicated
+admission totals. `AwkRuntimeCounters.ExecutionSteps` observes the logical work only when counters
+are enabled, regardless of fuel configuration; enabling counters cannot change admission. The Release counter-report workflow
 in `docs/BENCHMARKS.md` includes deterministic streaming shapes so changes to the accounting model
 or default budget can be calibrated without using machine-dependent elapsed time.
 
@@ -270,7 +277,7 @@ remain live; a memory failure leaves the old history intact. Source literals use
 lexical warnings and allocate no runtime history. Repeated expressions and case variants
 share compiled regexes while keeping warning admission independent. New escape/warning
 scans observe runtime cancellation checkpoints. These checks do not alter the existing
-fuel policy or make an uninterruptible backend call cancellable.
+optional-fuel policy or make an uninterruptible backend call cancellable.
 The first regex decoding pass reserves its temporary UTF-16 builder/string buffers
 before allocation and releases that lease after compilation, including failed attempts.
 Patterns without escapes and compiled cache hits need no decoding-buffer lease.
@@ -304,4 +311,21 @@ and apply host/output limits when executed. Assignment operands decode only when
 their temporary UTF-16 buffer is reserved before decoding and released after assignment
 or failure. Cancellation checkpoints cover decoding and warning scans. Raw ARGV text and
 decoded variable values retain their existing separate value-size checks. These changes
-do not complete the wider cancellation/backend audit or alter the default fuel policy.
+do not complete the wider cancellation/backend audit. Fuel is opt-in; this does not imply
+that every long builtin or backend operation can already be interrupted mid-call.
+
+Both presets have no implicit fuel cutoff. Default aggregate execution memory remains unlimited;
+the restricted preset supplies finite aggregate memory and a 30-second cooperative deadline.
+For ordinary cancellation-driven execution with finite memory, configure
+`AwkExecutionPolicy.CreateDefault().WithMaxExecutionMemoryBytes(64L << 20)` and pass the caller's
+CancellationToken to ExecuteAsync. `WithExecutionTimeout` adds an owned deadline; its expiry is an
+awk diagnostic, while caller cancellation propagates as cancellation. Cleanup uses its separate
+bounded deadline and an uncancelled cleanup token.
+
+Cancellation coverage remains under audit. Some long numeric and Unicode scans check before the
+operation but still lack internal checkpoints; this is not a bounded cancellation-latency promise.
+.NET and UTF-8 regex constructors and framework conversions do not accept caller cancellation;
+pattern/group/cache/memory limits bound admitted data, but matching timeouts do not bound constructor
+time. Structured POSIX compilation/matching retains internal checkpoints and operation-local deadlines.
+Host work can ignore its token after the runtime stops awaiting it. Fuel removal does not make any
+of these backend calls preemptible or change the documented host/cleanup deadlines.

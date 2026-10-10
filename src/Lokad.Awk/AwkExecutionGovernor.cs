@@ -2,11 +2,12 @@ using System.Threading;
 
 namespace Lokad.Awk;
 
-/// <summary>The shared logical-work allowance; observational counters do not control admission.</summary>
+/// <summary>Cooperative checkpoints and opt-in fuel; observational counters do not control admission.</summary>
 internal sealed class AwkExecutionGovernor
 {
     // Aligned with Lokad.Lython's execution defaults. Memory and size limits remain awk-specific.
-    public const int DefaultMaxExecutionSteps = 50_000_000;
+    // Zero denotes no implicit fuel; positive explicit quotas remain enforced.
+    public const int DefaultMaxExecutionSteps = 0;
     public const long DefaultMaxHostCalls = 100_000;
     public const int DefaultMaxFunctionCallDepth = 1_000;
     public const int WorkChunkBytes = 4_096;
@@ -24,14 +25,15 @@ internal sealed class AwkExecutionGovernor
     public void Check(int steps, CancellationToken cancellationToken)
     {
         ThrowIfCancellationRequested(cancellationToken);
-        if (steps > _maxExecutionSteps - _executionSteps)
+        if (_maxExecutionSteps > 0 && steps > _maxExecutionSteps - _executionSteps)
         {
             throw new AwkRuntimeException(
                 AwkMessages.ErrorExecutionStepLimit,
                 AwkDiagnosticId.RuntimeResourceLimit);
         }
 
-        _executionSteps += steps;
+        if (_maxExecutionSteps > 0)
+            _executionSteps += steps;
         _counters.RecordExecutionSteps(steps);
     }
 

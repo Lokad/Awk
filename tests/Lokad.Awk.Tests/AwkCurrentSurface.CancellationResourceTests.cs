@@ -320,7 +320,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public async Task Awk_DefaultExecutionStepBudgetAllowsMeasuredStreamingWorkload()
+    public async Task Awk_ExplicitFuelCanBoundMeasuredStreamingWorkload()
     {
         const string program =
             "{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}";
@@ -364,7 +364,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal("1111 2\n", measuredFileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, measuredFileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(counters.ExecutionSteps > 1_000_000);
-        Assert.True(counters.ExecutionSteps < AwkRuntimeLimits.DefaultMaxExecutionSteps);
+        Assert.Equal(0, measuredOptions.Limits.MaxExecutionSteps);
 
         var systemDefaultFileSystem = new MockFileSystem();
         systemDefaultFileSystem.SetStandardInput(input);
@@ -1600,9 +1600,9 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var limits = AwkRuntimeLimits.CreateDefault();
 
-        Assert.Equal(50_000_000, AwkRuntimeLimits.DefaultMaxExecutionSteps);
-        Assert.Equal(50_000_000, limits.MaxExecutionSteps);
-        Assert.Equal(50_000_000, AwkRuntimeOptions.CreateSystemDefault().Limits.MaxExecutionSteps);
+        Assert.Equal(0, AwkRuntimeLimits.DefaultMaxExecutionSteps);
+        Assert.Equal(0, limits.MaxExecutionSteps);
+        Assert.Equal(0, AwkRuntimeOptions.CreateSystemDefault().Limits.MaxExecutionSteps);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxArrayElements, limits.MaxArrayElements);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxFields, limits.MaxFields);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxOutputFiles, limits.MaxOutputFiles);

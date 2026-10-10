@@ -54,7 +54,8 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the aggregate deadline for best-effort cleanup calls in one execution phase.</summary>
     public TimeSpan CleanupTimeout { get; private init; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>Gets the shared logical-work allowance for either execution engine.</summary>
+    /// <summary>Gets the explicit logical-work allowance, or zero when execution has no fuel limit.</summary>
+    /// <remarks>Both presets default to zero. Configure a positive allowance with <see cref="WithMaxExecutionSteps"/>.</remarks>
     public int MaxExecutionSteps { get; private init; } = AwkExecutionGovernor.DefaultMaxExecutionSteps;
 
     /// <summary>Gets the maximum active awk function-call depth.</summary>
@@ -111,13 +112,13 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum estimated bytes retained across regex caches.</summary>
     public long MaxRegexCacheBytes { get; private init; } = 64L << 20;
 
-    /// <summary>Gets an optional secondary regex search ceiling; the shared work allowance also applies.</summary>
+    /// <summary>Gets an optional secondary regex search ceiling; any explicitly configured shared work allowance also applies.</summary>
     public long MaxRegexOperations { get; private init; } = Unlimited;
 
-    /// <summary>Gets an optional secondary array-sort comparison ceiling; the shared work allowance also applies.</summary>
+    /// <summary>Gets an optional secondary array-sort comparison ceiling; any explicitly configured shared work allowance also applies.</summary>
     public long MaxSortComparisons { get; private init; } = Unlimited;
 
-    /// <summary>Gets an optional secondary regex separator scan ceiling; the shared work allowance also applies.</summary>
+    /// <summary>Gets an optional secondary regex separator scan ceiling; any explicitly configured shared work allowance also applies.</summary>
     public long MaxRegexRecordSeparatorBytesScanned { get; private init; } = Unlimited;
 
     /// <summary>Gets the maximum executable-engine stack size in bytes.</summary>
