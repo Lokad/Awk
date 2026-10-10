@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Reference tooling now checks nullable record separators, scalar empty replacement,
+  successive gensub captures and mixed alpha/literal classes separately. Exact GNU
+  defect signatures retain raw byte evidence and cannot qualify equivalent-work timings.
+
 - Runtime regex dialect translation now admits builder scratch and intermediate
   strings, retaining decoded and translated text through cache publication. Structured
   POSIX predicates use the same governed scalar preparation and cancellation checks;

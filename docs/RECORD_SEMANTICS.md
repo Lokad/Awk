@@ -20,6 +20,14 @@ This follows the [documented single-character exception](https://www.gnu.org/sof
 
 ## Paragraph Records And Range Patterns
 
+Nullable regex record separators ignore empty matches and retain every skipped byte as record
+data until a nonempty separator or EOF. For RS="a*", 127 lines containing "b" followed by
+"aaab\nEND" produce a 254-character first record, RT="aaa", then the five-character tail.
+The retained GNU 5.2.1 and 5.4.0 reference captures discard that prefix and repeat terminators.
+Lokad keeps its data-preserving expectation. The opt-in
+[reference contract checks](BENCHMARKS.md) classify exact versioned output separately from
+equivalent-work benchmarks; a new build must be checked again.
+
 Buffered record extraction preserves input on resource failure. Default newline reads advance
 their buffered line only after record/value admission, UTF-8 validation and copying succeed.
 Changing RS builds and populates the new buffer before consuming the line reader's unread tail.

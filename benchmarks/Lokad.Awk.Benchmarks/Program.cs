@@ -14,7 +14,7 @@ if (args.Length == 1 && string.Equals(args[0], "--counter-report", StringCompari
     return;
 }
 
-if (args.Length > 0 && args[0] is "--compare" or "--smoke" or "--reference-benchmarks" or "--check-machine" or "--render-report" or "--driver-smoke")
+if (args.Length > 0 && args[0] is "--compare" or "--smoke" or "--reference-benchmarks" or "--check-machine" or "--render-report" or "--driver-smoke" or "--reference-contracts")
 {
     Environment.ExitCode = await ReferenceComparison.RunCommandAsync(args, CancellationToken.None).ConfigureAwait(false);
     return;

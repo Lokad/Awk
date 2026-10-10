@@ -31,6 +31,8 @@ internal static class ReferenceComparison
         Console.CancelKeyPress += handler;
         try
         {
+            if (arguments[0] == "--reference-contracts")
+                return await ReferenceContractRunner.RunAsync(arguments.Skip(1).ToArray(), cancellation.Token).ConfigureAwait(false);
             if (arguments[0] == "--driver-smoke")
             {
                 var options = Options(arguments.Skip(1).ToArray());
@@ -222,7 +224,7 @@ internal static class ReferenceComparison
         return options;
     }
 
-    private static string ArtifactPath(string requested)
+    internal static string ArtifactPath(string requested)
     {
         var path = Path.GetFullPath(requested);
         var root = Path.GetFullPath("BenchmarkDotNet.Artifacts") + Path.DirectorySeparatorChar;

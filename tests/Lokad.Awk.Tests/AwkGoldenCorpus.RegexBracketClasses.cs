@@ -4,6 +4,10 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> RegexBracketClassCases()
     {
+        var referenceClass = Benchmarking.ReferenceContracts.Cases.Single(contract =>
+            contract.Name == "regex-reference-alpha-literal-union");
+        yield return AwkGoldenCaseBuilder.Create(referenceClass.Name, [referenceClass.Program], [])
+            .WithStdOut(referenceClass.ExpectedOutput).Build();
         yield return AwkGoldenCaseBuilder.Create("regex-bracket-invalid-gnu-0-dynamic",
             ["BEGIN{print \"before\";p=\"[[:word:]]\";print \"a\"~p}"], [])
             .WithStdOut("before\n").WithStdErr("awk: invalid regular expression\n").ExitsWith(2).Build();

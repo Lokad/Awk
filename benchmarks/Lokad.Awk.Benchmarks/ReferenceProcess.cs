@@ -7,7 +7,7 @@ internal static class ReferenceProcess
     public static async Task<ReferenceExecutionResult> RunAsync(string executable,
         IReadOnlyList<string> arguments, byte[] input, bool capture,
         TimeSpan timeout, CancellationToken cancellationToken, string locale = "C",
-        string? workingDirectory = null)
+        string? workingDirectory = null, bool legacyGnuMatchers = false)
     {
         using var deadline = new CancellationTokenSource(timeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
@@ -24,6 +24,8 @@ internal static class ReferenceProcess
         foreach (var name in start.Environment.Keys.Where(name =>
             name.StartsWith("GAWK_", StringComparison.Ordinal) || name is "POSIXLY_CORRECT" or "AWKPATH" or "AWKLIBPATH").ToArray())
             start.Environment.Remove(name);
+        if (legacyGnuMatchers)
+            start.Environment["GAWK_GNU_MATCHERS"] = "1";
         foreach (var argument in arguments)
             start.ArgumentList.Add(argument);
 

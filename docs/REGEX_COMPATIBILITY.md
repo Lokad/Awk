@@ -187,6 +187,14 @@ retain all skipped input. Global `gsub`/`gensub` and FPAT/`patsplit` suppress an
 immediately following a nonempty match. Numeric `gensub` occurrences count that empty match.
 Other empty matches progress by one complete scalar; empty input has no FPAT/`patsplit` fields.
 Capture arrays omit groups that did not participate, including their start/length metadata.
+
+The retained GNU 5.2.1/5.4.0 captures have nullable RS prefix loss. GNU 5.2.1 also
+inserts empty replacements inside supplementary characters' UTF-8 bytes; the recorded
+5.4.0 build loses later global gensub captures. These reference defects do not override
+the valid-text and data-preserving contracts above. The opt-in
+[reference contract checks](BENCHMARKS.md) compare exact bytes and versioned signatures,
+record binary/matcher identity, and keep known differences ineligible for equivalent-work
+timings. Recheck the selected build; a GNU version label alone does not qualify output.
 Observable ERE matches select the longest match at the earliest scalar boundary, including
 overlapping alternatives and competing repetitions. A structural width analysis retains the
 selected backend for fixed-width patterns and unambiguous greedy repetition. Traditional EREs

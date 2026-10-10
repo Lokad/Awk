@@ -49,6 +49,11 @@ from benchmark tooling without referencing BenchmarkDotNet or an external proces
 The optional native driver's `--driver-smoke` integration checks require explicitly
 selected GNU awk and stay outside ordinary test execution.
 
+`AwkReferenceContractTests` checks the opt-in reference contract classifier against golden
+programs/inputs/expectations, exact versioned byte signatures, invalid UTF-8, and rejection of
+unexpected exit/stderr/output. `--reference-contracts` in benchmark tooling performs native
+requalification separately; known reference bugs cannot become equivalent performance cases.
+
 Tests that force garbage collection or measure thread-local allocation should use
 `AwkAllocationMeasurementCollection` so unrelated collections cannot interfere with
 their measured loops. Keep their allocation ceilings unchanged when adding isolation.

@@ -30,6 +30,27 @@ Correctness modes collect no timings. JSON checkpoints stay under
 `BenchmarkDotNet.Artifacts/reference/`; `--output` may select another path under
 `BenchmarkDotNet.Artifacts/`.
 
+Run the separate regex reference contract checks before release qualification:
+
+~~~sh
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-contracts --awk /usr/bin/gawk --output BenchmarkDotNet.Artifacts/reference/contracts-52.json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-contracts --awk /path/to/gawk-5.4 --output BenchmarkDotNet.Artifacts/reference/contracts-54.json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-contracts --awk /path/to/gawk-5.4 --matcher legacy --output BenchmarkDotNet.Artifacts/reference/contracts-54-legacy.json
+~~~
+
+Without a selected executable, this command checks only Lokad and marks GNU as `NotRun`.
+It reuses golden programs, inputs and expectations for nullable RS, scalar empty replacement,
+successive gensub captures and mixed POSIX alpha/literal classes. Reports record source and
+assembly hashes, GNU binary hash/version, C.UTF-8, UTC, explicit matcher environment, and raw
+stdout/stderr hex. `--matcher legacy` sets `GAWK_GNU_MATCHERS=1`; default clears inherited
+GNU matcher settings. The command collects no timings.
+
+An exact, versioned historical defect signature is `KnownReferenceDifference`; an unexpected
+exit, stderr or byte difference fails the command. Known differences do not become equivalence
+and cannot qualify timings for that case. A zero exit means the reference observations are
+classified and Lokad passes its contracts; it does not mean GNU agrees with every contract.
+Benchmark workloads still require their own exact equivalence preflight.
+
 | Family | Work performed |
 | --- | --- |
 | `projection` | Print the second field |
