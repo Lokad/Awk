@@ -101,7 +101,7 @@ internal sealed class AwkRuntimeState
             resources,
             MemoryGovernor);
         _stringRuntime = new AwkStringRuntime(stringUnitMode, Resources.RecordByteWork);
-        _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryGovernor);
+        _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryGovernor, CompatibilityMode);
         _fieldSplitter = new AwkFieldSplitter(
             fieldSeparator,
             _regexRuntime.Create,

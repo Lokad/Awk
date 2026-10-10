@@ -73,6 +73,13 @@ encoding. Fractional default formatting also stays byte-native. Custom fractiona
 format controls do not acquire print's integer rule.
 See [GNU numeric conversion](https://www.gnu.org/software/gawk/manual/html_node/Strings-And-Numbers.html).
 
+Explicit integer directives use bounded stack character buffers for the actual digits,
+then append ASCII-compatible spans and padding to the UTF-8 builder. Large signed decimal
+values and unsigned-range `%g` fallbacks do not allocate temporary formatted strings.
+Complete output sizes, including signs, prefixes, precision zeros and width, are checked
+before append. `printf`/`sprintf` retain their counted format-string compatibility input;
+this digit path does not claim that all formatting has become byte-native.
+
 Some builtins intentionally remain .NET string operations. `printf`, `sprintf`, custom numeric
 formatting, `strftime`, `mktime`, GNU date-format directive handling, and non-ASCII
 `tolower`/`toupper` are counted through formatting or string interop fallback counters. ASCII-only

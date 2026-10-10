@@ -18,14 +18,15 @@ internal static class PrintfEvaluation
         PrintfMissingArgumentPolicy missingArgumentPolicy,
         AwkRuntimeLimits limits,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
         where TArguments : IPrintfArguments
     {
         if (format.Length == 0)
             return AwkText.Empty;
 
         using var output = new PrintfByteOutput(limits, counters, governor);
-        var argIndex = 0;
+        var argumentCursor = new PrintfArgumentCursor<TArguments>(arguments, missingArgumentPolicy, format, counters, governor);
 
         for (var index = 0; index < format.Length; index++)
         {
@@ -70,24 +71,12 @@ internal static class PrintfEvaluation
                 continue;
             }
 
-            if (!TryReadDirective(format, ref index, out var directive))
-            {
-                output.AppendAscii('%');
-                continue;
-            }
-
+            var directiveStart = index;
+            var directive = PrintfDirectiveParser.Read(format, index, compatibilityMode, ref argumentCursor);
+            index = directive.EndIndex;
             var flags = directive.Flags;
-            var width = ResolveWidth(
-                directive.Width,
-                arguments,
-                missingArgumentPolicy,
-                ref argIndex,
-                ref flags);
-            var precision = ResolvePrecision(
-                directive.Precision,
-                arguments,
-                missingArgumentPolicy,
-                ref argIndex);
+            var width = directive.Width;
+            var precision = directive.Precision;
 
             if (directive.Conversion == PrintfConversion.Percent)
             {
@@ -97,7 +86,7 @@ internal static class PrintfEvaluation
 
             if (directive.Conversion == PrintfConversion.String)
             {
-                if (TryReadArgumentIndex(arguments, missingArgumentPolicy, ref argIndex, out var argumentIndex))
+                if (argumentCursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
                 {
                     output.PreflightAdditionalBytes(width.Value);
                     var value = arguments.GetString(argumentIndex);
@@ -110,38 +99,39 @@ internal static class PrintfEvaluation
                 continue;
             }
 
-            if (directive.Conversion.IsInteger())
+            if (directive.Conversion.IsInteger() || directive.Conversion.IsFloat())
             {
-                if (TryReadArgumentIndex(arguments, missingArgumentPolicy, ref argIndex, out var argumentIndex))
+                if (!argumentCursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
+                    continue;
+                var number = arguments.GetNumber(argumentIndex);
+                if (!double.IsFinite(number))
                 {
-                    var formatted = FormatInteger(arguments.GetNumber(argumentIndex), directive.Conversion, flags);
-                    output.PreflightAdditionalBytes(Math.Max(
-                        width.Value,
-                        AwkUtf8Codec.GetEncodedByteCount(formatted)));
-                    AppendWithWidth(output, formatted, width.Value, flags.LeftJustify, flags.ZeroPad);
+                    var special = FormatNonfinite(number, directive.Conversion, flags, compatibilityMode);
+                    output.PreflightAdditionalBytes(Math.Max(width.Value, special.Length));
+                    AppendWithWidth(output, special, width.Value, flags.LeftJustify, zeroPad: false);
                 }
-
-                continue;
-            }
-
-            if (directive.Conversion.IsFloat())
-            {
-                if (TryReadArgumentIndex(arguments, missingArgumentPolicy, ref argIndex, out var argumentIndex))
+                else if (directive.Conversion.IsInteger())
+                    AppendInteger(output, number, directive.Conversion, flags, width.Value, precision);
+                else if (directive.Conversion is PrintfConversion.HexFloatLower or PrintfConversion.HexFloatUpper)
                 {
-                    var number = arguments.GetNumber(argumentIndex);
+                    var hexadecimal = AwkHexFloatFormat.CreateFinite(number, precision, flags, directive.Conversion.IsUppercase());
+                    output.PreflightAdditionalBytes(Math.Max(width.Value, hexadecimal.ByteCount));
+                    AppendWithWidth(output, hexadecimal.Format(), width.Value, flags.LeftJustify, flags.ZeroPad);
+                }
+                else
+                {
                     output.PreflightAdditionalBytes(Math.Max(
-                        width.Value,
-                        EstimateFloatByteCount(number, directive.Conversion, precision)));
+                        width.Value, EstimateFloatByteCount(number, directive.Conversion, precision)));
                     var formatted = FormatFloat(number, directive.Conversion, precision, flags);
                     AppendWithWidth(output, formatted, width.Value, flags.LeftJustify, flags.ZeroPad);
                 }
-
                 continue;
             }
 
+
             if (directive.Conversion == PrintfConversion.Character)
             {
-                if (TryReadArgumentIndex(arguments, missingArgumentPolicy, ref argIndex, out var argumentIndex))
+                if (argumentCursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
                 {
                     var formatted = FormatCharacter(arguments, argumentIndex);
                     output.PreflightAdditionalBytes(Math.Max(
@@ -158,258 +148,134 @@ internal static class PrintfEvaluation
                 continue;
             }
 
-            output.AppendAscii('%');
-            AppendFormatCharacter(output, format, ref index);
+            output.Append(format.AsSpan(directiveStart, index - directiveStart + 1));
         }
 
         return output.ToAwkText();
 
-        static bool TryReadDirective(string format, ref int index, out PrintfDirective directive)
+        static void AppendInteger(
+            PrintfByteOutput output, double number, PrintfConversion conversion, PrintfFlags flags,
+            int width, PrintfPrecisionValue precision)
         {
-            var cursor = index + 1;
-            if (cursor >= format.Length)
-            {
-                directive = default;
-                return false;
-            }
+            var signed = conversion is PrintfConversion.SignedDecimal or PrintfConversion.SignedInteger;
+            var integral = Math.Truncate(number);
+            Span<char> storage = stackalloc char[310]; // The largest finite double has 309 decimal digits.
+            scoped ReadOnlySpan<char> digits;
+            var sign = signed ? integral < 0 ? '-' : flags.ForceSign ? '+' : flags.LeadingSpace ? ' ' : '\0' : '\0';
+            if (conversion is PrintfConversion.SignedDecimal or PrintfConversion.SignedInteger or PrintfConversion.UnsignedDecimal)
+                flags = flags with { AlternateForm = false };
+            if (precision.HasValue)
+                flags = flags with { ZeroPad = false };
 
-            var flags = PrintfFlags.None;
-            while (cursor < format.Length)
+            if (signed)
             {
-                var flag = format[cursor];
-                if (flag == '-')
-                    flags = flags.WithLeftJustify();
-                else if (flag == '+')
-                    flags = flags.WithForceSign();
-                else if (flag == ' ')
-                    flags = flags.WithLeadingSpace();
-                else if (flag == '0')
-                    flags = flags.WithZeroPad();
-                else if (flag == '#')
-                    flags = flags.WithAlternateForm();
-                else
-                    break;
-
-                cursor++;
-            }
-
-            var width = PrintfWidth.None;
-            if (cursor < format.Length && format[cursor] == '*')
-            {
-                width = PrintfWidth.Dynamic;
-                cursor++;
+                Math.Abs(integral).TryFormat(storage, out var written, "F0", CultureInfo.InvariantCulture);
+                digits = storage[..written];
             }
             else
             {
-                var literalWidth = 0;
-                while (cursor < format.Length && char.IsDigit(format[cursor]))
+                // GNU uses a 64-bit unsigned value, with negative inputs first converted
+                // through signed 64-bit. Unrepresentable values use the original number as %g.
+                if (integral is >= 18446744073709551616.0 or < -9223372036854775808.0)
                 {
-                    literalWidth = AppendDecimalDigit(literalWidth, format[cursor]);
-                    cursor++;
+                    AppendIntegerFallback(output, number, flags, width, precision);
+                    return;
                 }
-
-                if (literalWidth > 0)
-                    width = PrintfWidth.Literal(literalWidth);
-            }
-
-            var precision = PrintfPrecision.None;
-            if (cursor < format.Length && format[cursor] == '.')
-            {
-                cursor++;
-                if (cursor < format.Length && format[cursor] == '*')
+                var magnitude = integral < 0 ? unchecked((ulong)(long)integral) : (ulong)integral;
+                if (conversion == PrintfConversion.Octal)
                 {
-                    precision = PrintfPrecision.Dynamic;
-                    cursor++;
-                }
-                else
-                {
-                    var literalPrecision = 0;
-                    while (cursor < format.Length && char.IsDigit(format[cursor]))
+                    var start = storage.Length;
+                    do
                     {
-                        literalPrecision = AppendDecimalDigit(literalPrecision, format[cursor]);
-                        cursor++;
-                    }
-
-                    precision = PrintfPrecision.Literal(literalPrecision);
-                }
-            }
-
-            if (cursor >= format.Length)
-            {
-                directive = default;
-                return false;
-            }
-
-            var specifier = format[cursor];
-            directive = new PrintfDirective(
-                flags,
-                width,
-                precision,
-                PrintfConversionFacts.Parse(specifier),
-                specifier);
-            index = cursor;
-            return true;
-
-            static int AppendDecimalDigit(int value, char digit)
-            {
-                if (value > (int.MaxValue - (digit - '0')) / 10)
-                    throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-                return (value * 10) + (digit - '0');
-            }
-        }
-
-        static PrintfWidthValue ResolveWidth(
-            PrintfWidth width,
-            IPrintfArguments arguments,
-            PrintfMissingArgumentPolicy missingArgumentPolicy,
-            ref int argIndex,
-            ref PrintfFlags flags)
-        {
-            if (width.Kind == PrintfWidthKind.Dynamic)
-            {
-                var dynamicWidth = 0;
-                if (argIndex >= arguments.Count)
-                {
-                    if (missingArgumentPolicy is PrintfMissingArgumentPolicy.Throw)
-                        throw new AwkRuntimeException(AwkMessages.ErrorNotEnoughPrintfArguments);
+                        storage[--start] = (char)('0' + (magnitude & 7));
+                        magnitude >>= 3;
+                    } while (magnitude > 0);
+                    digits = storage[start..];
                 }
                 else
                 {
-                    var value = arguments.GetNumber(argIndex++);
-                    if (double.IsNaN(value))
-                        value = 0;
-
-                    if (value is > int.MaxValue or <= int.MinValue)
-                        throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-                    dynamicWidth = (int)value;
+                    var format = conversion == PrintfConversion.HexLower ? "x" : conversion == PrintfConversion.HexUpper ? "X" : "D";
+                    magnitude.TryFormat(storage, out var written, format, CultureInfo.InvariantCulture);
+                    digits = storage[..written];
                 }
-
-                if (dynamicWidth < 0)
-                {
-                    flags = flags.WithLeftJustify();
-                    dynamicWidth = -dynamicWidth;
-                }
-
-                return new PrintfWidthValue(dynamicWidth);
             }
 
-            return new PrintfWidthValue(width.Value);
+            if (precision.HasValue && precision.Value == 0 && number == 0 &&
+                !(flags.AlternateForm && conversion == PrintfConversion.Octal))
+                digits = [];
+            var zeros = precision.HasValue ? Math.Max(0, precision.Value - digits.Length) : 0;
+            var prefix = flags.AlternateForm && number != 0
+                ? conversion == PrintfConversion.HexLower ? "0x"
+                    : conversion == PrintfConversion.HexUpper ? "0X"
+                    : conversion == PrintfConversion.Octal && zeros == 0 && !digits.IsEmpty && digits[0] != '0' ? "0" : ""
+                : "";
+            var length = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(digits.Length, zeros),
+                prefix.Length + (sign == '\0' ? 0 : 1));
+            output.PreflightAdditionalBytes(Math.Max(width, length));
+            var padding = Math.Max(0, width - length);
+            if (!flags.LeftJustify && !flags.ZeroPad)
+                output.AppendAscii(' ', padding);
+            if (sign != '\0')
+                output.AppendAscii(sign);
+            output.Append(prefix);
+            if (!flags.LeftJustify && flags.ZeroPad)
+                output.AppendAscii('0', padding);
+            output.AppendAscii('0', zeros);
+            output.Append(digits);
+            if (flags.LeftJustify)
+                output.AppendAscii(' ', padding);
         }
 
-        static PrintfPrecisionValue ResolvePrecision(
-            PrintfPrecision precision,
-            IPrintfArguments arguments,
-            PrintfMissingArgumentPolicy missingArgumentPolicy,
-            ref int argIndex)
+        static void AppendIntegerFallback(
+            PrintfByteOutput output, double number, PrintfFlags flags, int width, PrintfPrecisionValue precision)
         {
-            if (precision.Kind == PrintfPrecisionKind.Dynamic)
+            var significantPrecision = precision.HasValue ? Math.Max(1, precision.Value) : 6;
+            Span<char> format = stackalloc char[4];
+            format[0] = 'G';
+            // Every value in this fallback is an integral double with at most 309 digits.
+            // Additional precision only adds alternate-form zeros, which the builder fills.
+            Math.Min(309, significantPrecision).TryFormat(format[1..], out var formatLength, provider: CultureInfo.InvariantCulture);
+            Span<char> storage = stackalloc char[315]; // Up to 308 digits, a point, and e+308, or 309 fixed digits.
+            if (!Math.Abs(number).TryFormat(storage, out var written, format[..(formatLength + 1)], CultureInfo.InvariantCulture))
+                throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+            var exponentIndex = storage[..written].IndexOf('E');
+            var mantissaLength = exponentIndex < 0 ? written : exponentIndex;
+            var hasPoint = storage[..mantissaLength].Contains('.');
+            var significantDigits = mantissaLength - (hasPoint ? 1 : 0);
+            var zeros = flags.AlternateForm ? Math.Max(0, significantPrecision - significantDigits) : 0;
+            var addPoint = flags.AlternateForm && !hasPoint;
+            var sign = number < 0 ? '-' : flags.ForceSign ? '+' : flags.LeadingSpace ? ' ' : '\0';
+            var length = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(written, zeros),
+                (addPoint ? 1 : 0) + (sign == '\0' ? 0 : 1));
+            output.PreflightAdditionalBytes(Math.Max(width, length));
+            var padding = Math.Max(0, width - length);
+            if (!flags.LeftJustify && !flags.ZeroPad)
+                output.AppendAscii(' ', padding);
+            if (sign != '\0')
+                output.AppendAscii(sign);
+            if (!flags.LeftJustify && flags.ZeroPad)
+                output.AppendAscii('0', padding);
+            output.Append(storage[..mantissaLength]);
+            if (addPoint)
+                output.AppendAscii('.');
+            output.AppendAscii('0', zeros);
+            if (exponentIndex >= 0)
             {
-                var dynamicPrecision = 0;
-                if (argIndex >= arguments.Count)
-                {
-                    if (missingArgumentPolicy is PrintfMissingArgumentPolicy.Throw)
-                        throw new AwkRuntimeException(AwkMessages.ErrorNotEnoughPrintfArguments);
-                }
-                else
-                {
-                    var value = arguments.GetNumber(argIndex++);
-                    if (double.IsNaN(value) || value < 0)
-                        return PrintfPrecisionValue.None;
-
-                    if (value > int.MaxValue)
-                        throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-                    dynamicPrecision = (int)value;
-                }
-
-                return dynamicPrecision < 0
-                    ? PrintfPrecisionValue.None
-                    : PrintfPrecisionValue.Specified(dynamicPrecision);
+                output.AppendAscii('e');
+                output.Append(storage[(exponentIndex + 1)..written]);
             }
-
-            return precision.Kind == PrintfPrecisionKind.Literal
-                ? PrintfPrecisionValue.Specified(precision.Value)
-                : PrintfPrecisionValue.None;
+            if (flags.LeftJustify)
+                output.AppendAscii(' ', padding);
         }
-
-        static bool TryReadArgumentIndex(
-            IPrintfArguments arguments,
-            PrintfMissingArgumentPolicy missingArgumentPolicy,
-            ref int argIndex,
-            out int argumentIndex)
-        {
-            if (argIndex >= arguments.Count)
-            {
-                if (missingArgumentPolicy is PrintfMissingArgumentPolicy.Throw)
-                    throw new AwkRuntimeException(AwkMessages.ErrorNotEnoughPrintfArguments);
-
-                argumentIndex = 0;
-                return false;
-            }
-
-            argumentIndex = argIndex++;
-            return true;
-        }
-
-        static string FormatInteger(double number, PrintfConversion conversion, PrintfFlags flags)
-        {
-            if (TryFormatInfinity(number, conversion, out var infinity))
-            {
-                return infinity;
-            }
-
-            var value = (long)number;
-            var formatted = conversion switch
-            {
-                PrintfConversion.UnsignedDecimal => unchecked((ulong)value).ToString(CultureInfo.InvariantCulture),
-                PrintfConversion.Octal => Convert.ToString(value, 8),
-                PrintfConversion.HexLower => value.ToString("x", CultureInfo.InvariantCulture),
-                PrintfConversion.HexUpper => value.ToString("X", CultureInfo.InvariantCulture),
-                _ => value.ToString(CultureInfo.InvariantCulture)
-            };
-            formatted = ApplyAlternateIntegerForm(formatted, conversion, value, flags.AlternateForm);
-            return ApplyNumericSign(
-                formatted,
-                value < 0,
-                flags.ForceSign,
-                flags.LeadingSpace,
-                conversion is not (
-                    PrintfConversion.UnsignedDecimal or
-                    PrintfConversion.Octal or
-                    PrintfConversion.HexLower or
-                    PrintfConversion.HexUpper));
-
-            static string ApplyAlternateIntegerForm(string formatted, PrintfConversion conversion, long value, bool alternateForm)
-            {
-                if (!alternateForm || value == 0)
-                {
-                    return formatted;
-                }
-
-                return conversion switch
-                {
-                    PrintfConversion.Octal => formatted.StartsWith('0') ? formatted : "0" + formatted,
-                    PrintfConversion.HexLower => "0x" + formatted,
-                    PrintfConversion.HexUpper => "0X" + formatted,
-                    _ => formatted
-                };
-            }
-        }
-
         static string FormatFloat(
             double value,
             PrintfConversion conversion,
             PrintfPrecisionValue precision,
             PrintfFlags flags)
         {
-            if (TryFormatInfinity(value, conversion, out var infinity))
-            {
-                return infinity;
-            }
-
             var digits = precision.HasValue ? precision.Value : 6;
+            if (conversion is PrintfConversion.GeneralLower or PrintfConversion.GeneralUpper && digits == 0)
+                digits = 1;
             var formatSpecifier = conversion switch
             {
                 PrintfConversion.FixedLower or PrintfConversion.FixedUpper => "F" + digits.ToString(CultureInfo.InvariantCulture),
@@ -522,13 +388,14 @@ internal static class PrintfEvaluation
                 return;
             }
 
-            if (zeroPad && (text.StartsWith('-') ||
-                text.StartsWith('+') ||
-                text.StartsWith(' ')))
+            var prefixLength = text.StartsWith('-') || text.StartsWith('+') || text.StartsWith(' ') ? 1 : 0;
+            if (text.AsSpan(prefixLength).StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                prefixLength += 2;
+            if (zeroPad && prefixLength > 0)
             {
-                output.AppendAscii(text[0]);
+                output.Append(text.AsSpan(0, prefixLength));
                 output.AppendAscii('0', width - textWidth);
-                output.Append(text.AsSpan(1));
+                output.Append(text.AsSpan(prefixLength));
                 return;
             }
 
@@ -615,22 +482,21 @@ internal static class PrintfEvaluation
         }
     }
 
-    private static bool TryFormatInfinity(double value, PrintfConversion conversion, out string formatted)
+    private static string FormatNonfinite(
+        double value, PrintfConversion conversion, PrintfFlags flags, AwkCompatibilityMode mode)
     {
-        if (!double.IsInfinity(value))
+        var negative = BitConverter.DoubleToUInt64Bits(value) >> 63 != 0;
+        var sign = negative ? '-' : mode != AwkCompatibilityMode.Posix || flags.ForceSign ? '+' : flags.LeadingSpace ? ' ' : '\0';
+        var uppercase = conversion.IsUppercase() && (mode != AwkCompatibilityMode.Posix || conversion.IsFloat());
+        return (double.IsNaN(value), uppercase, sign) switch
         {
-            formatted = string.Empty;
-            return false;
-        }
-
-        formatted = value < 0 ? "-inf" : "+inf";
-        if (conversion.IsUppercase())
-        {
-            formatted = formatted.ToUpperInvariant();
-        }
-
-        return true;
+            (true, false, '-') => "-nan", (true, false, '+') => "+nan", (true, false, ' ') => " nan", (true, false, _) => "nan",
+            (true, true, '-') => "-NAN", (true, true, '+') => "+NAN", (true, true, ' ') => " NAN", (true, true, _) => "NAN",
+            (false, false, '-') => "-inf", (false, false, '+') => "+inf", (false, false, ' ') => " inf", (false, false, _) => "inf",
+            (false, true, '-') => "-INF", (false, true, '+') => "+INF", (false, true, ' ') => " INF", (false, true, _) => "INF"
+        };
     }
+
 
     private static string ApplyNumericSign(
         string formatted,
@@ -805,10 +671,11 @@ internal readonly struct AwkSingleValuePrintfArguments(
 
 internal readonly record struct PrintfDirective(
     PrintfFlags Flags,
-    PrintfWidth Width,
-    PrintfPrecision Precision,
+    PrintfWidthValue Width,
+    PrintfPrecisionValue Precision,
     PrintfConversion Conversion,
-    char Specifier);
+    PrintfArgumentPosition ArgumentPosition,
+    int EndIndex);
 
 internal readonly record struct PrintfFlags(
     bool LeftJustify,
@@ -828,38 +695,6 @@ internal readonly record struct PrintfFlags(
     public PrintfFlags WithZeroPad() => this with { ZeroPad = true };
 
     public PrintfFlags WithAlternateForm() => this with { AlternateForm = true };
-}
-
-internal readonly record struct PrintfWidth(PrintfWidthKind Kind, int Value)
-{
-    public static PrintfWidth None { get; } = new(PrintfWidthKind.None, 0);
-
-    public static PrintfWidth Dynamic { get; } = new(PrintfWidthKind.Dynamic, 0);
-
-    public static PrintfWidth Literal(int value) => new(PrintfWidthKind.Literal, value);
-}
-
-internal enum PrintfWidthKind
-{
-    None,
-    Literal,
-    Dynamic
-}
-
-internal readonly record struct PrintfPrecision(PrintfPrecisionKind Kind, int Value)
-{
-    public static PrintfPrecision None { get; } = new(PrintfPrecisionKind.None, 0);
-
-    public static PrintfPrecision Dynamic { get; } = new(PrintfPrecisionKind.Dynamic, 0);
-
-    public static PrintfPrecision Literal(int value) => new(PrintfPrecisionKind.Literal, value);
-}
-
-internal enum PrintfPrecisionKind
-{
-    None,
-    Literal,
-    Dynamic
 }
 
 internal readonly record struct PrintfWidthValue(int Value);
@@ -898,7 +733,9 @@ internal enum PrintfConversion
     ScientificUpper,
     GeneralLower,
     GeneralUpper,
-    Character
+    Character,
+    HexFloatLower,
+    HexFloatUpper
 }
 
 internal static class PrintfConversionFacts
@@ -920,6 +757,8 @@ internal static class PrintfConversionFacts
             'E' => PrintfConversion.ScientificUpper,
             'g' => PrintfConversion.GeneralLower,
             'G' => PrintfConversion.GeneralUpper,
+            'a' => PrintfConversion.HexFloatLower,
+            'A' => PrintfConversion.HexFloatUpper,
             'c' => PrintfConversion.Character,
             _ => PrintfConversion.Unknown
         };
@@ -940,12 +779,15 @@ internal static class PrintfConversionFacts
             PrintfConversion.ScientificLower or
             PrintfConversion.ScientificUpper or
             PrintfConversion.GeneralLower or
-            PrintfConversion.GeneralUpper;
+            PrintfConversion.GeneralUpper or
+            PrintfConversion.HexFloatLower or
+            PrintfConversion.HexFloatUpper;
 
     public static bool IsUppercase(this PrintfConversion conversion) =>
         conversion is
             PrintfConversion.HexUpper or
             PrintfConversion.FixedUpper or
             PrintfConversion.ScientificUpper or
-            PrintfConversion.GeneralUpper;
+            PrintfConversion.GeneralUpper or
+            PrintfConversion.HexFloatUpper;
 }

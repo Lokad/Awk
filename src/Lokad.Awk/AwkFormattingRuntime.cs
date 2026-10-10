@@ -6,7 +6,8 @@ internal sealed class AwkFormattingRuntime(
     Func<AwkFormattingVariable, AwkFormatString> resolveVariable,
     AwkRuntimeLimits limits,
     AwkRuntimeCounters counters,
-    AwkMemoryGovernor governor)
+    AwkMemoryGovernor governor,
+    AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
 {
     private AwkText _outputFormatText = AwkText.Empty;
     private string _outputFormatString = string.Empty;
@@ -33,7 +34,8 @@ internal sealed class AwkFormattingRuntime(
             PrintfMissingArgumentPolicy.OmitDirective,
             limits,
             counters,
-            governor);
+            governor,
+            compatibilityMode);
     }
 
     public AwkText FormatStringByteText(AwkValue value)
@@ -54,7 +56,8 @@ internal sealed class AwkFormattingRuntime(
             PrintfMissingArgumentPolicy.OmitDirective,
             limits,
             counters,
-            governor);
+            governor,
+            compatibilityMode);
     }
 
     public static AwkText FormatPrintfStrictByteText<TArguments>(
@@ -62,7 +65,8 @@ internal sealed class AwkFormattingRuntime(
         TArguments arguments,
         AwkRuntimeLimits limits,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
         where TArguments : IPrintfArguments
     {
         counters.RecordFormattingFallback();
@@ -73,7 +77,8 @@ internal sealed class AwkFormattingRuntime(
             PrintfMissingArgumentPolicy.Throw,
             limits,
             counters,
-            governor);
+            governor,
+            compatibilityMode);
     }
 
     private bool UsesDefaultFormat(AwkFormattingVariable variable)

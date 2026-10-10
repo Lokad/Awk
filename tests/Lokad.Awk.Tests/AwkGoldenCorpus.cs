@@ -82,6 +82,10 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(ExponentiationAliasCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
 
+        .. Tagged(FormattingSyntaxCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
+
+        .. Tagged(IntegerFormattingCases(), AwkGoldenTag.Output, AwkGoldenTag.Expression),
+
         .. Tagged(StatementSeparatorCases(), AwkGoldenTag.Statement),
 
         .. Tagged(StatementRuntimeCases(), AwkGoldenTag.Statement),
@@ -2763,7 +2767,7 @@ internal static partial class AwkGoldenCorpus
             "printf-alternate-form-edge-flags",
             ["BEGIN{printf \"[%#.0o][%#.0x][%#.0f][%#.0g][%#8.0x][%-#8x][%08x][%-08x]\\n\", 0, 0, 3, 3, 31, 31, 31, 31}"],
             [],
-            "[0][0][3.][3.][    0x1f][0x1f    ][0000001f][1f      ]\n"),
+            "[0][][3.][3.][    0x1f][0x1f    ][0000001f][1f      ]\n"),
 
         Passing(
             "sprintf-sign-padding-string-precision-and-unknown-specifier",

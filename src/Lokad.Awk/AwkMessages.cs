@@ -38,6 +38,17 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: regular expression record separator scan limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorNotEnoughPrintfArguments =
         AwkUtf8Codec.Encode("awk: not enough arguments to satisfy format string\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorPrintfMixedArguments =
+        AwkUtf8Codec.Encode("awk: positional and sequential printf arguments cannot be mixed\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorPrintfArgumentPosition =
+        AwkUtf8Codec.Encode("awk: printf argument positions must be positive\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorPrintfPositionSuffix =
+        AwkUtf8Codec.Encode("awk: positional printf width or precision requires `$'\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorPrintfPositionalProfile =
+        AwkUtf8Codec.Encode("awk: positional formats are not permitted in this awk profile\n");
+
+    internal static ReadOnlyMemory<byte> FormatPrintfPosixModifier(char modifier) =>
+        AwkUtf8Codec.Encode("awk: `" + modifier + "' is not permitted in POSIX awk formats\n");
     internal static readonly ReadOnlyMemory<byte> ErrorDivisionByZero =
         AwkUtf8Codec.Encode("awk: division by zero attempted\n");
     internal static readonly ReadOnlyMemory<byte> ErrorDivisionByZeroInDivide =

@@ -107,7 +107,8 @@ internal abstract partial class AwkStatement
                     new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state),
                     state.Limits,
                     state.Counters,
-                    state.MemoryGovernor);
+                    state.MemoryGovernor,
+                    state.CompatibilityMode);
             }
             finally
             {

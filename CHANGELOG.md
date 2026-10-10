@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Honored integer formatting precision and zero-padding rules, and removed signed-long
+  saturation from printf/sprintf. Large signed decimals preserve their full value;
+  unsigned-range fallbacks use `%g` with bounded buffers and preflighted output sizes.
+  Nonfinite formatting and documented version-sensitive edges follow the GNU 5.4 policy,
+  with a working GNU 5.2 reference for POSIX nonfinite cases.
+- Added hexadecimal float formatting, positional values and dynamic width/precision,
+  and ignored `h/j/l/L/t/z` format modifiers. Runtime profile checks and friendly argument
+  diagnostics apply to printf, sprintf, and custom numeric conversion formats.
 - Accepted `**` and `**=` as aliases for `^` and `^=` in GNU/default and traditional
   modes, preserving precedence, right associativity, and one-time assignment targets.
   POSIX mode rejects the aliases before execution.

@@ -22,6 +22,52 @@ same power operations for the aliases and the caret spellings.
 uncalled functions, and rule patterns. Caret operators remain accepted. Operator-like
 text inside strings, regexes, or comments does not trigger the profile restriction.
 
+## Formatting Syntax
+
+`printf` and `sprintf` support `%a` and `%A` hexadecimal floats, including precision,
+alternate form, signed zero, and sign/prefix-aware padding. Default precision retains
+the exact double value and removes trailing hexadecimal zero digits. Explicit precision
+rounds ties to even. Subnormals retain the binary exponent `-1022`.
+
+Integer precision sets the minimum digit count and disables width-based zero padding.
+Signs and hexadecimal prefixes precede precision zeros; octal alternate form avoids an
+extra prefix when precision already supplies a leading zero. Exact zero with zero precision
+contributes no digits, except alternate octal. These rules follow GNU 5.4, including its distinction
+between exact zero and a nonzero fraction truncated to zero, and its retained explicit
+sign on an empty signed value. GNU 5.2 differs on several of those cases.
+
+Signed `%d`/`%i` format the full decimal integer of any finite double without saturation.
+`%u`/`%o`/`%x`/`%X` use 64-bit unsigned values; negative inputs first pass through signed
+64-bit conversion. Values outside those ranges use `%g` of the original number, with
+the directive's width, precision and applicable flags. `%g` precision zero means one
+significant digit. These policies do not add arbitrary-precision arithmetic.
+
+Nonfinite conversions share a profile-aware path. GNU/default and traditional modes
+use signed `inf`/`nan` spellings and space padding, following GNU 5.4. POSIX mode uses
+the C formatting spellings and sign flags. GNU 5.4 recurses indefinitely on POSIX
+nonfinite formats; these cases are qualified against the working GNU 5.2 reference.
+GNU 5.2's default nonfinite width bypass is a documented version difference, rather
+than Lokad's current padding policy.
+
+GNU/default mode supports positional values and dynamic width/precision, such as
+`%2$s` and `%3$*1$.*2$f`. Values are evaluated in their original argument order before
+formatting. Mixing positional and sequential value selection produces a runtime diagnostic;
+indexed width/precision alone can select a sequential value, as in `%*2$s`. Recognized
+positional selectors require GNU/default mode; POSIX and traditional profiles diagnose
+them at runtime. Incomplete and unknown directives preserve their original text after
+consuming dynamic controls and validating any recognized selector.
+
+Flags and ignored modifiers may occur among width components, as in `%+2$d` or `%l8d`.
+Negative literal or dynamic precision uses the conversion's default precision. A selector
+after the precision, such as `%.2$s`, follows GNU 5.4 behavior; GNU 5.2 rejects that form.
+This version difference is separate from the benchmark harness's GNU 5.2 baseline.
+
+The ignored C modifier set is `h`, `j`, `l`, `L`, `t`, and `z`. Distinct modifiers may
+combine; a repeated modifier leaves the directive literal, matching GNU's behavior.
+POSIX mode rejects these modifiers. Other C or GNU-specific modifiers remain outside
+this supported set. Formatting preflights output sizes against builder/value/memory limits
+before publishing output.
+
 ## Unsupported Capabilities
 
 Unsupported features must fail deterministically before partially performing surprising host
