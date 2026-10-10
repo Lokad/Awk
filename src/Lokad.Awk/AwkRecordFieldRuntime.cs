@@ -23,7 +23,8 @@ internal sealed class AwkRecordFieldRuntime(
         maxFields,
         throwIfValueBytesExceeded,
         formatStringByteText,
-        recordByteWork);
+        recordByteWork,
+        checkpoint);
 
     public AwkText CurrentRecordByteText => _frame.RecordAwkText;
 

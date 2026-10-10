@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Long field/NF expansion and truncation now stage field lists and retained value
+  caches before publication. Cancellation during analysis/copying preserves old
+  fields, NF and caches; temporary old/new buffer overlap is governed and released
+  or transferred once. Smaller changes retain their bounded commit path. Finite
+  memory policies must admit staging as well as final retained state.
+
+- Field-width parsing, whitespace/literal/character separator scans, rune traversal,
+  field copying and record recomposition now observe cooperative cancellation.
+  Split payload and memory estimates complete before field-state publication;
+  interrupted record or field copying releases transient memory and leaves caches
+  available for a fresh retry. The whitespace separator probe avoids flattening
+  long text. Field/NF mutation loops and other remaining callers are still under audit.
+
 - Lazy text materialization, strict UTF-8 validation, byte hashing/comparison and
   runtime key/string callers now propagate cooperative cancellation. Interrupted
   copying releases live memory and retains complete parts for retry; text caches

@@ -26,7 +26,7 @@ internal readonly record struct AwkFieldSeparatorSpec
     }
 
     public static AwkFieldSeparatorSpec FromByteText(AwkText text) =>
-        text.EqualsAscii(" ") ? Default : new AwkFieldSeparatorSpec(text);
+        text.ByteLength == 1 && text.EqualsAscii(" ") ? Default : new AwkFieldSeparatorSpec(text);
 
     public static AwkFieldSeparatorSpec FromRegexLiteral(string text) =>
         new(AwkText.FromSourceLiteralString(text), AwkRegexPatternOrigin.SourceLiteral);

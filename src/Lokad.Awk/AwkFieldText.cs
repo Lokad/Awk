@@ -54,35 +54,42 @@ internal readonly struct AwkFieldText
             _ => 0
         };
 
-    public ReadOnlySpan<byte> AsSpan(AwkText recordText) =>
+    public ReadOnlySpan<byte> AsSpan(AwkText recordText, Action? checkpoint = null) =>
         Kind switch
         {
             AwkFieldTextKind.Empty => ReadOnlySpan<byte>.Empty,
-            AwkFieldTextKind.Owned => _ownedText.AsSpan(),
-            AwkFieldTextKind.RecordSlice => recordText.AsSpan().Slice(_start, _length),
+            AwkFieldTextKind.Owned => _ownedText.AsSpan(checkpoint),
+            AwkFieldTextKind.RecordSlice => recordText.AsSpan(checkpoint).Slice(_start, _length),
             _ => ReadOnlySpan<byte>.Empty
         };
 
     public AwkText Materialize(
         AwkText recordText,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor) =>
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null) =>
         Kind switch
         {
             AwkFieldTextKind.Empty => AwkText.Empty,
             AwkFieldTextKind.Owned => _ownedText,
-            AwkFieldTextKind.RecordSlice => recordText.CopyByteSlice(_start, _length, counters, governor),
+            AwkFieldTextKind.RecordSlice => recordText.CopyByteSlice(_start, _length, counters, governor, checkpoint),
             _ => AwkText.Empty
         };
 
-    public string AsString(AwkText recordText, AwkRuntimeCounters counters) =>
+    public string AsString(AwkText recordText, AwkRuntimeCounters counters, Action? checkpoint = null)
+    {
+        checkpoint?.Invoke();
+        var value =
         Kind switch
         {
             AwkFieldTextKind.Empty => string.Empty,
-            AwkFieldTextKind.Owned => _ownedText.AsString(counters),
+            AwkFieldTextKind.Owned => _ownedText.AsString(counters, checkpoint),
             AwkFieldTextKind.RecordSlice => AwkUtf8Codec.DecodeRuntimeText(
-                recordText.AsSpan().Slice(_start, _length),
+                recordText.AsSpan(checkpoint).Slice(_start, _length),
                 counters),
             _ => string.Empty
         };
+        checkpoint?.Invoke();
+        return value;
+    }
 }

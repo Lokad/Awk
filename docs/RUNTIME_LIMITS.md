@@ -350,9 +350,34 @@ byte charges and preserve memory and mutation preflights.
 
 .NET UTF-8 decode/encode, randomized HashCode.AddBytes, span search, overlapping byte copies,
 array allocation and pooled traversal-stack resizing remain one-shot calls with boundary checks.
-The callback does not forcibly interrupt those calls. Remaining field/record reconstruction,
-separator/scanner, regex replacement/capture and virtual-array callers still require audit; this
-increment does not promise universal cancellation coverage or latency.
+The callback does not forcibly interrupt those calls. Regex replacement/capture, virtual-array
+and output callers still require audit; this does not promise universal cancellation coverage or latency.
+
+FIELDWIDTHS parsing, whitespace and literal separator scans, character splitting and rune advancement
+now use the existing operation-local callback. Long owned byte scans check at roughly 4 KiB intervals;
+field-list construction and retained-memory estimation check at roughly 1,024 entries. Rune progress
+uses a threshold so multibyte scalars cannot skip a checkpoint. Literal span search uses bounded chunks,
+and the field-width NUL search has before/after checks. The one-byte whitespace separator probe checks
+length before examining bytes, avoiding hidden materialization of long separator text.
+
+Record reconstruction and field slice/value copying pass the callback into byte-native copying.
+Payload summation and retained-memory estimates complete before lazy split state is published; final
+checks precede publishing a recomposed record or field value cache. Cancellation releases transient
+recomposition/split reservations, preserves the previous record/plan/cache and allows a fresh retry.
+These checks add no logical byte/fuel charges. Returned text and separator/split plans retain no callback.
+Field assignment, lvalue field extension and NF assignment stage changes of at least 1,024 fields.
+Private field-list copying/expansion and retained value-cache filtering check at roughly 1,024 entries;
+NF truncation analysis checks before mutation too. Completed buffers publish after a final checkpoint,
+with no callback inside the live-state commit. Cancellation preserves old fields, NF value and caches,
+and releases the temporary lease. Lvalue extension still freezes a previously dirty record first.
+
+The governor admits old and new buffers while both are live. Publication transfers the retained
+increase from the existing staging lease once; disposal releases the remaining overlap charge.
+Finite memory policies can therefore reject a long mutation whose final state would fit but whose
+staging peak would not. Such failures precede field/cache mutation. Smaller changes keep the original
+bounded commit after a checkpoint and need no clone. List/dictionary allocation, resizing and probing
+remain one-shot framework work; field/value/record/allocation preflights remain independent safeguards.
+Replacement/capture, virtual-array/output callers and regex/backend boundaries remain under audit.
 
 Printf's inner flag, width/precision and positional-control digit scans now use the same
 cancellation callback at roughly 4 KiB of UTF-16 input. String width and precision scans track

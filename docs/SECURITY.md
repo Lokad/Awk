@@ -123,8 +123,18 @@ Completed frontend caches publish atomically and retain no per-run callback. Lok
 token-reader/parser APIs have no caller token: token matching, parser shifts and shared grammar
 initialization remain one-shot dependency work. Frontend data/depth limits still apply. Array sorting,
 source string/array construction and other framework numeric/string, span search/comparison and regex
-construction calls may finish before cancellation is observed. Remaining field/record/separator,
-replacement/capture and virtual-array text callers, plus regex translation/analysis, remain under audit.
+construction calls may finish before cancellation is observed. Field-width, whitespace/literal/character
+separator scans and rune advancement now check internally; field copying and record recomposition
+use callback-aware byte copying. Split payload/memory estimates and completed field/record caches
+publish only after successful construction. Cancellation releases transient reservations and keeps
+the previous state available for retry. Returned text and separator/split plans retain no callback,
+and no duplicate logical fuel/byte charge is added. Long field/NF expansion/truncation now stage
+field lists and retained value caches, checking during analysis/copying and before publication.
+The old/new buffer overlap is admitted before allocation; successful publication transfers the
+retained portion once and releases the remainder. Canceled staging or rejected peak memory keeps
+the old fields, NF value and cache. Smaller changes retain a bounded commit after a checkpoint.
+Framework list/dictionary allocation/resizing/probing, replacement/capture, virtual-array and output
+callers, plus regex translation/analysis, remain under audit.
 The memory governor, mutation preflight, backend regex timeouts, and host/cleanup deadlines remain
 independent safeguards. Runtime warning queues also govern message retention, backing-array
 growth, and diagnostic formatting headroom, so repeated math warnings cannot grow an
