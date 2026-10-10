@@ -25,6 +25,19 @@ traditional mode quotes them. POSIX mode does not decode hexadecimal regex escap
 Numeric decoding precedes ERE escape interpretation: GNU `\134w` is a word operator,
 whereas `\134y` is a literal y. Bracket escapes retain character-class context.
 
+Named POSIX bracket classes accept the 12 standard lowercase names. Unknown names,
+including `word` and `ascii`, and unterminated named-class tokens fail through the
+existing invalid-regexp diagnostic in every profile, for lexical and dynamic patterns.
+Ordinary bracket text such as `[:word:]` keeps its character-set meaning. Admission
+respects escaped openers, leading literal brackets and inherited backend comments,
+including scoped whitespace mode. Its mode buffer is admitted before allocation and
+released on return, failure or cancellation; ordinary ERE classes need no mode buffer.
+`[:punct:]` maps to Unicode punctuation and symbols, so `$`, `+`, `|` and currency or
+mathematical symbols are included. This is the invariant backend category policy;
+it does not promise every GNU/libc locale or Unicode-version membership equivalence.
+See [class goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.RegexBracketClasses.cs)
+and [admission/counter checks](../tests/Lokad.Awk.Tests/AwkRegexBracketClassTests.cs).
+
 Source strings decode GNU 5.4 `\u` escapes before they become dynamic regex patterns.
 An escaped dot, bracket, anchor, group or quantifier produced by that source decoding
 has its ordinary ERE effect; an escape-produced backslash crosses the regex boundary

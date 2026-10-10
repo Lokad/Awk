@@ -127,7 +127,12 @@ variants at each expression. Shared regex cache hits do not suppress warnings fr
 another expression, and compiled executions have independent warning history.
 FS, enabled FPAT and ordinary regex RS prepare both case variants at assignment;
 changed values reset their warning history independently of the compiled cache.
-Include filenames remain raw text. General unknown-ERE warnings remain pending.
+Include filenames remain raw text. Unknown regexp operator/digit warnings use separate
+invocation-wide history shared by lexical and runtime patterns, including dead code;
+missing hex/Unicode regex warnings keep their numeric preparation history. Typed source
+locations and fresh histories survive compiled reuse. Named POSIX classes admit only
+the 12 standard lowercase names. See REGEX_COMPATIBILITY.md for class/category policy,
+warning ordering and the separately retained backend-extension contract.
 
 ## Field Splitting Modes
 

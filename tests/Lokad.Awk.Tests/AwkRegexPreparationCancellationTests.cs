@@ -176,7 +176,7 @@ public sealed class AwkRegexPreparationCancellationTests
     [InlineData("[:graph:]", @"\x21-\x7E")]
     [InlineData("[:lower:]", @"\p{Ll}")]
     [InlineData("[:print:]", @"\x20-\x7E")]
-    [InlineData("[:punct:]", @"\p{P}")]
+    [InlineData("[:punct:]", @"\p{P}\p{S}")]
     [InlineData("[:space:]", @"\s")]
     [InlineData("[:upper:]", @"\p{Lu}")]
     [InlineData("[:xdigit:]", "0-9A-Fa-f")]

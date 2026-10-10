@@ -99,7 +99,9 @@ internal sealed class AwkRegex
         return Translate(pattern.Text, compatibilityMode, checkpoint, resultLease);
         static string Translate(string pattern, AwkCompatibilityMode mode, Action? checkpoint, AwkMemoryLease? resultLease)
         {
-            return TranslatePosixCharacterClasses(TranslateEscapes(AwkRegexEscapes.Decode(pattern, mode, checkpoint), mode, checkpoint), checkpoint, resultLease);
+            var decoded = AwkRegexEscapes.Decode(pattern, mode, checkpoint);
+            AwkRegexBracketClasses.Validate(decoded, checkpoint, resultLease);
+            return TranslatePosixCharacterClasses(TranslateEscapes(decoded, mode, checkpoint), checkpoint, resultLease);
             static string TranslateEscapes(string pattern, AwkCompatibilityMode mode, Action? checkpoint)
             {
                 StringBuilder? builder = null;
@@ -332,7 +334,7 @@ internal sealed class AwkRegex
                     translated = AwkRegexConstruction.Replace(translated, "[:graph:]", "\\x21-\\x7E", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:lower:]", "\\p{Ll}", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:print:]", "\\x20-\\x7E", checkpoint, resultLease);
-                    translated = AwkRegexConstruction.Replace(translated, "[:punct:]", "\\p{P}", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:punct:]", "\\p{P}\\p{S}", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:space:]", "\\s", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:upper:]", "\\p{Lu}", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:xdigit:]", "0-9A-Fa-f", checkpoint, resultLease);

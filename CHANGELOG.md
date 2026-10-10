@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Named POSIX regex classes now reject unknown or unterminated names through Awk's
+  invalid-regexp diagnostic in every profile. Literal, escaped and backend-comment
+  contexts retain their meanings. Admission observes cancellation and admits/releases
+  scoped comment-mode storage. `[:punct:]` now includes Unicode symbols as well as
+  punctuation, fixing missing `$`, `+`, `|` and currency/mathematical symbol matches.
+
 - Unknown regexp operators and escaped `8`/`9` now emit their profile-specific
   warnings once per escaped character across source literals and runtime patterns.
   Unreachable literals warn during compilation; typed source locations and history

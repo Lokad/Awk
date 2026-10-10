@@ -13,13 +13,11 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTestBase
 {
     [Fact]
-    public void Awk_RegexTranslationLeavesLargeUnclosedBracketPrefixUntouched()
+    public void Awk_RegexTranslationRejectsLargeUnterminatedPosixClassWithoutBackendCompilation()
     {
         var pattern = string.Concat(Enumerable.Repeat("[:", 16_384));
 
-        var translated = AwkRegex.TranslatePattern(new AwkRegexPattern(pattern));
-
-        Assert.Same(pattern, translated);
+        Assert.Throws<ArgumentException>(() => AwkRegex.TranslatePattern(new AwkRegexPattern(pattern)));
     }
 
     [Theory]

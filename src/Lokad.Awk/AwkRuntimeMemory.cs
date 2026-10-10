@@ -114,6 +114,9 @@ internal static class AwkRuntimeMemory
         characterCount <= 0 ? 0 : CheckedAdd(StringObjectBytes, CheckedMultiply(characterCount, sizeof(char)));
 
     // Width analysis uses value frames: three width facts and three flags.
+    public static long EstimateRegexBracketModeArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, sizeof(byte));
+
     public static long EstimateRegexAnalysisFrameArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, 48);
 

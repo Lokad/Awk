@@ -56,7 +56,8 @@ use the active profile and numeric-string classification. A BEGIN exit skips tho
 operands. Operand decoding reserves temporary UTF-16 buffers and observes cancellation;
 text encoding and value limits use the existing governed UTF-8 boundary. Counter checks
 compare escaped and ordinary values; intermediate string allocations remain outside
-text-conversion counters. Unknown string-escape warning deduplication remains pending.
+text-conversion counters. Unknown string escapes share typed invocation-wide history
+across source, options and consumed operands; each compiled run has fresh history.
 
 Include filenames are raw quoted text rather than string expressions. Actual Unicode
 filenames are supported. Backslashes remain invalid under the portable host path policy;
@@ -69,8 +70,12 @@ invalid scalars produce a quoted literal `?`. Literal warnings retain regex toke
 spans, while runtime warnings track the expression and its compiled case variants.
 Regex translation remains a string compatibility boundary. Escape decoding adds no
 AwkText string-decode/encode boundary counts, as covered by deterministic counters;
-its intermediate string allocation is not represented by those counters. General
-unknown-ERE warnings and special-variable assignment warning parity remain pending.
+its intermediate string allocation is not represented by those counters. Unknown
+regexp operators/digits share fixed invocation-wide history across source and runtime;
+string warnings are independent. Numeric regex warnings retain their per-expression
+history. FS/FPAT/RS preparation and compiled reuse share the qualified diagnostic
+contracts in REGEX_COMPATIBILITY.md. Named-class admission recognizes the standard
+POSIX names before backend compilation and preserves valid escaped/comment contexts.
 
 `AwkText` stores valid UTF-8 bytes and caches UTF-16 strings only for compatibility boundaries.
 SYMTAB identifier lookup and failed special-array key diagnostics use the counted key
