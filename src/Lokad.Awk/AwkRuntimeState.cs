@@ -22,9 +22,6 @@ internal sealed class AwkRuntimeState
     private static readonly AwkArrayName ProcInfoArrayName =
         AwkArrayName.FromText(AwkSpecialVariables.Name(AwkSpecialVariableId.ProcInfo));
 
-    private static readonly AwkArrayKey ProcInfoVersionKey =
-        new(AwkText.FromSourceLiteralString("version"));
-
     private static readonly AwkVariableName RecordTerminatorVariableName =
         AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordTerminator);
 
@@ -116,7 +113,8 @@ internal sealed class AwkRuntimeState
             ThrowIfCancellationRequested,
             MemoryGovernor,
             Counters,
-            Resources.RecordByteWork);
+            Resources.RecordByteWork,
+            CompatibilityMode);
         _recordFields = new AwkRecordFieldRuntime(
             _fieldSplitter,
             CreateStringValue,
@@ -138,6 +136,7 @@ internal sealed class AwkRuntimeState
             _fieldSplitter,
             FormatStringByteText,
             RecordSpecialVariableAssignment,
+            MemoryGovernor,
             CompatibilityMode);
         specialVariables = _specialVariables;
         _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables);
@@ -160,7 +159,7 @@ internal sealed class AwkRuntimeState
             }
 
             (specialVariables ?? throw new InvalidOperationException("Special variables are not initialized."))
-                .ApplyAssignment(name, value);
+                .Assign(AwkVariableName.FromText(name), value);
         }
 
         void RecordSpecialVariableAssignment(AwkSpecialVariableId id)
@@ -356,10 +355,7 @@ internal sealed class AwkRuntimeState
     {
         if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.ProcInfo, CompatibilityMode))
             return;
-        _variables.InitializeArrayStringValue(
-            ProcInfoArrayName,
-            ProcInfoVersionKey,
-            "Lokad awk");
+        _specialVariables.InitializeProcInfo();
     }
 
     public void InitializeFunctions<TFunction>(IReadOnlyDictionary<AwkFunctionName, TFunction> functions)

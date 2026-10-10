@@ -39,8 +39,30 @@ GNU 5.2 rejects it in POSIX mode. match's third capture-array argument remains a
 extension rejected before execution. split's fourth separator-array argument is also
 GNU-only, but its diagnostic occurs when the call executes, matching the native phase;
 both destination arrays remain unchanged. GNU regular-expression profile differences
-and PROCINFO["FS"] publication remain incompletely qualified; this is not a claim of
-full POSIX or GNU profile conformance.
+remain incompletely qualified; this is not a claim of full POSIX or GNU profile conformance.
+
+## Field Splitting Modes
+
+GNU mode initializes PROCINFO["FS"] to "FS". Assigning FS, FPAT or FIELDWIDTHS selects
+that splitter, including empty FPAT (nullable field matches) and empty FIELDWIDTHS (no fields).
+PROCINFO["FS"] is an ordinary writable entry: it is republished when the parser changes,
+including transitions among FS's whitespace, character, regex and paragraph parsers.
+Same-mode FPAT/FIELDWIDTHS updates and FS=FS preserve a user-written or deleted entry.
+Array aliases observe publication immediately. Direct assignments and SYMTAB writes
+share Lokad's special-variable setters; GNU indirect writes bypass those setters.
+
+Fixed-width designators accept positive widths, optional positive skip prefixes N:M,
+and a final * or N:* for the remaining record. Values above UInt32.MaxValue, zero,
+negative or malformed designators fail at assignment. Parsing stops at the first NUL;
+space/tab separate designators. A short record creates only reached fields, including
+an empty field when a skip consumes the remainder. Widths count the selected string units;
+byte-mode cuts through UTF-8 characters retain their explicit unsupported-policy diagnostic.
+
+FS/FPAT regex validation occurs at assignment, before scalar or splitter mutation.
+Scalar growth, mode metadata, array capacity and width buffers preflight together.
+Records retain their admitted lazy splitting plan across subsequent assignments.
+POSIX/traditional FS="" keeps a nonempty ordinary record as one field; paragraph mode
+also splits at newlines. split(..., "") retains character splitting in all profiles.
 
 ## Flushing And Closing Streams
 

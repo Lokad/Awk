@@ -731,9 +731,9 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             "caf\u00e9 bravo 2\n"
         },
         {
-            ["BEGIN{FIELDWIDTHS=\"1:2 0 2\"} {print \"[\" $1 \"]\", \"[\" $2 \"]\", \"[\" $3 \"]\", NF}", "/file.txt"],
+            ["BEGIN{FIELDWIDTHS=\"1:2 1:2\"} {print \"[\" $1 \"]\", \"[\" $2 \"]\", NF}", "/file.txt"],
             "\u00e9ABCDE\n",
-            "[AB] [] [CD] 3\n"
+            "[AB] [DE] 2\n"
         },
         {
             ["NR==1{FIELDWIDTHS=\"2 2\"} NR==2{FIELDWIDTHS=\"3\"} {print NF, \"[\" $1 \"]\", \"[\" $2 \"]\"}", "/file.txt"],

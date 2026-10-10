@@ -5,7 +5,7 @@ internal static partial class AwkGoldenCorpus
     // Names, parameters, initialization and field/stream effects were surveyed against
     // GNU 5.2.1 and 5.4.0 in C.UTF-8/UTC. Expectations select GNU 5.4/POSIX 2024;
     // diagnostics retain Lokad's stable prefix, wording and exit 2 normalization.
-    // GNU PROCINFO["FS"] publication remains an open finding, excluded from this corpus.
+    // PROCINFO["FS"] transitions are covered separately by FieldModeCompatibilityCases.
     private static IEnumerable<AwkGoldenCase> ProfileNameCompatibilityCases()
     {
         foreach (var row in ProfileNameRows)
@@ -1183,7 +1183,8 @@ internal static partial class AwkGoldenCorpus
         new("profile-integration-1155", ["BEGIN{print split(\"a,b\",a,/,/,b),length(a),length(b)}"], "line\n", 0, "2 2 1\n", "", false),
         new("profile-integration-1156", ["BEGIN{BEGINFILE=1}BEGINFILE{print \"main\"}END{print \"end\"}"], "line\n", 2, "", "awk: invalid statement.\n", true),
         new("profile-integration-1157", ["BEGIN{ENDFILE=1}ENDFILE{print \"main\"}END{print \"end\"}"], "line\n", 2, "", "awk: invalid statement.\n", true),
-        new("profile-integration-1158", ["BEGIN{FIELDWIDTHS=\"bad\";FPAT=\"[\";$0=\"a b\";print NF,$1,$2}"], "line\n", 2, "", "awk: invalid regular expression\n", false),
+        new("profile-integration-1158", ["BEGIN{FIELDWIDTHS=\"bad\";FPAT=\"[\";$0=\"a b\";print NF,$1,$2}"], "line\n", 2, "", "awk: invalid FIELDWIDTHS value\n", false),
+        new("profile-integration-1159", ["BEGIN{PROCINFO[\"FS\"]=\"keep\";FIELDWIDTHS=\"1 1\";$0=\"ab cd\";print PROCINFO[\"FS\"],NF,$1,$2}"], "line\n", 0, "FIELDWIDTHS 2 a b\n", "", false),
         new("profile-integration-1160", ["BEGIN{FUNCTAB[1]=4;print split(\"a b\",FUNCTAB),FUNCTAB[1]}"], "line\n", 2, "", "awk: cannot modify special array `FUNCTAB'\n", true),
         new("profile-integration-1161", ["BEGIN{SYMTAB[1]=4;print split(\"a b\",SYMTAB),SYMTAB[1]}"], "line\n", 2, "", "awk: invalid SYMTAB reference\n", false),
         new("profile-integration-1162", ["BEGIN{ARGIND=5;RT=6;ERRNO=7;print ARGIND,RT,ERRNO}END{print ARGIND,RT,ERRNO}"], "line\n", 0, "5 6 7\n5 \n \n", "", false),

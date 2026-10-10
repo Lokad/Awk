@@ -109,9 +109,7 @@ internal sealed class AwkVariableRuntime(
         ThrowIfArrayAsScalar(name.Text, ResolveName(name));
 
         var text = AwkText.FromString(value);
-        variables.SetScalarText(name, text);
-        if (AwkSpecialVariables.TryGetScalar(name, out var id))
-            specialVariables.ApplyAssignment(id, text);
+        specialVariables.Assign(name, AwkValue.FromText(text));
     }
 
     public void AssignVariableValue(AwkIdentifier identifier, AwkValue value) =>
@@ -129,9 +127,7 @@ internal sealed class AwkVariableRuntime(
     {
         ThrowIfArrayAsScalar(name.Text, ResolveGlobalName(name));
 
-        variables.SetScalarValue(name, value);
-        if (AwkSpecialVariables.TryGetScalar(name, out var id))
-            specialVariables.ApplyAssignment(id, value);
+        specialVariables.Assign(name, value);
     }
 
     public void AssignFunctionLocal(

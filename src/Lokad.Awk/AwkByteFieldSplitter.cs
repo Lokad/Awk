@@ -17,6 +17,9 @@ internal sealed class AwkByteFieldSplitter(
 {
     private ResolvedFieldSeparatorPlan? _resolvedSeparator;
 
+    public void ValidateSeparator(AwkFieldSeparatorSpec separator) =>
+        _ = ResolveSeparator(separator, runtimeCounters, resolveRegexCaseSensitivity());
+
     public AwkTextSplitResult SplitBySeparator(
         AwkText line,
         AwkFieldSeparatorSpec separator,

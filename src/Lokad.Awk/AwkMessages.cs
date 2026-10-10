@@ -92,6 +92,10 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: byte-mode FS=\"\" over non-ASCII text is unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedByteModeFieldWidths =
         AwkUtf8Codec.Encode("awk: byte-mode FIELDWIDTHS cannot split a UTF-8 character in Lokad awk\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorInvalidFieldWidths =
+        AwkUtf8Codec.Encode("awk: invalid FIELDWIDTHS value\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorFieldWidthsStarNotLast =
+        AwkUtf8Codec.Encode("awk: `*' must be the last designator in FIELDWIDTHS\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedIndirectFunctionCall =
         AwkUtf8Codec.Encode("awk: indirect function calls are unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnsupportedArrayOfArrays =

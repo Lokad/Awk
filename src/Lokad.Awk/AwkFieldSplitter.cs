@@ -16,8 +16,10 @@ internal sealed class AwkFieldSplitter(
     Action throwIfCancellationRequested,
     AwkMemoryGovernor memoryGovernor,
     AwkRuntimeCounters counters,
-    Action<int>? recordByteWork = null)
+    Action<int>? recordByteWork = null,
+    AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
 {
+    private static readonly AwkFieldSeparatorSpec NewlineSeparator = AwkFieldSeparatorSpec.FromText("\n");
     private readonly AwkByteFieldSplitter _byteSplitter = new(
         createRegex,
         createLiteralRegex,
@@ -31,6 +33,7 @@ internal sealed class AwkFieldSplitter(
     private AwkFieldSeparatorSpec _fieldSeparator = fieldSeparator;
     private AwkText _fieldPattern = AwkText.Empty;
     private List<AwkFieldWidth> _fieldWidths = [];
+    private long _fieldWidthsBytes;
     private AwkFieldSplittingMode _fieldSplittingMode;
     private AwkRecordFieldSplittingMode _recordFieldSplittingMode;
 
@@ -39,79 +42,61 @@ internal sealed class AwkFieldSplitter(
 
     public void AssignFieldSeparator(AwkText value)
     {
+        ClearUnusedFieldWidths();
         _fieldSeparator = AwkFieldSeparatorSpec.FromByteText(value);
         _fieldSplittingMode = AwkFieldSplittingMode.FieldSeparator;
     }
 
     public void AssignFieldPattern(AwkText value)
     {
+        ClearUnusedFieldWidths();
         _fieldPattern = value;
-        if (value.ByteLength > 0)
-            _fieldSplittingMode = AwkFieldSplittingMode.FieldPattern;
+        _fieldSplittingMode = AwkFieldSplittingMode.FieldPattern;
     }
 
-    public void AssignFieldWidths(AwkText value)
+    public void ValidateFieldSeparator(AwkText value)
+    {
+        _byteSplitter.ValidateSeparator(AwkFieldSeparatorSpec.FromByteText(value));
+    }
+
+    public void ValidateFieldPattern(AwkText value) =>
+        _ = createRegex(new AwkRegexPattern(value.AsString(counters)), resolveRegexCaseSensitivity());
+
+    public long EstimateFieldWidthsMemory(AwkText value)
     {
         recordByteWork?.Invoke(value.ByteLength);
-        static List<AwkFieldWidth> ParseFieldWidths(ReadOnlySpan<byte> text)
+        return AwkRuntimeMemory.EstimateFieldWidthListBytes(AwkFieldWidthsParser.Parse(value.AsSpan(), null));
+    }
+
+    public List<AwkFieldWidth> PrepareFieldWidths(AwkText value)
+    {
+        var count = AwkFieldWidthsParser.Parse(value.AsSpan(), null);
+        memoryGovernor.PreflightAllocation(AwkRuntimeMemory.EstimateFieldWidthListBytes(count));
+        var widths = new List<AwkFieldWidth>(count);
+        AwkFieldWidthsParser.Parse(value.AsSpan(), widths);
+        return widths;
+    }
+
+    public void AssignFieldWidths(List<AwkFieldWidth> widths)
+    {
+        var bytes = AwkRuntimeMemory.EstimateFieldWidthListBytes(widths.Capacity);
+        if (bytes > _fieldWidthsBytes)
         {
-            static bool IsWhitespace(byte value) =>
-                value is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n' or (byte)'\v' or (byte)'\f';
-
-            static bool TryParseNonNegativeInteger(ReadOnlySpan<byte> value, out int result)
-            {
-                result = 0;
-                if (value is [(byte)'+', .. var positive])
-                    value = positive;
-
-                if (value.IsEmpty)
-                    return false;
-
-                for (var index = 0; index < value.Length; index++)
-                {
-                    var digit = value[index] - (byte)'0';
-                    if (digit > 9 || result > (int.MaxValue - digit) / 10)
-                        return false;
-
-                    result = result * 10 + digit;
-                }
-
-                return true;
-            }
-
-            var widths = new List<AwkFieldWidth>();
-            var position = 0;
-            while (position < text.Length)
-            {
-                while (position < text.Length && IsWhitespace(text[position]))
-                    position++;
-
-                var start = position;
-                while (position < text.Length && !IsWhitespace(text[position]))
-                    position++;
-
-                if (start == position)
-                    break;
-
-                var part = text[start..position];
-                var separatorIndex = part.IndexOf((byte)':');
-                var skipText = separatorIndex >= 0 ? part[..separatorIndex] : "0"u8;
-                var widthText = separatorIndex >= 0 ? part[(separatorIndex + 1)..] : part;
-                if (!TryParseNonNegativeInteger(skipText, out var skip) ||
-                    !TryParseNonNegativeInteger(widthText, out var width))
-                {
-                    continue;
-                }
-
-                widths.Add(new AwkFieldWidth(new AwkFieldSkip(skip), new AwkFieldWidthLength(width)));
-            }
-
-            return widths;
+            memoryGovernor.Reserve(bytes - _fieldWidthsBytes);
+            memoryGovernor.CommitReserved(bytes - _fieldWidthsBytes);
         }
+        else
+            memoryGovernor.ReleaseCommitted(_fieldWidthsBytes - bytes);
+        _fieldWidthsBytes = bytes;
+        _fieldWidths = widths;
+        _fieldSplittingMode = AwkFieldSplittingMode.FieldWidths;
+    }
 
-        _fieldWidths = ParseFieldWidths(value.AsSpan());
-        if (_fieldWidths.Count > 0)
-            _fieldSplittingMode = AwkFieldSplittingMode.FieldWidths;
+    private void ClearUnusedFieldWidths()
+    {
+        memoryGovernor.ReleaseCommitted(_fieldWidthsBytes);
+        _fieldWidthsBytes = 0;
+        _fieldWidths = [];
     }
 
     public AwkRecordSplitPlan CaptureRecordPlan() =>
@@ -134,6 +119,16 @@ internal sealed class AwkFieldSplitter(
     public List<AwkFieldText> SplitRecordFields(AwkText line, AwkRecordSplitPlan plan)
     {
         recordByteWork?.Invoke(line.ByteLength);
+        if (compatibilityMode != AwkCompatibilityMode.GnuDefault &&
+            plan.Mode == AwkFieldSplittingMode.FieldSeparator && plan.Separator.ByteText.ByteLength == 0)
+        {
+            if (line.ByteLength == 0)
+                return [];
+            return plan.RecordMode == AwkRecordFieldSplittingMode.Paragraph
+                ? _byteSplitter.SplitRecordFieldsBySeparator(line,
+                    NewlineSeparator, plan.CaseSensitivity)
+                : [AwkFieldText.FromRecordSlice(0, line.ByteLength)];
+        }
         var fieldWidths = plan.FieldWidths;
         static int AddFieldWidthUnits(int position, int value)
         {
@@ -171,6 +166,8 @@ internal sealed class AwkFieldSplitter(
                 var content = line.AsSpan();
                 for (var index = 0; index < fieldWidths.Count; index++)
                 {
+                    if (bytePosition >= content.Length)
+                        break;
                     var width = fieldWidths[index];
                     var fieldStartRune = AddFieldWidthUnits(position, width.Skip.Value);
                     AdvanceRuneOffset(content, ref runePosition, ref bytePosition, fieldStartRune);
@@ -210,13 +207,15 @@ internal sealed class AwkFieldSplitter(
                 var sourceLength = line.ByteLength;
                 for (var index = 0; index < fieldWidths.Count; index++)
                 {
+                    if (position >= sourceLength)
+                        break;
                     var width = fieldWidths[index];
                     position = AddFieldWidthUnits(position, width.Skip.Value);
                     ThrowIfNotUtf8Boundary(line, position);
                     if (position >= sourceLength)
                     {
                         fields.Add(AwkFieldText.Empty);
-                        continue;
+                        break;
                     }
 
                     var length = Math.Min(width.Width.Value, sourceLength - position);

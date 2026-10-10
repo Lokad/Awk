@@ -3,6 +3,7 @@ using Xunit.Sdk;
 
 namespace Lokad.Awk.Tests;
 
+[Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkFunctionLocalSlotTests
 {
     [Fact]

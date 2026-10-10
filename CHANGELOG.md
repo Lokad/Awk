@@ -7,7 +7,15 @@
   variables, arrays or user functions; local names retain their lexical classification.
   POSIX 2024 length(array) is supported. Non-GNU profiles reject match capture arrays and
   diagnose split separator arrays at execution without replacing their destinations.
-  Remaining regex profile differences and PROCINFO["FS"] publication stay open.
+  Remaining regex profile differences stay open.
+
+- Published writable PROCINFO["FS"] metadata on actual splitter transitions, including
+  array aliases and shared SYMTAB setters. Empty FPAT/FIELDWIDTHS select their modes;
+  fixed-width syntax accepts final remainder designators and rejects malformed values
+  before mutation. Short records no longer gain unreached fields. POSIX/traditional
+  empty FS follows whole-record/paragraph behavior, while split's empty separator retains
+  character splitting. Regex assignments validate immediately, and scalar/metadata/buffer
+  growth preflights together before changing the active splitter.
 
 - fflush now warns about unopened and input-only streams without assigning ERRNO.
   Numeric and input-numeric arguments follow normal/fatal lint rules; ordinary flush

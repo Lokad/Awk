@@ -330,10 +330,11 @@ public sealed class AwkBenchmarkCounterTests
                 result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(rows, result.Counters.FieldSplits);
             Assert.Equal(0, result.Counters.Utf8Encodes);
-            // FPAT source patterns may cross the compatibility boundary once. Records do not.
-            Assert.InRange(result.Counters.StringDecodes, 0, usesRegex ? 2 : 0);
+            // Both FPAT assignments validate immediately, including the pattern never used by a record.
+            // The source-pattern boundary adds one decode; records stay byte-native.
+            Assert.InRange(result.Counters.StringDecodes, 0, usesRegex ? 3 : 0);
             Assert.Equal(0, result.Counters.RegexDotNetTextMatches);
-            Assert.Equal(usesRegex ? 1 : 0, result.Counters.RegexCompiles);
+            Assert.Equal(usesRegex ? 2 : 0, result.Counters.RegexCompiles);
         }
     }
 

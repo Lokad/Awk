@@ -1503,6 +1503,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     {
         var state = CreateStateWithMemoryLimit(2_000);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("keep"));
+        Assert.Equal(1, state.FieldCount);
         state.RecordNumber = 4;
         state.FileRecordNumber = 3;
         state.SetRecordTerminator(AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(",")));
