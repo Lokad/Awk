@@ -60,6 +60,19 @@ the record or eagerly split its fields. FPAT pattern decoding occurs when fields
 actually requested. Literal one-character separators count Unicode scalars and remain
 case-sensitive; see `docs/RECORD_SEMANTICS.md` for the classified native differences.
 
+Paragraph splitting adds implicit LF boundaries only for single-byte literal FS,
+alongside whitespace/profile-empty rules. Multibyte literals use the ordinary regex
+span splitter and retain LF within fields. Input stays UTF-8 through cursor batching,
+record/terminator copying and field slicing; literal pattern compilation remains the
+counted string compatibility boundary. The EOF LF terminator needs no owned byte copy.
+
+Discarded blank paragraph leaders carry an explicit EOF directive rather than a fake
+empty record. Applying it releases GNU RT through the normal special-variable setter;
+it does not decode or replace the current record, split fields or advance record counters.
+The cursor itself remains free of those record-admission side effects. EOF tracking uses
+cursor state and allocates no per-read closure; repeated EOF has an allocation check. File admission
+retains a lazy record/plan when no BEGINFILE action requires an empty frame.
+
 Pure numeric field assignment retains no formatted text. Record reconstruction converts
 those values under the current CONVFMT, using the ordinary byte-native default formatter
 or the counted custom-format compatibility boundary. Formatted UTF-8 text and both field

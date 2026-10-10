@@ -668,10 +668,11 @@ internal sealed class AwkRuntimeState
         return text.ByteLength > 0 ? text.AsString(Counters) : fallback;
     }
 
-    public void BeginInputFile(AwkText fileName, AwkArgvIndex argvIndex)
+    public void BeginInputFile(AwkText fileName, AwkArgvIndex argvIndex, bool resetRecord = true)
     {
         AssignSpecialVariableValue(AwkSpecialVariableId.FileName, CreateByteTextValue(fileName));
-        _recordFields.ResetRecord();
+        if (resetRecord)
+            _recordFields.ResetRecord();
         if (argvIndex.Value > 0)
         {
             FileRecordNumber = 0;

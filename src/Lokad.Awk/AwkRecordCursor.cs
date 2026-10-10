@@ -25,6 +25,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private int _pendingSeparatorEnd = -1;
     private bool _descriptorReachedEof;
     private bool _hasConsumedDescriptorBytes;
+    private bool _discardedParagraphLeader;
     // General regex searches borrow the current buffer. The optional reserved
     // prefix prevents ^ from re-anchoring after a record has been consumed;
     // the offset pair caches the byte-to-UTF-16 coordinate conversion.
@@ -49,6 +50,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
     public async ValueTask<AwkInputRecordResult> ReadAsync()
     {
+        _discardedParagraphLeader = false;
         while (true)
         {
             _state.ThrowIfCancellationRequested();
@@ -147,7 +149,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 _regexInput = null;
                 _regexOffsetBufferStart = -1;
                 return _descriptorReachedEof
-                    ? BufferedReadResult.EndOfFile
+                    ? ParagraphEndOfFile(separator)
                     : BufferedReadResult.NeedMoreData;
             }
 
@@ -441,6 +443,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     return ContinueParagraphSeparator(content);
 
                 var recordStart = SkipParagraphNewlines(content);
+                _discardedParagraphLeader |= recordStart > 0;
                 _bufferStart += recordStart;
                 _regexOffsetBufferStart = -1;
                 content = content[recordStart..];
@@ -449,9 +452,11 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 if (content.IsEmpty)
                 {
                     return _descriptorReachedEof
-                        ? BufferedReadResult.EndOfFile
+                        ? ParagraphEndOfFile(ParagraphSeparator.Instance)
                         : BufferedReadResult.NeedMoreData;
                 }
+
+                _discardedParagraphLeader = false;
 
                 var scanStart = GetRelativeScanStart(content);
                 if (!TryFindParagraphSeparator(
@@ -468,10 +473,18 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     }
 
                     var recordLength = TrimTrailingRecordNewlines(content);
+                    var trailingNewlines = content[recordLength..];
+                    // An LF uses the shared terminator. Preflight both owned byte copies
+                    // for CRLF before allocating either record or terminator text.
+                    _state.MemoryGovernor.PreflightAllocation(
+                        recordLength + (trailingNewlines.Length == 1 ? 0 : trailingNewlines.Length));
+                    var finalTerminator = trailingNewlines.Length == 1
+                        ? AwkRecordTerminator.NewLine
+                        : AwkRecordTerminator.FromText(CreateText(trailingNewlines));
                     return ConsumeRecord(
                         content[..recordLength],
                         content.Length,
-                        AwkRecordTerminator.Empty,
+                        finalTerminator,
                         AwkRecordFieldSplittingMode.Paragraph);
                 }
 
@@ -567,6 +580,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
             var separator = CreateSeparator(_state.ResolveRecordSeparator());
             _separatorCache = new SeparatorCache(separator, version);
+            _discardedParagraphLeader = false;
             ResetSeparatorSearch();
             return separator;
 
@@ -683,6 +697,11 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 }
             }
         }
+
+        BufferedReadResult ParagraphEndOfFile(RecordSeparator separator) =>
+            _discardedParagraphLeader && separator is ParagraphSeparator
+                ? BufferedReadResult.EndOfFileClearingTerminator
+                : BufferedReadResult.EndOfFile;
     }
 
     public void Dispose()
@@ -930,6 +949,9 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         public static BufferedReadResult EndOfFile { get; } =
             new(BufferedReadStatus.EndOfFile, AwkInputRecordResult.EndOfFile);
 
+        public static BufferedReadResult EndOfFileClearingTerminator { get; } =
+            new(BufferedReadStatus.EndOfFile, AwkInputRecordResult.EndOfFileClearingTerminator);
+
         public static BufferedReadResult FromRecord(AwkInputRecordResult record) =>
             new(BufferedReadStatus.Record, record);
     }
@@ -1013,15 +1035,19 @@ internal readonly record struct AwkInputRecordResult
         AwkInputRecordResultKind kind,
         AwkText recordText,
         AwkRecordTerminator terminator,
-        AwkRecordFieldSplittingMode fieldSplittingMode)
+        AwkRecordFieldSplittingMode fieldSplittingMode,
+        bool clearsRecordTerminator = false)
     {
         _kind = kind;
         _recordText = recordText;
         Terminator = terminator;
         FieldSplittingMode = fieldSplittingMode;
+        ClearsRecordTerminator = clearsRecordTerminator;
     }
 
     public bool HasRecord => _kind == AwkInputRecordResultKind.Record;
+
+    public bool ClearsRecordTerminator { get; }
 
     public AwkText RecordText => _recordText ?? AwkText.Empty;
 
@@ -1035,6 +1061,10 @@ internal readonly record struct AwkInputRecordResult
             AwkText.Empty,
             AwkRecordTerminator.Empty,
             AwkRecordFieldSplittingMode.Ordinary);
+
+    public static AwkInputRecordResult EndOfFileClearingTerminator { get; } =
+        new(AwkInputRecordResultKind.EndOfFile, AwkText.Empty, AwkRecordTerminator.Empty,
+            AwkRecordFieldSplittingMode.Ordinary, clearsRecordTerminator: true);
 
     public static AwkInputRecordResult Record(
         AwkText record,

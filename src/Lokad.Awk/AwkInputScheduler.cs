@@ -62,6 +62,9 @@ internal sealed class AwkInputScheduler(
                 return record;
             }
 
+            if (record.ClearsRecordTerminator)
+                state.SetRecordTerminator(AwkRecordTerminator.Empty);
+
             var endFileFlow = await CompleteCurrentInputAsync(EndFileAction.Execute).ConfigureAwait(false);
             if (endFileFlow == AwkStatementFlow.ExitProgram)
                 return AwkInputRecordResult.EndOfFile;
@@ -101,7 +104,7 @@ internal sealed class AwkInputScheduler(
 
                 if (argumentText.EqualsAscii("-") || argumentText.EqualsAscii("/dev/stdin"))
                 {
-                    state.BeginInputFile(argumentText, argumentIndex);
+                    state.BeginInputFile(argumentText, argumentIndex, actionExecutor.HasBeginFileActions);
                     if (await TryActivateInputAsync(
                             CreateRecordCursor(invocation.Stdio.StdIn),
                             OwnedInputDescriptor.None)
@@ -121,7 +124,7 @@ internal sealed class AwkInputScheduler(
                 var fileName = argumentText.AsSpan().SequenceEqual(path.Display.Span)
                     ? argumentText
                     : AwkText.CopyTrustedBytes(path.Display.Span, state.Counters, state.MemoryGovernor);
-                state.BeginInputFile(fileName, argumentIndex);
+                state.BeginInputFile(fileName, argumentIndex, actionExecutor.HasBeginFileActions);
                 state.Resources.RecordHostCall();
                 var opened = await AwkHostBoundaryPolicy.AwaitAsync(
                         host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken),
@@ -153,7 +156,7 @@ internal sealed class AwkInputScheduler(
                 return false;
 
             _usedStandardInputFallback = true;
-            state.BeginInputFile(StandardInputFileName, new AwkArgvIndex(0));
+            state.BeginInputFile(StandardInputFileName, new AwkArgvIndex(0), actionExecutor.HasBeginFileActions);
             return await TryActivateInputAsync(
                     CreateRecordCursor(invocation.Stdio.StdIn),
                     OwnedInputDescriptor.None)

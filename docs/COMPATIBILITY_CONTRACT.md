@@ -487,6 +487,15 @@ Main input and every `getline` source use the current `RS`, including paragraph 
 Changing `RS` preserves already-buffered bytes and continues pulling batches only as the next
 record requires; a separator change never drains the descriptor to EOF merely to hand off state.
 
+Paragraph EOF preserves a removed final newline in GNU RT. Single-byte literal FS
+adds an implicit LF boundary; multibyte literal and regex FS preserve LF unless their
+pattern matches it. Lokad's CRLF paragraph recognition remains an explicit input-policy
+divergence from GNU's LF scanner. Blank-only paragraph reads clear GNU RT through a
+distinct EOF result, before main-input ENDFILE, without admitting a record. Empty input,
+later EOF without consumed leaders and failed reads preserve RT. Main file admission
+resets fields only when BEGINFILE actions are present. See `RECORD_SEMANTICS.md` for
+qualified behavior and the retained expression/diagnostic/source-specific EOF differences.
+
 ## Public API
 
 The executable runtime, regex adapter choice, and resource governors remain internal rollout

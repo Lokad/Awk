@@ -231,8 +231,6 @@ internal sealed class AwkByteFieldSplitter(
         return plan.Kind switch
         {
             FieldSeparatorKind.SingleByte => SplitSingleByteParagraphRecordFields(line, plan.SingleByte),
-            FieldSeparatorKind.Regex when separator.ByteText.RuneLength == 1 =>
-                SplitRegexParagraphRecordFields(line, plan.Regex),
             FieldSeparatorKind.Whitespace => SplitWhitespaceRecordFields(line),
             FieldSeparatorKind.Characters => SplitCharacterRecordFields(
                 line,
@@ -259,44 +257,6 @@ internal sealed class AwkByteFieldSplitter(
             return fields;
         }
 
-        List<AwkFieldText> SplitRegexParagraphRecordFields(AwkText line, AwkRegex separator)
-        {
-            var content = line.AsSpan();
-            var fields = new List<AwkFieldText>();
-            var position = 0;
-            using var matches = enumerateMatchSpans(separator, line);
-            while (matches.MoveNext(out var match))
-            {
-                throwIfCancellationRequested();
-                if (match.ByteLength == 0)
-                    continue;
-                while (position < match.ByteIndex)
-                {
-                    var newlineOffset = content[position..match.ByteIndex].IndexOf((byte)'\n');
-                    if (newlineOffset < 0)
-                        break;
-
-                    fields.Add(AwkFieldText.FromRecordSlice(position, newlineOffset));
-                    position += newlineOffset + 1;
-                }
-
-                fields.Add(AwkFieldText.FromRecordSlice(position, match.ByteIndex - position));
-                position = match.ByteIndex + match.ByteLength;
-            }
-
-            while (position < content.Length)
-            {
-                var newlineOffset = content[position..].IndexOf((byte)'\n');
-                if (newlineOffset < 0)
-                    break;
-
-                fields.Add(AwkFieldText.FromRecordSlice(position, newlineOffset));
-                position += newlineOffset + 1;
-            }
-
-            fields.Add(AwkFieldText.FromRecordSlice(position, content.Length - position));
-            return fields;
-        }
     }
 
     private FieldSeparatorPlan ResolveSeparator(

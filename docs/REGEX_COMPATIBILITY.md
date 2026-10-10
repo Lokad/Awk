@@ -40,8 +40,8 @@ RS uses regex matching when IGNORECASE is enabled, preserving case equivalence f
 separator; it retains the byte-native literal plan when case-sensitive.
 
 This qualification does not establish full profile conformance. Unknown-escape warnings,
-some ERE grammar/numeric-byte escapes, mixed regex/expression range parsing, paragraph
-terminators and non-ASCII paragraph FS, and Unicode word boundaries remain open.
+some ERE grammar/numeric-byte escapes, source-specific repeated pipe EOF/RT,
+and Unicode word boundaries remain open.
 GNU 5.4 MinRX also loses uppercase members in classes such as `[[:alpha:]A]`; GNU 5.2
 and GNU 5.4 with `GAWK_GNU_MATCHERS=1` retain them. These reference differences must
 remain explicit when selecting compatibility expectations.

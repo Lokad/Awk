@@ -2,13 +2,24 @@
 
 ## Unreleased
 
+- Paragraph reads that discard only leading blank lines now carry an explicit EOF
+  directive to clear GNU RT without admitting a record. Main input applies it before
+  ENDFILE; empty/repeated EOF and read failures preserve RT. File admission preserves
+  the current record unless BEGINFILE actions require the established empty frame.
+
+- Mixed regex/expression range endpoints now lower in either order, with default or
+  explicit actions. Paragraph EOF preserves the final consumed newline in GNU RT.
+  Multibyte literal FS no longer adds implicit LF field boundaries in paragraph mode;
+  single-byte separators retain that rule. Lazy field plans, UTF-8 scalar boundaries,
+  and preflight before owned record/terminator allocation are preserved.
+
 - Regex escape translation now follows GNU/POSIX/traditional profiles for literal and
   dynamic patterns. Unknown escapes denote ordinary characters; numeric escapes retain
   the selected profile's metacharacter rules. POSIX RS follows its first-byte scanner,
   POSIX mode overrides byte-unit options with a warning, and GNU IGNORECASE applies to
   non-ASCII single-scalar RS. Equivalent ASCII letter
   class atoms avoid incorrect UTF-8 adapter boolean case folding. Remaining warning,
-  ERE grammar, paragraph, range-parser and Unicode boundary gaps stay open.
+  ERE grammar, blank-only paragraph EOF/RT and Unicode boundary gaps stay open.
 
 - Compatibility profiles now govern lexical keywords, reserved names, callable binding,
   formal parameters and GNU special-variable effects. Disabled GNU names can be ordinary

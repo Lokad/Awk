@@ -66,6 +66,8 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(FieldModeCompatibilityCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Variable, AwkGoldenTag.Regex),
         .. Tagged(RegexProfileCompatibilityCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Regex),
+        .. Tagged(RangeParagraphCompatibilityCases(), AwkGoldenTag.Pattern, AwkGoldenTag.Record, AwkGoldenTag.Field, AwkGoldenTag.Regex),
+        .. Tagged(ParagraphEofCompatibilityCases(), AwkGoldenTag.Record, AwkGoldenTag.Field, AwkGoldenTag.Regex),
 
         .. Tagged(HostPolicyCases(), AwkGoldenTag.HostPolicy),
 

@@ -184,7 +184,6 @@ internal static partial class AwkProgramLowerer
                     condition = null;
                     var expressionSyntax = part.Expression;
                     if (expressionSyntax == null ||
-                        expressionSyntax.Kind == AwkExpressionKind.Regex ||
                         !AwkExpressionLowerer.TryLower(expressionSyntax, scope, out var expression))
                     {
                         return false;

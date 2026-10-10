@@ -230,7 +230,9 @@ internal sealed class AwkIo
         {
             var input = await reader.ReadAsync().ConfigureAwait(false);
             if (!input.HasRecord)
-                return AwkGetlineResult.EndOfFile;
+                return input.ClearsRecordTerminator
+                    ? AwkGetlineResult.EndOfFileClearingTerminator
+                    : AwkGetlineResult.EndOfFile;
 
             _counters.RecordRecordRead();
             return AwkGetlineResult.Record(

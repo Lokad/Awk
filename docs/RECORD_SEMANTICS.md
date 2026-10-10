@@ -18,6 +18,47 @@ scalar here, so this also applies to multibyte separators. A bracket pattern suc
 `FS="[a]"` remains a regex separator and honors the case setting captured for the record.
 This follows the [documented single-character exception](https://www.gnu.org/software/gawk/manual/html_node/Field-Splitting-Summary.html).
 
+## Paragraph Records And Range Patterns
+
+With `RS=""`, leading empty lines are skipped and a run of at least two newlines
+separates paragraphs. A final single newline is removed from `$0` and retained in GNU
+`RT`; a record ending without a newline has empty `RT`. POSIX/traditional modes keep
+`RT` as an ordinary variable. Plain and redirected `getline` use the same cursor.
+
+Paragraph field splitting adds LF as an implicit separator for a literal single-byte
+`FS`. Whitespace `FS` already includes LF. A multibyte literal separator or a regex
+separator preserves embedded LF unless the pattern explicitly matches it. Empty `FS`
+retains the selected profile's character/whole-line paragraph rules. These byte and
+multibyte distinctions were checked against GNU awk 5.2.1 and 5.4.0 in C.UTF-8.
+
+Lokad.Awk also recognizes CRLF as one paragraph newline, retains its original bytes
+in `RT`, and leaves lone CR in record data. This is the existing host-input policy,
+an explicit divergence from GNU awk's LF-only paragraph scanner. CRLF within a record
+remains record data. Cursor tests cover every byte boundary, including inside a UTF-8
+scalar and between CR and LF. The final LF shares the immutable newline terminator;
+CRLF and record byte allocations preflight together before consuming the record.
+
+Mixed ranges such as `/start/,$0=="stop"` and `$0=="start",/stop/` accept regex and
+expression endpoints in either order. Endpoint evaluation follows the ordinary range
+state: test the start while inactive, test the end on every selected record including
+the starting record, and include the ending record. Default actions print `$0`.
+Range state survives file boundaries and is independent for each rule.
+
+Blank-only paragraph input clears GNU `RT` when a read discards the leading newlines
+and reaches EOF. This is an explicit EOF result, without record admission or replacement
+of `$0`, fields, destination variables or record counters. Main input applies it before
+`ENDFILE`. Empty input, later EOF with no discarded bytes and failed reads preserve RT;
+POSIX/traditional RT remains ordinary. Host checks cover blank lines and CRLF split
+across batches, including command-pipe reads.
+
+The native survey retains separate unresolved getline expression syntax and failure
+diagnostic differences. GNU command pipes also repeatedly clear RT after blank-only
+EOF; Lokad's directive follows actual byte consumption once, matching regular-file
+controls. This source-specific EOF difference remains open. Both GNU versions can
+truncate an assigned RT value to the next paragraph terminator's length without copying
+the terminator bytes. Lokad retains the actual consumed separator. GNU 5.2.1 additionally
+corrupts an ordinary non-GNU RT variable; GNU 5.4.0 preserves that ordinary variable.
+
 ## Live Main-Input Arguments
 
 Main record processing and plain `getline` share one ordered input scheduler. Before
@@ -48,10 +89,13 @@ assignment parsing use an explicit string compatibility boundary.
 
 ## File Boundaries
 
-Starting a main-input file clears `$0`, materialized fields, field-value caches, and any
-lazy splitting plan before `BEGINFILE`. This also applies to failed opens handled by
-`BEGINFILE`, implicit stdin, and the first file after assignments to `$0` in `BEGIN`.
-`ENDFILE` retains the final record of the completed file until the next file starts.
+When the program has BEGINFILE actions, starting a main-input file clears `$0`,
+materialized fields, field-value caches and any lazy splitting plan before that action.
+An empty BEGINFILE body still requests this reset. Failed opens handled by BEGINFILE,
+implicit stdin and BEGIN-assigned records follow the same rule. Without BEGINFILE
+actions, file admission retains the existing record/fields until a record is admitted.
+This matters for empty files and getline variable. ENDFILE actions alone do not request
+the reset. File counters, filename and argument admission still update normally.
 
 `nextfile` from `BEGINFILE` runs `ENDFILE` if the file opened successfully. Failed opens
 skipped with `nextfile` do not run `ENDFILE`. `exit` from `BEGINFILE` skips `ENDFILE` and

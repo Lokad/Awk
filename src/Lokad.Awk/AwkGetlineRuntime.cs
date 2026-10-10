@@ -46,6 +46,10 @@ internal static class AwkGetlineRuntime
                         result.FieldSplittingMode)
                     .ConfigureAwait(false);
             }
+            else if (result.ClearsRecordTerminator)
+            {
+                context.State.SetRecordTerminator(AwkRecordTerminator.Empty);
+            }
             else if (result.Failed)
             {
                 context.State.SetErrno(result.Error.Errno);

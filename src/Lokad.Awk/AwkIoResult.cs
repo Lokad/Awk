@@ -115,7 +115,8 @@ internal readonly struct AwkGetlineResult(
     AwkText? record,
     AwkRecordTerminator terminator,
     AwkRecordFieldSplittingMode fieldSplittingMode,
-    AwkIoError error)
+    AwkIoError error,
+    bool clearsRecordTerminator = false)
 {
     public static AwkGetlineResult EndOfFile { get; } =
         new(
@@ -124,6 +125,10 @@ internal readonly struct AwkGetlineResult(
             AwkRecordTerminator.Empty,
             AwkRecordFieldSplittingMode.Ordinary,
             AwkIoError.None);
+
+    public static AwkGetlineResult EndOfFileClearingTerminator { get; } =
+        new(AwkGetlineStatus.EndOfFile, AwkText.Empty, AwkRecordTerminator.Empty,
+            AwkRecordFieldSplittingMode.Ordinary, AwkIoError.None, clearsRecordTerminator: true);
 
     public static AwkGetlineResult Failure(AwkIoError error) =>
         new(
@@ -150,6 +155,8 @@ internal readonly struct AwkGetlineResult(
     public AwkIoError Error { get; } = error;
 
     public bool HasRecord => Status == AwkGetlineStatus.Record;
+
+    public bool ClearsRecordTerminator { get; } = clearsRecordTerminator;
 
     public bool Failed => Status == AwkGetlineStatus.Failure;
 
