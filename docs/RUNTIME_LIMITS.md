@@ -44,12 +44,19 @@ These limits are host-mediated and publicly configurable:
   cleanup calls in a source-loading or runtime phase, rather than a fresh timeout for every open
   descriptor. A normal descriptor close uses the earlier of the host-operation and cleanup
   timeouts so shutdown cannot extend beyond either policy.
-- `MaxOutputFiles`: number of distinct redirected output files.
+- `MaxOutputFiles`: number of concurrently open logical output redirections, including
+  output pipes. A flushed file retains its slot while its physical host descriptor is
+  closed; reopening that same stream does not require another slot. Only close releases
+  it. File and pipe admission both check the combined count before host effects.
 - `MaxInputFiles`: number of concurrently open redirected input files.
 - `MaxPipes`: number of concurrently open input and output command pipes.
 - `MaxInputBytes` and `MaxRecords`: aggregate runtime input admitted across descriptors and the
   number of records made visible to awk.
-- `MaxOutputBytes`: bytes emitted to host-visible output streams.
+- `MaxOutputBytes`: bytes emitted to host-visible output streams, including runtime
+  warnings. fflush warning output is admitted before the -1 result can be printed.
+  Limit failure preserves prior output and aborts with the existing resource diagnostic.
+  Warning messages preflight memory before constructing path text; the diagnostic queue
+  charges retained text/buffer growth and releases messages on output or host failure.
 - `MaxRecordBytes`: bytes in one awk-visible input record.
 - `MaxValueBytes`: bytes in one awk-visible text value.
 - `MaxBuilderBytes`: bytes retained by one transient UTF-8 builder. The default is 64 MiB, and

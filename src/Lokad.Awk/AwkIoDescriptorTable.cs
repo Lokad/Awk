@@ -8,24 +8,43 @@ namespace Lokad.Awk;
 
 internal sealed class AwkIoDescriptorTable
 {
-    private readonly Dictionary<AwkPath, AwkFileDescriptor> _outputFiles = [];
+    private readonly Dictionary<AwkPath, AwkOutputFile> _outputFiles = [];
     private readonly Dictionary<AwkPath, AwkInputFile> _inputFiles = [];
-    private readonly HashSet<AwkPath> _flushedOutputFiles = [];
 
     public int OutputFileCount => _outputFiles.Count;
 
     public int InputFileCount => _inputFiles.Count;
 
-    public bool TryGetOutput(AwkPath path, out AwkFileDescriptor descriptor) =>
-        _outputFiles.TryGetValue(path, out descriptor);
+    public bool HasOutput(AwkPath path) => _outputFiles.ContainsKey(path);
 
-    public void AddOutput(AwkPath path, AwkFileDescriptor descriptor)
+    public bool TryGetOutput(AwkPath path, out AwkFileDescriptor descriptor)
     {
-        _outputFiles[path] = descriptor;
+        if (_outputFiles.TryGetValue(path, out var output) && output.HasDescriptor)
+        {
+            descriptor = output.Descriptor;
+            return true;
+        }
+        descriptor = default;
+        return false;
+    }
+
+    public void AddOutput(AwkPath path, AwkFileDescriptor descriptor, long openedOrder)
+    {
+        var order = _outputFiles.TryGetValue(path, out var previous) ? previous.Order : openedOrder;
+        _outputFiles[path] = new AwkOutputFile(descriptor, true, order);
+    }
+
+    public AwkOpenRedirection GetRedirection(AwkPath path)
+    {
+        var output = _outputFiles.TryGetValue(path, out var written)
+            ? new AwkOpenRedirection(AwkOpenRedirectionKind.OutputFile, written.Order) : default;
+        var input = _inputFiles.TryGetValue(path, out var read)
+            ? new AwkOpenRedirection(AwkOpenRedirectionKind.InputFile, read.Order) : default;
+        return output.Newer(input);
     }
 
     public AwkFileOpenMode ResolveOutputOpenMode(AwkPath path, AwkOutputRedirectionKind kind) =>
-        kind == AwkOutputRedirectionKind.Append || _flushedOutputFiles.Remove(path)
+        kind == AwkOutputRedirectionKind.Append || HasOutput(path)
             ? AwkFileOpenMode.WriteAppend
             : AwkFileOpenMode.WriteTruncate;
 
@@ -41,9 +60,9 @@ internal sealed class AwkIoDescriptorTable
         return false;
     }
 
-    public void AddInput(AwkPath path, AwkFileDescriptor descriptor, AwkRecordCursor reader)
+    public void AddInput(AwkPath path, AwkFileDescriptor descriptor, AwkRecordCursor reader, long openedOrder)
     {
-        _inputFiles[path] = new AwkInputFile(descriptor, reader);
+        _inputFiles[path] = new AwkInputFile(descriptor, reader, openedOrder);
     }
 
     public AwkPath[] SnapshotOutputPaths() =>
@@ -53,24 +72,26 @@ internal sealed class AwkIoDescriptorTable
         AwkIoHostAdapter host,
         AwkPath path)
     {
-        if (!_outputFiles.TryGetValue(path, out var descriptor))
+        if (!_outputFiles.TryGetValue(path, out var output))
             return false;
 
-        await host.CloseDescriptorAsync(descriptor).ConfigureAwait(false);
-        _outputFiles.Remove(path);
-        _flushedOutputFiles.Add(path);
+        if (output.HasDescriptor)
+        {
+            await host.CloseDescriptorAsync(output.Descriptor).ConfigureAwait(false);
+            _outputFiles[path] = output with { Descriptor = default, HasDescriptor = false };
+        }
         return true;
     }
 
     public async Task CloseAllAsync(AwkIoHostAdapter host)
     {
-        foreach (var descriptor in _outputFiles.Values)
+        foreach (var output in _outputFiles.Values)
         {
-            await host.CloseDescriptorAsync(descriptor).ConfigureAwait(false);
+            if (output.HasDescriptor)
+                await host.CloseDescriptorAsync(output.Descriptor).ConfigureAwait(false);
         }
 
         _outputFiles.Clear();
-        _flushedOutputFiles.Clear();
 
         foreach (var input in _inputFiles.Values)
         {
@@ -83,10 +104,10 @@ internal sealed class AwkIoDescriptorTable
 
     public async Task CloseAllForCleanupAsync(AwkIoHostAdapter host)
     {
-        var outputDescriptors = _outputFiles.Values.ToArray();
+        var outputDescriptors = _outputFiles.Values.Where(output => output.HasDescriptor)
+            .Select(output => output.Descriptor).ToArray();
         var inputFiles = _inputFiles.Values.ToArray();
         _outputFiles.Clear();
-        _flushedOutputFiles.Clear();
         _inputFiles.Clear();
 
         for (var index = 0; index < outputDescriptors.Length; index++)
@@ -115,39 +136,15 @@ internal sealed class AwkIoDescriptorTable
         }
     }
 
-    public async Task<bool> CloseAnyAsync(
-        AwkIoHostAdapter host,
-        AwkPath path)
-    {
-        var closed = false;
-        _flushedOutputFiles.Remove(path);
-        if (_outputFiles.TryGetValue(path, out var descriptor))
-        {
-            await host.CloseDescriptorAsync(descriptor).ConfigureAwait(false);
-            _outputFiles.Remove(path);
-            closed = true;
-        }
-
-        if (_inputFiles.TryGetValue(path, out var input))
-        {
-            input.Reader.Dispose();
-            await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
-            _inputFiles.Remove(path);
-            closed = true;
-        }
-
-        return closed;
-    }
-
     public async Task<bool> CloseOutputAsync(
         AwkIoHostAdapter host,
         AwkPath path)
     {
-        _flushedOutputFiles.Remove(path);
-        if (!_outputFiles.TryGetValue(path, out var descriptor))
+        if (!_outputFiles.TryGetValue(path, out var output))
             return false;
 
-        await host.CloseDescriptorAsync(descriptor).ConfigureAwait(false);
+        if (output.HasDescriptor)
+            await host.CloseDescriptorAsync(output.Descriptor).ConfigureAwait(false);
         _outputFiles.Remove(path);
         return true;
     }
@@ -165,8 +162,12 @@ internal sealed class AwkIoDescriptorTable
         return true;
     }
 
-    private sealed class AwkInputFile(AwkFileDescriptor descriptor, AwkRecordCursor reader)
+    private readonly record struct AwkOutputFile(AwkFileDescriptor Descriptor, bool HasDescriptor, long Order);
+
+    private sealed class AwkInputFile(AwkFileDescriptor descriptor, AwkRecordCursor reader, long order)
     {
+        public long Order { get; } = order;
+
         public AwkFileDescriptor Descriptor { get; } = descriptor;
 
         public AwkRecordCursor Reader { get; } = reader;

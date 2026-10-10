@@ -9,10 +9,22 @@ internal sealed class AwkPipeRuntime(
     int maxOutputRedirections,
     int maxPipes,
     Func<int> outputFileCount,
-    Func<AwkFileDescriptor, AwkRecordCursor> createRecordCursor)
+    Func<AwkFileDescriptor, AwkRecordCursor> createRecordCursor,
+    Func<long> nextRedirectionOrder)
 {
     private readonly Dictionary<string, AwkOutputPipe> _outputPipes = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AwkInputPipe> _inputPipes = new(StringComparer.Ordinal);
+
+    public int OutputPipeCount => _outputPipes.Count;
+
+    public AwkOpenRedirection GetRedirection(string command)
+    {
+        var output = _outputPipes.TryGetValue(command, out var written)
+            ? new AwkOpenRedirection(AwkOpenRedirectionKind.OutputPipe, written.Order) : default;
+        var input = _inputPipes.TryGetValue(command, out var read)
+            ? new AwkOpenRedirection(AwkOpenRedirectionKind.InputPipe, read.Order) : default;
+        return output.Newer(input);
+    }
 
     public bool HasOutputPipe(string command) => _outputPipes.ContainsKey(command);
 
@@ -38,7 +50,7 @@ internal sealed class AwkPipeRuntime(
             {
                 var invocation = host.CreateOutputPipeCommand(command, descriptors.Read);
                 var completion = host.RunCommandAsync(invocation);
-                var pipe = new AwkOutputPipe(descriptors.Write, completion);
+                var pipe = new AwkOutputPipe(descriptors.Write, completion, nextRedirectionOrder());
                 _outputPipes.Add(command, pipe);
                 return pipe;
             }
@@ -68,7 +80,7 @@ internal sealed class AwkPipeRuntime(
                 var invocation = host.CreateInputPipeCommand(command, descriptors.Write);
                 var completion = host.RunCommandAsync(invocation);
                 var reader = createRecordCursor(descriptors.Read);
-                var pipe = new AwkInputPipe(descriptors.Read, descriptors.Write, reader, completion);
+                var pipe = new AwkInputPipe(descriptors.Read, descriptors.Write, reader, completion, nextRedirectionOrder());
                 _inputPipes.Add(command, pipe);
                 return pipe;
             }
@@ -78,16 +90,6 @@ internal sealed class AwkPipeRuntime(
                 throw;
             }
         }
-    }
-
-    public async Task<AwkPipeCloseResult> CloseAnyAsync(string command)
-    {
-        var outputClosed = await CloseOutputAsync(command).ConfigureAwait(false);
-        var inputClosed = await CloseInputAsync(command).ConfigureAwait(false);
-        if (inputClosed.ClosedPipe)
-            return inputClosed;
-
-        return outputClosed;
     }
 
     public async Task<AwkPipeCloseResult> CloseOutputAsync(string command)
@@ -174,8 +176,10 @@ internal sealed class AwkPipeRuntime(
 
     private sealed class AwkOutputPipe(
         AwkFileDescriptor writeDescriptor,
-        Task<AwkExitCode> commandCompletion)
+        Task<AwkExitCode> commandCompletion, long order)
     {
+        public long Order { get; } = order;
+
         public AwkFileDescriptor WriteDescriptor { get; } = writeDescriptor;
 
         public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host)
@@ -210,8 +214,10 @@ internal sealed class AwkPipeRuntime(
         AwkFileDescriptor readDescriptor,
         AwkFileDescriptor writeDescriptor,
         AwkRecordCursor reader,
-        Task<AwkExitCode> commandCompletion)
+        Task<AwkExitCode> commandCompletion, long order)
     {
+        public long Order { get; } = order;
+
         public AwkRecordCursor Reader { get; } = reader;
 
         public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host)

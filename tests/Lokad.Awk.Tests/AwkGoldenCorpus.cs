@@ -60,6 +60,8 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(IoCases(), AwkGoldenTag.Io),
 
+        .. Tagged(FlushCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Function),
+
         .. Tagged(HostPolicyCases(), AwkGoldenTag.HostPolicy),
 
         .. Tagged(RegexCases(), AwkGoldenTag.Regex),
@@ -3265,12 +3267,14 @@ internal static partial class AwkGoldenCorpus
             "0\n-1\n",
             [File("/out.txt", "two\n")]),
 
-        PassingWithExpectedFiles(
-            "fflush-function-return-values",
-            ["BEGIN{path=\"/out.txt\"; print \"one\" > path; print fflush(path); getline seen < path; print seen; print fflush(path); print fflush(\"/missing.txt\"); print \"two\" > path}"],
-            [],
-            "0\none\n-1\n-1\n",
-            [File("/out.txt", "one\ntwo\n")]),
+        AwkGoldenCaseBuilder
+            .Create("fflush-function-return-values",
+                ["BEGIN{path=\"/out.txt\"; print \"one\" > path; print fflush(path); getline seen < path; print seen; print fflush(path); print fflush(\"/missing.txt\"); print \"two\" > path}"], [])
+            .WithStdOut("0\none\n-1\n-1\n")
+            .WithStdErr("awk: warning: fflush: cannot flush: file `/out.txt' opened for reading, not writing\n" +
+                "awk: warning: fflush: `/missing.txt' is not an open file, pipe or co-process\n")
+            .WithExpectedFiles([File("/out.txt", "one\ntwo\n")])
+            .Build(),
 
         Passing(
             "close-unopened-sets-errno",
@@ -3278,11 +3282,12 @@ internal static partial class AwkGoldenCorpus
             [],
             "-1 close of redirection that was never opened\n"),
 
-        Passing(
-            "fflush-unopened-sets-errno",
+        PassingWithStdErr(
+            "fflush-unopened-preserves-errno",
             ["BEGIN{print fflush(\"/missing.txt\"), ERRNO}"],
             [],
-            "-1 close of redirection that was never opened\n"),
+            "-1 \n",
+            "awk: warning: fflush: `/missing.txt' is not an open file, pipe or co-process\n"),
 
         PassingWithStdErr(
             "getline-file-expression-return-values",

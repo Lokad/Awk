@@ -101,6 +101,10 @@ internal sealed class AwkOutputSink : IDisposable
                 await io.WriteStandardErrorAsync(AwkDiagnostics.Warning(_diagnostics[index])).ConfigureAwait(false);
             }
         }
+        catch (Exception exception) when (exception is not AwkRuntimeException and not OperationCanceledException)
+        {
+            throw new AwkRuntimeException(AwkMessages.ErrorUnexpectedFailure, AwkDiagnosticId.HostIoFailure);
+        }
         finally
         {
             ClearDiagnostics();

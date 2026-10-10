@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- fflush now warns about unopened and input-only streams without assigning ERRNO.
+  Numeric and input-numeric arguments follow normal/fatal lint rules; ordinary flush
+  warnings remain nonfatal. Standalone close now preserves its failure ERRNO result.
+  Flushing a file retains its logical opening and output-limit slot, supports repeated
+  flush/close, and reopens for append. Mixed-direction lookups select the latest opening.
+  Warning admission preflights memory/output, and stderr host exceptions become awk errors
+  in both engines while releasing queued diagnostics.
+
 - Normalized mktime calendar overflow with bounded byte-native Gregorian arithmetic,
   including year zero and negative years. UTC/fixed zones support GNU's tm-year range;
   dynamic zones use injected TimeZoneInfo rules, explicit DST fields and a deterministic

@@ -10,6 +10,41 @@ sources, stdin fallback, exit status, stderr wording, and stdout/stderr preserva
 that a caller can observe through `awk` should be added there unless the behavior is only visible
 through a current-surface runtime option.
 
+## Flushing And Closing Streams
+
+fflush() and fflush("") flush all output files. A targeted flush returns 0 for an
+open output stream. An unopened name returns -1 with an ordinary runtime warning;
+an input-only file or pipe returns -1 with a warning that identifies its direction.
+These warnings preserve ERRNO, including a previous getline/close error, and do not
+become fatal under --lint=fatal. Normal lint additionally warns for numeric and
+input-numeric arguments; fatal lint rejects those arguments before flushing.
+General lint warnings for uninitialized reads and extension use remain incomplete;
+this rule describes fflush's argument check, not full GNU lint compatibility.
+
+Standalone calls and expression calls share the same behavior and evaluate their
+argument once. Empty/untyped scalar arguments select all output without consuming
+an untyped array cell. close of an unopened name returns -1 and assigns
+"close of redirection that was never opened" to ERRNO, including standalone close.
+A successful close/flush does not erase ERRNO.
+
+The host API has no flush operation. For file output, Lokad closes the physical
+host descriptor to publish buffered bytes, retains the logical stream, and reopens
+for append on its next write. Repeated flush succeeds; close releases the stream;
+a subsequent > opening truncates again. Flushing does not release its output-limit
+slot. Pipes and standard output already publish chunks through awaited AppendAsync;
+flushing an output pipe does not wait for command completion or close the pipe.
+When a name has both input and output streams, undirected close/fflush selects the
+most recently opened logical stream. Reads/writes of an existing stream and the
+physical close/reopen used for flushing do not change that selection.
+
+Existing embedding path policies remain explicit differences from GNU's raw-name
+redirection identity. Canonical host paths share a file stream; /dev/fd/1 and
+/dev/fd/2 are always bound to the invocation's output descriptors. /dev/stdin and
+/dev/fd/0 share the redirected standard-input reader. Thus flushing an unused output
+fd alias succeeds, and flushing a canonical alias of an open file finds that stream.
+Host failures remain fatal awk diagnostics; they are distinct from the nonfatal
+unopened/input-only warnings. Diagnostic locations use Lokad's stable awk prefix.
+
 ## Expression And Statement Boundaries
 
 The six relational operators (`<`, `<=`, `>`, `>=`, `==`, `!=`) are non-associative:

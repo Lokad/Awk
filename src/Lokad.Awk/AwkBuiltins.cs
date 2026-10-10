@@ -259,23 +259,11 @@ internal static partial class AwkBuiltins
             if (!context.TryGetExecutionContext(out var execution))
                 return AwkValue.FromNumber(-1);
 
-            await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
-            AwkIoOperationResult result;
-            if (context.ArgumentCount == 0)
-            {
-                result = await execution.Io.FlushAllAsync().ConfigureAwait(false);
-            }
-            else
-            {
-                var path = await context.GetStringAsync(0).ConfigureAwait(false);
-                result = path.Length == 0
-                    ? await execution.Io.FlushAllAsync().ConfigureAwait(false)
-                    : await execution.Io.FlushPathAsync(path).ConfigureAwait(false);
-            }
-            if (result.Failed)
-                context.State.SetErrno(result.Error.Errno);
-
-            return AwkValue.FromNumber(result.StatusCode);
+            var status = context.ArgumentCount == 0
+                ? await AwkFflushRuntime.FlushAllAsync(execution).ConfigureAwait(false)
+                : await AwkFflushRuntime.FlushAsync(
+                    await context.GetValueAsync(0).ConfigureAwait(false), context.State, execution).ConfigureAwait(false);
+            return AwkValue.FromNumber(status);
         }
         static AwkValue EvaluateInt(AwkBuiltinContext context)
         {

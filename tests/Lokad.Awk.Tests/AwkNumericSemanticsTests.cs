@@ -155,8 +155,9 @@ public sealed class AwkNumericSemanticsTests
         var host = new MockFileSystem { AfterAppend = () => throw new InvalidOperationException("private host detail") };
         var io = CreateIo(host);
 
-        // The outer execution boundary sanitizes synchronous host exceptions; the sink owns cleanup.
-        await Assert.ThrowsAsync<InvalidOperationException>(() => sink.FlushDiagnosticsAsync(io));
+        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => sink.FlushDiagnosticsAsync(io));
+        Assert.Equal(AwkUtf8Codec.Decode(Lokad.Awk.AwkMessages.ErrorUnexpectedFailure),
+            AwkUtf8Codec.Decode(error.MessageBytes));
 
         Assert.Equal(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity +
             AwkRuntimeMemory.EstimateDiagnosticBufferBytes(4), governor.CurrentCommittedBytes);

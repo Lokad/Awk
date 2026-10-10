@@ -43,8 +43,7 @@ internal abstract partial class AwkStatement
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var execution = RequireExecutionContext(context);
-            await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
-            _ = await targetExpression.FlushAsync(context, execution.Io).ConfigureAwait(false);
+            _ = await targetExpression.FlushAsync(context, execution).ConfigureAwait(false);
             return AwkStatementFlow.Continue;
         }
     }
@@ -60,7 +59,9 @@ internal abstract partial class AwkStatement
             var target = await targetExpression
                 .ResolveStringAsync(context)
                 .ConfigureAwait(false);
-            await execution.Io.CloseAsync(target).ConfigureAwait(false);
+            var result = await execution.Io.CloseAsync(target).ConfigureAwait(false);
+            if (result.Failed)
+                context.State.SetErrno(result.Error.Errno);
             return AwkStatementFlow.Continue;
         }
     }

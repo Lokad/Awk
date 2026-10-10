@@ -177,31 +177,21 @@ internal abstract record AwkFflushTarget
     public static AwkFflushTarget ExpressionTarget(AwkExpression expression) =>
         new AwkExpressionFflushTarget(expression);
 
-    /// <summary>Flushes the represented output set.</summary>
-    public abstract ValueTask<AwkIoOperationResult> FlushAsync(
-        AwkEvaluationContext context,
-        AwkIo io);
+    /// <summary>Flushes the represented output set and emits any runtime warnings.</summary>
+    public abstract ValueTask<int> FlushAsync(AwkEvaluationContext context, AwkExecutionContext execution);
 }
 
 internal sealed record AwkAllFflushTarget : AwkFflushTarget
 {
-    public override ValueTask<AwkIoOperationResult> FlushAsync(
-        AwkEvaluationContext context,
-        AwkIo io) =>
-        new(io.FlushAllAsync());
+    public override ValueTask<int> FlushAsync(AwkEvaluationContext context, AwkExecutionContext execution) =>
+        AwkFflushRuntime.FlushAllAsync(execution);
 }
 
 internal sealed record AwkExpressionFflushTarget(AwkExpression Expression) : AwkFflushTarget
 {
-    public override async ValueTask<AwkIoOperationResult> FlushAsync(
-        AwkEvaluationContext context,
-        AwkIo io)
-    {
-        var path = await Expression.ResolveStringAsync(context).ConfigureAwait(false);
-        return path.Length == 0
-            ? await io.FlushAllAsync().ConfigureAwait(false)
-            : await io.FlushPathAsync(path).ConfigureAwait(false);
-    }
+    public override async ValueTask<int> FlushAsync(AwkEvaluationContext context, AwkExecutionContext execution) =>
+        await AwkFflushRuntime.FlushAsync(
+            await Expression.EvaluateAsync(context).ConfigureAwait(false), context.State, execution).ConfigureAwait(false);
 }
 
 internal abstract record AwkSwitchCasePattern

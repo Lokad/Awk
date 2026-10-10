@@ -31,6 +31,10 @@ internal sealed class AwkIoHostAdapter(
     private readonly AwkCleanupDeadline _cleanupDeadline =
         cleanupDeadline ?? new AwkCleanupDeadline(cleanupTimeout ?? TimeSpan.FromSeconds(30));
 
+    // A lookup only inspects already admitted streams; it never opens a host path.
+    public AwkPath ResolveExistingPath(string path) =>
+        AwkPathResolution.ResolveRuntimeArgument(path, currentDirectory).Absolute;
+
     public AwkResolvedPath ResolvePath(string path)
     {
         var resolved = AwkPathResolution.ResolveRuntimeArgument(path, currentDirectory);
