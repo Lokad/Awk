@@ -565,8 +565,42 @@ internal sealed class AwkExpressionSyntaxParser
             AwkTokenKind.SlashEqual,
             AwkTokenKind.PercentEqual,
             AwkTokenKind.CaretEqual)] Pos<string> op,
-        [NT(10)] AwkExpressionSyntax right) =>
-        CreateNode(AwkExpressionKind.Assignment, left, right, [AwkParsingSupport.ToToken(op)]);
+        [NT(10)] AwkExpressionSyntax right)
+    {
+        var operatorToken = AwkParsingSupport.ToToken(op);
+        if (!AcceptsAssignmentOperand(left))
+            return CreateNode(AwkExpressionKind.Assignment, left, right, [operatorToken]);
+
+        // Awk's logical, comparison, and conditional operands admit a full expression,
+        // whereas assignment's left operand must be an lvalue. Restore that grammar
+        // after ranked parsing: 1 && x = y || z means 1 && (x = (y || z)).
+        var containers = new Stack<AwkExpressionSyntax>();
+        var target = left;
+        while (AcceptsAssignmentOperand(target))
+        {
+            containers.Push(target);
+            target = target.Children[^1];
+        }
+
+        var expression = CreateNode(AwkExpressionKind.Assignment, target, right, [operatorToken]);
+        while (containers.TryPop(out var container))
+        {
+            expression = container.Kind == AwkExpressionKind.Conditional
+                ? CreateNode(AwkExpressionKind.Conditional, container.FirstToken, expression.LastToken,
+                    [container.Children[0], container.Children[1], expression], container.OperatorTokens)
+                : CreateNode(AwkExpressionKind.Binary, container.Children[0], expression, container.OperatorTokens);
+        }
+        return expression;
+
+        static bool AcceptsAssignmentOperand(AwkExpressionSyntax expression) =>
+            expression.Kind == AwkExpressionKind.Conditional ||
+            expression.Kind == AwkExpressionKind.Binary && expression.OperatorTokens[0].Kind is
+                AwkTokenKind.AmpersandAmpersand or AwkTokenKind.PipePipe or
+                AwkTokenKind.Tilde or AwkTokenKind.BangTilde or
+                AwkTokenKind.EqualEqual or AwkTokenKind.BangEqual or
+                AwkTokenKind.Less or AwkTokenKind.LessEqual or
+                AwkTokenKind.Greater or AwkTokenKind.GreaterEqual;
+    }
 
     private static AwkExpressionSyntax CreateGetlineCall(
         Pos<string> getline,

@@ -518,6 +518,44 @@ public sealed class AwkSyntaxParserTests
     }
 
     [Fact]
+    public void AwkSyntaxParser_KeepsAssignmentInsideFullExpressionOperands()
+    {
+        const string source = "BEGIN{1&&x=0||1;1?x=2:y=3;x=1&&y=2;0?1:1?x=2:y=3}";
+        var program = AwkSyntaxParser.Parse(source);
+        Assert.Empty(program.Diagnostics);
+        var statements = Assert.Single(program.Rules).ActionStatements;
+
+        var conjunction = RequiredExpression(statements[0]);
+        Assert.Equal(AwkTokenKind.AmpersandAmpersand, Assert.Single(conjunction.OperatorTokens).Kind);
+        var assignedOperand = conjunction.Children[1];
+        Assert.Equal(AwkExpressionKind.Assignment, assignedOperand.Kind);
+        Assert.Equal("x", Assert.Single(assignedOperand.Children[0].Tokens).Text);
+        Assert.Equal(AwkTokenKind.PipePipe, Assert.Single(assignedOperand.Children[1].OperatorTokens).Kind);
+
+        var conditional = RequiredExpression(statements[1]);
+        Assert.Equal(AwkExpressionKind.Conditional, conditional.Kind);
+        Assert.Equal(AwkExpressionKind.Assignment, conditional.Children[1].Kind);
+        Assert.Equal(AwkExpressionKind.Assignment, conditional.Children[2].Kind);
+
+        var outerAssignment = RequiredExpression(statements[2]);
+        Assert.Equal(AwkExpressionKind.Assignment, outerAssignment.Kind);
+        Assert.Equal(AwkExpressionKind.Binary, outerAssignment.Children[1].Kind);
+        Assert.Equal(AwkExpressionKind.Assignment, outerAssignment.Children[1].Children[1].Kind);
+
+        var nestedConditional = RequiredExpression(statements[3]);
+        Assert.Equal(AwkExpressionKind.Conditional, nestedConditional.Kind);
+        Assert.Equal(AwkExpressionKind.Conditional, nestedConditional.Children[2].Kind);
+        Assert.Equal(AwkExpressionKind.Assignment, nestedConditional.Children[2].Children[2].Kind);
+
+        foreach (var statement in statements)
+        {
+            var expression = RequiredExpression(statement);
+            Assert.Equal(source.Substring(expression.Span.Start, expression.Span.Length),
+                string.Concat(expression.Tokens.Select(token => token.Text)));
+        }
+    }
+
+    [Fact]
     public void AwkSyntaxParser_ParsesOutputExpressionLists()
     {
         var program = AwkSyntaxParser.Parse("BEGIN{print NF, length($1); printf \"%s\", $2}");

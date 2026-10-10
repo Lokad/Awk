@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Accepted unparenthesized assignments in logical, comparison, and conditional operands,
+  preserving full right-hand expressions, short-circuit effects, and lvalue restrictions.
 - Added POSIX longest-match and subexpression selection for traditional EREs across regex
   consumers and both regex modes, including nullable and nested repetitions. A governed
   structured matcher preserves assertion context, offsets, counted compatibility routing,
