@@ -15,12 +15,15 @@ internal sealed class AwkRegex
 {
     private readonly bool _hasFixedCaseSensitivity;
 
-    private AwkRegex(string pattern, AwkRegexBackend backend, bool hasFixedCaseSensitivity = false)
+    private AwkRegex(string pattern, AwkRegexBackend backend, bool hasFixedCaseSensitivity = false,
+        AwkRegexSelection? selection = null, string? erePattern = null)
     {
         Pattern = pattern;
+        ErePattern = erePattern ?? pattern;
         RequiresDotNetFallback = RequiresDotNetEngine(pattern);
         Backend = backend;
         GroupCount = backend.GroupCount;
+        Selection = selection ?? AwkRegexSelection.Analyze(pattern);
         _hasFixedCaseSensitivity = hasFixedCaseSensitivity;
     }
 
@@ -28,10 +31,13 @@ internal sealed class AwkRegex
         TimeSpan.FromSeconds(AwkRuntimeLimits.DefaultRegexMatchTimeoutSeconds);
 
     public string Pattern { get; }
+    internal string ErePattern { get; }
 
     public bool RequiresDotNetFallback { get; }
 
     public int GroupCount { get; }
+
+    internal AwkRegexSelection Selection { get; }
 
     internal AwkRegexBackend Backend { get; }
 
@@ -42,38 +48,34 @@ internal sealed class AwkRegex
         AwkRegexPattern pattern,
         AwkRegexCaseSensitivity caseSensitivity)
     {
-        var translatedPattern = AwkRegexScalarPattern.Translate(TranslatePattern(pattern));
-        return new AwkRegex(
-            translatedPattern,
-            AwkRegexBackend.DotNet(
-                caseSensitivity,
-                new Regex(
-                    translatedPattern,
-                    ResolveOptions(caseSensitivity),
-                    MatchTimeout)));
+        var ere = TranslatePattern(pattern);
+        return CreateDotNet(AwkRegexScalarPattern.Translate(ere), caseSensitivity,
+            selection: AwkRegexSelection.Analyze(ere), erePattern: ere);
     }
 
     internal static AwkRegex CreateDotNet(
         string translatedPattern,
         AwkRegexCaseSensitivity caseSensitivity,
-        bool hasFixedCaseSensitivity = false) =>
+        bool hasFixedCaseSensitivity = false,
+        AwkRegexSelection? selection = null, string? erePattern = null) =>
         new(
             translatedPattern,
             AwkRegexBackend.DotNet(
                 caseSensitivity,
                 new Regex(translatedPattern, ResolveOptions(caseSensitivity), MatchTimeout)),
-            hasFixedCaseSensitivity);
+            hasFixedCaseSensitivity, selection, erePattern);
 
     internal static AwkRegex CreateUtf8(
         string translatedPattern,
         AwkRegexCaseSensitivity caseSensitivity,
-        bool hasFixedCaseSensitivity = false) =>
+        bool hasFixedCaseSensitivity = false,
+        AwkRegexSelection? selection = null, string? erePattern = null) =>
         new(
             translatedPattern,
             AwkRegexBackend.Utf8(
                 caseSensitivity,
                 new Utf8RegexEngine(translatedPattern, ResolveOptions(caseSensitivity), MatchTimeout)),
-            hasFixedCaseSensitivity);
+            hasFixedCaseSensitivity, selection, erePattern);
 
     internal static bool RequiresDotNetEngine(string translatedPattern) =>
         translatedPattern.Contains(@"\A", StringComparison.Ordinal) ||

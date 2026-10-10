@@ -6,7 +6,7 @@ namespace Lokad.Awk;
 /// <summary>Translates character atoms into expressions that consume complete Unicode scalars.</summary>
 internal static class AwkRegexScalarPattern
 {
-    private const string AnyScalar = @"(?:[^\uD800-\uDFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF])";
+    internal const string AnyScalar = @"(?:[^\uD800-\uDFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF])";
     private const string BmpBoundary = @"(?![\uD800-\uDFFF])";
     private static readonly Lazy<CategoryRange[]> SupplementaryCategories = new(BuildCategoryRanges);
 

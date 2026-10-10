@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added POSIX longest-match and subexpression selection for traditional EREs across regex
+  consumers and both regex modes, including nullable and nested repetitions. A governed
+  structured matcher preserves assertion context, offsets, counted compatibility routing,
+  cache limits, capture preflight, cancellation, and one operation deadline.
 - Preserved assigned NF values and types while resizing fields from their truncated numeric
   value. Unified updates, indirect access, field growth, and record resets in both engines,
   with governed text retention and atomic limit failures.

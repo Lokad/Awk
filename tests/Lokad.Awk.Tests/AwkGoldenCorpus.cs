@@ -64,6 +64,8 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(RegexCompatibilityRepairs(), AwkGoldenTag.Regex),
 
+        .. Tagged(LongestRegexCompatibilityRepairs(), AwkGoldenTag.Regex),
+
         .. Tagged(OutputCases(), AwkGoldenTag.Output),
 
         .. Tagged(NumericOutputCompatibilityRepairs(), AwkGoldenTag.Output),

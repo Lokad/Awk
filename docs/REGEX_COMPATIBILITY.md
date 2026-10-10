@@ -13,9 +13,9 @@ when configured explicitly and for documented UTF-8 adapter pattern gaps.
 Regex routing evidence uses dedicated counters. `RegexDotNetTextMatches` counts `AwkText`
 regex operations routed through the .NET string engine, whether that engine is the configured
 default or a compatibility fallback. `RegexPatternGapFallbacks` counts translated patterns such as
-GNU buffer anchors and the absolute end anchor used for awk `$` that force that route in UTF-8
+GNU buffer anchors, the absolute end anchor used for awk `$`, and EREs needing longest-match or capture selection that force that route in UTF-8
 adapter mode, and `RegexStringAdapterMatches`
-counts .NET string-engine match calls after a caller has crossed the string boundary. These counters
+counts string-based match calls, including structured ERE selection, after a caller has crossed the string boundary. These counters
 are separate from `AwkTextAsStringCalls` and decode misses.
 Multi-match operations adapt an input to a .NET string once and reuse that string for the complete
 scan; `RegexStringAdapterMatches` continues to count the individual backend match calls.
@@ -50,8 +50,36 @@ retain all skipped input. Global `gsub`/`gensub` and FPAT/`patsplit` suppress an
 immediately following a nonempty match. Numeric `gensub` occurrences count that empty match.
 Other empty matches progress by one complete scalar; empty input has no FPAT/`patsplit` fields.
 Capture arrays omit groups that did not participate, including their start/length metadata.
-POSIX leftmost-longest selection remains a compatibility gap: backend alternations still choose
-the first successful branch.
+Observable ERE matches select the longest match at the earliest scalar boundary, including
+overlapping alternatives and competing repetitions. A structural width analysis retains the
+selected backend for fixed-width patterns and unambiguous greedy repetition. Traditional EREs
+needing longest-match or observable subexpression selection use a common managed structured NFA
+in either configured mode. This route adapts input to a counted .NET string and uses bounded .NET
+predicates for character classes, case folding, and assertions. Boolean matching retains the
+selected backend because the chosen path is not observable.
+
+The structured matcher resolves construct priority before leaving alternatives, groups, and
+repetitions. Matching `(a|aa)(a*)` against `"aaa"` captures `"aa"`/`"a"`, and matching
+`(a?|ab)*` against `"a"` retains the final nonempty capture. Descendant captures are reset on
+each parent iteration; participating empty groups remain distinct from absent groups. Match
+arrays and `gensub` references share this selection. Full-input anchors and word boundaries
+remain visible when a search resumes at a later position. One operation deadline covers whole
+match and capture selection; cancellation checkpoints occur during compilation and matching.
+Compilation preflights interval expansion, and the memory governor preflights fixed match buffers
+before allocation. Capture materialization uses the existing governed UTF-8 boundary checks.
+
+Reference version and matcher must be recorded for capture comparisons. GNU 5.4 introduced
+MinRX to replace matchers that were not fully POSIX compliant; `GAWK_GNU_MATCHERS` selects
+the older matchers. Consequently, matching GNU 5.2.1 capture output alone does not qualify
+POSIX subexpression selection. The benchmark reference remains separately pinned. See
+[GNU's matcher documentation](https://www.gnu.org/software/gawk/manual/html_node/Choosing-Matchers.html).
+
+Inherited backend extensions, including named/noncapturing groups, arbitrary lookarounds,
+backreferences, balancing groups, conditionals, atomic groups, search-offset anchors, and
+whitespace/comment mode, retain their existing compatibility search and capture semantics.
+The legacy endpoint constraint's private groups remain hidden from user captures and counters.
+These extensions are outside the traditional awk ERE contract. POSIX 2024/GNU 5.4 minimized
+repetitions remain a separate compatibility follow-up.
 Record separators that reduce to one or more bytes from a punctuation-only membership set use an
 incremental byte-run plan, including `([,;])+`, `(?:[,;])+`, and the equivalent quantifier
 inside the wrapper. Equivalent punctuation-only alternations such as `([,]|;)+` use the same
@@ -84,7 +112,8 @@ expression back into a direct literal-pattern operand.
 | Escapes | AWK escapes, octal/hex escapes, GNU word/buffer operators | Translator handles current supported escape set | Adapter must preserve translated escape semantics, including GNU extensions currently accepted |
 | Anchors and dot/newline | Dot includes LF; anchors denote absolute string boundaries | Scalar dot and `\z` translation | Same translation, with counted .NET fallback for the absolute end anchor |
 | Empty matches | Each consumer applies its own empty-match rules | Scalar progress; empty separators ignored; suppression depends on operation | Same consumer rules and complete-scalar progress |
-| Captures | `match(..., arr)`, replacement expansion, `gensub` captures | Scalar-aligned `Match.Groups` with UTF-16 indices; nonparticipating groups absent from arrays | Validate byte alignment before publication; `gensub` materializes only the prefix through its highest observable `\0`-to-`\9` reference |
+| Match selection | Longest match at the earliest position | Structured NFA for ambiguous traditional EREs; full-input assertion context | Counted string route for observable selection; boolean and unambiguous matches retain the selected backend |
+| Captures | `match(..., arr)`, replacement expansion, `gensub` captures | Structured POSIX selection where needed; scalar-aligned UTF-16 coordinates; nonparticipating groups absent | Same selection before byte alignment checks; `gensub` materializes only the prefix through its highest observable `\0`-to-`\9` reference |
 | Replacement syntax | `&`, `\&`, backslash literal rules, capture references in `gensub` | `sub`/`gsub` expand whole-match spans; `gensub` expands its selected capture prefix | `AwkReplacement` streams matches into governed UTF-8 builders without retaining the full match sequence |
 | `IGNORECASE` | Dynamic special variable affects regex operations | Runtime recompiles or re-runs with `RegexOptions.IgnoreCase` | Adapter must include `IGNORECASE` in cache keys and dynamic operation behavior |
 | Locale/culture | Current policy is ordinal/C-locale oriented | All regex construction uses `RegexOptions.CultureInvariant`, including dynamic `IGNORECASE` matching | Adapter and compatibility paths must remain independent of the ambient .NET culture |

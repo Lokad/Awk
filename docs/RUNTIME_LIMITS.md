@@ -82,13 +82,24 @@ These limits constrain awk execution without changing successful compatibility b
 - `MaxRegexPatternBytes` and `MaxRegexGroups`: breadth limits checked before compiling source or
   runtime regex patterns.
 - `MaxRegexCompilations` and `MaxRegexCacheBytes`: aggregate compilation work and estimated retained
-  regex-cache capacity.
+  regex-cache capacity. Observable ERE selection compiles its structured program on first use,
+  counts that compilation, and retains it in a bounded cache keyed by pattern and effective case
+  sensitivity. Cache capacity is partitioned among handles, .NET, UTF-8, legacy selection
+  constraints, and structured programs. Iterative compilation preflights expanded interval nodes
+  and temporary memory before construction, and observes cancellation and a two-second deadline.
 - `MaxRegexOperations`: optional secondary ceiling on aggregate regex search/match calls,
   including cache hits. It defaults to unlimited in both presets; searches draw from the common
   execution allowance. Explicit `WithMaxRegexOperations` overrides retain their existing diagnostic.
 - `MaxRegexCaptureBytes`: `match(..., array)` capture payloads, preflighted from backend spans before
   group values are copied. Capture-array replacement separately preflights its complete entry count
   and retained memory before changing the destination array or `RSTART`/`RLENGTH`.
+  Selection's private prefix/endpoint groups do not consume user capture payload or group budgets.
+  Their compiled pattern and mapping contribute to estimated cache capacity. Structured whole
+  match and capture selection share one governed regex operation and one two-second deadline.
+  The memory governor preflights fixed workspace buffers sized by compiled nodes, nesting, and
+  requested groups, independent of input length. Their lease remains live through capture
+  materialization and is released on success, failure, timeout, or cancellation. Inherited backend
+  extensions retain their existing selection constraint and two-second backend timeout.
 - `MaxRegexRecordSeparatorBytesScanned`: cumulative bytes submitted to the general regex record-
   separator fallback. It defaults to unlimited in both presets; every repeated backend search
   consumes the common execution allowance for its offered search span. Explicit overrides retain
@@ -141,8 +152,9 @@ These batching and cache names remain internal implementation policy:
 - `DefaultInputReadBatchLineCount`: maximum lines requested per streaming host read.
 - `DefaultUtf8BuilderInitialCapacity`: initial byte-builder capacity.
 - `DefaultRegexCacheSize`: capacity of each compiled-regex least-recently-used cache. The runtime
-  maintains independent caches for awk regex wrappers, .NET regex instances, and UTF-8 engines.
-- `DefaultRegexMatchTimeoutSeconds`: .NET regex timeout guard.
+  maintains independent caches for awk regex wrappers, .NET regex instances, UTF-8 engines,
+  legacy selection constraints, and structured ERE programs.
+- `DefaultRegexMatchTimeoutSeconds`: backend regex timeout and structured compilation/match guard.
 - `MaxVmStackBytes`: executable runtime stack bytes. Fallback frames and opcode operand-stack
   buffers check this limit and, when the memory governor is enabled, reserve/commit/release the
   same estimated bytes through the governor.

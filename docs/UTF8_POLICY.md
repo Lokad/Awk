@@ -51,6 +51,11 @@ higher-level counters such as `FormattingFallbacks`, `StringInteropFallbacks`,
 `RegexDotNetTextMatches` and `RegexStringAdapterMatches` identify .NET string-engine work, while
 `RegexPatternGapFallbacks` identifies the subset forced across the boundary by an adapter gap.
 Multi-match scans decode each `AwkText` input once and reuse the resulting compatibility string.
+Length-ambiguous EREs cross this boundary when their chosen span or captures are observable,
+so both configured regex modes select the longest match at the earliest scalar boundary.
+Boolean matching and unambiguous patterns retain the selected backend. The fallback preserves
+byte-mode coordinates and scalar alignment; see `REGEX_COMPATIBILITY.md` for the remaining
+capture differences in nullable repeated groups.
 
 Regex character atoms consume complete Unicode scalars, including supplementary characters.
 Match spans and observable captures must align with scalar boundaries before conversion,
