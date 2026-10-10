@@ -24,7 +24,7 @@ internal static class AwkSpecialVariables
             [AwkSpecialVariableId.FieldWidths] = Scalar(AwkSpecialVariableId.FieldWidths, "FIELDWIDTHS"),
             [AwkSpecialVariableId.FileName] = Scalar(AwkSpecialVariableId.FileName, "FILENAME"),
             [AwkSpecialVariableId.FileRecordNumber] = ScalarWithInitialValue(AwkSpecialVariableId.FileRecordNumber, "FNR", AwkValue.FromNumber(0)),
-            [AwkSpecialVariableId.FieldPattern] = ScalarWithInitialValue(AwkSpecialVariableId.FieldPattern, "FPAT", AwkValue.FromText("[^ \t\n]+")),
+            [AwkSpecialVariableId.FieldPattern] = ScalarWithInitialValue(AwkSpecialVariableId.FieldPattern, "FPAT", AwkValue.FromText("[^[:space:]]+")),
             [AwkSpecialVariableId.FieldSeparator] = Scalar(AwkSpecialVariableId.FieldSeparator, "FS"),
             [AwkSpecialVariableId.IgnoreCase] = ScalarWithInitialValue(AwkSpecialVariableId.IgnoreCase, "IGNORECASE", AwkValue.FromNumber(0)),
             [AwkSpecialVariableId.Lint] = ScalarWithInitialValue(AwkSpecialVariableId.Lint, "LINT", AwkValue.FromText("0")),

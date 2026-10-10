@@ -6,7 +6,8 @@ internal sealed class AwkSpecialVariableDispatcher(
     AwkVariables variables,
     AwkFieldSplitter fieldSplitter,
     Func<AwkValue, AwkText> formatString,
-    Action<AwkSpecialVariableId> recordAssignment)
+    Action<AwkSpecialVariableId> recordAssignment,
+    AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault)
 {
     public void InitializeScalars(AwkFieldSeparatorSpec fieldSeparator)
     {
@@ -16,6 +17,7 @@ internal sealed class AwkSpecialVariableDispatcher(
         foreach (var variable in AwkSpecialVariables.Scalars)
         {
             if (variable.Id == AwkSpecialVariableId.FieldSeparator ||
+                !AwkCompatibilityNames.EnablesSpecial(variable.Id, mode) ||
                 !variable.InitialValue.HasValue)
             {
                 continue;
@@ -33,6 +35,8 @@ internal sealed class AwkSpecialVariableDispatcher(
 
     public void ApplyAssignment(AwkSpecialVariableId id, AwkValue value)
     {
+        if (!AwkCompatibilityNames.EnablesSpecial(id, mode))
+            return;
         recordAssignment(id);
         if (RequiresFieldSplitterUpdate(id))
             ApplyAssignmentEffects(id, formatString(value));
@@ -45,6 +49,8 @@ internal sealed class AwkSpecialVariableDispatcher(
 
     public void ApplyAssignment(AwkSpecialVariableId id, AwkText value)
     {
+        if (!AwkCompatibilityNames.EnablesSpecial(id, mode))
+            return;
         recordAssignment(id);
         ApplyAssignmentEffects(id, value);
     }

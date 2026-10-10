@@ -12,7 +12,8 @@ internal static partial class AwkProgramLowerer
         return Lower(syntax, globalNames);
     }
 
-    public static AwkLoweringResult Lower(AwkSyntaxProgram syntax, IReadOnlySet<AwkVariableName> globalNames)
+    public static AwkLoweringResult Lower(AwkSyntaxProgram syntax, IReadOnlySet<AwkVariableName> globalNames,
+        AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault)
     {
         if (string.IsNullOrWhiteSpace(syntax.SourceText))
         {
@@ -43,7 +44,7 @@ internal static partial class AwkProgramLowerer
 
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
         {
-            var functionDefinition = ParseFunctionDefinition(syntax.Functions[functionIndex]);
+            var functionDefinition = ParseFunctionDefinition(syntax.Functions[functionIndex], mode);
             if (!functionDefinition.Succeeded)
             {
                 return AwkLoweringResult.Failure(functionDefinition.Diagnostics);
@@ -56,7 +57,7 @@ internal static partial class AwkProgramLowerer
         for (var ruleIndex = 0; ruleIndex < syntax.Rules.Count; ruleIndex++)
         {
             var rule = syntax.Rules[ruleIndex];
-            var actionLowering = LowerRule(rule);
+            var actionLowering = LowerRule(rule, AwkLoweringScope.GlobalFor(mode));
             if (!actionLowering.Succeeded)
             {
                 return AwkLoweringResult.Failure(actionLowering.Diagnostics);
@@ -97,9 +98,9 @@ internal static partial class AwkProgramLowerer
             new AwkProgram(beginActions, mainActions, endActions, beginFileActions, endFileActions, functions, globalNames));
 
         static AwkLoweringOutcome<AwkUserFunction> ParseFunctionDefinition(
-            AwkFunctionSyntax functionSyntax)
+            AwkFunctionSyntax functionSyntax, AwkCompatibilityMode mode)
         {
-            if (functionSyntax.Name.Length == 0 || AwkIdentifiers.IsReservedName(functionSyntax.Name))
+            if (functionSyntax.Name.Length == 0 || AwkCompatibilityNames.IsReservedFunction(functionSyntax.Name, mode))
                 return AwkLoweringOutcome<AwkUserFunction>.Failure(new AwkDiagnostic(
                     functionSyntax.Span,
                     "Invalid function declaration.",
@@ -112,7 +113,7 @@ internal static partial class AwkProgramLowerer
             var localLayout = new AwkFunctionLocalLayout(parameterBinding.Parameters);
             var body = AwkStatementLowerer.LowerList(
                 functionSyntax.BodyStatements,
-                AwkLoweringScope.Function(localLayout));
+                AwkLoweringScope.Function(localLayout, mode));
             if (!body.Succeeded)
             {
                 return AwkLoweringOutcome<AwkUserFunction>.Failure(body.Diagnostics);
@@ -123,7 +124,7 @@ internal static partial class AwkProgramLowerer
                 new AwkUserFunction(AwkFunctionName.FromText(functionSyntax.Name), localLayout, statements));
         }
 
-        static AwkLoweringOutcome<AwkAction> LowerRule(AwkRuleSyntax rule)
+        static AwkLoweringOutcome<AwkAction> LowerRule(AwkRuleSyntax rule, AwkLoweringScope scope)
         {
             static IReadOnlyList<AwkStatement> DefaultPrintStatements() =>
                 [AwkStatement.Print([AwkExpression.FieldZero()])];
@@ -172,18 +173,18 @@ internal static partial class AwkProgramLowerer
             }
 
             static bool TryLowerSyntaxExpressionRangePattern(
-                AwkRuleSyntax rule,
+                AwkRuleSyntax rule, AwkLoweringScope scope,
                 [NotNullWhen(true)] out AwkPattern? pattern)
             {
                 static bool TryLowerSyntaxPatternCondition(
-                    AwkPatternPartSyntax part,
+                    AwkPatternPartSyntax part, AwkLoweringScope scope,
                     [NotNullWhen(true)] out AwkCondition? condition)
                 {
                     condition = null;
                     var expressionSyntax = part.Expression;
                     if (expressionSyntax == null ||
                         expressionSyntax.Kind == AwkExpressionKind.Regex ||
-                        !AwkExpressionLowerer.TryLower(expressionSyntax, out var expression))
+                        !AwkExpressionLowerer.TryLower(expressionSyntax, scope, out var expression))
                     {
                         return false;
                     }
@@ -196,8 +197,8 @@ internal static partial class AwkProgramLowerer
                 if (rule.PatternSyntax is not AwkRangePatternSyntax rangePattern)
                     return false;
 
-                if (!TryLowerSyntaxPatternCondition(rangePattern.Start, out var start) ||
-                    !TryLowerSyntaxPatternCondition(rangePattern.End, out var end))
+                if (!TryLowerSyntaxPatternCondition(rangePattern.Start, scope, out var start) ||
+                    !TryLowerSyntaxPatternCondition(rangePattern.End, scope, out var end))
                 {
                     return false;
                 }
@@ -209,14 +210,14 @@ internal static partial class AwkProgramLowerer
             }
 
             static bool TryLowerSyntaxExpressionPattern(
-                AwkRuleSyntax rule,
+                AwkRuleSyntax rule, AwkLoweringScope scope,
                 [NotNullWhen(true)] out AwkCondition? condition)
             {
                 condition = null;
                 if (rule.PatternSyntax is not AwkSinglePatternSyntax singlePattern ||
                     singlePattern.Expression == null ||
                     singlePattern.Expression.Kind == AwkExpressionKind.Regex ||
-                    !AwkExpressionLowerer.TryLower(singlePattern.Expression, out var expression))
+                    !AwkExpressionLowerer.TryLower(singlePattern.Expression, scope, out var expression))
                 {
                     return false;
                 }
@@ -228,7 +229,7 @@ internal static partial class AwkProgramLowerer
             IReadOnlyList<AwkStatement> statements;
             if (rule.HasExplicitAction)
             {
-                var body = AwkStatementLowerer.LowerList(rule.ActionStatements);
+                var body = AwkStatementLowerer.LowerList(rule.ActionStatements, scope);
                 if (!body.Succeeded)
                     return AwkLoweringOutcome<AwkAction>.Failure(body.Diagnostics);
 
@@ -254,12 +255,12 @@ internal static partial class AwkProgramLowerer
                 return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(regexPattern, statements));
             }
 
-            if (TryLowerSyntaxExpressionRangePattern(rule, out var expressionRangePattern))
+            if (TryLowerSyntaxExpressionRangePattern(rule, scope, out var expressionRangePattern))
             {
                 return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(expressionRangePattern, statements));
             }
 
-            if (TryLowerSyntaxExpressionPattern(rule, out var expressionCondition))
+            if (TryLowerSyntaxExpressionPattern(rule, scope, out var expressionCondition))
             {
                 var syntaxCondition = expressionCondition ?? throw new InvalidOperationException();
                 return AwkLoweringOutcome<AwkAction>.Success(

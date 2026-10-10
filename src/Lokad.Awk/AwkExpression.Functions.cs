@@ -40,8 +40,6 @@ internal abstract partial class AwkExpression
             if (arrayName.HasValue &&
                 context.State.TryGetExistingArrayCount(new AwkArrayName(arrayName.Value), out var count))
             {
-                if (context.State.CompatibilityMode == AwkCompatibilityMode.Posix)
-                    throw new AwkRuntimeException(AwkMessages.ErrorLengthArrayArgument);
 
                 return AwkValue.FromNumber(count);
             }
@@ -49,8 +47,6 @@ internal abstract partial class AwkExpression
             var value = await valueExpression.EvaluateAsync(context).ConfigureAwait(false);
             if (value.TryGetArrayName(out var name) && context.State.TryGetExistingArrayCount(name, out var arrayCount))
             {
-                if (context.State.CompatibilityMode == AwkCompatibilityMode.Posix)
-                    throw new AwkRuntimeException(AwkMessages.ErrorLengthArrayArgument);
                 return AwkValue.FromNumber(arrayCount);
             }
             return AwkValue.FromNumber(context.State.CountStringUnits(context.State.FormatStringByteText(value)));

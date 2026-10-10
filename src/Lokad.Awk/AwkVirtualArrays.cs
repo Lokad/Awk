@@ -144,19 +144,24 @@ internal sealed class AwkSymbolTableArray(
 
 internal static class AwkSpecialArrayPolicy
 {
-    public static bool IsElementReadOnly(string name) =>
+    public static bool IsElementReadOnly(string name,
+        AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault) =>
         AwkSpecialVariables.TryGetArray(name, out var definition) &&
+        AwkCompatibilityNames.EnablesSpecial(definition.Id, mode) &&
         !definition.CanModifyArrayElements;
 
-    public static void ThrowIfElementMutationForbidden(string name)
+    public static void ThrowIfElementMutationForbidden(string name,
+        AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault)
     {
-        if (IsElementReadOnly(name))
+        if (IsElementReadOnly(name, mode))
             throw new AwkRuntimeException(AwkMessages.FormatCannotModifySpecialArray(name));
     }
 
-    public static void ThrowIfReplacementForbidden(string name)
+    public static void ThrowIfReplacementForbidden(string name,
+        AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault)
     {
         if (!AwkSpecialVariables.TryGetArray(name, out var definition) ||
+            !AwkCompatibilityNames.EnablesSpecial(definition.Id, mode) ||
             definition.CanReplaceArray)
         {
             return;

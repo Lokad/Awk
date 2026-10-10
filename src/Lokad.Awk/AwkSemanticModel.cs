@@ -70,7 +70,8 @@ internal sealed class AwkSemanticModel
                 named.Identifier,
                 ToSemanticKind(named.Kind),
                 occurrence,
-                named.Span);
+                named.Span,
+                named.IsFunctionLocal);
 
             semanticSymbols.Add(semanticSymbol);
             if (occurrence == AwkSemanticSymbolOccurrence.Declaration)
@@ -92,7 +93,8 @@ internal readonly record struct AwkSemanticSymbol(
     AwkIdentifier Identifier,
     AwkSemanticSymbolKind Kind,
     AwkSemanticSymbolOccurrence Occurrence,
-    AwkTextSpan Span)
+    AwkTextSpan Span,
+    bool IsFunctionLocal = false)
 {
     public string Name => Identifier.Text;
 }

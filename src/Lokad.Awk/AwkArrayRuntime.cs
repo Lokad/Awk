@@ -93,7 +93,7 @@ internal sealed class AwkArrayRuntime
     public AwkRuntimeValueKind GetElementRuntimeKind(AwkArrayName name, AwkArrayKey index)
     {
         var resolved = _variableRuntime.ResolveArrayReadName(name);
-        return !resolved.IsFunctionLocal && AwkSymbolTableArray.IsName(resolved.Text)
+        return !resolved.IsFunctionLocal && _variables.IsSymbolTable(resolved.Text)
             ? _variables.GetArrayElementRuntimeKind(resolved, index)
             : GetAwkValue(name, index).RuntimeKind;
     }
@@ -130,6 +130,8 @@ internal sealed class AwkArrayRuntime
         AwkFieldSeparatorSpec separator,
         AwkOptionalIdentifier separatorArrayName)
     {
+        if (separatorArrayName.HasValue && _state.CompatibilityMode != AwkCompatibilityMode.GnuDefault)
+            throw new AwkRuntimeException(AwkMessages.ErrorSplitSeparatorArrayExtension);
         ThrowIfSameSplitArrays(arrayName, separatorArrayName);
         var captureMode = separatorArrayName.HasValue
             ? AwkSeparatorCaptureMode.Capture
@@ -398,7 +400,8 @@ internal sealed class AwkArrayRuntime
     private bool TryResolveSortedInOrder(out AwkArraySortOrder order)
     {
         order = AwkArraySortOrder.Default;
-        if (!_variables.TryPeekArrayValue(
+        if (_state.CompatibilityMode != AwkCompatibilityMode.GnuDefault ||
+            !_variables.TryPeekArrayValue(
             ProcInfoArrayName,
             ProcInfoSortedInKey,
             out var value))

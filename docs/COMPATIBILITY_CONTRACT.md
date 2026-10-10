@@ -10,6 +10,38 @@ sources, stdin fallback, exit status, stderr wording, and stdout/stderr preserva
 that a caller can observe through `awk` should be added there unless the behavior is only visible
 through a current-surface runtime option.
 
+## Compatibility Profiles And Names
+
+POSIX and traditional modes disable GNU-only built-ins, including the time functions,
+bitwise functions, array sorting, patsplit and introspection. Their names become
+ordinary variables, array names and user-function names. BEGINFILE, ENDFILE, switch,
+case and default likewise become ordinary identifiers; an unset BEGINFILE pattern
+does not run at file opening. POSIX disables the func keyword; traditional retains it.
+GNU switch syntax is rejected before execution in these profiles, including unreachable
+statements. POSIX also rejects the ** and **= exponent aliases.
+
+Core built-ins and the selected profile's special scalar/standard array variables
+cannot be function parameters. GNU extension built-in names, GNU soft keywords, FUNCTAB
+and SYMTAB may be local parameters under the GNU 5.4 contract. A local parameter cannot
+be called, and a function cannot use its own name as a parameter. POSIX also rejects
+a parameter whose name is another user function, independent of declaration order.
+These checks run before any input scheduling or host effect.
+
+Nonstandard special variables are ordinary names in POSIX/traditional modes: ARGIND,
+BINMODE, ERRNO, FIELDWIDTHS, FPAT, FUNCTAB, IGNORECASE, LINT, PREC, PROCINFO, ROUNDMODE,
+RT, SYMTAB and TEXTDOMAIN. They receive no GNU initialization, field-splitting effects,
+stream metadata updates, special-array restrictions or virtual symbol-table behavior.
+Assignments remain visible, and ordinary arrays retain their memory and element limits.
+PROCINFO["sorted_in"] does not alter iteration in these profiles.
+
+length(array) is supported in every profile, following POSIX 2024 and GNU 5.4;
+GNU 5.2 rejects it in POSIX mode. match's third capture-array argument remains a GNU
+extension rejected before execution. split's fourth separator-array argument is also
+GNU-only, but its diagnostic occurs when the call executes, matching the native phase;
+both destination arrays remain unchanged. GNU regular-expression profile differences
+and PROCINFO["FS"] publication remain incompletely qualified; this is not a claim of
+full POSIX or GNU profile conformance.
+
 ## Flushing And Closing Streams
 
 fflush() and fflush("") flush all output files. A targeted flush returns 0 for an

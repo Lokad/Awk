@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Compatibility profiles now govern lexical keywords, reserved names, callable binding,
+  formal parameters and GNU special-variable effects. Disabled GNU names can be ordinary
+  variables, arrays or user functions; local names retain their lexical classification.
+  POSIX 2024 length(array) is supported. Non-GNU profiles reject match capture arrays and
+  diagnose split separator arrays at execution without replacing their destinations.
+  Remaining regex profile differences and PROCINFO["FS"] publication stay open.
+
 - fflush now warns about unopened and input-only streams without assigning ERRNO.
   Numeric and input-numeric arguments follow normal/fatal lint rules; ordinary flush
   warnings remain nonfatal. Standalone close now preserves its failure ERRNO result.

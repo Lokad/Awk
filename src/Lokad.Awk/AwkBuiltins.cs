@@ -86,9 +86,9 @@ internal static partial class AwkBuiltins
             [Name(AwkBuiltinId.Atan2)] = PosixPure(AwkBuiltinId.Atan2, AwkArity.Exact(2), EvaluateAtan2),
             [Name(AwkBuiltinId.Rand)] = PosixMutatesState(AwkBuiltinId.Rand, AwkArity.Exact(0), EvaluateRand),
             [Name(AwkBuiltinId.Srand)] = PosixMutatesState(AwkBuiltinId.Srand, AwkArity.Range(0, 1), EvaluateSrand),
-            [Name(AwkBuiltinId.Systime)] = PosixMutatesState(AwkBuiltinId.Systime, AwkArity.Exact(0), EvaluateSystime),
-            [Name(AwkBuiltinId.Mktime)] = PosixPure(AwkBuiltinId.Mktime, AwkArity.Range(1, 2), EvaluateMktime),
-            [Name(AwkBuiltinId.Strftime)] = PosixMutatesState(AwkBuiltinId.Strftime, AwkArity.Range(0, 3), EvaluateStrftime),
+            [Name(AwkBuiltinId.Systime)] = GnuMutatesState(AwkBuiltinId.Systime, AwkArity.Exact(0), EvaluateSystime),
+            [Name(AwkBuiltinId.Mktime)] = GnuPure(AwkBuiltinId.Mktime, AwkArity.Range(1, 2), EvaluateMktime),
+            [Name(AwkBuiltinId.Strftime)] = GnuMutatesState(AwkBuiltinId.Strftime, AwkArity.Range(0, 3), EvaluateStrftime),
             [Name(AwkBuiltinId.And)] = GnuPure(AwkBuiltinId.And, AwkArity.AtLeast(2), EvaluateAnd),
             [Name(AwkBuiltinId.Or)] = GnuPure(AwkBuiltinId.Or, AwkArity.AtLeast(2), EvaluateOr),
             [Name(AwkBuiltinId.Xor)] = GnuPure(AwkBuiltinId.Xor, AwkArity.AtLeast(2), EvaluateXor),
@@ -615,6 +615,12 @@ internal static partial class AwkBuiltins
             AwkArity arity,
             AwkBuiltinEvaluator evaluator) =>
             Function(id, arity, AwkBuiltinEffects.MutatesState, AwkBuiltinCompatibility.Posix, [], evaluator);
+
+        static AwkBuiltinDefinition GnuMutatesState(
+            AwkBuiltinId id,
+            AwkArity arity,
+            AwkBuiltinEvaluator evaluator) =>
+            Function(id, arity, AwkBuiltinEffects.MutatesState, AwkBuiltinCompatibility.Gnu, [], evaluator);
 
         static AwkBuiltinDefinition PosixHostPolicyRejection(
             AwkBuiltinId id,

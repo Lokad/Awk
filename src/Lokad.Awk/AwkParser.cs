@@ -17,12 +17,14 @@ internal static class AwkParser
     public static AwkParseResult Parse(
         string source,
         AwkFrontendBudget budget,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         var syntax = AwkSyntaxParser.Parse(
             source,
             budget,
-            cancellationToken);
+            cancellationToken,
+            compatibilityMode);
         if (syntax.Diagnostics.Count == 0)
         {
             return new AwkParseResult(AwkPhaseResult<AwkSyntaxProgram>.SuccessResult(

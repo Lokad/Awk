@@ -420,6 +420,7 @@ internal static class AwkStatementLowerer
             {
                 static bool TryLowerForInStatement(
                     AwkForHeaderSyntax header,
+                    AwkLoweringScope scope,
                     IReadOnlyList<AwkStatement> body,
                     [NotNullWhen(true)] out AwkStatement? statement)
                 {
@@ -442,8 +443,8 @@ internal static class AwkStatementLowerer
                     if (header.Parts.Count != 2 ||
                         !TryGetIdentifierExpression(header.Parts[0], out var loopVariable) ||
                         !TryGetIdentifierExpression(header.Parts[1], out var arrayVariable) ||
-                        AwkIdentifiers.IsReservedName(loopVariable.Text) ||
-                        AwkIdentifiers.IsReservedName(arrayVariable.Text))
+                        scope.IsReservedVariable(loopVariable.Text) ||
+                        scope.IsReservedVariable(arrayVariable.Text))
                     {
                         return false;
                     }
@@ -521,7 +522,7 @@ internal static class AwkStatementLowerer
                 }
 
                 if (forShape.Header.IsForIn)
-                    return TryLowerForInStatement(forShape.Header, body, out statement);
+                    return TryLowerForInStatement(forShape.Header, scope, body, out statement);
 
                 return TryLowerClassicForStatement(forShape.Header, scope, body, out statement);
             }

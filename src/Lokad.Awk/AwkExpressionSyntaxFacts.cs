@@ -23,8 +23,7 @@ internal static class AwkExpressionSyntaxFacts
         AwkExpressionSyntax expression,
         out AwkIdentifierSyntax identifier)
     {
-        if (TryGetIdentifier(expression, out identifier) &&
-            !AwkIdentifiers.IsReservedName(identifier.Name))
+        if (TryGetIdentifier(expression, out identifier))
         {
             return true;
         }
@@ -52,8 +51,7 @@ internal static class AwkExpressionSyntaxFacts
         AwkExpressionSyntax expression,
         out AwkIdentifierSyntax target)
     {
-        if (TryGetArrayElementTarget(expression, out target) &&
-            !AwkIdentifiers.IsReservedName(target.Name))
+        if (TryGetArrayElementTarget(expression, out target))
         {
             return true;
         }

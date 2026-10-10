@@ -249,7 +249,8 @@ internal static class AwkExecutor
         var parsed = AwkParser.Parse(
             source.Text,
             AwkFrontendBudget.FromResources(resources),
-            cancellationToken);
+            cancellationToken,
+            invocation.ExecutionOptions.CompatibilityProfile.Mode);
         var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings);
         cancellationToken.ThrowIfCancellationRequested();
         var binding = AwkBinder.Bind(parsed, invocation.ExecutionOptions.CompatibilityProfile);

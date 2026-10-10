@@ -12,10 +12,11 @@ internal static class AwkLexer
     public static List<AwkToken> Tokenize(
         string source,
         int maxTokens,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var lexer = new Lexer(source, maxTokens, cancellationToken);
+        var lexer = new Lexer(source, maxTokens, cancellationToken, compatibilityMode);
         return lexer.Tokenize();
     }
 
@@ -29,10 +30,12 @@ internal static class AwkLexer
         private int _position;
         private int _lexemeIndex;
         private bool _canStartRegex = true;
+        private readonly AwkLexicalNames _names;
 
-        public Lexer(string source, int maxTokens, CancellationToken cancellationToken)
+        public Lexer(string source, int maxTokens, CancellationToken cancellationToken, AwkCompatibilityMode compatibilityMode)
         {
             _source = source;
+            _names = new AwkLexicalNames(compatibilityMode);
             _maxTokens = maxTokens;
             _cancellationToken = cancellationToken;
             _lexemes = ReadContextFreeLexemes(source, cancellationToken);
@@ -279,6 +282,7 @@ internal static class AwkLexer
                     AwkDiagnosticId.RuntimeResourceLimit);
             }
 
+            kind = _names.Classify(kind, _source.AsSpan(start, length));
             _tokens.Add(AwkToken.FromSource(kind, _source, new AwkTextSpan(start, length)));
             _position = start + length;
             _canStartRegex = AwkRegexStart.CanStartAfter(kind);

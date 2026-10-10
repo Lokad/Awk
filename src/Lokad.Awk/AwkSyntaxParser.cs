@@ -14,11 +14,12 @@ internal static class AwkSyntaxParser
     public static AwkSyntaxProgram Parse(
         string source,
         AwkFrontendBudget budget,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var parsingSource = AwkParsingSource.Create(source);
-        var tokens = AwkLexer.Tokenize(source, budget.MaxTokens, cancellationToken);
+        var tokens = AwkLexer.Tokenize(source, budget.MaxTokens, cancellationToken, compatibilityMode);
         cancellationToken.ThrowIfCancellationRequested();
         if (AwkSyntaxNesting.TryFindExcessiveDelimiterDepth(
                 tokens,

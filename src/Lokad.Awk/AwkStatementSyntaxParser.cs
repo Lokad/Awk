@@ -10,12 +10,15 @@ namespace Lokad.Awk;
 internal sealed class AwkStatementSyntaxParser
     : GrammarParser<AwkStatementSyntaxParser, AwkTokenKind, AwkStatementSyntaxParser.ParseResult>
 {
+    private readonly IReadOnlyList<AwkToken> _originalTokens;
+
     private readonly AwkParsingSource? _source;
 
-    private AwkStatementSyntaxParser(AwkParsingSource? source)
+    private AwkStatementSyntaxParser(AwkParsingSource? source, IReadOnlyList<AwkToken> originalTokens)
         : base(AwkTokenNamer.Instance)
     {
         _source = source;
+        _originalTokens = originalTokens;
     }
 
     public static bool TryParse(
@@ -35,7 +38,7 @@ internal sealed class AwkStatementSyntaxParser
         AwkParsingSource? source,
         IReadOnlyList<AwkToken> tokens)
     {
-        var parser = new AwkStatementSyntaxParser(source);
+        var parser = new AwkStatementSyntaxParser(source, tokens);
         parser.Tokens = source == null
             ? AwkParsingSupport.ToLexerResult(tokens)
             : AwkParsingSupport.ToLexerResultWithEndOfFile(source, tokens);
@@ -140,16 +143,16 @@ internal sealed class AwkStatementSyntaxParser
     [Rule]
     public StatementSeparator StatementSeparatorRule(
         [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Semicolon, AwkTokenKind.Comment)] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     [Rule]
     public HeaderGap HeaderGapRule([AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     [Rule]
     public ContinuationSeparator ContinuationSeparatorRule(
         [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     [Rule]
     public AwkStatementSyntax IfWithoutElse(
@@ -500,7 +503,7 @@ internal sealed class AwkStatementSyntaxParser
 
     [Rule]
     public CaseLabelPart CaseLabelLeaf([AwkStatementCaseLabelLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     [Rule]
     public AwkStatementSyntax PrintStatement(
@@ -590,7 +593,7 @@ internal sealed class AwkStatementSyntaxParser
 
     [Rule]
     public ExpressionStart ExpressionStartLeaf([AwkStatementExpressionStartLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     [Rule]
     public SimpleTail SimpleTailElement([NT] SimpleElement element) =>
@@ -635,7 +638,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 1)] ContinuationSeparator[] separators,
         [NT] SimpleElement element)
     {
-        return new([AwkParsingSupport.ToToken(continuation), .. FlattenSeparators(separators), .. element.Tokens]);
+        return new([AwkParsingSupport.RestoreToken(_originalTokens, continuation), .. FlattenSeparators(separators), .. element.Tokens]);
         static IReadOnlyList<AwkToken> FlattenSeparators(IEnumerable<ContinuationSeparator> separators) =>
             Flatten(separators.Select(separator => separator.Tokens));
     }
@@ -649,11 +652,11 @@ internal sealed class AwkStatementSyntaxParser
 
     [Rule]
     public SimpleElement SimpleLeaf([AwkStatementSimpleLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     [Rule]
     public MalformedControlPart MalformedControlLeaf([AwkStatementMalformedControlLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     [Rule]
     public ParenthesizedGroup ParenthesizedGroupRule(
@@ -689,7 +692,7 @@ internal sealed class AwkStatementSyntaxParser
 
     [Rule]
     public GroupPart GroupLeaf([AwkStatementGroupLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     private AwkStatementSyntax CreateSimpleStatement(
         AwkStatementKind kind,

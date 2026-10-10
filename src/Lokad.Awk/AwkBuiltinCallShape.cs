@@ -136,21 +136,32 @@ internal static class AwkBuiltinCallShape
         return !TryGetArgumentRoleFailure(call, out _);
     }
 
+    public static bool AcceptsArgumentRoles(AwkBuiltinCallSyntax call, AwkLoweringScope scope) =>
+        !TryGetArgumentRoleFailure(call, scope, out _);
+
     public static bool TryGetArgumentRoleFailure(
         AwkBuiltinCallSyntax call,
+        out AwkBuiltinArgumentRoleFailure failure) =>
+        TryGetArgumentRoleFailure(call, AwkLoweringScope.Global, out failure);
+
+    public static bool TryGetArgumentRoleFailure(
+        AwkBuiltinCallSyntax call,
+        AwkLoweringScope scope,
         out AwkBuiltinArgumentRoleFailure failure)
     {
-        static bool IsArrayName(AwkExpressionSyntax argument) =>
-            AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(argument, out _);
+        static bool IsArrayName(AwkExpressionSyntax argument, AwkLoweringScope scope) =>
+            AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(argument, out var identifier) &&
+            !scope.IsReservedVariable(identifier.Name);
 
         static bool AcceptsArgumentRole(
             AwkBuiltinArgumentRole role,
-            AwkExpressionSyntax argument) =>
+            AwkExpressionSyntax argument,
+            AwkLoweringScope scope) =>
             role switch
             {
-                AwkBuiltinArgumentRole.ArrayName => IsArrayName(argument),
+                AwkBuiltinArgumentRole.ArrayName => IsArrayName(argument, scope),
                 AwkBuiltinArgumentRole.LValue =>
-                    AwkExpressionSyntaxFacts.IsValidMutationTarget(argument),
+                    AwkLValueLowerer.Lower(argument, scope).Succeeded,
                 _ => true
             };
 
@@ -159,7 +170,7 @@ internal static class AwkBuiltinCallShape
             if (!call.GetArgument(index).TryGetValue(out var argument))
                 throw new InvalidOperationException("A counted builtin argument must be present.");
 
-            if (!AcceptsArgumentRole(call.Definition.GetArgumentRole(index), argument))
+            if (!AcceptsArgumentRole(call.Definition.GetArgumentRole(index), argument, scope))
             {
                 failure = new AwkBuiltinArgumentRoleFailure(
                     index,

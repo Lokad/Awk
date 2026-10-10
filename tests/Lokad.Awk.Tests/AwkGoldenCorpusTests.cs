@@ -192,7 +192,8 @@ public sealed class AwkGoldenCorpusTests
         var expectParserFailure = IsParserDiagnosticCase(testCase);
         var source = loaded.CompilationSource;
         var binding = AwkBinder.Bind(
-            AwkParser.Parse(source.Text),
+            AwkParser.Parse(source.Text, AwkFrontendBudget.Unlimited(int.MaxValue),
+                CancellationToken.None, invocation.ExecutionOptions.CompatibilityProfile.Mode),
             invocation.ExecutionOptions.CompatibilityProfile);
         if (expectParserFailure)
         {
@@ -227,7 +228,8 @@ public sealed class AwkGoldenCorpusTests
 
         var expectParserFailure = IsParserDiagnosticCase(testCase);
         var source = loaded.CompilationSource;
-        var parse = AwkParser.Parse(source.Text);
+        var parse = AwkParser.Parse(source.Text, AwkFrontendBudget.Unlimited(int.MaxValue),
+                CancellationToken.None, invocation.ExecutionOptions.CompatibilityProfile.Mode);
         var binding = AwkBinder.Bind(parse, invocation.ExecutionOptions.CompatibilityProfile);
         if (expectParserFailure)
         {

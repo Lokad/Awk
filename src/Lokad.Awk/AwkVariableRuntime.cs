@@ -208,7 +208,7 @@ internal sealed class AwkVariableRuntime(
         if (functions.TryResolveOrPromoteArrayName(new AwkVariableName(name.Identifier), out var localArrayName))
             return localArrayName;
 
-        if (!string.Equals(name.Text, AwkVariables.SymbolTableName, StringComparison.Ordinal))
+        if (!variables.IsSymbolTable(name.Text))
             EnsureArrayName(name);
 
         return name;
@@ -250,14 +250,14 @@ internal sealed class AwkVariableRuntime(
             return name;
         if (functions.TryGetArrayReadName(new AwkVariableName(name.Identifier), out var local))
             return local;
-        if (!AwkSymbolTableArray.IsName(name.Text))
+        if (!variables.IsSymbolTable(name.Text))
             EnsureArrayName(name);
         return name;
     }
 
     private AwkVariableNameResolution ResolveGlobalName(AwkVariableName name)
     {
-        if (string.Equals(name.Text, AwkVariables.SymbolTableName, StringComparison.Ordinal))
+        if (variables.IsSymbolTable(name.Text))
             return AwkVariableNameResolution.SymbolTableArray;
 
         if (variables.ContainsArray(new AwkArrayName(name.Identifier)))

@@ -15,7 +15,8 @@ internal static class AwkLValueLowerer
             AwkExpressionSyntax expression,
             AwkLoweringScope scope)
         {
-            if (!AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(expression, out var identifier))
+            if (!AwkExpressionSyntaxFacts.TryGetAssignableIdentifier(expression, out var identifier) ||
+                scope.IsReservedVariable(identifier.Name))
                 return AwkLValueLoweringResult.Invalid;
 
             var variableName = new AwkVariableName(identifier.Identifier);
@@ -31,6 +32,7 @@ internal static class AwkLValueLowerer
         {
             if (expression.Children.Count < 2 ||
                 !AwkExpressionSyntaxFacts.TryGetAssignableArrayElementTarget(expression, out var target) ||
+                scope.IsReservedVariable(target.Name) ||
                 !AwkExpressionLowerer.TryLowerArrayIndex(expression.Children, scope, out var index))
             {
                 return AwkLValueLoweringResult.Invalid;

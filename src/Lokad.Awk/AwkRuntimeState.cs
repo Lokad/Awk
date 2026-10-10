@@ -87,7 +87,8 @@ internal sealed class AwkRuntimeState
             () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .FieldCountValue,
             () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
-                .PrepareOutputFieldSeparatorAssignment());
+                .PrepareOutputFieldSeparatorAssignment(),
+            CompatibilityMode);
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryGovernor,
@@ -136,7 +137,8 @@ internal sealed class AwkRuntimeState
             _variables,
             _fieldSplitter,
             FormatStringByteText,
-            RecordSpecialVariableAssignment);
+            RecordSpecialVariableAssignment,
+            CompatibilityMode);
         specialVariables = _specialVariables;
         _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables);
         _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
@@ -352,6 +354,8 @@ internal sealed class AwkRuntimeState
 
     public void InitializeProcInfo()
     {
+        if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.ProcInfo, CompatibilityMode))
+            return;
         _variables.InitializeArrayStringValue(
             ProcInfoArrayName,
             ProcInfoVersionKey,
@@ -371,6 +375,8 @@ internal sealed class AwkRuntimeState
         }
 
         _functions.InitializeFunctions(functions);
+        if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.FunctionTable, CompatibilityMode))
+            return;
         _variables.InitializeArrayStringNames(
             FunctionTableArrayName,
             AwkBuiltins.Count + functions.Count,
@@ -596,8 +602,11 @@ internal sealed class AwkRuntimeState
 
     public long RecordSeparatorVersion => _recordSeparatorVersion;
 
-    public void SetRecordTerminator(AwkRecordTerminator terminator) =>
-        AssignVariableValue(RecordTerminatorVariableName, CreateByteTextValue(terminator.ByteText));
+    public void SetRecordTerminator(AwkRecordTerminator terminator)
+    {
+        if (AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
+            AssignVariableValue(RecordTerminatorVariableName, CreateByteTextValue(terminator.ByteText));
+    }
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
     {
@@ -621,16 +630,24 @@ internal sealed class AwkRuntimeState
 
     private long EstimateRecordTerminatorMemoryGrowth(AwkRecordTerminator terminator)
     {
+        if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
+            return 0;
         Resources.ThrowIfValueBytesExceeded(terminator.ByteText.ByteLength);
         return _variables.EstimateScalarValueMemoryGrowth(
             RecordTerminatorVariableName, AwkValue.FromText(terminator.ByteText, NumberParsingMode));
     }
 
-    public void SetErrno(AwkErrno errno) =>
-        AssignVariable(ErrnoVariableName, errno.Text);
+    public void SetErrno(AwkErrno errno)
+    {
+        if (AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.Errno, CompatibilityMode))
+            AssignVariable(ErrnoVariableName, errno.Text);
+    }
 
-    private void SetArgvIndex(AwkArgvIndex index) =>
-        AssignSpecialVariableValue(AwkSpecialVariableId.ArgumentIndex, CreateNumberValue(index.Value));
+    private void SetArgvIndex(AwkArgvIndex index)
+    {
+        if (AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.ArgumentIndex, CompatibilityMode))
+            AssignSpecialVariableValue(AwkSpecialVariableId.ArgumentIndex, CreateNumberValue(index.Value));
+    }
 
     public double MainInputArgumentCount =>
         Math.Truncate(ResolveSpecialVariableValue(AwkSpecialVariableId.ArgumentCount).AsNumber());
@@ -639,6 +656,8 @@ internal sealed class AwkRuntimeState
 
     public string ResolveProcInfo(string key, string fallback)
     {
+        if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.ProcInfo, CompatibilityMode))
+            return fallback;
         if (!_variables.TryPeekArrayValue(
             ProcInfoArrayName,
             new AwkArrayKey(key),

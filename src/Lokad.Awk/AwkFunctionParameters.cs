@@ -58,15 +58,6 @@ internal static class AwkFunctionParameters
                     return new AwkFunctionParameterBinding(parameters, diagnostics);
                 }
 
-                if (AwkIdentifiers.IsReservedName(identifier.Text))
-                {
-                    AddDiagnostic(
-                        diagnostics,
-                        token.Span,
-                        "Function parameter `" + identifier.Text + "' is reserved.");
-                    return new AwkFunctionParameterBinding(parameters, diagnostics);
-                }
-
                 if (!seen.Add(identifier.Text))
                 {
                     AddDiagnostic(

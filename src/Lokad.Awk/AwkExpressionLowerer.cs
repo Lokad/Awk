@@ -28,6 +28,13 @@ internal static partial class AwkExpressionLowerer
                 return false;
 
             var identifier = token.Name;
+            var variableName = new AwkVariableName(token.Identifier);
+            if (scope.TryGetFunctionLocalSlot(variableName, out var slotId))
+            {
+                lowered = AwkExpression.LocalVariable(variableName, slotId);
+                return true;
+            }
+
             if (AwkSpecialVariables.IsName(identifier, AwkSpecialVariableId.RecordNumber))
             {
                 lowered = AwkExpression.RecordNumber();
@@ -58,13 +65,10 @@ internal static partial class AwkExpressionLowerer
                 return true;
             }
 
-            if (AwkIdentifiers.IsReservedName(identifier))
+            if (scope.IsReservedVariable(identifier))
                 return false;
 
-            var variableName = new AwkVariableName(token.Identifier);
-            lowered = scope.TryGetFunctionLocalSlot(variableName, out var slotId)
-                ? AwkExpression.LocalVariable(variableName, slotId)
-                : AwkExpression.Variable(variableName);
+            lowered = AwkExpression.Variable(variableName);
             return true;
         }
 
@@ -97,7 +101,8 @@ internal static partial class AwkExpressionLowerer
         {
             lowered = null;
             if (expression.Children.Count < 2 ||
-                !AwkExpressionSyntaxFacts.TryGetArrayElementTarget(expression, out var target))
+                !AwkExpressionSyntaxFacts.TryGetArrayElementTarget(expression, out var target) ||
+                scope.IsReservedVariable(target.Name))
             {
                 return false;
             }
@@ -499,7 +504,7 @@ internal static partial class AwkExpressionLowerer
                 lowered = null;
                 if (!AwkBuiltinCallShape.TryCreate(definition, expression, out var call) ||
                     !AwkBuiltinCallShape.AcceptsArgumentCount(definition, call.ArgumentCount) ||
-                    !AwkBuiltinCallShape.AcceptsArgumentRoles(call))
+                    !AwkBuiltinCallShape.AcceptsArgumentRoles(call, scope))
                 {
                     return false;
                 }
@@ -557,10 +562,14 @@ internal static partial class AwkExpressionLowerer
             }
 
             var functionName = target.Name;
+            if (scope.TryGetFunctionLocalSlot(new AwkVariableName(target.Identifier), out _))
+                return false;
+
             if (AwkBuiltins.TryGetSpecialSyntax(functionName, out var specialSyntax))
                 return TryLowerMetadataBackedCall(specialSyntax, expression, scope, out lowered);
 
-            if (AwkBuiltins.TryGetCallable(functionName, out var callable))
+            if (AwkBuiltins.TryGetCallable(functionName, out var callable) &&
+                AwkCompatibilityNames.EnablesBuiltin(callable, scope.CompatibilityMode))
             {
                 if (callable.LoweringKind != AwkBuiltinLoweringKind.Ordinary)
                     return TryLowerMetadataBackedCall(callable, expression, scope, out lowered);

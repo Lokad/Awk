@@ -62,6 +62,8 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(FlushCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Function),
 
+        .. Tagged(ProfileNameCompatibilityCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Function, AwkGoldenTag.Variable),
+
         .. Tagged(HostPolicyCases(), AwkGoldenTag.HostPolicy),
 
         .. Tagged(RegexCases(), AwkGoldenTag.Regex),
@@ -76,7 +78,10 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(ArrayRuntimeCases(), AwkGoldenTag.Array),
 
-        .. Tagged(StatementControlCases(), AwkGoldenTag.Statement),
+        .. Tagged(CompilerDiagnostics(StatementControlCases().Where(testCase =>
+            testCase.Name is "posix-switch-is-gnu-extension" or "traditional-switch-is-gnu-extension")), AwkGoldenTag.Statement),
+        .. Tagged(StatementControlCases().Where(testCase =>
+            testCase.Name is not ("posix-switch-is-gnu-extension" or "traditional-switch-is-gnu-extension")), AwkGoldenTag.Statement),
 
         .. Tagged(StatementCompatibilityRepairs(), AwkGoldenTag.Statement),
 
@@ -458,13 +463,11 @@ internal static partial class AwkGoldenCorpus
                 string.Empty,
                 "awk: attempt to use scalar `a' as an array\n");
 
-            yield return Failing(
-                "posix-length-array-fails",
+            yield return Passing(
+                "posix-2024-length-array-supported",
                 ["--posix", "BEGIN{a[1]=1; print length(a)}"],
                 [],
-                2,
-                string.Empty,
-                "awk: length: received array argument\n");
+                "1\n");
 
             yield return Passing(
                 "traditional-length-array-remains-supported",
@@ -4375,7 +4378,7 @@ internal static partial class AwkGoldenCorpus
             [],
             2,
             string.Empty,
-            "awk: switch is a GNU extension\n"),
+            "awk: undefined function: switch\n"),
 
         Failing(
             "traditional-switch-is-gnu-extension",
@@ -4383,7 +4386,7 @@ internal static partial class AwkGoldenCorpus
             [],
             2,
             string.Empty,
-            "awk: switch is a GNU extension\n"),
+            "awk: undefined function: switch\n"),
 
         Passing(
             "do-while-loop",

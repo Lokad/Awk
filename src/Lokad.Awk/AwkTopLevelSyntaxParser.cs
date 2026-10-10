@@ -10,12 +10,15 @@ namespace Lokad.Awk;
 internal sealed class AwkTopLevelSyntaxParser
     : GrammarParser<AwkTopLevelSyntaxParser, AwkTokenKind, AwkTopLevelSyntaxParser.ParseResult>
 {
+    private readonly IReadOnlyList<AwkToken> _originalTokens;
+
     private readonly AwkParsingSource _source;
 
-    private AwkTopLevelSyntaxParser(AwkParsingSource source)
+    private AwkTopLevelSyntaxParser(AwkParsingSource source, IReadOnlyList<AwkToken> originalTokens)
         : base(AwkTokenNamer.Instance)
     {
         _source = source;
+        _originalTokens = originalTokens;
     }
 
     public static bool TryParse(
@@ -23,7 +26,7 @@ internal sealed class AwkTopLevelSyntaxParser
         IReadOnlyList<AwkToken> tokens,
         [NotNullWhen(true)] out ParseResult? result)
     {
-        var parser = new AwkTopLevelSyntaxParser(source);
+        var parser = new AwkTopLevelSyntaxParser(source, tokens);
         parser.Tokens = AwkParsingSupport.ToLexerResult(source, tokens);
         try
         {
@@ -152,7 +155,7 @@ internal sealed class AwkTopLevelSyntaxParser
 
     [Rule]
     public DirectiveArgument DirectiveArgumentRule([AwkTopLevelDirectiveArgumentLeaf] Pos<string> token) =>
-        new(AwkParsingSupport.ToToken(token));
+        new(AwkParsingSupport.RestoreToken(_originalTokens, token));
 
     [Rule]
     public BalancedBlock Block(
@@ -171,7 +174,7 @@ internal sealed class AwkTopLevelSyntaxParser
 
     [Rule]
     public BlockPart BlockLeaf([AwkTopLevelBlockLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     [Rule]
     public BalancedParenthesized Parenthesized(
@@ -195,7 +198,7 @@ internal sealed class AwkTopLevelSyntaxParser
 
     [Rule]
     public ParenthesizedPart ParenthesizedLeaf([AwkTopLevelParenthesizedLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     [Rule]
     public BalancedBracketed Bracketed(
@@ -219,7 +222,7 @@ internal sealed class AwkTopLevelSyntaxParser
 
     [Rule]
     public BracketedPart BracketedLeaf([AwkTopLevelBracketedLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     [Rule]
     public AwkPatternSyntax RangePattern(
@@ -260,19 +263,19 @@ internal sealed class AwkTopLevelSyntaxParser
 
     [Rule]
     public PatternPart PatternLeaf([AwkTopLevelPatternLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     [Rule]
     public PatternPart PatternContinuation(
         [AwkT(AwkTokenKind.AmpersandAmpersand, AwkTokenKind.PipePipe, AwkTokenKind.Question, AwkTokenKind.Colon)] Pos<string> op,
         [AwkL(Min = 1)] HeaderPatternGap[] gaps,
         [NT] PatternPart next) =>
-        new(Flatten([[AwkParsingSupport.ToToken(op)], Flatten(gaps.Select(gap => gap.Tokens)), next.Tokens]));
+        new(Flatten([[AwkParsingSupport.RestoreToken(_originalTokens, op)], Flatten(gaps.Select(gap => gap.Tokens)), next.Tokens]));
 
     [Rule]
     public HeaderPatternGap HeaderPatternGapRule(
         [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token) =>
-        new([AwkParsingSupport.ToToken(token)]);
+        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
 
     public readonly struct HeaderPatternGap(IReadOnlyList<AwkToken>? tokens)
     {

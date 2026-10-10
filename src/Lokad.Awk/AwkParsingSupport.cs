@@ -72,6 +72,29 @@ internal static class AwkParsingSupport
     public static AwkToken ToToken(Pos<string> value) =>
         ToToken(ResolveTextKind(value.Value), value);
 
+    // Generic grammar leaves must retain the lexical classification selected by the
+    // compatibility profile and function scope. Reclassifying their text loses it.
+    public static AwkToken RestoreToken(IReadOnlyList<AwkToken> tokens, Pos<string> value)
+    {
+        var start = value.Location.Location.Position;
+        var low = 0;
+        var high = tokens.Count - 1;
+        while (low <= high)
+        {
+            var middle = low + ((high - low) / 2);
+            var token = tokens[middle];
+            if (token.Span.Start < start)
+                low = middle + 1;
+            else if (token.Span.Start > start)
+                high = middle - 1;
+            else if (token.Span.Length == value.Location.Length)
+                return token;
+            else
+                break;
+        }
+        throw new InvalidOperationException("A grammar leaf must reference its original lexical token.");
+    }
+
     public static AwkTokenKind ResolveTextKind(string text)
     {
         return ResolveTextKind(text.AsSpan());
