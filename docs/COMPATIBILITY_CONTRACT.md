@@ -10,6 +10,18 @@ sources, stdin fallback, exit status, stderr wording, and stdout/stderr preserva
 that a caller can observe through `awk` should be added there unless the behavior is only visible
 through a current-surface runtime option.
 
+## Exponentiation Syntax
+
+GNU/default and traditional modes accept `**` and `**=` as aliases for `^` and `^=`.
+Exponentiation binds more tightly than unary signs and associates to the right:
+`-2**2` evaluates to `-4`, and `2**3**2` evaluates to `512`. Compound assignments
+evaluate their scalar, array, or field target once. Both execution engines use the
+same power operations for the aliases and the caret spellings.
+
+`--posix` rejects the two aliases during compilation, including unreachable statements,
+uncalled functions, and rule patterns. Caret operators remain accepted. Operator-like
+text inside strings, regexes, or comments does not trigger the profile restriction.
+
 ## Unsupported Capabilities
 
 Unsupported features must fail deterministically before partially performing surprising host

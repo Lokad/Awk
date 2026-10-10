@@ -8,6 +8,20 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkLexerTests
 {
+    [Fact]
+    public void PowerAliasesPreserveOperatorTextAndSourceSpans()
+    {
+        const string source = "x**=2**3*x^=2^3";
+        var tokens = AwkLexer.Tokenize(source)
+            .Where(token => token.Kind is AwkTokenKind.Caret or AwkTokenKind.CaretEqual)
+            .ToArray();
+        Assert.Equal(new[] { "**=", "**", "^=", "^" }, tokens.Select(token => token.Text));
+        Assert.Equal(new[] { AwkTokenKind.CaretEqual, AwkTokenKind.Caret, AwkTokenKind.CaretEqual, AwkTokenKind.Caret },
+            tokens.Select(token => token.Kind));
+        Assert.Equal(new[] { new AwkTextSpan(1, 3), new AwkTextSpan(5, 2), new AwkTextSpan(10, 2), new AwkTextSpan(13, 1) },
+            tokens.Select(token => token.Span));
+    }
+
     [Theory]
     [InlineData("/a\\/b/", "a\\/b")]
     [InlineData("/[a/b]/", "[a/b]")]

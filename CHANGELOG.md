@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Accepted `**` and `**=` as aliases for `^` and `^=` in GNU/default and traditional
+  modes, preserving precedence, right associativity, and one-time assignment targets.
+  POSIX mode rejects the aliases before execution.
 - Allowed `next` and `nextfile` in user functions, with runtime phase checks and complete
   nested-call unwinding. Functions now execute in rule patterns, and `exit` unwinds caller
   expressions. Sort comparators reject record/file/exit control with awk diagnostics.

@@ -224,7 +224,7 @@ internal enum AwkTokenKind
     Slash,
     [Any("%")]
     Percent,
-    [Any("^")]
+    [Any("^", "**")]
     Caret,
     [Any("!")]
     Bang,
@@ -244,7 +244,7 @@ internal enum AwkTokenKind
     SlashEqual,
     [Any("%=")]
     PercentEqual,
-    [Any("^=")]
+    [Any("^=", "**=")]
     CaretEqual,
     [Any("==")]
     EqualEqual,

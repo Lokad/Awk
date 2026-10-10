@@ -80,6 +80,8 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(FunctionFlowCompatibilityRepairs(), AwkGoldenTag.Function, AwkGoldenTag.Statement, AwkGoldenTag.Record, AwkGoldenTag.Regex),
 
+        .. Tagged(ExponentiationAliasCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
+
         .. Tagged(StatementSeparatorCases(), AwkGoldenTag.Statement),
 
         .. Tagged(StatementRuntimeCases(), AwkGoldenTag.Statement),

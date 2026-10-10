@@ -139,11 +139,48 @@ internal static class AwkSemanticValidator
             }
         }
 
+        static void ValidatePosixPowerOperators(
+            AwkSyntaxProgram syntax,
+            AwkCompatibilityMode compatibilityMode,
+            List<AwkDiagnostic> diagnostics)
+        {
+            if (compatibilityMode != AwkCompatibilityMode.Posix)
+                return;
+
+            foreach (var function in syntax.Functions)
+            {
+                if (ReportUnsupportedOperator(function.BodyTokens))
+                    return;
+            }
+            foreach (var rule in syntax.Rules)
+            {
+                if (ReportUnsupportedOperator(rule.PatternTokens) || ReportUnsupportedOperator(rule.ActionTokens))
+                    return;
+            }
+
+            bool ReportUnsupportedOperator(IReadOnlyList<AwkToken> tokens)
+            {
+                foreach (var token in tokens)
+                {
+                    if (token.Kind is not (AwkTokenKind.Caret or AwkTokenKind.CaretEqual) ||
+                        !token.TextSpan.StartsWith("**", System.StringComparison.Ordinal))
+                        continue;
+
+                    diagnostics.Add(new AwkDiagnostic(token.Span,
+                        "Operator `" + token.Text + "' is not allowed in POSIX mode.",
+                        AwkDiagnosticId.BindInvalidProgram));
+                    return true;
+                }
+                return false;
+            }
+        }
+
         var diagnostics = new List<AwkDiagnostic>();
         ValidateFunctionDeclarations(syntax, diagnostics);
         ValidateFunctionVariableConflicts(semanticModel, diagnostics);
         ValidateUndefinedFunctions(semanticModel, compatibilityProfile.LintMode, diagnostics);
         ValidateCompatibilityGatedCallables(semanticModel, compatibilityProfile.Mode, diagnostics);
+        ValidatePosixPowerOperators(syntax, compatibilityProfile.Mode, diagnostics);
         ValidateStatementSemantics(syntax, diagnostics);
         return diagnostics;
 

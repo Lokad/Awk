@@ -207,7 +207,9 @@ internal static class AwkParsingSupport
                 kind = AwkTokenKind.SlashEqual;
             else if (TextEquals(text, "%="))
                 kind = AwkTokenKind.PercentEqual;
-            else if (TextEquals(text, "^="))
+            else if (TextEquals(text, "**"))
+                kind = AwkTokenKind.Caret;
+            else if (TextEquals(text, "^=") || TextEquals(text, "**="))
                 kind = AwkTokenKind.CaretEqual;
             else if (TextEquals(text, "=="))
                 kind = AwkTokenKind.EqualEqual;
