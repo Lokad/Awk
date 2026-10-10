@@ -414,6 +414,11 @@ internal static class AwkExecutableDispatcher
                             pc++;
                             break;
 
+                        case AwkOpcode.ToNumber:
+                            stack[stackCount - 1] = AwkValue.FromNumber(stack[stackCount - 1].AsNumber());
+                            pc++;
+                            break;
+
                         case AwkOpcode.Negate:
                             stack[stackCount - 1] = AwkValue.FromNumber(-stack[stackCount - 1].AsNumber());
                             pc++;
@@ -1006,6 +1011,7 @@ internal readonly record struct AwkInstruction
             AwkOpcode.Divide or
             AwkOpcode.Modulo or
             AwkOpcode.Power or
+            AwkOpcode.ToNumber or
             AwkOpcode.Negate or
             AwkOpcode.Truthiness or
             AwkOpcode.Not or
@@ -1122,6 +1128,7 @@ internal enum AwkOpcode
     Divide,
     Modulo,
     Power,
+    ToNumber,
     Negate,
     FormatString,
     Concat,

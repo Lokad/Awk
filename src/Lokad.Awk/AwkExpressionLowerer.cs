@@ -598,7 +598,7 @@ internal static partial class AwkExpressionLowerer
             {
                 AwkTokenKind.Bang => AwkExpression.Not(operand),
                 AwkTokenKind.Minus => AwkExpression.Negate(operand),
-                AwkTokenKind.Plus => operand,
+                AwkTokenKind.Plus => AwkExpression.ToNumber(operand),
                 _ => null
             };
 

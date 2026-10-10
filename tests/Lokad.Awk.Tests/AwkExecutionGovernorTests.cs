@@ -16,6 +16,9 @@ public sealed class AwkExecutionGovernorTests
     [InlineData("/a/ {print $1} END{print NR}", "a b\nc d\n")]
     [InlineData("BEGIN{s=\"aaa\"; gsub(/a/,\"b\",s); print s}", "")]
     [InlineData("BEGIN{a[1]=3; a[2]=1; a[3]=2; asort(a,b); print b[1],b[3]}", "")]
+    [InlineData("BEGIN{x=\"0\"; print !+ +x,!!x; print + + + + + + + +1}", "")]
+    [InlineData("BEGIN{i=1;a[1]=2;print -++a[i++]^2,i,a[1];print !!a[1]}", "")]
+    [InlineData("BEGIN{$0=\"2 3\";i=1;print $- -i^2,$!0^2;print !++$i,$0}", "")]
     public async Task EnginesAndObservationalCountersAdmitTheSameWork(string program, string input)
     {
         var compiled = await CompileAsync(program);

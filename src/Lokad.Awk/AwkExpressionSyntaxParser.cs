@@ -297,6 +297,13 @@ internal sealed class AwkExpressionSyntaxParser
     }
 
     [Rule]
+    public AwkExpressionSyntax FieldWithUnaryIndex(
+        [AwkT(AwkTokenKind.Dollar)] Pos<string> dollar,
+        [AwkT(AwkTokenKind.Bang, AwkTokenKind.Plus, AwkTokenKind.Minus)] Pos<string> op,
+        [NT(2)] AwkExpressionSyntax operand) =>
+        Field(dollar, Unary(op, operand));
+
+    [Rule]
     public AwkExpressionSyntax FunctionCallNoArguments(
         [AwkT(AwkTokenKind.Identifier)] Pos<string> target,
         [AwkT(AwkTokenKind.LeftParen)] Pos<string> open,
@@ -405,6 +412,15 @@ internal sealed class AwkExpressionSyntaxParser
         CreateNode(AwkExpressionKind.Postfix, target, AwkParsingSupport.ToToken(op), [AwkParsingSupport.ToToken(op)]);
 
     [Rule]
+    public AwkExpressionSyntax PrefixMutation(
+        [AwkT(AwkTokenKind.PlusPlus, AwkTokenKind.MinusMinus)] Pos<string> op,
+        [NT(0)] AwkExpressionSyntax target)
+    {
+        var operatorToken = AwkParsingSupport.ToToken(op);
+        return CreateNode(AwkExpressionKind.Unary, operatorToken, target, [operatorToken]);
+    }
+
+    [Rule]
     public AwkExpressionSyntax GetlineOnly([AwkT(AwkTokenKind.Getline)] Pos<string> getline) =>
         CreateGetlineCall(getline, null, null, null);
 
@@ -438,8 +454,8 @@ internal sealed class AwkExpressionSyntaxParser
 
     [Rule(Rank = 2)]
     public AwkExpressionSyntax Unary(
-        [AwkT(AwkTokenKind.Bang, AwkTokenKind.Plus, AwkTokenKind.Minus, AwkTokenKind.PlusPlus, AwkTokenKind.MinusMinus)] Pos<string> op,
-        [NT(1)] AwkExpressionSyntax operand)
+        [AwkT(AwkTokenKind.Bang, AwkTokenKind.Plus, AwkTokenKind.Minus)] Pos<string> op,
+        [NT(2)] AwkExpressionSyntax operand)
     {
         var operatorToken = AwkParsingSupport.ToToken(op);
         return CreateNode(AwkExpressionKind.Unary, operatorToken, operand, [operatorToken]);

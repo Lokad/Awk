@@ -12,6 +12,17 @@ through a current-surface runtime option.
 
 ## Exponentiation Syntax
 
+Unary `!`, `+`, and `-` may be chained without grouping, including `!!x`, `- -x`,
+and `!-x`. Unary plus produces a numeric value instead of retaining a string's type;
+`!+"0"` is one. Signs and logical negation bind less tightly than exponentiation.
+Prefix increment/decrement bind to their scalar, array, or field target before a following
+power: `++x^2` means `(++x)^2`. Targets are evaluated once and invalid mutation targets
+are rejected before execution. These ordinary forms are accepted in all compatibility modes.
+
+Field indices may themselves start with unary operators. `$-i^2` indexes the field at
+`-(i^2)`, while `$++i^2` means `($(++i))^2`. Parentheses can select a different binding.
+Postfix `$i++` continues to mutate the field; `$(i++)` mutates the index variable.
+
 GNU/default and traditional modes accept `**` and `**=` as aliases for `^` and `^=`.
 Exponentiation binds more tightly than unary signs and associates to the right:
 `-2**2` evaluates to `-4`, and `2**3**2` evaluates to `512`. Compound assignments

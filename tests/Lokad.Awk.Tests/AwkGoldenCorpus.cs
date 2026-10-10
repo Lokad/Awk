@@ -82,6 +82,8 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(ExponentiationAliasCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
 
+        .. Tagged(UnaryPrefixCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
+
         .. Tagged(FormattingSyntaxCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
 
         .. Tagged(IntegerFormattingCases(), AwkGoldenTag.Output, AwkGoldenTag.Expression),

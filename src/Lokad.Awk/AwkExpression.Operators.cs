@@ -131,6 +131,21 @@ internal abstract partial class AwkExpression
         }
     }
 
+    private sealed class NumberConversionExpression(AwkExpression expression) : AwkExpression
+    {
+        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            AwkValue.FromNumber((await expression.EvaluateAsync(context).ConfigureAwait(false)).AsNumber());
+
+        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
+        {
+            if (!compiler.TryEmitExpression(expression))
+                return false;
+
+            compiler.Emit(AwkOpcode.ToNumber);
+            return true;
+        }
+    }
+
     private sealed class NegateExpression(AwkExpression expression) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>

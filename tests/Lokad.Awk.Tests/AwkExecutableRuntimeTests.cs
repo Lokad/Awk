@@ -75,6 +75,7 @@ public sealed class AwkExecutableRuntimeTests
                 AwkOpcode.Divide,
                 AwkOpcode.Modulo,
                 AwkOpcode.Power,
+                AwkOpcode.ToNumber,
                 AwkOpcode.Negate,
                 AwkOpcode.FormatString,
                 AwkOpcode.Concat,

@@ -51,6 +51,8 @@ internal abstract partial class AwkExpression
 
     public static AwkExpression Negate(AwkExpression expression) => new NegateExpression(expression);
 
+    public static AwkExpression ToNumber(AwkExpression expression) => new NumberConversionExpression(expression);
+
     public static AwkExpression Not(AwkExpression expression) => new NotExpression(expression);
 
     public static AwkExpression Compare(AwkExpression left, AwkExpression right, AwkComparison comparison) =>

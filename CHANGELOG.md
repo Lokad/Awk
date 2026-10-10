@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Accepted recursive unary prefixes, including signed field indices, while preserving
+  exponent and mutation binding. Unary plus now converts to a numeric value in both
+  engines, retaining signed zero and participating in the shared execution budget.
+
 - Honored integer formatting precision and zero-padding rules, and removed signed-long
   saturation from printf/sprintf. Large signed decimals preserve their full value;
   unsigned-range fallbacks use `%g` with bounded buffers and preflighted output sizes.

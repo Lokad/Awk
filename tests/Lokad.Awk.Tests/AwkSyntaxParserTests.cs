@@ -7,6 +7,56 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkSyntaxParserTests
 {
     [Fact]
+    public void AwkSyntaxParser_PreservesUnaryFieldAndMutationBinding()
+    {
+        const string source = "BEGIN{r=!!x;r=-++x^2;r=$-i^2;r=$++i^2;r=+ +x}";
+        var program = AwkSyntaxParser.Parse(source);
+        Assert.Empty(program.Diagnostics);
+        var statements = Assert.Single(program.Rules).ActionStatements;
+        var expressions = statements.Select(statement => RequiredExpression(statement).Children[1]).ToArray();
+
+        var nestedNot = expressions[0];
+        AssertUnary(nestedNot, AwkTokenKind.Bang);
+        AssertUnary(Assert.Single(nestedNot.Children), AwkTokenKind.Bang);
+
+        var negativePower = expressions[1];
+        AssertUnary(negativePower, AwkTokenKind.Minus);
+        var mutationPower = Assert.Single(negativePower.Children);
+        Assert.Equal(AwkTokenKind.Caret, Assert.Single(mutationPower.OperatorTokens).Kind);
+        AssertUnary(mutationPower.Children[0], AwkTokenKind.PlusPlus);
+        Assert.Equal(AwkExpressionKind.Variable, Assert.Single(mutationPower.Children[0].Children).Kind);
+
+        var signedField = expressions[2];
+        Assert.Equal(AwkExpressionKind.Field, signedField.Kind);
+        var signedIndex = Assert.Single(signedField.Children);
+        AssertUnary(signedIndex, AwkTokenKind.Minus);
+        Assert.Equal(AwkTokenKind.Caret, Assert.Single(Assert.Single(signedIndex.Children).OperatorTokens).Kind);
+
+        var fieldPower = expressions[3];
+        Assert.Equal(AwkTokenKind.Caret, Assert.Single(fieldPower.OperatorTokens).Kind);
+        Assert.Equal(AwkExpressionKind.Field, fieldPower.Children[0].Kind);
+        AssertUnary(Assert.Single(fieldPower.Children[0].Children), AwkTokenKind.PlusPlus);
+
+        AssertUnary(expressions[4], AwkTokenKind.Plus);
+        AssertUnary(Assert.Single(expressions[4].Children), AwkTokenKind.Plus);
+        string[] expected = ["!!x", "-++x^2", "$-i^2", "$++i^2", "+ +x"];
+        for (var index = 0; index < expressions.Length; index++)
+        {
+            var expression = expressions[index];
+            Assert.Equal(expected[index], source.Substring(expression.Span.Start, expression.Span.Length));
+            Assert.Equal(expression.Tokens.Count, expression.Tokens.Select(token => token.Span.Start).Distinct().Count());
+            Assert.All(expression.Tokens, token =>
+                Assert.Equal(token.Text, source.Substring(token.Span.Start, token.Span.Length)));
+        }
+
+        static void AssertUnary(AwkExpressionSyntax expression, AwkTokenKind kind)
+        {
+            Assert.Equal(AwkExpressionKind.Unary, expression.Kind);
+            Assert.Equal(kind, Assert.Single(expression.OperatorTokens).Kind);
+        }
+    }
+
+    [Fact]
     public void AwkExpressionSyntax_ProjectsDeepTokensWithLinearAllocation()
     {
         _ = ProjectExpressionTokens(CreateNestedExpression(8));
