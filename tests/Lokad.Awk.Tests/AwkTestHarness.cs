@@ -118,13 +118,6 @@ internal static class AwkTestHarness
         var compiled = await AwkExecutor
             .CompileAsync(fileSystem, BuildInvocation("awk", testCase.Arguments, testCase.Environment), cancellationToken)
             .ConfigureAwait(false);
-        foreach (var warning in compiled.Warnings)
-        {
-            await fileSystem
-                .AppendAsync(AwkFileDescriptor.StdErr, AwkDiagnostics.Warning(warning), cancellationToken)
-                .ConfigureAwait(false);
-        }
-
         var exitCode = await compiled.ExecuteAsync(fileSystem, cancellationToken, runtimeOptions).ConfigureAwait(false);
         var expectedFiles = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var expectedFile in testCase.ExpectedFiles)

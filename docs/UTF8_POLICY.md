@@ -34,6 +34,21 @@ input records, `getline` data, and source-file contents.
 
 ## Runtime Text
 
+Source string literals decode GNU 5.4 lower-case `\u` escapes in default/traditional
+profiles, consuming one to eight hexadecimal digits. U+0000, BMP characters and
+supplementary scalars are valid; the following hexadecimal characters belong to the
+escape until its eight-digit limit. Surrogates and values above U+10FFFF become `?`
+with a lexical warning, preserving valid UTF-8 even where the native GNU/glibc reference
+emits invalid bytes. Missing digits keep plain `u` and warn. Upper-case `\U` remains
+unknown. POSIX source strings keep plain `u` and `x` for `\u` and `\x` without those
+GNU warnings. Decoding is a single pass: an escape-produced backslash is ordinary
+string content, not the start of another source escape.
+
+Warnings retain the string token's source span and are emitted even for unreachable
+code. Both source and compiled execution emit them before runtime effects through the
+same governed output boundary. This support applies to source strings; regex literals,
+command-option values and include-path escapes remain separate compatibility work.
+
 `AwkText` stores valid UTF-8 bytes and caches UTF-16 strings only for compatibility boundaries.
 SYMTAB identifier lookup and failed special-array key diagnostics use the counted key
 decoding boundary; ordinary successful FUNCTAB reads retain byte-native keys and values.

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Source string literals now support GNU 5.4 `\u` escapes with one to eight hexadecimal
+  digits in default/traditional profiles. Supplementary characters remain valid UTF-8;
+  invalid scalars become `?` with a source warning. POSIX strings treat `\u` and `\x`
+  as plain `u` and `x` without GNU escape warnings. Missing Unicode digits keep `u`
+  and warn; uppercase `\U` remains an unknown escape.
+
+- Regex translation now treats unmatched closing parentheses as literals even when
+  the pattern has no backslashes. Unchanged patterns retain their original string;
+  bracket and balanced-group behavior is preserved.
+
+- Precompiled interpreter and executable runs now emit their frontend warnings before
+  execution, once per run, with source locations preserved. Warning appends share host
+  and output admission, cancellation and deadlines with the execution. The golden
+  harness no longer supplies a separate warning append that bypasses those limits.
+
 - Input pipes now retain blank-only paragraph bytes at EOF, matching GNU's repeated
   RT clearing and allowing a later RS change to read those bytes. Prefix scans are
   cached across batches and repeated EOF. Retained capacity stays under the memory

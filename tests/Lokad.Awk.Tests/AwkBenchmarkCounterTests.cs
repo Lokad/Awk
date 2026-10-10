@@ -8,6 +8,30 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.DotNetCompatibility)]
+    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.DotNetCompatibility)]
+    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.Utf8Adapter)]
+    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.Utf8Adapter)]
+    internal async Task Awk_UnicodeStringEscapesShareLiteralRuntimeCounters(AwkExecutionEngineKind engine, AwkRegexEngineKind regex)
+    {
+        var control = await RunAsync(["BEGIN{v=\"\U0001f600\";printf \"%s\",v;exit}"], "", regex, engine);
+        Assert.Equal(2, control.Counters.StringDecodes);
+        foreach (var literal in new[] { "\\u1f600", "\U0001f600" })
+        {
+            var (exit, host, counters) = await RunAsync(
+                ["BEGIN{v=\"" + literal + "\";printf \"%s\",v;exit}"], "", regex, engine);
+            Assert.Equal(0, exit);
+            Assert.Equal("\U0001f600", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(control.Counters.StringDecodes, counters.StringDecodes);
+            Assert.Equal(control.Counters.Utf8Encodes, counters.Utf8Encodes);
+            Assert.Equal(control.Counters.StringInteropFallbacks, counters.StringInteropFallbacks);
+            Assert.Equal(control.Counters.FormattingFallbacks, counters.FormattingFallbacks);
+            Assert.Equal(control.Counters.AwkTextAllocations, counters.AwkTextAllocations);
+        }
+    }
+
     private const string InvalidUtf8Diagnostic = "awk: invalid UTF-8 input\n";
     private const string StepCalibrationInput =
         "sku1 region1 open 10\n" +

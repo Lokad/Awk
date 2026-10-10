@@ -46,6 +46,22 @@ see `REGEX_COMPATIBILITY.md` for numeric decoding and remaining gaps. POSIX RS s
 its first UTF-8 byte and consumes a whole matching input scalar. POSIX mode overrides
 the requested byte-unit option, independent of option order, and emits a warning.
 
+## Source String Escapes
+
+Default/traditional source strings support GNU 5.4 `\u` followed by one to eight hex
+digits. Missing digits retain `u` with a warning; invalid Unicode scalars become `?`
+with a warning. NUL and supplementary scalars are accepted. This follows the valid
+Unicode scalar contract rather than reproducing GNU/glibc's invalid UTF-8 output for
+some values above U+10FFFF. Upper-case `\U` stays an unknown escape. POSIX source
+strings treat `\u` and `\x` as plain `u` and `x` without GNU warnings. Ordinary octal
+and simple escapes retain their existing behavior. Warnings are lexical, retain source
+locations and occur even when the containing expression never executes.
+
+String decoding runs once. A decoded backslash is passed as string data; if that
+string is later used as a regular expression, it crosses the separate regex translation
+boundary. Unicode decoding inside regex literals, command-option values and include
+paths is not covered by this source-string increment.
+
 ## Field Splitting Modes
 
 GNU mode initializes PROCINFO["FS"] to "FS". Assigning FS, FPAT or FIELDWIDTHS selects

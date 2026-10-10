@@ -6,6 +6,11 @@ The awk suite is intentionally split by boundary. New coverage should start in t
 
 `AwkGoldenCorpus` is the canonical behavior and diagnostic suite for the awk language surface. Add cases here for accepted awk programs, runtime behavior, compatibility-mode differences, diagnostics, host-policy errors surfaced through awk, and stderr/stdout ordering that is visible to awk callers.
 
+Compiled executions emit their own frontend warnings. The golden harness must not append
+`compiled.Warnings` separately; doing so duplicates diagnostics and bypasses execution's
+resource and host-boundary checks. `AwkCompiledWarningTests` covers artifact reuse, mapped
+source locations, warning admission and pending/failed host appends.
+
 Failing golden cases must assert the awk exit code, exact stderr, expected stdout preservation, and no CLR exception leakage through `AwkTestHarness.AssertFriendlyAwkFailure`.
 
 ## End-to-End Host Tests

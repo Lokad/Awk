@@ -136,6 +136,7 @@ internal static partial class AwkExpressionLowerer
 
         static bool TryLowerString(
             AwkExpressionSyntax expression,
+            AwkLoweringScope scope,
             [NotNullWhen(true)] out AwkExpression? lowered)
         {
             lowered = null;
@@ -144,7 +145,7 @@ internal static partial class AwkExpressionLowerer
 
             var text = expression.Tokens[0].Text;
             var index = 0;
-            if (!TryReadStringLiteralToken(text, ref index, out var literal) ||
+            if (!TryReadStringLiteralToken(text, ref index, out var literal, scope.CompatibilityMode) ||
                 index != text.Length)
             {
                 return false;
@@ -851,7 +852,7 @@ internal static partial class AwkExpressionLowerer
             case AwkExpressionKind.Number:
                 return TryLowerNumber(expression, out lowered);
             case AwkExpressionKind.String:
-                return TryLowerString(expression, out lowered);
+                return TryLowerString(expression, scope, out lowered);
             case AwkExpressionKind.Regex:
                 return TryLowerRegexLiteral(expression, scope, out lowered);
             case AwkExpressionKind.Variable:

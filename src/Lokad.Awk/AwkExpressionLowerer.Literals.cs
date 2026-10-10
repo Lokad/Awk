@@ -111,7 +111,8 @@ internal static partial class AwkExpressionLowerer
         }
     }
 
-    public static bool TryReadStringLiteralToken(string source, ref int position, out string literal)
+    public static bool TryReadStringLiteralToken(string source, ref int position, out string literal,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         literal = string.Empty;
         if (position >= source.Length || source[position] != '"')
@@ -139,7 +140,7 @@ internal static partial class AwkExpressionLowerer
 
             if (current == '"')
             {
-                literal = AwkEscapes.Decode(source.Substring(start, position - start));
+                literal = AwkEscapes.DecodeSourceString(source.Substring(start, position - start), compatibilityMode);
                 position++;
                 return true;
             }

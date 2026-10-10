@@ -97,19 +97,12 @@ internal sealed class AwkRegex
             return TranslatePosixCharacterClasses(TranslateEscapes(pattern, mode));
             static string TranslateEscapes(string pattern, AwkCompatibilityMode mode)
             {
-                var slash = pattern.IndexOf('\\', StringComparison.Ordinal);
-                if (slash < 0)
-                    return pattern;
-
-                var builder = new StringBuilder(pattern.Length);
+                StringBuilder? builder = null;
                 var bracketStart = -1;
                 var bracketFirstItem = -1;
                 var posixTokenEnd = -1;
                 var groupDepth = 0;
-                for (var index = 0; index < slash; index++)
-                    AppendPatternCharacter(pattern[index], index);
-
-                for (var index = slash; index < pattern.Length; index++)
+                for (var index = 0; index < pattern.Length; index++)
                 {
                     var current = pattern[index];
                     if (current != '\\' || index + 1 >= pattern.Length)
@@ -118,20 +111,21 @@ internal sealed class AwkRegex
                         continue;
                     }
 
+                    var output = GetBuilder(index);
                     index++;
                     var escaped = pattern[index];
                     if (!(mode == AwkCompatibilityMode.Posix && escaped == 'x') &&
                         AwkEscapes.TryReadNumericEscape(pattern, ref index, pattern.Length, out var numeric))
                     {
                         if (mode == AwkCompatibilityMode.Traditional && ".*+(){}[]|?^$\\".Contains(numeric))
-                            AppendLiteral(builder, numeric, bracketStart >= 0);
+                            AppendLiteral(output, numeric, bracketStart >= 0);
                         else if (numeric == '\\' && index + 1 < pattern.Length)
                         {
                             // Numeric escapes are decoded before the ERE parser sees them.
                             // A resulting backslash introduces an ERE escape, not another
                             // awk numeric or string escape (\134y differs from \y).
                             index++;
-                            AppendOperator(pattern[index], fromNumeric: true);
+                            AppendOperator(output, pattern[index], fromNumeric: true);
                         }
                         else
                             AppendPatternCharacter(numeric, index);
@@ -141,77 +135,86 @@ internal sealed class AwkRegex
                     if (bracketStart >= 0 || mode != AwkCompatibilityMode.GnuDefault)
                     {
                         if (bracketStart >= 0 && mode == AwkCompatibilityMode.GnuDefault && escaped == 'y')
-                            AppendLiteral(builder, 'b', inBracket: true);
+                            AppendLiteral(output, 'b', inBracket: true);
                         else
-                            AppendEscapedCharacter(escaped);
+                            AppendEscapedCharacter(output, escaped);
                         continue;
                     }
 
-                    AppendOperator(escaped, fromNumeric: false);
+                    AppendOperator(output, escaped, fromNumeric: false);
                 }
 
-                return builder.ToString();
+                return builder?.ToString() ?? pattern;
 
-                void AppendOperator(char escaped, bool fromNumeric)
+                StringBuilder GetBuilder(int index)
+                {
+                    if (builder is not null)
+                        return builder;
+                    builder = new StringBuilder(pattern.Length);
+                    builder.Append(pattern, 0, index);
+                    return builder;
+                }
+
+                void AppendOperator(StringBuilder output, char escaped, bool fromNumeric)
                 {
                     if (fromNumeric && (bracketStart >= 0 || mode != AwkCompatibilityMode.GnuDefault))
                     {
-                        AppendLiteral(builder, escaped, bracketStart >= 0);
+                        AppendLiteral(output, escaped, bracketStart >= 0);
                         return;
                     }
 
                     switch (escaped)
                     {
                         case '<':
-                            builder.Append(@"\b(?=\w)");
+                            output.Append(@"\b(?=\w)");
                             break;
                         case '>':
-                            builder.Append(@"(?<=\w)\b");
+                            output.Append(@"(?<=\w)\b");
                             break;
                         case 'y' when !fromNumeric:
                         case 'b' when fromNumeric:
-                            builder.Append(@"\b");
+                            output.Append(@"\b");
                             break;
                         case 'B':
-                            builder.Append(@"\B");
+                            output.Append(@"\B");
                             break;
                         case 'w':
-                            builder.Append(@"[\p{L}\p{Nd}_]");
+                            output.Append(@"[\p{L}\p{Nd}_]");
                             break;
                         case 'W':
-                            builder.Append(@"[^\p{L}\p{Nd}_]");
+                            output.Append(@"[^\p{L}\p{Nd}_]");
                             break;
                         case 's':
-                            builder.Append(@"\s");
+                            output.Append(@"\s");
                             break;
                         case 'S':
-                            builder.Append(@"\S");
+                            output.Append(@"\S");
                             break;
                         case '`':
-                            builder.Append(@"\A");
+                            output.Append(@"\A");
                             break;
                         case '\'':
-                            builder.Append(@"\z");
+                            output.Append(@"\z");
                             break;
                         case '/':
-                            builder.Append('/');
+                            output.Append('/');
                             break;
                         default:
                             if (fromNumeric)
-                                AppendLiteral(builder, escaped, bracketStart >= 0);
+                                AppendLiteral(output, escaped, bracketStart >= 0);
                             else
-                                AppendEscapedCharacter(escaped);
+                                AppendEscapedCharacter(output, escaped);
                             break;
                     }
                 }
 
-                void AppendEscapedCharacter(char escaped)
+                void AppendEscapedCharacter(StringBuilder output, char escaped)
                 {
                     if (escaped is 'a' or 'b' or 'f' or 'n' or 'r' or 't' or 'v' &&
                         AwkEscapes.TryDecodeSimpleEscape(escaped, out var decoded))
-                        AppendLiteral(builder, decoded, bracketStart >= 0);
+                        AppendLiteral(output, decoded, bracketStart >= 0);
                     else
-                        AppendLiteral(builder, escaped, bracketStart >= 0);
+                        AppendLiteral(output, escaped, bracketStart >= 0);
                 }
 
                 void AppendPatternCharacter(char value, int index)
@@ -231,7 +234,7 @@ internal sealed class AwkRegex
                         {
                             if (groupDepth == 0)
                             {
-                                AppendLiteral(builder, value, inBracket: false);
+                                AppendLiteral(GetBuilder(index), value, inBracket: false);
                                 return;
                             }
                             groupDepth--;
@@ -245,7 +248,7 @@ internal sealed class AwkRegex
                     }
                     else if (value == ']' && index > bracketFirstItem && index > posixTokenEnd)
                         bracketStart = -1;
-                    builder.Append(value);
+                    builder?.Append(value);
                 }
 
                 static void AppendLiteral(StringBuilder builder, char value, bool inBracket)

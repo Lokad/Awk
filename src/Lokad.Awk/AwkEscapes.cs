@@ -4,7 +4,13 @@ namespace Lokad.Awk;
 
 internal static class AwkEscapes
 {
-    public static string Decode(string text)
+    public static string Decode(string text) =>
+        DecodeCore(text, AwkCompatibilityMode.GnuDefault, decodeUnicode: false);
+
+    public static string DecodeSourceString(string text, AwkCompatibilityMode compatibilityMode) =>
+        DecodeCore(text, compatibilityMode, decodeUnicode: true);
+
+    private static string DecodeCore(string text, AwkCompatibilityMode compatibilityMode, bool decodeUnicode)
     {
         var slash = text.IndexOf('\\', StringComparison.Ordinal);
         if (slash < 0)
@@ -12,6 +18,7 @@ internal static class AwkEscapes
 
         var builder = new StringBuilder(text.Length);
         builder.Append(text, 0, slash);
+        Span<char> scalarBuffer = stackalloc char[2];
 
         for (var index = slash; index < text.Length; index++)
         {
@@ -24,7 +31,16 @@ internal static class AwkEscapes
 
             index++;
             var escaped = text[index];
-            if (TryReadNumericEscape(text, ref index, text.Length, out var numeric))
+            if (decodeUnicode &&
+                ReadUnicodeEscape(text, ref index, text.Length, compatibilityMode, out var scalar) != AwkUnicodeEscapeStatus.None)
+            {
+                var length = scalar.EncodeToUtf16(scalarBuffer);
+                builder.Append(scalarBuffer[..length]);
+                continue;
+            }
+
+            if (!(compatibilityMode == AwkCompatibilityMode.Posix && escaped == 'x') &&
+                TryReadNumericEscape(text, ref index, text.Length, out var numeric))
             {
                 builder.Append(numeric);
                 continue;
@@ -37,6 +53,39 @@ internal static class AwkEscapes
         }
 
         return builder.ToString();
+    }
+
+    public static AwkUnicodeEscapeStatus ReadUnicodeEscape(
+        ReadOnlySpan<char> text,
+        ref int index,
+        int endExclusive,
+        AwkCompatibilityMode compatibilityMode,
+        out Rune value)
+    {
+        value = default;
+        if (index >= endExclusive || text[index] != 'u' || compatibilityMode == AwkCompatibilityMode.Posix)
+            return AwkUnicodeEscapeStatus.None;
+
+        if (index + 1 >= endExclusive || !AwkCharacterFacts.IsHexDigit(text[index + 1]))
+        {
+            value = new Rune('u');
+            return AwkUnicodeEscapeStatus.MissingDigits;
+        }
+
+        uint numeric = 0;
+        var digits = 0;
+        while (digits < 8 && index + 1 < endExclusive && AwkCharacterFacts.IsHexDigit(text[index + 1]))
+        {
+            index++;
+            digits++;
+            numeric = (numeric << 4) | (uint)AwkCharacterFacts.HexValue(text[index]);
+        }
+
+        if (numeric <= 0x10FFFF && Rune.TryCreate((int)numeric, out value))
+            return AwkUnicodeEscapeStatus.Valid;
+
+        value = new Rune('?');
+        return AwkUnicodeEscapeStatus.InvalidScalar;
     }
 
     public static bool TryReadNumericEscape(
@@ -102,4 +151,12 @@ internal static class AwkEscapes
         return decoded != default;
     }
 
+}
+
+internal enum AwkUnicodeEscapeStatus
+{
+    None,
+    Valid,
+    MissingDigits,
+    InvalidScalar
 }

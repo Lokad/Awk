@@ -25,6 +25,16 @@ traditional mode quotes them. POSIX mode does not decode hexadecimal regex escap
 Numeric decoding precedes ERE escape interpretation: GNU `\134w` is a word operator,
 whereas `\134y` is a literal y. Bracket escapes retain character-class context.
 
+Source strings decode GNU 5.4 `\u` escapes before they become dynamic regex patterns.
+An escaped dot, bracket, anchor, group or quantifier produced by that source decoding
+has its ordinary ERE effect; an escape-produced backslash crosses the regex boundary
+as pattern data. Source string decoding is a single pass. Unicode escapes inside raw
+regex literals and runtime regex escape warnings remain separate, unfinished work.
+
+An unmatched closing `)` denotes a literal character, including in patterns without
+backslashes. Balanced groups and parentheses inside brackets keep their ERE meanings.
+The translation returns the original string when no rewriting is needed.
+
 ASCII letter classes containing one letter in either or both cases are normalized to
 equivalent literal atoms. This avoids the UTF-8 adapter 0.2.0 boolean-match prefilter's
 incorrect case folding for classes such as `[W]` and `[Ww]`, while retaining byte-native

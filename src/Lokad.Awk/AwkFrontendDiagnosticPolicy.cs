@@ -72,6 +72,24 @@ internal static class AwkFrontendDiagnosticPolicy
 
                 index++;
                 var escaped = text[index];
+                var unicodeStatus = AwkEscapes.ReadUnicodeEscape(text, ref index, end, compatibilityMode, out _);
+                if (unicodeStatus != AwkUnicodeEscapeStatus.None)
+                {
+                    if (unicodeStatus != AwkUnicodeEscapeStatus.Valid)
+                    {
+                        AddDiagnostic(new AwkDiagnostic(
+                            token.Span,
+                            unicodeStatus == AwkUnicodeEscapeStatus.MissingDigits
+                                ? AwkMessages.FormatStringUnicodeMissingDigitsWarning()
+                                : AwkMessages.FormatStringUnicodeInvalidScalarWarning(),
+                            AwkDiagnosticId.WarningStringEscape));
+                    }
+                    continue;
+                }
+
+                if (compatibilityMode == AwkCompatibilityMode.Posix && escaped is 'u' or 'x')
+                    continue;
+
                 if (AwkEscapes.TryReadNumericEscape(text, ref index, end, out _))
                     continue;
 

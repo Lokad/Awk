@@ -13,11 +13,36 @@ internal static class AwkExecutor
         CancellationToken cancellationToken) =>
         ExecuteAsync(host, invocation, cancellationToken, AwkRuntimeOptions.CreateSystemDefault());
 
-    internal static async Task<AwkExitCode> ExecuteAsync(
+    internal static Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         AwkInvocation invocation,
         CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions)
+        AwkRuntimeOptions runtimeOptions) =>
+        ExecuteCoreAsync(host, invocation, cancellationToken, runtimeOptions, null, null);
+
+    internal static Task<AwkExitCode> ExecuteCompiledAsync(
+        IAwkHost host,
+        AwkInvocation invocation,
+        AwkProgram program,
+        IReadOnlyList<AwkDiagnostic> warnings,
+        CancellationToken cancellationToken,
+        AwkRuntimeOptions runtimeOptions,
+        AwkExecutableProgram? executableProgram) =>
+        ExecuteCoreAsync(
+            host,
+            invocation,
+            cancellationToken,
+            runtimeOptions,
+            AwkProgramResolution.Success(program, warnings),
+            executableProgram);
+
+    private static async Task<AwkExitCode> ExecuteCoreAsync(
+        IAwkHost host,
+        AwkInvocation invocation,
+        CancellationToken cancellationToken,
+        AwkRuntimeOptions runtimeOptions,
+        AwkProgramResolution? compiledResolution,
+        AwkExecutableProgram? executableProgram)
     {
         var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken);
 
@@ -67,7 +92,7 @@ internal static class AwkExecutor
                     .ConfigureAwait(false);
             }
 
-            var resolved = await ResolveProgramAsync(
+            var resolved = compiledResolution ?? await ResolveProgramAsync(
                     host,
                     invocation,
                     resources,
@@ -109,7 +134,7 @@ internal static class AwkExecutor
                     resolvedProgram.Program,
                     cancellationToken,
                     runtimeOptions,
-                    executableProgram: null,
+                    executableProgram,
                     resources)
                 .ConfigureAwait(false);
         }

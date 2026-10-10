@@ -6,6 +6,14 @@ to `Awk.ExecuteAsync`. `CreateDefault()` preserves command-line compatibility. T
 `With...` methods. Internal execution maps the public policy to `AwkRuntimeLimits` and carries it
 through `AwkRuntimeOptions`.
 
+Frontend warning appends count toward the same output-byte and host-call totals as runtime
+IO. This also applies to precompiled interpreter/executable runs: warning admission happens
+before runtime actions, and the resource monitor is then reused for execution. An output
+limit failure preflights the complete warning before appending it; an append rejection,
+host deadline or caller cancellation prevents runtime actions from starting. Compilation
+retains warnings without writing them to the compilation host. Reusing the artifact does
+not reload sources, and emits warnings once for each execution.
+
 ## Invocation And Frontend Limits
 
 The invocation is checked against `MaxArguments`, `MaxArgumentBytes`, `MaxEnvironmentEntries`, and

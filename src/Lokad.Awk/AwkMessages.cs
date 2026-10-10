@@ -374,6 +374,12 @@ internal static class AwkMessages
     internal static string FormatStringHexEscapeWarning() =>
         "awk: warning: no hex digits in `\\x' escape sequence\n";
 
+    internal static string FormatStringUnicodeMissingDigitsWarning() =>
+        "awk: warning: no hex digits in `\\u' escape sequence\n";
+
+    internal static string FormatStringUnicodeInvalidScalarWarning() =>
+        "awk: warning: invalid `\\u' escape sequence\n";
+
     private static ReadOnlyMemory<byte> FormatSymbolDiagnostic(
         ReadOnlyMemory<byte> prefix,
         string name,

@@ -9,6 +9,12 @@ Fallback dispatch is counted through VM counters and charges an executable fallb
 the VM stack byte limit and memory governor. The default execution engine remains the interpreter.
 `AwkExecutor.CompileAsync` owns both the interpreter program and the executable artifact; runtime
 execution selects between those artifacts and does not compile executable form on demand.
+Each compiled execution emits its retained frontend warnings through the same executor
+boundary as an ordinary invocation, before runtime actions start. Source locations survive
+compilation, and reusing an artifact emits each warning once on each execution's host.
+Warning bytes and host calls share that execution's resource monitor; append failures,
+deadlines and caller cancellation have the ordinary host-boundary behavior. Tests must
+execute the artifact directly without adding warning appends in the harness.
 Current non-fallback expression coverage includes constants; static and dynamic fields; `$0`,
 `NF`, `$NF`, `NR`, `FNR`, and `FILENAME`; scalars and scalar assignment; array lookup, assignment,
 membership, and element deletion; arithmetic, concatenation, comparisons, logical short-circuit,

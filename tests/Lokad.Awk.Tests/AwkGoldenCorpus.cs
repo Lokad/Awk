@@ -39,6 +39,10 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(ExpressionCompatibilityRepairs(), AwkGoldenTag.Expression),
 
+        .. Tagged(FrontendWarningCases(), AwkGoldenTag.Expression),
+
+        .. Tagged(UnicodeStringCases(), AwkGoldenTag.Expression),
+
         .. Tagged(AssignmentOperandCompatibilityRepairs(), AwkGoldenTag.Expression),
 
         .. Tagged(ExpressionRuntimeCases(), AwkGoldenTag.Expression),
