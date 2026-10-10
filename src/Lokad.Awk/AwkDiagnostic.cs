@@ -22,12 +22,18 @@ internal readonly struct AwkDiagnostic
     {
     }
 
+    public AwkDiagnostic(AwkTextSpan span, AwkRegexEscapeWarning warning)
+        : this(span, warning.Message, AwkDiagnosticId.WarningRegexEscape, null, regexEscapeWarning: warning)
+    {
+    }
+
     private AwkDiagnostic(
         AwkTextSpan span,
         string message,
         AwkDiagnosticId id,
         AwkSourceLocation? sourceLocation,
-        AwkStringEscapeWarning stringEscapeWarning = default)
+        AwkStringEscapeWarning stringEscapeWarning = default,
+        AwkRegexEscapeWarning regexEscapeWarning = default)
     {
         Span = span;
         _message = message;
@@ -35,6 +41,7 @@ internal readonly struct AwkDiagnostic
         Category = AwkDiagnosticFacts.GetCategory(id);
         SourceLocation = sourceLocation;
         StringEscapeWarning = stringEscapeWarning;
+        RegexEscapeWarning = regexEscapeWarning;
     }
 
     public AwkTextSpan Span { get; }
@@ -49,10 +56,12 @@ internal readonly struct AwkDiagnostic
 
     public AwkStringEscapeWarning StringEscapeWarning { get; }
 
+    public AwkRegexEscapeWarning RegexEscapeWarning { get; }
+
     public bool IsWarning => Category == AwkDiagnosticCategory.Warning;
 
     public AwkDiagnostic WithSourceLocation(AwkSourceLocation sourceLocation) =>
-        new(Span, Message, Id, sourceLocation, StringEscapeWarning);
+        new(Span, Message, Id, sourceLocation, StringEscapeWarning, RegexEscapeWarning);
 }
 
 internal readonly struct AwkSourceLocation

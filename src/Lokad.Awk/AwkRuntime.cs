@@ -72,7 +72,8 @@ internal static class AwkRuntime
         AwkRuntimeOptions runtimeOptions,
         AwkExecutableProgram? executableProgram,
         AwkRuntimeResourceMonitor resources,
-        AwkStringEscapeWarnings? stringEscapeWarnings = null)
+        AwkStringEscapeWarnings? stringEscapeWarnings = null,
+        AwkRegexEscapeWarnings? regexEscapeWarnings = null)
     {
         if (executableProgram == null &&
             runtimeOptions.ExecutionEngineKind == AwkExecutionEngineKind.Executable)
@@ -96,7 +97,7 @@ internal static class AwkRuntime
             runtimeOptions,
             resources,
             executionOptions.CompatibilityProfile,
-            stringEscapeWarnings);
+            stringEscapeWarnings, regexEscapeWarnings);
         state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeArguments(runtimeArguments.RuntimeArguments);
         state.InitializeEnvironment(

@@ -91,8 +91,9 @@ internal static class AwkFrontendDiagnosticPolicy
         {
             var text = token.Text;
             var start = token.Kind == AwkTokenKind.StrongRegex ? 2 : 1;
-            AwkRegexEscapes.ReportUnicodeWarnings(text[start..^1], compatibilityMode, message =>
-                AddDiagnostic(new AwkDiagnostic(token.Span, message, AwkDiagnosticId.WarningRegexEscape)), checkpoint);
+            AwkRegexEscapes.ReportWarnings(text[start..^1], compatibilityMode, budget.RegexEscapeWarnings,
+                warning => AddDiagnostic(new AwkDiagnostic(token.Span, warning)), message =>
+                    AddDiagnostic(new AwkDiagnostic(token.Span, message, AwkDiagnosticId.WarningRegexEscape)), checkpoint);
             budget.ReserveRegexLiteralCompilations();
             if (!AwkRegexSyntaxValidator.IsValidLiteral(
                     token,

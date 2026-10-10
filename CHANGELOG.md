@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Unknown regexp operators and escaped `8`/`9` now emit their profile-specific
+  warnings once per escaped character across source literals and runtime patterns.
+  Unreachable literals warn during compilation; typed source locations and history
+  survive compiled reuse with fresh state for every execution. String warnings use
+  separate history. Missing regex `\x` digits now warn through the existing numeric
+  warning history. Rejected diagnostics leave escapes eligible for retry; regex
+  matching engines and translations remain unchanged.
+
 - Runtime regex width analysis now admits exact value-frame buffers, including old/new
   overlap during growth, and releases them on completion or failure. POSIX token
   replacement admits one exact result string, keeps its charge through preparation

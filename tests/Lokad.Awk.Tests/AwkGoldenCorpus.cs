@@ -80,6 +80,8 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(FieldModeCompatibilityCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Variable, AwkGoldenTag.Regex),
         .. Tagged(RegexProfileCompatibilityCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Regex),
+        .. Tagged(RegexEscapeWarningCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Regex),
+        .. Tagged(RegexEscapeWarningSurveyCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Regex),
         .. Tagged(RangeParagraphCompatibilityCases(), AwkGoldenTag.Pattern, AwkGoldenTag.Record, AwkGoldenTag.Field, AwkGoldenTag.Regex),
         .. Tagged(ParagraphEofCompatibilityCases(), AwkGoldenTag.Record, AwkGoldenTag.Field, AwkGoldenTag.Regex),
         .. Tagged(GetlineExpressionCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Expression, AwkGoldenTag.Record, AwkGoldenTag.Field),

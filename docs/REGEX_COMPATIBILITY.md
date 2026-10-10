@@ -56,6 +56,20 @@ Each compiled execution has fresh runtime history. Assignment preparation comple
 before scalar storage, splitting modes, PROCINFO metadata and RS version are published.
 See [assignment goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SpecialRegexAssignments.cs)
 and [admission/reuse checks](../tests/Lokad.Awk.Tests/AwkSpecialRegexAssignmentTests.cs).
+Unknown regexp operators warn once per escaped character across lexical literals,
+including unreachable code, and runtime patterns. This invocation-wide history is
+separate from string-escape and per-expression numeric warning histories, survives
+regex-cache eviction and case changes, and is fresh for each compiled execution.
+GNU word operators are recognized only in GNU mode; POSIX/traditional mode warns
+and retains their existing literal interpretation. Escaped `8` and `9` have their
+own plain-digit warning wording. History follows GNU's first escaped UTF-8 byte;
+diagnostics render complete scalars. Rejected diagnostics do not record an escape.
+Missing regex `\x` digits use the existing per-expression numeric-warning history;
+POSIX mode keeps its literal `x` policy. Numeric and operator warnings keep scan order.
+See [warning goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.RegexEscapeWarnings.cs),
+[versioned survey cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.RegexEscapeWarningSurvey.cs)
+and [history/admission tests](../tests/Lokad.Awk.Tests/AwkRegexEscapeWarningTests.cs).
+
 Ordinary unknown-string escapes share typed invocation-wide history across source,
 options and consumed operands; repeated unknown escapes warn once. Missing-hex and
 Unicode warnings remain per occurrence. First source locations survive compiled reuse,
@@ -82,8 +96,7 @@ In GNU mode, a one-byte RS remains literal and case-sensitive. A non-ASCII singl
 RS uses regex matching when IGNORECASE is enabled, preserving case equivalence for that
 separator; it retains the byte-native literal plan when case-sensitive.
 
-This qualification does not establish full profile conformance. Unknown-ERE warnings,
-some ERE grammar/numeric-byte escapes, source-specific repeated pipe EOF/RT,
+This qualification does not establish full profile conformance. Some ERE grammar/numeric-byte escapes, source-specific repeated pipe EOF/RT,
 and Unicode word boundaries remain open.
 GNU 5.4 MinRX also loses uppercase members in classes such as `[[:alpha:]A]`; GNU 5.2
 and GNU 5.4 with `GAWK_GNU_MATCHERS=1` retain them. These reference differences must

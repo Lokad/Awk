@@ -371,6 +371,12 @@ internal static class AwkMessages
     internal static string FormatStringEscapeWarning(System.Text.Rune escaped) =>
         "awk: warning: escape sequence `\\" + escaped + "' treated as plain `" + escaped + "'\n";
 
+    internal static string FormatRegexEscapeWarning(System.Text.Rune escaped) =>
+        "awk: warning: regexp escape sequence `\\" + escaped + "' is not a known regexp operator\n";
+
+    internal static string FormatRegexDigitEscapeWarning(System.Text.Rune escaped) =>
+        "awk: warning: regexp escape sequence `\\" + escaped + "' treated as plain `" + escaped + "'\n";
+
     internal static string FormatStringHexEscapeWarning() =>
         "awk: warning: no hex digits in `\\x' escape sequence\n";
 

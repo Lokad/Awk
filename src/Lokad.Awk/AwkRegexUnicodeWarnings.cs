@@ -1,26 +1,37 @@
 namespace Lokad.Awk;
 
 internal sealed class AwkRegexUnicodeWarnings(AwkMemoryGovernor governor, AwkCompatibilityMode mode,
-    Action<string>? report, Action checkpoint)
+    Action<string>? report, Action checkpoint, AwkRegexEscapeWarnings? regexEscapeWarnings = null)
 {
+    private readonly AwkRegexEscapeWarnings _operatorWarnings = regexEscapeWarnings ?? new AwkRegexEscapeWarnings();
     private Dictionary<object, Entry>? _sites;
     private int _capacity;
     private long _bufferBytes;
 
     public void Report(AwkRegexPattern pattern, AwkRegexCaseSensitivity sensitivity)
     {
-        if (report is null || mode == AwkCompatibilityMode.Posix || pattern.Origin == AwkRegexPatternOrigin.SourceLiteral)
+        if (report is null || pattern.Origin == AwkRegexPatternOrigin.SourceLiteral)
             return;
+        if (mode == AwkCompatibilityMode.Posix)
+        {
+            ReportWarnings(null);
+            return;
+        }
         var site = pattern.WarningSite ?? this;
         var previous = default(Entry);
         var found = _sites is not null && _sites.TryGetValue(site, out previous);
         var flag = sensitivity == AwkRegexCaseSensitivity.IgnoreCase ? 2 : 1;
         var sameText = found && string.Equals(previous.Pattern, pattern.Text, StringComparison.Ordinal);
         if (sameText && (previous.CompiledCases & flag) != 0)
-            return;
-        if (!pattern.Text.Contains("\\u", StringComparison.Ordinal) ||
-            !AwkRegexEscapes.HasUnicodeWarnings(pattern.Text, mode, checkpoint))
         {
+            ReportWarnings(null);
+            return;
+        }
+        if (!(pattern.Text.Contains("\\u", StringComparison.Ordinal) ||
+              pattern.Text.Contains("\\x", StringComparison.Ordinal)) ||
+            !AwkRegexEscapes.HasNumericWarnings(pattern.Text, mode, checkpoint))
+        {
+            ReportWarnings(null);
             if (found)
             {
                 _sites?.Remove(site);
@@ -51,7 +62,7 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryGovernor governor, AwkCom
             }
             else
                 next = _sites ?? throw new InvalidOperationException("Regex warning history is not initialized.");
-            AwkRegexEscapes.ReportUnicodeWarnings(pattern.Text, mode, report, checkpoint);
+            ReportWarnings(report);
             next[site] = new Entry(pattern.Text, (sameText ? previous.CompiledCases : 0) | flag, bytes);
         }
         catch
@@ -64,6 +75,10 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryGovernor governor, AwkCom
         _sites = next;
         _capacity = capacity;
         _bufferBytes = bufferBytes;
+
+        void ReportWarnings(Action<string>? unicodeReport) =>
+            AwkRegexEscapes.ReportWarnings(pattern.Text, mode, _operatorWarnings,
+                warning => report(warning.Message), unicodeReport, checkpoint);
     }
 
     public void Reset(object site)

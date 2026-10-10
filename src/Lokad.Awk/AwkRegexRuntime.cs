@@ -50,7 +50,8 @@ internal sealed class AwkRegexRuntime
         AwkRuntimeResourceMonitor resources,
         AwkMemoryGovernor? memoryGovernor = null,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action<string>? reportUnicodeWarning = null)
+        Action<string>? reportUnicodeWarning = null,
+        AwkRegexEscapeWarnings? regexEscapeWarnings = null)
     {
         _resolveCaseSensitivity = resolveCaseSensitivity;
         _stringUnitMode = stringUnitMode;
@@ -61,7 +62,7 @@ internal sealed class AwkRegexRuntime
         _memoryGovernor = memoryGovernor ?? AwkMemoryGovernor.Create(resources.Limits, counters);
         _compatibilityMode = compatibilityMode;
         _unicodeWarnings = new AwkRegexUnicodeWarnings(_memoryGovernor, compatibilityMode,
-            reportUnicodeWarning, throwIfCancellationRequested);
+            reportUnicodeWarning, throwIfCancellationRequested, regexEscapeWarnings);
         var cachePartitionBytes = Math.Max(1, resources.Limits.MaxRegexCacheBytes / 5);
         _regexCache = new AwkBoundedCache<AwkRegexCacheKey, AwkRegex>(
             MaxCachedRegexes,

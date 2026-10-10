@@ -57,7 +57,8 @@ internal sealed class AwkRuntimeState
         AwkRuntimeOptions runtimeOptions,
         AwkRuntimeResourceMonitor resources,
         AwkCompatibilityProfile compatibilityProfile,
-        AwkStringEscapeWarnings? stringEscapeWarnings = null)
+        AwkStringEscapeWarnings? stringEscapeWarnings = null,
+        AwkRegexEscapeWarnings? regexEscapeWarnings = null)
     {
         Counters = runtimeOptions.Counters;
         Limits = runtimeOptions.Limits;
@@ -107,7 +108,7 @@ internal sealed class AwkRuntimeState
             resources,
             MemoryGovernor,
             CompatibilityMode,
-            ReportRegexUnicodeWarning);
+            ReportRegexUnicodeWarning, regexEscapeWarnings);
         _stringRuntime = new AwkStringRuntime(stringUnitMode, Resources.RecordByteWork, CancellationCheckpoint);
         _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryGovernor,
             CompatibilityMode, CancellationCheckpoint);
