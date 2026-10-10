@@ -185,20 +185,30 @@ public sealed class AwkRegexOwnedMemoryTests
         const string pattern = "[[:alpha:][:digit:]]";
         // alpha replacement has fourteen UTF-16 units; digit replacement has eight.
         const long bytes = 52 + 40;
-        var governor = Governor(bytes);
+        var tokenGovernor = Governor(bytes);
+        using (var tokenText = tokenGovernor.CreateTransientLease())
+        {
+            _ = AwkRegex.TranslatePattern(new AwkRegexPattern(pattern), AwkCompatibilityMode.GnuDefault,
+                () => { }, tokenText);
+            Assert.Equal(bytes, tokenGovernor.CurrentCommittedBytes);
+            Assert.Equal(bytes, tokenGovernor.PeakLiveBytes);
+        }
+        Assert.Equal(0, tokenGovernor.CurrentCommittedBytes);
+        var governor = Governor(1 << 24);
         var observed = 0;
         var runtime = Runtime(utf8, governor, () =>
         {
-            if (governor.CurrentCommittedBytes == bytes) observed++;
+            if (governor.CurrentCommittedBytes >= bytes) observed++;
         });
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         Assert.True(observed > 0);
-        Assert.Equal(bytes, governor.PeakLiveBytes);
+        Assert.True(governor.PeakLiveBytes > bytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         var before = governor.ReserveCount;
         Assert.Same(regex, runtime.Create(new AwkRegexPattern(pattern)));
         Assert.Equal(before, governor.ReserveCount);
-        var shortGovernor = Governor(bytes - 1);
+        // Exactly enough for token results is no longer enough for scalar scratch.
+        var shortGovernor = Governor(bytes);
         var error = Assert.Throws<AwkRuntimeException>(() =>
             Runtime(utf8, shortGovernor).Create(new AwkRegexPattern(pattern)));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
@@ -232,14 +242,16 @@ public sealed class AwkRegexOwnedMemoryTests
     public void FinalCacheCancellationReleasesChainedTextAndDoesNotPublish(bool utf8)
     {
         const string pattern = "[[:alpha:][:digit:]]";
-        const long bytes = 92;
-        var probeGovernor = Governor(bytes);
-        var totalHeldChecks = 0;
+        var probeGovernor = Governor(1 << 24);
+        var heldChecks = new List<long>();
         _ = Runtime(utf8, probeGovernor, () =>
         {
-            if (probeGovernor.CurrentCommittedBytes == bytes) totalHeldChecks++;
+            heldChecks.Add(probeGovernor.CurrentCommittedBytes);
         }).Create(new AwkRegexPattern(pattern));
-        var governor = Governor(bytes);
+        var bytes = heldChecks.Last(value => value > 0);
+        Assert.True(bytes > 92);
+        var totalHeldChecks = heldChecks.Count(value => value == bytes);
+        var governor = Governor(1 << 24);
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var cancellation = new CancellationTokenSource();
         var checks = 0;

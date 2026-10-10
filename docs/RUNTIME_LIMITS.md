@@ -454,11 +454,10 @@ byte charges and preserve memory and mutation preflights.
 
 .NET UTF-8 decode/encode, randomized HashCode.AddBytes, span search, overlapping byte copies,
 array allocation and pooled traversal-stack resizing remain one-shot calls with boundary checks.
-The callback does not forcibly interrupt those calls. Virtual-array and output callers, regex
-translation/analysis and remaining framework/dependency boundaries still require audit; this does
-not promise universal cancellation coverage or latency. Non-regex record-cursor byte/set/run and
-paragraph scanning/trimming still need internal checks; scan accounting observes cancellation
-after those scans return. Buffered character counting and span search remain in the boundary audit.
+The callback does not forcibly interrupt those calls. Non-regex record-cursor byte/set/run,
+paragraph scanning/trimming and buffered scalar counting check inside their owned loops.
+Virtual-array snapshots, output staging and regex preparation pass the same operation-local
+callback through their owned scans and copies. Framework boundaries retain the scope below.
 
 Replacement classification searches bounded 4 KiB spans. Substitution/gensub parsing checks long
 literal runs, escaped pairs and slash runs by progress; replacement appends and final text copies
@@ -480,8 +479,8 @@ Append copies use the existing callback before exposing their completed length; 
 the buffer and drops the pending host view. Record-associated paragraph leaders remain buffered
 across separator continuation and extraction failure; failed extraction restores its search metadata.
 Earlier successful all-blank discards remain streaming progress. These changes preserve resource
-preflights and add no logical fuel charges. Owned record scans and one-shot search/count/compaction
-boundaries remain in the wider cancellation audit.
+preflights and add no logical fuel charges. Owned record scans check internally; indivisible
+framework searches and overlapping compaction retain their boundary checks.
 
 With finite aggregate memory, gensub counts its actual parsed parts using the same checked parser
 before allocating an exact-sized array. Its lease charges the array header and 16 bytes per part
@@ -493,9 +492,9 @@ header and eight bytes per slot, remains live through group construction, and is
 the completed match is returned. The retained match keeps only its original charge. Up to 128
 slots use bounded stack scratch (at most 1 KiB) rather than a heap allocation. Rejected admission
 and cancellation release result/scratch leases before publication; the unbounded path returns its
-pooled storage. Exact capacities make admission independent of pool rounding. Other array/pool
-and framework/dependency boundaries remain under audit. No fuel/byte charge or public default
-changes. Observational peak-memory evidence now includes these previously omitted scratch buffers.
+pooled storage. Exact capacities make admission independent of pool rounding. Framework allocation
+and pool operations remain indivisible. No fuel/byte charge or public default changes.
+Observational peak-memory evidence includes these scratch buffers.
 
 FIELDWIDTHS parsing, whitespace and literal separator scans, character splitting and rune advancement
 now use the existing operation-local callback. Long owned byte scans check at roughly 4 KiB intervals;
@@ -521,7 +520,6 @@ Finite memory policies can therefore reject a long mutation whose final state wo
 staging peak would not. Such failures precede field/cache mutation. Smaller changes keep the original
 bounded commit after a checkpoint and need no clone. List/dictionary allocation, resizing and probing
 remain one-shot framework work; field/value/record/allocation preflights remain independent safeguards.
-Replacement/capture, virtual-array/output callers and regex/backend boundaries remain under audit.
 
 Printf's inner flag, width/precision and positional-control digit scans now use the same
 cancellation callback at roughly 4 KiB of UTF-16 input. String width and precision scans track
@@ -535,8 +533,8 @@ String/number conversion, .NET float formatting, hexadecimal string construction
 buffer copies and large span padding fills remain one-shot framework work. Existing output/value/
 builder/allocation preflights still precede construction; checks before/after these calls observe
 cancellation cooperatively without making the underlying call interruptible. Integer/octal and
-hexadecimal significand loops are fixed-size work for a double/ulong. Remaining field/record/
-replacement text callers and backend boundaries remain part of the broader audit.
+hexadecimal significand loops are fixed-size work for a double/ulong. Field, record and replacement
+callers propagate the same checkpoint through their owned scans and construction.
 
 Binding, symbol/semantic passes, lowering, function parameter/layout construction and executable
 compilation now propagate the caller's existing cancellation callback through their traversals.
@@ -570,12 +568,76 @@ translations, selection behavior and backend versions are unchanged.
 
 The shared supplementary Unicode category table receives no caller checkpoint: its fixed walk
 of 1,048,576 scalars initializes independently, with caller checks before/after accessing it.
-A canceled caller cannot poison this Lazy metadata cache. List.Sort, StringBuilder.ToString,
+A canceled caller cannot poison this Lazy metadata cache. Scalar-range sorting checks
+the caller every 1,024 comparisons and unwraps framework-wrapped cancellation and Awk
+resource exceptions. StringBuilder.ToString,
 substring/concatenation, Regex.Escape and native regex constructors remain one-shot framework or
 dependency calls, with checks at owned boundaries; checkpoints do not forcibly interrupt them.
-Admission for other translated text, scalar/range analysis, shared metadata, separator/caches and
-remaining framework/pool/backend allocations remains under audit. This cancellation qualification does
-not establish universal bounded latency or complete memory accounting for regex preparation.
+Finite-memory runtime pattern preparation now measures scalar translation before
+allocating its builders, substring/concatenation results and range buffers. The logical
+model conservatively admits builder growth and overlapping buffers; it can reject a
+request before the exact CLR payload would exhaust the budget. Plain unmodified
+patterns need no scalar admission. Scratch charges release on completion/failure;
+the exact final translated string remains charged through wrapper-cache publication.
+Borrowed POSIX translation charges survive this stage unchanged. Canceled or rejected
+preparation publishes no wrapper and can be retried.
+
+Supplementary category metadata receives a separate conservative charge covering list
+growth and array publication. Cold sizing scans scalars with caller checkpoints; the
+shared Lazy initializer still receives no caller callback. Warm/cold access uses the
+same logical admission. The charge covers construction/access, without transferring
+process-wide immutable retention to an execution. Unlimited memory skips the added
+sizing pass. Regex matching semantics and logical fuel are unchanged.
+
+Finite-memory literal regex preparation measures the escaped string before invoking
+the existing `Regex.Escape` API. It admits one exact output string and conservative
+scratch for pooled-buffer rounding and growth. Unchanged literals reuse their input
+without a reservation; unlimited-memory execution skips the sizing pass. The output
+charge remains through wrapper-cache publication and is released when construction
+returns or fails. Scratch releases before publication. Native escaping itself remains
+a noninterruptible framework call, surrounded by caller checkpoints. The scratch model
+follows the [net10.0 BCL implementation](https://raw.githubusercontent.com/dotnet/runtime/v10.0.0/src/libraries/System.Text.RegularExpressions/src/System/Text/RegularExpressions/RegexParser.cs);
+it is conservative logical admission, not an exact CLR allocation measurement.
+
+Regex numeric-warning history already admits retained entries and old/new dictionary
+buffers before reporting. Pattern comparisons and numeric-escape searches now use
+bounded windows, while history growth checks every 64 copied entries. Canceled growth
+releases the new reservation and preserves prior sites, case flags and warning eligibility.
+Reset releases an entry's charge; retained dictionary capacity remains governed. POSIX
+skips numeric-warning history, and fixed operator/string-warning bitmaps do not grow.
+Reporting rules, logical fuel and frontend diagnostic admission are unchanged.
+
+Runtime dialect translation admits conservative builder scratch before construction and
+exact decoded/intermediate UTF-16 strings before allocation. These results remain charged
+through scalar preparation and wrapper-cache publication; disposal releases them on success
+or failure. Unchanged text is shared and unlimited-memory policies skip the sizing pass.
+POSIX class-content slices have scoped admission. Structured POSIX predicates use the same
+governed literal/scalar preparation, retaining unique final expressions and compilation
+storage until their cache publication. Eligibility scans check before parsing allocation;
+preparation observes the existing compilation deadline. Matcher and translation rules are unchanged.
+
+Wrapper cache estimates include distinct retained ERE text as well as source and scalar
+patterns. Structured cache estimates include the actual expanded unique predicate expressions
+rather than only fixed per-predicate headroom. Cache retention is governed by its separate
+estimated budget, described below; it does not become a whole-CLR-heap measurement.
+
+### Memory And Cancellation Scope
+
+| Work or storage | Admission and cancellation contract |
+| --- | --- |
+| Runtime values, records, arrays, builders and governed preparation | Conservative execution-memory estimates and mutation preflights; owned long scans/copies poll the caller. Regex preparation results stay admitted until publication. |
+| Invocation and frontend construction | Source, character, token, diagnostic, nesting, symbol and regex breadth limits; owned traversals poll cancellation. Immutable compiled artifacts and frontend temporary storage are outside `MaxExecutionMemoryBytes`. Regex pattern/group breadth is checked before and after translation. |
+| Compiled regex caches | Independent `MaxRegexCacheBytes` estimates and fixed entry limits, partitioned across five caches. A final checkpoint precedes complete entry publication; oversized entries are not retained. Backend object/allocator internals are not measured as CLR heap bytes. |
+| Shared immutable metadata | Fixed ASCII tables, grammar/builtin metadata and the supplementary Unicode table are process storage, not growing per-execution caches. Supplementary category construction/access has conservative logical admission; its shared initializer retains no caller callback. |
+| Separator and split plans | Retained separator text and field-width storage are governed. FS/FPAT/RS prepare admitted regex variants before publishing scalar, mode or metadata changes. Recognized byte-native RS plans retain bounded membership masks. |
+| Buffer growth and compaction | Growth preflights overlapping old/new capacity. Record-cursor compaction checks cancellation before one indivisible overlapping copy, then updates offsets and invalidates borrowed views. `MaxBuilderBytes` bounds admitted buffers. There is no checkpoint inside a partially completed overlapping copy. |
+| Framework search, conversion, formatting, allocation and pools | Checks at owned call/construction/publication boundaries; the underlying operation is not forcibly interruptible. Record-cursor literal needles up to the work chunk use overlapping bounded search windows; longer needles use one framework search. General span search remains one framework call. |
+| Parser, regex backend and host internals | Data/depth/regex admission, operation-local matching/structured-compilation safeguards and host/cleanup deadlines remain independent. Caller cancellation cannot force a dependency constructor or host implementation to stop executing. |
+
+The execution-memory governor measures explicitly governed runtime storage, not process
+working set or every managed allocation. Cache estimates and frontend breadth limits have
+separate ownership; neither implies a global heap ceiling. Cancellation is cooperative and
+does not establish a universal latency bound or a CPU deadline for indivisible calls.
 
 The installed Lokad.Parsing 1.1.0 TokenReader.ReadAllTokens/ReadAllTokensUpTo APIs and StreamParser
 delegate have no caller cancellation argument. Checks run before/after dependency calls and within
@@ -585,9 +647,8 @@ callback, so a canceled run cannot poison that cache. Source/token/nesting/diagn
 admitted frontend data; they do not promise a CPU deadline. Array allocation, token-array sorting,
 List.ToArray/AddRange, StringBuilder.ToString and substring/string construction remain one-shot
 framework boundaries. Checks surround completed construction/publication where applicable; a
-canceled caller receives no completed parse result. Remaining runtime text and memory-admission
-boundaries remain under audit. No universal bounded
-cancellation latency or forced CPU preemption is claimed.
+canceled caller receives no completed parse result. No universal bounded cancellation latency
+or forced CPU preemption is claimed.
 Utf8Parser decimal conversion, span search/comparison, UTF-8/string conversions, invariant Unicode
 casing, and .NET and UTF-8 regex constructors do not accept caller cancellation;
 pattern/group/cache/memory limits bound admitted data, but matching timeouts do not bound constructor

@@ -21,14 +21,16 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryGovernor governor, AwkCom
         var previous = default(Entry);
         var found = _sites is not null && _sites.TryGetValue(site, out previous);
         var flag = sensitivity == AwkRegexCaseSensitivity.IgnoreCase ? 2 : 1;
-        var sameText = found && string.Equals(previous.Pattern, pattern.Text, StringComparison.Ordinal);
+        var sameText = found && previous.Pattern is string previousPattern &&
+            (ReferenceEquals(previousPattern, pattern.Text) ||
+             AwkRegexConstruction.Equals(previousPattern, pattern.Text, checkpoint));
         if (sameText && (previous.CompiledCases & flag) != 0)
         {
             ReportWarnings(null);
             return;
         }
-        if (!(pattern.Text.Contains("\\u", StringComparison.Ordinal) ||
-              pattern.Text.Contains("\\x", StringComparison.Ordinal)) ||
+        if (!(AwkRegexConstruction.IndexOf(pattern.Text, @"\u", 0, checkpoint) >= 0 ||
+              AwkRegexConstruction.IndexOf(pattern.Text, @"\x", 0, checkpoint) >= 0) ||
             !AwkRegexEscapes.HasNumericWarnings(pattern.Text, mode, checkpoint))
         {
             ReportWarnings(null);
@@ -55,10 +57,18 @@ internal sealed class AwkRegexUnicodeWarnings(AwkMemoryGovernor governor, AwkCom
         {
             if (grow)
             {
+                checkpoint();
                 next = new Dictionary<object, Entry>(capacity, ReferenceEqualityComparer.Instance);
                 if (_sites is not null)
+                {
+                    var copied = 0;
                     foreach (var item in _sites)
+                    {
+                        if ((copied++ & 63) == 0) checkpoint();
                         next.Add(item.Key, item.Value);
+                    }
+                }
+                checkpoint();
             }
             else
                 next = _sites ?? throw new InvalidOperationException("Regex warning history is not initialized.");

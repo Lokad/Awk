@@ -229,6 +229,18 @@ internal sealed class AwkMemoryLease : IDisposable
         _byteCount -= byteCount;
     }
 
+    public void MoveTo(AwkMemoryLease destination, long byteCount)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        if (_governor is null || ReferenceEquals(this, destination))
+            return;
+        if (!ReferenceEquals(_governor, destination._governor) || byteCount < 0 || byteCount > _byteCount)
+            throw new InvalidOperationException("Memory can only move between live leases of the same governor.");
+        var nextDestinationBytes = AwkRuntimeMemory.CheckedAdd(destination._byteCount, byteCount);
+        _byteCount -= byteCount;
+        destination._byteCount = nextDestinationBytes;
+    }
+
     public void Dispose()
     {
         var governor = _governor;

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Lokad.Awk;
 
@@ -121,6 +122,59 @@ internal static class AwkRegexConstruction
         var text = builder.ToString();
         checkpoint?.Invoke();
         return text;
+    }
+
+    public static string EscapeLiteral(string text, Action? checkpoint,
+        AwkMemoryGovernor governor, AwkMemoryLease resultLease)
+    {
+        checkpoint?.Invoke();
+        if (!governor.IsEnabled)
+        {
+            var sharedOrEscaped = Regex.Escape(text);
+            checkpoint?.Invoke();
+            return sharedOrEscaped;
+        }
+        // These are Regex.Escape's net10.0 metacharacters, including its ASCII
+        // whitespace/comment escapes. Matching and escaping still use the BCL API.
+        var escapedCharacters = 0;
+        long progress = 0;
+        for (var index = 0; index < text.Length; index++)
+        {
+            CheckProgress(index, ref progress, checkpoint);
+            if (text[index] is '\t' or '\n' or '\f' or '\r' or ' ' or '#' or '$' or
+                '(' or ')' or '*' or '+' or '.' or '?' or '[' or '\\' or '^' or '{' or '|')
+                escapedCharacters = AwkRuntimeMemory.CheckedAdd(escapedCharacters, 1);
+        }
+        checkpoint?.Invoke();
+        if (escapedCharacters == 0)
+            return text;
+
+        var length = AwkRuntimeMemory.CheckedAdd(text.Length, escapedCharacters);
+        using var scratch = governor.ReserveTransient(
+            AwkRuntimeMemory.EstimateRegexLiteralEscapeScratchBytes(text.Length, length));
+        resultLease.ReserveAdditional(AwkRuntimeMemory.EstimateUtf16StringBytes(length));
+        checkpoint?.Invoke();
+        var escaped = Regex.Escape(text);
+        checkpoint?.Invoke();
+        return escaped;
+    }
+
+    public static long EstimateDialectBuilderScratch(string pattern, int escapeExpansion,
+        int colonExpansion, bool quoteRightParenthesis, Action? checkpoint)
+    {
+        long maximumCharacters = pattern.Length;
+        long progress = 0;
+        for (var index = 0; index < pattern.Length; index++)
+        {
+            CheckProgress(index, ref progress, checkpoint);
+            var extra = pattern[index] == '\\' ? escapeExpansion :
+                pattern[index] == ':' ? colonExpansion :
+                quoteRightParenthesis && pattern[index] == ')' ? 1 : 0;
+            maximumCharacters = AwkRuntimeMemory.CheckedAdd(maximumCharacters, extra);
+        }
+        checkpoint?.Invoke();
+        // Builder capacity/growth plus fixed literal/marker formatting scratch.
+        return AwkRuntimeMemory.CheckedAdd(256, AwkRuntimeMemory.CheckedMultiply(maximumCharacters, 4));
     }
 
     public static string Replace(string text, string oldValue, string newValue, Action? checkpoint,

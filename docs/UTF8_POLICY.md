@@ -219,7 +219,9 @@ formatting, `strftime`, GNU date-format directive handling, and non-ASCII
 `tolower` and `toupper` use a byte fast path over `AwkText` and do not claim a Unicode casing
 fallback. Their ASCII classification and conversion loops check cancellation periodically.
 Non-ASCII casing checks before and after the framework call; the call itself has no cancellation
-token. Frontend, formatting-helper and regex translation coverage remains under audit.
+token. Owned frontend, formatting-helper and regex translation traversals propagate their
+operation-local checkpoint. Framework formatting, conversion, span search and backend
+constructors retain the documented [memory and cancellation scope](RUNTIME_LIMITS.md#memory-and-cancellation-scope).
 
 ## Byte Mode
 

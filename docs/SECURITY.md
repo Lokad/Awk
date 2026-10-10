@@ -148,12 +148,15 @@ retained match lease. It is released before returning the completed match. Small
 scratch is bounded to 1 KiB on the stack. Cancellation/admission failure releases both charges
 before publication. Unbounded execution retains pooling and returns its buffers on failure/success;
 governed admission does not guess pool capacity. Logical fuel/byte work and defaults remain.
-Other array/pool storage and framework/dependency boundaries still need review.
-Framework list/dictionary allocation/resizing/probing, virtual-array and output callers,
-plus regex translation/analysis and wider dependency boundaries, remain under audit. Non-regex
-record-cursor byte/set/run and paragraph scanning/trimming also need internal checks; their scan
-accounting checks occur after the owned scan. Buffered character counting/span search need
-before/after and admitted-data review.
+Owned record-cursor scans, virtual-array snapshots, output staging and regex preparation
+observe the operation-local callback within their traversals. Runtime dialect/scalar
+preparation admits builder scratch and result strings through cache publication; structured
+POSIX predicates share this admission and include expanded expressions in cache estimates.
+Framework allocation, resizing/probing, span search, overlapping compaction, conversion and
+dependency constructors remain indivisible calls with checks at their owned boundaries.
+Frontend breadth limits and compiled-regex cache estimates are separate from governed
+runtime memory; immutable process metadata and backend allocator internals are outside a
+whole-heap measurement. See [the runtime memory and cancellation scope](RUNTIME_LIMITS.md#memory-and-cancellation-scope).
 The memory governor, mutation preflight, backend regex timeouts, and host/cleanup deadlines remain
 independent safeguards. Runtime warning queues also govern message retention, backing-array
 growth, and diagnostic formatting headroom, so repeated math warnings cannot grow an

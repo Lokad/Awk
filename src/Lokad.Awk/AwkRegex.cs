@@ -94,16 +94,27 @@ internal sealed class AwkRegex
 
     public static string TranslatePattern(AwkRegexPattern pattern,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null, AwkMemoryLease? resultLease = null)
+        Action? checkpoint = null, AwkMemoryLease? resultLease = null, AwkMemoryGovernor? governor = null)
     {
-        return Translate(pattern.Text, compatibilityMode, checkpoint, resultLease);
-        static string Translate(string pattern, AwkCompatibilityMode mode, Action? checkpoint, AwkMemoryLease? resultLease)
+        var memory = governor ?? AwkMemoryGovernor.Disabled;
+        using var ownedResults = resultLease is null ? memory.CreateTransientLease() : AwkMemoryLease.Disabled;
+        return Translate(pattern.Text, compatibilityMode, checkpoint, resultLease ?? ownedResults, memory);
+        static string Translate(string pattern, AwkCompatibilityMode mode, Action? checkpoint,
+            AwkMemoryLease resultLease, AwkMemoryGovernor memory)
         {
+            using var decoding = memory.ReserveTransient(memory.IsEnabled &&
+                AwkRegexConstruction.IndexOf(pattern, '\\', 0, checkpoint) >= 0
+                ? AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) : 0);
             var decoded = AwkRegexEscapes.Decode(pattern, mode, checkpoint);
+            if (memory.IsEnabled && !ReferenceEquals(decoded, pattern))
+                decoding.MoveTo(resultLease, AwkRuntimeMemory.EstimateUtf16StringBytes(decoded.Length));
             AwkRegexBracketClasses.Validate(decoded, checkpoint, resultLease);
-            return TranslatePosixCharacterClasses(TranslateEscapes(decoded, mode, checkpoint), checkpoint, resultLease);
-            static string TranslateEscapes(string pattern, AwkCompatibilityMode mode, Action? checkpoint)
+            return TranslatePosixCharacterClasses(TranslateEscapes(decoded, mode, checkpoint, memory, resultLease),
+                checkpoint, resultLease, memory);
+            static string TranslateEscapes(string pattern, AwkCompatibilityMode mode, Action? checkpoint,
+                AwkMemoryGovernor memory, AwkMemoryLease resultLease)
             {
+                using var scratch = memory.CreateTransientLease();
                 StringBuilder? builder = null;
                 var bracketStart = -1;
                 var bracketFirstItem = -1;
@@ -133,12 +144,18 @@ internal sealed class AwkRegex
                 }
 
                 checkpoint?.Invoke();
-                return builder is null ? pattern : AwkRegexConstruction.Finish(builder, checkpoint);
+                if (builder is null) return pattern;
+                if (memory.IsEnabled)
+                    resultLease.ReserveAdditional(AwkRuntimeMemory.EstimateUtf16StringBytes(builder.Length));
+                return AwkRegexConstruction.Finish(builder, checkpoint);
 
                 StringBuilder GetBuilder(int index)
                 {
                     if (builder is not null)
                         return builder;
+                    if (memory.IsEnabled)
+                        scratch.ReserveAdditional(AwkRegexConstruction.EstimateDialectBuilderScratch(
+                            pattern, 16, 0, quoteRightParenthesis: true, checkpoint));
                     builder = new StringBuilder(pattern.Length);
                     AwkRegexConstruction.Append(builder, pattern, 0, index, checkpoint);
                     return builder;
@@ -230,13 +247,15 @@ internal sealed class AwkRegex
                 }
             }
 
-            static string TranslatePosixCharacterClasses(string pattern, Action? checkpoint, AwkMemoryLease? resultLease)
+            static string TranslatePosixCharacterClasses(string pattern, Action? checkpoint,
+                AwkMemoryLease resultLease, AwkMemoryGovernor memory)
             {
                 if (AwkRegexConstruction.IndexOf(pattern, "[:", 0, checkpoint) < 0 &&
                     AwkRegexConstruction.IndexOf(pattern, "[=", 0, checkpoint) < 0 &&
                     AwkRegexConstruction.IndexOf(pattern, "[.", 0, checkpoint) < 0)
                     return pattern;
 
+                using var scratch = memory.CreateTransientLease();
                 StringBuilder? builder = null;
                 var copied = 0;
                 long nextCheckpoint = 0;
@@ -256,13 +275,21 @@ internal sealed class AwkRegex
                     if (end < 0)
                         return pattern;
 
+                    using var contentMemory = memory.ReserveTransient(
+                        AwkRuntimeMemory.EstimateUtf16StringBytes(end - index - 1));
                     checkpoint?.Invoke();
                     var content = pattern.Substring(index + 1, end - index - 1);
                     checkpoint?.Invoke();
-                    var translated = TranslatePosixClassTokens(content, checkpoint, resultLease);
+                    var translated = TranslatePosixClassTokens(content, checkpoint, resultLease, memory);
                     if (!AwkRegexConstruction.Equals(content, translated, checkpoint))
                     {
-                        builder ??= new StringBuilder(pattern.Length);
+                        if (builder is null)
+                        {
+                            if (memory.IsEnabled)
+                                scratch.ReserveAdditional(AwkRegexConstruction.EstimateDialectBuilderScratch(
+                                    pattern, 0, 20, quoteRightParenthesis: false, checkpoint));
+                            builder = new StringBuilder(pattern.Length);
+                        }
                         AwkRegexConstruction.Append(builder, pattern, copied, index + 1 - copied, checkpoint);
                         AwkRegexConstruction.Append(builder, translated, 0, translated.Length, checkpoint);
                         copied = end;
@@ -275,6 +302,8 @@ internal sealed class AwkRegex
                     return pattern;
 
                 AwkRegexConstruction.Append(builder, pattern, copied, pattern.Length - copied, checkpoint);
+                if (memory.IsEnabled)
+                    resultLease.ReserveAdditional(AwkRuntimeMemory.EstimateUtf16StringBytes(builder.Length));
                 return AwkRegexConstruction.Finish(builder, checkpoint);
 
                 static int FindBracketExpressionEnd(string pattern, int start, Action? checkpoint)
@@ -323,9 +352,10 @@ internal sealed class AwkRegex
                     return -1;
                 }
 
-                static string TranslatePosixClassTokens(string content, Action? checkpoint, AwkMemoryLease? resultLease)
+                static string TranslatePosixClassTokens(string content, Action? checkpoint,
+                    AwkMemoryLease resultLease, AwkMemoryGovernor memory)
                 {
-                    var translated = TranslatePosixEquivalenceAndCollatingTokens(content, checkpoint);
+                    var translated = TranslatePosixEquivalenceAndCollatingTokens(content, checkpoint, resultLease, memory);
                     translated = AwkRegexConstruction.Replace(translated, "[:alnum:]", "\\p{L}\\p{Nd}", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:alpha:]", "\\p{L}", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:blank:]", " \\t", checkpoint, resultLease);
@@ -340,12 +370,14 @@ internal sealed class AwkRegex
                     translated = AwkRegexConstruction.Replace(translated, "[:xdigit:]", "0-9A-Fa-f", checkpoint, resultLease);
                     return translated;
 
-                    static string TranslatePosixEquivalenceAndCollatingTokens(string content, Action? checkpoint)
+                    static string TranslatePosixEquivalenceAndCollatingTokens(string content, Action? checkpoint,
+                        AwkMemoryLease resultLease, AwkMemoryGovernor memory)
                     {
                         var tokenStart = AwkRegexConstruction.IndexOf(content, '[', 0, checkpoint);
                         if (tokenStart < 0)
                             return content;
 
+                        using var scratch = memory.CreateTransientLease();
                         StringBuilder? builder = null;
                         var copied = 0;
                         long nextCheckpoint = 0;
@@ -365,7 +397,13 @@ internal sealed class AwkRegex
                             var symbolLength = closingIndex - symbolStart;
                             if (symbolLength == 1)
                             {
-                                builder ??= new StringBuilder(content.Length);
+                                if (builder is null)
+                                {
+                                    if (memory.IsEnabled)
+                                        scratch.ReserveAdditional(AwkRegexConstruction.EstimateDialectBuilderScratch(
+                                            content, 0, 0, quoteRightParenthesis: false, checkpoint));
+                                    builder = new StringBuilder(content.Length);
+                                }
                                 AwkRegexConstruction.Append(builder, content, copied, index - copied, checkpoint);
                                 AppendBracketLiteral(builder, content[symbolStart]);
                                 copied = closingIndex + 2;
@@ -378,6 +416,8 @@ internal sealed class AwkRegex
                             return content;
 
                         AwkRegexConstruction.Append(builder, content, copied, content.Length - copied, checkpoint);
+                        if (memory.IsEnabled)
+                            resultLease.ReserveAdditional(AwkRuntimeMemory.EstimateUtf16StringBytes(builder.Length));
                         return AwkRegexConstruction.Finish(builder, checkpoint);
 
                         static void AppendBracketLiteral(StringBuilder builder, char value)

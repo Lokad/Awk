@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Runtime regex dialect translation now admits builder scratch and intermediate
+  strings, retaining decoded and translated text through cache publication. Structured
+  POSIX predicates use the same governed scalar preparation and cancellation checks;
+  their expanded expressions contribute to cache weight. Wrapper caches also account
+  for distinct retained ERE text. Matching and profile translation rules are unchanged.
+
+- Literal regex preparation now admits its escaped result and conservative pooled
+  scratch before calling the existing BCL escape API. Unchanged literals share their
+  text; final results stay charged through cache publication. Regex warning-history
+  searches, comparisons and dictionary copies now observe cancellation, preserving
+  prior entries on canceled growth. Matching and warning-profile rules are unchanged.
+
+- Finite-memory regex execution now preflights Awk's scalar translation builders,
+  strings, range buffers and supplementary category metadata. Conservative scratch
+  charges release on completion or failure; exact output stays charged through cache
+  publication. Scalar-range sorting observes cancellation during comparisons and
+  preserves cancellation tokens and Awk diagnostics. Matching rules are unchanged.
+
 - POSIX `graph` and `print` regex classes now use invariant Unicode categories,
   matching non-ASCII letters, marks, symbols, format and private-use scalars.
   Print also includes Unicode space separators; controls, unassigned scalars and

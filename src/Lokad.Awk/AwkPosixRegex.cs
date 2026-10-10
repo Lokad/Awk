@@ -197,30 +197,42 @@ internal sealed class AwkPosixRegex
     internal int GroupCount => _groups;
     internal long CacheBytes { get; }
 
-    private AwkPosixRegex(Tree tree, int groups, bool ignoreCase, string pattern, Action checkpoint)
+    private sealed class CompilationContext(AwkMemoryGovernor governor,
+        AwkMemoryLease results, Action work, Action prepare)
+    {
+        public AwkMemoryGovernor Governor { get; } = governor;
+        public AwkMemoryLease Results { get; } = results;
+        public Action Work { get; } = work;
+        public Action Prepare { get; } = prepare;
+    }
+
+    private AwkPosixRegex(Tree tree, int groups, bool ignoreCase, string pattern, CompilationContext context)
     {
         _ignoreCase = ignoreCase;
         _groups = groups + 1;
-        Schedule(tree, 0, checkpoint);
+        Schedule(tree, 0, context);
         while (_compileWork.TryPop(out var action))
         {
-            checkpoint();
+            context.Work();
             action();
         }
         Add(Op.Accept, 0);
         _maximumDepth = _nodes.Max(node => node.Depth);
+        var predicateBytes = 0L;
+        foreach (var expression in _predicates.Keys)
+            predicateBytes = AwkRuntimeMemory.CheckedAdd(predicateBytes,
+                AwkRegexResourceFacts.EstimateCacheBytes(expression, context.Prepare));
         CacheBytes = AwkRuntimeMemory.CheckedAdd(
-            AwkRegexResourceFacts.EstimateCacheBytes(pattern, checkpoint),
-            AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedMultiply(_nodes.Count, 224),
-                AwkRuntimeMemory.CheckedMultiply(_predicates.Count, 1024)));
+            AwkRegexResourceFacts.EstimateCacheBytes(pattern, context.Prepare),
+            AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedMultiply(_nodes.Count, 224), predicateBytes));
     }
 
     internal static bool TryCreate(string pattern, AwkRegexCaseSensitivity sensitivity,
         AwkMemoryGovernor governor, Action recordCompilation, Action checkCancellation,
-        [NotNullWhen(true)] out AwkPosixRegex? result)
+        [NotNullWhen(true)] out AwkPosixRegex? result, AwkMemoryLease? resultLease = null)
     {
         result = null;
-        if (!IsEligible(pattern)) return false;
+        if (!IsEligible(pattern, checkCancellation)) return false;
         checkCancellation();
         var start = Stopwatch.GetTimestamp();
         var deadline = (long)(AwkRegex.MatchTimeout.TotalSeconds * Stopwatch.Frequency);
@@ -232,8 +244,16 @@ internal sealed class AwkPosixRegex
             if (Stopwatch.GetTimestamp() - start > deadline)
                 throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
         }
-        using var parsingMemory = governor.ReserveTransient(AwkRuntimeMemory.CheckedAdd(256,
-            AwkRuntimeMemory.CheckedMultiply(pattern.Length, 128)));
+        void CheckPreparation()
+        {
+            checkCancellation();
+            if (Stopwatch.GetTimestamp() - start > deadline)
+                throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
+        }
+        using var ownedResults = resultLease is null ? governor.CreateTransientLease() : AwkMemoryLease.Disabled;
+        var retained = resultLease ?? ownedResults;
+        var parsingBytes = AwkRuntimeMemory.CheckedAdd(256, AwkRuntimeMemory.CheckedMultiply(pattern.Length, 128));
+        using var parsingMemory = governor.ReserveTransient(parsingBytes);
         var parser = new Parser(pattern);
         Tree tree;
         try { tree = parser.Parse(Checkpoint); }
@@ -241,21 +261,27 @@ internal sealed class AwkPosixRegex
         var nodes = CountNodes(tree, Checkpoint);
         CheckedCount(nodes);
         recordCompilation();
-        using var compilationMemory = governor.ReserveTransient(AwkRuntimeMemory.CheckedAdd(256,
-            AwkRuntimeMemory.CheckedMultiply(nodes, 224)));
-        result = new(tree, parser.Groups, sensitivity == AwkRegexCaseSensitivity.IgnoreCase, pattern, Checkpoint);
+        var compilationBytes = AwkRuntimeMemory.CheckedAdd(256, AwkRuntimeMemory.CheckedMultiply(nodes, 224));
+        using var compilationMemory = governor.ReserveTransient(compilationBytes);
+        result = new(tree, parser.Groups, sensitivity == AwkRegexCaseSensitivity.IgnoreCase, pattern,
+            new(governor, retained, Checkpoint, CheckPreparation));
+        CheckPreparation();
+        parsingMemory.MoveTo(retained, parsingBytes);
+        compilationMemory.MoveTo(retained, compilationBytes);
         return true;
     }
 
-    private static bool IsEligible(string pattern)
+    private static bool IsEligible(string pattern, Action checkpoint)
     {
+        long progress = 0;
         for (var i = 0; i < pattern.Length; i++)
         {
+            AwkRegexConstruction.CheckProgress(i, ref progress, checkpoint);
             if (pattern.AsSpan(i).StartsWith(@"\b(?=\w)", StringComparison.Ordinal)) { i += 7; continue; }
             if (pattern.AsSpan(i).StartsWith(@"(?<=\w)\b", StringComparison.Ordinal)) { i += 8; continue; }
             if (pattern[i] == '[')
             {
-                var end = AwkRegexSelection.BracketEnd(pattern, i);
+                var end = AwkRegexSelection.BracketEnd(pattern, i, checkpoint);
                 if (end < 0 || pattern.AsSpan(i, end - i).Contains("-[", StringComparison.Ordinal)) return false;
                 i = end;
             }
@@ -275,7 +301,7 @@ internal sealed class AwkPosixRegex
                 }
                 else if (pattern[i] is 'p' or 'P')
                 {
-                    i = pattern.IndexOf('}', i + 1);
+                    i = AwkRegexConstruction.IndexOf(pattern, '}', i + 1, checkpoint);
                     if (i < 0) return false;
                 }
             }
@@ -325,14 +351,14 @@ internal sealed class AwkPosixRegex
         return index;
     }
 
-    private void Schedule(Tree tree, int depth, Action checkpoint) => _compileWork.Push(() => Emit(tree, depth, checkpoint));
+    private void Schedule(Tree tree, int depth, CompilationContext context) => _compileWork.Push(() => Emit(tree, depth, context));
 
-    private void Emit(Tree tree, int depth, Action checkpoint)
+    private void Emit(Tree tree, int depth, CompilationContext context)
     {
         switch (tree.Kind)
         {
             case Kind.Sequence:
-                for (var i = tree.Children.Count - 1; i >= 0; i--) Schedule(tree.Children[i], depth, checkpoint);
+                for (var i = tree.Children.Count - 1; i >= 0; i--) Schedule(tree.Children[i], depth, context);
                 break;
             case Kind.Alternate:
                 var fork = Add(Op.Fork, depth);
@@ -348,7 +374,7 @@ internal sealed class AwkPosixRegex
                 {
                     var branch = i;
                     _compileWork.Push(() => jumps[branch] = Add(Op.Jump, depth + 1));
-                    Schedule(tree.Children[branch], depth + 1, checkpoint);
+                    Schedule(tree.Children[branch], depth + 1, context);
                     _compileWork.Push(() => branches[branch] = _nodes.Count);
                 }
                 break;
@@ -357,10 +383,10 @@ internal sealed class AwkPosixRegex
                 _nodes[open].Group = tree.Group;
                 _nodes[open].LastGroup = tree.LastGroup;
                 _compileWork.Push(() => _nodes[Add(Op.Close, depth + 1)].Group = tree.Group);
-                Schedule(tree.Children[0], depth + 1, checkpoint);
+                Schedule(tree.Children[0], depth + 1, context);
                 break;
             case Kind.Repeat:
-                Repeat(tree.Children[0], tree.Minimum, tree.Maximum, depth, checkpoint);
+                Repeat(tree.Children[0], tree.Minimum, tree.Maximum, depth, context);
                 break;
             default:
                 var op = tree.Kind switch { Kind.Literal => Op.Literal, Kind.Dot => Op.Dot,
@@ -369,17 +395,27 @@ internal sealed class AwkPosixRegex
                 _nodes[atom].Text = tree.Text;
                 if (op == Op.Class || op == Op.Literal && _ignoreCase || op == Op.Assertion)
                 {
-                    checkpoint();
-                    var expression = op == Op.Assertion
-                        ? @"\G(?:" + AwkRegexScalarPattern.Translate(tree.Text, checkpoint) + ")"
-                        : @"\A(?:" + AwkRegexScalarPattern.Translate(op == Op.Literal ? Regex.Escape(tree.Text) : tree.Text, checkpoint) + @")\z";
-                    checkpoint();
+                    context.Prepare();
+                    using var preparedText = context.Governor.CreateTransientLease();
+                    var literalOrPattern = op == Op.Literal
+                        ? AwkRegexConstruction.EscapeLiteral(tree.Text, context.Prepare, context.Governor, preparedText)
+                        : tree.Text;
+                    var scalar = AwkRegexScalarPattern.Translate(literalOrPattern, context.Prepare,
+                        context.Governor, preparedText);
+                    var prefix = op == Op.Assertion ? @"\G(?:" : @"\A(?:";
+                    var suffix = op == Op.Assertion ? ")" : @")\z";
+                    var expressionBytes = AwkRuntimeMemory.EstimateUtf16StringBytes(
+                        AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(prefix.Length, scalar.Length), suffix.Length));
+                    preparedText.ReserveAdditional(expressionBytes);
+                    var expression = prefix + scalar + suffix;
+                    context.Prepare();
                     if (!_predicates.TryGetValue(expression, out var predicate))
                     {
                         predicate = new Regex(expression, AwkRegex.ResolveOptions(_ignoreCase
                             ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive), AwkRegex.MatchTimeout);
-                        checkpoint();
+                        context.Prepare();
                         _predicates.Add(expression, predicate);
+                        preparedText.MoveTo(context.Results, expressionBytes);
                     }
                     _nodes[atom].Predicate = predicate;
                 }
@@ -387,31 +423,31 @@ internal sealed class AwkPosixRegex
         }
     }
 
-    private void Repeat(Tree body, int minimum, long maximum, int depth, Action checkpoint)
+    private void Repeat(Tree body, int minimum, long maximum, int depth, CompilationContext context)
     {
         if (maximum == 0) return;
-        if (maximum == long.MaxValue && minimum <= 1) { Loop(body, minimum == 0, depth, checkpoint); return; }
-        if (maximum == 1 && minimum == 0) { Optional(() => Schedule(body, depth + 2, checkpoint), depth, 0); return; }
-        if (minimum == 0) { Optional(() => _compileWork.Push(() => Repeat(body, 1, maximum, depth + 2, checkpoint)), depth, 0); return; }
+        if (maximum == long.MaxValue && minimum <= 1) { Loop(body, minimum == 0, depth, context); return; }
+        if (maximum == 1 && minimum == 0) { Optional(() => Schedule(body, depth + 2, context), depth, 0); return; }
+        if (minimum == 0) { Optional(() => _compileWork.Push(() => Repeat(body, 1, maximum, depth + 2, context)), depth, 0); return; }
         void Iteration(int i)
         {
             if (i >= maximum && maximum != long.MaxValue) return;
             if (i < minimum)
             {
                 _compileWork.Push(() => Iteration(i + 1));
-                Schedule(body, depth, checkpoint);
+                Schedule(body, depth, context);
             }
-            else if (maximum == long.MaxValue) Loop(body, true, depth, checkpoint);
+            else if (maximum == long.MaxValue) Loop(body, true, depth, context);
             else
             {
                 _compileWork.Push(() => Iteration(i + 1));
-                Optional(() => Schedule(body, depth + 2, checkpoint), depth, 1);
+                Optional(() => Schedule(body, depth + 2, context), depth, 1);
             }
         }
         _compileWork.Push(() => Iteration(0));
     }
 
-    private void Loop(Tree body, bool optional, int depth, Action checkpoint)
+    private void Loop(Tree body, bool optional, int depth, CompilationContext context)
     {
         var begin = Add(Op.Loop, depth);
         _compileWork.Push(() =>
@@ -420,7 +456,7 @@ internal sealed class AwkPosixRegex
             _nodes[begin].Other = optional ? end : -1;
             _nodes[end].Other = begin + 1;
         });
-        Schedule(body, depth + 3, checkpoint);
+        Schedule(body, depth + 3, context);
     }
 
     private void Optional(Action schedule, int depth, int invert)

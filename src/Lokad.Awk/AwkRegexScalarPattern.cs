@@ -4,13 +4,13 @@ using System.Text;
 namespace Lokad.Awk;
 
 /// <summary>Translates character atoms into expressions that consume complete Unicode scalars.</summary>
-internal static class AwkRegexScalarPattern
+internal static partial class AwkRegexScalarPattern
 {
     internal const string AnyScalar = @"(?:[^\uD800-\uDFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF])";
     private const string BmpBoundary = @"(?![\uD800-\uDFFF])";
     private static readonly Lazy<CategoryRange[]> SupplementaryCategories = new(BuildCategoryRanges);
 
-    public static string Translate(string pattern, Action? checkpoint = null)
+    private static string TranslateCore(string pattern, Action? checkpoint)
     {
         StringBuilder? builder = null;
         var copied = 0;
@@ -193,7 +193,7 @@ internal static class AwkRegexScalarPattern
         }
     }
 
-    private static int ReadAtom(string content, ref int index, out uint categoryMask, Action? checkpoint)
+    private static int ReadAtom(ReadOnlySpan<char> content, ref int index, out uint categoryMask, Action? checkpoint)
     {
         categoryMask = 0;
         var value = content[index++];
@@ -220,7 +220,7 @@ internal static class AwkRegexScalarPattern
 
         if (escaped is 'p' or 'P' && index < content.Length && content[index] == '{')
         {
-            var closing = AwkRegexConstruction.IndexOf(content, '}', index + 1, checkpoint);
+            var closing = CategoryClosing(content, index + 1, checkpoint);
             if (closing >= 0)
                 index = closing + 1;
             return -1;
@@ -241,17 +241,17 @@ internal static class AwkRegexScalarPattern
         return "(?:" + atom + ")";
     }
 
-    private static bool TryReadCategory(string pattern, int index, out uint mask, out int end, Action? checkpoint)
+    private static bool TryReadCategory(ReadOnlySpan<char> pattern, int index, out uint mask, out int end, Action? checkpoint)
     {
         mask = 0;
         end = index + 1;
         if (pattern[index] is not ('p' or 'P') || end >= pattern.Length || pattern[end] != '{')
             return false;
-        var closing = AwkRegexConstruction.IndexOf(pattern, '}', end + 1, checkpoint);
+        var closing = CategoryClosing(pattern, end + 1, checkpoint);
         if (closing < 0)
             return false;
 
-        mask = CategoryMask(pattern.AsSpan(end + 1, closing - end - 1));
+        mask = CategoryMask(pattern.Slice(end + 1, closing - end - 1));
         if (mask == 0)
             return false;
 
@@ -345,7 +345,9 @@ internal static class AwkRegexScalarPattern
         }
 
         ranges.Add(new CategoryRange(first, 0x10FFFF, category));
-        return ranges.ToArray();
+        var result = ranges.ToArray();
+        Volatile.Write(ref _supplementaryCategoryCount, result.Length);
+        return result;
     }
 
     private static void AddCategoryRanges(List<ScalarRange> ranges, uint mask, Action? checkpoint)
@@ -367,7 +369,7 @@ internal static class AwkRegexScalarPattern
     private static void AppendSupplementaryRanges(StringBuilder builder, List<ScalarRange> ranges, Action? checkpoint)
     {
         checkpoint?.Invoke();
-        ranges.Sort(static (left, right) => left.First.CompareTo(right.First));
+        SortScalarRanges(ranges, checkpoint);
         checkpoint?.Invoke();
         for (var index = 0; index < ranges.Count; index++)
         {
@@ -439,6 +441,6 @@ internal static class AwkRegexScalarPattern
     private static void AppendCodeUnit(StringBuilder builder, int value) =>
         builder.Append(@"\u").Append(value.ToString("X4", CultureInfo.InvariantCulture));
 
-    private readonly record struct ScalarRange(int First, int Last);
+    internal readonly record struct ScalarRange(int First, int Last);
     private readonly record struct CategoryRange(int First, int Last, UnicodeCategory Category);
 }

@@ -1267,7 +1267,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
                     ? AwkRegexEngineKind.Utf8Adapter
                     : AwkRegexEngineKind.DotNetCompatibility,
                 AwkExecutionEngineKind.Interpreter));
-        var regex = state.CreateRegex(new AwkRegexPattern("."));
+        // Prepare outside the capture-only budget. Runtime scalar preparation has
+        // its own admission tests and can require more memory than one match payload.
+        var preparation = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled,
+            useUtf8Adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility);
+        var regex = preparation.Create(new AwkRegexPattern("."));
         var input = AwkText.FromString(text);
 
         var exception = Assert.Throws<AwkRuntimeException>(() =>
