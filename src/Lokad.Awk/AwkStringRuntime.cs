@@ -22,7 +22,16 @@ internal sealed class AwkStringRuntime
         return _unitMode is AwkStringUnitMode.Byte ? value.ByteLength : value.RuneLength;
     }
 
-    public int IndexOfUnits(AwkText source, AwkText value)
+    public int Compare(AwkText left, AwkText right, bool ignoreCase, bool sorting)
+    {
+        if (!ignoreCase)
+            return left.CompareBytes(right);
+
+        var comparison = AwkCaseText.Compare(left.AsSpan(), right.AsSpan(), _unitMode, _recordByteWork);
+        return comparison == 0 && sorting ? left.CompareBytes(right) : comparison;
+    }
+
+    public int IndexOfUnits(AwkText source, AwkText value, bool ignoreCase)
     {
         static int CountRunes(ReadOnlySpan<byte> bytes)
         {
@@ -40,8 +49,11 @@ internal sealed class AwkStringRuntime
             return count;
         }
 
-        _recordByteWork?.Invoke(source.ByteLength);
-        var position = source.IndexOf(value);
+        if (!ignoreCase)
+            _recordByteWork?.Invoke(source.ByteLength);
+        var position = ignoreCase
+            ? AwkCaseText.IndexOf(source.AsSpan(), value.AsSpan(), _unitMode, _recordByteWork)
+            : source.IndexOf(value);
         if (position < 0)
             return 0;
 

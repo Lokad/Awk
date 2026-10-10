@@ -10,6 +10,12 @@ matching, `match()`, regex `FS`/`RS`, `patsplit`, `sub`, `gsub`, and `gensub` no
 coverage in the `AwkText` runtime flow. The .NET string engine remains the compatibility route
 when configured explicitly and for documented UTF-8 adapter pattern gaps.
 
+IGNORECASE's effects are enabled only in GNU/default mode. POSIX and traditional modes
+keep the assigned value visible but force case-sensitive regex matching and separators.
+String comparisons, index, and sorting use the invariant scalar/byte policy recorded in
+`COMPATIBILITY_CONTRACT.md`; regex Unicode case/word equivalence still follows its
+separate backend compatibility contract.
+
 Regex routing evidence uses dedicated counters. `RegexDotNetTextMatches` counts `AwkText`
 regex operations routed through the .NET string engine, whether that engine is the configured
 default or a compatibility fallback. `RegexPatternGapFallbacks` counts translated patterns such as

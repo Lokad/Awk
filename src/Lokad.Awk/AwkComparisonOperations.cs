@@ -41,6 +41,6 @@ internal static class AwkComparisonOperations
             return leftNumber.CompareTo(rightNumber);
 
         state.Counters.RecordByteTextComparison();
-        return state.FormatStringByteText(left).CompareBytes(state.FormatStringByteText(right));
+        return state.CompareByteText(state.FormatStringByteText(left), state.FormatStringByteText(right));
     }
 }

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Applied IGNORECASE to string comparisons, index, and predefined string sort comparisons,
+  with original-byte sort tie-breaks and case-sensitive array keys. Folded scans operate
+  on UTF-8 bytes with invariant scalar casing, preserve spelling, and check the shared
+  work/cancellation allowance without folded buffers. POSIX/traditional modes disable
+  case effects, including regexes; GNU Unicode edge differences have an explicit policy.
+
 - Added `@val_type_asc`, `@val_type_desc`, and `@unsorted` for sorting and traversal.
   Default asort now groups and orders numeric values before strings; default asorti
   orders indices. Repaired descending tie-breaks, numeric-prefix index conversion,

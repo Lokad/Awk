@@ -39,6 +39,12 @@ Byte-native paths should avoid decoding records before field splitting, filterin
 Runtime counters track string decodes, UTF-8 encodes, `AwkText.AsString()` calls, and formatting
 fallbacks so migrations can prove that hot paths stay byte-native.
 
+IGNORECASE-aware comparisons and index scan UTF-8 spans with invariant scalar lowercase
+mapping, without decoded strings, folded copies, or prefix tables. Byte mode folds ASCII
+only. Sorts retain an original-byte tie-break after folded equality. Their Unicode policy
+uses complete scalars even when the operands have different encoded lengths; native GNU
+truncation/search asymmetries are classified in `COMPATIBILITY_CONTRACT.md`.
+
 Lazy record splitting captures the active separator/pattern bytes, widths, case setting,
 and paragraph mode at record admission or `$0` assignment. Snapshotting does not decode
 the record or eagerly split its fields. FPAT pattern decoding occurs when fields are

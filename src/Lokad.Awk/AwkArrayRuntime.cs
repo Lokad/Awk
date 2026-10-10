@@ -784,9 +784,9 @@ internal sealed class AwkArrayRuntime
             switch (mode)
             {
                 case AwkArraySortMode.IndexStringAscending:
-                    return CompareKeys(left, right);
+                    return CompareKeys(left, right, state);
                 case AwkArraySortMode.IndexStringDescending:
-                    return CompareKeys(right, left);
+                    return CompareKeys(right, left, state);
                 case AwkArraySortMode.IndexNumberAscending:
                     return ThenCompareKeys(CompareNumbers(left, right), left, right);
                 case AwkArraySortMode.IndexNumberDescending:
@@ -809,12 +809,12 @@ internal sealed class AwkArrayRuntime
                 int comparison,
                 AwkArraySortEntry left,
                 AwkArraySortEntry right) =>
-                comparison != 0 ? comparison : CompareKeys(left, right);
+                comparison != 0 ? comparison : CompareKeys(left, right, state);
 
             int CompareValues(AwkArraySortEntry left, AwkArraySortEntry right)
             {
                 counters.RecordByteTextComparison();
-                return left.ValueText.CompareBytes(right.ValueText);
+                return state.CompareByteText(left.ValueText, right.ValueText, sorting: true);
             }
 
             int CompareNumericValues(AwkArraySortEntry left, AwkArraySortEntry right)
@@ -823,7 +823,7 @@ internal sealed class AwkArrayRuntime
                 if (comparison != 0)
                     return comparison;
                 counters.RecordByteTextComparison();
-                return state.FormatStringByteText(left.Value).CompareBytes(state.FormatStringByteText(right.Value));
+                return state.CompareByteText(state.FormatStringByteText(left.Value), state.FormatStringByteText(right.Value), sorting: true);
             }
 
             int CompareTypes(AwkArraySortEntry left, AwkArraySortEntry right)
@@ -845,10 +845,10 @@ internal sealed class AwkArrayRuntime
             double.IsNaN(left) ? (double.IsNaN(right) ? 0 : 1) :
             double.IsNaN(right) ? -1 : left.CompareTo(right);
 
-        private int CompareKeys(AwkArraySortEntry left, AwkArraySortEntry right)
+        private int CompareKeys(AwkArraySortEntry left, AwkArraySortEntry right, AwkRuntimeState state)
         {
             counters.RecordByteTextComparison();
-            return left.KeyText.CompareBytes(right.KeyText);
+            return state.CompareByteText(left.KeyText, right.KeyText, sorting: true);
         }
 
     }

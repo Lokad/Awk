@@ -196,6 +196,13 @@ comparisons; unsorted `asort`/`asorti` still reserve their entry snapshot and pr
 the destination replacement. Memory and comparison failures preserve source values
 and the destination and release transient reservations.
 
+Case-insensitive text comparisons and index searches admit bounded scan chunks through
+the shared work governor, checking cancellation before each chunk. The charge conservatively
+covers decoded scalars and repeated candidate comparisons; an index search's overlapping
+matches cannot bypass the allowance by charging only the haystack length. These operations
+allocate no folded copies or search tables. Early comparison mismatches avoid charging the
+unexamined suffix, and a folded sort failure occurs before destination replacement.
+
 Runtime diagnostic queues charge their retained messages and backing capacity to the
 same memory governor. Admission reserves message bytes and any new backing array while
 the old array is still live, before adding a warning. Conservative per-message headroom

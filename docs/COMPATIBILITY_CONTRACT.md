@@ -189,8 +189,33 @@ in its destination, matching GNU; a separate source retains its original types.
 Unknown selectors and undefined comparator functions produce awk diagnostics.
 
 This contract covers scalar array elements. Subarray ordering requires the pending
-arrays-of-arrays feature, and IGNORECASE-aware string sorting remains pending.
+arrays-of-arrays feature. String sort comparisons honor IGNORECASE as described below.
 See [GNU array sorting](https://www.gnu.org/software/gawk/manual/html_node/Array-Sorting-Functions.html).
+
+## Case-Insensitive Text
+
+In GNU/default mode, a true IGNORECASE affects string comparisons, `index`, and the
+string portions of predefined sorting, as well as the supported regex operations.
+Numeric comparisons retain their numeric rules. Array lookups and membership remain
+case-sensitive: `a["A"]` and `a["a"]` are distinct entries. Original values and
+spelling are retained. POSIX and traditional profiles retain the assigned IGNORECASE
+value but disable its case effects, including regex separators and matching.
+
+Text comparisons and index use invariant simple lowercase mappings of complete
+Unicode scalars. There is no normalization or multi-scalar expansion; final sigma,
+long s, and dotless/dotted I are not collapsed into ordinary Latin/Greek letters.
+`--characters-as-bytes` folds ASCII letters only and orders unsigned UTF-8 bytes.
+Locale environment values and the embedding thread's culture do not select casing
+or collation. Predefined sorts compare original bytes when folded text compares equal,
+then apply their existing index tie-breaks; descending modes reverse those ties too.
+
+These valid-UTF-8 rules deliberately differ from pinned GNU Unicode edge cases.
+GNU's case comparator can truncate a scalar at the shorter operand's byte length,
+and its index search can reject a case-equivalent needle with a greater byte length.
+For example, Lokad treats Kelvin sign and `k` as equal and searches them symmetrically;
+GNU's comparisons and reverse search disagree. Invariant dotted-I casing also differs
+from the C.UTF-8 locale. These are classified policy cases, not exact native matches.
+Broader regex Unicode case/word equivalence remains a separate compatibility topic.
 
 ## Unsupported Capabilities
 

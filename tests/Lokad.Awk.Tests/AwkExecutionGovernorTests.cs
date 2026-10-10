@@ -25,6 +25,9 @@ public sealed class AwkExecutionGovernorTests
     [InlineData("BEGIN{a[\"x\"]=10;a[\"y\"]=2;a[\"z\"]=\"0\";n=asort(a,b);for(i=1;i<=n;i++)print b[i]}", "")]
     [InlineData("BEGIN{a[\"x\"]=10;a[\"y\"]=2;a[\"z\"]=\"0\";PROCINFO[\"sorted_in\"]=\"@val_type_desc\";for(k in a)print k,a[k]}", "")]
     [InlineData("BEGIN{a[1]=1;a[2]=2;PROCINFO[\"sorted_in\"]=\"@unsorted\";for(k in a)n++;print n}", "")]
+    [InlineData("BEGIN{IGNORECASE=1;print (\"AbC\"==\"aBc\"),(\"B\"<\"a\");IGNORECASE=0;print \"A\"==\"a\"}", "")]
+    [InlineData("BEGIN{IGNORECASE=1;print index(\"abABa\",\"Ba\"),index(\"caf\u00e9\u00c9x\",\"\u00e9X\")}", "")]
+    [InlineData("BEGIN{IGNORECASE=1;a[\"b\"]=\"a\";a[\"B\"]=\"A\";a[\"a\"]=\"B\";n=asort(a,b);for(i=1;i<=n;i++)print b[i]}", "")]
     public async Task EnginesAndObservationalCountersAdmitTheSameWork(string program, string input)
     {
         var compiled = await CompileAsync(program);

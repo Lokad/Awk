@@ -436,7 +436,10 @@ internal sealed class AwkRuntimeState
         _stringRuntime.CountUnits(value);
 
     public int IndexOfStringUnits(AwkText source, AwkText value) =>
-        _stringRuntime.IndexOfUnits(source, value);
+        _stringRuntime.IndexOfUnits(source, value, IsCaseInsensitive);
+
+    internal int CompareByteText(AwkText left, AwkText right, bool sorting = false) =>
+        _stringRuntime.Compare(left, right, IsCaseInsensitive, sorting);
 
     public AwkText SubstringByStringUnits(AwkText source, int start, int length) =>
         _stringRuntime.SubstringByUnits(source, start, length, Counters, MemoryGovernor);
@@ -746,8 +749,12 @@ internal sealed class AwkRuntimeState
     public AwkRegexMatchSpanEnumerator EnumerateRegexMatchSpans(AwkRegex regex, AwkText input) =>
         _regexRuntime.EnumerateMatchSpans(regex, input);
 
+    private bool IsCaseInsensitive =>
+        CompatibilityMode is AwkCompatibilityMode.GnuDefault &&
+        ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy();
+
     internal AwkRegexCaseSensitivity ResolveRegexCaseSensitivity() =>
-        ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy()
+        IsCaseInsensitive
             ? AwkRegexCaseSensitivity.IgnoreCase
             : AwkRegexCaseSensitivity.CaseSensitive;
 
