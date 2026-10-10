@@ -435,7 +435,8 @@ public sealed class AwkGoldenCorpusTests
 
         static string BuildNearDuplicateDetectionFingerprint(AwkGoldenCase testCase)
         {
-            return BuildGoldenCaseFingerprint(testCase, NormalizeNearDuplicateText, includeSupport: false);
+            return BuildGoldenCaseFingerprint(testCase, NormalizeNearDuplicateText, includeSupport: false,
+                preserveDataWhitespace: true);
             static string NormalizeNearDuplicateText(string text) =>
                 text.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
         }
@@ -668,19 +669,22 @@ public sealed class AwkGoldenCorpusTests
     private static string BuildGoldenCaseFingerprint(
         AwkGoldenCase testCase,
         Func<string, string> normalizeUserText,
-        bool includeSupport)
+        bool includeSupport,
+        bool preserveDataWhitespace = false)
     {
+        // Record, field, environment, and expected-output whitespace is observable awk data.
+        Func<string, string> normalizeData = preserveDataWhitespace ? static text => text : normalizeUserText;
         var builder = new StringBuilder();
         AppendSequence(builder, "arg", testCase.Arguments, normalizeUserText);
-        AppendFiles(builder, "input-file", testCase.InputFiles, normalizeUserText);
+        AppendFiles(builder, "input-file", testCase.InputFiles, normalizeData);
         AppendPaths(builder, "input-dir", testCase.InputDirectories);
         AppendReadOpenErrors(builder, testCase.ReadOpenErrors);
-        AppendValue(builder, "stdin", normalizeUserText(testCase.StandardInput));
-        AppendEnvironment(builder, testCase.Environment, normalizeUserText);
+        AppendValue(builder, "stdin", normalizeData(testCase.StandardInput));
+        AppendEnvironment(builder, testCase.Environment, normalizeData);
         AppendValue(builder, "exit", testCase.ExpectedExitCode.ToString());
-        AppendValue(builder, "stdout", normalizeUserText(testCase.ExpectedStdOut));
-        AppendValue(builder, "stderr", normalizeUserText(testCase.ExpectedStdErr));
-        AppendFiles(builder, "expected-file", testCase.ExpectedFiles, normalizeUserText);
+        AppendValue(builder, "stdout", normalizeData(testCase.ExpectedStdOut));
+        AppendValue(builder, "stderr", normalizeData(testCase.ExpectedStdErr));
+        AppendFiles(builder, "expected-file", testCase.ExpectedFiles, normalizeData);
         AppendValue(builder, "stdout-comparison", testCase.StdOutComparison.ToString());
         if (includeSupport)
             AppendValue(builder, "support", testCase.SupportLevel.ToString());

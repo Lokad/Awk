@@ -96,6 +96,12 @@ are scoped across nested file actions and sort callbacks, so function declaratio
 record/file control while invalid calls retain awk diagnostics. Sort comparators reject all
 three forms of nonlocal control.
 
+Compiled text constants are rebound to the executing invocation's numeric-conversion
+profile. Default/traditional decimal constants retain their precomputed representation;
+POSIX and non-decimal-data execution parse text with the shared byte scanner. Numeric
+constants retain their exact value and signed zero. Comparison opcodes use arithmetic
+NaN rules independently of the total ordering retained for sorting.
+
 ## Inline Cache Policy
 
 Inline caches are optional and benchmark-driven. Candidate caches are special-variable lookup,

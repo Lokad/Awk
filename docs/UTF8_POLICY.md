@@ -80,6 +80,19 @@ Complete output sizes, including signs, prefixes, precision zeros and width, are
 before append. `printf`/`sprintf` retain their counted format-string compatibility input;
 this digit path does not claim that all formatting has become byte-native.
 
+Numeric classification and prefix conversion scan UTF-8 bytes without decoding, including
+signed `inf`/`nan` and all six ASCII C whitespace characters. Unicode whitespace remains
+outside that set. Math warning arguments cross to invariant diagnostic strings with fixed
+six-significant-digit precision; this diagnostic-only boundary does not decode awk text.
+The output sink precharges warning-message retention and normalization/UTF-8 headroom.
+
+`strtonum` preserves numeric arguments without formatting or decoding. Pure-string base
+selection and prefix conversion stay on UTF-8 bytes, including octal fallback and hex
+fractions/exponents. Hex float conversion retains at most 64 significand bits plus a sticky
+bit, scanning remaining digits without magnitude-sized arrays or strings. It rounds once
+to the final binary64 precision, including subnormal precision. Nondecimal conversion errors
+retain the original bytes for text operations and become friendly diagnostics upon numeric use.
+
 Some builtins intentionally remain .NET string operations. `printf`, `sprintf`, custom numeric
 formatting, `strftime`, `mktime`, GNU date-format directive handling, and non-ASCII
 `tolower`/`toupper` are counted through formatting or string interop fallback counters. ASCII-only

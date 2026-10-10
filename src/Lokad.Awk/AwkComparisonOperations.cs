@@ -8,6 +8,20 @@ internal static class AwkComparisonOperations
         AwkComparison comparison,
         AwkRuntimeState state)
     {
+        if (left.TryGetNumber(out var leftNumber) && right.TryGetNumber(out var rightNumber))
+        {
+            return comparison switch
+            {
+                AwkComparison.GreaterOrEqual => leftNumber >= rightNumber,
+                AwkComparison.GreaterThan => leftNumber > rightNumber,
+                AwkComparison.LessOrEqual => leftNumber <= rightNumber,
+                AwkComparison.LessThan => leftNumber < rightNumber,
+                AwkComparison.Equal => leftNumber == rightNumber,
+                AwkComparison.NotEqual => leftNumber != rightNumber,
+                _ => throw new ArgumentOutOfRangeException(nameof(comparison))
+            };
+        }
+
         var result = Compare(left, right, state);
         return comparison switch
         {

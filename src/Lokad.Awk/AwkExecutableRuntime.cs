@@ -301,7 +301,8 @@ internal static class AwkExecutableDispatcher
                             break;
 
                         case AwkOpcode.LoadConstant:
-                            stack[stackCount++] = tables.Constants[instruction.ConstantIndex.Value];
+                            stack[stackCount++] = state.ResolveExecutableConstant(
+                                tables.Constants[instruction.ConstantIndex.Value]);
                             pc++;
                             break;
 

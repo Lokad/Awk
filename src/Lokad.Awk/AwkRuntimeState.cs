@@ -242,6 +242,14 @@ internal sealed class AwkRuntimeState
         return AwkValue.FromText(text, NumberParsingMode);
     }
 
+    internal AwkValue ResolveExecutableConstant(AwkValue value)
+    {
+        var mode = NumberParsingMode;
+        return mode == AwkNumberParsingMode.Decimal || value.IsNumberValue
+            ? value
+            : AwkValue.FromText(value.ByteText, mode);
+    }
+
     public AwkValue CreateDeferredTextValue(AwkText text)
     {
         Resources.ThrowIfValueBytesExceeded(text.ByteLength);

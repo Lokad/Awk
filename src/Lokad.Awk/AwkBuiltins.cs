@@ -79,20 +79,20 @@ internal static partial class AwkBuiltins
             [Name(AwkBuiltinId.ToLower)] = PosixPure(AwkBuiltinId.ToLower, AwkArity.Exact(1), EvaluateToLower),
             [Name(AwkBuiltinId.ToUpper)] = PosixPure(AwkBuiltinId.ToUpper, AwkArity.Exact(1), EvaluateToUpper),
             [Name(AwkBuiltinId.Int)] = PosixPure(AwkBuiltinId.Int, AwkArity.Exact(1), EvaluateInt),
-            [Name(AwkBuiltinId.Sqrt)] = PosixPure(AwkBuiltinId.Sqrt, AwkArity.Exact(1), EvaluateSqrt),
+            [Name(AwkBuiltinId.Sqrt)] = PosixMutatesState(AwkBuiltinId.Sqrt, AwkArity.Exact(1), EvaluateSqrt),
             [Name(AwkBuiltinId.Sin)] = PosixPure(AwkBuiltinId.Sin, AwkArity.Exact(1), EvaluateSin),
             [Name(AwkBuiltinId.Cos)] = PosixPure(AwkBuiltinId.Cos, AwkArity.Exact(1), EvaluateCos),
-            [Name(AwkBuiltinId.Exp)] = PosixPure(AwkBuiltinId.Exp, AwkArity.Exact(1), EvaluateExp),
-            [Name(AwkBuiltinId.Log)] = PosixPure(AwkBuiltinId.Log, AwkArity.Exact(1), EvaluateLog),
+            [Name(AwkBuiltinId.Exp)] = PosixMutatesState(AwkBuiltinId.Exp, AwkArity.Exact(1), EvaluateExp),
+            [Name(AwkBuiltinId.Log)] = PosixMutatesState(AwkBuiltinId.Log, AwkArity.Exact(1), EvaluateLog),
             [Name(AwkBuiltinId.Atan2)] = PosixPure(AwkBuiltinId.Atan2, AwkArity.Exact(2), EvaluateAtan2),
             [Name(AwkBuiltinId.Rand)] = PosixMutatesState(AwkBuiltinId.Rand, AwkArity.Exact(0), EvaluateRand),
             [Name(AwkBuiltinId.Srand)] = PosixMutatesState(AwkBuiltinId.Srand, AwkArity.Range(0, 1), EvaluateSrand),
             [Name(AwkBuiltinId.Systime)] = PosixMutatesState(AwkBuiltinId.Systime, AwkArity.Exact(0), EvaluateSystime),
             [Name(AwkBuiltinId.Mktime)] = PosixPure(AwkBuiltinId.Mktime, AwkArity.Range(1, 2), EvaluateMktime),
             [Name(AwkBuiltinId.Strftime)] = PosixMutatesState(AwkBuiltinId.Strftime, AwkArity.Range(0, 3), EvaluateStrftime),
-            [Name(AwkBuiltinId.And)] = GnuPure(AwkBuiltinId.And, AwkArity.Exact(2), EvaluateAnd),
-            [Name(AwkBuiltinId.Or)] = GnuPure(AwkBuiltinId.Or, AwkArity.Exact(2), EvaluateOr),
-            [Name(AwkBuiltinId.Xor)] = GnuPure(AwkBuiltinId.Xor, AwkArity.Exact(2), EvaluateXor),
+            [Name(AwkBuiltinId.And)] = GnuPure(AwkBuiltinId.And, AwkArity.AtLeast(2), EvaluateAnd),
+            [Name(AwkBuiltinId.Or)] = GnuPure(AwkBuiltinId.Or, AwkArity.AtLeast(2), EvaluateOr),
+            [Name(AwkBuiltinId.Xor)] = GnuPure(AwkBuiltinId.Xor, AwkArity.AtLeast(2), EvaluateXor),
             [Name(AwkBuiltinId.Compl)] = GnuPure(AwkBuiltinId.Compl, AwkArity.Exact(1), EvaluateCompl),
             [Name(AwkBuiltinId.Lshift)] = GnuPure(AwkBuiltinId.Lshift, AwkArity.Exact(2), EvaluateLshift),
             [Name(AwkBuiltinId.Rshift)] = GnuPure(AwkBuiltinId.Rshift, AwkArity.Exact(2), EvaluateRshift),
@@ -291,7 +291,10 @@ internal static partial class AwkBuiltins
             if (context.ArgumentCount != 1)
                 return AwkValue.FromNumber(0);
 
-            return AwkValue.FromNumber(Math.Sqrt(context.GetNumber(0)));
+            var argument = context.GetNumber(0);
+            if (argument < 0)
+                ReportMathWarning(context, "sqrt", argument, outOfRange: false);
+            return AwkValue.FromNumber(Math.Sqrt(argument));
         }
 
         static AwkValue EvaluateSin(AwkBuiltinContext context)
@@ -315,7 +318,11 @@ internal static partial class AwkBuiltins
             if (context.ArgumentCount != 1)
                 return AwkValue.FromNumber(0);
 
-            return AwkValue.FromNumber(Math.Exp(context.GetNumber(0)));
+            var argument = context.GetNumber(0);
+            var result = Math.Exp(argument);
+            if (double.IsFinite(argument) && (result == 0 || double.IsPositiveInfinity(result)))
+                ReportMathWarning(context, "exp", argument, outOfRange: true);
+            return AwkValue.FromNumber(result);
         }
 
         static AwkValue EvaluateLog(AwkBuiltinContext context)
@@ -323,7 +330,10 @@ internal static partial class AwkBuiltins
             if (context.ArgumentCount != 1)
                 return AwkValue.FromNumber(0);
 
-            return AwkValue.FromNumber(Math.Log(context.GetNumber(0)));
+            var argument = context.GetNumber(0);
+            if (argument < 0)
+                ReportMathWarning(context, "log", argument, outOfRange: false);
+            return AwkValue.FromNumber(Math.Log(argument));
         }
 
         static AwkValue EvaluateAtan2(AwkBuiltinContext context)
@@ -336,26 +346,37 @@ internal static partial class AwkBuiltins
 
         static AwkValue EvaluateAnd(AwkBuiltinContext context)
         {
-            if (context.ArgumentCount != 2)
+            if (context.ArgumentCount < 2)
                 return AwkValue.FromNumber(0);
 
-            return AwkValue.FromNumber(ToBitOperand(context, 0) & ToBitOperand(context, 1));
+            // Expressions have already run once, with their work checkpoints.
+            // GNU then converts values from last to first and adjusts only the final fold.
+            var result = ulong.MaxValue;
+            for (var index = context.ArgumentCount - 1; index >= 0; index--)
+                result &= ToBitOperand(context, index);
+            return FromBitResult(result);
         }
 
         static AwkValue EvaluateOr(AwkBuiltinContext context)
         {
-            if (context.ArgumentCount != 2)
+            if (context.ArgumentCount < 2)
                 return AwkValue.FromNumber(0);
 
-            return AwkValue.FromNumber(ToBitOperand(context, 0) | ToBitOperand(context, 1));
+            var result = 0UL;
+            for (var index = context.ArgumentCount - 1; index >= 0; index--)
+                result |= ToBitOperand(context, index);
+            return FromBitResult(result);
         }
 
         static AwkValue EvaluateXor(AwkBuiltinContext context)
         {
-            if (context.ArgumentCount != 2)
+            if (context.ArgumentCount < 2)
                 return AwkValue.FromNumber(0);
 
-            return AwkValue.FromNumber(ToBitOperand(context, 0) ^ ToBitOperand(context, 1));
+            var result = 0UL;
+            for (var index = context.ArgumentCount - 1; index >= 0; index--)
+                result ^= ToBitOperand(context, index);
+            return FromBitResult(result);
         }
 
         static AwkValue EvaluateCompl(AwkBuiltinContext context)
@@ -363,7 +384,7 @@ internal static partial class AwkBuiltins
             if (context.ArgumentCount != 1)
                 return AwkValue.FromNumber(0);
 
-            return AwkValue.FromNumber(~ToBitOperand(context, 0));
+            return FromBitResult(~ToBitOperand(context, 0));
         }
 
         static AwkValue EvaluateLshift(AwkBuiltinContext context)
@@ -371,7 +392,7 @@ internal static partial class AwkBuiltins
             if (context.ArgumentCount != 2)
                 return AwkValue.FromNumber(0);
 
-            return AwkValue.FromNumber(ToBitOperand(context, 0) << ToShift(context, 1));
+            return EvaluateBitShift(context, left: true);
         }
 
         static AwkValue EvaluateRshift(AwkBuiltinContext context)
@@ -379,7 +400,7 @@ internal static partial class AwkBuiltins
             if (context.ArgumentCount != 2)
                 return AwkValue.FromNumber(0);
 
-            return AwkValue.FromNumber(ToBitOperand(context, 0) >> ToShift(context, 1));
+            return EvaluateBitShift(context, left: false);
         }
 
         static AwkValue EvaluateStrtonum(AwkBuiltinContext context)
@@ -387,14 +408,18 @@ internal static partial class AwkBuiltins
             if (context.ArgumentCount != 1)
                 return AwkValue.FromNumber(0);
 
-            return AwkValue.FromNumber(
-                AwkValue.TryParseNumber(
-                    context.GetString(0),
-                    AwkNumberParsingMode.NonDecimalData,
-                    AwkNumberTextExtent.EntireText,
-                    out var number)
-                    ? number
-                    : 0);
+            var argument = context.GetValue(0);
+            if (argument.TryGetNumber(out var number))
+                return AwkValue.FromNumber(number);
+
+            var text = argument.ByteText;
+            context.State.Resources.RecordByteWork(text.ByteLength);
+            var numberBase = AwkNumberParser.GetBase(text.AsSpan());
+            if (numberBase == 10)
+                return AwkValue.FromNumber(argument.AsNumber());
+            var parsed = AwkNumberParser.ParseNonDecimal(text.AsSpan(), 0, numberBase);
+            parsed.ThrowIfError();
+            return AwkValue.FromNumber(parsed.Number);
         }
         static AwkValue EvaluateGensub(AwkBuiltinContext context)
         {

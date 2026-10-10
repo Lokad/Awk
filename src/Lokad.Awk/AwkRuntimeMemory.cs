@@ -24,10 +24,18 @@ internal static class AwkRuntimeMemory
     private const int FunctionLocalEntryBytes = 64;
     private const int ConcatenatedTextNodeBytes = 80;
     private const int SymbolMetadataBytes = 160;
+    private const int RuntimeDiagnosticBytes = 64;
     internal const int TextRuneCheckpointStride = 64;
 
     public static long EstimateTextBytes(AwkText text) =>
         text.EstimatedRetainedMemoryBytes;
+
+    public static long EstimateDiagnosticBufferBytes(int capacity) =>
+        CheckedAdd(ListObjectBytes, EstimateArrayBufferBytes(capacity, RuntimeDiagnosticBytes));
+
+    // Includes the retained UTF-16 message and temporary normalization/UTF-8 buffers.
+    public static long EstimateDiagnosticMessageBytes(int characterCount) =>
+        CheckedAdd(128, CheckedMultiply(characterCount, 8));
 
     public static long EstimateTextBytes(int byteLength)
     {

@@ -79,6 +79,91 @@ POSIX mode rejects these modifiers. Other C or GNU-specific modifiers remain out
 this supported set. Formatting preflights output sizes against builder/value/memory limits
 before publishing output.
 
+## Numeric Values And Math Warnings
+
+Numeric equality and ordering use arithmetic comparisons. NaN is unequal to every
+numeric value, including itself; its relational comparisons are false. NaN and every
+nonzero number, including subnormal values, are true in conditions. Both signs of zero
+are false. These rules apply to numeric values and classified numeric input strings;
+ordinary strings retain their string comparison and truth rules. Sorting keeps a separate
+total ordering for ties rather than deriving arithmetic booleans from that order.
+
+The numeric scanner accepts exactly the six ASCII C whitespace bytes: space, tab,
+newline, carriage return, vertical tab, and form feed. This does not broaden `FS=" "`
+field separators or accept Unicode whitespace. Whole-value numeric-string classification
+remains distinct from arithmetic prefix conversion.
+
+GNU/default and traditional conversion recognize case-insensitive, explicitly signed
+four-byte `inf` and `nan` after trimming that whitespace, preserving the sign. Unsigned
+specials, `Infinity`, payloads, and suffixes are not special numeric values in these modes.
+POSIX conversion accepts unsigned specials, `infinity`, special-number prefixes, and
+closed ASCII alphanumeric/underscore NaN payloads. Executable string literals use the
+invocation's conversion profile, matching interpreter literals.
+
+`strtonum` returns existing numbers and numeric input strings without rendering them,
+preserving their exact binary64 value and signed zero. For pure strings it chooses octal
+or hexadecimal from the original leading bytes and converts a numeric prefix; a sign or
+leading whitespace instead selects the invocation's ordinary arithmetic conversion.
+Thus default `strtonum("012")` is ten, numeric input `012` remains twelve, and default
+`strtonum("+0x10")` is zero. Invalid octal digits fall back to decimal conversion.
+Whole-value input classification continues to require the complete numeric spelling.
+
+GNU/default nondecimal conversion follows GNU 5.4: hex floating-point text supports a
+binary `p`/`P` exponent, with incomplete exponents retaining the mantissa prefix.
+An exponentless hex fraction diagnoses a requested numeric conversion, while the same
+text remains printable and sliceable. Input classification errors remain deferred through
+assignment until numeric/type use. POSIX C-style hex conversion also accepts exponentless
+fractions; signed non-decimal-data input uses that C-style path. GNU 5.2's integer-prefix
+behavior for `strtonum` hex floats is an explicit older-version difference. This conversion
+contract does not imply support for hexadecimal floating-point source literals.
+
+Nondecimal integer conversion uses binary64 multiply/add operations without a signed-long
+limit, following GNU's iterative rounding. Hex floating-point conversion rounds directly
+to binary64 with ties to even, preserving subnormal values, overflow and signed underflow.
+The pinned Linux libc has [upstream subnormal rounding bug 30220](https://sourceware.org/pipermail/libc-stable/2024-September/002085.html).
+Those reference exceptions are checked against independent hex conversion and exact bit
+expectations rather than reproducing the discarded-bit defect.
+
+`sqrt` and `log` warn for negative arguments, including negative infinity. `exp` warns
+when a finite argument produces zero or positive infinity; positive subnormal results
+do not warn. NaN inputs, nonfinite `exp` inputs, `log(0)`, and `sqrt(-0)` do not warn.
+Warnings are emitted even when the result is discarded, through the host's standard-error
+descriptor. Arguments use invariant six-significant-digit text independent of `CONVFMT`
+and `OFMT`; messages contain no CLR exception text. For example,
+`sqrt(-1)` reports `awk: warning: sqrt: received negative argument -1` and returns NaN.
+Warnings queued before a later runtime failure are flushed before its fatal diagnostic.
+
+## Unsigned Bitwise Functions
+
+GNU/default mode supports `and`, `or`, and `xor` with two or more scalar arguments,
+plus single-argument `compl` and two-argument `lshift`/`rshift`. All argument expressions
+run once before the operation, including those after a zero operand or a negative value.
+Variadic numeric conversion proceeds from the last value to the first. Each argument
+retains the interpreter/executable work checkpoint and cancellation check.
+
+Nonnegative fractions truncate to unsigned 64-bit integers. Negative values, including
+fractions between minus one and zero and negative infinity, fail with
+`awk: negative bitwise operand`; negative zero is accepted. The final unsigned result
+loses leading bits only when needed to preserve its low bits exactly in binary64's
+53-bit significand. Trailing zeros permit wider results: `compl(0)` is 9007199254740991,
+`compl(1)` is 18014398509481982, and `lshift(1,63)` is 9223372036854775808.
+Variadic folds adjust their result once after all operands, preserving high bits that
+may become representable after a later XOR.
+
+Shift counts at or above 64, positive infinity, and NaN return zero, following
+[GNU 5.4's shift policy](https://www.gnu.org/software/gawk/manual/html_node/Bitwise-Functions.html).
+GNU 5.2's platform shift-count wrapping is an explicit older-version difference.
+Out-of-range operand casts are also platform-dependent in the native implementation;
+Lokad defines them consistently with the pinned x86-64 GNU reference: nonnegative finite
+operands at or above 2^64 and positive infinity convert to zero, and either sign of NaN
+converts to the unsigned high bit (2^63). These rules are explicit across .NET platforms.
+
+POSIX and traditional profiles keep these functions undefined. Invalid arities retain
+Lokad's existing pre-execution validation and exit-code-2 diagnostic contract. GNU rejects
+zero/one-argument variadic calls at runtime, potentially after earlier output, and reports
+fixed-arity parse failures with exit code 1; these diagnostic differences are classified
+separately from matching successful/runtime-failure behavior.
+
 ## Unsupported Capabilities
 
 Unsupported features must fail deterministically before partially performing surprising host

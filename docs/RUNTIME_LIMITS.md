@@ -123,11 +123,14 @@ admitted input record, scanned main-input operand position, loop iteration, user
 ordinary host entry, regex search, and sort comparison. Short-circuited expressions charge only the
 selected path. VM lowering retains
 expression checkpoints even for folded field indexes, and fallback wrappers do not add steps.
+Variadic bitwise calls evaluate every argument once using those expression checkpoints;
+their unsigned fold adds no separate allowance or short circuit, even after a zero operand.
 Both engines flush standard output at statement boundaries so host admission and already emitted
 output agree when a later statement exhausts the allowance.
 
 Byte-oriented built-in work additionally charges one step per started 4,096-byte chunk of offered
 input: field splitting, FIELDWIDTHS parsing, Unicode string length, string search and slicing,
+pure-string `strtonum` conversion,
 separator scanning, and each regex search's remaining input. Regex rescans charge the offered
 span again. Chunk admission is atomic; an insufficient allowance fails before backend matching,
 array replacement, or record publication. Incremental separator cursors charge bytes actually
@@ -157,7 +160,7 @@ These batching and cache names remain internal implementation policy:
 - `DefaultRegexMatchTimeoutSeconds`: backend regex timeout and structured compilation/match guard.
 - `MaxVmStackBytes`: executable runtime stack bytes. Fallback frames and opcode operand-stack
   buffers check this limit and, when the memory governor is enabled, reserve/commit/release the
-  same estimated bytes through the governor.
+same estimated bytes through the governor.
 
 Runtime-owned `AwkText` byte arrays, sparse rune checkpoints, and builder materialization are
 preflighted with the governor; APIs accepting an already-created owned array account it at their
@@ -184,6 +187,13 @@ and four comparator arguments only for user functions with at least two entries.
 enumeration also reserves its returned key snapshot. `asort` and `asorti` write their sorted entries
 directly into the replacement array, so their preflight does not charge obsolete dictionary or
 projection buffers.
+
+Runtime diagnostic queues charge their retained messages and backing capacity to the
+same memory governor. Admission reserves message bytes and any new backing array while
+the old array is still live, before adding a warning. Conservative per-message headroom
+also covers normalization and UTF-8 encoding during flush. Flush releases queued-message
+charges even when a host write fails; retained reusable capacity stays charged until
+sink disposal. A warning admission failure preserves previously queued diagnostics.
 
 ## Mutation Semantics
 

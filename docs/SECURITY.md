@@ -99,7 +99,9 @@ Nested calls suspend at entry and unwind, including during argument evaluation, 
 tasks do not turn deep awk recursion into CLR stack exhaustion. Byte-oriented built-ins and
 regex rescans charge input chunks in addition to expression and statement admission.
 The memory governor, mutation preflight, backend regex timeouts, and host/cleanup deadlines remain
-independent safeguards.
+independent safeguards. Runtime warning queues also govern message retention, backing-array
+growth, and diagnostic formatting headroom, so repeated math warnings cannot grow an
+unbounded queue outside the memory budget.
 
 Execution steps are deterministic accounting, not a wall-clock CPU guarantee. Cancellation is
 cooperative. Lokad.Awk stops awaiting a host operation at `HostOperationTimeout`, but .NET cannot

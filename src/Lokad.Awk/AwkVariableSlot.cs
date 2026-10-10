@@ -50,7 +50,7 @@ internal readonly struct AwkVariableSlot
             kind = AwkVariableSlotKind.Unassigned;
         else if (value.IsDeferredTextValue)
             kind = AwkVariableSlotKind.DeferredText;
-        else if (value.IsNumericStringValue)
+        else if (value.RetainsInputClassification)
             kind = AwkVariableSlotKind.NumericString;
         else
             kind = AwkVariableSlotKind.Text;

@@ -221,7 +221,7 @@ internal sealed record AwkExpressionSwitchCasePattern(AwkExpression Expression) 
     public override async ValueTask<bool> MatchesAsync(AwkValue value, AwkEvaluationContext context)
     {
         var candidateValue = await Expression.EvaluateAsync(context).ConfigureAwait(false);
-        return AwkComparisonOperations.Compare(value, candidateValue, context.State) == 0;
+        return AwkComparisonOperations.Evaluate(value, candidateValue, AwkComparison.Equal, context.State);
     }
 }
 

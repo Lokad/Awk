@@ -23,7 +23,9 @@ internal enum AwkValueKind
     Unassigned,
     DeferredDecimalText,
     DeferredHexadecimalText,
-    DeferredNonDecimalText
+    DeferredNonDecimalText,
+    NonDecimalConversionErrorText,
+    NonDecimalConversionErrorInput
 }
 
 internal readonly struct AwkValue
@@ -47,11 +49,7 @@ internal readonly struct AwkValue
 
     public static AwkValue FromText(string text, AwkNumberParsingMode numberParsingMode)
     {
-        var valueText = AwkText.FromString(text);
-        if (TryParseAwkNumber(valueText, numberParsingMode, out var number, out _))
-            return new AwkValue(valueText, number, AwkValueKind.NumericText);
-
-        return new AwkValue(valueText, 0, AwkValueKind.Text);
+        return FromText(AwkText.FromString(text), numberParsingMode);
     }
 
     public static AwkValue FromText(AwkText text) =>
@@ -59,10 +57,7 @@ internal readonly struct AwkValue
 
     public static AwkValue FromText(AwkText text, AwkNumberParsingMode numberParsingMode)
     {
-        if (TryParseAwkNumber(text, numberParsingMode, out var number, out _))
-            return new AwkValue(text, number, AwkValueKind.NumericText);
-
-        return new AwkValue(text, 0, AwkValueKind.Text);
+        return FromParsedText(text, numberParsingMode, input: false);
     }
 
     public static AwkValue FromNumericString(string text) =>
@@ -70,11 +65,7 @@ internal readonly struct AwkValue
 
     public static AwkValue FromNumericString(string text, AwkNumberParsingMode numberParsingMode)
     {
-        var valueText = AwkText.FromString(text);
-        if (TryParseAwkNumber(valueText, numberParsingMode, out var number, out var consumedAll) && consumedAll)
-            return new AwkValue(valueText, number, AwkValueKind.NumericString);
-
-        return FromText(text, numberParsingMode);
+        return FromNumericString(AwkText.FromString(text), numberParsingMode);
     }
 
     public static AwkValue FromNumericString(AwkText text) =>
@@ -82,10 +73,24 @@ internal readonly struct AwkValue
 
     public static AwkValue FromNumericString(AwkText text, AwkNumberParsingMode numberParsingMode)
     {
-        if (TryParseAwkNumber(text, numberParsingMode, out var number, out var consumedAll) && consumedAll)
-            return new AwkValue(text, number, AwkValueKind.NumericString);
+        return FromParsedText(text, numberParsingMode, input: true);
+    }
 
-        return FromText(text, numberParsingMode);
+    private static AwkValue FromParsedText(AwkText text, AwkNumberParsingMode mode, bool input)
+    {
+        var span = text.AsSpan();
+        var parsed = AwkNumberParser.Parse(span, mode);
+        // Text may still be printed or sliced. GNU diagnoses this only when numeric conversion/type is requested.
+        if (parsed.Status == AwkNumberParseStatus.MissingHexExponent)
+            return new(text, 0, input ? AwkValueKind.NonDecimalConversionErrorInput : AwkValueKind.NonDecimalConversionErrorText);
+        if (parsed.Status == AwkNumberParseStatus.Number)
+        {
+            var kind = input && AwkNumberParser.SkipWhitespace(span, parsed.End) == span.Length
+                ? AwkValueKind.NumericString
+                : AwkValueKind.NumericText;
+            return new(text, parsed.Number, kind);
+        }
+        return new(text, 0, AwkValueKind.Text);
     }
 
     public static AwkValue FromNumber(double value) =>
@@ -141,6 +146,8 @@ internal readonly struct AwkValue
 
     public double AsNumber()
     {
+        if (_kind is AwkValueKind.NonDecimalConversionErrorText or AwkValueKind.NonDecimalConversionErrorInput)
+            throw new AwkRuntimeException(AwkMessages.ErrorHexadecimalFloatExponent);
         var kind = _kind;
         if (TryGetDeferredNumberParsingMode(out var numberParsingMode))
         {
@@ -173,13 +180,24 @@ internal readonly struct AwkValue
 
     public bool TryGetNumber(out double number)
     {
+        ThrowIfInputConversionError();
         number = _number;
         return HasComparisonNumber;
     }
 
     public bool IsNumberValue => _kind == AwkValueKind.Number;
 
-    public bool IsNumericStringValue => _kind == AwkValueKind.NumericString;
+    public bool IsNumericStringValue
+    {
+        get
+        {
+            ThrowIfInputConversionError();
+            return _kind == AwkValueKind.NumericString;
+        }
+    }
+
+    internal bool RetainsInputClassification =>
+        _kind is AwkValueKind.NumericString or AwkValueKind.NonDecimalConversionErrorInput;
 
     public bool IsUnassignedValue => _kind == AwkValueKind.Unassigned;
 
@@ -207,6 +225,7 @@ internal readonly struct AwkValue
     {
         get
         {
+            ThrowIfInputConversionError();
             return _kind switch
             {
                 AwkValueKind.Unassigned => AwkRuntimeValueKind.Unassigned,
@@ -233,8 +252,9 @@ internal readonly struct AwkValue
 
     public bool IsTruthy()
     {
+        ThrowIfInputConversionError();
         if (_kind is AwkValueKind.Number or AwkValueKind.NumericString or AwkValueKind.Unassigned)
-            return Math.Abs(_number) >= double.Epsilon;
+            return _number != 0;
 
         return ByteText.ByteLength != 0;
     }
@@ -245,59 +265,16 @@ internal readonly struct AwkValue
     private bool HasComparisonNumber =>
         _kind is AwkValueKind.Number or AwkValueKind.NumericString or AwkValueKind.Unassigned;
 
+    private void ThrowIfInputConversionError()
+    {
+        if (_kind == AwkValueKind.NonDecimalConversionErrorInput)
+            throw new AwkRuntimeException(AwkMessages.ErrorHexadecimalFloatExponent);
+    }
+
     private static bool TryParseAwkNumber(
         AwkText text,
         AwkNumberParsingMode numberParsingMode,
         out double number,
-        out bool consumedAll)
-    {
-        if (text.TryParseAwkNumber(numberParsingMode, out number, out consumedAll))
-        {
-            return true;
-        }
-
-        if (TryParseSignedInfinity(text, out number, out consumedAll))
-            return true;
-
-        number = 0;
-        consumedAll = false;
-        return false;
-
-        static bool TryParseSignedInfinity(AwkText text, out double number, out bool consumedAll)
-        {
-            var span = text.AsSpan();
-            var index = SkipAsciiWhitespace(span, 0);
-            number = 0;
-            consumedAll = false;
-
-            if (index >= span.Length || span[index] is not ((byte)'+' or (byte)'-'))
-                return false;
-
-            var sign = span[index] == (byte)'-' ? -1 : 1;
-            index++;
-            if (index + 3 > span.Length ||
-                AwkByteFacts.ToAsciiLower(span[index]) != (byte)'i' ||
-                AwkByteFacts.ToAsciiLower(span[index + 1]) != (byte)'n' ||
-                AwkByteFacts.ToAsciiLower(span[index + 2]) != (byte)'f')
-            {
-                return false;
-            }
-
-            index += 3;
-            consumedAll = SkipAsciiWhitespace(span, index) == span.Length;
-            if (!consumedAll)
-                return false;
-
-            number = sign > 0 ? double.PositiveInfinity : double.NegativeInfinity;
-            return true;
-
-            static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index)
-            {
-                while (index < span.Length && span[index] is (byte)' ' or (byte)'\t' or (byte)'\n' or (byte)'\r')
-                    index++;
-
-                return index;
-            }
-        }
-    }
+        out bool consumedAll) =>
+        text.TryParseAwkNumber(numberParsingMode, out number, out consumedAll);
 }

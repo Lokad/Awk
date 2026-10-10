@@ -84,6 +84,11 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(UnaryPrefixCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
 
+        .. Tagged(NumericSemanticsCases(), AwkGoldenTag.Expression, AwkGoldenTag.Function, AwkGoldenTag.Field),
+
+        .. Tagged(StrtonumConversionCases(), AwkGoldenTag.Expression, AwkGoldenTag.Function, AwkGoldenTag.Field),
+        .. Tagged(BitwiseCompatibilityCases(), AwkGoldenTag.Expression, AwkGoldenTag.Function),
+
         .. Tagged(FormattingSyntaxCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
 
         .. Tagged(IntegerFormattingCases(), AwkGoldenTag.Output, AwkGoldenTag.Expression),
@@ -2667,7 +2672,7 @@ internal static partial class AwkGoldenCorpus
             "bit-functions",
             ["BEGIN{print and(6,3), or(6,3), xor(6,3), lshift(3,2), rshift(8,1), compl(0)}"],
             [],
-            "2 7 5 12 4 -1\n"),
+            "2 7 5 12 4 9007199254740991\n"),
 
         Failing(
             "bit-function-negative-operand-fails",
@@ -2790,10 +2795,10 @@ internal static partial class AwkGoldenCorpus
             "8 16 3.5\n"),
 
         Passing(
-            "strtonum-non-decimal-signs-and-full-consumption",
+            "strtonum-non-decimal-signs-and-prefix-consumption",
             ["BEGIN{print strtonum(\"+0x10\"), strtonum(\"-0x10\"), strtonum(\"010x\"), strtonum(\"12abc\")}"],
             [],
-            "16 -16 0 0\n"),
+            "0 0 8 12\n"),
 
         Passing(
             "signed-infinity-string-conversion",

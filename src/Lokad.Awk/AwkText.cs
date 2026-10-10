@@ -1,6 +1,5 @@
 using System;
 using System.Buffers;
-using System.Buffers.Text;
 using System.Text;
 using System.Threading;
 
@@ -807,175 +806,16 @@ internal sealed class AwkText : IEquatable<AwkText>
         }
     }
 
-    private static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index)
+    private static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index) =>
+        AwkNumberParser.SkipWhitespace(span, index);
+
+    private static bool TryParseNumberPrefix(ReadOnlySpan<byte> span, AwkNumberParsingMode mode,
+        out double number, out int end)
     {
-        while (index < span.Length && span[index] is (byte)' ' or (byte)'\t' or (byte)'\n' or (byte)'\r')
-        {
-            index++;
-        }
-
-        return index;
-    }
-
-    private static bool IsDecimalDigit(byte value) =>
-        value is >= (byte)'0' and <= (byte)'9';
-
-    private static bool TryParseNumberPrefix(
-        ReadOnlySpan<byte> span,
-        AwkNumberParsingMode numberParsingMode,
-        out double number,
-        out int end)
-    {
-        var start = SkipAsciiWhitespace(span, 0);
-
-        if (numberParsingMode != AwkNumberParsingMode.Decimal &&
-            TryParseNonDecimalNumber(span, start, numberParsingMode, out number, out end))
-        {
-            return true;
-        }
-
-        return TryParseDecimalNumber(span, start, out number, out end);
-
-        static bool TryParseNonDecimalNumber(
-            ReadOnlySpan<byte> span,
-            int start,
-            AwkNumberParsingMode numberParsingMode,
-            out double number,
-            out int end)
-        {
-            number = 0;
-            end = start;
-            var index = start;
-            var sign = 1;
-            var hasExplicitSign = false;
-            if (index < span.Length && span[index] is (byte)'+' or (byte)'-')
-            {
-                hasExplicitSign = true;
-                sign = span[index] == (byte)'-' ? -1 : 1;
-                index++;
-            }
-
-            if (index + 2 < span.Length &&
-                span[index] == (byte)'0' &&
-                span[index + 1] is (byte)'x' or (byte)'X' &&
-                IsHexDigit(span[index + 2]))
-            {
-                index += 2;
-                var value = 0L;
-                while (index < span.Length && IsHexDigit(span[index]))
-                {
-                    var digit = HexValue(span[index]);
-                    if (value > (long.MaxValue - digit) / 16)
-                        return false;
-
-                    value = (value * 16) + digit;
-                    index++;
-                }
-
-                number = sign * value;
-                end = index;
-                return true;
-            }
-
-            if (numberParsingMode != AwkNumberParsingMode.NonDecimalData ||
-                hasExplicitSign ||
-                index + 1 >= span.Length ||
-                span[index] != (byte)'0' ||
-                !IsDecimalDigit(span[index + 1]))
-            {
-                return false;
-            }
-
-            var digitStart = index;
-            while (index < span.Length && IsDecimalDigit(span[index]))
-                index++;
-
-            if (index < span.Length && span[index] is (byte)'.' or (byte)'e' or (byte)'E')
-                return false;
-
-            var octalValue = 0L;
-            for (var digitIndex = digitStart + 1; digitIndex < index; digitIndex++)
-            {
-                var digit = span[digitIndex] - (byte)'0';
-                if (digit > 7 || octalValue > (long.MaxValue - digit) / 8)
-                    return false;
-
-                octalValue = (octalValue * 8) + digit;
-            }
-
-            number = octalValue;
-            end = index;
-            return true;
-
-            static bool IsHexDigit(byte value) =>
-                IsDecimalDigit(value) ||
-                value is >= (byte)'a' and <= (byte)'f' ||
-                value is >= (byte)'A' and <= (byte)'F';
-
-            static int HexValue(byte value)
-            {
-                if (value <= (byte)'9')
-                    return value - (byte)'0';
-
-                return AwkByteFacts.ToAsciiLower(value) - (byte)'a' + 10;
-            }
-        }
-
-        static bool TryParseDecimalNumber(
-            ReadOnlySpan<byte> span,
-            int start,
-            out double number,
-            out int end)
-        {
-            number = 0;
-            end = start;
-            var index = start;
-            if (index < span.Length && span[index] is (byte)'+' or (byte)'-')
-                index++;
-
-            var digitCount = 0;
-            while (index < span.Length && IsDecimalDigit(span[index]))
-            {
-                digitCount++;
-                index++;
-            }
-
-            if (index < span.Length && span[index] == (byte)'.')
-            {
-                index++;
-                while (index < span.Length && IsDecimalDigit(span[index]))
-                {
-                    digitCount++;
-                    index++;
-                }
-            }
-
-            if (digitCount == 0)
-                return false;
-
-            if (index < span.Length && span[index] is (byte)'e' or (byte)'E')
-            {
-                var exponentStart = index;
-                index++;
-                if (index < span.Length && span[index] is (byte)'+' or (byte)'-')
-                    index++;
-
-                var exponentDigitStart = index;
-                while (index < span.Length && IsDecimalDigit(span[index]))
-                    index++;
-
-                if (exponentDigitStart == index)
-                    index = exponentStart;
-            }
-
-            if (!Utf8Parser.TryParse(span[start..index], out number, out var consumed) || consumed != index - start)
-            {
-                number = 0;
-                return false;
-            }
-
-            end = index;
-            return true;
-        }
+        var parsed = AwkNumberParser.Parse(span, mode);
+        parsed.ThrowIfError();
+        number = parsed.Number;
+        end = parsed.End;
+        return parsed.Status == AwkNumberParseStatus.Number;
     }
 }

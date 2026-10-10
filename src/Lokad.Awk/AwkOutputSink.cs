@@ -8,6 +8,9 @@ internal sealed class AwkOutputSink : IDisposable
 {
     private readonly AwkUtf8Builder _standardOutput;
     private readonly List<AwkDiagnostic> _diagnostics = [];
+    private readonly AwkMemoryGovernor _governor;
+    private long _diagnosticBufferBytes;
+    private long _diagnosticMessageBytes;
 
     public AwkOutputSink(
         AwkRuntimeLimits limits,
@@ -15,6 +18,7 @@ internal sealed class AwkOutputSink : IDisposable
         AwkRuntimeCounters counters)
     {
         _standardOutput = new AwkUtf8Builder(limits, governor);
+        _governor = governor;
         counters.RecordOutputSinkCreation();
     }
 
@@ -42,8 +46,40 @@ internal sealed class AwkOutputSink : IDisposable
         _standardOutput.Append(content);
     }
 
-    public void ReportDiagnostic(AwkDiagnostic diagnostic) =>
+    public void ReportDiagnostic(AwkDiagnostic diagnostic)
+    {
+        var messageBytes = AwkRuntimeMemory.EstimateDiagnosticMessageBytes(diagnostic.Message.Length);
+        var retainedMessages = AwkRuntimeMemory.CheckedAdd(_diagnosticMessageBytes, messageBytes);
+        var grow = _diagnostics.Count == _diagnostics.Capacity;
+        if (grow && _diagnostics.Capacity == Array.MaxLength)
+            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+
+        var capacity = grow
+            ? (int)Math.Min(Array.MaxLength, Math.Max(4L, (long)_diagnostics.Capacity * 2))
+            : _diagnostics.Capacity;
+        var bufferBytes = grow ? AwkRuntimeMemory.EstimateDiagnosticBufferBytes(capacity) : 0;
+        var reservedBytes = AwkRuntimeMemory.CheckedAdd(messageBytes, bufferBytes);
+        _governor.Reserve(reservedBytes);
+        try
+        {
+            if (grow)
+                _diagnostics.EnsureCapacity(capacity);
+        }
+        catch
+        {
+            _governor.ReleaseReserved(reservedBytes);
+            throw;
+        }
+
+        _governor.CommitReserved(reservedBytes);
+        if (grow)
+        {
+            _governor.ReleaseCommitted(_diagnosticBufferBytes);
+            _diagnosticBufferBytes = bufferBytes;
+        }
+        _diagnosticMessageBytes = retainedMessages;
         _diagnostics.Add(diagnostic);
+    }
 
     public async Task FlushAsync(AwkIo io)
     {
@@ -67,14 +103,24 @@ internal sealed class AwkOutputSink : IDisposable
         }
         finally
         {
-            _diagnostics.Clear();
+            ClearDiagnostics();
         }
     }
 
     public void Dispose()
     {
-        _diagnostics.Clear();
+        ClearDiagnostics();
+        _diagnostics.Capacity = 0;
+        _governor.ReleaseCommitted(_diagnosticBufferBytes);
+        _diagnosticBufferBytes = 0;
         _standardOutput.Dispose();
+    }
+
+    private void ClearDiagnostics()
+    {
+        _diagnostics.Clear();
+        _governor.ReleaseCommitted(_diagnosticMessageBytes);
+        _diagnosticMessageBytes = 0;
     }
 
     public override string ToString() => AwkUtf8Codec.Decode(_standardOutput.AsSpan());

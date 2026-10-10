@@ -4,6 +4,9 @@ namespace Lokad.Awk;
 
 internal static class AwkMessages
 {
+    internal static readonly ReadOnlyMemory<byte> ErrorHexadecimalFloatExponent =
+        "awk: hexadecimal floating point constants require an exponent\n"u8.ToArray();
+
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidOptionPrefix = AwkUtf8Codec.Encode("awk: invalid option -- ");
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidScript = AwkUtf8Codec.Encode("awk: invalid script\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidVariableAssignment =
@@ -346,6 +349,12 @@ internal static class AwkMessages
 
     internal static string FormatGensubThirdArgumentWarningText(string value) =>
         "awk: warning: gensub: third argument `" + value + "' treated as 1\n";
+
+    internal static string FormatMathNegativeArgumentWarning(string name, string value) =>
+        "awk: warning: " + name + ": received negative argument " + value + "\n";
+
+    internal static string FormatMathRangeWarning(string name, string value) =>
+        "awk: warning: " + name + ": argument " + value + " is out of range\n";
 
     internal static string FormatStringEscapeWarning(char escaped) =>
         "awk: warning: escape sequence `\\" + escaped + "' treated as plain `" + escaped + "'\n";

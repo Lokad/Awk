@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Added variadic `and`, `or`, and `xor`, unsigned bitwise results, and GNU 5.4 oversized
+  shift behavior. Fractions truncate after negative-value checks; complete folds preserve
+  exactly representable high bits. Native out-of-range casts have an explicit portable
+  policy, and both engines retain one-time argument effects and shared work checkpoints.
+
+- Made strtonum preserve numeric arguments and convert string prefixes with the correct
+  raw-byte base selection. Added GNU 5.4 hex float conversion and POSIX C-style hex input,
+  removed signed-long range limits, and retained conversion errors until numeric/type use.
+  Hex floats round directly to binary64, including subnormals, with bounded byte-native state.
+
+- Corrected NaN equality, ordering, and truth, and preserved signed special-number input.
+  Numeric conversion now accepts all ASCII C whitespace without changing field splitting;
+  executable string literals honor the invocation's numeric-conversion profile.
+- Added friendly negative sqrt/log and finite exp range warnings, including discarded
+  results. Queued diagnostics now preflight retained memory and buffer growth, with
+  cleanup on failed host writes and sink disposal.
+
 - Accepted recursive unary prefixes, including signed field indices, while preserving
   exponent and mutation binding. Unary plus now converts to a numeric value in both
   engines, retaining signed zero and participating in the shared execution budget.
