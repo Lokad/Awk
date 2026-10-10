@@ -10,6 +10,34 @@ sources, stdin fallback, exit status, stderr wording, and stdout/stderr preserva
 that a caller can observe through `awk` should be added there unless the behavior is only visible
 through a current-surface runtime option.
 
+## Expression And Statement Boundaries
+
+The six relational operators (`<`, `<=`, `>`, `>=`, `==`, `!=`) are non-associative:
+`1<2<3` is a syntax error. Parentheses admit comparison results, such as `(1<2)==1`.
+Relations bind more tightly than the left-associative `~` and `!~` operators;
+`"a"~"a"==1` means `"a"~("a"==1)`. Membership consumes an array name, so
+`1 in a==1` and `1==1 in a` are accepted, while `1 in (a)` and `1 in a+2` are rejected.
+Assignment operands retain full right-hand expressions, including `1<x=2<3`.
+
+An unescaped newline continues an expression after a comma, `&&`, `||`, `?`, or `:`;
+parentheses and brackets alone do not permit newlines. POSIX mode excludes continuation
+after `?` and `:`. These rules also apply to rule patterns and function arguments;
+range patterns allow newlines after their comma, and function parameters allow them
+after a comma. For-loop headers allow newlines after each separating semicolon.
+Semicolons inside an ordinary expression are syntax errors.
+
+Backslash-newline continues source without merging adjacent tokens. For example,
+`print` followed immediately by backslash-newline and `2` remains `print 2`.
+Inside a string or regex literal the continuation is removed without adding whitespace.
+A backslash at the end of a comment leaves the following line as code. Malformed
+literal newlines remain errors, including a newline after an escaped backslash.
+Source-file diagnostic locations account for these physical line boundaries.
+
+An `else` attaches to the nearest eligible `if`. A simple body must finish with a newline
+or one terminating semicolon; a completed braced or null body needs no separator.
+An additional semicolon creates another null statement and prevents attachment.
+These syntax errors are reported before execution, including unreachable bodies.
+
 ## Exponentiation Syntax
 
 Unary `!`, `+`, and `-` may be chained without grouping, including `!!x`, `- -x`,

@@ -7,12 +7,15 @@ namespace Lokad.Awk;
 
 internal static class AwkLineContinuations
 {
-    public static AwkLineContinuationNormalization Normalize(string text)
+    public static AwkLineContinuationNormalization Normalize(string text, int maxTokens, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var firstContinuation = 0;
         while (firstContinuation < text.Length &&
             !TryReadAt(text, firstContinuation, text.Length, out _))
         {
+            if ((firstContinuation & 1023) == 0)
+                cancellationToken.ThrowIfCancellationRequested();
             firstContinuation++;
         }
 
@@ -21,14 +24,43 @@ internal static class AwkLineContinuations
 
         var builder = new StringBuilder(text.Length);
         var continuations = new List<AwkLineContinuationPoint>();
+        var tokens = AwkLexer.Tokenize(text, maxTokens, cancellationToken);
+        var tokenIndex = 0;
         var segmentStart = 0;
         var index = firstContinuation;
         while (index < text.Length)
         {
+            if ((index & 1023) == 0)
+                cancellationToken.ThrowIfCancellationRequested();
             if (TryReadAt(text, index, text.Length, out var continuation))
             {
                 builder.Append(text, segmentStart, index - segmentStart);
-                continuations.Add(new AwkLineContinuationPoint(builder.Length));
+                while (tokenIndex < tokens.Count && tokens[tokenIndex].Span.End <= index)
+                    tokenIndex++;
+                var token = tokenIndex < tokens.Count ? tokens[tokenIndex] : default;
+                var insideToken = token.Span.Start <= index && index < token.Span.End;
+                if (insideToken && token.Kind == AwkTokenKind.BadToken)
+                {
+                    // Preserve malformed literal ingress for the lexical diagnostic;
+                    // normalization must not turn an unescaped newline into valid text.
+                    builder.Append(text, index, continuation.Length);
+                }
+                else if (insideToken && token.Kind == AwkTokenKind.Comment)
+                {
+                    // A backslash does not extend an awk comment onto the next line.
+                    builder.Append(text, index + 1, continuation.Length - 1);
+                }
+                else
+                {
+                    var insideLiteral = insideToken && token.Kind is
+                        AwkTokenKind.String or AwkTokenKind.InternationalizedString or
+                        AwkTokenKind.Regex or AwkTokenKind.StrongRegex;
+                    if (!insideLiteral && builder.Length > 0 && !char.IsWhiteSpace(builder[^1]) &&
+                        index + continuation.Length < text.Length &&
+                        !char.IsWhiteSpace(text[index + continuation.Length]))
+                        builder.Append(' ');
+                    continuations.Add(new AwkLineContinuationPoint(builder.Length));
+                }
                 index += continuation.Length;
                 segmentStart = index;
                 continue;

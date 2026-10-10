@@ -30,6 +30,13 @@ internal sealed class AwkExpressionSyntaxParser
 
     private static AwkExpressionParseResult ParseCore(AwkParsingSource? source, IReadOnlyList<AwkToken> tokens)
     {
+        if (TryGetSeparatorDiagnostic(tokens, out var separatorDiagnostic))
+        {
+            var token = tokens.First(token => token.Span.Start == separatorDiagnostic.Span.Start &&
+                token.Span.Length == separatorDiagnostic.Span.Length);
+            return AwkExpressionParseResult.Single(CreateTokenNode(AwkExpressionKind.Unknown, token));
+        }
+
         static bool TryCreateLexerResult(
             AwkParsingSource source,
             IReadOnlyList<AwkToken> tokens,
@@ -134,6 +141,43 @@ internal sealed class AwkExpressionSyntaxParser
             return AwkExpressionParseResult.InvalidResult;
         }
     }
+
+    internal static bool TryGetSeparatorDiagnostic(
+        IReadOnlyList<AwkToken> tokens,
+        out AwkDiagnostic diagnostic)
+    {
+        var previous = AwkTokenKind.EndOfFile;
+        for (var index = 0; index < tokens.Count; index++)
+        {
+            var token = tokens[index];
+            if (token.Kind == AwkTokenKind.Comment)
+                continue;
+            if (token.Kind == AwkTokenKind.Semicolon ||
+                token.Kind == AwkTokenKind.NewLine && previous is not
+                    (AwkTokenKind.Comma or AwkTokenKind.AmpersandAmpersand or
+                     AwkTokenKind.PipePipe or AwkTokenKind.Question or AwkTokenKind.Colon))
+            {
+                diagnostic = CreateSyntaxDiagnostic(CreateTokenNode(AwkExpressionKind.Unknown, token));
+                return true;
+            }
+            if (token.Kind != AwkTokenKind.NewLine)
+                previous = token.Kind;
+        }
+        diagnostic = default;
+        return false;
+    }
+
+    internal static AwkDiagnostic CreateSyntaxDiagnostic(AwkExpressionSyntax expression) =>
+        new(expression.Span, expression.FirstToken.Kind switch
+        {
+            AwkTokenKind.NewLine => "Unexpected newline in expression.",
+            AwkTokenKind.Semicolon => "Unexpected semicolon in expression.",
+            AwkTokenKind.In => "Expected array name after in.",
+            AwkTokenKind.EqualEqual or AwkTokenKind.BangEqual or AwkTokenKind.Less or
+                AwkTokenKind.LessEqual or AwkTokenKind.Greater or AwkTokenKind.GreaterEqual =>
+                "Comparison operators are non-associative.",
+            _ => "Invalid expression."
+        });
 
     private static AwkTokenKind ResolveExpressionTokenKind(IReadOnlyList<AwkToken> tokens, int index)
     {
@@ -521,8 +565,57 @@ internal sealed class AwkExpressionSyntaxParser
     [Rule(Rank = 6)]
     public AwkExpressionSyntax Comparison(
         [NT(5)] AwkExpressionSyntax left,
-        [AwkL(Min = 1)] ComparisonTailPart[] tails) =>
-        FoldLeftBinary(left, tails);
+        [AwkL(Min = 1)] ComparisonTailPart[] tails)
+    {
+        // Match binds less tightly than relations. Membership consumes an array name,
+        // so it completes before following arithmetic, matching, or relational tokens.
+        var operands = new List<AwkExpressionSyntax>(tails.Length + 1) { left };
+        var operators = new List<AwkToken>(tails.Length);
+        foreach (var tail in tails)
+        {
+            if (tail.Operator.Kind == AwkTokenKind.In)
+            {
+                while (operators.Count > 0)
+                    Reduce();
+                operands[0] = Membership(operands[0], tail.Right, tail.Operator);
+                continue;
+            }
+
+            var precedence = Precedence(tail.Operator.Kind);
+            while (operators.Count > 0 && Precedence(operators[^1].Kind) >= precedence)
+            {
+                if (precedence == 2 && Precedence(operators[^1].Kind) == 2)
+                    return CreateTokenNode(AwkExpressionKind.Unknown, tail.Operator);
+                Reduce();
+            }
+            operators.Add(tail.Operator);
+            operands.Add(tail.Right);
+        }
+        while (operators.Count > 0)
+            Reduce();
+        return operands[0];
+
+        void Reduce()
+        {
+            var last = operands[^1];
+            operands.RemoveAt(operands.Count - 1);
+            operands[^1] = CreateNode(AwkExpressionKind.Binary, operands[^1], last, [operators[^1]]);
+            operators.RemoveAt(operators.Count - 1);
+        }
+
+        static int Precedence(AwkTokenKind kind) =>
+            kind is AwkTokenKind.Tilde or AwkTokenKind.BangTilde ? 1 : 2;
+
+        static AwkExpressionSyntax Membership(
+            AwkExpressionSyntax left,
+            AwkExpressionSyntax right,
+            AwkToken op)
+        {
+            if (right.Kind != AwkExpressionKind.Variable)
+                return CreateTokenNode(AwkExpressionKind.Unknown, op);
+            return CreateNode(AwkExpressionKind.Binary, left, right, [op]);
+        }
+    }
 
     [Rule]
     public LogicalAndTailPart LogicalAndTail(
@@ -701,6 +794,11 @@ internal sealed class AwkExpressionSyntaxParser
         IReadOnlyList<AwkToken> delimiterTokens,
         IReadOnlyList<AwkToken> separatorTokens)
     {
+        for (var index = 0; index < children.Count; index++)
+        {
+            if (children[index].Kind == AwkExpressionKind.Unknown)
+                return children[index];
+        }
         return new AwkExpressionSyntax(
             kind,
             null,

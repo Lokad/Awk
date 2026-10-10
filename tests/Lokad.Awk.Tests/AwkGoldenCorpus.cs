@@ -90,6 +90,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(BitwiseCompatibilityCases(), AwkGoldenTag.Expression, AwkGoldenTag.Function),
         .. Tagged(SortingCompatibilityCases(), AwkGoldenTag.Array, AwkGoldenTag.Function),
         .. Tagged(IgnoreCaseCompatibilityCases(), AwkGoldenTag.Array, AwkGoldenTag.Function),
+        .. Tagged(GrammarBoundaryCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
 
         .. Tagged(FormattingSyntaxCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
 

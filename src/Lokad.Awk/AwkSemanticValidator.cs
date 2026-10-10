@@ -175,12 +175,46 @@ internal static class AwkSemanticValidator
             }
         }
 
+        static void ValidatePosixTernaryContinuations(
+            AwkSyntaxProgram syntax,
+            AwkCompatibilityMode compatibilityMode,
+            List<AwkDiagnostic> diagnostics)
+        {
+            if (compatibilityMode != AwkCompatibilityMode.Posix)
+                return;
+            foreach (var function in syntax.Functions)
+                Check(function.BodyTokens);
+            foreach (var rule in syntax.Rules)
+            {
+                Check(rule.PatternTokens);
+                Check(rule.ActionTokens);
+            }
+
+            void Check(IReadOnlyList<AwkToken> tokens)
+            {
+                var previous = AwkTokenKind.EndOfFile;
+                foreach (var token in tokens)
+                {
+                    if (token.Kind == AwkTokenKind.Comment)
+                        continue;
+                    if (token.Kind == AwkTokenKind.NewLine && previous is AwkTokenKind.Question or AwkTokenKind.Colon)
+                    {
+                        diagnostics.Add(new AwkDiagnostic(token.Span,
+                            "Unexpected newline after ternary operator in POSIX mode.", AwkDiagnosticId.BindInvalidProgram));
+                        return;
+                    }
+                    previous = token.Kind;
+                }
+            }
+        }
+
         var diagnostics = new List<AwkDiagnostic>();
         ValidateFunctionDeclarations(syntax, diagnostics);
         ValidateFunctionVariableConflicts(semanticModel, diagnostics);
         ValidateUndefinedFunctions(semanticModel, compatibilityProfile.LintMode, diagnostics);
         ValidateCompatibilityGatedCallables(semanticModel, compatibilityProfile.Mode, diagnostics);
         ValidatePosixPowerOperators(syntax, compatibilityProfile.Mode, diagnostics);
+        ValidatePosixTernaryContinuations(syntax, compatibilityProfile.Mode, diagnostics);
         ValidateStatementSemantics(syntax, diagnostics);
         return diagnostics;
 

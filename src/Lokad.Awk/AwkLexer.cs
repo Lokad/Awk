@@ -77,17 +77,19 @@ internal static class AwkLexer
                 if (lexeme.Kind == AwkTokenKind.EndOfFile)
                     break;
 
+                if (lexeme.Kind == AwkTokenKind.NewLine && lexeme.Span.Start < _source.Length &&
+                    _source[lexeme.Span.Start] is '\r' or '\n')
+                {
+                    var start = lexeme.Span.Start;
+                    if (start > _position && _source[start] == '\n' && _source[start - 1] == '\r')
+                        start--;
+                    _position = start;
+                    ReadNewLine();
+                    continue;
+                }
+
                 if (lexeme.Span.Length == 0)
                 {
-                    if (lexeme.Kind == AwkTokenKind.NewLine &&
-                        lexeme.Span.Start < _source.Length &&
-                        _source[lexeme.Span.Start] is '\r' or '\n')
-                    {
-                        _position = lexeme.Span.Start;
-                        ReadNewLine();
-                        continue;
-                    }
-
                     _lexemeIndex++;
                     continue;
                 }
@@ -101,6 +103,16 @@ internal static class AwkLexer
                 {
                     ReadComment();
                     continue;
+                }
+
+                if (Current == '\\')
+                {
+                    var escapedIndex = _position + 1;
+                    if (AwkLineContinuations.TrySkipAfterBackslash(_source, ref escapedIndex, _source.Length))
+                    {
+                        _position = escapedIndex + 1;
+                        continue;
+                    }
                 }
 
                 if (Current == '_' && Peek(1) == '"')
@@ -219,6 +231,11 @@ internal static class AwkLexer
 
                 if (current == '\\')
                 {
+                    if (AwkLineContinuations.TrySkipAfterBackslash(_source, ref _position, _source.Length))
+                    {
+                        _position++;
+                        continue;
+                    }
                     escaped = true;
                     continue;
                 }

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Enforced expression newline boundaries and non-associative relational comparisons,
+  while preserving grouped results, match precedence, array membership, and assignment
+  operands. Added valid rule-pattern and range continuations, rejected extra null statements
+  before else, and kept explicit continuations from merging tokens or extending comments.
+  Syntax diagnostics identify the offending token; POSIX mode rejects ternary newlines.
+
 - Applied IGNORECASE to string comparisons, index, and predefined string sort comparisons,
   with original-byte sort tie-breaks and case-sensitive array keys. Folded scans operate
   on UTF-8 bytes with invariant scalar casing, preserve spelling, and check the shared

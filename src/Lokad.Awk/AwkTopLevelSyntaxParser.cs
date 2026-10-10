@@ -225,12 +225,13 @@ internal sealed class AwkTopLevelSyntaxParser
     public AwkPatternSyntax RangePattern(
         [AwkL(Min = 1)] PatternPart[] start,
         [AwkT(AwkTokenKind.Comma)] Pos<string> comma,
+        [AwkL(Min = 0)] HeaderPatternGap[] afterComma,
         [AwkL(Min = 1)] PatternPart[] end)
     {
         var startTokens = PatternTokens(start);
         var endTokens = PatternTokens(end);
         var commaToken = ToToken(AwkTokenKind.Comma, comma);
-        var tokens = Flatten([startTokens, [commaToken], endTokens]);
+        var tokens = Flatten([startTokens, [commaToken], Flatten(afterComma.Select(gap => gap.Tokens)), endTokens]);
         return new AwkRangePatternSyntax(
             tokens,
             new AwkPatternPartSyntax(startTokens, ParseExpression(startTokens)),
@@ -260,6 +261,23 @@ internal sealed class AwkTopLevelSyntaxParser
     [Rule]
     public PatternPart PatternLeaf([AwkTopLevelPatternLeaf] Pos<string> token) =>
         new([AwkParsingSupport.ToToken(token)]);
+
+    [Rule]
+    public PatternPart PatternContinuation(
+        [AwkT(AwkTokenKind.AmpersandAmpersand, AwkTokenKind.PipePipe, AwkTokenKind.Question, AwkTokenKind.Colon)] Pos<string> op,
+        [AwkL(Min = 1)] HeaderPatternGap[] gaps,
+        [NT] PatternPart next) =>
+        new(Flatten([[AwkParsingSupport.ToToken(op)], Flatten(gaps.Select(gap => gap.Tokens)), next.Tokens]));
+
+    [Rule]
+    public HeaderPatternGap HeaderPatternGapRule(
+        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token) =>
+        new([AwkParsingSupport.ToToken(token)]);
+
+    public readonly struct HeaderPatternGap(IReadOnlyList<AwkToken>? tokens)
+    {
+        public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
+    }
 
     private static AwkToken[] PatternTokens(IReadOnlyList<PatternPart> pattern) =>
         Flatten(pattern.Select(part => part.Tokens))

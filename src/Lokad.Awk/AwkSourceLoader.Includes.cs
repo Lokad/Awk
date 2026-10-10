@@ -18,7 +18,7 @@ internal static partial class AwkSourceLoader
         AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
-        var normalization = AwkLineContinuations.Normalize(source);
+        var normalization = AwkLineContinuations.Normalize(source, resources.Limits.MaxFrontendTokens, cancellationToken);
         var normalizedSource = normalization.Text;
         if (normalizedSource.IndexOf('@', StringComparison.Ordinal) < 0)
         {

@@ -873,6 +873,9 @@ internal static partial class AwkExpressionLowerer
 
     public static AwkDiagnostic CreateFailureDiagnostic(AwkExpressionSyntax expression)
     {
+        if (expression.Kind == AwkExpressionKind.Unknown)
+            return AwkExpressionSyntaxParser.CreateSyntaxDiagnostic(expression);
+
         static AwkDiagnostic CreateCallFailureDiagnostic(AwkExpressionSyntax expression)
         {
             if (AwkBuiltinCallShape.TryCreateKnownCallable(expression, out var call))

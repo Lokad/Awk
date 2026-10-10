@@ -335,22 +335,30 @@ internal sealed class AwkStatementSyntaxParser
                     [
                         AwkTokenNavigation.Slice(tokens, 0, inIndex),
                     AwkTokenNavigation.Slice(tokens, inIndex + 1, tokens.Count - inIndex - 1)
-                    ]));
+                    ], allowLeadingNewlines: false));
             }
 
             return new AwkForHeaderSyntax(
                 isForIn: false,
-                ParseExpressionSlots(AwkTokenNavigation.SplitTopLevel(tokens, AwkTokenKind.Semicolon)));
+                ParseExpressionSlots(AwkTokenNavigation.SplitTopLevel(tokens, AwkTokenKind.Semicolon), allowLeadingNewlines: true));
 
             AwkExpressionSlotSyntax[] ParseExpressionSlots(
-                IReadOnlyList<IReadOnlyList<AwkToken>> segments)
+                IReadOnlyList<IReadOnlyList<AwkToken>> segments,
+                bool allowLeadingNewlines)
             {
                 var slots = new AwkExpressionSlotSyntax[segments.Count];
                 for (var index = 0; index < segments.Count; index++)
                 {
-                    slots[index] = new AwkExpressionSlotSyntax(
-                        segments[index],
-                        AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(segments[index])));
+                    var start = 0;
+                    if (allowLeadingNewlines && index > 0)
+                    {
+                        while (start < segments[index].Count &&
+                            segments[index][start].Kind is AwkTokenKind.NewLine or AwkTokenKind.Comment)
+                            start++;
+                    }
+                    slots[index] = new AwkExpressionSlotSyntax(segments[index],
+                        AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(
+                            start == 0 ? segments[index] : AwkTokenNavigation.Slice(segments[index], start, segments[index].Count - start))));
                 }
 
                 return slots;
@@ -1299,6 +1307,8 @@ internal sealed class AwkStatementSyntaxParser
             }
             else if (statement.Kind is AwkStatementKind.If)
             {
+                if (!CanAttachElse(statement, separatorTokens))
+                    return false;
                 payload = control.WithElse(continuation.Statements, continuation.HasUnbracedBody);
             }
             else
@@ -1327,6 +1337,29 @@ internal sealed class AwkStatementSyntaxParser
         return true;
     }
 
+    private static bool CanAttachElse(AwkStatementSyntax statement, IReadOnlyList<AwkToken> separators)
+    {
+        var last = statement.Tokens.Count - 1;
+        while (last >= 0 && statement.Tokens[last].Kind is AwkTokenKind.NewLine or AwkTokenKind.Comment)
+            last--;
+        var terminated = last >= 0 && statement.Tokens[last].Kind is AwkTokenKind.RightBrace or AwkTokenKind.Semicolon;
+        for (var index = 0; index < separators.Count; index++)
+        {
+            var kind = separators[index].Kind;
+            if (kind == AwkTokenKind.Semicolon)
+            {
+                if (terminated)
+                    return false;
+                terminated = true;
+            }
+            else if (kind == AwkTokenKind.NewLine)
+            {
+                terminated = true;
+            }
+        }
+        return terminated;
+    }
+
     private static void AddStatementDiagnostics(
         IReadOnlyList<AwkStatementSyntax> statements,
         List<AwkDiagnostic> diagnostics)
@@ -1340,6 +1373,12 @@ internal sealed class AwkStatementSyntaxParser
         {
             for (var index = 0; index < statement.Diagnostics.Count; index++)
                 diagnostics.Add(statement.Diagnostics[index]);
+
+            foreach (var expression in statement.EnumerateChildExpressions())
+            {
+                if (expression.Kind == AwkExpressionKind.Unknown)
+                    diagnostics.Add(AwkExpressionSyntaxParser.CreateSyntaxDiagnostic(expression));
+            }
 
             AddStatementDiagnostics(statement.BodyStatements, diagnostics);
             AddStatementDiagnostics(statement.ElseStatements, diagnostics);

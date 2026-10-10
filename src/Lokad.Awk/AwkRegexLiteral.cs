@@ -37,6 +37,12 @@ internal static class AwkRegexLiteral
 
             if (current == '\\')
             {
+                var escapedIndex = index + 1;
+                if (AwkLineContinuations.TrySkipAfterBackslash(text, ref escapedIndex, text.Length))
+                {
+                    index = escapedIndex;
+                    continue;
+                }
                 escaped = true;
                 continue;
             }

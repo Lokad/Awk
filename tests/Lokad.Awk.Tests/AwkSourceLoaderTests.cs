@@ -348,7 +348,7 @@ public sealed class AwkSourceLoaderTests
     }
 
     [Fact]
-    public async Task AwkSourceLoader_NormalizesLineContinuationsBeforeParserUnsupportedInspection()
+    public async Task AwkSourceLoader_DoesNotCreateInternationalizedStringsAcrossLineContinuations()
     {
         var fileSystem = new MockFileSystem();
         var invocation = Parse("BEGIN{print _\\\n\"text\"}");
@@ -356,12 +356,9 @@ public sealed class AwkSourceLoaderTests
         var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
+        Assert.Equal("BEGIN{print _ \"text\"}", source.Text);
         var binding = AwkBinder.Bind(AwkParser.Parse(source.Text));
-        var diagnostic = Assert.Single(binding.Diagnostics);
-        Assert.Equal(AwkDiagnosticId.UnsupportedPolicy, diagnostic.Id);
-        Assert.Equal(
-            "awk: internationalization functions are unsupported in Lokad awk\n",
-            AwkUtf8Codec.Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
+        Assert.Empty(binding.Diagnostics);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
@@ -455,6 +452,34 @@ public sealed class AwkSourceLoaderTests
         Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
         Assert.Equal(string.Empty, result.StdOut);
         Assert.Equal("awk: /script.awk:3:7: break used outside loop or switch\n", result.StdErr);
+        AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
+    }
+
+    [Fact]
+    public async Task AwkExecutor_ReportsComparisonLocationAfterTokenSeparatingContinuation()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("/script.awk", "BEGIN{print\\\n2;print (1<2<3)}");
+
+        var result = await ExecuteAsync(fileSystem, ["-f", "/script.awk"]);
+
+        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(string.Empty, result.StdOut);
+        Assert.Equal("awk: /script.awk:2:13: comparison operators are non-associative.\n", result.StdErr);
+        AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
+    }
+
+    [Fact]
+    public async Task AwkExecutor_ReportsLocationAfterBackslashTerminatedComment()
+    {
+        var fileSystem = new MockFileSystem();
+        fileSystem.AddFile("/script.awk", "BEGIN{#comment\\\nprint (1<2<3)}");
+
+        var result = await ExecuteAsync(fileSystem, ["-f", "/script.awk"]);
+
+        Assert.Equal(AwkDiagnostics.FatalExitCode.Value, result.ExitCode);
+        Assert.Equal(string.Empty, result.StdOut);
+        Assert.Equal("awk: /script.awk:2:11: comparison operators are non-associative.\n", result.StdErr);
         AwkTestHarness.AssertFriendlyAwkDiagnostic(result);
     }
 

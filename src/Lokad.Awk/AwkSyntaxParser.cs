@@ -182,6 +182,8 @@ internal static class AwkSyntaxParser
                                 item.Span));
                             break;
                         case AwkTopLevelSyntaxParser.TopLevelItemKind.Function:
+                            if (AwkExpressionSyntaxParser.TryGetSeparatorDiagnostic(item.FirstTokens, out var parameterDiagnostic))
+                                _diagnostics.Add(parameterDiagnostic);
                             _functions.Add(new AwkFunctionSyntax(
                                 item.Name,
                                 item.FirstTokens,
@@ -194,6 +196,14 @@ internal static class AwkSyntaxParser
                                 item.Span));
                             break;
                         case AwkTopLevelSyntaxParser.TopLevelItemKind.Rule:
+                            if (item.Pattern is { } pattern)
+                            {
+                                foreach (var expression in pattern.EnumerateChildExpressions())
+                                {
+                                    if (expression.Kind == AwkExpressionKind.Unknown)
+                                        _diagnostics.Add(AwkExpressionSyntaxParser.CreateSyntaxDiagnostic(expression));
+                                }
+                            }
                             _rules.Add(new AwkRuleSyntax(
                                 item.RuleKind,
                                 item.Pattern ?? AwkPatternSyntax.Empty,

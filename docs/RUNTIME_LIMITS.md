@@ -25,6 +25,11 @@ frontend then apply:
 not numeric limits. The restricted preset disables them, so the script cannot grow the explicit
 source/input capability sets through `@include`, `AWKPATH`, or changed `ARGV` entries.
 
+Sources containing explicit line continuations receive a token-aware normalization pass
+under the same frontend token ceiling and cancellation token. Sources without continuations
+reuse their original text. Invalid expression separators and comparison chains count toward
+the frontend diagnostic ceiling and fail before any rule or function executes.
+
 ## Host And IO Limits
 
 These limits are host-mediated and publicly configurable:
