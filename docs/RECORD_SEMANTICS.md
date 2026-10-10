@@ -69,6 +69,26 @@ An explicit file operand resets `FNR` before `BEGINFILE`; implicit stdin retains
 assigned in `BEGIN`. Every main-input record increments `NR` and `FNR`, including a
 `getline variable` read. Redirected `getline` does not change these counters.
 
+## Functions And Input Control
+
+User functions may declare `next` and `nextfile` independently of their call sites. Executed
+`next` is valid in a main-input rule's pattern or action. Executed `nextfile` is valid there
+and in `BEGINFILE`; an opened file still receives `ENDFILE` when skipped. Calls from invalid
+phases fail at runtime, preserving preceding output. Direct invalid phase statements remain
+compile-time diagnostics. Sort comparator callbacks cannot execute `next`, `nextfile`, or `exit`.
+
+Function control unwinds the complete current expression and nested calls before the owning
+action processes it. Later operands, argument evaluation, assignments, rules, and redirections
+are skipped. `exit` from a function follows the ordinary phase lifecycle, including `END`
+actions and an explicit status change there. Functions evaluated in rule patterns have the
+same host-mediated I/O context as action functions. Nested file actions entered through
+`getline` restore the caller's phase and context after returning.
+
+GNU awk 5.2.1 and 5.4.0 have an internal `unwind_stack` failure when a function executes
+`next` during evaluation of a mutable array argument, including a substitution target.
+Lokad.Awk preserves the intended record flow in this case. Its golden expectation is an
+explicit reference divergence; it is not counted as an exact native match.
+
 ## Assigned NF Values
 
 Reading `NF` materializes the current record's fields once. Assigning `NF` uses the

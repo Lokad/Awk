@@ -436,6 +436,12 @@ internal sealed class AwkRuntimeState
     public void RequestExit(AwkOptionalExitCode exitCode) =>
         _executionControl.RequestExit(exitCode);
 
+    internal AwkActionPhaseScope EnterActionPhase(AwkActionPhase phase) =>
+        _executionControl.EnterPhase(phase);
+
+    internal void ValidateFunctionFlow(AwkStatementFlow flow) =>
+        _executionControl.ValidateFunctionFlow(flow);
+
     public bool TryGetExitCode(out AwkExitCode exitCode) =>
         _executionControl.TryGetExitCode(out exitCode);
 

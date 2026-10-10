@@ -537,10 +537,10 @@ internal static class AwkSemanticValidator
 
         public bool CanContinue => _loopDepth > 0;
 
-        public bool CanUseNext => !IsInsideFunction && _ruleKind == AwkRuleKind.Main;
+        public bool CanUseNext => IsInsideFunction || _ruleKind == AwkRuleKind.Main;
 
         public bool CanUseNextFile =>
-            !IsInsideFunction && _ruleKind is AwkRuleKind.Main or AwkRuleKind.BeginFile;
+            IsInsideFunction || _ruleKind is AwkRuleKind.Main or AwkRuleKind.BeginFile;
 
         public bool TryGetMainInputGetlineProhibition(out string ruleName)
         {

@@ -60,66 +60,75 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
 
     public async ValueTask<AwkStatementFlow> ProcessRecordAsync(AwkRuntimeState state, AwkIo io, AwkText record)
     {
-        state.SetCurrentRecord(record);
-        if (_executableProgram == null)
+        using var phase = state.EnterActionPhase(AwkActionPhase.Main);
+        using var execution = state.PushExecutionContext(_output, io);
+        try
         {
-            for (var index = 0; index < _program.MainActions.Length; index++)
+            state.SetCurrentRecord(record);
+            if (_executableProgram == null)
             {
-                var action = _program.MainActions[index];
-                if (!await action.MatchesAsync(state).ConfigureAwait(false))
+                for (var index = 0; index < _program.MainActions.Length; index++)
+                {
+                    var action = _program.MainActions[index];
+                    if (!await action.MatchesAsync(state).ConfigureAwait(false))
+                        continue;
+
+                    var flow = await action.ExecuteAsync(state, io, _output).ConfigureAwait(false);
+                    var decision = ResolveRecordActionFlow(flow);
+                    if (decision.ShouldStop)
+                        return decision.Flow;
+                }
+
+                return AwkStatementFlow.Continue;
+            }
+
+            for (var index = 0; index < _executableProgram.MainActions.Length; index++)
+            {
+                var action = _executableProgram.MainActions[index];
+                if (!await MatchesExecutableActionAsync(action, state).ConfigureAwait(false))
                     continue;
 
-                var flow = await action.ExecuteAsync(state, io, _output).ConfigureAwait(false);
+                var flow = await AwkExecutableDispatcher.ExecuteActionAsync(
+                        action,
+                        _executableProgram.Tables,
+                        state,
+                        io,
+                        _output)
+                    .ConfigureAwait(false);
                 var decision = ResolveRecordActionFlow(flow);
                 if (decision.ShouldStop)
                     return decision.Flow;
             }
 
             return AwkStatementFlow.Continue;
+
+            static ValueTask<bool> MatchesExecutableActionAsync(
+                AwkExecutableAction action,
+                AwkRuntimeState state)
+            {
+                if (!action.FallbackAction.IsPatternless)
+                    state.Counters.RecordVmPatternFallback();
+
+                return action.FallbackAction.MatchesAsync(state);
+            }
+
+            static AwkActionFlowDecision ResolveRecordActionFlow(AwkStatementFlow flow)
+            {
+                if (flow == AwkStatementFlow.ExitProgram)
+                    return AwkActionFlowDecision.Stop(AwkStatementFlow.ExitProgram);
+
+                if (flow == AwkStatementFlow.NextFile)
+                    return AwkActionFlowDecision.Stop(AwkStatementFlow.NextFile);
+
+                if (flow == AwkStatementFlow.NextRecord)
+                    return AwkActionFlowDecision.Stop(AwkStatementFlow.Continue);
+
+                return AwkActionFlowDecision.ContinueActions();
+            }
         }
-
-        for (var index = 0; index < _executableProgram.MainActions.Length; index++)
+        catch (AwkFunctionFlowSignal signal)
         {
-            var action = _executableProgram.MainActions[index];
-            if (!await MatchesExecutableActionAsync(action, state).ConfigureAwait(false))
-                continue;
-
-            var flow = await AwkExecutableDispatcher.ExecuteActionAsync(
-                    action,
-                    _executableProgram.Tables,
-                    state,
-                    io,
-                    _output)
-                .ConfigureAwait(false);
-            var decision = ResolveRecordActionFlow(flow);
-            if (decision.ShouldStop)
-                return decision.Flow;
-        }
-
-        return AwkStatementFlow.Continue;
-
-        static ValueTask<bool> MatchesExecutableActionAsync(
-            AwkExecutableAction action,
-            AwkRuntimeState state)
-        {
-            if (!action.FallbackAction.IsPatternless)
-                state.Counters.RecordVmPatternFallback();
-
-            return action.FallbackAction.MatchesAsync(state);
-        }
-
-        static AwkActionFlowDecision ResolveRecordActionFlow(AwkStatementFlow flow)
-        {
-            if (flow == AwkStatementFlow.ExitProgram)
-                return AwkActionFlowDecision.Stop(AwkStatementFlow.ExitProgram);
-
-            if (flow == AwkStatementFlow.NextFile)
-                return AwkActionFlowDecision.Stop(AwkStatementFlow.NextFile);
-
-            if (flow == AwkStatementFlow.NextRecord)
-                return AwkActionFlowDecision.Stop(AwkStatementFlow.Continue);
-
-            return AwkActionFlowDecision.ContinueActions();
+            return signal.Flow == AwkStatementFlow.NextRecord ? AwkStatementFlow.Continue : signal.Flow;
         }
     }
 
@@ -136,37 +145,46 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         AwkRuntimeState state,
         AwkIo io)
     {
-        if (executableActions == null)
+        using var actionPhase = state.EnterActionPhase(phase);
+        try
         {
-            for (var index = 0; index < interpreterActions.Length; index++)
+            if (executableActions == null)
             {
-                var flow = await interpreterActions[index].ExecuteAsync(state, io, _output).ConfigureAwait(false);
+                for (var index = 0; index < interpreterActions.Length; index++)
+                {
+                    var flow = await interpreterActions[index].ExecuteAsync(state, io, _output).ConfigureAwait(false);
+                    var decision = ResolvePhaseActionFlow(flow, phase);
+                    if (decision.ShouldStop)
+                        return decision.Flow;
+                }
+
+                return AwkStatementFlow.Continue;
+            }
+
+            if (executableTables is not AwkExecutableTables tables)
+                throw new InvalidOperationException("Executable action tables are required for executable actions.");
+
+            for (var index = 0; index < executableActions.Length; index++)
+            {
+                var flow = await AwkExecutableDispatcher.ExecuteActionAsync(
+                        executableActions[index],
+                        tables,
+                        state,
+                        io,
+                        _output)
+                    .ConfigureAwait(false);
                 var decision = ResolvePhaseActionFlow(flow, phase);
                 if (decision.ShouldStop)
                     return decision.Flow;
             }
 
             return AwkStatementFlow.Continue;
+
         }
-
-        if (executableTables is not AwkExecutableTables tables)
-            throw new InvalidOperationException("Executable action tables are required for executable actions.");
-
-        for (var index = 0; index < executableActions.Length; index++)
+        catch (AwkFunctionFlowSignal signal)
         {
-            var flow = await AwkExecutableDispatcher.ExecuteActionAsync(
-                    executableActions[index],
-                    tables,
-                    state,
-                    io,
-                    _output)
-                .ConfigureAwait(false);
-            var decision = ResolvePhaseActionFlow(flow, phase);
-            if (decision.ShouldStop)
-                return decision.Flow;
+            return ResolvePhaseActionFlow(signal.Flow, phase).Flow;
         }
-
-        return AwkStatementFlow.Continue;
 
         static AwkActionFlowDecision ResolvePhaseActionFlow(
             AwkStatementFlow flow,

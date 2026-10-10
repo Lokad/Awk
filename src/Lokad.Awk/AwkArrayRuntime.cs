@@ -470,6 +470,7 @@ internal sealed class AwkArrayRuntime
                     comparatorArguments[1] = left.Value;
                     comparatorArguments[2] = state.CreateByteTextValue(right.KeyText);
                     comparatorArguments[3] = right.Value;
+                    using var comparisonPhase = state.EnterActionPhase(AwkActionPhase.SortComparison);
                     var value = await function.InvokeValuesAsync(comparatorArguments, context).ConfigureAwait(false);
                     var number = value.AsNumber();
                     if (number < 0)

@@ -152,6 +152,12 @@ internal sealed class AwkUserFunction : IAwkUserFunction
                     ? AwkMessages.ErrorBreakOutsideLoop
                     : AwkMessages.ErrorContinueOutsideLoop);
 
+            if (flow is AwkStatementFlow.NextRecord or AwkStatementFlow.NextFile or AwkStatementFlow.ExitProgram)
+            {
+                state.ValidateFunctionFlow(flow);
+                throw new AwkFunctionFlowSignal(flow);
+            }
+
             return AwkValue.FromText(string.Empty);
         }
         finally

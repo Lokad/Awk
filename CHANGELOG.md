@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Allowed `next` and `nextfile` in user functions, with runtime phase checks and complete
+  nested-call unwinding. Functions now execute in rule patterns, and `exit` unwinds caller
+  expressions. Sort comparators reject record/file/exit control with awk diagnostics.
 - Accepted unparenthesized assignments in logical, comparison, and conditional operands,
   preserving full right-hand expressions, short-circuit effects, and lvalue restrictions.
 - Added POSIX longest-match and subexpression selection for traditional EREs across regex

@@ -87,6 +87,15 @@ array aliases, return flow, function recursion limits, and fallback counters the
 governed by the same `AwkFunctionRuntime` path as the interpreter until user-function opcodes own
 their own local-frame layout.
 
+Nonlocal function control uses an internal signal to unwind value evaluation to its owning
+action boundary. `next`, `nextfile`, and `exit` stop the remaining operands and statements
+without publishing a partial value. Both engines release function locals, argument buffers,
+VM frames, and execution contexts while unwinding. The boundary converts the signal back to
+the ordinary statement-flow result consumed by the input scheduler. Runtime action phases
+are scoped across nested file actions and sort callbacks, so function declarations can contain
+record/file control while invalid calls retain awk diagnostics. Sort comparators reject all
+three forms of nonlocal control.
+
 ## Inline Cache Policy
 
 Inline caches are optional and benchmark-driven. Candidate caches are special-variable lookup,

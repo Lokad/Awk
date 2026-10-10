@@ -5,20 +5,24 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkArrayStorageTests
 {
     [Fact]
-    public void MissingLookupsDoNotAllocateOrCreateAnArray()
+    public async Task MissingLookupsDoNotAllocateOrCreateAnArray()
     {
-        var storage = new AwkArrayStorage();
-        var name = AwkArrayName.FromText("missing");
+        // Keep the measured loop off the test runner's shared worker threads.
+        var (storage, name, foundAny, allocatedBytes) = await Task.Factory.StartNew(static () =>
+        {
+            var storage = new AwkArrayStorage();
+            var name = AwkArrayName.FromText("missing");
+            var foundAny = storage.TryGetSlots(name, out _);
+            var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+            for (var index = 0; index < 10_000; index++)
+                foundAny |= storage.TryGetSlots(name, out _);
 
-        Assert.False(storage.TryGetSlots(name, out _));
-        var foundAny = false;
-        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        for (var index = 0; index < 10_000; index++)
-            foundAny |= storage.TryGetSlots(name, out _);
+            var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+            return (storage, name, foundAny, allocatedBytes);
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-        var allocatedAfter = GC.GetAllocatedBytesForCurrentThread();
         Assert.False(foundAny);
-        Assert.Equal(allocatedBefore, allocatedAfter);
+        Assert.Equal(0, allocatedBytes);
         Assert.False(storage.Contains(name));
     }
 

@@ -5,5 +5,8 @@ internal enum AwkActionPhase
     Begin,
     BeginFile,
     EndFile,
-    End
+    End,
+    None,
+    Main,
+    SortComparison
 }
