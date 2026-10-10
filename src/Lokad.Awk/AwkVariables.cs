@@ -25,6 +25,7 @@ internal sealed class AwkVariables
     private readonly AwkArrayKeyComparer _arrayKeyComparer = AwkArrayKeyComparer.Instance;
     private readonly AwkArrayStorage _arrays;
     private readonly AwkSymbolTableArray _symbolTable;
+    private readonly Func<AwkValue>? _resolveFieldCountValue;
     private bool _governScalarMemory;
 
     private readonly struct AwkScalarSlot(AwkVariableName name, AwkScalarState state)
@@ -71,7 +72,8 @@ internal sealed class AwkVariables
         Func<AwkText, AwkValue> createNumericStringValue,
         Func<AwkText, AwkValue> createDeferredTextValue,
         Action<string, AwkValue> applyScalarAssignment,
-        Action<long> throwIfValueBytesExceeded)
+        Action<long> throwIfValueBytesExceeded,
+        Func<AwkValue>? resolveFieldCountValue = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxArrayElements);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSymbols);
@@ -87,6 +89,7 @@ internal sealed class AwkVariables
         _createDeferredTextValue = createDeferredTextValue;
         _applyScalarAssignment = applyScalarAssignment;
         _throwIfValueBytesExceeded = throwIfValueBytesExceeded;
+        _resolveFieldCountValue = resolveFieldCountValue;
         _arrays = new AwkArrayStorage(_arrayKeyComparer);
         _symbolTable = new AwkSymbolTableArray(
             EnumerateScalarInventory,
@@ -104,7 +107,11 @@ internal sealed class AwkVariables
         {
             if (slotId.Value >= 0 && slotId.Value < _scalarSlots.Count)
             {
-                slot = GetScalarState(slotId).Slot;
+                var scalar = _scalarSlots[slotId.Value];
+                slot = resolveFieldCountValue is not null &&
+                    AwkSpecialVariables.IsName(scalar.Name.Text, AwkSpecialVariableId.FieldCount)
+                    ? AwkVariableSlot.FromValue(resolveFieldCountValue())
+                    : GetScalarState(slotId).Slot;
                 return true;
             }
 
@@ -120,6 +127,13 @@ internal sealed class AwkVariables
 
         void SetScalarValueFromSymbolTable(string name, AwkValue value)
         {
+            if (resolveFieldCountValue is not null &&
+                AwkSpecialVariables.IsName(name, AwkSpecialVariableId.FieldCount))
+            {
+                _applyScalarAssignment(name, value);
+                return;
+            }
+
             SetScalarValue(AwkVariableName.FromText(name), value);
             _applyScalarAssignment(name, value);
         }
@@ -152,18 +166,37 @@ internal sealed class AwkVariables
 
     public void SetScalarText(AwkVariableName name, string value)
     {
+        if (IsComputedFieldCount(name))
+        {
+            _applyScalarAssignment(name.Text, AwkValue.FromText(value));
+            return;
+        }
         SetScalarSlot(name, AwkVariableSlot.FromText(value));
     }
 
     public void SetScalarText(AwkVariableName name, AwkText value)
     {
+        if (IsComputedFieldCount(name))
+        {
+            _applyScalarAssignment(name.Text, AwkValue.FromText(value));
+            return;
+        }
         SetScalarSlot(name, AwkVariableSlot.FromText(value));
     }
 
     public void SetScalarValue(AwkVariableName name, AwkValue value)
     {
+        if (IsComputedFieldCount(name))
+        {
+            _applyScalarAssignment(name.Text, value);
+            return;
+        }
         SetScalarSlot(name, AwkVariableSlot.FromValue(value));
     }
+
+    private bool IsComputedFieldCount(AwkVariableName name) =>
+        _governScalarMemory && _resolveFieldCountValue is not null &&
+        AwkSpecialVariables.IsName(name.Text, AwkSpecialVariableId.FieldCount);
 
     public long EstimateScalarValueMemoryGrowth(AwkVariableName name, AwkValue value)
     {
@@ -198,6 +231,10 @@ internal sealed class AwkVariables
 
     public AwkValue GetOrCreateScalarValue(AwkVariableName name)
     {
+        if (_resolveFieldCountValue is not null &&
+            AwkSpecialVariables.IsName(name.Text, AwkSpecialVariableId.FieldCount))
+            return _resolveFieldCountValue();
+
         if (TryGetScalarState(name, out var state))
             return CreateValue(state.Slot);
 
@@ -217,11 +254,25 @@ internal sealed class AwkVariables
         }
     }
 
-    public AwkValue GetScalarValue(AwkGlobalSlotId id) =>
-        CreateValue(GetScalarState(id).Slot);
+    public AwkValue GetScalarValue(AwkGlobalSlotId id)
+    {
+        if (_resolveFieldCountValue is not null &&
+            AwkSpecialVariables.IsName(_scalarSlots[id.Value].Name.Text, AwkSpecialVariableId.FieldCount))
+            return _resolveFieldCountValue();
+
+        return CreateValue(GetScalarState(id).Slot);
+    }
 
     public void SetScalarValue(AwkGlobalSlotId id, AwkValue value)
     {
+        var name = _scalarSlots[id.Value].Name;
+        if (_resolveFieldCountValue is not null &&
+            AwkSpecialVariables.IsName(name.Text, AwkSpecialVariableId.FieldCount))
+        {
+            _applyScalarAssignment(name.Text, value);
+            return;
+        }
+
         SetScalarSlot(id, AwkVariableSlot.FromValue(value));
     }
 

@@ -17,6 +17,25 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task Awk_AssignedFieldCountTextRemainsByteNative(AwkExecutionEngineKind engine)
+    {
+        var (exitCode, host, counters) = await RunAsync(
+            ["BEGIN{$0=\"a b c\";NF=\"01.8\";$1=\"z\";print NF,$0}"],
+            "", AwkRegexEngineKind.DotNetCompatibility, engine);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("01.8 z\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(1, counters.FieldSplits);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters.StringInteropFallbacks);
+        Assert.Equal(0, counters.FormattingFallbacks);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task Awk_IntegerPrintBypassesCustomFormatWithoutStringInterop(AwkExecutionEngineKind engine)
     {
         var (exitCode, fileSystem, counters) = await RunAsync(

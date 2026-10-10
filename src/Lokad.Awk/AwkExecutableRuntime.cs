@@ -318,7 +318,7 @@ internal static class AwkExecutableDispatcher
                             break;
 
                         case AwkOpcode.LoadFieldCount:
-                            stack[stackCount++] = AwkValue.FromNumber(state.FieldCount);
+                            stack[stackCount++] = state.ResolveSpecialVariableValue(AwkSpecialVariableId.FieldCount);
                             pc++;
                             break;
 

@@ -69,7 +69,7 @@ internal abstract partial class AwkExpression
         public static readonly FieldCountExpression Instance = new();
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(AwkValue.FromNumber(context.State.FieldCount));
+            ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FieldCount));
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {

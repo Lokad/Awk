@@ -13,6 +13,7 @@ internal sealed class AwkFieldFrame(
 
     private AwkText _recordText = AwkText.Empty;
     private AwkValue _recordValue = AwkValue.FromText(string.Empty);
+    private AwkValue _fieldCountValue = AwkValue.FromNumber(0);
     private List<AwkFieldText> _fieldTexts = [];
     private Dictionary<int, AwkValue> _fieldValueCache = [];
     private bool _recordValueIsCurrent = true;
@@ -64,6 +65,12 @@ internal sealed class AwkFieldFrame(
     {
         EnsureFields(splitFields);
         return _fieldTexts.Count;
+    }
+
+    public AwkValue GetFieldCountValue(Func<AwkText, List<AwkFieldText>> splitFields)
+    {
+        EnsureFields(splitFields);
+        return _fieldCountValue;
     }
 
     public AwkValue GetFieldValue(
@@ -167,6 +174,8 @@ internal sealed class AwkFieldFrame(
             outputFieldSeparator.ByteLength,
             newFieldCount,
             newPayloadByteLength);
+        if (newFieldCount > oldFieldCount)
+            newRetainedBytes = AdjustEstimate(newRetainedBytes, _fieldCountValue.RetainedTextMemoryBytes, 0);
         PreflightRecomposition(newRetainedBytes, composedRecordByteLength);
         ReplaceRetainedMemory(newRetainedBytes);
 
@@ -181,6 +190,8 @@ internal sealed class AwkFieldFrame(
         _fieldTexts[fieldIndex] = newField;
         _fieldValueCache[fieldIndex] = value;
         _fieldPayloadByteLength = newPayloadByteLength;
+        if (newFieldCount > oldFieldCount)
+            _fieldCountValue = AwkValue.FromNumber(newFieldCount);
         MarkRecordForRecomposition(outputFieldSeparator);
         counters.RecordFieldsMaterialized(addedFields);
 
@@ -228,16 +239,25 @@ internal sealed class AwkFieldFrame(
             _retainedMemoryBytes,
             AwkRuntimeMemory.EstimateReferenceListBytes(_fieldTexts.Count),
             AwkRuntimeMemory.EstimateReferenceListBytes(index.Value));
+        newRetainedBytes = AdjustEstimate(newRetainedBytes, _fieldCountValue.RetainedTextMemoryBytes, 0);
         ReplaceRetainedMemory(newRetainedBytes);
         _fieldTexts.EnsureCapacity(index.Value);
         while (_fieldTexts.Count < index.Value)
             _fieldTexts.Add(AwkFieldText.Empty);
 
+        _fieldCountValue = AwkValue.FromNumber(index.Value);
         counters.RecordFieldsMaterialized(addedFields);
     }
 
     public void AssignFieldCount(
         AwkFieldCount count,
+        AwkText outputFieldSeparator,
+        Func<AwkText, List<AwkFieldText>> splitFields) =>
+        AssignFieldCount(count, AwkValue.FromNumber(count.Value), outputFieldSeparator, splitFields);
+
+    public void AssignFieldCount(
+        AwkFieldCount count,
+        AwkValue value,
         AwkText outputFieldSeparator,
         Func<AwkText, List<AwkFieldText>> splitFields)
     {
@@ -250,6 +270,8 @@ internal sealed class AwkFieldFrame(
             _retainedMemoryBytes,
             AwkRuntimeMemory.EstimateReferenceListBytes(oldFieldCount),
             AwkRuntimeMemory.EstimateReferenceListBytes(newFieldCount));
+        newRetainedBytes = AdjustEstimate(newRetainedBytes,
+            _fieldCountValue.RetainedTextMemoryBytes, value.RetainedTextMemoryBytes);
         var newCacheCount = _fieldValueCache.Count;
         if (newFieldCount < oldFieldCount)
         {
@@ -301,6 +323,7 @@ internal sealed class AwkFieldFrame(
         }
 
         _fieldPayloadByteLength = newPayloadByteLength;
+        _fieldCountValue = value;
         MarkRecordForRecomposition(outputFieldSeparator);
     }
 
@@ -365,7 +388,7 @@ internal sealed class AwkFieldFrame(
 
         var recordText = ComposeRecordText(_recompositionSeparator, _fieldTexts);
         var fieldTexts = CreateRecordSlices(_recompositionSeparator.ByteLength, _fieldTexts);
-        ReplaceRetainedMemory(EstimateRetainedBytes(recordText, fieldTexts, _fieldValueCache));
+        ReplaceRetainedMemory(EstimateRetainedBytes(recordText, fieldTexts, _fieldValueCache, _fieldCountValue));
         _recordText = recordText;
         _fieldTexts = fieldTexts;
         _recordTextIsCurrent = true;
@@ -397,6 +420,7 @@ internal sealed class AwkFieldFrame(
         ThrowIfFieldCountExceeded(fieldTexts.Count);
         ReplaceRetainedMemory(EstimateRetainedBytes(_recordText, fieldTexts, EmptyFieldValueCache));
         _fieldTexts = fieldTexts;
+        _fieldCountValue = AwkValue.FromNumber(fieldTexts.Count);
         _fieldPayloadByteLength = SumFieldPayloadByteLength(fieldTexts);
         counters.RecordFieldsMaterialized(_fieldTexts.Count);
         _fieldValueCache = [];
@@ -406,6 +430,7 @@ internal sealed class AwkFieldFrame(
 
     private void ClearSplitFields()
     {
+        _fieldCountValue = AwkValue.FromNumber(0);
         _fieldTexts = [];
         _fieldValueCache = [];
         _fieldsAreSplit = false;
@@ -457,7 +482,8 @@ internal sealed class AwkFieldFrame(
     private static long EstimateRetainedBytes(
         AwkText recordText,
         List<AwkFieldText> fieldTexts,
-        Dictionary<int, AwkValue> fieldValueCache)
+        Dictionary<int, AwkValue> fieldValueCache,
+        AwkValue fieldCountValue = default)
     {
         static long EstimateFieldValueCacheBytes(
             List<AwkFieldText> fieldTexts,
@@ -478,7 +504,8 @@ internal sealed class AwkFieldFrame(
             return bytes;
         }
 
-        var bytes = AwkRuntimeMemory.EstimateTextBytes(recordText);
+        var bytes = AwkRuntimeMemory.CheckedAdd(
+            AwkRuntimeMemory.EstimateTextBytes(recordText), fieldCountValue.RetainedTextMemoryBytes);
         bytes = AwkRuntimeMemory.CheckedAdd(
             bytes,
             AwkRuntimeMemory.EstimateReferenceListBytes(fieldTexts.Count));

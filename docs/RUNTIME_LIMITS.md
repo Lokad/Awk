@@ -50,7 +50,8 @@ These limits are host-mediated and publicly configurable:
 - `MaxBuilderBytes`: bytes retained by one transient UTF-8 builder. The default is 64 MiB, and
   growth is rejected before the builder changes.
 - `MaxExecutionMemoryBytes`: conservative live governed runtime memory across retained ordinary
-  arrays, governed transient builders, VM frames, and explicit preflighted `AwkText` byte
+  arrays, record/field and assigned-NF text, governed transient builders, VM frames, and
+  explicit preflighted `AwkText` byte
   allocations. Retained text estimates include capacity for the decoded-string and sparse-rune
   caches that a later compatibility operation may populate. Deferred concatenations charge their
   retained rope nodes, child text, and root cache allowance, not only the eventual flattened

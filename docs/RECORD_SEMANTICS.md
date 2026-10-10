@@ -69,9 +69,26 @@ An explicit file operand resets `FNR` before `BEGINFILE`; implicit stdin retains
 assigned in `BEGIN`. Every main-input record increments `NR` and `FNR`, including a
 `getline variable` read. Redirected `getline` does not change these counters.
 
+## Assigned NF Values
+
+Reading `NF` materializes the current record's fields once. Assigning `NF` uses the
+numeric value truncated toward zero to resize those fields, while retaining the assigned
+awk value and type. For example, `NF=1.8` leaves one field and reads back as the number
+`1.8`; `NF="01.8"` reads back with its string spelling and type. Fractions between -1
+and zero produce zero fields. A negative truncated count raises the existing negative
+field diagnostic, and a count above `MaxFields` fails before resizing.
+
+Compound and update operators read the retained value. An assignment to an existing
+field preserves it; growing the fields through a write or mutable reference replaces
+it with the new integer count. Reading an absent field does not grow the fields.
+Admitting a record, assigning `$0`, or starting a file resets NF to the computed numeric
+count. NF and `SYMTAB["NF"]` use the same read/write contract, including type queries
+and mutable references. Retained NF text participates in the frame's memory estimate,
+is preserved on failed assignments, and is released when the record resets.
+
 ## Classified GNU Reference Differences
 
-Correctness comparisons with GNU awk 5.2.1 and a local 5.4.0 build expose three quirks:
+Correctness comparisons with GNU awk 5.2.1 and a local 5.4.0 build expose these quirks:
 
 - Those references honor `IGNORECASE` for a multibyte one-character `FS`, while their
   single-byte separator path ignores it. Lokad.Awk applies the literal-character rule
@@ -82,6 +99,9 @@ Correctness comparisons with GNU awk 5.2.1 and a local 5.4.0 build expose three 
 - Indirect assignments to `SYMTAB["NR"]` and `SYMTAB["FNR"]` do not change those references'
   ordinary counter values or admission counters. Lokad.Awk deliberately uses one shared
   value, preserving the [documented indirect-variable access contract](https://www.gnu.org/software/gawk/manual/html_node/Auto_002dset.html).
+- GNU 5.2.1 also ignores indirect assignments to `SYMTAB["NF"]` for record resizing
+  and overwrites their value on the next NF read. Lokad follows its shared-variable
+  contract for NF as well; its indirect assignment/update case is explicitly classified.
 
 These cases have explicit golden expectations and must be classified when using a native
 reference. They do not count as exact native matches.

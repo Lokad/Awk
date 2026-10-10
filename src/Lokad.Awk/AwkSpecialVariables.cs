@@ -28,7 +28,7 @@ internal static class AwkSpecialVariables
             [AwkSpecialVariableId.FieldSeparator] = Scalar(AwkSpecialVariableId.FieldSeparator, "FS"),
             [AwkSpecialVariableId.IgnoreCase] = ScalarWithInitialValue(AwkSpecialVariableId.IgnoreCase, "IGNORECASE", AwkValue.FromNumber(0)),
             [AwkSpecialVariableId.Lint] = ScalarWithInitialValue(AwkSpecialVariableId.Lint, "LINT", AwkValue.FromText("0")),
-            [AwkSpecialVariableId.FieldCount] = Scalar(AwkSpecialVariableId.FieldCount, "NF"),
+            [AwkSpecialVariableId.FieldCount] = ScalarWithInitialValue(AwkSpecialVariableId.FieldCount, "NF", AwkValue.FromNumber(0)),
             [AwkSpecialVariableId.RecordNumber] = ScalarWithInitialValue(AwkSpecialVariableId.RecordNumber, "NR", AwkValue.FromNumber(0)),
             [AwkSpecialVariableId.OutputFormat] = ScalarWithInitialValue(AwkSpecialVariableId.OutputFormat, "OFMT", AwkValue.FromText("%.6g")),
             [AwkSpecialVariableId.OutputFieldSeparator] = ScalarWithInitialValue(AwkSpecialVariableId.OutputFieldSeparator, "OFS", AwkValue.FromText(" ")),

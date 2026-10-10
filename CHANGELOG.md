@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserved assigned NF values and types while resizing fields from their truncated numeric
+  value. Unified updates, indirect access, field growth, and record resets in both engines,
+  with governed text retention and atomic limit failures.
 - Made main input follow live `ARGC`/`ARGV` edits, including added files, changed assignments,
   sparse entries, file actions, and plain `getline`. Preserved restricted path capabilities,
   descriptor cleanup, and byte-native original paths; operand scanning uses the common governor.

@@ -72,6 +72,7 @@ internal sealed class AwkRuntimeState
         _randomRuntime = new AwkRandomRuntime(runtimeOptions.CreateRandomGenerator(), _timeRuntime);
         _cancellationToken = cancellationToken;
         AwkSpecialVariableDispatcher? specialVariables = null;
+        AwkRecordFieldRuntime? recordFields = null;
         _variables = new AwkVariables(
             Limits.MaxArrayElements,
             Limits.MaxSymbols,
@@ -82,7 +83,9 @@ internal sealed class AwkRuntimeState
             CreateNumericStringValue,
             CreateDeferredTextValue,
             ApplySpecialVariableAssignment,
-            Resources.ThrowIfValueBytesExceeded);
+            Resources.ThrowIfValueBytesExceeded,
+            () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
+                .FieldCountValue);
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryGovernor,
@@ -122,6 +125,7 @@ internal sealed class AwkRuntimeState
             MemoryGovernor,
             Limits.MaxFields,
             Resources.ThrowIfValueBytesExceeded);
+        recordFields = _recordFields;
         _specialVariables = new AwkSpecialVariableDispatcher(
             _variables,
             _fieldSplitter,
@@ -138,9 +142,18 @@ internal sealed class AwkRuntimeState
         AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable) =>
             new(ResolveSpecialVariableText(AwkFormattingVariableFacts.SpecialVariableId(variable)));
 
-        void ApplySpecialVariableAssignment(string name, AwkValue value) =>
+        void ApplySpecialVariableAssignment(string name, AwkValue value)
+        {
+            if (AwkSpecialVariables.IsName(name, AwkSpecialVariableId.FieldCount))
+            {
+                (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
+                    .AssignFieldCountValue(value);
+                return;
+            }
+
             (specialVariables ?? throw new InvalidOperationException("Special variables are not initialized."))
                 .ApplyAssignment(name, value);
+        }
 
         void RecordSpecialVariableAssignment(AwkSpecialVariableId id)
         {
@@ -516,7 +529,7 @@ internal sealed class AwkRuntimeState
 
     public AwkValue ResolveSpecialVariableValue(AwkSpecialVariableId id) =>
         id == AwkSpecialVariableId.FieldCount
-            ? CreateNumberValue(FieldCount)
+            ? _recordFields.FieldCountValue
             : _variableRuntime.ResolveVariableValue(AwkSpecialVariables.VariableName(id));
 
     public AwkText ResolveSpecialVariableText(AwkSpecialVariableId id) =>
@@ -526,7 +539,7 @@ internal sealed class AwkRuntimeState
     {
         if (id == AwkSpecialVariableId.FieldCount)
         {
-            AssignFieldCount((int)value.AsNumber());
+            _recordFields.AssignFieldCountValue(value);
             return;
         }
 

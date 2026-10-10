@@ -25,6 +25,8 @@ internal sealed class AwkRecordFieldRuntime(
     public int FieldCount =>
         _frame.GetFieldCount(SplitCurrentFields);
 
+    public AwkValue FieldCountValue => _frame.GetFieldCountValue(SplitCurrentFields);
+
     public AwkValue CurrentRecordValue => _frame.GetRecordValue(createNumericByteText);
 
     public void ResetRecord() => _frame.ResetRecord();
@@ -101,6 +103,18 @@ internal sealed class AwkRecordFieldRuntime(
             count,
             resolveOutputFieldSeparator(),
             SplitCurrentFields);
+    }
+
+    public void AssignFieldCountValue(AwkValue value)
+    {
+        var count = Math.Truncate(value.AsNumber());
+        if (count < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        if (!double.IsFinite(count) || count > maxFields)
+            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+
+        _frame.AssignFieldCount(new AwkFieldCount((int)count), value,
+            resolveOutputFieldSeparator(), SplitCurrentFields);
     }
 
     private List<AwkFieldText> SplitCurrentFields(AwkText text) =>
