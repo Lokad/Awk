@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Array snapshots and sorting now admit newly encoded SYMTAB keys and temporary
+  ordinal-key text for their full lifetime. Ordinary text keys and unsorted ordinal
+  traversal retain their shared-key contracts. Key sorting transfers temporary text
+  into its destination charge, avoiding duplicate admission. Measurement, sorted-key
+  copying and user-sort merge tails observe cancellation without adding logical fuel.
+
 - SYMTAB inventory, key encoding and ordinary array snapshots now pass cancellation
   checkpoints through long scans. Standard-output staging uses the runtime checkpoint
   for large byte copies and preserves earlier output when interrupted. ASCII record

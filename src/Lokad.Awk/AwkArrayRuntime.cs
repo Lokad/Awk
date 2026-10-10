@@ -6,11 +6,13 @@ namespace Lokad.Awk;
 
 internal sealed class AwkArrayRuntime
 {
-    private readonly struct AwkArrayReservation(int count, IDisposable? lease) : IDisposable
+    private readonly struct AwkArrayReservation(int count, AwkMemoryLease? lease, long newKeyTextBytes) : IDisposable
     {
         public int Count { get; } = count;
 
-        public IDisposable Lease => lease ??
+        public long NewKeyTextBytes { get; } = newKeyTextBytes;
+
+        public AwkMemoryLease Lease => lease ??
             throw new InvalidOperationException("The default array reservation has no memory lease.");
 
         public void Dispose() => lease?.Dispose();
@@ -218,7 +220,9 @@ internal sealed class AwkArrayRuntime
         _variables.SetArrayValues(
             _variableRuntime.ResolveOrPromoteArrayName(destinationArrayName),
             entries,
-            static entry => AwkVariableSlot.FromText(entry.KeyText));
+            static entry => AwkVariableSlot.FromText(entry.KeyText),
+            reservation.Lease,
+            reservation.NewKeyTextBytes);
         return entries.Length;
     }
 
@@ -329,11 +333,10 @@ internal sealed class AwkArrayRuntime
 
     private AwkLeasedReadOnlyList<AwkArrayKey> SnapshotUnsortedKeyValues(AwkArrayName arrayName)
     {
-        static long EstimateSnapshotBytes(int count) =>
-            AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count);
-
-        var count = _variables.GetArraySnapshotCount(arrayName);
-        var lease = _state.MemoryGovernor.ReserveTransient(EstimateSnapshotBytes(count));
+        var size = _variables.MeasureArraySnapshot(arrayName, materializeOrdinalKeys: false);
+        var count = size.Count;
+        var lease = _state.MemoryGovernor.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
+            AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count), size.NewKeyTextBytes));
         try
         {
             var result = new AwkArrayKey[count];
@@ -353,19 +356,20 @@ internal sealed class AwkArrayRuntime
         AwkArraySortOrder order,
         AwkArraySortOutput output)
     {
-        var count = _variables.GetArraySnapshotCount(sourceArrayName);
-        var lease = _state.MemoryGovernor.ReserveTransient(EstimateSortOperationBytes(count, order, output));
-        return new AwkArrayReservation(count, lease);
+        var size = _variables.MeasureArraySnapshot(sourceArrayName, materializeOrdinalKeys: true);
+        var lease = _state.MemoryGovernor.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
+            EstimateSortOperationBytes(size.Count, order, output), size.NewKeyTextBytes));
+        return new AwkArrayReservation(size.Count, lease, size.NewKeyTextBytes);
     }
 
     private AwkArrayReservation ReserveSortedKeySnapshot(
         AwkArrayName arrayName,
         AwkArraySortOrder order)
     {
-        var count = _variables.GetArraySnapshotCount(arrayName);
-        var lease = _state.MemoryGovernor.ReserveTransient(
-            EstimateSortOperationBytes(count, order, AwkArraySortOutput.KeySnapshot));
-        return new AwkArrayReservation(count, lease);
+        var size = _variables.MeasureArraySnapshot(arrayName, materializeOrdinalKeys: true);
+        var lease = _state.MemoryGovernor.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
+            EstimateSortOperationBytes(size.Count, order, AwkArraySortOutput.KeySnapshot), size.NewKeyTextBytes));
+        return new AwkArrayReservation(size.Count, lease, size.NewKeyTextBytes);
     }
 
     private void SetValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)
@@ -458,7 +462,14 @@ internal sealed class AwkArrayRuntime
                 }
 
                 if (!ReferenceEquals(source, entries))
-                    Array.Copy(source, entries, entries.Length);
+                {
+                    for (var offset = 0; offset < entries.Length; offset += 64)
+                    {
+                        context.State.CancellationCheckpoint();
+                        Array.Copy(source, offset, entries, offset, Math.Min(64, entries.Length - offset));
+                    }
+                }
+                context.State.CancellationCheckpoint();
 
                 async ValueTask MergeRunsAsync(
                     AwkArraySortEntry[] mergeSource,
@@ -482,10 +493,19 @@ internal sealed class AwkArrayRuntime
                     }
 
                     while (leftIndex < middle)
+                    {
+                        if ((destinationIndex & 63) == 0)
+                            context.State.CancellationCheckpoint();
                         mergeDestination[destinationIndex++] = mergeSource[leftIndex++];
+                    }
 
                     while (rightIndex < end)
+                    {
+                        if ((destinationIndex & 63) == 0)
+                            context.State.CancellationCheckpoint();
                         mergeDestination[destinationIndex++] = mergeSource[rightIndex++];
+                    }
+                    context.State.CancellationCheckpoint();
                 }
 
                 async ValueTask<int> CompareAsync(
@@ -661,7 +681,8 @@ internal sealed class AwkArrayRuntime
             AwkValue value)
         {
             var runtime = projection.Runtime;
-            var keyText = key.ToByteText(runtime._state.Counters, runtime._state.MemoryGovernor);
+            // The enclosing snapshot lease has already admitted every new key payload.
+            var keyText = key.ToByteText(runtime._state.Counters, AwkMemoryGovernor.Disabled);
             var stringValueOrder = projection.Mode is AwkArraySortMode.ValueStringAscending or AwkArraySortMode.ValueStringDescending;
             var typeValueOrder = projection.Mode is AwkArraySortMode.ValueTypeAscending or AwkArraySortMode.ValueTypeDescending;
             var valueText = stringValueOrder || typeValueOrder && !value.IsNumberValue
@@ -687,26 +708,17 @@ internal sealed class AwkArrayRuntime
             Project);
     }
 
-    private static AwkArrayKey[] CopyKeyValues(AwkArraySortEntry[] entries)
+    private AwkArrayKey[] CopyKeyValues(AwkArraySortEntry[] entries)
     {
         var result = new AwkArrayKey[entries.Length];
         for (var index = 0; index < entries.Length; index++)
         {
+            if ((index & 63) == 0)
+                _state.CancellationCheckpoint();
             result[index] = entries[index].Key;
         }
 
-        return result;
-    }
-
-    private static AwkArrayKey[] CopyKeyValues(IEnumerable<AwkArrayKey> keys, int count)
-    {
-        var result = new AwkArrayKey[count];
-        var index = 0;
-        foreach (var key in keys)
-        {
-            result[index++] = key;
-        }
-
+        _state.CancellationCheckpoint();
         return result;
     }
 

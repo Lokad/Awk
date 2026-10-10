@@ -284,6 +284,18 @@ capacity are charged with the record before replacement. A failed admission pres
 the previous record and plan. Successful field materialization releases the plan's
 retained charge; file-boundary reset releases the record, fields, caches, and plan.
 
+Key snapshots additionally admit newly encoded SYMTAB key text, including its object,
+byte payload and optional cache estimates, before copying any keys. Valid identifiers
+are ASCII, so sizing their UTF-8 payload requires no encoding. Ordinary text keys reuse
+already retained text. Unsorted ordinal traversal retains ordinal values without text
+materialization; sorting admits its new ordinal-key text beside the entry containers.
+These new-text charges stay live through traversal or sorting and release on failure
+or snapshot disposal. `asorti` transfers admitted key text into the destination charge
+at publication; allocation does not request the same payload allowance a second time.
+Measurement and sorted-key/merge-tail copies check cancellation in bounded intervals,
+without charging extra logical execution steps. The unlimited-memory route keeps its
+existing allocation behavior.
+
 Array sorting reserves the entry snapshot required by every comparison mode, plus the merge buffer
 and four comparator arguments only for user functions with at least two entries. A sorted key
 enumeration also reserves its returned key snapshot. `asort` and `asorti` write their sorted entries
