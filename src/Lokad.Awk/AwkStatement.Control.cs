@@ -299,7 +299,7 @@ internal abstract partial class AwkStatement
             if (statusExpression.HasValue)
             {
                 exitCode = AwkOptionalExitCode.Specified(new AwkExitCode(
-                    (int)Math.Truncate((await statusExpression.Value.EvaluateAsync(context).ConfigureAwait(false)).AsNumber())));
+                    (int)Math.Truncate((await statusExpression.Value.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint))));
             }
 
             state.RequestExit(exitCode);

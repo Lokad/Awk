@@ -19,17 +19,24 @@ internal static class PrintfEvaluation
         AwkRuntimeLimits limits,
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
         where TArguments : IPrintfArguments
     {
         if (format.Length == 0)
             return AwkText.Empty;
 
         using var output = new PrintfByteOutput(limits, counters, governor);
-        var argumentCursor = new PrintfArgumentCursor<TArguments>(arguments, missingArgumentPolicy, format, counters, governor);
+        var argumentCursor = new PrintfArgumentCursor<TArguments>(arguments, missingArgumentPolicy, format, counters, governor, checkpoint);
 
+        long nextCheckpoint = 0;
         for (var index = 0; index < format.Length; index++)
         {
+            if (index >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = (long)index + AwkExecutionGovernor.WorkChunkBytes;
+            }
             var current = format[index];
             if (current == '\\')
             {
@@ -619,7 +626,7 @@ internal readonly struct AwkValueArrayPrintfArguments(
         return state.FormatStringByteText(arguments[index].ForceScalar()).AsString(state.Counters);
     }
 
-    public double GetNumber(int index) => arguments[index].ForceScalar().AsNumber();
+    public double GetNumber(int index) => arguments[index].ForceScalar().AsNumber(state.CancellationCheckpoint);
 
     public bool IsNumeric(int index) =>
         arguments[index].IsNumberValue || arguments[index].IsNumericStringValue;
@@ -638,7 +645,7 @@ internal readonly struct AwkBuiltinContextPrintfArguments(
             .AsString(context.State.Counters);
     }
 
-    public double GetNumber(int index) => context.GetValue(index + startIndex).ForceScalar().AsNumber();
+    public double GetNumber(int index) => context.GetValue(index + startIndex).ForceScalar().AsNumber(context.State.CancellationCheckpoint);
 
     public bool IsNumeric(int index)
     {
@@ -649,7 +656,8 @@ internal readonly struct AwkBuiltinContextPrintfArguments(
 
 internal readonly struct AwkSingleValuePrintfArguments(
     AwkValue value,
-    AwkRuntimeCounters counters) : IPrintfArguments
+    AwkRuntimeCounters counters,
+    Action? checkpoint = null) : IPrintfArguments
 {
     public int Count => 1;
 
@@ -662,7 +670,7 @@ internal readonly struct AwkSingleValuePrintfArguments(
     }
 
     public double GetNumber(int index) =>
-        index == 0 ? value.AsNumber() : throw new ArgumentOutOfRangeException(nameof(index));
+        index == 0 ? value.AsNumber(checkpoint) : throw new ArgumentOutOfRangeException(nameof(index));
 
     public bool IsNumeric(int index) =>
         index == 0

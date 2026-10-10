@@ -7,7 +7,8 @@ internal sealed class AwkFormattingRuntime(
     AwkRuntimeLimits limits,
     AwkRuntimeCounters counters,
     AwkMemoryGovernor governor,
-    AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+    AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+    Action? checkpoint = null)
 {
     private AwkText _outputFormatText = AwkText.Empty;
     private string _outputFormatString = string.Empty;
@@ -31,12 +32,13 @@ internal sealed class AwkFormattingRuntime(
         counters.RecordFormattingFallback();
         return PrintfEvaluation.FormatByteText(
             ResolveFormatString(AwkFormattingVariable.OutputFormat),
-            new AwkSingleValuePrintfArguments(value, counters),
+            new AwkSingleValuePrintfArguments(value, counters, checkpoint),
             PrintfMissingArgumentPolicy.OmitDirective,
             limits,
             counters,
             governor,
-            compatibilityMode);
+            compatibilityMode,
+            checkpoint);
     }
 
     public AwkText FormatStringByteText(AwkValue value)
@@ -53,12 +55,13 @@ internal sealed class AwkFormattingRuntime(
         counters.RecordFormattingFallback();
         return PrintfEvaluation.FormatByteText(
             ResolveFormatString(AwkFormattingVariable.ConversionFormat),
-            new AwkSingleValuePrintfArguments(value, counters),
+            new AwkSingleValuePrintfArguments(value, counters, checkpoint),
             PrintfMissingArgumentPolicy.OmitDirective,
             limits,
             counters,
             governor,
-            compatibilityMode);
+            compatibilityMode,
+            checkpoint);
     }
 
     public static AwkText FormatPrintfStrictByteText<TArguments>(
@@ -67,7 +70,8 @@ internal sealed class AwkFormattingRuntime(
         AwkRuntimeLimits limits,
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
         where TArguments : IPrintfArguments
     {
         counters.RecordFormattingFallback();
@@ -79,7 +83,8 @@ internal sealed class AwkFormattingRuntime(
             limits,
             counters,
             governor,
-            compatibilityMode);
+            compatibilityMode,
+            checkpoint);
     }
 
     private bool UsesDefaultFormat(AwkFormattingVariable variable)

@@ -14,7 +14,8 @@ internal sealed class AwkRecordFieldRuntime(
     AwkMemoryGovernor governor,
     int maxFields,
     Action<long> throwIfValueBytesExceeded,
-    Action<int> recordByteWork)
+    Action<int> recordByteWork,
+    Action? checkpoint = null)
 {
     private readonly AwkFieldFrame _frame = new(
         counters,
@@ -112,7 +113,7 @@ internal sealed class AwkRecordFieldRuntime(
 
     public void AssignFieldCountValue(AwkValue value)
     {
-        var count = Math.Truncate(value.AsNumber());
+        var count = Math.Truncate(value.AsNumber(checkpoint));
         if (count < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
         if (!double.IsFinite(count) || count > maxFields)

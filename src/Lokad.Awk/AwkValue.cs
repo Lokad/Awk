@@ -52,17 +52,17 @@ internal readonly struct AwkValue
     public static AwkValue FromText(string text) =>
         FromText(text, AwkNumberParsingMode.Decimal);
 
-    public static AwkValue FromText(string text, AwkNumberParsingMode numberParsingMode)
+    public static AwkValue FromText(string text, AwkNumberParsingMode numberParsingMode, Action? checkpoint = null)
     {
-        return FromText(AwkText.FromString(text), numberParsingMode);
+        return FromText(AwkText.FromString(text), numberParsingMode, checkpoint);
     }
 
     public static AwkValue FromText(AwkText text) =>
         FromText(text, AwkNumberParsingMode.Decimal);
 
-    public static AwkValue FromText(AwkText text, AwkNumberParsingMode numberParsingMode)
+    public static AwkValue FromText(AwkText text, AwkNumberParsingMode numberParsingMode, Action? checkpoint = null)
     {
-        return FromParsedText(text, numberParsingMode, input: false);
+        return FromParsedText(text, numberParsingMode, input: false, checkpoint);
     }
 
     public static AwkValue FromNumericString(string text) =>
@@ -76,21 +76,21 @@ internal readonly struct AwkValue
     public static AwkValue FromNumericString(AwkText text) =>
         FromNumericString(text, AwkNumberParsingMode.Decimal);
 
-    public static AwkValue FromNumericString(AwkText text, AwkNumberParsingMode numberParsingMode)
+    public static AwkValue FromNumericString(AwkText text, AwkNumberParsingMode numberParsingMode, Action? checkpoint = null)
     {
-        return FromParsedText(text, numberParsingMode, input: true);
+        return FromParsedText(text, numberParsingMode, input: true, checkpoint);
     }
 
-    private static AwkValue FromParsedText(AwkText text, AwkNumberParsingMode mode, bool input)
+    private static AwkValue FromParsedText(AwkText text, AwkNumberParsingMode mode, bool input, Action? checkpoint)
     {
         var span = text.AsSpan();
-        var parsed = AwkNumberParser.Parse(span, mode);
+        var parsed = AwkNumberParser.Parse(span, mode, checkpoint);
         // Text may still be printed or sliced. GNU diagnoses this only when numeric conversion/type is requested.
         if (parsed.Status == AwkNumberParseStatus.MissingHexExponent)
             return new(text, 0, input ? AwkValueKind.NonDecimalConversionErrorInput : AwkValueKind.NonDecimalConversionErrorText);
         if (parsed.Status == AwkNumberParseStatus.Number)
         {
-            var kind = input && AwkNumberParser.SkipWhitespace(span, parsed.End) == span.Length
+            var kind = input && AwkNumberParser.SkipWhitespace(span, parsed.End, checkpoint) == span.Length
                 ? AwkValueKind.NumericString
                 : AwkValueKind.NumericText;
             return new(text, parsed.Number, kind);
@@ -167,10 +167,11 @@ internal readonly struct AwkValue
         string text,
         AwkNumberParsingMode numberParsingMode,
         AwkNumberTextExtent textExtent,
-        out double number)
+        out double number,
+        Action? checkpoint = null)
     {
         var valueText = AwkText.FromString(text);
-        if (TryParseAwkNumber(valueText, numberParsingMode, out number, out var consumedAll) &&
+        if (TryParseAwkNumber(valueText, numberParsingMode, out number, out var consumedAll, checkpoint) &&
             (textExtent is AwkNumberTextExtent.Prefix || consumedAll))
         {
             return true;
@@ -204,7 +205,7 @@ internal readonly struct AwkValue
                 ? AwkRuntimeMemory.EstimateUntypedScalarBytes()
                 : (_text as AwkText ?? AwkText.Empty).EstimatedRetainedMemoryBytes;
 
-    public double AsNumber()
+    public double AsNumber(Action? checkpoint = null)
     {
         ThrowIfArrayValue();
         if (_kind is AwkValueKind.NonDecimalConversionErrorText or AwkValueKind.NonDecimalConversionErrorInput)
@@ -212,7 +213,7 @@ internal readonly struct AwkValue
         var kind = _kind;
         if (TryGetDeferredNumberParsingMode(out var numberParsingMode))
         {
-            return TryParseAwkNumber(ByteText, numberParsingMode, out var number, out _)
+            return TryParseAwkNumber(ByteText, numberParsingMode, out var number, out _, checkpoint)
                 ? number
                 : 0;
         }
@@ -344,6 +345,7 @@ internal readonly struct AwkValue
         AwkText text,
         AwkNumberParsingMode numberParsingMode,
         out double number,
-        out bool consumedAll) =>
-        text.TryParseAwkNumber(numberParsingMode, out number, out consumedAll);
+        out bool consumedAll,
+        Action? checkpoint = null) =>
+        text.TryParseAwkNumber(numberParsingMode, out number, out consumedAll, checkpoint);
 }

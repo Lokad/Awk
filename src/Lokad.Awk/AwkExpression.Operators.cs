@@ -102,8 +102,8 @@ internal abstract partial class AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var leftValue = (await left.EvaluateAsync(context).ConfigureAwait(false)).AsNumber();
-            var rightValue = (await right.EvaluateAsync(context).ConfigureAwait(false)).AsNumber();
+            var leftValue = (await left.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint);
+            var rightValue = (await right.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint);
 
             return AwkValue.FromNumber(AwkNumericOperations.Apply(leftValue, rightValue, operation));
         }
@@ -134,7 +134,7 @@ internal abstract partial class AwkExpression
     private sealed class NumberConversionExpression(AwkExpression expression) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            AwkValue.FromNumber((await expression.EvaluateAsync(context).ConfigureAwait(false)).AsNumber());
+            AwkValue.FromNumber((await expression.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint));
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
@@ -149,7 +149,7 @@ internal abstract partial class AwkExpression
     private sealed class NegateExpression(AwkExpression expression) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            AwkValue.FromNumber(-(await expression.EvaluateAsync(context).ConfigureAwait(false)).AsNumber());
+            AwkValue.FromNumber(-(await expression.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint));
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {

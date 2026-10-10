@@ -271,7 +271,7 @@ internal sealed class AwkByteFieldSplitter(
         if (separatorText.ByteLength == 0)
             return FieldSeparatorPlan.Characters;
 
-        if (separatorText.RuneLength == 1)
+        if (separatorText.GetRuneLength(throwIfCancellationRequested) == 1)
             caseSensitivity = AwkRegexCaseSensitivity.CaseSensitive;
         if (_resolvedSeparator is { } resolvedSeparator &&
             ReferenceEquals(resolvedSeparator.SeparatorText, separatorText) &&
@@ -292,7 +292,7 @@ internal sealed class AwkByteFieldSplitter(
         {
             var regexText = separatorText.AsString(counters);
             plan = FieldSeparatorPlan.FromRegex(
-                separatorText.RuneLength > 1
+                separatorText.GetRuneLength(throwIfCancellationRequested) > 1
                     ? createRegex(new AwkRegexPattern(regexText, separator.PatternOrigin, separator.WarningSite ?? this), caseSensitivity)
                     : createLiteralRegex(new AwkRegexLiteralText(regexText), caseSensitivity));
         }

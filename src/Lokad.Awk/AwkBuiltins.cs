@@ -209,7 +209,8 @@ internal static partial class AwkBuiltins
                 context.State.Limits,
                 context.State.Counters,
                 context.State.MemoryGovernor,
-                context.State.CompatibilityMode));
+                context.State.CompatibilityMode,
+                context.State.CancellationCheckpoint));
         }
         static AwkValue EvaluateSystem(AwkBuiltinContext context)
         {
@@ -401,10 +402,10 @@ internal static partial class AwkBuiltins
 
             var text = argument.ByteText;
             context.State.Resources.RecordByteWork(text.ByteLength);
-            var numberBase = AwkNumberParser.GetBase(text.AsSpan());
+            var numberBase = AwkNumberParser.GetBase(text.AsSpan(), context.State.CancellationCheckpoint);
             if (numberBase == 10)
-                return AwkValue.FromNumber(argument.AsNumber());
-            var parsed = AwkNumberParser.ParseNonDecimal(text.AsSpan(), 0, numberBase);
+                return AwkValue.FromNumber(argument.AsNumber(context.State.CancellationCheckpoint));
+            var parsed = AwkNumberParser.ParseNonDecimal(text.AsSpan(), 0, numberBase, context.State.CancellationCheckpoint);
             parsed.ThrowIfError();
             return AwkValue.FromNumber(parsed.Number);
         }
@@ -430,7 +431,7 @@ internal static partial class AwkBuiltins
                         out _);
                 }
 
-                var selectorNumber = how.AsNumber();
+                var selectorNumber = how.AsNumber(context.State.CancellationCheckpoint);
                 if (selectorNumber <= 0 &&
                     context.TryGetExecutionContext(out var execution))
                 {

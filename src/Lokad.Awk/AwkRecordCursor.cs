@@ -660,7 +660,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     return byteRun;
 
                 if (_state.ResolveRegexCaseSensitivity() is AwkRegexCaseSensitivity.CaseSensitive &&
-                    (separatorText.RuneLength == 1 || IsLiteralPattern(separatorBytes)))
+                    (separatorText.GetRuneLength(_state.CancellationCheckpoint) == 1 || IsLiteralPattern(separatorBytes)))
                     return new LiteralSeparator(separatorText, AwkRecordTerminator.FromText(separatorText));
 
                 return new RegexSeparator(_state.CreateRegex(

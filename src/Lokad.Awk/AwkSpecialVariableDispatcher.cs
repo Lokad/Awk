@@ -8,7 +8,8 @@ internal sealed class AwkSpecialVariableDispatcher(
     Func<AwkValue, AwkText> formatString,
     Action<AwkSpecialVariableId> recordAssignment,
     AwkMemoryGovernor memoryGovernor,
-    AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault)
+    AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
+    Action? checkpoint = null)
 {
     private static readonly AwkArrayName ProcInfo = AwkArrayName.FromText("PROCINFO");
     private static readonly AwkArrayKey FieldModeKey = new(AwkText.FromSourceLiteralString("FS"));
@@ -28,7 +29,7 @@ internal sealed class AwkSpecialVariableDispatcher(
         _parser = SelectSeparatorParser(fieldSeparator.ByteText, paragraph: false).Last;
         variables.SetScalarValue(
             AwkSpecialVariables.VariableName(AwkSpecialVariableId.FieldSeparator),
-            AwkValue.FromText(fieldSeparator.ByteText));
+            AwkValue.FromText(fieldSeparator.ByteText, AwkNumberParsingMode.Decimal, checkpoint));
         foreach (var variable in AwkSpecialVariables.Scalars)
         {
             if (variable.Id == AwkSpecialVariableId.FieldSeparator ||

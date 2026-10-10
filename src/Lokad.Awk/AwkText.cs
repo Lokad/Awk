@@ -54,35 +54,38 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public long EstimatedRetainedMemoryBytes { get; }
 
-    public int RuneLength
+    public int RuneLength => GetRuneLength();
+
+    internal int GetRuneLength(Action? checkpoint = null)
     {
-        get
+        var cached = Volatile.Read(ref _textFacts);
+        if (cached > UnknownTextFacts)
+            return cached - 1;
+
+        var runeLength = CountRunes(AsSpan(), checkpoint);
+        Volatile.Write(ref _textFacts, runeLength + 1);
+        return runeLength;
+    }
+
+    internal static int CountRunes(ReadOnlySpan<byte> bytes, Action? checkpoint)
+    {
+        var count = 0;
+        var offset = 0;
+        long nextCheckpoint = 0;
+        while (offset < bytes.Length)
         {
-            var cached = Volatile.Read(ref _textFacts);
-            if (cached > UnknownTextFacts)
-                return cached - 1;
-
-            var runeLength = CountRunes(AsSpan());
-            Volatile.Write(ref _textFacts, runeLength + 1);
-            return runeLength;
-
-            static int CountRunes(ReadOnlySpan<byte> bytes)
+            if (offset >= nextCheckpoint)
             {
-                var count = 0;
-                var remaining = bytes;
-                while (!remaining.IsEmpty)
-                {
-                    var status = Rune.DecodeFromUtf8(remaining, out _, out var consumed);
-                    if (status != OperationStatus.Done)
-                        throw new InvalidOperationException("AwkText contains invalid UTF-8.");
-
-                    count++;
-                    remaining = remaining[consumed..];
-                }
-
-                return count;
+                checkpoint?.Invoke();
+                nextCheckpoint = (long)offset + AwkExecutionGovernor.WorkChunkBytes;
             }
+            if (Rune.DecodeFromUtf8(bytes[offset..], out _, out var consumed) != OperationStatus.Done)
+                throw new InvalidOperationException("AwkText contains invalid UTF-8.");
+
+            count++;
+            offset += consumed;
         }
+        return count;
     }
 
     public ReadOnlySpan<byte> AsSpan() =>
@@ -95,9 +98,9 @@ internal sealed class AwkText : IEquatable<AwkText>
             ? _bytes.AsMemory(_byteOffset, _byteLength)
             : MaterializeConcatenation(_concatenation).AsMemory();
 
-    public bool ContainsNonAscii(AwkRuntimeCounters counters)
+    public bool ContainsNonAscii(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
-        var isAscii = IsAscii(out var inspectedByteCount);
+        var isAscii = IsAscii(out var inspectedByteCount, checkpoint);
         counters.RecordRegexPolicyInputBytesInspected(inspectedByteCount);
         return !isAscii;
     }
@@ -429,7 +432,8 @@ internal sealed class AwkText : IEquatable<AwkText>
         int start,
         int length,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null)
     {
         ResolveRuneByteRange(out var byteStart, out var byteEnd);
 
@@ -450,7 +454,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             ArgumentOutOfRangeException.ThrowIfNegative(length);
 
             var endRuneIndex = (long)start + length;
-            if (IsAscii(out var inspectedByteCount))
+            if (IsAscii(out var inspectedByteCount, checkpoint))
             {
                 counters.RecordRuneSliceBytesScanned(inspectedByteCount);
                 ArgumentOutOfRangeException.ThrowIfGreaterThan(start, ByteLength);
@@ -465,7 +469,7 @@ internal sealed class AwkText : IEquatable<AwkText>
 
             counters.RecordRuneSliceBytesScanned(inspectedByteCount);
             var checkpoints = GetRuneByteCheckpoints();
-            var runeLength = RuneLength;
+            var runeLength = GetRuneLength(checkpoint);
             ArgumentOutOfRangeException.ThrowIfGreaterThan(start, runeLength);
 
             if (endRuneIndex > runeLength)
@@ -483,15 +487,20 @@ internal sealed class AwkText : IEquatable<AwkText>
 
             var checkpointCount = checked((ByteLength / RuneCheckpointStride) + 2);
             var checkpointBytes = checked(checkpointCount * sizeof(int));
-            int[] created;
-            using (governor.ReserveTransient(checkpointBytes))
-                created = new int[checkpointCount];
+            using var checkpointLease = governor.ReserveTransient(checkpointBytes);
+            var created = new int[checkpointCount];
 
             var span = AsSpan();
             var byteOffset = 0;
             var runeIndex = 0;
+            long nextCheckpoint = 0;
             while (byteOffset < span.Length)
             {
+                if (byteOffset >= nextCheckpoint)
+                {
+                    checkpoint?.Invoke();
+                    nextCheckpoint = (long)byteOffset + AwkExecutionGovernor.WorkChunkBytes;
+                }
                 var status = Rune.DecodeFromUtf8(span[byteOffset..], out _, out var consumed);
                 if (status != OperationStatus.Done)
                     throw new InvalidOperationException("AwkText contains invalid UTF-8.");
@@ -551,13 +560,14 @@ internal sealed class AwkText : IEquatable<AwkText>
     public bool TryParseNumber(
         AwkNumberParsingMode numberParsingMode,
         AwkNumberTextExtent textExtent,
-        out double number)
+        out double number,
+        Action? checkpoint = null)
     {
         var span = AsSpan();
-        if (!TryParseNumberPrefix(span, numberParsingMode, out number, out var end))
+        if (!TryParseNumberPrefix(span, numberParsingMode, out number, out var end, checkpoint))
             return false;
 
-        if (textExtent is AwkNumberTextExtent.EntireText && SkipAsciiWhitespace(span, end) != span.Length)
+        if (textExtent is AwkNumberTextExtent.EntireText && SkipAsciiWhitespace(span, end, checkpoint) != span.Length)
         {
             number = 0;
             return false;
@@ -569,17 +579,18 @@ internal sealed class AwkText : IEquatable<AwkText>
     internal bool TryParseAwkNumber(
         AwkNumberParsingMode numberParsingMode,
         out double number,
-        out bool consumedAll)
+        out bool consumedAll,
+        Action? checkpoint = null)
     {
         var span = AsSpan();
-        if (!TryParseNumberPrefix(span, numberParsingMode, out number, out var end))
+        if (!TryParseNumberPrefix(span, numberParsingMode, out number, out var end, checkpoint))
         {
             number = 0;
             consumedAll = false;
             return false;
         }
 
-        consumedAll = SkipAsciiWhitespace(span, end) == span.Length;
+        consumedAll = SkipAsciiWhitespace(span, end, checkpoint) == span.Length;
         return true;
     }
 
@@ -595,7 +606,7 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public override string ToString() => AsString();
 
-    private bool IsAscii(out int inspectedByteCount)
+    private bool IsAscii(out int inspectedByteCount, Action? checkpoint = null)
     {
         var cached = Volatile.Read(ref _textFacts);
         if (cached > UnknownTextFacts)
@@ -613,6 +624,8 @@ internal sealed class AwkText : IEquatable<AwkText>
         var span = AsSpan();
         for (var index = 0; index < span.Length; index++)
         {
+            if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                checkpoint?.Invoke();
             if (span[index] <= 0x7F)
                 continue;
 
@@ -806,13 +819,13 @@ internal sealed class AwkText : IEquatable<AwkText>
         }
     }
 
-    private static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index) =>
-        AwkNumberParser.SkipWhitespace(span, index);
+    private static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index, Action? checkpoint) =>
+        AwkNumberParser.SkipWhitespace(span, index, checkpoint);
 
     private static bool TryParseNumberPrefix(ReadOnlySpan<byte> span, AwkNumberParsingMode mode,
-        out double number, out int end)
+        out double number, out int end, Action? checkpoint)
     {
-        var parsed = AwkNumberParser.Parse(span, mode);
+        var parsed = AwkNumberParser.Parse(span, mode, checkpoint);
         parsed.ThrowIfError();
         number = parsed.Number;
         end = parsed.End;

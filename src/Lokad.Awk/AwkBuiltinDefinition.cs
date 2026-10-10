@@ -71,7 +71,7 @@ internal readonly struct AwkBuiltinContext
 
     public AwkText GetByteText(int index) => State.FormatStringByteText(GetValue(index));
 
-    public double GetNumber(int index) => GetValue(index).AsNumber();
+    public double GetNumber(int index) => GetValue(index).AsNumber(State.CancellationCheckpoint);
 
     public bool TryGetExecutionContext(out AwkExecutionContext context) =>
         Evaluation.TryGetExecutionContext(out context);

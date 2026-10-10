@@ -500,7 +500,7 @@ internal sealed class AwkArrayRuntime
                     comparatorArguments[3] = right.Value;
                     using var comparisonPhase = state.EnterActionPhase(AwkActionPhase.SortComparison);
                     var value = await function.InvokeValuesAsync(comparatorArguments, context).ConfigureAwait(false);
-                    var number = value.AsNumber();
+                    var number = value.AsNumber(state.CancellationCheckpoint);
                     if (number < 0)
                         return -1;
 
@@ -647,12 +647,12 @@ internal sealed class AwkArrayRuntime
             AwkRuntimeState state)
         {
             if (sortMode is AwkArraySortMode.ValueNumberAscending or AwkArraySortMode.ValueNumberDescending)
-                return value.AsNumber();
+                return value.AsNumber(state.CancellationCheckpoint);
 
             if (sortMode is not (AwkArraySortMode.IndexNumberAscending or AwkArraySortMode.IndexNumberDescending))
                 return 0;
 
-            return state.CreateByteTextValue(key).AsNumber();
+            return state.CreateByteTextValue(key).AsNumber(state.CancellationCheckpoint);
         }
 
         static AwkArraySortEntry Project(

@@ -14,6 +14,7 @@ internal static partial class AwkBuiltins
             AwkCaseConversion conversion,
             AwkRuntimeCounters counters,
             AwkMemoryGovernor governor,
+            Action checkpoint,
             out AwkText result)
         {
             static byte FoldAsciiCase(byte value, AwkCaseConversion conversion) =>
@@ -27,6 +28,8 @@ internal static partial class AwkBuiltins
             var firstChange = -1;
             for (var index = 0; index < bytes.Length; index++)
             {
+                if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                    checkpoint();
                 var value = bytes[index];
                 if (value > 0x7F)
                 {
@@ -47,7 +50,11 @@ internal static partial class AwkBuiltins
             var converted = AwkText.AllocateOwnedBytes(bytes.Length, governor);
             bytes.CopyTo(converted);
             for (var index = firstChange; index < converted.Length; index++)
+            {
+                if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                    checkpoint();
                 converted[index] = FoldAsciiCase(converted[index], conversion);
+            }
 
             result = AwkText.FromTrustedOwnedBytes(converted, counters);
             return true;
@@ -62,6 +69,7 @@ internal static partial class AwkBuiltins
             conversion,
             context.State.Counters,
             context.State.MemoryGovernor,
+            context.State.CancellationCheckpoint,
             out var asciiResult))
         {
             return context.State.CreateByteTextValue(asciiResult);
@@ -69,9 +77,12 @@ internal static partial class AwkBuiltins
 
         context.State.Counters.RecordStringInteropFallback();
         var decoded = source.AsString(context.State.Counters);
-        return context.State.CreateStringValue(conversion is AwkCaseConversion.Upper
+        context.State.ThrowIfCancellationRequested();
+        var converted = conversion is AwkCaseConversion.Upper
             ? decoded.ToUpperInvariant()
-            : decoded.ToLowerInvariant());
+            : decoded.ToLowerInvariant();
+        context.State.ThrowIfCancellationRequested();
+        return context.State.CreateStringValue(converted);
     }
 
     private enum AwkCaseConversion

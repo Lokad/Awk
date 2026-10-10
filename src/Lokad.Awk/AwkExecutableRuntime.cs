@@ -411,17 +411,17 @@ internal static class AwkExecutableDispatcher
                         case AwkOpcode.Divide:
                         case AwkOpcode.Modulo:
                         case AwkOpcode.Power:
-                            ExecuteNumericOperation(stack, ref stackCount, instruction.Opcode);
+                            ExecuteNumericOperation(stack, ref stackCount, instruction.Opcode, state.CancellationCheckpoint);
                             pc++;
                             break;
 
                         case AwkOpcode.ToNumber:
-                            stack[stackCount - 1] = AwkValue.FromNumber(stack[stackCount - 1].AsNumber());
+                            stack[stackCount - 1] = AwkValue.FromNumber(stack[stackCount - 1].AsNumber(state.CancellationCheckpoint));
                             pc++;
                             break;
 
                         case AwkOpcode.Negate:
-                            stack[stackCount - 1] = AwkValue.FromNumber(-stack[stackCount - 1].AsNumber());
+                            stack[stackCount - 1] = AwkValue.FromNumber(-stack[stackCount - 1].AsNumber(state.CancellationCheckpoint));
                             pc++;
                             break;
 
@@ -515,7 +515,7 @@ internal static class AwkExecutableDispatcher
                                 var exitCode = AwkOptionalExitCode.None;
                                 if (instruction.ExitStatusPresence == AwkExitStatusPresence.Specified)
                                     exitCode = AwkOptionalExitCode.Specified(new AwkExitCode(
-                                        (int)Math.Truncate(stack[--stackCount].AsNumber())));
+                                        (int)Math.Truncate(stack[--stackCount].AsNumber(state.CancellationCheckpoint))));
 
                                 state.RequestExit(exitCode);
                                 await FlushOutputAsync().ConfigureAwait(false);
@@ -629,10 +629,11 @@ internal static class AwkExecutableDispatcher
         static void ExecuteNumericOperation(
             AwkValue[] stack,
             ref int stackCount,
-            AwkOpcode opcode)
+            AwkOpcode opcode,
+            Action checkpoint)
         {
-            var right = stack[--stackCount].AsNumber();
-            var left = stack[--stackCount].AsNumber();
+            var right = stack[--stackCount].AsNumber(checkpoint);
+            var left = stack[--stackCount].AsNumber(checkpoint);
             var operation = opcode switch
             {
                 AwkOpcode.Add => AwkNumericOperation.Add,

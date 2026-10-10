@@ -68,6 +68,7 @@ internal sealed class AwkRuntimeState
         _timeRuntime = new AwkTimeRuntime(runtimeOptions.CurrentUnixTimeSeconds, runtimeOptions.TimeZone);
         _randomRuntime = new AwkRandomRuntime(runtimeOptions.CreateRandomGenerator(), _timeRuntime);
         _cancellationToken = cancellationToken;
+        CancellationCheckpoint = ThrowIfCancellationRequested;
         AwkSpecialVariableDispatcher? specialVariables = null;
         AwkRecordFieldRuntime? recordFields = null;
         _variables = new AwkVariables(
@@ -85,7 +86,8 @@ internal sealed class AwkRuntimeState
                 .FieldCountValue,
             () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .PrepareOutputFieldSeparatorAssignment(),
-            CompatibilityMode);
+            CompatibilityMode,
+            CancellationCheckpoint);
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryGovernor,
@@ -103,8 +105,9 @@ internal sealed class AwkRuntimeState
             MemoryGovernor,
             CompatibilityMode,
             ReportRegexUnicodeWarning);
-        _stringRuntime = new AwkStringRuntime(stringUnitMode, Resources.RecordByteWork);
-        _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryGovernor, CompatibilityMode);
+        _stringRuntime = new AwkStringRuntime(stringUnitMode, Resources.RecordByteWork, CancellationCheckpoint);
+        _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryGovernor,
+            CompatibilityMode, CancellationCheckpoint);
         _fieldSplitter = new AwkFieldSplitter(
             fieldSeparator,
             _regexRuntime.Create,
@@ -131,7 +134,8 @@ internal sealed class AwkRuntimeState
             MemoryGovernor,
             Limits.MaxFields,
             Resources.ThrowIfValueBytesExceeded,
-            Resources.RecordByteWork);
+            Resources.RecordByteWork,
+            CancellationCheckpoint);
         recordFields = _recordFields;
         _specialVariables = new AwkSpecialVariableDispatcher(
             _variables,
@@ -139,9 +143,10 @@ internal sealed class AwkRuntimeState
             FormatStringByteText,
             RecordSpecialVariableAssignment,
             MemoryGovernor,
-            CompatibilityMode);
+            CompatibilityMode,
+            CancellationCheckpoint);
         specialVariables = _specialVariables;
-        _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables);
+        _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables, CancellationCheckpoint);
         _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
         _specialVariables.InitializeScalars(fieldSeparator);
         _recordSeparatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
@@ -188,13 +193,13 @@ internal sealed class AwkRuntimeState
 
     public double RecordNumber
     {
-        get => ResolveSpecialVariableValue(AwkSpecialVariableId.RecordNumber).AsNumber();
+        get => ResolveSpecialVariableValue(AwkSpecialVariableId.RecordNumber).AsNumber(CancellationCheckpoint);
         set => AssignSpecialVariableValue(AwkSpecialVariableId.RecordNumber, AwkValue.FromNumber(value));
     }
 
     public double FileRecordNumber
     {
-        get => ResolveSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber).AsNumber();
+        get => ResolveSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber).AsNumber(CancellationCheckpoint);
         set => AssignSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber, AwkValue.FromNumber(value));
     }
 
@@ -241,14 +246,14 @@ internal sealed class AwkRuntimeState
     {
         Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(text));
         Counters.RecordValueCreated();
-        return AwkValue.FromText(AwkText.FromString(text, Counters, MemoryGovernor), NumberParsingMode);
+        return AwkValue.FromText(AwkText.FromString(text, Counters, MemoryGovernor), NumberParsingMode, CancellationCheckpoint);
     }
 
     public AwkValue CreateByteTextValue(AwkText text)
     {
         Resources.ThrowIfValueBytesExceeded(text.ByteLength);
         Counters.RecordValueCreated();
-        return AwkValue.FromText(text, NumberParsingMode);
+        return AwkValue.FromText(text, NumberParsingMode, CancellationCheckpoint);
     }
 
     internal AwkValue ResolveExecutableConstant(AwkValue value)
@@ -256,7 +261,7 @@ internal sealed class AwkRuntimeState
         var mode = NumberParsingMode;
         return mode == AwkNumberParsingMode.Decimal || value.IsNumberValue
             ? value
-            : AwkValue.FromText(value.ByteText, mode);
+            : AwkValue.FromText(value.ByteText, mode, CancellationCheckpoint);
     }
 
     public AwkValue CreateDeferredTextValue(AwkText text)
@@ -272,14 +277,14 @@ internal sealed class AwkRuntimeState
         Counters.RecordValueCreated();
         return AwkValue.FromNumericString(
             AwkText.FromString(text, Counters, MemoryGovernor),
-            NumberParsingMode);
+            NumberParsingMode, CancellationCheckpoint);
     }
 
     public AwkValue CreateNumericStringValue(AwkText text)
     {
         Resources.ThrowIfValueBytesExceeded(text.ByteLength);
         Counters.RecordValueCreated();
-        return AwkValue.FromNumericString(text, NumberParsingMode);
+        return AwkValue.FromNumericString(text, NumberParsingMode, CancellationCheckpoint);
     }
 
     public AwkValue CreateNumberValue(double value)
@@ -295,6 +300,8 @@ internal sealed class AwkRuntimeState
 
     public AwkValue CreateArrayKeyValue(AwkArrayKey key) =>
         CreateByteTextValue(key.ToByteText(Counters, MemoryGovernor));
+
+    internal Action CancellationCheckpoint { get; }
 
     public void ThrowIfCancellationRequested()
     {
@@ -443,7 +450,8 @@ internal sealed class AwkRuntimeState
             text,
             AwkNumberParsingMode.Decimal,
             AwkNumberTextExtent.EntireText,
-            out var decimalValue)
+            out var decimalValue,
+            CancellationCheckpoint)
                 ? decimalValue
                 : 0;
     }
@@ -655,7 +663,7 @@ internal sealed class AwkRuntimeState
             return 0;
         Resources.ThrowIfValueBytesExceeded(terminator.ByteText.ByteLength);
         return _variables.EstimateScalarValueMemoryGrowth(
-            RecordTerminatorVariableName, AwkValue.FromText(terminator.ByteText, NumberParsingMode));
+            RecordTerminatorVariableName, AwkValue.FromText(terminator.ByteText, NumberParsingMode, CancellationCheckpoint));
     }
 
     public void SetErrno(AwkErrno errno)
@@ -671,7 +679,7 @@ internal sealed class AwkRuntimeState
     }
 
     public double MainInputArgumentCount =>
-        Math.Truncate(ResolveSpecialVariableValue(AwkSpecialVariableId.ArgumentCount).AsNumber());
+        Math.Truncate(ResolveSpecialVariableValue(AwkSpecialVariableId.ArgumentCount).AsNumber(CancellationCheckpoint));
 
     public void SetArgumentIndex(AwkArgvIndex index) => SetArgvIndex(index);
 

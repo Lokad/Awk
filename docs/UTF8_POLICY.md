@@ -161,7 +161,10 @@ this digit path does not claim that all formatting has become byte-native.
 
 Numeric classification and prefix conversion scan UTF-8 bytes without decoding, including
 signed `inf`/`nan` and all six ASCII C whitespace characters. Unicode whitespace remains
-outside that set. Math warning arguments cross to invariant diagnostic strings with fixed
+outside that set. Runtime numeric, whitespace/base and hexadecimal scans observe the execution's
+existing cancellation callback periodically, without charging offered bytes twice. Rune counting
+and sparse rune-index construction also observe callbacks and cache only completed results.
+Math warning arguments cross to invariant diagnostic strings with fixed
 six-significant-digit precision; this diagnostic-only boundary does not decode awk text.
 The output sink precharges warning-message retention and normalization/UTF-8 headroom.
 
@@ -186,7 +189,9 @@ Some builtins intentionally remain .NET string operations. `printf`, `sprintf`, 
 formatting, `strftime`, GNU date-format directive handling, and non-ASCII
 `tolower`/`toupper` are counted through formatting or string interop fallback counters. ASCII-only
 `tolower` and `toupper` use a byte fast path over `AwkText` and do not claim a Unicode casing
-fallback.
+fallback. Their ASCII classification and conversion loops check cancellation periodically.
+Non-ASCII casing checks before and after the framework call; the call itself has no cancellation
+token. Frontend, formatting-helper and regex translation coverage remains under audit.
 
 ## Byte Mode
 

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Runtime numeric scans, UTF-8 rune counting and sparse-index construction, ASCII case
+  conversion and printf numeric arguments now reuse the execution's cancellation callback.
+  Interrupted rune scans publish no partial cache and release index reservations.
+  Logical byte admission and positive explicit fuel quotas retain their semantics.
+  Frontend, remaining formatting helpers and regex translation/backend coverage remain under audit.
+
 - Ordinary and restricted execution no longer have an implicit fuel cutoff, matching
   current lython defaults. MaxExecutionSteps reports zero when unset; existing positive
   WithMaxExecutionSteps(int) quotas remain enforced, including int.MaxValue. Cancellation,

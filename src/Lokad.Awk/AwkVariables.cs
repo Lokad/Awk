@@ -16,6 +16,7 @@ internal sealed class AwkVariables
     private readonly Func<AwkText, AwkValue> _createDeferredTextValue;
     private readonly Action<string, AwkValue> _applyScalarAssignment;
     private readonly AwkCompatibilityMode _mode;
+    private readonly Action? _checkpoint;
     private readonly int _maxArrayElements;
     private readonly int _maxSymbols;
     private readonly int _maxIdentifierBytes;
@@ -79,13 +80,15 @@ internal sealed class AwkVariables
         Action<long> throwIfValueBytesExceeded,
         Func<AwkValue>? resolveFieldCountValue = null,
         Action? prepareOutputFieldSeparatorAssignment = null,
-        AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxArrayElements);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSymbols);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxIdentifierBytes);
 
         _mode = mode;
+        _checkpoint = checkpoint;
         _maxArrayElements = maxArrayElements;
         _maxSymbols = maxSymbols;
         _maxIdentifierBytes = maxIdentifierBytes;
@@ -175,7 +178,7 @@ internal sealed class AwkVariables
     {
         if (IsComputedFieldCount(name))
         {
-            _applyScalarAssignment(name.Text, AwkValue.FromText(value));
+            _applyScalarAssignment(name.Text, AwkValue.FromText(value, AwkNumberParsingMode.Decimal, _checkpoint));
             return;
         }
         SetScalarSlot(name, AwkVariableSlot.FromText(value));
@@ -185,7 +188,7 @@ internal sealed class AwkVariables
     {
         if (IsComputedFieldCount(name))
         {
-            _applyScalarAssignment(name.Text, AwkValue.FromText(value));
+            _applyScalarAssignment(name.Text, AwkValue.FromText(value, AwkNumberParsingMode.Decimal, _checkpoint));
             return;
         }
         SetScalarSlot(name, AwkVariableSlot.FromText(value));

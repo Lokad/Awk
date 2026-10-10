@@ -44,8 +44,8 @@ internal abstract record AwkReference
         AwkCompoundAssignmentOperation operation)
     {
         var target = await ResolveTargetAsync(context).ConfigureAwait(false);
-        var currentValue = target.Evaluate(context.State).AsNumber();
-        var rightValue = (await value.EvaluateAsync(context).ConfigureAwait(false)).AsNumber();
+        var currentValue = target.Evaluate(context.State).AsNumber(context.State.CancellationCheckpoint);
+        var rightValue = (await value.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint);
         var result = AwkValue.FromNumber(
             AwkNumericOperations.ApplyCompoundAssignment(currentValue, rightValue, operation));
         target.AssignValue(context.State, result);
@@ -95,8 +95,8 @@ internal abstract record AwkReference
         AwkNumericUpdateResult resultSelection)
     {
         var target = await ResolveTargetAsync(context).ConfigureAwait(false);
-        var previous = AwkValue.FromNumber(target.Evaluate(context.State).AsNumber());
-        var result = AwkValue.FromNumber(update(previous.AsNumber()));
+        var previous = AwkValue.FromNumber(target.Evaluate(context.State).AsNumber(context.State.CancellationCheckpoint));
+        var result = AwkValue.FromNumber(update(previous.AsNumber(context.State.CancellationCheckpoint)));
         target.AssignValue(context.State, result);
         return resultSelection is AwkNumericUpdateResult.Previous ? previous : result;
     }

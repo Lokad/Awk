@@ -108,7 +108,8 @@ internal abstract partial class AwkStatement
                     state.Limits,
                     state.Counters,
                     state.MemoryGovernor,
-                    state.CompatibilityMode);
+                    state.CompatibilityMode,
+                    state.CancellationCheckpoint);
             }
             finally
             {

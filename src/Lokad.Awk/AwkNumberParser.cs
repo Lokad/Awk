@@ -21,17 +21,24 @@ internal readonly record struct AwkNumberParseResult(AwkNumberParseStatus Status
 
 internal static class AwkNumberParser
 {
-    public static int SkipWhitespace(ReadOnlySpan<byte> text, int index)
+    public static int SkipWhitespace(ReadOnlySpan<byte> text, int index, Action? checkpoint = null)
     {
         while (index < text.Length && text[index] is (byte)' ' or (byte)'\t' or (byte)'\n' or (byte)'\r' or (byte)'\v' or (byte)'\f')
+        {
+            CheckScanProgress(index, checkpoint);
             index++;
+        }
         return index;
     }
 
-    public static AwkNumberParseResult Parse(ReadOnlySpan<byte> text, AwkNumberParsingMode mode)
+    public static AwkNumberParseResult Parse(ReadOnlySpan<byte> text, AwkNumberParsingMode mode, Action? checkpoint = null)
     {
-        var start = SkipWhitespace(text, 0);
-        if (TryParseSpecial(text, start, mode, out var special))
+        // Short nonnumeric text needs no scan checkpoint; execution boundaries already
+        // check cancellation, and cleanup inspections can still read existing text.
+        if (text.Length >= AwkExecutionGovernor.WorkChunkBytes)
+            checkpoint?.Invoke();
+        var start = SkipWhitespace(text, 0, checkpoint);
+        if (TryParseSpecial(text, start, mode, out var special, checkpoint))
             return special;
 
         var digits = start;
@@ -42,23 +49,25 @@ internal static class AwkNumberParser
             if (mode == AwkNumberParsingMode.Decimal)
                 return default;
             if (mode == AwkNumberParsingMode.NonDecimalData && digits == start)
-                return ParseNonDecimal(text, start, 16);
-            return ParseHexFloat(text, start);
+                return ParseNonDecimal(text, start, 16, checkpoint);
+            return ParseHexFloat(text, start, checkpoint);
         }
-        if (mode == AwkNumberParsingMode.NonDecimalData && GetBase(text[start..]) == 8)
-            return ParseNonDecimal(text, start, 8);
-        return ParseDecimal(text, start);
+        if (mode == AwkNumberParsingMode.NonDecimalData && GetBase(text[start..], checkpoint) == 8)
+            return ParseNonDecimal(text, start, 8, checkpoint);
+        return ParseDecimal(text, start, checkpoint);
     }
 
     // strtonum chooses a base from the original bytes, before sign/whitespace trimming.
-    public static int GetBase(ReadOnlySpan<byte> text)
+    public static int GetBase(ReadOnlySpan<byte> text, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         if (text.Length < 2 || text[0] != (byte)'0')
             return 10;
         if (text[1] is (byte)'x' or (byte)'X')
             return 16;
         for (var index = 0; index < text.Length; index++)
         {
+            CheckScanProgress(index, checkpoint);
             if (text[index] is (byte)'.' or (byte)'e' or (byte)'E')
                 return 10;
             if (!IsDigit(text[index]))
@@ -67,26 +76,28 @@ internal static class AwkNumberParser
         return text[1] is >= (byte)'0' and <= (byte)'7' ? 8 : 10;
     }
 
-    public static AwkNumberParseResult ParseNonDecimal(ReadOnlySpan<byte> text, int start, int numberBase)
+    public static AwkNumberParseResult ParseNonDecimal(ReadOnlySpan<byte> text, int start, int numberBase, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         var index = start + (numberBase == 16 ? 2 : 0);
         if (numberBase == 16 && index == text.Length)
             return new(AwkNumberParseStatus.NoNumber, 0, start);
         double value = 0;
         while (index < text.Length)
         {
+            CheckScanProgress(index, checkpoint);
             var digit = HexValue(text[index]);
             if (numberBase == 16 && text[index] is (byte)'.' or (byte)'p' or (byte)'P')
             {
                 // GNU requires a p/P somewhere in the remaining C string, even for an incomplete exponent.
-                if (!ContainsExponentMarker(text[start..]))
+                if (!ContainsExponentMarker(text[start..], checkpoint))
                     return new(AwkNumberParseStatus.MissingHexExponent, 0, start);
-                return ParseHexFloat(text, start);
+                return ParseHexFloat(text, start, checkpoint);
             }
             if (digit < 0 || digit >= numberBase)
             {
                 if (numberBase == 8 && text[index] is (byte)'8' or (byte)'9')
-                    return ParseDecimal(text, start);
+                    return ParseDecimal(text, start, checkpoint);
                 break;
             }
             // GNU nondec2awknum rounds each multiply/add, rather than through a signed integer carrier.
@@ -95,10 +106,12 @@ internal static class AwkNumberParser
         }
         return new(AwkNumberParseStatus.Number, value, index);
 
-        static bool ContainsExponentMarker(ReadOnlySpan<byte> value)
+        static bool ContainsExponentMarker(ReadOnlySpan<byte> value, Action? checkpoint)
         {
-            foreach (var character in value)
+            for (var index = 0; index < value.Length; index++)
             {
+                CheckScanProgress(index, checkpoint);
+                var character = value[index];
                 if (character == 0)
                     return false;
                 if (character is (byte)'p' or (byte)'P')
@@ -108,7 +121,7 @@ internal static class AwkNumberParser
         }
     }
 
-    private static AwkNumberParseResult ParseDecimal(ReadOnlySpan<byte> text, int start)
+    private static AwkNumberParseResult ParseDecimal(ReadOnlySpan<byte> text, int start, Action? checkpoint)
     {
         var index = start;
         if (index < text.Length && text[index] is (byte)'+' or (byte)'-')
@@ -116,6 +129,7 @@ internal static class AwkNumberParser
         var digits = 0;
         while (index < text.Length && IsDigit(text[index]))
         {
+            CheckScanProgress(index, checkpoint);
             digits++;
             index++;
         }
@@ -124,6 +138,7 @@ internal static class AwkNumberParser
             index++;
             while (index < text.Length && IsDigit(text[index]))
             {
+                CheckScanProgress(index, checkpoint);
                 digits++;
                 index++;
             }
@@ -137,16 +152,20 @@ internal static class AwkNumberParser
                 index++;
             var exponentDigits = index;
             while (index < text.Length && IsDigit(text[index]))
+            {
+                CheckScanProgress(index, checkpoint);
                 index++;
+            }
             if (index == exponentDigits)
                 index = marker;
         }
+        checkpoint?.Invoke();
         return Utf8Parser.TryParse(text[start..index], out double number, out var consumed) && consumed == index - start
             ? new(AwkNumberParseStatus.Number, number, index)
             : default;
     }
 
-    private static AwkNumberParseResult ParseHexFloat(ReadOnlySpan<byte> text, int start)
+    private static AwkNumberParseResult ParseHexFloat(ReadOnlySpan<byte> text, int start, Action? checkpoint)
     {
         var index = start;
         var negative = index < text.Length && text[index] == (byte)'-';
@@ -162,6 +181,7 @@ internal static class AwkNumberParser
         var fraction = false;
         while (index < text.Length)
         {
+            CheckScanProgress(index, checkpoint);
             var digit = HexValue(text[index]);
             if (digit < 0)
             {
@@ -196,7 +216,7 @@ internal static class AwkNumberParser
             index++;
         }
         if (!hasDigits)
-            return ParseDecimal(text, start);
+            return ParseDecimal(text, start, checkpoint);
         long exponent = 0;
         if (index < text.Length && text[index] is (byte)'p' or (byte)'P')
         {
@@ -207,6 +227,7 @@ internal static class AwkNumberParser
             var exponentStart = index;
             while (index < text.Length && IsDigit(text[index]))
             {
+                CheckScanProgress(index, checkpoint);
                 // More than the maximum possible significand displacement is already decisive.
                 exponent = Math.Min(1L << 40, exponent * 10 + text[index] - (byte)'0');
                 index++;
@@ -252,7 +273,7 @@ internal static class AwkNumberParser
     }
 
     private static bool TryParseSpecial(ReadOnlySpan<byte> text, int start, AwkNumberParsingMode mode,
-        out AwkNumberParseResult result)
+        out AwkNumberParseResult result, Action? checkpoint)
     {
         result = default;
         var index = start;
@@ -266,7 +287,7 @@ internal static class AwkNumberParser
         index += 3;
         if (mode != AwkNumberParsingMode.HexadecimalInput)
         {
-            if (!signed || SkipWhitespace(text, index) != text.Length)
+            if (!signed || SkipWhitespace(text, index, checkpoint) != text.Length)
                 return false;
         }
         else if (infinity)
@@ -280,7 +301,10 @@ internal static class AwkNumberParser
             while (payloadEnd < text.Length && text[payloadEnd] is
                    >= (byte)'a' and <= (byte)'z' or >= (byte)'A' and <= (byte)'Z' or
                    >= (byte)'0' and <= (byte)'9' or (byte)'_')
+            {
+                CheckScanProgress(payloadEnd, checkpoint);
                 payloadEnd++;
+            }
             if (payloadEnd < text.Length && text[payloadEnd] == (byte)')')
                 index = payloadEnd + 1;
         }
@@ -299,6 +323,12 @@ internal static class AwkNumberParser
                 return false;
         }
         return true;
+    }
+
+    private static void CheckScanProgress(int offset, Action? checkpoint)
+    {
+        if (offset > 0 && (offset & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+            checkpoint?.Invoke();
     }
 
     private static bool IsHexPrefix(ReadOnlySpan<byte> text, int start) =>

@@ -428,7 +428,7 @@ internal sealed class AwkRegexRuntime
             }
 
             if (_engineKind == AwkRegexEngineKind.Utf8Adapter ||
-                (_stringUnitMode is AwkStringUnitMode.Byte && input.ContainsNonAscii(_counters)))
+                (_stringUnitMode is AwkStringUnitMode.Byte && input.ContainsNonAscii(_counters, _throwIfCancellationRequested)))
             {
                 return new AwkRegexExecutionPolicy(
                     AwkRegexExecutionEngine.Utf8Adapter,

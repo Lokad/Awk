@@ -100,8 +100,11 @@ Choose finite memory with WithMaxExecutionMemoryBytes and pass cancellation or a
 Nested calls suspend at entry and unwind, including during argument evaluation, so completed
 tasks do not turn deep awk recursion into CLR stack exhaustion. Byte-oriented built-ins and
 regex rescans retain cooperative checkpoints; explicit fuel charges input chunks in addition to
-expression and statement admission. Numeric/Unicode scanning checkpoints remain under audit;
-framework/regex construction and conversion calls may finish before cancellation is observed.
+expression and statement admission. Runtime numeric scans, UTF-8 rune counting/index construction
+and ASCII case conversion use periodic cancellation callbacks without duplicate fuel charging.
+Frontend lowering, other formatting helpers and regex translation/analysis remain under audit;
+framework numeric/string conversion, span search/comparison and regex construction calls may finish
+before cancellation is observed.
 The memory governor, mutation preflight, backend regex timeouts, and host/cleanup deadlines remain
 independent safeguards. Runtime warning queues also govern message retention, backing-array
 growth, and diagnostic formatting headroom, so repeated math warnings cannot grow an

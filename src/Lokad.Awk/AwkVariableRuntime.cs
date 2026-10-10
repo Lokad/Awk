@@ -5,7 +5,8 @@ namespace Lokad.Awk;
 internal sealed class AwkVariableRuntime(
     AwkVariables variables,
     AwkFunctionRuntime functions,
-    AwkSpecialVariableDispatcher specialVariables)
+    AwkSpecialVariableDispatcher specialVariables,
+    Action? checkpoint = null)
 {
     public bool HasScalar(AwkIdentifier identifier) =>
         HasScalar(new AwkVariableName(identifier));
@@ -109,7 +110,7 @@ internal sealed class AwkVariableRuntime(
         ThrowIfArrayAsScalar(name.Text, ResolveName(name));
 
         var text = AwkText.FromString(value);
-        specialVariables.Assign(name, AwkValue.FromText(text));
+        specialVariables.Assign(name, AwkValue.FromText(text, AwkNumberParsingMode.Decimal, checkpoint));
     }
 
     public void AssignVariableValue(AwkIdentifier identifier, AwkValue value) =>

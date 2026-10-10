@@ -322,9 +322,17 @@ CancellationToken to ExecuteAsync. `WithExecutionTimeout` adds an owned deadline
 awk diagnostic, while caller cancellation propagates as cancellation. Cleanup uses its separate
 bounded deadline and an uncancelled cleanup token.
 
-Cancellation coverage remains under audit. Some long numeric and Unicode scans check before the
-operation but still lack internal checkpoints; this is not a bounded cancellation-latency promise.
-.NET and UTF-8 regex constructors and framework conversions do not accept caller cancellation;
+Runtime numeric classification/conversion, base selection, ASCII whitespace and NaN payload scans
+observe the execution's existing cancellation callback at roughly 4 KiB scan intervals. UTF-8 rune
+counting, sparse rune-index construction, ASCII classification and ASCII case conversion likewise
+check within their loops. These callbacks do not charge bytes again: existing offered-span work
+admission remains separate. Interrupted rune scans publish no partial count/index, and sparse-index
+reservations remain live during construction and are released on failure.
+
+Cancellation coverage remains under audit in frontend lowering, other formatting helpers and regex
+translation/analysis. These checkpoints do not promise bounded latency for every builtin.
+Utf8Parser decimal conversion, span search/comparison, UTF-8/string conversions, invariant Unicode
+casing, and .NET and UTF-8 regex constructors do not accept caller cancellation;
 pattern/group/cache/memory limits bound admitted data, but matching timeouts do not bound constructor
 time. Structured POSIX compilation/matching retains internal checkpoints and operation-local deadlines.
 Host work can ignore its token after the runtime stops awaiting it. Fuel removal does not make any
