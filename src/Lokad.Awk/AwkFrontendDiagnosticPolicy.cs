@@ -26,6 +26,18 @@ internal static class AwkFrontendDiagnosticPolicy
     {
         for (var index = 0; index < tokens.Count; index++)
         {
+            if (tokens[index].Kind == AwkTokenKind.At &&
+                AwkDirectiveParser.TryParseAt(tokens, index, out var directive) &&
+                directive.Kind == AwkDirectiveKind.Include)
+            {
+                if (compatibilityMode != AwkCompatibilityMode.GnuDefault)
+                    AddDiagnostic(new AwkDiagnostic(directive.Span, "@include is a GNU extension",
+                        AwkDiagnosticId.BindInvalidProgram));
+                // Include names are raw filename text rather than string expressions.
+                while (index + 1 < tokens.Count && tokens[index + 1].Span.Start < directive.Span.End)
+                    index++;
+                continue;
+            }
             if (tokens[index].Kind == AwkTokenKind.Identifier &&
                 Encoding.UTF8.GetByteCount(tokens[index].TextSpan) > budget.MaxIdentifierBytes)
             {

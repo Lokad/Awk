@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `-v` and `-F` now decode escapes under the final compatibility profile and apply
+  assignments in their original mixed option order. Assignment operands decode when
+  consumed, including updated ARGV entries; a BEGIN exit leaves them untouched.
+  Unicode warnings precede the appropriate source/runtime effects and are retained
+  by compiled artifacts. Option and source diagnostics share one frontend limit.
+  Include filenames remain raw text; POSIX/traditional reject `@include` before IO.
+  Unknown string-escape warning deduplication remains pending.
+
 - Raw regex literals and runtime patterns now decode GNU 5.4 `\u` escapes before
   ERE interpretation in default/traditional profiles. Literal Unicode warnings retain
   source locations; runtime warnings follow each expression's pattern and case history

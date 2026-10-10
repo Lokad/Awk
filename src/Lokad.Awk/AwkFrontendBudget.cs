@@ -48,11 +48,11 @@ internal sealed class AwkFrontendBudget
             int.MaxValue,
             static () => { });
 
-    public static AwkFrontendBudget FromResources(AwkRuntimeResourceMonitor resources) =>
+    public static AwkFrontendBudget FromResources(AwkRuntimeResourceMonitor resources, int previousDiagnostics = 0) =>
         new(
             resources.Limits.MaxSyntaxNestingDepth,
             resources.Limits.MaxFrontendTokens,
-            resources.Limits.MaxFrontendDiagnostics,
+            Math.Max(0, resources.Limits.MaxFrontendDiagnostics - previousDiagnostics),
             resources.Limits.MaxIdentifierBytes,
             resources.Limits.MaxRegexPatternBytes,
             resources.Limits.MaxRegexGroups,

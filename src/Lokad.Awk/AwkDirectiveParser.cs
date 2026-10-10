@@ -66,7 +66,7 @@ internal static class AwkDirectiveParser
         if (tokenText.Length < 2)
             return false;
 
-        path = AwkEscapes.Decode(tokenText[1..^1]);
+        path = tokenText[1..^1];
         return true;
     }
 

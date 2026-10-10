@@ -44,6 +44,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(UnicodeStringCases(), AwkGoldenTag.Expression),
 
         .. Tagged(UnicodeRegexCases(), AwkGoldenTag.Expression, AwkGoldenTag.Regex),
+        .. Tagged(UnicodeCallerCases(), AwkGoldenTag.CommandLine),
 
         .. Tagged(AssignmentOperandCompatibilityRepairs(), AwkGoldenTag.Expression),
 

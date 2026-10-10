@@ -10,6 +10,35 @@ public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.DotNetCompatibility)]
+    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.Utf8Adapter)]
+    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.DotNetCompatibility)]
+    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.Utf8Adapter)]
+    internal async Task Awk_UnicodeCallersPreserveRuntimeTextBoundaries(AwkExecutionEngineKind engine,
+        AwkRegexEngineKind backend)
+    {
+        foreach (var context in new[] { 0, 1, 2 })
+        {
+            string[] Arguments(string value) => context switch
+            {
+                0 => ["-v", "v=" + value, "BEGIN{print v;exit}"],
+                1 => ["END{print v}", "v=" + value],
+                _ => ["-F", value, "BEGIN{print FS;exit}"]
+            };
+            var control = await RunAsync(Arguments("A"), string.Empty, backend, engine);
+            var escaped = await RunAsync(Arguments(@"\u0041"), string.Empty, backend, engine);
+            Assert.Equal(0, control.ExitCode);
+            Assert.Equal(0, escaped.ExitCode);
+            Assert.Equal("A\n", escaped.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(string.Empty, escaped.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(control.Counters.StringDecodes, escaped.Counters.StringDecodes);
+            Assert.Equal(control.Counters.Utf8Encodes, escaped.Counters.Utf8Encodes);
+            Assert.Equal(control.Counters.AwkTextAsStringCalls, escaped.Counters.AwkTextAsStringCalls);
+            Assert.Equal(control.Counters.AwkTextAllocations, escaped.Counters.AwkTextAllocations);
+        }
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.DotNetCompatibility)]
     [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.DotNetCompatibility)]
     [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.Utf8Adapter)]
     [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.Utf8Adapter)]

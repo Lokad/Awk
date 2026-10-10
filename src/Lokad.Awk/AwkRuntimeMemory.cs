@@ -37,10 +37,10 @@ internal static class AwkRuntimeMemory
     public static long EstimateDiagnosticMessageBytes(int characterCount) =>
         CheckedAdd(128, CheckedMultiply(characterCount, 8));
 
-    // The first regex escape pass retains a StringBuilder buffer and its decoded
-    // string until ERE translation/compilation finishes. Decoding never expands
-    // beyond the raw pattern's UTF-16 length.
-    public static long EstimateRegexEscapeDecodingBytes(int characterCount) =>
+    // Escape decoding retains a StringBuilder buffer and its decoded string until
+    // assignment or regex compilation finishes. The decoded UTF-16 text never
+    // exceeds the raw text's length.
+    public static long EstimateEscapeDecodingBytes(int characterCount) =>
         CheckedAdd(128, CheckedMultiply(characterCount, sizeof(char) * 2));
 
     public static long EstimateTextBytes(int byteLength)

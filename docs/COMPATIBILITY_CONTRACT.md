@@ -46,6 +46,25 @@ see `REGEX_COMPATIBILITY.md` for numeric decoding and remaining gaps. POSIX RS s
 its first UTF-8 byte and consumes a whole matching input scalar. POSIX mode overrides
 the requested byte-unit option, independent of option order, and emits a warning.
 
+## Command Assignments and Includes
+
+The final compatibility profile governs `-v` and `-F` escape decoding, even when the
+profile flag follows those options. Their mixed order is preserved; `-v FS=... -F ...`
+leaves the `-F` value last. Traditional `-Ft` selects a tab. `-F` supplies a string;
+`-v` and consumed assignment operands receive numeric-string classification.
+
+Assignment operands stay raw in ARGV until input scheduling consumes them, including
+reassigned entries. BEGIN exit does not decode or warn for unused operands. Unicode
+warnings for options precede source loading; consumed operands warn at runtime.
+Precompiled executions retain option warnings once per run. Option and source diagnostics
+share the frontend diagnostic cap. General unknown string escapes and missing-hex caller
+warnings still need invocation-wide warning parity; this is not full diagnostic conformance.
+
+`@include` takes raw quoted filename text. Actual Unicode filenames are supported;
+escaped-looking backslash paths are rejected by Lokad's portable path policy rather than
+decoded. POSIX/traditional reject the directive before include IO. Explicit `-f` and `-i`
+paths remain raw, and `-i` remains accepted in those profiles.
+
 ## Source String Escapes
 
 Default/traditional source strings support GNU 5.4 `\u` followed by one to eight hex

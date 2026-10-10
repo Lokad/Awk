@@ -20,7 +20,8 @@ internal static partial class AwkSourceLoader
     {
         var normalization = AwkLineContinuations.Normalize(source, resources.Limits.MaxFrontendTokens, cancellationToken);
         var normalizedSource = normalization.Text;
-        if (normalizedSource.IndexOf('@', StringComparison.Ordinal) < 0)
+        if (plan.CompatibilityMode != AwkCompatibilityMode.GnuDefault ||
+            normalizedSource.IndexOf('@', StringComparison.Ordinal) < 0)
         {
             if (normalizedSource.Length == 0)
                 return SourceExpansionResult.FromSource(AwkExpandedSource.Empty);

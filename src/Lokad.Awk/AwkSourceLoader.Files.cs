@@ -15,7 +15,15 @@ internal static partial class AwkSourceLoader
         CancellationToken cancellationToken)
     {
         resources.RecordInclude(includeDepth);
-        var resolved = plan.ResolvePath(includePath);
+        AwkResolvedPath resolved;
+        try
+        {
+            resolved = plan.ResolvePath(includePath);
+        }
+        catch (AwkRuntimeException error) when (error.Id == AwkDiagnosticId.HostIoFailure)
+        {
+            return SourceExpansionResult.Failure(error.MessageBytes, error.Id);
+        }
         var script = await AwkScriptFileReader.TryReadAsync(
                 host,
                 plan,

@@ -16,6 +16,7 @@ internal sealed class AwkSourceLoadPlan
     private readonly bool _exposeHostErrorDetails;
     private readonly int _maxHostErrorBytes;
     private readonly AwkCleanupDeadline _cleanupDeadline;
+    private readonly AwkCompatibilityMode _compatibilityMode;
     private readonly HashSet<AwkSourceIdentity> _includedIdentities = [];
     private readonly Dictionary<AwkPath, AwkScriptTextReadResult> _scriptTextByPath = [];
 
@@ -29,7 +30,8 @@ internal sealed class AwkSourceLoadPlan
         bool exposeEnvironment,
         TimeSpan? hostOperationTimeout,
         bool exposeHostErrorDetails,
-        int maxHostErrorBytes)
+        int maxHostErrorBytes,
+        AwkCompatibilityMode compatibilityMode)
     {
         static IReadOnlyList<string> ParseAwkPathEntries(
             IReadOnlyList<AwkEnvironmentVariable> environment)
@@ -67,6 +69,7 @@ internal sealed class AwkSourceLoadPlan
         _exposeHostErrorDetails = exposeHostErrorDetails;
         _maxHostErrorBytes = maxHostErrorBytes;
         _cleanupDeadline = new AwkCleanupDeadline(_cleanupTimeout);
+        _compatibilityMode = compatibilityMode;
     }
 
     public int SourceCount => _sources.Count;
@@ -76,6 +79,7 @@ internal sealed class AwkSourceLoadPlan
     public TimeSpan CleanupTimeout => _cleanupTimeout;
 
     public bool AllowSourceIncludes => _allowSourceIncludes;
+    public AwkCompatibilityMode CompatibilityMode => _compatibilityMode;
 
     public TimeSpan HostOperationTimeout => _hostOperationTimeout;
 
@@ -110,7 +114,8 @@ internal sealed class AwkSourceLoadPlan
             exposeEnvironment,
             hostOperationTimeout,
             exposeHostErrorDetails,
-            maxHostErrorBytes);
+            maxHostErrorBytes,
+            invocation.ExecutionOptions.CompatibilityProfile.Mode);
 
     public AwkSourceReference GetSource(int index) => _sources[index];
 

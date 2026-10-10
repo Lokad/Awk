@@ -46,8 +46,22 @@ string content, not the start of another source escape.
 
 Warnings retain the string token's source span and are emitted even for unreachable
 code. Both source and compiled execution emit them before runtime effects through the
-same governed output boundary. Command-option values and include-path escapes remain
-separate compatibility work.
+same governed output boundary.
+
+Command-option `-v` and `-F` values use the same single-pass string decoder with the
+final compatibility profile, independent of flag order. Mixed options apply in their
+original order. Unicode option warnings precede source loading and are retained once
+per compiled execution. Assignment operands keep raw ARGV text until consumed, then
+use the active profile and numeric-string classification. A BEGIN exit skips those
+operands. Operand decoding reserves temporary UTF-16 buffers and observes cancellation;
+text encoding and value limits use the existing governed UTF-8 boundary. Counter checks
+compare escaped and ordinary values; intermediate string allocations remain outside
+text-conversion counters. Unknown string-escape warning deduplication remains pending.
+
+Include filenames are raw quoted text rather than string expressions. Actual Unicode
+filenames are supported. Backslashes remain invalid under the portable host path policy;
+an escaped-looking filename is not decoded into a different path. POSIX/traditional
+reject `@include` before opening its name; explicit `-i` paths remain profile-independent.
 
 Raw regex literals and runtime patterns share the profile-aware Unicode scalar
 decoder. Numeric escapes are decoded before the separate ERE interpretation pass;

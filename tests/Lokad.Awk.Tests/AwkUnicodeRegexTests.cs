@@ -136,7 +136,7 @@ public sealed class AwkUnicodeRegexTests
     {
         const string pattern = @"\u0041";
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(
-            AwkRuntimeMemory.EstimateRegexEscapeDecodingBytes(pattern.Length) - 1);
+            AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1);
         var governor = AwkMemoryGovernor.Create(limits);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,

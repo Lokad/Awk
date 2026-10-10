@@ -114,7 +114,7 @@ internal sealed class AwkRegexRuntime
         {
             ThrowIfPatternExceedsLimits(pattern.Text);
             using var decoding = _memoryGovernor.ReserveTransient(pattern.Text.Contains('\\')
-                ? AwkRuntimeMemory.EstimateRegexEscapeDecodingBytes(pattern.Text.Length) : 0);
+                ? AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Text.Length) : 0);
             var ere = AwkRegex.TranslatePattern(pattern, _compatibilityMode, _throwIfCancellationRequested);
             var selection = AwkRegexSelection.Analyze(ere);
             var translated = AwkRegexScalarPattern.Translate(ere);

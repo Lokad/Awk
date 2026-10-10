@@ -95,6 +95,7 @@ internal sealed class AwkInputScheduler(
                 {
                     state.SetArgumentIndex(argumentIndex);
                     state.AssignVariableFromExternalText(assignment);
+                    await actionExecutor.Output.FlushDiagnosticsAsync(io).ConfigureAwait(false);
                     continue;
                 }
 

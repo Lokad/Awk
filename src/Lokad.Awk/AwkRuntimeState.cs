@@ -531,6 +531,28 @@ internal sealed class AwkRuntimeState
 
     public void AssignVariableFromExternalText(AwkVariableAssignment assignment)
     {
+        if (assignment.Source == AwkVariableAssignmentSource.FieldSeparatorOption)
+        {
+            Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(assignment.Value));
+            AssignSpecialVariableValue(AwkSpecialVariableId.FieldSeparator,
+                CreateByteTextValue(AwkText.FromString(assignment.Value, Counters, MemoryGovernor)));
+            return;
+        }
+        if (assignment.Source == AwkVariableAssignmentSource.InputArgument)
+        {
+            using var decoding = MemoryGovernor.ReserveTransient(assignment.RawValue.Contains('\\')
+                ? AwkRuntimeMemory.EstimateEscapeDecodingBytes(assignment.RawValue.Length) : 0);
+            AwkEscapes.ReportUnicodeWarnings(assignment.RawValue, CompatibilityMode,
+                message =>
+                {
+                    if (TryGetExecutionContext(out var execution))
+                        execution.Output.ReportDiagnostic(new AwkDiagnostic(default, message,
+                            AwkDiagnosticId.WarningStringEscape));
+                }, ThrowIfCancellationRequested);
+            AssignVariableFromExternalText(assignment.Identifier,
+                AwkEscapes.DecodeSourceString(assignment.RawValue, CompatibilityMode, ThrowIfCancellationRequested));
+            return;
+        }
         AssignVariableFromExternalText(assignment.Identifier, assignment.Value);
     }
 

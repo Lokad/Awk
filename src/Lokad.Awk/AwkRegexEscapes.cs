@@ -84,26 +84,6 @@ internal static class AwkRegexEscapes
     }
 
     public static void ReportUnicodeWarnings(string pattern, AwkCompatibilityMode mode, Action<string> report,
-        Action? checkpoint = null)
-    {
-        if (mode == AwkCompatibilityMode.Posix)
-            return;
-        var nextCheckpoint = 0;
-        for (var index = 0; index + 1 < pattern.Length; index++)
-        {
-            if (index >= nextCheckpoint)
-            {
-                checkpoint?.Invoke();
-                nextCheckpoint = index + 1024;
-            }
-            if (pattern[index] != '\\')
-                continue;
-            index++;
-            var status = AwkEscapes.ReadUnicodeEscape(pattern, ref index, pattern.Length, mode, out _);
-            if (status == AwkUnicodeEscapeStatus.MissingDigits)
-                report(AwkMessages.FormatStringUnicodeMissingDigitsWarning());
-            else if (status == AwkUnicodeEscapeStatus.InvalidScalar)
-                report(AwkMessages.FormatStringUnicodeInvalidScalarWarning());
-        }
-    }
+        Action? checkpoint = null) =>
+        AwkEscapes.ReportUnicodeWarnings(pattern, mode, report, checkpoint);
 }

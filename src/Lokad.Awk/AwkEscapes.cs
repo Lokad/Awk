@@ -4,13 +4,8 @@ namespace Lokad.Awk;
 
 internal static class AwkEscapes
 {
-    public static string Decode(string text) =>
-        DecodeCore(text, AwkCompatibilityMode.GnuDefault, decodeUnicode: false);
-
-    public static string DecodeSourceString(string text, AwkCompatibilityMode compatibilityMode) =>
-        DecodeCore(text, compatibilityMode, decodeUnicode: true);
-
-    private static string DecodeCore(string text, AwkCompatibilityMode compatibilityMode, bool decodeUnicode)
+    public static string DecodeSourceString(string text, AwkCompatibilityMode compatibilityMode,
+        Action? checkpoint = null)
     {
         var slash = text.IndexOf('\\', StringComparison.Ordinal);
         if (slash < 0)
@@ -19,9 +14,15 @@ internal static class AwkEscapes
         var builder = new StringBuilder(text.Length);
         builder.Append(text, 0, slash);
         Span<char> scalarBuffer = stackalloc char[2];
+        var nextCheckpoint = slash;
 
         for (var index = slash; index < text.Length; index++)
         {
+            if (index >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = index + 1024;
+            }
             var current = text[index];
             if (current != '\\' || index + 1 >= text.Length)
             {
@@ -31,8 +32,7 @@ internal static class AwkEscapes
 
             index++;
             var escaped = text[index];
-            if (decodeUnicode &&
-                ReadUnicodeEscape(text, ref index, text.Length, compatibilityMode, out var scalar) != AwkUnicodeEscapeStatus.None)
+            if (ReadUnicodeEscape(text, ref index, text.Length, compatibilityMode, out var scalar) != AwkUnicodeEscapeStatus.None)
             {
                 var length = scalar.EncodeToUtf16(scalarBuffer);
                 builder.Append(scalarBuffer[..length]);
@@ -53,6 +53,30 @@ internal static class AwkEscapes
         }
 
         return builder.ToString();
+    }
+
+    public static void ReportUnicodeWarnings(string text, AwkCompatibilityMode mode, Action<string> report,
+        Action? checkpoint = null)
+    {
+        if (mode == AwkCompatibilityMode.Posix)
+            return;
+        var nextCheckpoint = 0;
+        for (var index = 0; index + 1 < text.Length; index++)
+        {
+            if (index >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = index + 1024;
+            }
+            if (text[index] != '\\')
+                continue;
+            index++;
+            var status = ReadUnicodeEscape(text, ref index, text.Length, mode, out _);
+            if (status == AwkUnicodeEscapeStatus.MissingDigits)
+                report(AwkMessages.FormatStringUnicodeMissingDigitsWarning());
+            else if (status == AwkUnicodeEscapeStatus.InvalidScalar)
+                report(AwkMessages.FormatStringUnicodeInvalidScalarWarning());
+        }
     }
 
     public static AwkUnicodeEscapeStatus ReadUnicodeEscape(

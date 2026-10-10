@@ -66,22 +66,36 @@ internal readonly record struct AwkOptionalIdentifier
 internal readonly record struct AwkVariableAssignment
 {
     private readonly string? _value;
+    private readonly string? _rawValue;
 
-    private AwkVariableAssignment(AwkIdentifier identifier, string value, AwkVariableAssignmentSource source)
+    private AwkVariableAssignment(AwkIdentifier identifier, string value, AwkVariableAssignmentSource source,
+        string? rawValue = null)
     {
         Identifier = identifier;
         _value = value;
+        _rawValue = rawValue ?? value;
         Source = source;
     }
 
     public AwkIdentifier Identifier { get; }
 
     public string Value => _value ?? string.Empty;
+    public string RawValue => _rawValue ?? string.Empty;
 
     public AwkVariableAssignmentSource Source { get; }
 
     public static AwkVariableAssignment Option(AwkIdentifier identifier, string rawValue) =>
-        new(identifier, AwkEscapes.Decode(rawValue), AwkVariableAssignmentSource.Option);
+        new(identifier, AwkEscapes.DecodeSourceString(rawValue, AwkCompatibilityMode.GnuDefault),
+            AwkVariableAssignmentSource.Option, rawValue);
+
+    public static AwkVariableAssignment FieldSeparatorOption(string rawValue) =>
+        new(AwkIdentifier.FromTrustedName("FS"), rawValue, AwkVariableAssignmentSource.FieldSeparatorOption);
+
+    public AwkVariableAssignment WithCompatibilityMode(AwkCompatibilityMode mode) =>
+        Source == AwkVariableAssignmentSource.InputArgument ? this :
+        new(Identifier, Source == AwkVariableAssignmentSource.FieldSeparatorOption &&
+            mode == AwkCompatibilityMode.Traditional && RawValue == "t" ? "\t" :
+            AwkEscapes.DecodeSourceString(RawValue, mode), Source, RawValue);
 
     public static AwkVariableAssignment InputArgument(AwkIdentifier identifier, string rawValue) =>
         new(identifier, rawValue, AwkVariableAssignmentSource.InputArgument);
@@ -112,7 +126,8 @@ internal readonly record struct AwkVariableAssignment
 internal enum AwkVariableAssignmentSource
 {
     Option,
-    InputArgument
+    InputArgument,
+    FieldSeparatorOption
 }
 
 internal static class AwkIdentifiers

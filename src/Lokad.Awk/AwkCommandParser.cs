@@ -87,7 +87,6 @@ internal static class AwkCommandParser
     {
         private readonly AwkSourceInputPlanner _sourceInputPlanner =
             new(invocation.CommandName, invocation.CurrentDirectory);
-        private AwkFieldSeparatorSpec _fieldSeparator = AwkFieldSeparatorSpec.Default;
         private AwkCompatibilityProfile _profile = AwkCompatibilityProfile.Default;
         private bool _sandbox;
 
@@ -146,9 +145,10 @@ internal static class AwkCommandParser
             if (!_sourceInputPlanner.HasScript)
                 return BuildErrorInvocation(AwkMessages.ErrorMissingScript, AwkDiagnosticId.OptionMissingScript);
 
+            var fieldSeparator = _sourceInputPlanner.PrepareCompatibility(_profile.Mode);
             return CreateInvocationBuilder()
                 .WithPlan(_sourceInputPlanner.BuildPlan(invocation.Environment))
-                .WithFieldSeparator(_fieldSeparator)
+                .WithFieldSeparator(fieldSeparator)
                 .WithCompatibilityProfile(_profile)
                 .Build();
 
@@ -355,7 +355,7 @@ internal static class AwkCommandParser
                     _sourceInputPlanner.AddSourceFile(value);
                     return AwkCommandParseResult.ReadInputArguments;
                 case AwkOptionAction.FieldSeparator:
-                    _fieldSeparator = AwkFieldSeparatorSpec.FromText(AwkEscapes.Decode(value));
+                    _sourceInputPlanner.AddFieldSeparatorOption(value);
                     return AwkCommandParseResult.KeepParsing;
                 case AwkOptionAction.AddSourceFile:
                     _sourceInputPlanner.AddSourceFile(value);

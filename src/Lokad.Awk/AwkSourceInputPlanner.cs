@@ -20,6 +20,22 @@ internal sealed class AwkSourceInputPlanner
 
     public bool HasScript { get; private set; }
 
+    public void AddFieldSeparatorOption(string rawValue) =>
+        _variables.Add(AwkVariableAssignment.FieldSeparatorOption(rawValue));
+
+    public AwkFieldSeparatorSpec PrepareCompatibility(AwkCompatibilityMode mode)
+    {
+        var separator = AwkFieldSeparatorSpec.Default;
+        for (var index = 0; index < _variables.Count; index++)
+        {
+            var assignment = _variables[index].WithCompatibilityMode(mode);
+            _variables[index] = assignment;
+            if (assignment.Source == AwkVariableAssignmentSource.FieldSeparatorOption)
+                separator = AwkFieldSeparatorSpec.FromText(assignment.Value);
+        }
+        return separator;
+    }
+
     public AwkInvocationPlan BuildPlan(IReadOnlyList<AwkEnvironmentVariable> environment) =>
         new(
             new AwkSourcePlan(AwkCollectionSnapshots.Copy(_sources)),

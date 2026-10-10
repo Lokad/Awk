@@ -296,3 +296,12 @@ Resource failures must occur before the observable mutation when the current sur
 array insertions, array replacement, field-list growth, record processing, output writes, regex
 capture array replacement, text-value copies, formatted output construction, and VM stack growth
 all preflight their limit before changing awk state or host-visible output.
+
+Unicode warnings from command options use the same frontend diagnostic cap as source
+diagnostics; they do not each receive a separate allowance. Their appends use existing
+host/output admission before source IO. Compiled artifacts retain these frontend warnings
+and apply host/output limits when executed. Assignment operands decode only when consumed;
+their temporary UTF-16 buffer is reserved before decoding and released after assignment
+or failure. Cancellation checkpoints cover decoding and warning scans. Raw ARGV text and
+decoded variable values retain their existing separate value-size checks. These changes
+do not complete the wider cancellation/backend audit or alter the default fuel policy.
