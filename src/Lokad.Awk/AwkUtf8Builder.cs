@@ -161,7 +161,7 @@ internal sealed class AwkUtf8Builder : IDisposable
         return this;
     }
 
-    public AwkUtf8Builder Append(byte value, int count)
+    public AwkUtf8Builder Append(byte value, int count, Action? checkpoint = null)
     {
         ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfNegative(count);
@@ -169,9 +169,22 @@ internal sealed class AwkUtf8Builder : IDisposable
         if (count == 0)
             return this;
 
+        checkpoint?.Invoke();
         var nextLength = AwkRuntimeMemory.CheckedAdd(Length, count);
         EnsureCapacity(nextLength);
-        _buffer.AsSpan(_contentOffset + Length, count).Fill(value);
+        if (checkpoint is null)
+            _buffer.AsSpan(_contentOffset + Length, count).Fill(value);
+        else
+        {
+            for (var offset = 0; offset < count;)
+            {
+                checkpoint();
+                var length = Math.Min(AwkExecutionGovernor.WorkChunkBytes, count - offset);
+                _buffer.AsSpan(_contentOffset + Length + offset, length).Fill(value);
+                offset += length;
+            }
+            checkpoint();
+        }
         Length = nextLength;
         return this;
     }

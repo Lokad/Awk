@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Finite execution-memory policies now admit gensub-part and heap capture-coordinate
+  scratch before allocation and retain their leases while the buffers are live.
+  Gensub counts actual parsed parts before allocating; long literals use one part.
+  Governed scratch uses exact-sized arrays, while unbounded execution retains pooling.
+  Capture scratch is released before returning the retained match. Cancellation,
+  admission failure and failed substitution release temporary charges without changing
+  match/field/output state. This adds no logical fuel or byte charges.
+
+- Replacement classification, substitution/gensub scans, appends and result copies
+  now propagate cooperative cancellation. Capture measurement, coordinate conversion
+  and selected-group construction check before returning a completed match, and
+  cancellation releases its lease and rented boundary storage. UTF-16 byte counting
+  preserves surrogate pairs across chunks. Empty-match advancement and general regex
+  record copies use the operation callback. No additional fuel/byte charge is added.
+
 - Long field/NF expansion and truncation now stage field lists and retained value
   caches before publication. Cancellation during analysis/copying preserves old
   fields, NF and caches; temporary old/new buffer overlap is governed and released

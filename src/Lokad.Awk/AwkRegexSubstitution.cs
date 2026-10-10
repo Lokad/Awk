@@ -32,7 +32,7 @@ internal static class AwkRegexSubstitution
         int maxReplacements,
         out int replacementCount)
     {
-        var spanReplacementKind = replacement.AsSpan().IndexOfAny((byte)'&', (byte)'\\') < 0
+        var spanReplacementKind = IsLiteralReplacement(replacement, state.CancellationCheckpoint)
             ? SpanReplacementKind.Literal
             : SpanReplacementKind.Substitution;
         if (spanReplacementKind == SpanReplacementKind.Literal ||
@@ -64,7 +64,7 @@ internal static class AwkRegexSubstitution
                 out replacementCount);
         }
 
-        using var replacementPlan = AwkGensubReplacementPlan.Rent(replacement);
+        using var replacementPlan = AwkGensubReplacementPlan.Rent(replacement, state.CancellationCheckpoint, state.MemoryGovernor);
         var capturePlan = replacementPlan.CapturePlan;
         if (targetOccurrence == 0 && maxReplacements == 1)
         {
@@ -176,11 +176,11 @@ internal static class AwkRegexSubstitution
                 initialCapacity);
             var matchIndex = matchReplacement.GetByteIndex(in match);
             var matchLength = matchReplacement.GetByteLength(in match);
-            occurrenceBuilder.Append(input.AsSpan()[..matchIndex]);
-            matchReplacement.Append(input, in match, replacement, occurrenceBuilder);
-            occurrenceBuilder.Append(input.AsSpan()[(matchIndex + matchLength)..]);
+            occurrenceBuilder.Append(input.AsSpan(state.CancellationCheckpoint)[..matchIndex], state.CancellationCheckpoint);
+            matchReplacement.Append(input, in match, replacement, occurrenceBuilder, state.CancellationCheckpoint);
+            occurrenceBuilder.Append(input.AsSpan(state.CancellationCheckpoint)[(matchIndex + matchLength)..], state.CancellationCheckpoint);
             replacementCount = 1;
-            return occurrenceBuilder.CopyToAwkText(state.Counters);
+            return occurrenceBuilder.CopyToAwkText(state.Counters, state.CancellationCheckpoint);
         }
 
         using var builder = new AwkUtf8Builder(
@@ -194,8 +194,8 @@ internal static class AwkRegexSubstitution
             state.ThrowIfCancellationRequested();
             var matchIndex = matchReplacement.GetByteIndex(in match);
             var matchLength = matchReplacement.GetByteLength(in match);
-            builder.Append(input.AsSpan().Slice(position, matchIndex - position));
-            matchReplacement.Append(input, in match, replacement, builder);
+            builder.Append(input.AsSpan(state.CancellationCheckpoint).Slice(position, matchIndex - position), state.CancellationCheckpoint);
+            matchReplacement.Append(input, in match, replacement, builder, state.CancellationCheckpoint);
             position = matchIndex + matchLength;
             replacementCount++;
 
@@ -206,8 +206,8 @@ internal static class AwkRegexSubstitution
         }
         while (MoveNext(out match));
 
-        builder.Append(input.AsSpan()[position..]);
-        return builder.CopyToAwkText(state.Counters);
+        builder.Append(input.AsSpan(state.CancellationCheckpoint)[position..], state.CancellationCheckpoint);
+        return builder.CopyToAwkText(state.Counters, state.CancellationCheckpoint);
 
         bool MoveNext(out TMatch next)
         {
@@ -226,6 +226,22 @@ internal static class AwkRegexSubstitution
         }
     }
 
+    private static bool IsLiteralReplacement(AwkText replacement, Action checkpoint)
+    {
+        var bytes = replacement.AsSpan(checkpoint);
+        for (var offset = 0; offset < bytes.Length;)
+        {
+            checkpoint();
+            var length = Math.Min(AwkExecutionGovernor.WorkChunkBytes, bytes.Length - offset);
+            if (bytes.Slice(offset, length).IndexOfAny((byte)'&', (byte)'\\') >= 0)
+                return false;
+            offset += length;
+        }
+
+        checkpoint();
+        return true;
+    }
+
     private interface IMatchReplacement<TMatch>
         where TMatch : struct
     {
@@ -233,7 +249,7 @@ internal static class AwkRegexSubstitution
 
         int GetByteLength(in TMatch match);
 
-        void Append(AwkText input, in TMatch match, AwkText replacement, AwkUtf8Builder builder);
+        void Append(AwkText input, in TMatch match, AwkText replacement, AwkUtf8Builder builder, Action checkpoint);
     }
 
     private readonly record struct SpanMatchReplacement(SpanReplacementKind Kind)
@@ -247,18 +263,20 @@ internal static class AwkRegexSubstitution
             AwkText input,
             in AwkRegexMatchSpan match,
             AwkText replacement,
-            AwkUtf8Builder builder)
+            AwkUtf8Builder builder,
+            Action checkpoint)
         {
             if (Kind == SpanReplacementKind.Literal)
             {
-                builder.Append(replacement);
+                builder.Append(replacement, checkpoint);
                 return;
             }
 
             AwkReplacement.AppendSubstitution(
-                input.AsSpan().Slice(match.ByteIndex, match.ByteLength),
+                input.AsSpan(checkpoint).Slice(match.ByteIndex, match.ByteLength),
                 replacement,
-                builder);
+                builder,
+                checkpoint);
         }
     }
 
@@ -273,7 +291,8 @@ internal static class AwkRegexSubstitution
             AwkText input,
             in AwkRegexMatch match,
             AwkText replacement,
-            AwkUtf8Builder builder) => replacementPlan.Append(match, builder);
+            AwkUtf8Builder builder,
+            Action checkpoint) => replacementPlan.Append(match, builder, checkpoint);
     }
 
     private interface IMatchSource<TMatch> : IDisposable

@@ -133,8 +133,27 @@ field lists and retained value caches, checking during analysis/copying and befo
 The old/new buffer overlap is admitted before allocation; successful publication transfers the
 retained portion once and releases the remainder. Canceled staging or rejected peak memory keeps
 the old fields, NF value and cache. Smaller changes retain a bounded commit after a checkpoint.
-Framework list/dictionary allocation/resizing/probing, replacement/capture, virtual-array and output
-callers, plus regex translation/analysis, remain under audit.
+Replacement classification/parsing, escaped/literal runs, appends and result copies now check
+internally or pass the operation callback through text copying. Capture validation, measurement,
+coordinate conversion and selected-group construction check before returning the completed result;
+failure releases the existing match lease and heap boundary storage. Replacement plans and
+completed capture texts retain no callback. UTF-16 counting preserves surrogate pairs across
+chunks. General regex record copies and empty-match advancement also pass the callback before
+buffer consumption. Boundary sorting and dependency string extraction remain one-shot work with
+checks around them. Existing logical fuel/byte admission and mutation preflights are unchanged.
+Finite-memory gensub plans now count parsed parts before allocating exact-sized scratch under a
+lease; the lease remains live through matching/result construction and is released on all exits.
+Large byte-coordinate scratch has a separate exact-sized array lease admitted alongside the
+retained match lease. It is released before returning the completed match. Smaller coordinate
+scratch is bounded to 1 KiB on the stack. Cancellation/admission failure releases both charges
+before publication. Unbounded execution retains pooling and returns its buffers on failure/success;
+governed admission does not guess pool capacity. Logical fuel/byte work and defaults remain.
+Other array/pool storage and framework/dependency boundaries still need review.
+Framework list/dictionary allocation/resizing/probing, virtual-array and output callers,
+plus regex translation/analysis and wider dependency boundaries, remain under audit. Non-regex
+record-cursor byte/set/run and paragraph scanning/trimming also need internal checks; their scan
+accounting checks occur after the owned scan. Buffered character counting/span search need
+before/after and admitted-data review.
 The memory governor, mutation preflight, backend regex timeouts, and host/cleanup deadlines remain
 independent safeguards. Runtime warning queues also govern message retention, backing-array
 growth, and diagnostic formatting headroom, so repeated math warnings cannot grow an

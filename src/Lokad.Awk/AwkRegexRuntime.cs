@@ -269,7 +269,7 @@ internal sealed class AwkRegexRuntime
                 matchSpan = CreateMatchSpan(text, selected.Index, selected.Length, searchOffset);
                 return AwkRegexMatch.FromCaptures(new(selected, text), text, matchSpan.ByteIndex,
                     matchSpan.ByteLength, inputContext.ExecutionPolicy.CoordinatePolicy, capturePlan,
-                    maxCaptureBytes, _counters, governor);
+                    maxCaptureBytes, _counters, governor, _throwIfCancellationRequested);
             }
             var match = Match(regex, text, searchOffset.Utf16Index, input.ByteLength - searchOffset.ByteIndex);
             if (!match.Success)
@@ -289,7 +289,8 @@ internal sealed class AwkRegexRuntime
                 maxCaptureBytes,
                 _counters,
                 governor,
-                match.Groups);
+                match.Groups,
+                _throwIfCancellationRequested);
         }
 
         try
@@ -315,7 +316,8 @@ internal sealed class AwkRegexRuntime
                 capturePlan,
                 maxCaptureBytes,
                 _counters,
-                governor);
+                governor,
+                _throwIfCancellationRequested);
         }
         catch (RegexMatchTimeoutException)
         {
@@ -463,21 +465,24 @@ internal sealed class AwkRegexRuntime
         }
     }
 
-    private static AwkRegexMatchSpan CreateMatchSpan(
+    private AwkRegexMatchSpan CreateMatchSpan(
         string input,
         AwkDotNetMatch selected,
         AwkRegexSearchOffset searchOffset)
         => CreateMatchSpan(input, selected.Whole.Index, selected.Whole.Length, searchOffset);
 
-    private static AwkRegexMatchSpan CreateMatchSpan(string input, int index, int length,
+    private AwkRegexMatchSpan CreateMatchSpan(string input, int index, int length,
         AwkRegexSearchOffset searchOffset)
     {
         AwkRegexScalarBoundary.ThrowIfSplit(input, index, length);
         return AwkRegexMatchSpan.Match(
-            searchOffset.ByteIndex + Encoding.UTF8.GetByteCount(
-                input.AsSpan(searchOffset.Utf16Index, index - searchOffset.Utf16Index)),
-            Encoding.UTF8.GetByteCount(input.AsSpan(index, length)), index, length);
+            searchOffset.ByteIndex + AwkRegexMatch.GetUtf8ByteCount(
+                input.AsSpan(searchOffset.Utf16Index, index - searchOffset.Utf16Index), _throwIfCancellationRequested),
+            AwkRegexMatch.GetUtf8ByteCount(input.AsSpan(index, length), _throwIfCancellationRequested), index, length);
     }
+
+    internal AwkRegexSearchOffset AdvanceAfterMatch(AwkText input, AwkRegexMatchSpan match) =>
+        AwkRegexSearchOffset.AfterMatch(input, match, _throwIfCancellationRequested);
 
     private AwkRegex Cache(AwkRegexCacheKey key, AwkRegex regex)
     {
@@ -771,7 +776,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
         if (matchSpan.ByteLength == 0 && matchSpan.ByteIndex >= _input.ByteLength)
             _completed = true;
         else
-            _nextOffset = AwkRegexSearchOffset.AfterMatch(_input, matchSpan);
+            _nextOffset = _runtime.AdvanceAfterMatch(_input, matchSpan);
 
         return true;
     }
@@ -817,7 +822,7 @@ internal sealed class AwkRegexMatchSpanEnumerator(
         if (match.ByteLength == 0 && match.ByteIndex >= input.ByteLength)
             _completed = true;
         else
-            _nextOffset = AwkRegexSearchOffset.AfterMatch(input, match);
+            _nextOffset = runtime.AdvanceAfterMatch(input, match);
 
         return true;
     }

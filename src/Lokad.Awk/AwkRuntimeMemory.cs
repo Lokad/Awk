@@ -104,6 +104,12 @@ internal static class AwkRuntimeMemory
     public static long EstimateArraySortEntryArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, ArraySortEntryBytes);
 
+    public static long EstimateGensubReplacementPartArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, 16);
+
+    public static long EstimateRegexCoordinateArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, sizeof(long));
+
     public static long EstimateRegexMatchBytes(int groupCount, long retainedTextBytes) =>
         CheckedAdd(
             CheckedAdd(AwkRegexMatchBytes, CheckedMultiply(AwkRegexGroupBytes, groupCount)),

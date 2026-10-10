@@ -350,8 +350,36 @@ byte charges and preserve memory and mutation preflights.
 
 .NET UTF-8 decode/encode, randomized HashCode.AddBytes, span search, overlapping byte copies,
 array allocation and pooled traversal-stack resizing remain one-shot calls with boundary checks.
-The callback does not forcibly interrupt those calls. Regex replacement/capture, virtual-array
-and output callers still require audit; this does not promise universal cancellation coverage or latency.
+The callback does not forcibly interrupt those calls. Virtual-array and output callers, regex
+translation/analysis and remaining framework/dependency boundaries still require audit; this does
+not promise universal cancellation coverage or latency. Non-regex record-cursor byte/set/run and
+paragraph scanning/trimming still need internal checks; scan accounting observes cancellation
+after those scans return. Buffered character counting and span search remain in the boundary audit.
+
+Replacement classification searches bounded 4 KiB spans. Substitution/gensub parsing checks long
+literal runs, escaped pairs and slash runs by progress; replacement appends and final text copies
+pass the callback through hidden materialization and byte copying. Large slash fills check in
+chunks before exposing their new builder length. Replacement plans retain no parsing callback.
+Regex capture validation and construction check group progress, preflight measurement and copying;
+the completed match and group texts retain no callback. Cancellation releases the existing match
+lease and heap coordinate-boundary storage. UTF-16 coordinate/capture measurement uses bounded
+chunks without splitting surrogate pairs; boundary-array sorting and dependency string extraction
+remain one-shot calls with checks around them. General regex record payload/terminator copies and
+empty-match advancement pass the same operation callback before consuming buffered input.
+These checks add no fuel/byte charge and preserve existing capture, memory and mutation admission.
+With finite aggregate memory, gensub counts its actual parsed parts using the same checked parser
+before allocating an exact-sized array. Its lease charges the array header and 16 bytes per part
+through matching and result construction, including no-match/missing-occurrence exits. Counting
+and construction both observe cancellation. Unbounded execution keeps its pooled path.
+Byte-coordinate scratch above 128 long slots likewise uses an exact-sized array under a separate
+lease, admitted while the selected-match lease remains live. The scratch lease charges the array
+header and eight bytes per slot, remains live through group construction, and is released before
+the completed match is returned. The retained match keeps only its original charge. Up to 128
+slots use bounded stack scratch (at most 1 KiB) rather than a heap allocation. Rejected admission
+and cancellation release result/scratch leases before publication; the unbounded path returns its
+pooled storage. Exact capacities make admission independent of pool rounding. Other array/pool
+and framework/dependency boundaries remain under audit. No fuel/byte charge or public default
+changes. Observational peak-memory evidence now includes these previously omitted scratch buffers.
 
 FIELDWIDTHS parsing, whitespace and literal separator scans, character splitting and rune advancement
 now use the existing operation-local callback. Long owned byte scans check at roughly 4 KiB intervals;

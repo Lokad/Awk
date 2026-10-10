@@ -359,7 +359,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                         break;
                     }
 
-                    searchOffset = AwkRegexSearchOffset.AfterMatch(input, match);
+                    searchOffset = AwkRegexSearchOffset.AfterMatch(input, match, _state.CancellationCheckpoint);
                 }
 
                 if (!match.Success)
@@ -371,7 +371,8 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                                 recordStart.ByteIndex,
                                 remainingLength,
                                 _state.Counters,
-                                _state.MemoryGovernor),
+                                _state.MemoryGovernor,
+                                _state.CancellationCheckpoint),
                             remainingLength,
                             AwkRecordTerminator.Empty)
                         : BufferedReadResult.NeedMoreData;
@@ -385,13 +386,15 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     recordStart.ByteIndex,
                     recordLength,
                     _state.Counters,
-                    _state.MemoryGovernor);
+                    _state.MemoryGovernor,
+                    _state.CancellationCheckpoint);
                 var terminator = AwkRecordTerminator.FromText(input.CopyByteSlice(
                     match.ByteIndex,
                     match.ByteLength,
                     _state.Counters,
-                    _state.MemoryGovernor));
-                var next = AwkRegexSearchOffset.AfterMatch(input, match);
+                    _state.MemoryGovernor,
+                    _state.CancellationCheckpoint));
+                var next = AwkRegexSearchOffset.AfterMatch(input, match, _state.CancellationCheckpoint);
                 var consumedLength = next.ByteIndex - recordStart.ByteIndex;
                 _bufferStart += consumedLength;
                 _hasConsumedDescriptorBytes |= consumedLength > 0;
