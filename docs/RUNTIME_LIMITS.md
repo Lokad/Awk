@@ -302,6 +302,20 @@ enumeration also reserves its returned key snapshot. `asort` and `asorti` write 
 directly into the replacement array, so their preflight does not charge obsolete dictionary or
 projection buffers.
 
+String-value projections admit newly formatted numeric text before allocating its
+owned bytes and retain that charge through staging, sorting and snapshot disposal.
+The charge includes the text object, bytes and optional cache estimates. Custom
+CONVFMT results retain their charge beside the governed formatting builder; their
+result copies use cancellation checkpoints. Already owned string values remain shared.
+Numeric tie comparisons use a separate lifetime lease that releases after each
+comparison rather than accumulating text across the sort. `asort` transfers only
+new nonfinite text that its explicit string projection materializes in the destination;
+finite numeric values retain their type. Transfer occurs with destination publication,
+so neither staging nor mutation admission requests the same payload twice. Failed
+formatting, admission or comparison releases staging and preserves both arrays.
+These checks add no logical execution steps. Print/printf argument and segment buffer
+admission remains a separate audit; this contract covers sort-owned formatted text.
+
 Type-aware modes retain numeric values without eagerly formatting them. Numeric
 value modes format only equal numeric values for their string tie-break. Every actual
 comparison retains its work/cancellation checkpoint and sort-comparison limit.

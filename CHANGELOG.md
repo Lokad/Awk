@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- String-value array sorting now admits newly formatted numeric text for the full
+  staging lifetime, including custom CONVFMT results. Numeric tie comparisons release
+  their formatting charge after each comparison. Existing text values stay shared;
+  sorting nonfinite values transfers only its materialized destination text at commit.
+  Failed admission preserves source and destination storage. Leased custom-format
+  result copies observe cancellation without adding logical execution charges.
+
 - Array snapshots and sorting now admit newly encoded SYMTAB keys and temporary
   ordinal-key text for their full lifetime. Ordinary text keys and unsorted ordinal
   traversal retain their shared-key contracts. Key sorting transfers temporary text

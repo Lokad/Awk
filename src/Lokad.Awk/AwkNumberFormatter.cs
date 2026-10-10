@@ -43,30 +43,20 @@ internal static class AwkNumberFormatter
     public static AwkText ToAwkText(
         double value,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        AwkMemoryLease? retainedTextLease = null)
     {
         Span<byte> buffer = stackalloc byte[FormattedByteCapacity(value)];
         var bytes = Format(value, buffer);
-        var owned = AwkText.AllocateOwnedBytes(bytes.Length, governor);
-        bytes.CopyTo(owned);
-        return AwkText.FromTrustedOwnedBytes(owned, counters);
+        return CopyAscii(bytes, counters, governor, retainedTextLease);
     }
 
     public static AwkText ToDefaultFormatAwkText(
         double value,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        AwkMemoryLease? retainedTextLease = null)
     {
-        static AwkText CopyAscii(
-            ReadOnlySpan<byte> bytes,
-            AwkRuntimeCounters counters,
-            AwkMemoryGovernor governor)
-        {
-            var owned = AwkText.AllocateOwnedBytes(bytes.Length, governor);
-            bytes.CopyTo(owned);
-            return AwkText.FromTrustedOwnedBytes(owned, counters);
-        }
-
         static ReadOnlySpan<byte> NormalizeLowercaseExponent(
             ReadOnlySpan<byte> bytes,
             Span<byte> destination)
@@ -98,13 +88,13 @@ internal static class AwkNumberFormatter
         }
 
         if (double.IsPositiveInfinity(value))
-            return CopyAscii("+inf"u8, counters, governor);
+            return CopyAscii("+inf"u8, counters, governor, retainedTextLease);
 
         if (double.IsNegativeInfinity(value))
-            return CopyAscii("-inf"u8, counters, governor);
+            return CopyAscii("-inf"u8, counters, governor, retainedTextLease);
 
         if (double.IsNaN(value))
-            return CopyAscii(BitConverter.DoubleToInt64Bits(value) < 0 ? "-nan"u8 : "+nan"u8, counters, governor);
+            return CopyAscii(BitConverter.DoubleToInt64Bits(value) < 0 ? "-nan"u8 : "+nan"u8, counters, governor, retainedTextLease);
 
         Span<byte> buffer = stackalloc byte[MaxFormattedDoubleBytes];
         if (!Utf8Formatter.TryFormat(value, buffer, out var formattedBytes, new StandardFormat('G', 6)))
@@ -113,8 +103,20 @@ internal static class AwkNumberFormatter
         var bytes = buffer[..formattedBytes];
         Span<byte> normalized = stackalloc byte[MaxFormattedDoubleBytes];
         var output = NormalizeLowercaseExponent(bytes, normalized);
-        var owned = AwkText.AllocateOwnedBytes(output.Length, governor);
-        output.CopyTo(owned);
+        return CopyAscii(output, counters, governor, retainedTextLease);
+    }
+
+    private static AwkText CopyAscii(
+        ReadOnlySpan<byte> bytes,
+        AwkRuntimeCounters counters,
+        AwkMemoryGovernor governor,
+        AwkMemoryLease? retainedTextLease)
+    {
+        retainedTextLease?.ReserveAdditional(AwkRuntimeMemory.EstimateTextBytes(bytes.Length));
+        // A supplied lease already admits the complete owned text, including its bytes.
+        var owned = AwkText.AllocateOwnedBytes(bytes.Length,
+            retainedTextLease is null ? governor : AwkMemoryGovernor.Disabled);
+        bytes.CopyTo(owned);
         return AwkText.FromTrustedOwnedBytes(owned, counters);
     }
 

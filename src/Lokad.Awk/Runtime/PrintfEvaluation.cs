@@ -20,7 +20,8 @@ internal static class PrintfEvaluation
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null)
+        Action? checkpoint = null,
+        AwkMemoryLease? retainedTextLease = null)
         where TArguments : IPrintfArguments
     {
         if (format.Length == 0)
@@ -29,7 +30,7 @@ internal static class PrintfEvaluation
             return AwkText.Empty;
         }
 
-        using var output = new PrintfByteOutput(limits, counters, governor, checkpoint);
+        using var output = new PrintfByteOutput(limits, counters, governor, checkpoint, retainedTextLease);
         var argumentCursor = new PrintfArgumentCursor<TArguments>(arguments, missingArgumentPolicy, format, counters, governor, checkpoint);
 
         long nextCheckpoint = 0;
@@ -582,13 +583,15 @@ internal static class PrintfEvaluation
         private readonly AwkMemoryGovernor _governor;
         private readonly AwkUtf8Builder _builder;
         private readonly Action? _checkpoint;
+        private readonly AwkMemoryLease? _retainedTextLease;
 
         public PrintfByteOutput(
             AwkRuntimeLimits limits,
             AwkRuntimeCounters counters,
-            AwkMemoryGovernor governor, Action? checkpoint)
+            AwkMemoryGovernor governor, Action? checkpoint, AwkMemoryLease? retainedTextLease)
         {
             _checkpoint = checkpoint;
+            _retainedTextLease = retainedTextLease;
             _limits = limits;
             _counters = counters;
             _governor = governor;
@@ -659,7 +662,12 @@ internal static class PrintfEvaluation
             if (_builder.Length > 0)
                 _counters.RecordUtf8Encode();
 
-            return _builder.CopyToAwkText(_counters);
+            if (_retainedTextLease is null)
+                return _builder.CopyToAwkText(_counters);
+
+            _retainedTextLease.ReserveAdditional(AwkRuntimeMemory.EstimateTextBytes(_builder.Length));
+            return AwkText.CopyTrustedBytes(_builder.AsSpan(), _counters,
+                AwkMemoryGovernor.Disabled, _checkpoint);
         }
 
         public void Dispose() => _builder.Dispose();

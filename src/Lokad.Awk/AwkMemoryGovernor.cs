@@ -152,6 +152,9 @@ internal sealed class AwkMemoryGovernor
         return new AwkMemoryLease(this, byteCount);
     }
 
+    public AwkMemoryLease CreateTransientLease() =>
+        _enabled ? new AwkMemoryLease(this, 0) : AwkMemoryLease.Disabled;
+
     private long LiveBytes => AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, CurrentCommittedBytes);
 
     private void UpdatePeakLiveBytes()
@@ -183,6 +186,26 @@ internal sealed class AwkMemoryLease : IDisposable
     }
 
     public static AwkMemoryLease Disabled { get; } = new();
+
+    public void ReserveAdditional(long byteCount)
+    {
+        var governor = _governor;
+        if (governor is null || byteCount <= 0)
+            return;
+
+        var nextByteCount = AwkRuntimeMemory.CheckedAdd(_byteCount, byteCount);
+        governor.Reserve(byteCount);
+        try
+        {
+            governor.CommitReserved(byteCount);
+        }
+        catch
+        {
+            governor.ReleaseReserved(byteCount);
+            throw;
+        }
+        _byteCount = nextByteCount;
+    }
 
     public void Transfer(long byteCount)
     {

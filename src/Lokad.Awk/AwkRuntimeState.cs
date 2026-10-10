@@ -777,6 +777,9 @@ internal sealed class AwkRuntimeState
     public AwkText FormatStringByteText(AwkValue value) =>
         _formattingRuntime.FormatStringByteText(value);
 
+    public AwkText FormatStringByteText(AwkValue value, AwkMemoryLease retainedTextLease) =>
+        _formattingRuntime.FormatStringByteText(value, retainedTextLease);
+
     public bool IsRegexMatch(AwkRegex regex, AwkText input) =>
         _regexRuntime.IsMatch(regex, input);
 

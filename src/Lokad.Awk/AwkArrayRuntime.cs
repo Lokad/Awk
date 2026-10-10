@@ -198,11 +198,22 @@ internal sealed class AwkArrayRuntime
     {
         var source = _variableRuntime.ResolveOrPromoteArrayName(sourceArrayName);
         using var reservation = ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
-        var entries = await SortEntriesAsync(source, order, reservation.Count, context).ConfigureAwait(false);
+        var entries = await SortEntriesAsync(source, order, reservation.Count, reservation.Lease, context).ConfigureAwait(false);
+        long transferredValueTextBytes = 0;
+        for (var index = 0; index < entries.Length; index++)
+        {
+            if ((index & 63) == 0)
+                _state.CancellationCheckpoint();
+            transferredValueTextBytes = AwkRuntimeMemory.CheckedAdd(
+                transferredValueTextBytes, entries[index].TransferredValueTextBytes);
+        }
+        _state.CancellationCheckpoint();
         _variables.SetArrayValues(
             _variableRuntime.ResolveOrPromoteArrayName(destinationArrayName),
             entries,
-            static entry => AwkVariableSlot.FromValue(entry.Value));
+            static entry => AwkVariableSlot.FromValue(entry.Value),
+            reservation.Lease,
+            transferredValueTextBytes);
         return entries.Length;
     }
 
@@ -216,7 +227,7 @@ internal sealed class AwkArrayRuntime
             order = DefaultIndexOrder;
         var source = _variableRuntime.ResolveOrPromoteArrayName(sourceArrayName);
         using var reservation = ReserveSortOperation(source, order, AwkArraySortOutput.DestinationArray);
-        var entries = await SortEntriesAsync(source, order, reservation.Count, context).ConfigureAwait(false);
+        var entries = await SortEntriesAsync(source, order, reservation.Count, reservation.Lease, context).ConfigureAwait(false);
         _variables.SetArrayValues(
             _variableRuntime.ResolveOrPromoteArrayName(destinationArrayName),
             entries,
@@ -291,7 +302,7 @@ internal sealed class AwkArrayRuntime
             if (count == 0)
                 return [];
 
-            return CopyKeyValues(SortEntries(arrayName, order, count));
+            return CopyKeyValues(SortEntries(arrayName, order, count, lease));
         }
     }
 
@@ -326,7 +337,7 @@ internal sealed class AwkArrayRuntime
             if (count == 0)
                 return [];
 
-            var entries = await SortEntriesAsync(arrayName, order, count, context).ConfigureAwait(false);
+            var entries = await SortEntriesAsync(arrayName, order, count, lease, context).ConfigureAwait(false);
             return CopyKeyValues(entries);
         }
     }
@@ -425,6 +436,7 @@ internal sealed class AwkArrayRuntime
         AwkArrayName arrayName,
         AwkArraySortOrder order,
         int count,
+        AwkMemoryLease retainedTextLease,
         AwkEvaluationContext context)
     {
         static async ValueTask<AwkArraySortEntry[]> SortUserEntriesAsync(
@@ -432,6 +444,7 @@ internal sealed class AwkArrayRuntime
             AwkArrayName arrayName,
             AwkArraySortOrder.UserFunctionOrder order,
             int count,
+            AwkMemoryLease retainedTextLease,
             AwkEvaluationContext context)
         {
             static async ValueTask SortWithUserFunctionAsync(
@@ -531,20 +544,21 @@ internal sealed class AwkArrayRuntime
             if (!runtime._state.TryGetUserFunction(order.FunctionName, out var function))
                 throw new AwkRuntimeException(AwkMessages.FormatUndefinedSortComparison(order.FunctionName.Text));
 
-            var entries = runtime.SnapshotSortEntries(arrayName, count, AwkArraySortMode.UserFunction);
+            var entries = runtime.SnapshotSortEntries(arrayName, count, AwkArraySortMode.UserFunction, retainedTextLease);
             await SortWithUserFunctionAsync(entries, function, context).ConfigureAwait(false);
             return entries;
         }
 
         return order is AwkArraySortOrder.UserFunctionOrder userFunctionOrder
-            ? SortUserEntriesAsync(this, arrayName, userFunctionOrder, count, context)
-            : ValueTask.FromResult(SortEntries(arrayName, order, count));
+            ? SortUserEntriesAsync(this, arrayName, userFunctionOrder, count, retainedTextLease, context)
+            : ValueTask.FromResult(SortEntries(arrayName, order, count, retainedTextLease));
     }
 
     private AwkArraySortEntry[] SortEntries(
         AwkArrayName arrayName,
         AwkArraySortOrder order,
-        int count)
+        int count,
+        AwkMemoryLease retainedTextLease)
     {
         static AwkArraySortPlan ResolveSortPlan(
             AwkArraySortOrder sortOrder,
@@ -606,7 +620,7 @@ internal sealed class AwkArrayRuntime
         }
 
         var plan = ResolveSortPlan(order, _state.Counters);
-        var entries = SnapshotSortEntries(arrayName, count, plan.Mode);
+        var entries = SnapshotSortEntries(arrayName, count, plan.Mode, retainedTextLease);
         if (plan.Mode == AwkArraySortMode.Unsorted)
             return entries;
         try
@@ -658,7 +672,8 @@ internal sealed class AwkArrayRuntime
     private AwkArraySortEntry[] SnapshotSortEntries(
         AwkArrayName arrayName,
         int count,
-        AwkArraySortMode sortMode)
+        AwkArraySortMode sortMode,
+        AwkMemoryLease retainedTextLease)
     {
         static double ResolveNumericSortKey(
             AwkText key,
@@ -686,25 +701,25 @@ internal sealed class AwkArrayRuntime
             var stringValueOrder = projection.Mode is AwkArraySortMode.ValueStringAscending or AwkArraySortMode.ValueStringDescending;
             var typeValueOrder = projection.Mode is AwkArraySortMode.ValueTypeAscending or AwkArraySortMode.ValueTypeDescending;
             var valueText = stringValueOrder || typeValueOrder && !value.IsNumberValue
-                    ? runtime._state.FormatStringByteText(value)
+                    ? runtime._state.FormatStringByteText(value, projection.MemoryLease)
                     : AwkText.Empty;
             // GNU's explicit string-value projection materializes nonfinite numbers as
             // strings in asort's destination. The source and other modes retain their type.
-            var projectedValue = stringValueOrder && value.IsNumberValue && !double.IsFinite(value.AsNumber())
-                    ? runtime._state.CreateByteTextValue(valueText)
-                    : value;
+            var materializeNonfinite = stringValueOrder && value.IsNumberValue && !double.IsFinite(value.AsNumber());
+            var projectedValue = materializeNonfinite ? runtime._state.CreateByteTextValue(valueText) : value;
             return new AwkArraySortEntry(
                 key,
                 keyText,
                 projectedValue,
                 valueText,
-                ResolveNumericSortKey(keyText, value, projection.Mode, runtime._state));
+                ResolveNumericSortKey(keyText, value, projection.Mode, runtime._state),
+                materializeNonfinite ? AwkRuntimeMemory.EstimateTextBytes(valueText.ByteLength) : 0);
         }
 
         return _variables.SnapshotArrayValues(
             arrayName,
             count,
-            new AwkArraySortEntryProjection(this, sortMode),
+            new AwkArraySortEntryProjection(this, sortMode, retainedTextLease),
             Project);
     }
 
@@ -759,7 +774,8 @@ internal sealed class AwkArrayRuntime
         AwkText? keyText,
         AwkValue value,
         AwkText? valueText,
-        double numericKey)
+        double numericKey,
+        long transferredValueTextBytes)
     {
         public AwkArrayKey Key { get; } = key;
 
@@ -770,16 +786,22 @@ internal sealed class AwkArrayRuntime
         public AwkText ValueText => valueText ?? AwkText.Empty;
 
         public double NumericKey { get; } = numericKey;
+
+        public long TransferredValueTextBytes { get; } = transferredValueTextBytes;
     }
 
     private readonly struct AwkArraySortEntryProjection(
         AwkArrayRuntime? runtime,
-        AwkArraySortMode mode)
+        AwkArraySortMode mode,
+        AwkMemoryLease? memoryLease)
     {
         public AwkArrayRuntime Runtime => runtime ??
             throw new InvalidOperationException("The default sort projection has no array runtime.");
 
         public AwkArraySortMode Mode { get; } = mode;
+
+        public AwkMemoryLease MemoryLease => memoryLease ??
+            throw new InvalidOperationException("The default sort projection has no memory lease.");
     }
 
     private enum AwkArraySortMode
@@ -852,7 +874,9 @@ internal sealed class AwkArrayRuntime
                 if (comparison != 0)
                     return comparison;
                 counters.RecordByteTextComparison();
-                return state.CompareByteText(state.FormatStringByteText(left.Value), state.FormatStringByteText(right.Value), sorting: true);
+                using var textLease = state.MemoryGovernor.CreateTransientLease();
+                return state.CompareByteText(state.FormatStringByteText(left.Value, textLease),
+                    state.FormatStringByteText(right.Value, textLease), sorting: true);
             }
 
             int CompareTypes(AwkArraySortEntry left, AwkArraySortEntry right)

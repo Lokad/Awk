@@ -41,16 +41,18 @@ internal sealed class AwkFormattingRuntime(
             checkpoint);
     }
 
-    public AwkText FormatStringByteText(AwkValue value)
+    public AwkText FormatStringByteText(AwkValue value) => FormatStringByteText(value, null);
+
+    public AwkText FormatStringByteText(AwkValue value, AwkMemoryLease? retainedTextLease)
     {
         if (!value.IsNumberValue || !value.TryGetNumber(out var number))
             return value.ByteText;
 
         if (AwkNumberFormatter.IsInteger(number))
-            return AwkNumberFormatter.ToAwkText(number, counters, governor);
+            return AwkNumberFormatter.ToAwkText(number, counters, governor, retainedTextLease);
 
         if (UsesDefaultFormat(AwkFormattingVariable.ConversionFormat))
-            return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor);
+            return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor, retainedTextLease);
 
         counters.RecordFormattingFallback();
         return PrintfEvaluation.FormatByteText(
@@ -61,7 +63,8 @@ internal sealed class AwkFormattingRuntime(
             counters,
             governor,
             compatibilityMode,
-            checkpoint);
+            checkpoint,
+            retainedTextLease);
     }
 
     public static AwkText FormatPrintfStrictByteText<TArguments>(
