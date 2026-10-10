@@ -41,10 +41,11 @@ internal static class AwkEscapes
                 continue;
             }
 
-            if (!(compatibilityMode == AwkCompatibilityMode.Posix && escaped == 'x') &&
-                TryReadNumericEscape(text, ref index, text.Length, out var numeric))
+            if (TryReadNumericScalar(text, ref index, text.Length, compatibilityMode, out scalar,
+                skipLineContinuations: true, checkpoint))
             {
-                builder.Append(numeric);
+                var length = scalar.EncodeToUtf16(scalarBuffer);
+                builder.Append(scalarBuffer[..length]);
                 continue;
             }
 
@@ -190,7 +191,7 @@ internal static class AwkEscapes
                 numeric = (numeric * 8) + (text[index] - '0');
             }
 
-            value = (char)numeric;
+            value = (char)(numeric & 0xFF);
             return true;
         }
 
@@ -205,11 +206,74 @@ internal static class AwkEscapes
                 numeric = (numeric * 16) + AwkCharacterFacts.HexValue(text[index]);
             }
 
-            value = (char)numeric;
+            value = (char)(numeric & 0xFF);
             return true;
         }
 
         return false;
+    }
+
+    // Numeric escapes describe bytes. Aggregate only complete UTF-8 scalars and
+    // leave failed lookahead unconsumed. Isolated/invalid bytes retain the existing
+    // U+00xx mapping because AwkText cannot represent malformed UTF-8.
+    public static bool TryReadNumericScalar(
+        ReadOnlySpan<char> text,
+        ref int index,
+        int endExclusive,
+        AwkCompatibilityMode compatibilityMode,
+        out Rune value,
+        bool skipLineContinuations = false,
+        Action? checkpoint = null)
+    {
+        value = default;
+        if (index >= endExclusive ||
+            compatibilityMode == AwkCompatibilityMode.Posix && text[index] == 'x' ||
+            !TryReadNumericEscape(text, ref index, endExclusive, out var first))
+            return false;
+
+        value = new Rune(first);
+        if (first is < (char)0xC2 or > (char)0xF4)
+            return true;
+
+        var byteCount = first < 0xE0 ? 2 : first < 0xF0 ? 3 : 4;
+        Span<byte> bytes = stackalloc byte[4];
+        bytes[0] = (byte)first;
+        var last = index;
+        long nextCheckpoint = (long)last + 1024;
+        for (var count = 1; count < byteCount; count++)
+        {
+            var next = last + 1;
+            while (true)
+            {
+                if (next >= nextCheckpoint)
+                {
+                    checkpoint?.Invoke();
+                    nextCheckpoint = (long)next + 1024;
+                }
+                if (next + 1 >= endExclusive || text[next] != '\\')
+                    return true;
+                var escapedIndex = next + 1;
+                if (skipLineContinuations &&
+                    AwkLineContinuations.TrySkipAfterBackslash(text, ref escapedIndex, endExclusive))
+                {
+                    next = escapedIndex + 1;
+                    continue;
+                }
+                if (compatibilityMode == AwkCompatibilityMode.Posix && text[escapedIndex] == 'x' ||
+                    !TryReadNumericEscape(text, ref escapedIndex, endExclusive, out var continuation) ||
+                    continuation is < (char)0x80 or > (char)0xBF)
+                    return true;
+                bytes[count] = (byte)continuation;
+                last = escapedIndex;
+                break;
+            }
+        }
+        if (Rune.DecodeFromUtf8(bytes[..byteCount], out var scalar, out _) == System.Buffers.OperationStatus.Done)
+        {
+            value = scalar;
+            index = last;
+        }
+        return true;
     }
 
     public static bool TryDecodeSimpleEscape(char escaped, out char decoded)

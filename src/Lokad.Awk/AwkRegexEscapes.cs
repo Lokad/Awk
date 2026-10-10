@@ -36,12 +36,12 @@ internal static class AwkRegexEscapes
                 }
                 continue;
             }
-            if (!(mode == AwkCompatibilityMode.Posix && escaped == 'x') &&
-                AwkEscapes.TryReadNumericEscape(pattern, ref index, pattern.Length, out var numeric))
+            if (AwkEscapes.TryReadNumericScalar(pattern, ref index, pattern.Length, mode, out scalar))
             {
-                if (mode == AwkCompatibilityMode.Traditional && IsMetacharacter(numeric))
+                if (scalar.IsBmp && mode == AwkCompatibilityMode.Traditional && IsMetacharacter((char)scalar.Value))
                     builder.Append('\\');
-                builder.Append(numeric);
+                var length = scalar.EncodeToUtf16(buffer);
+                builder.Append(buffer[..length]);
                 continue;
             }
             if (escaped is 'a' or 'b' or 'f' or 'n' or 'r' or 't' or 'v' &&

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- POSIX `graph` and `print` regex classes now use invariant Unicode categories,
+  matching non-ASCII letters, marks, symbols, format and private-use scalars.
+  Print also includes Unicode space separators; controls, unassigned scalars and
+  line/paragraph separators remain excluded. Scalar spans, public capture numbering,
+  profile rules and byte-native class predicates retain their existing contracts.
+
+- Numeric byte escapes now combine complete UTF-8 scalars in strings, options,
+  consumed assignment operands and literal/dynamic regexes: `\303\251` denotes é.
+  Octal values wrap to eight bits. Profile-specific hex/metacharacter rules and
+  malformed-byte text fallback are preserved. Scalar lookahead adds no heap buffer;
+  existing memory admission and cancellation boundaries remain in place.
+
 - Named POSIX regex classes now reject unknown or unterminated names through Awk's
   invalid-regexp diagnostic in every profile. Literal, escaped and backend-comment
   contexts retain their meanings. Admission observes cancellation and admits/releases

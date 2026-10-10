@@ -35,6 +35,25 @@ released on return, failure or cancellation; ordinary ERE classes need no mode b
 `[:punct:]` maps to Unicode punctuation and symbols, so `$`, `+`, `|` and currency or
 mathematical symbols are included. This is the invariant backend category policy;
 it does not promise every GNU/libc locale or Unicode-version membership equivalence.
+`[:graph:]` uses Unicode letters, marks, numbers, punctuation, symbols, format and
+private-use categories (L/M/N/P/S/Cf/Co). `[:print:]` additionally includes space
+separators (Zs). Both exclude controls, unassigned scalars and line/paragraph separators.
+Combining marks, supplementary symbols and private-use scalars are included; printable
+does not imply a visible glyph or a positive display width. Complete scalar atoms and
+user capture numbers are preserved by the existing translation boundary.
+
+The category policy is invariant across locales and profiles. Non-breaking, figure
+and narrow non-breaking spaces are printable but not graphic under this policy;
+GNU/glibc can classify those spaces as graphic instead. Runtime Unicode-data versions
+may also differ from native locale tables. These are explicit compatibility boundaries,
+not claims of complete locale emulation. The class set is translated by Awk into the
+existing backend category syntax; raw engine tables and matching code are unchanged.
+See [Unicode class/capture goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.UnicodePrintClasses.cs)
+and [span/counter checks](../tests/Lokad.Awk.Tests/AwkUnicodePrintClassTests.cs).
+[GNU class definitions](https://www.gnu.org/software/gawk/manual/html_node/Bracket-Expressions.html)
+and [glibc's Unicode classifier](https://github.com/bminor/glibc/blob/glibc-2.39/localedata/unicode-gen/unicode_utils.py)
+explain the native contract and the spacing/version boundary.
+
 See [class goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.RegexBracketClasses.cs)
 and [admission/counter checks](../tests/Lokad.Awk.Tests/AwkRegexBracketClassTests.cs).
 
@@ -42,6 +61,17 @@ Source strings decode GNU 5.4 `\u` escapes before they become dynamic regex patt
 An escaped dot, bracket, anchor, group or quantifier produced by that source decoding
 has its ordinary ERE effect; an escape-produced backslash crosses the regex boundary
 as pattern data. Source string decoding is a single pass.
+
+Octal/hexadecimal regex escapes represent bytes, including eight-bit octal truncation.
+Complete adjacent UTF-8 byte sequences decode to one scalar before ERE interpretation;
+`/\303\251/` matches é. Default/traditional hex decoding permits mixed radix runs;
+POSIX keeps escaped x literal. Traditional mode still quotes numeric metacharacters.
+Incomplete/malformed byte sequences retain Awk's U+00xx fallback, as documented in
+[UTF-8 policy](UTF8_POLICY.md); this intentionally does not reproduce invalid GNU bytes.
+The same decoder serves source strings, options and consumed assignment operands.
+See [numeric-byte goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.NumericByteEscapes.cs)
+and [resource/counter checks](../tests/Lokad.Awk.Tests/AwkNumericByteEscapeTests.cs).
+Numeric digit widths follow the [GNU escape contract](https://www.gnu.org/s/gawk/manual/html_node/Escape-Sequences.html).
 
 Raw regex literals and runtime patterns also decode GNU 5.4 lower-case `\u` escapes
 in default/traditional profiles, consuming one to eight hexadecimal digits. Numeric
@@ -87,7 +117,8 @@ Ordinary unknown-string escapes share typed invocation-wide history across sourc
 options and consumed operands; repeated unknown escapes warn once. Missing-hex and
 Unicode warnings remain per occurrence. First source locations survive compiled reuse,
 and each execution has fresh history. Unknown non-ASCII diagnostics render complete
-scalars under the strict UTF-8 policy. General unknown-ERE warnings remain unfinished.
+scalars under the strict UTF-8 policy. Regexp operator warnings use the separate
+invocation-wide history described above.
 Regex scalar casing/boundary engine defects belong upstream in Lokad.Utf8Regex;
 Awk retains dialect translation and qualified dependency integration.
 
@@ -109,8 +140,9 @@ In GNU mode, a one-byte RS remains literal and case-sensitive. A non-ASCII singl
 RS uses regex matching when IGNORECASE is enabled, preserving case equivalence for that
 separator; it retains the byte-native literal plan when case-sensitive.
 
-This qualification does not establish full profile conformance. Some ERE grammar/numeric-byte escapes, source-specific repeated pipe EOF/RT,
-and Unicode word boundaries remain open.
+This qualification does not establish full profile conformance. Newer minimized
+repetitions remain deferred; Unicode word-boundary engine qualification belongs upstream.
+Versioned separator and final native qualification remain separate release gates.
 GNU 5.4 MinRX also loses uppercase members in classes such as `[[:alpha:]A]`; GNU 5.2
 and GNU 5.4 with `GAWK_GNU_MATCHERS=1` retain them. These reference differences must
 remain explicit when selecting compatibility expectations.
@@ -182,11 +214,16 @@ POSIX subexpression selection. The benchmark reference remains separately pinned
 Some inherited backend constructs, including named/noncapturing groups, arbitrary lookarounds,
 balancing groups, conditionals, atomic groups, and
 whitespace/comment mode, retain their existing compatibility search and capture semantics.
+Named groups retain .NET numeric ordering: unnamed captures precede named captures.
+Participating empty captures remain distinct from absent groups; private translation
+groups never enter match arrays. The class/capture goldens cover these existing contracts.
 Escape sequences follow the awk profile rules above: backend escapes such as `\k`, `\G`
 and `\p` are ordinary escaped characters, and numeric escapes follow awk decoding.
 The legacy endpoint constraint's private groups remain hidden from user captures and counters.
-These extensions are outside the traditional awk ERE contract. POSIX 2024/GNU 5.4 minimized
-repetitions remain a separate compatibility follow-up.
+These extensions are outside the traditional awk ERE contract. Repeated unary
+quantifiers such as `a**` retain the invalid-regexp diagnostic, although GNU accepts
+some such forms. Inherited `a+?`/`a??` forms keep their existing .NET lazy priority.
+POSIX 2024/GNU 5.4 minimized repetitions remain a separate compatibility follow-up.
 Record separators that reduce to one or more bytes from a punctuation-only membership set use an
 incremental byte-run plan, including `([,;])+`, `(?:[,;])+`, and the equivalent quantifier
 inside the wrapper. Equivalent punctuation-only alternations such as `([,]|;)+` use the same

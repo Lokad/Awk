@@ -34,6 +34,22 @@ input records, `getline` data, and source-file contents.
 
 ## Runtime Text
 
+Octal escapes consume at most three digits and use the low eight bits; hexadecimal
+escapes consume at most two digits outside POSIX mode. Adjacent numeric bytes that
+form a complete UTF-8 scalar decode together: `"\303\251"` is the one-character
+string é. Mixed octal/hexadecimal runs use the same rule. Removed source/assignment
+line continuations do not interrupt a byte sequence. Escapes do not combine across
+separate string values, Unicode escapes or ordinary source characters.
+
+For malformed or incomplete byte sequences, each uncombined byte retains the existing
+U+00xx mapping. For example, `"\377"` remains ÿ and `"\303x\251"` remains Ãx©.
+This preserves well-formed Awk text and deliberately differs from GNU's ability to
+retain invalid raw bytes. Octal overflow wraps to one byte: `"\400"` denotes NUL,
+rather than U+0100. This policy also applies before regex compilation; it does not
+change raw matching engines. Scalar lookahead uses four stack bytes, adds no heap
+buffer and checks cancellation across removed continuations. Existing decoding leases
+still admit the builder and result before operand/regex publication.
+
 Source string literals decode GNU 5.4 lower-case `\u` escapes in default/traditional
 profiles, consuming one to eight hexadecimal digits. U+0000, BMP characters and
 supplementary scalars are valid; the following hexadecimal characters belong to the
@@ -76,6 +92,13 @@ string warnings are independent. Numeric regex warnings retain their per-express
 history. FS/FPAT/RS preparation and compiled reuse share the qualified diagnostic
 contracts in REGEX_COMPATIBILITY.md. Named-class admission recognizes the standard
 POSIX names before backend compilation and preserves valid escaped/comment contexts.
+Graphic/printable classes use Unicode category membership over complete scalars:
+L/M/N/P/S/Cf/Co for graph, plus Zs for print. Controls, unassigned code points and
+line/paragraph separators are excluded. Non-breaking spaces remain print-only under
+this invariant policy; native libc locales can classify them differently. Scalar
+translation and capture coordinates retain their existing contracts. Unanchored
+class predicates stay byte-native in the UTF-8 adapter; the absolute-end/observable
+selection routes still use their documented counted string boundaries.
 
 `AwkText` stores valid UTF-8 bytes and caches UTF-16 strings only for compatibility boundaries.
 SYMTAB identifier lookup and failed special-array key diagnostics use the counted key

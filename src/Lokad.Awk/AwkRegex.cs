@@ -331,9 +331,9 @@ internal sealed class AwkRegex
                     translated = AwkRegexConstruction.Replace(translated, "[:blank:]", " \\t", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:cntrl:]", "\\p{Cc}", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:digit:]", "0-9", checkpoint, resultLease);
-                    translated = AwkRegexConstruction.Replace(translated, "[:graph:]", "\\x21-\\x7E", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:graph:]", "\\p{L}\\p{M}\\p{N}\\p{P}\\p{S}\\p{Cf}\\p{Co}", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:lower:]", "\\p{Ll}", checkpoint, resultLease);
-                    translated = AwkRegexConstruction.Replace(translated, "[:print:]", "\\x20-\\x7E", checkpoint, resultLease);
+                    translated = AwkRegexConstruction.Replace(translated, "[:print:]", "\\p{L}\\p{M}\\p{N}\\p{P}\\p{S}\\p{Cf}\\p{Co}\\p{Zs}", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:punct:]", "\\p{P}\\p{S}", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:space:]", "\\s", checkpoint, resultLease);
                     translated = AwkRegexConstruction.Replace(translated, "[:upper:]", "\\p{Lu}", checkpoint, resultLease);
