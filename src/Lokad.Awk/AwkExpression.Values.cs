@@ -52,6 +52,8 @@ internal abstract partial class AwkExpression
             if (!indexExpression.TryGetExecutableIntegerConstant(out var index) || index < 0)
                 return false;
 
+            // Constant folding must retain admission of the index expression.
+            compiler.Emit(AwkOpcode.CheckBudget);
             if (index == 0)
                 compiler.Emit(AwkOpcode.LoadCurrentRecord);
             else
@@ -83,7 +85,7 @@ internal abstract partial class AwkExpression
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(context.State.FieldCount == 0
-                ? AwkValue.FromText(string.Empty)
+                ? context.State.GetCurrentRecordValue()
                 : context.State.GetFieldValue(context.State.FieldCount));
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
@@ -114,7 +116,7 @@ internal abstract partial class AwkExpression
         public static readonly RecordNumberExpression Instance = new();
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(AwkValue.FromNumber(context.State.RecordNumber));
+            ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.RecordNumber));
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
@@ -129,7 +131,7 @@ internal abstract partial class AwkExpression
         public static readonly FileRecordNumberExpression Instance = new();
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(AwkValue.FromNumber(context.State.FileRecordNumber));
+            ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber));
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
@@ -144,7 +146,7 @@ internal abstract partial class AwkExpression
         public static readonly FileNameExpression Instance = new();
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.CreateStringValue(context.State.FileName));
+            ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FileName));
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {

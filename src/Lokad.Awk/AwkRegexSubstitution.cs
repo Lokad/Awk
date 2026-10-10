@@ -147,7 +147,8 @@ internal static class AwkRegexSubstitution
         where TReplacement : struct, IMatchReplacement<TMatch>
     {
         using var matchSource = matches;
-        if (!matchSource.MoveNext(out var match))
+        var previousNonEmptyEnd = -1;
+        if (!MoveNext(out var match))
         {
             replacementCount = 0;
             return input;
@@ -161,7 +162,7 @@ internal static class AwkRegexSubstitution
             for (var seen = 1; seen < targetOccurrence; seen++)
             {
                 state.ThrowIfCancellationRequested();
-                if (!matchSource.MoveNext(out match))
+                if (!MoveNext(out match))
                 {
                     replacementCount = 0;
                     return input;
@@ -203,10 +204,26 @@ internal static class AwkRegexSubstitution
                 break;
             }
         }
-        while (matchSource.MoveNext(out match));
+        while (MoveNext(out match));
 
         builder.Append(input.AsSpan()[position..]);
         return builder.CopyToAwkText(state.Counters);
+
+        bool MoveNext(out TMatch next)
+        {
+            while (matchSource.MoveNext(out next))
+            {
+                var index = matchReplacement.GetByteIndex(in next);
+                var length = matchReplacement.GetByteLength(in next);
+                if (targetOccurrence <= 0 && length == 0 && index == previousNonEmptyEnd)
+                    continue;
+                if (length > 0)
+                    previousNonEmptyEnd = index + length;
+                return true;
+            }
+
+            return false;
+        }
     }
 
     private interface IMatchReplacement<TMatch>

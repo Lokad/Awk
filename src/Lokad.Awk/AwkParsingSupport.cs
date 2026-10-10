@@ -301,7 +301,7 @@ internal sealed class AwkTokenNamer : ITokenNamer<AwkTokenKind>
         {
             AwkTokenKind.EndOfFile => "end of file",
             AwkTokenKind.NewLine => "newline",
-            AwkTokenKind.Identifier => "identifier",
+            AwkTokenKind.Identifier or AwkTokenKind.SpacedIdentifier => "identifier",
             AwkTokenKind.Number => "number",
             AwkTokenKind.String => "string",
             AwkTokenKind.Regex => "regular expression",

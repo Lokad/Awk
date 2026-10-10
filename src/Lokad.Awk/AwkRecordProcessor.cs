@@ -32,6 +32,7 @@ internal sealed class AwkRecordProcessor(AwkRuntimeState state)
         Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync)
     {
         state.ThrowIfRecordBytesExceeded(record);
+        state.PreflightCurrentRecordAdmission(record, terminator, fieldSplittingMode);
         state.Counters.RecordRecordRead();
         state.AdvanceMainInputRecord(terminator);
         state.SetRecordFieldSplittingMode(fieldSplittingMode);

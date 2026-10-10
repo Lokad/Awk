@@ -29,7 +29,6 @@ internal abstract partial class AwkStatement
             compiler.Pop();
             for (var index = 0; index < body.Length; index++)
             {
-                compiler.Emit(AwkOpcode.CheckBudget);
                 compiler.EmitStatementOrFallback(body[index]);
             }
 
@@ -43,7 +42,6 @@ internal abstract partial class AwkStatement
             compiler.PatchJumpTarget(jumpIfFalseIndex, compiler.CurrentOffset);
             for (var index = 0; index < elseBody.Length; index++)
             {
-                compiler.Emit(AwkOpcode.CheckBudget);
                 compiler.EmitStatementOrFallback(elseBody[index]);
             }
 
@@ -64,7 +62,6 @@ internal abstract partial class AwkStatement
             for (var index = 0; index < keys.Count; index++)
             {
                 state.RecordExecutionStep();
-                state.ThrowIfCancellationRequested();
                 state.AssignVariableValue(loopVariable, state.CreateArrayKeyValue(keys[index]));
                 var flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
@@ -99,7 +96,6 @@ internal abstract partial class AwkStatement
                 .ConfigureAwait(false))
             {
                 state.RecordExecutionStep();
-                state.ThrowIfCancellationRequested();
                 flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;
@@ -141,7 +137,6 @@ internal abstract partial class AwkStatement
                 .ConfigureAwait(false))
             {
                 state.RecordExecutionStep();
-                state.ThrowIfCancellationRequested();
                 var flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;
@@ -167,7 +162,6 @@ internal abstract partial class AwkStatement
             do
             {
                 state.RecordExecutionStep();
-                state.ThrowIfCancellationRequested();
                 var flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;

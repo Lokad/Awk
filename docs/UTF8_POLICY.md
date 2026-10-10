@@ -39,6 +39,12 @@ Byte-native paths should avoid decoding records before field splitting, filterin
 Runtime counters track string decodes, UTF-8 encodes, `AwkText.AsString()` calls, and formatting
 fallbacks so migrations can prove that hot paths stay byte-native.
 
+Lazy record splitting captures the active separator/pattern bytes, widths, case setting,
+and paragraph mode at record admission or `$0` assignment. Snapshotting does not decode
+the record or eagerly split its fields. FPAT pattern decoding occurs when fields are
+actually requested. Literal one-character separators count Unicode scalars and remain
+case-sensitive; see `docs/RECORD_SEMANTICS.md` for the classified native differences.
+
 Boundary counters classify the subsystem that crossed the string boundary. An `AwkText.AsString()`
 call is the low-level interop request, `AwkTextAsStringDecodeMisses` records cache misses, and
 higher-level counters such as `FormattingFallbacks`, `StringInteropFallbacks`,
@@ -46,7 +52,23 @@ higher-level counters such as `FormattingFallbacks`, `StringInteropFallbacks`,
 `RegexPatternGapFallbacks` identifies the subset forced across the boundary by an adapter gap.
 Multi-match scans decode each `AwkText` input once and reuse the resulting compatibility string.
 
-Some builtins intentionally remain .NET string operations. `printf`, `sprintf`, numeric print
+Regex character atoms consume complete Unicode scalars, including supplementary characters.
+Match spans and observable captures must align with scalar boundaries before conversion,
+replacement, or publication. A backend extension that selects half a surrogate pair fails with
+`awk: regular expression splits a Unicode character`. Empty-match scans advance by one complete
+scalar. Normal-mode regex coordinates retain their documented UTF-16 units; byte mode reports
+UTF-8 byte coordinates while retaining the same valid-text invariant.
+
+Finite integral numeric values printed with `print` or converted to strings use full decimal
+integers independently of OFMT/CONVFMT, including normalization of negative zero to zero.
+Signed-long values use the byte formatter; larger binary64 integers use exact BigInteger
+digits in a stack character buffer copied as ASCII, without string allocation or UTF-8
+encoding. Fractional default formatting also stays byte-native. Custom fractional formats,
+`printf` and `sprintf` retain their separately counted compatibility paths; explicit printf
+format controls do not acquire print's integer rule.
+See [GNU numeric conversion](https://www.gnu.org/software/gawk/manual/html_node/Strings-And-Numbers.html).
+
+Some builtins intentionally remain .NET string operations. `printf`, `sprintf`, custom numeric
 formatting, `strftime`, `mktime`, GNU date-format directive handling, and non-ASCII
 `tolower`/`toupper` are counted through formatting or string interop fallback counters. ASCII-only
 `tolower` and `toupper` use a byte fast path over `AwkText` and do not claim a Unicode casing

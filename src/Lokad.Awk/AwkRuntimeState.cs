@@ -44,7 +44,6 @@ internal sealed class AwkRuntimeState
     private readonly AwkSpecialVariableDispatcher _specialVariables;
     private readonly AwkVariableRuntime _variableRuntime;
     private readonly AwkFunctionRuntime _functions;
-    private readonly AwkInputMetadata _input = new();
     private readonly AwkExecutionContextStack _executionContexts = new();
     private readonly AwkRangePatternRuntime _rangePatterns = new();
     private readonly AwkExecutionControlRuntime _executionControl = new();
@@ -52,6 +51,7 @@ internal sealed class AwkRuntimeState
     private AwkText _recordSeparatorText = AwkText.Empty;
     private AwkRegexCaseSensitivity _recordSeparatorCaseSensitivity;
     private long _recordSeparatorVersion;
+    private int _functionInvocationDepth;
 
     internal AwkRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
@@ -96,24 +96,28 @@ internal sealed class AwkRuntimeState
             Counters,
             runtimeOptions.RegexEngineKind,
             resources);
-        _stringRuntime = new AwkStringRuntime(stringUnitMode);
+        _stringRuntime = new AwkStringRuntime(stringUnitMode, Resources.RecordByteWork);
         _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryGovernor);
         _fieldSplitter = new AwkFieldSplitter(
             fieldSeparator,
-            CreateRegex,
+            _regexRuntime.Create,
             _regexRuntime.CreateLiteral,
             EnumerateRegexMatchSpans,
             ResolveRegexCaseSensitivity,
             stringUnitMode,
             ThrowIfCancellationRequested,
             MemoryGovernor,
-            Counters);
+            Counters,
+            Resources.RecordByteWork);
         _recordFields = new AwkRecordFieldRuntime(
             _fieldSplitter,
             CreateStringValue,
             CreateNumericStringValue,
             FormatStringByteText,
             ResolveOutputFieldSeparator,
+            () => ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator).ByteLength == 0
+                ? AwkRecordFieldSplittingMode.Paragraph
+                : AwkRecordFieldSplittingMode.Ordinary,
             Counters,
             MemoryGovernor,
             Limits.MaxFields,
@@ -160,19 +164,19 @@ internal sealed class AwkRuntimeState
             ResolveSpecialVariableText(AwkSpecialVariableId.OutputFieldSeparator);
     }
 
-    public int RecordNumber
+    public double RecordNumber
     {
-        get => _input.RecordNumber;
-        set => _input.RecordNumber = value;
+        get => ResolveSpecialVariableValue(AwkSpecialVariableId.RecordNumber).AsNumber();
+        set => AssignSpecialVariableValue(AwkSpecialVariableId.RecordNumber, AwkValue.FromNumber(value));
     }
 
-    public int FileRecordNumber
+    public double FileRecordNumber
     {
-        get => _input.FileRecordNumber;
-        set => _input.FileRecordNumber = value;
+        get => ResolveSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber).AsNumber();
+        set => AssignSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber, AwkValue.FromNumber(value));
     }
 
-    public string FileName => _input.FileName;
+    public string FileName => ResolveSpecialVariableText(AwkSpecialVariableId.FileName).AsString(Counters);
 
     public AwkText CurrentRecordByteText => _recordFields.CurrentRecordByteText;
 
@@ -263,12 +267,11 @@ internal sealed class AwkRuntimeState
 
     public void ThrowIfCancellationRequested()
     {
-        Counters.RecordCancellationCheck();
-        _cancellationToken.ThrowIfCancellationRequested();
+        Resources.ThrowIfCancellationRequested(_cancellationToken);
     }
 
     public void RecordExecutionStep() =>
-        Resources.RecordExecutionStep();
+        Resources.RecordExecutionStep(_cancellationToken);
 
     public void ThrowIfRecordBytesExceeded(AwkText record) =>
         Resources.ThrowIfRecordBytesExceeded(record.ByteLength);
@@ -360,6 +363,14 @@ internal sealed class AwkRuntimeState
     }
 
     public bool IsInsideFunction => _functions.IsInsideFunction;
+
+    public bool EnterFunctionInvocation()
+    {
+        RecordExecutionStep();
+        return ++_functionInvocationDepth > 1;
+    }
+
+    public void LeaveFunctionInvocation() => _functionInvocationDepth--;
 
     public void SetFunctionReturnValue(AwkValue value)
     {
@@ -460,7 +471,15 @@ internal sealed class AwkRuntimeState
 
     public void AssignVariableFromExternalText(AwkIdentifier identifier, string value)
     {
-        AssignVariableValue(identifier, CreateNumericStringValue(value));
+        var name = new AwkVariableName(identifier);
+        var assigned = CreateNumericStringValue(value);
+        if (AwkSpecialVariables.TryGetScalar(name, out var id) && id == AwkSpecialVariableId.FieldCount)
+        {
+            AssignSpecialVariableValue(id, assigned);
+            return;
+        }
+
+        _variableRuntime.AssignGlobalVariableValue(name, assigned);
     }
 
     public void AssignVariableFromExternalText(AwkVariableAssignment assignment)
@@ -540,9 +559,29 @@ internal sealed class AwkRuntimeState
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
     {
-        _input.RecordNumberValue = _input.RecordNumberValue.Next();
-        _input.FileRecordNumberValue = _input.FileRecordNumberValue.Next();
+        MemoryGovernor.PreflightAllocation(EstimateRecordTerminatorMemoryGrowth(terminator));
+        RecordNumber = Math.Truncate(RecordNumber) + 1;
+        FileRecordNumber = Math.Truncate(FileRecordNumber) + 1;
         SetRecordTerminator(terminator);
+    }
+
+    public void PreflightCurrentRecordAdmission(
+        AwkText record, AwkRecordTerminator terminator, AwkRecordFieldSplittingMode mode)
+    {
+        Resources.ThrowIfValueBytesExceeded(record.ByteLength);
+        var terminatorGrowth = EstimateRecordTerminatorMemoryGrowth(terminator);
+        if (MemoryGovernor.IsEnabled)
+        {
+            MemoryGovernor.PreflightAllocation(AwkRuntimeMemory.CheckedAdd(
+                _recordFields.EstimateRecordMemoryGrowth(record, mode), terminatorGrowth));
+        }
+    }
+
+    private long EstimateRecordTerminatorMemoryGrowth(AwkRecordTerminator terminator)
+    {
+        Resources.ThrowIfValueBytesExceeded(terminator.ByteText.ByteLength);
+        return _variables.EstimateScalarValueMemoryGrowth(
+            RecordTerminatorVariableName, AwkValue.FromText(terminator.ByteText, NumberParsingMode));
     }
 
     public void SetErrno(AwkErrno errno) =>
@@ -550,6 +589,11 @@ internal sealed class AwkRuntimeState
 
     private void SetArgvIndex(AwkArgvIndex index) =>
         AssignSpecialVariableValue(AwkSpecialVariableId.ArgumentIndex, CreateNumberValue(index.Value));
+
+    public double MainInputArgumentCount =>
+        Math.Truncate(ResolveSpecialVariableValue(AwkSpecialVariableId.ArgumentCount).AsNumber());
+
+    public void SetArgumentIndex(AwkArgvIndex index) => SetArgvIndex(index);
 
     public string ResolveProcInfo(string key, string fallback)
     {
@@ -565,11 +609,16 @@ internal sealed class AwkRuntimeState
         return text.ByteLength > 0 ? text.AsString(Counters) : fallback;
     }
 
-    public void BeginInputFile(string fileName, AwkArgvIndex argvIndex)
+    public void BeginInputFile(AwkText fileName, AwkArgvIndex argvIndex)
     {
-        _input.BeginFile(fileName);
+        AssignSpecialVariableValue(AwkSpecialVariableId.FileName, CreateByteTextValue(fileName));
+        _recordFields.ResetRecord();
+        if (argvIndex.Value > 0)
+        {
+            FileRecordNumber = 0;
+            SetArgvIndex(argvIndex);
+        }
         SetErrno(AwkErrno.None);
-        SetArgvIndex(argvIndex);
     }
 
     public void SetCurrentRecord(AwkText line)
@@ -601,6 +650,9 @@ internal sealed class AwkRuntimeState
 
     public void AssignFieldValue(AwkFieldIndex index, AwkValue value) =>
         _recordFields.AssignFieldValue(index, value);
+
+    public void ExtendFieldCountForReference(AwkFieldIndex index) =>
+        _recordFields.ExtendFieldCountForReference(index);
 
     public void AssignFieldCount(int count) =>
         _recordFields.AssignFieldCount(count);
@@ -666,7 +718,7 @@ internal sealed class AwkRuntimeState
     public AwkRegexMatchSpanEnumerator EnumerateRegexMatchSpans(AwkRegex regex, AwkText input) =>
         _regexRuntime.EnumerateMatchSpans(regex, input);
 
-    private AwkRegexCaseSensitivity ResolveRegexCaseSensitivity() =>
+    internal AwkRegexCaseSensitivity ResolveRegexCaseSensitivity() =>
         ResolveSpecialVariableValue(AwkSpecialVariableId.IgnoreCase).IsTruthy()
             ? AwkRegexCaseSensitivity.IgnoreCase
             : AwkRegexCaseSensitivity.CaseSensitive;
@@ -685,6 +737,18 @@ internal sealed class AwkRuntimeState
 
     public AwkText GetArgumentVectorByteText(AwkArgvIndex index) =>
         GetArrayByteText(ArgumentVectorArrayName, AwkArrayKey.FromArgvIndex(index));
+
+    public bool TryGetArgumentVectorByteText(AwkArgvIndex index, out AwkText text)
+    {
+        if (!TryPeekArrayAwkValue(ArgumentVectorArrayName, AwkArrayKey.FromArgvIndex(index), out var value))
+        {
+            text = AwkText.Empty;
+            return false;
+        }
+
+        text = FormatStringByteText(value);
+        return true;
+    }
 
     public bool ContainsArgumentVectorValue(AwkArgvIndex index) =>
         ContainsArrayValue(ArgumentVectorArrayName, AwkArrayKey.FromArgvIndex(index));

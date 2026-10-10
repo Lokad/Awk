@@ -50,47 +50,75 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         IReadOnlyList<AwkExpression> arguments,
         AwkEvaluationContext context)
     {
-        context.State.ThrowIfCancellationRequested();
-
-        using (var buffer = RentedFunctionArguments.Rent(arguments.Count))
+        var state = context.State;
+        var requiresStackBoundary = state.EnterFunctionInvocation();
+        try
         {
-            var values = buffer.Values;
-            for (var index = 0; index < arguments.Count; index++)
+            // Completed ValueTasks otherwise deepen the CLR stack even while evaluating arguments.
+            if (requiresStackBoundary)
+                await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+            state.ThrowIfCancellationRequested();
+
+            using (var buffer = RentedFunctionArguments.Rent(arguments.Count))
             {
-                var argument = arguments[index];
-                if (argument.TryGetVariableName(out var variableName) &&
-                    context.State.TryResolveArrayArgument(variableName, out var arrayArgument))
+                var values = buffer.Values;
+                for (var index = 0; index < arguments.Count; index++)
                 {
-                    values[index] = arrayArgument;
-                    continue;
+                    var argument = arguments[index];
+                    if (argument.TryGetVariableName(out var variableName) &&
+                        state.TryResolveArrayArgument(variableName, out var arrayArgument))
+                    {
+                        values[index] = arrayArgument;
+                        continue;
+                    }
+
+                    values[index] = AwkFunctionArgument.Scalar(
+                        await argument.EvaluateAsync(context).ConfigureAwait(false));
                 }
 
-                values[index] = AwkFunctionArgument.Scalar(
-                    await argument.EvaluateAsync(context).ConfigureAwait(false));
+                PushArguments(values, arguments.Count, context);
             }
 
-            PushArguments(values, arguments.Count, context);
+            return await InvokeFrameAsync(context).ConfigureAwait(false);
         }
-
-        return await InvokeFrameAsync(context).ConfigureAwait(false);
+        finally
+        {
+            // The unwind needs its own boundary: a chain of inline continuations can also overflow.
+            if (requiresStackBoundary)
+                await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+            state.LeaveFunctionInvocation();
+        }
     }
 
-    public ValueTask<AwkValue> InvokeValuesAsync(
+    public async ValueTask<AwkValue> InvokeValuesAsync(
         IReadOnlyList<AwkValue> arguments,
         AwkEvaluationContext context)
     {
-        context.State.ThrowIfCancellationRequested();
-
-        using (var buffer = RentedFunctionArguments.Rent(arguments.Count))
+        var state = context.State;
+        var requiresStackBoundary = state.EnterFunctionInvocation();
+        try
         {
-            var values = buffer.Values;
-            for (var index = 0; index < arguments.Count; index++)
-                values[index] = AwkFunctionArgument.Scalar(arguments[index]);
+            if (requiresStackBoundary)
+                await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+            state.ThrowIfCancellationRequested();
 
-            PushArguments(values, arguments.Count, context);
+            using (var buffer = RentedFunctionArguments.Rent(arguments.Count))
+            {
+                var values = buffer.Values;
+                for (var index = 0; index < arguments.Count; index++)
+                    values[index] = AwkFunctionArgument.Scalar(arguments[index]);
+
+                PushArguments(values, arguments.Count, context);
+            }
+
+            return await InvokeFrameAsync(context).ConfigureAwait(false);
         }
-
-        return InvokeFrameAsync(context);
+        finally
+        {
+            if (requiresStackBoundary)
+                await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+            state.LeaveFunctionInvocation();
+        }
     }
 
     private void PushArguments(

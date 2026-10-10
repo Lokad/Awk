@@ -72,8 +72,7 @@ internal static class AwkExpressionSyntaxFacts
         {
             target = new AwkCallableTargetSyntax(
                 identifier,
-                expression.DelimiterTokens.Count > 0 &&
-                    identifier.Span.End == expression.DelimiterTokens[0].Span.Start,
+                expression.DelimiterTokens.Count > 0,
                 expression.DelimiterTokens.Count == 0 &&
                     AwkBuiltins.TryGetSpecialSyntax(identifier.Name, out _));
             return true;

@@ -254,7 +254,8 @@ internal static class AwkRegexSyntaxValidator
         try
         {
             AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(pattern, maxPatternBytes, maxGroups);
-            var translated = AwkRegex.TranslatePattern(new AwkRegexPattern(pattern));
+            var translated = AwkRegexScalarPattern.Translate(
+                AwkRegex.TranslatePattern(new AwkRegexPattern(pattern)));
             AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(translated, maxPatternBytes, maxGroups);
             _ = new Regex(
                 translated,

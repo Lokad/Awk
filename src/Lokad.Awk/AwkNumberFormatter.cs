@@ -2,12 +2,15 @@ using System;
 using System.Buffers;
 using System.Buffers.Text;
 using System.Globalization;
+using System.Numerics;
 
 namespace Lokad.Awk;
 
 internal static class AwkNumberFormatter
 {
     private const int MaxFormattedDoubleBytes = 32;
+    // A finite binary64 integer has at most 309 decimal digits plus its sign.
+    private const int MaxFormattedIntegerBytes = 310;
 
     public static string ToString(double value)
     {
@@ -21,7 +24,9 @@ internal static class AwkNumberFormatter
             return "nan";
 
         if (IsInteger(value))
-            return ((long)value).ToString(CultureInfo.InvariantCulture);
+            return FitsSignedInteger(value)
+                ? ((long)value).ToString(CultureInfo.InvariantCulture)
+                : new BigInteger(value).ToString(CultureInfo.InvariantCulture);
 
         return value.ToString("G", CultureInfo.InvariantCulture);
     }
@@ -31,7 +36,7 @@ internal static class AwkNumberFormatter
 
     public static AwkText ToAwkText(double value, AwkRuntimeCounters counters)
     {
-        Span<byte> buffer = stackalloc byte[MaxFormattedDoubleBytes];
+        Span<byte> buffer = stackalloc byte[FormattedByteCapacity(value)];
         return AwkText.FromTrustedOwnedBytes(Format(value, buffer).ToArray(), counters);
     }
 
@@ -40,7 +45,7 @@ internal static class AwkNumberFormatter
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
-        Span<byte> buffer = stackalloc byte[MaxFormattedDoubleBytes];
+        Span<byte> buffer = stackalloc byte[FormattedByteCapacity(value)];
         var bytes = Format(value, buffer);
         var owned = AwkText.AllocateOwnedBytes(bytes.Length, governor);
         bytes.CopyTo(owned);
@@ -112,12 +117,18 @@ internal static class AwkNumberFormatter
 
     public static void AppendTo(AwkUtf8Builder builder, double value)
     {
-        Span<byte> buffer = stackalloc byte[MaxFormattedDoubleBytes];
+        Span<byte> buffer = stackalloc byte[FormattedByteCapacity(value)];
         builder.Append(Format(value, buffer));
     }
 
     public static bool IsInteger(double value) =>
         Math.Abs(value % 1) < double.Epsilon;
+
+    private static bool FitsSignedInteger(double value) =>
+        value >= long.MinValue && value < -(double)long.MinValue;
+
+    private static int FormattedByteCapacity(double value) =>
+        FitsSignedInteger(value) || !IsInteger(value) ? MaxFormattedDoubleBytes : MaxFormattedIntegerBytes;
 
     private static ReadOnlySpan<byte> Format(double value, Span<byte> buffer)
     {
@@ -132,7 +143,10 @@ internal static class AwkNumberFormatter
 
         if (IsInteger(value))
         {
-            if (!Utf8Formatter.TryFormat((long)value, buffer, out var bytesWritten))
+            var formatted = FitsSignedInteger(value)
+                ? Utf8Formatter.TryFormat((long)value, buffer, out var bytesWritten)
+                : TryFormatLargeInteger(value, buffer, out bytesWritten);
+            if (!formatted)
                 throw new InvalidOperationException("Unable to format an awk integer value.");
 
             return buffer[..bytesWritten];
@@ -142,6 +156,18 @@ internal static class AwkNumberFormatter
             throw new InvalidOperationException("Unable to format an awk numeric value.");
 
         return buffer[..formattedBytes];
+    }
+
+    private static bool TryFormatLargeInteger(double value, Span<byte> destination, out int bytesWritten)
+    {
+        Span<char> digits = stackalloc char[MaxFormattedIntegerBytes];
+        if (!new BigInteger(value).TryFormat(digits, out bytesWritten, provider: CultureInfo.InvariantCulture) ||
+            bytesWritten > destination.Length)
+            return false;
+        // Invariant integer formatting contains only ASCII digits and the optional minus sign.
+        for (var index = 0; index < bytesWritten; index++)
+            destination[index] = (byte)digits[index];
+        return true;
     }
 
 }

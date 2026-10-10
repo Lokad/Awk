@@ -206,19 +206,19 @@ internal sealed class AwkArrayRuntime
         var entryCount = 0;
         for (var index = 0; index < groups.Count; index++)
         {
-            entryCount = AwkRuntimeMemory.CheckedAdd(entryCount, groups[index].Success ? 3 : 1);
+            entryCount = AwkRuntimeMemory.CheckedAdd(entryCount, groups[index].Success ? 3 : 0);
         }
 
         _variables.PreflightMutableArrayReplacement(entryCount);
         var slots = _variables.CreateMutableArraySlots(entryCount);
         for (var index = 0; index < groups.Count; index++)
         {
-            var ordinalKey = AwkArrayKey.FromOrdinal(index);
             var group = groups[index];
-            slots[ordinalKey] = AwkVariableSlot.FromValue(_state.CreateByteTextValue(group.Value));
             if (!group.Success)
                 continue;
 
+            var ordinalKey = AwkArrayKey.FromOrdinal(index);
+            slots[ordinalKey] = AwkVariableSlot.FromValue(_state.CreateByteTextValue(group.Value));
             slots[_state.ComposeArrayKey(ordinalKey, MatchStartCaptureKeyPart)] =
                 AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Index + 1));
             slots[_state.ComposeArrayKey(ordinalKey, MatchLengthCaptureKeyPart)] =
@@ -465,6 +465,7 @@ internal sealed class AwkArrayRuntime
                     AwkArraySortEntry right)
                 {
                     var state = context.State;
+                    state.Resources.RecordSortComparison();
                     comparatorArguments[0] = state.CreateByteTextValue(left.KeyText);
                     comparatorArguments[1] = left.Value;
                     comparatorArguments[2] = state.CreateByteTextValue(right.KeyText);
@@ -558,6 +559,11 @@ internal sealed class AwkArrayRuntime
         {
             throw runtimeException;
         }
+        catch (InvalidOperationException exception)
+            when (exception.InnerException is OperationCanceledException cancellationException)
+        {
+            throw cancellationException;
+        }
 
         return entries;
     }
@@ -569,7 +575,6 @@ internal sealed class AwkArrayRuntime
         public int Compare(AwkArraySortEntry left, AwkArraySortEntry right)
         {
             state.Resources.RecordSortComparison();
-            state.ThrowIfCancellationRequested();
             return comparer.Compare(left, right);
         }
     }

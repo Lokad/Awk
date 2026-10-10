@@ -19,7 +19,7 @@ internal static class AwkExecutor
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions)
     {
-        var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters);
+        var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken);
 
         async Task<AwkExitCode> AppendResultAsync(
             AwkFileDescriptor descriptor,
@@ -182,7 +182,7 @@ internal static class AwkExecutor
         }
 
         var runtimeOptions = AwkRuntimeOptions.CreateSystemDefault();
-        var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters);
+        var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken);
         var resolved = await ResolveProgramAsync(
                 host,
                 invocation,

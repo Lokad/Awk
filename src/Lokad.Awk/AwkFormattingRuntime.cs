@@ -20,6 +20,9 @@ internal sealed class AwkFormattingRuntime(
         if (!value.IsNumberValue || !value.TryGetNumber(out var number))
             return value.ByteText;
 
+        if (AwkNumberFormatter.IsInteger(number))
+            return AwkNumberFormatter.ToAwkText(number, counters, governor);
+
         if (UsesDefaultFormat(AwkFormattingVariable.OutputFormat))
             return AwkNumberFormatter.ToDefaultFormatAwkText(number, counters, governor);
 

@@ -138,7 +138,6 @@ internal sealed class AwkExecutableAction
         var compiler = new AwkExecutableCompiler(tables);
         for (var index = 0; index < action.Statements.Length; index++)
         {
-            compiler.Emit(AwkOpcode.CheckBudget);
             compiler.EmitStatementOrFallback(action.Statements[index]);
         }
 
@@ -226,13 +225,13 @@ internal static class AwkExecutableDispatcher
 
     public static AwkVmFrameScope EnterFallbackFrame(AwkRuntimeState state)
     {
-        RecordBudgetCheck(state);
+        state.ThrowIfCancellationRequested();
         return AwkVmFrameScope.Enter(state, depth: 1, byteCount: FallbackFrameBytes);
     }
 
     public static AwkVmFrameScope EnterFrame(AwkRuntimeState state, int maxStackDepth)
     {
-        RecordBudgetCheck(state);
+        state.ThrowIfCancellationRequested();
         var depth = NormalizeStackDepth(maxStackDepth);
         return AwkVmFrameScope.Enter(state, depth, EstimateFrameBytes(depth));
 
@@ -289,6 +288,13 @@ internal static class AwkExecutableDispatcher
                             pc++;
                             break;
 
+                        case AwkOpcode.CheckStatementBudget:
+                            // Preserve the interpreter's output boundary before admitting the next statement.
+                            await FlushOutputAsync().ConfigureAwait(false);
+                            RecordBudgetCheck(state);
+                            pc++;
+                            break;
+
                         case AwkOpcode.Pop:
                             stackCount--;
                             pc++;
@@ -318,23 +324,23 @@ internal static class AwkExecutableDispatcher
 
                         case AwkOpcode.LoadLastField:
                             stack[stackCount++] = state.FieldCount == 0
-                                ? AwkValue.FromText(AwkText.Empty)
+                                ? state.GetCurrentRecordValue()
                                 : state.GetFieldValue(new AwkFieldIndex(state.FieldCount));
                             pc++;
                             break;
 
                         case AwkOpcode.LoadRecordNumber:
-                            stack[stackCount++] = AwkValue.FromNumber(state.RecordNumber);
+                            stack[stackCount++] = state.ResolveSpecialVariableValue(AwkSpecialVariableId.RecordNumber);
                             pc++;
                             break;
 
                         case AwkOpcode.LoadFileRecordNumber:
-                            stack[stackCount++] = AwkValue.FromNumber(state.FileRecordNumber);
+                            stack[stackCount++] = state.ResolveSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber);
                             pc++;
                             break;
 
                         case AwkOpcode.LoadFileName:
-                            stack[stackCount++] = state.CreateStringValue(state.FileName);
+                            stack[stackCount++] = state.ResolveSpecialVariableValue(AwkSpecialVariableId.FileName);
                             pc++;
                             break;
 
@@ -986,6 +992,7 @@ internal readonly record struct AwkInstruction
         if (opcode is not (
             AwkOpcode.NoOp or
             AwkOpcode.CheckBudget or
+            AwkOpcode.CheckStatementBudget or
             AwkOpcode.Pop or
             AwkOpcode.LoadCurrentRecord or
             AwkOpcode.LoadFieldCount or
@@ -1093,6 +1100,7 @@ internal enum AwkOpcode
 {
     NoOp,
     CheckBudget,
+    CheckStatementBudget,
     Pop,
     LoadConstant,
     LoadField,

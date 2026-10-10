@@ -132,6 +132,8 @@ internal enum AwkTokenKind
     Comment,
     [Pattern("[A-Za-z_][A-Za-z0-9_]*", Start = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_")]
     Identifier,
+    // Expression-parser-only: a spaced variable before '(' cannot start a user call.
+    SpacedIdentifier,
     [Pattern("(?:0[xX][0-9A-Fa-f]+)|(?:(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?)", Start = "0123456789.")]
     Number,
     String,
@@ -269,5 +271,8 @@ internal enum AwkTokenKind
     [Any("++")]
     PlusPlus,
     [Any("--")]
-    MinusMinus
+    MinusMinus,
+    // Expression-parser-only mutation tokens remove the prefix/postfix ambiguity.
+    PostfixPlusPlus,
+    PostfixMinusMinus
 }

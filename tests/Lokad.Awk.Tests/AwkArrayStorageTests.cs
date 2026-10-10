@@ -11,11 +11,13 @@ public sealed class AwkArrayStorageTests
         var name = AwkArrayName.FromText("missing");
 
         Assert.False(storage.TryGetSlots(name, out _));
+        var foundAny = false;
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < 10_000; index++)
-            Assert.False(storage.TryGetSlots(name, out _));
+            foundAny |= storage.TryGetSlots(name, out _);
 
         var allocatedAfter = GC.GetAllocatedBytesForCurrentThread();
+        Assert.False(foundAny);
         Assert.Equal(allocatedBefore, allocatedAfter);
         Assert.False(storage.Contains(name));
     }

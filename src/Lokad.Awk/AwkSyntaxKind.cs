@@ -20,6 +20,7 @@ internal enum AwkDirectiveKind
 internal enum AwkStatementKind
 {
     Unknown,
+    Block,
     Expression,
     Print,
     Printf,

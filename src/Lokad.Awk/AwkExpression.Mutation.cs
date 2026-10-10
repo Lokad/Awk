@@ -19,8 +19,12 @@ internal abstract partial class AwkExpression
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler) =>
             TryEmitStore(compiler, AwkStoredValueRetention.Retain);
 
-        internal override bool TryEmitExecutableStatement(AwkExecutableCompiler compiler) =>
-            TryEmitStore(compiler, AwkStoredValueRetention.Discard);
+        internal override bool TryEmitExecutableStatement(AwkExecutableCompiler compiler)
+        {
+            // This store bypasses EmitExpressionOrFallback's ordinary expression checkpoint.
+            compiler.Emit(AwkOpcode.CheckBudget);
+            return TryEmitStore(compiler, AwkStoredValueRetention.Discard);
+        }
 
         private bool TryEmitStore(AwkExecutableCompiler compiler, AwkStoredValueRetention retention)
         {

@@ -131,6 +131,14 @@ internal readonly record struct AwkRegexMatch
             return AwkLeasedRegexMatch.NoMatch;
 
         var groupCount = capturePlan.SelectGroupCount(match.Groups.Count);
+        AwkRegexScalarBoundary.ThrowIfSplit(input, match.Index, match.Length);
+        for (var index = 0; index < groupCount; index++)
+        {
+            var group = match.Groups[index];
+            if (group.Success)
+                AwkRegexScalarBoundary.ThrowIfSplit(input, group.Index, group.Length);
+        }
+
         var retainedTextMemoryBytes = !governor.IsEnabled && maxCaptureBytes == AwkRuntimeLimits.Unlimited
             ? 0
             : MeasureRetainedTextMemory(maxCaptureBytes, match.Groups, groupCount);
@@ -248,6 +256,14 @@ internal readonly record struct AwkRegexMatch
             return AwkLeasedRegexMatch.NoMatch;
 
         var groupCount = capturePlan.SelectGroupCount(match.GroupCount);
+        AwkRegexScalarBoundary.ThrowIfUnaligned(match.IsByteAligned);
+        for (var index = 0; index < groupCount; index++)
+        {
+            var group = match.GetGroup(index);
+            if (group.Success)
+                AwkRegexScalarBoundary.ThrowIfUnaligned(group.IsByteAligned);
+        }
+
         var retainedTextMemoryBytes = !governor.IsEnabled && maxCaptureBytes == AwkRuntimeLimits.Unlimited
             ? 0
             : MeasureRetainedTextMemory(maxCaptureBytes, match, groupCount);

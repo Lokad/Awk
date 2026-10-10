@@ -15,15 +15,27 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(FieldCases(), AwkGoldenTag.Field),
 
+        .. Tagged(FieldCompatibilityRepairs(), AwkGoldenTag.Field),
+
+        .. Tagged(RecordSplitCompatibilityRepairs(), AwkGoldenTag.Field, AwkGoldenTag.Record, AwkGoldenTag.Regex),
+
         .. Tagged(RecordSchedulingCases(), AwkGoldenTag.Record),
 
+        .. Tagged(InputMetadataCompatibilityRepairs(), AwkGoldenTag.Record),
+
+        .. Tagged(RecordSeparatorCompatibilityRepairs(), AwkGoldenTag.Record),
+
         .. Tagged(CommandLineRuntimeCases(), AwkGoldenTag.CommandLine),
+
+        .. Tagged(ArgumentSchedulingCompatibilityRepairs(), AwkGoldenTag.CommandLine, AwkGoldenTag.Record),
 
         .. Tagged(PatternCases(), AwkGoldenTag.Pattern),
 
         .. Tagged(RegexSubstitutionCases(), AwkGoldenTag.Regex),
 
         .. Tagged(ExpressionCases(), AwkGoldenTag.Expression),
+
+        .. Tagged(ExpressionCompatibilityRepairs(), AwkGoldenTag.Expression),
 
         .. Tagged(ExpressionRuntimeCases(), AwkGoldenTag.Expression),
 
@@ -48,11 +60,17 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(RegexCases(), AwkGoldenTag.Regex),
 
+        .. Tagged(RegexCompatibilityRepairs(), AwkGoldenTag.Regex),
+
         .. Tagged(OutputCases(), AwkGoldenTag.Output),
+
+        .. Tagged(NumericOutputCompatibilityRepairs(), AwkGoldenTag.Output),
 
         .. Tagged(ArrayRuntimeCases(), AwkGoldenTag.Array),
 
         .. Tagged(StatementControlCases(), AwkGoldenTag.Statement),
+
+        .. Tagged(StatementCompatibilityRepairs(), AwkGoldenTag.Statement),
 
         .. Tagged(StatementSeparatorCases(), AwkGoldenTag.Statement),
 
@@ -1729,14 +1747,6 @@ internal static partial class AwkGoldenCorpus
             "awk: invalid number of arguments for typeof\n"),
 
         Failing(
-            "post-increment-adjacent-token-fails",
-            ["BEGIN{i++j}"],
-            [],
-            2,
-            string.Empty,
-            "awk: unexpected token after postfix update expression.\n"),
-
-        Failing(
             "unterminated-ternary-fails",
             ["BEGIN{print 1 ? 2}"],
             [],
@@ -2059,7 +2069,7 @@ internal static partial class AwkGoldenCorpus
             "ignorecase-split-and-field-splitting",
             ["BEGIN{IGNORECASE=1; split(\"aXb\", parts, \"x\"); print parts[1], parts[2]; FS=\"x\"} {print $1, $2}", "/file.txt"],
             [File("/file.txt", "cXd\n")],
-            "a b\nc d\n"),
+            "aXb \ncXd \n"),
 
         Passing(
             "field-separator-plan-tracks-ignorecase",
@@ -2149,7 +2159,7 @@ internal static partial class AwkGoldenCorpus
             "postfix-update-expressions",
             ["BEGIN{x=1; print x++, x; a[\"k\"]=3; print a[\"k\"]++, a[\"k\"]; $0=\"a b\"; print $2++, $2}"],
             [],
-            "1 2\n3 4\nb 1\n"),
+            "1 2\n3 4\n0 1\n"),
 
         Passing(
             "mutation-expression-target-index-evaluates-once",
@@ -4122,7 +4132,7 @@ internal static partial class AwkGoldenCorpus
             "beginfile-nextfile-skips-current-file",
             ["BEGINFILE{print \"skip\", FILENAME; nextfile} {print \"bad\"} ENDFILE{print \"end\", FILENAME, FNR}", "/a.txt", "/b.txt"],
             [File("/a.txt", "a1\na2\n"), File("/b.txt", "b1\n")],
-            "skip /a.txt\nskip /b.txt\n"),
+            "skip /a.txt\nend /a.txt 0\nskip /b.txt\nend /b.txt 0\n"),
 
         CompilerDiagnostic(Failing(
             "next-in-begin-fails",
@@ -4563,7 +4573,7 @@ internal static partial class AwkGoldenCorpus
                 [],
                 2,
                 string.Empty,
-                "awk: invalid function call.\n"));
+                "awk: function name `inc' used as a variable.\n"));
         }
         static AwkGoldenCase[] VariableCases() =>
         [

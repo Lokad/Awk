@@ -82,6 +82,18 @@ internal static class AwkStatementLowerer
         var loweredStatements = new List<AwkStatement>(syntaxStatements.Count);
         for (var index = 0; index < syntaxStatements.Count; index++)
         {
+            if (syntaxStatements[index].Kind is AwkStatementKind.Block)
+            {
+                if (!TryLowerListCore(syntaxStatements[index].BodyStatements, scope, out var body, out diagnostic))
+                {
+                    statements = [];
+                    return false;
+                }
+
+                loweredStatements.AddRange(body);
+                continue;
+            }
+
             if (!TryLower(syntaxStatements[index], scope, out var statement))
             {
                 statements = [];
@@ -352,40 +364,9 @@ internal static class AwkStatementLowerer
                 AwkLoweringScope scope,
                 [NotNullWhen(true)] out AwkStatement? statement)
             {
-                static bool TryLowerDanglingElseStatement(
-                    AwkStatementSyntax syntax,
-                    AwkLoweringScope scope,
-                    [NotNullWhen(true)] out AwkStatement? statement)
-                {
-                    statement = null;
-                    if (!AwkStatementLoweringShapes.Control(syntax).TryGetValue(out var outer) ||
-                        syntax.BodyStatements.Count != 1 ||
-                        !AwkStatementLoweringShapes.Control(syntax.BodyStatements[0]).TryGetValue(out var inner))
-                    {
-                        return false;
-                    }
-
-                    if (syntax.BodyStatements[0].Kind != AwkStatementKind.If ||
-                        syntax.BodyStatements[0].ElseStatements.Count != 0 ||
-                        !TryLowerConditionSlot(outer.Header, scope, out var outerCondition) ||
-                        !TryLowerConditionSlot(inner.Header, scope, out var innerCondition) ||
-                        !TryLowerList(syntax.BodyStatements[0].BodyStatements, scope, out var innerBody) ||
-                        !TryLowerList(syntax.ElseStatements, scope, out var nearestElseBody))
-                    {
-                        return false;
-                    }
-
-                    var innerStatement = AwkStatement.If(innerCondition, innerBody, nearestElseBody);
-                    statement = AwkStatement.If(outerCondition, [innerStatement]);
-                    return true;
-                }
-
                 statement = null;
                 if (!AwkStatementLoweringShapes.Control(syntax).TryGetValue(out var control))
                     return false;
-
-                if (control.HasDanglingElseBody)
-                    return TryLowerDanglingElseStatement(syntax, scope, out statement);
 
                 if (!TryLowerConditionSlot(control.Header, scope, out var condition) ||
                     !TryLowerList(control.BodyStatements, scope, out var body) ||

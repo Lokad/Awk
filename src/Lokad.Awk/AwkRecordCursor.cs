@@ -330,20 +330,32 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             {
                 var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
                 var input = GetRegexInput(buffer);
-                var searchOffset = GetRegexSearchOffset(buffer);
-                _state.Resources.RecordRegexRecordSeparatorBytesScanned(
-                    input.ByteLength - searchOffset.ByteIndex);
-                var match = _state.MatchRegexSpan(
-                    separator.Value,
-                    input,
-                    searchOffset);
+                var recordStart = GetRegexSearchOffset(buffer);
+                var searchOffset = recordStart;
+                AwkRegexMatchSpan match;
+                while (true)
+                {
+                    _state.Resources.RecordRegexRecordSeparatorBytesScanned(
+                        input.ByteLength - searchOffset.ByteIndex);
+                    match = _state.MatchRegexSpan(separator.Value, input, searchOffset);
+                    if (!match.Success || match.ByteLength > 0)
+                        break;
+                    if (match.ByteIndex >= input.ByteLength)
+                    {
+                        match = AwkRegexMatchSpan.NoMatch;
+                        break;
+                    }
+
+                    searchOffset = AwkRegexSearchOffset.AfterMatch(input, match);
+                }
+
                 if (!match.Success)
                 {
                     var remainingLength = buffer.Length - _bufferStart;
                     return _descriptorReachedEof
                         ? ConsumeExistingText(
                             input.CopyByteSlice(
-                                searchOffset.ByteIndex,
+                                recordStart.ByteIndex,
                                 remainingLength,
                                 _state.Counters,
                                 _state.MemoryGovernor),
@@ -355,21 +367,19 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 if (!_descriptorReachedEof && match.ByteIndex + match.ByteLength == input.ByteLength)
                     return BufferedReadResult.NeedMoreData;
 
-                var recordLength = match.ByteIndex - searchOffset.ByteIndex;
+                var recordLength = match.ByteIndex - recordStart.ByteIndex;
                 var record = input.CopyByteSlice(
-                    searchOffset.ByteIndex,
+                    recordStart.ByteIndex,
                     recordLength,
                     _state.Counters,
                     _state.MemoryGovernor);
-                var terminator = match.ByteLength == 0
-                    ? AwkRecordTerminator.Empty
-                    : AwkRecordTerminator.FromText(input.CopyByteSlice(
-                        match.ByteIndex,
-                        match.ByteLength,
-                        _state.Counters,
-                        _state.MemoryGovernor));
+                var terminator = AwkRecordTerminator.FromText(input.CopyByteSlice(
+                    match.ByteIndex,
+                    match.ByteLength,
+                    _state.Counters,
+                    _state.MemoryGovernor));
                 var next = AwkRegexSearchOffset.AfterMatch(input, match);
-                var consumedLength = next.ByteIndex - searchOffset.ByteIndex;
+                var consumedLength = next.ByteIndex - recordStart.ByteIndex;
                 _bufferStart += consumedLength;
                 _hasConsumedDescriptorBytes |= consumedLength > 0;
                 _regexOffsetBufferStart = _bufferStart;
@@ -583,7 +593,9 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 if (TryCreateByteRun(separatorBytes, out var byteRun))
                     return byteRun;
 
-                if (separatorText.RuneLength == 1)
+                if (separatorText.RuneLength == 1 ||
+                    (_state.ResolveRegexCaseSensitivity() is AwkRegexCaseSensitivity.CaseSensitive &&
+                        IsLiteralPattern(separatorBytes)))
                     return new LiteralSeparator(separatorText, AwkRecordTerminator.FromText(separatorText));
 
                 return new RegexSeparator(_state.CreateRegex(
@@ -678,8 +690,11 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         _scanOffset = Math.Max(_bufferStart, buffer.Length - preservedTailLength);
     }
 
-    private void RecordSeparatorScan(int byteCount) =>
+    private void RecordSeparatorScan(int byteCount)
+    {
+        _state.Resources.RecordByteWork(byteCount);
         _state.Counters.RecordRecordSeparatorBytesScanned(byteCount);
+    }
 
     private void ResetSeparatorSearch()
     {
@@ -709,6 +724,21 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         content.IsEmpty
             ? AwkText.Empty
             : AwkText.CopyHostBytes(content, _state.Counters, _state.MemoryGovernor);
+
+    private static bool IsLiteralPattern(ReadOnlySpan<byte> pattern)
+    {
+        foreach (var value in pattern)
+        {
+            if (IsRegexMetacharacter(value))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsRegexMetacharacter(byte value) =>
+        value is (byte)'\\' or (byte)'.' or (byte)'^' or (byte)'$' or (byte)'[' or (byte)']' or
+            (byte)'(' or (byte)')' or (byte)'|' or (byte)'*' or (byte)'+' or (byte)'?' or (byte)'{' or (byte)'}';
 
     private static bool TryCreateByteMembership(
         ReadOnlySpan<byte> separatorText,
@@ -750,9 +780,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
             return values.Count > 0;
 
-            static bool IsRegexMetacharacter(byte value) =>
-                value is (byte)'\\' or (byte)'.' or (byte)'^' or (byte)'$' or (byte)'[' or (byte)']' or
-                    (byte)'(' or (byte)')' or (byte)'|' or (byte)'*' or (byte)'+' or (byte)'?' or (byte)'{' or (byte)'}';
         }
 
         membership = default;

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Made main input follow live `ARGC`/`ARGV` edits, including added files, changed assignments,
+  sparse entries, file actions, and plain `getline`. Preserved restricted path capabilities,
+  descriptor cleanup, and byte-native original paths; operand scanning uses the common governor.
+- Aligned the execution defaults with Lokad.Lython: 50 million shared work steps, 100,000 host
+  calls, and 1,000 active function frames in the compatibility preset. Restricted execution keeps
+  its 32-frame cap, 30-second deadline, capability restrictions, and memory/size limits.
+- Unified interpreter and executable accounting, including regex searches, sort comparisons,
+  repeated separator scans, and byte-oriented built-ins. Explicit secondary CPU caps remain
+  supported; their defaults are unlimited under the common governor.
+- Made nested function entry and unwind suspend safely, including argument evaluation, and
+  aligned VM output flushes with interpreter statement boundaries for budget exhaustion.
+
 ## 0.2.0
 
 - Expanded awk compatibility across multi-source programs, `print` and `printf`, scalar regexes,

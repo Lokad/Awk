@@ -5,16 +5,13 @@ namespace Lokad.Awk;
 internal sealed class AwkControlStatementLoweringShape(
     AwkExpressionSlotSyntax header,
     IReadOnlyList<AwkStatementSyntax> bodyStatements,
-    IReadOnlyList<AwkStatementSyntax> elseStatements,
-    bool hasDanglingElseBody)
+    IReadOnlyList<AwkStatementSyntax> elseStatements)
 {
     public AwkExpressionSlotSyntax Header { get; } = header;
 
     public IReadOnlyList<AwkStatementSyntax> BodyStatements { get; } = bodyStatements;
 
     public IReadOnlyList<AwkStatementSyntax> ElseStatements { get; } = elseStatements;
-
-    public bool HasDanglingElseBody { get; } = hasDanglingElseBody;
 }
 
 internal sealed class AwkForStatementLoweringShape(
@@ -67,8 +64,7 @@ internal static class AwkStatementLoweringShapes
         return new AwkControlStatementLoweringShape(
             payload.Header,
             payload.BodyStatements,
-            payload.ElseStatements,
-            payload.HasDanglingElseBody);
+            payload.ElseStatements);
     }
 
     public static AwkSyntaxOptional<AwkForStatementLoweringShape> For(AwkStatementSyntax syntax)

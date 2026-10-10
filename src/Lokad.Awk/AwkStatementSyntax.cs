@@ -84,9 +84,6 @@ internal sealed class AwkStatementSyntax
 
     public AwkTextSpan Span { get; }
 
-    public bool HasDanglingElseBody =>
-        Payload is AwkControlStatementSyntaxPayload { HasDanglingElseBody: true };
-
     public IReadOnlyList<AwkDiagnostic> Diagnostics { get; }
 
     public IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions() =>
@@ -132,6 +129,12 @@ internal abstract class AwkStatementSyntaxPayload
     }
 }
 
+internal sealed class AwkBlockStatementSyntaxPayload(
+    IReadOnlyList<AwkStatementSyntax> bodyStatements) : AwkStatementSyntaxPayload
+{
+    public override IReadOnlyList<AwkStatementSyntax> BodyStatements { get; } = bodyStatements;
+}
+
 internal sealed class AwkSimpleStatementSyntaxPayload(
     AwkSyntaxOptional<AwkLValueSyntax> lValue,
     IReadOnlyList<AwkExpressionSyntax> expressions) : AwkStatementSyntaxPayload
@@ -158,7 +161,9 @@ internal sealed class AwkControlStatementSyntaxPayload(
     IReadOnlyList<AwkExpressionSyntax> expressions,
     IReadOnlyList<AwkStatementSyntax> bodyStatements,
     IReadOnlyList<AwkStatementSyntax> elseStatements,
-    bool hasDanglingElseBody) : AwkStatementSyntaxPayload
+    bool hasUnbracedBody,
+    bool hasElse = false,
+    bool hasUnbracedElseBody = false) : AwkStatementSyntaxPayload
 {
     public AwkExpressionSlotSyntax Header { get; } = header;
 
@@ -168,22 +173,39 @@ internal sealed class AwkControlStatementSyntaxPayload(
 
     public override IReadOnlyList<AwkStatementSyntax> ElseStatements { get; } = elseStatements;
 
-    public bool HasDanglingElseBody { get; } = hasDanglingElseBody;
+    public bool HasUnbracedBody { get; } = hasUnbracedBody;
 
-    public AwkControlStatementSyntaxPayload WithElse(IReadOnlyList<AwkStatementSyntax> elseStatements) =>
-        new(Header, Expressions, BodyStatements, elseStatements, HasDanglingElseBody);
+    public bool HasElse { get; } = hasElse;
+
+    public bool HasUnbracedElseBody { get; } = hasUnbracedElseBody;
+
+    public AwkControlStatementSyntaxPayload WithElse(
+        IReadOnlyList<AwkStatementSyntax> elseStatements,
+        bool hasUnbracedElseBody) =>
+        new(Header, Expressions, BodyStatements, elseStatements, HasUnbracedBody,
+            hasElse: true, hasUnbracedElseBody: hasUnbracedElseBody);
+
+    public AwkControlStatementSyntaxPayload WithBody(IReadOnlyList<AwkStatementSyntax> bodyStatements) =>
+        new(Header, Expressions, bodyStatements, ElseStatements, HasUnbracedBody,
+            HasElse, HasUnbracedElseBody);
 }
 
 internal sealed class AwkForStatementSyntaxPayload(
     AwkForHeaderSyntax header,
     IReadOnlyList<AwkExpressionSyntax> expressions,
-    IReadOnlyList<AwkStatementSyntax> bodyStatements) : AwkStatementSyntaxPayload
+    IReadOnlyList<AwkStatementSyntax> bodyStatements,
+    bool hasUnbracedBody) : AwkStatementSyntaxPayload
 {
     public AwkForHeaderSyntax Header { get; } = header;
 
     public override IReadOnlyList<AwkExpressionSyntax> Expressions { get; } = expressions;
 
     public override IReadOnlyList<AwkStatementSyntax> BodyStatements { get; } = bodyStatements;
+
+    public bool HasUnbracedBody { get; } = hasUnbracedBody;
+
+    public AwkForStatementSyntaxPayload WithBody(IReadOnlyList<AwkStatementSyntax> bodyStatements) =>
+        new(Header, Expressions, bodyStatements, HasUnbracedBody);
 }
 
 internal sealed class AwkSwitchStatementSyntaxPayload(

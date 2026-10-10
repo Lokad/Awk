@@ -6,8 +6,8 @@ using System.Text;
 namespace Lokad.Awk;
 
 internal sealed class AwkByteFieldSplitter(
-    Func<AwkRegexPattern, AwkRegex> createRegex,
-    Func<AwkRegexLiteralText, AwkRegex> createLiteralRegex,
+    Func<AwkRegexPattern, AwkRegexCaseSensitivity, AwkRegex> createRegex,
+    Func<AwkRegexLiteralText, AwkRegexCaseSensitivity, AwkRegex> createLiteralRegex,
     Func<AwkRegex, AwkText, AwkRegexMatchSpanEnumerator> enumerateMatchSpans,
     Func<AwkRegexCaseSensitivity> resolveRegexCaseSensitivity,
     AwkStringUnitMode stringUnitMode,
@@ -23,7 +23,10 @@ internal sealed class AwkByteFieldSplitter(
         AwkSeparatorCaptureMode captureMode,
         AwkRuntimeCounters counters)
     {
-        var plan = ResolveSeparator(separator, counters);
+        var plan = ResolveSeparator(separator, counters, resolveRegexCaseSensitivity());
+        if (line.ByteLength == 0)
+            return new AwkTextSplitResult([], []);
+
         return plan.Kind switch
         {
             FieldSeparatorKind.Whitespace => SplitWhitespace(line, captureMode, counters),
@@ -169,9 +172,11 @@ internal sealed class AwkByteFieldSplitter(
             while (matches.MoveNext(out var match))
             {
                 throwIfCancellationRequested();
+                if (match.ByteLength == 0)
+                    continue;
                 fields.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
                 separators.Add(SliceTrustedFieldText(content, match.ByteIndex, match.ByteLength, counters));
-                position = AdvanceAfterRegexSeparator(line, match.ByteIndex, match.ByteLength);
+                position = match.ByteIndex + match.ByteLength;
             }
 
             fields.Add(SliceTrustedFieldText(content, position, content.Length - position, counters));
@@ -182,9 +187,13 @@ internal sealed class AwkByteFieldSplitter(
 
     public List<AwkFieldText> SplitRecordFieldsBySeparator(
         AwkText line,
-        AwkFieldSeparatorSpec separator)
+        AwkFieldSeparatorSpec separator,
+        AwkRegexCaseSensitivity caseSensitivity)
     {
-        var plan = ResolveSeparator(separator, runtimeCounters);
+        var plan = ResolveSeparator(separator, runtimeCounters, caseSensitivity);
+        if (line.ByteLength == 0)
+            return [];
+
         return plan.Kind switch
         {
             FieldSeparatorKind.Whitespace => SplitWhitespaceRecordFields(line),
@@ -209,9 +218,13 @@ internal sealed class AwkByteFieldSplitter(
 
     public List<AwkFieldText> SplitParagraphRecordFieldsBySeparator(
         AwkText line,
-        AwkFieldSeparatorSpec separator)
+        AwkFieldSeparatorSpec separator,
+        AwkRegexCaseSensitivity caseSensitivity)
     {
-        var plan = ResolveSeparator(separator, runtimeCounters);
+        var plan = ResolveSeparator(separator, runtimeCounters, caseSensitivity);
+        if (line.ByteLength == 0)
+            return [];
+
         return plan.Kind switch
         {
             FieldSeparatorKind.SingleByte => SplitSingleByteParagraphRecordFields(line, plan.SingleByte),
@@ -252,6 +265,8 @@ internal sealed class AwkByteFieldSplitter(
             while (matches.MoveNext(out var match))
             {
                 throwIfCancellationRequested();
+                if (match.ByteLength == 0)
+                    continue;
                 while (position < match.ByteIndex)
                 {
                     var newlineOffset = content[position..match.ByteIndex].IndexOf((byte)'\n');
@@ -263,7 +278,7 @@ internal sealed class AwkByteFieldSplitter(
                 }
 
                 fields.Add(AwkFieldText.FromRecordSlice(position, match.ByteIndex - position));
-                position = AdvanceAfterRegexSeparator(line, match.ByteIndex, match.ByteLength);
+                position = match.ByteIndex + match.ByteLength;
             }
 
             while (position < content.Length)
@@ -283,7 +298,8 @@ internal sealed class AwkByteFieldSplitter(
 
     private FieldSeparatorPlan ResolveSeparator(
         AwkFieldSeparatorSpec separator,
-        AwkRuntimeCounters counters)
+        AwkRuntimeCounters counters,
+        AwkRegexCaseSensitivity caseSensitivity)
     {
         if (separator.UsesWhitespaceSemantics)
             return FieldSeparatorPlan.Whitespace;
@@ -292,7 +308,8 @@ internal sealed class AwkByteFieldSplitter(
         if (separatorText.ByteLength == 0)
             return FieldSeparatorPlan.Characters;
 
-        var caseSensitivity = resolveRegexCaseSensitivity();
+        if (separatorText.RuneLength == 1)
+            caseSensitivity = AwkRegexCaseSensitivity.CaseSensitive;
         if (_resolvedSeparator is { } resolvedSeparator &&
             ReferenceEquals(resolvedSeparator.SeparatorText, separatorText) &&
             resolvedSeparator.CaseSensitivity == caseSensitivity)
@@ -311,8 +328,8 @@ internal sealed class AwkByteFieldSplitter(
             var regexText = separatorText.AsString(counters);
             plan = FieldSeparatorPlan.FromRegex(
                 separatorText.RuneLength > 1
-                    ? createRegex(new AwkRegexPattern(regexText))
-                    : createLiteralRegex(new AwkRegexLiteralText(regexText)));
+                    ? createRegex(new AwkRegexPattern(regexText), caseSensitivity)
+                    : createLiteralRegex(new AwkRegexLiteralText(regexText), caseSensitivity));
         }
 
         _resolvedSeparator = new ResolvedFieldSeparatorPlan(separatorText, caseSensitivity, plan);
@@ -337,17 +354,25 @@ internal sealed class AwkByteFieldSplitter(
         AwkSeparatorCaptureMode captureMode,
         AwkRuntimeCounters counters)
     {
-        var regex = createRegex(pattern);
+        var regex = createRegex(pattern, resolveRegexCaseSensitivity());
+        if (input.ByteLength == 0)
+            return new AwkTextSplitResult([], []);
+
         var fields = new List<AwkText>();
         var separators = captureMode is AwkSeparatorCaptureMode.Capture
             ? new List<AwkText>()
             : null;
         var content = input.AsSpan();
         var position = 0;
+        var previousNonEmptyEnd = -1;
         using var matches = enumerateMatchSpans(regex, input);
         while (matches.MoveNext(out var match))
         {
             throwIfCancellationRequested();
+            if (match.ByteLength == 0 && match.ByteIndex == previousNonEmptyEnd)
+                continue;
+            if (match.ByteLength > 0)
+                previousNonEmptyEnd = match.ByteIndex + match.ByteLength;
             if (separators != null)
                 separators.Add(SliceTrustedFieldText(content, position, match.ByteIndex - position, counters));
 
@@ -361,14 +386,25 @@ internal sealed class AwkByteFieldSplitter(
         return new AwkTextSplitResult(fields, separators ?? []);
     }
 
-    public List<AwkFieldText> PatsplitRecordFields(AwkText input, AwkRegexPattern pattern)
+    public List<AwkFieldText> PatsplitRecordFields(
+        AwkText input,
+        AwkRegexPattern pattern,
+        AwkRegexCaseSensitivity caseSensitivity)
     {
-        var regex = createRegex(pattern);
+        var regex = createRegex(pattern, caseSensitivity);
+        if (input.ByteLength == 0)
+            return [];
+
         var fields = new List<AwkFieldText>();
+        var previousNonEmptyEnd = -1;
         using var matches = enumerateMatchSpans(regex, input);
         while (matches.MoveNext(out var match))
         {
             throwIfCancellationRequested();
+            if (match.ByteLength == 0 && match.ByteIndex == previousNonEmptyEnd)
+                continue;
+            if (match.ByteLength > 0)
+                previousNonEmptyEnd = match.ByteIndex + match.ByteLength;
             fields.Add(AwkFieldText.FromRecordSlice(match.ByteIndex, match.ByteLength));
         }
 
@@ -448,8 +484,10 @@ internal sealed class AwkByteFieldSplitter(
         while (matches.MoveNext(out var match))
         {
             throwIfCancellationRequested();
+            if (match.ByteLength == 0)
+                continue;
             sink.Add(new AwkByteRange(position, match.ByteIndex - position));
-            position = AdvanceAfterRegexSeparator(line, match.ByteIndex, match.ByteLength);
+            position = match.ByteIndex + match.ByteLength;
         }
 
         sink.Add(new AwkByteRange(position, line.ByteLength - position));
@@ -699,15 +737,6 @@ internal sealed class AwkByteFieldSplitter(
             _position += next + 1;
             return true;
         }
-    }
-
-    private static int AdvanceAfterRegexSeparator(AwkText line, int byteIndex, int byteLength)
-    {
-        if (byteLength > 0 || byteIndex >= line.ByteLength)
-            return byteIndex + byteLength;
-
-        var status = Rune.DecodeFromUtf8(line.AsSpan()[byteIndex..], out _, out var bytesConsumed);
-        return byteIndex + (status == OperationStatus.Done && bytesConsumed > 0 ? bytesConsumed : 1);
     }
 
     private static int CountSingleByteFields(ReadOnlySpan<byte> content, byte separator)

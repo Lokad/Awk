@@ -165,6 +165,26 @@ internal sealed class AwkVariables
         SetScalarSlot(name, AwkVariableSlot.FromValue(value));
     }
 
+    public long EstimateScalarValueMemoryGrowth(AwkVariableName name, AwkValue value)
+    {
+        var slot = AwkVariableSlot.FromValue(value);
+        if (_scalarSlotsByName.TryGetValue(name, out var id))
+        {
+            if (!_governScalarMemory)
+                return 0;
+            var oldState = GetScalarState(id);
+            var baseline = oldState.HasBaseline ? oldState.BaselineBytes : 0;
+            var newCharge = Math.Max(0, EstimateScalarBytes(slot) - baseline);
+            return Math.Max(0, newCharge - oldState.ChargedBytes);
+        }
+
+        ThrowIfNewScalarSlotExceeded(name);
+        return _governScalarMemory
+            ? AwkRuntimeMemory.CheckedAdd(
+                AwkRuntimeMemory.EstimateSymbolMetadataBytes(name.Text.Length), EstimateScalarBytes(slot))
+            : 0;
+    }
+
     public void CaptureScalarMemoryBaseline()
     {
         for (var index = 0; index < _scalarSlots.Count; index++)
@@ -580,12 +600,7 @@ internal sealed class AwkVariables
 
     private AwkGlobalSlotId AddScalarSlot(AwkVariableName name, AwkVariableSlot slot)
     {
-        if (_scalarSlots.Count >= _maxSymbols)
-            throw new AwkRuntimeException(AwkMessages.ErrorSymbolLimit, AwkDiagnosticId.RuntimeResourceLimit);
-
-        var identifierBytes = Encoding.UTF8.GetByteCount(name.Text);
-        if (identifierBytes > _maxIdentifierBytes)
-            throw new AwkRuntimeException(AwkMessages.ErrorIdentifierLimit, AwkDiagnosticId.RuntimeResourceLimit);
+        ThrowIfNewScalarSlotExceeded(name);
 
         var id = new AwkGlobalSlotId(_scalarSlots.Count);
         var slotBytes = _governScalarMemory ? EstimateScalarBytes(slot) : 0;
@@ -601,6 +616,16 @@ internal sealed class AwkVariables
                 : AwkScalarState.Ungoverned(slot)));
         mutation.Commit();
         return id;
+    }
+
+    private void ThrowIfNewScalarSlotExceeded(AwkVariableName name)
+    {
+        if (_scalarSlots.Count >= _maxSymbols)
+            throw new AwkRuntimeException(AwkMessages.ErrorSymbolLimit, AwkDiagnosticId.RuntimeResourceLimit);
+
+        var identifierBytes = Encoding.UTF8.GetByteCount(name.Text);
+        if (identifierBytes > _maxIdentifierBytes)
+            throw new AwkRuntimeException(AwkMessages.ErrorIdentifierLimit, AwkDiagnosticId.RuntimeResourceLimit);
     }
 
     private void SetScalarSlot(AwkVariableName name, AwkVariableSlot slot)

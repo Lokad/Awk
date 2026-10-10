@@ -95,6 +95,11 @@ internal static class AwkRuntimeMemory
         return CheckedAdd(ListObjectBytes, CheckedMultiply(ReferenceBytes, count));
     }
 
+    public static long EstimateFieldWidthListBytes(int capacity) =>
+        capacity <= 0 ? 0 : CheckedAdd(
+            ListObjectBytes,
+            EstimateArrayBufferBytes(capacity, sizeof(int) * 2));
+
     public static long EstimateSplitBufferBytes(
         int inputByteLength,
         int fieldListCount,

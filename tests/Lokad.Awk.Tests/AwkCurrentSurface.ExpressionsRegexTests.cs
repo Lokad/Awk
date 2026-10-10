@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -41,7 +42,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
                 testCase.Tags.Contains(AwkGoldenTag.Regex) &&
                 !testCase.Tags.Contains(AwkGoldenTag.CompilerDiagnostic))
             {
-                yield return [testCase];
+                yield return [testCase, false];
+                yield return [testCase, true];
             }
         }
     }
@@ -95,6 +97,74 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.Equal(baselineTextAllocations, counters.AwkTextAllocations);
         Assert.True(counters.RegexMatches > 0);
         Assert.Equal(0, counters.StringDecodes);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Awk_RegexSupplementaryCapturesHaveStrictUtf8AndMeasuredRouting(
+        bool useUtf8Adapter,
+        bool charactersAsBytes)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var runtime = new AwkRegexRuntime(
+            static () => AwkRegexCaseSensitivity.CaseSensitive,
+            charactersAsBytes ? AwkStringUnitMode.Byte : AwkStringUnitMode.Utf8Rune,
+            static () => { },
+            counters,
+            useUtf8Adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility);
+        var regex = runtime.Create(new AwkRegexPattern("(.)"));
+        var input = AwkText.FromString("😀🦊", counters);
+        using var match = runtime.MatchValue(regex, input, AwkMemoryGovernor.Disabled, AwkRegexCapturePlan.All);
+
+        Assert.Equal(4, match.Match.ByteLength);
+        Assert.Equal(charactersAsBytes ? 4 : 2, match.Match.Length);
+        Assert.All(match.Match.Groups, group =>
+            Assert.Equal("😀", new UTF8Encoding(false, true).GetString(group.Value.AsSpan())));
+        Assert.Equal(2, counters.RegexGroupsMaterialized);
+        Assert.Equal(charactersAsBytes && !useUtf8Adapter ? 2 : 1, counters.RegexCompiles);
+        var usesAdapter = useUtf8Adapter || charactersAsBytes;
+        Assert.Equal(usesAdapter ? 0 : 1, counters.RegexDotNetTextMatches);
+        Assert.Equal(usesAdapter ? 0 : 1, counters.StringDecodes);
+        Assert.Equal(0, counters.RegexPatternGapFallbacks);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Awk_RegexRejectsBackendSurrogateSplitsBeforeCaptureAllocation(
+        bool useUtf8Adapter,
+        bool splitCaptureOnly)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
+        var runtime = new AwkRegexRuntime(
+            static () => AwkRegexCaseSensitivity.CaseSensitive,
+            AwkStringUnitMode.Utf8Rune,
+            static () => { },
+            counters,
+            useUtf8Adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility);
+        // Construct an untranslated backend pattern to exercise the publication guard.
+        var pattern = splitCaptureOnly ? @"(\uD83D)(\uDE00)" : @"[\uD800-\uDBFF]";
+        var regex = useUtf8Adapter
+            ? AwkRegex.CreateUtf8(pattern, AwkRegexCaseSensitivity.CaseSensitive)
+            : AwkRegex.CreateDotNet(pattern, AwkRegexCaseSensitivity.CaseSensitive);
+        var input = AwkText.FromString("😀");
+        var exception = Assert.Throws<AwkRuntimeException>(() =>
+            runtime.MatchValue(regex, input, governor, AwkRegexCapturePlan.All));
+        if (!splitCaptureOnly)
+            Assert.Throws<AwkRuntimeException>(() => runtime.MatchSpan(regex, input));
+
+        Assert.Equal("awk: regular expression splits a Unicode character\n",
+            AwkUtf8Codec.Decode(exception.MessageBytes));
+        Assert.Equal(0, counters.RegexGroupsMaterialized);
+        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.CurrentReservedBytes);
+        Assert.Equal(0, governor.PeakLiveBytes);
     }
 
     [Fact]
@@ -354,7 +424,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
 
     [Theory]
     [MemberData(nameof(RegexGoldenCases))]
-    public async Task Awk_Utf8RegexAdapterMatchesRegexGoldenCases(AwkGoldenCase testCase)
+    public async Task Awk_Utf8RegexAdapterMatchesRegexGoldenCases(AwkGoldenCase testCase, bool useExecutable)
     {
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0),
@@ -363,7 +433,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.Utf8Adapter,
-            AwkExecutionEngineKind.Interpreter);
+            useExecutable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
 
         var result = await AwkTestHarness
             .RunGoldenCaseAsync(testCase, CancellationToken.None, options);

@@ -17,7 +17,6 @@ internal static class AwkStatementBlockExecutor
         for (var index = 0; index < statements.Length; index++)
         {
             state.RecordExecutionStep();
-            state.ThrowIfCancellationRequested();
             var flow = await statements[index].ExecuteAsync(context).ConfigureAwait(false);
             await execution.Output.FlushAsync(execution.Io).ConfigureAwait(false);
             if (flow != AwkStatementFlow.Continue)

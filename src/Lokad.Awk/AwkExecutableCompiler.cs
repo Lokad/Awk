@@ -22,7 +22,11 @@ internal sealed class AwkExecutableCompiler
     public int StackDepth => _stackDepth;
 
     public bool TryEmitExpression(AwkExpression expression) =>
-        TryEmitWithRollback(expression.TryEmitExecutableValue);
+        TryEmitWithRollback(compiler =>
+        {
+            compiler.Emit(AwkOpcode.CheckBudget);
+            return expression.TryEmitExecutableValue(compiler);
+        });
 
     public bool TryEmitExpressionStatement(AwkExpression expression) =>
         TryEmitWithRollback(expression.TryEmitExecutableStatement);
@@ -32,6 +36,7 @@ internal sealed class AwkExecutableCompiler
 
     public void EmitStatementOrFallback(AwkStatement statement)
     {
+        Emit(AwkOpcode.CheckStatementBudget);
         if (!TryEmitStatement(statement))
             Add(AwkInstruction.FallbackStatement(Tables.InternFallbackStatement(statement)));
     }

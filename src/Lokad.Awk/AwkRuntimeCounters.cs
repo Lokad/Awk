@@ -332,13 +332,15 @@ internal sealed class AwkRuntimeCounters
             HostCalls++;
     }
 
-    public void RecordExecutionStep()
+    public void RecordExecutionStep() => RecordExecutionSteps(1);
+
+    public void RecordExecutionSteps(int count)
     {
         if (!_enabled)
             return;
 
         lock (_sync)
-            ExecutionSteps++;
+            ExecutionSteps += count;
     }
 
     public void RecordVmInstruction()

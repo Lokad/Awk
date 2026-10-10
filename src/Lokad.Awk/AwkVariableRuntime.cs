@@ -122,7 +122,12 @@ internal sealed class AwkVariableRuntime(
         if (functions.TryAssignLocal(name, value))
             return;
 
-        ThrowIfArrayAsScalar(name.Text, ResolveName(name));
+        AssignGlobalVariableValue(name, value);
+    }
+
+    public void AssignGlobalVariableValue(AwkVariableName name, AwkValue value)
+    {
+        ThrowIfArrayAsScalar(name.Text, ResolveGlobalName(name));
 
         variables.SetScalarValue(name, value);
         if (AwkSpecialVariables.TryGetScalar(name, out var id))
@@ -235,6 +240,11 @@ internal sealed class AwkVariableRuntime(
             };
         }
 
+        return ResolveGlobalName(name);
+    }
+
+    private AwkVariableNameResolution ResolveGlobalName(AwkVariableName name)
+    {
         if (string.Equals(name.Text, AwkVariables.SymbolTableName, StringComparison.Ordinal))
             return AwkVariableNameResolution.SymbolTableArray;
 

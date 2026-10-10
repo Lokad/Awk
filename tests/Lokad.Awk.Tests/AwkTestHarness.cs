@@ -21,7 +21,7 @@ internal static class AwkTestHarness
             fieldSeparator,
             cancellationToken,
             runtimeOptions,
-            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters),
+            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken),
             AwkCompatibilityProfile.Default);
 
     public static AwkOutputSink CreateOutputSink() =>

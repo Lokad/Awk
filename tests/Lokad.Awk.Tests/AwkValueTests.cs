@@ -109,7 +109,7 @@ public sealed class AwkValueTests
             governor);
 
         var oneThird = formatter.FormatPrintByteText(AwkValue.FromNumber(1.0 / 3));
-        var exponent = formatter.FormatPrintByteText(AwkValue.FromNumber(1_234_567));
+        var exponent = formatter.FormatPrintByteText(AwkValue.FromNumber(1_234_567.5));
         var conversion = formatter.FormatStringByteText(AwkValue.FromNumber(1.0 / 3));
 
         Assert.Equal("0.333333", oneThird.AsString());

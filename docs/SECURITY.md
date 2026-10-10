@@ -64,6 +64,9 @@ Above-root paths are rejected as awk diagnostics. Configure `AccessiblePathRoot`
 equivalent host capability root if the virtual root is broader than the intended execution scope.
 Under the restricted preset, the invocation's explicit `-f`, `-i`, and original main-input paths
 remain capabilities, while script-originated `@include`, `AWKPATH`, and changed `ARGV` paths do not.
+Main-input capabilities are tied to their original operand index. Appending a path, copying an
+original path to a new index, or replacing an assignment operand with a path requires
+`AllowDynamicMainInputPaths`. Removing operands or changing them to assignments remains allowed.
 
 Standard paths such as `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, and their supported `/dev/fd`
 forms refer only to descriptors supplied in `AwkCommandInvocation`. A host should reject any other
@@ -82,12 +85,21 @@ evaluation stack independently of awk function recursion.
 
 Source units and bytes are charged before decoding and again for the fully expanded compilation
 source. Character, token, diagnostic, identifier, and symbol limits bound frontend breadth.
-Regex pattern size, group count, compilation work, cache retention, and match operations have
-separate budgets. Runtime input bytes and records, sort comparisons, invocation arguments and
+Regex pattern size, group count, compilation work, and cache retention have separate budgets.
+Regex searches, sort comparisons, and repeated separator scans consume the shared execution
+allowance; optional secondary ceilings remain configurable. Runtime input bytes and records, invocation arguments and
 environment, open descriptors, and host-visible output are also independently bounded by the
 restricted preset. Retained awk memory is governed in aggregate when `MaxExecutionMemoryBytes` is
 finite; per-value, per-record, per-array, field, builder, regex, output, and VM-stack ceilings provide
 additional preflight checks.
+
+Both policy presets use 50 million execution steps and 100,000 ordinary host calls, aligned with
+Lokad.Lython. Compatibility allows 1,000 active function frames; restricted execution retains 32.
+Nested calls suspend at entry and unwind, including during argument evaluation, so completed
+tasks do not turn deep awk recursion into CLR stack exhaustion. Byte-oriented built-ins and
+regex rescans charge input chunks in addition to expression and statement admission.
+The memory governor, mutation preflight, backend regex timeouts, and host/cleanup deadlines remain
+independent safeguards.
 
 Execution steps are deterministic accounting, not a wall-clock CPU guarantee. Cancellation is
 cooperative. Lokad.Awk stops awaiting a host operation at `HostOperationTimeout`, but .NET cannot

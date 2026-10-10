@@ -62,7 +62,7 @@ internal static class AwkRuntime
             cancellationToken,
             runtimeOptions,
             executableProgram,
-            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters));
+            new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken));
 
     internal static async Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,

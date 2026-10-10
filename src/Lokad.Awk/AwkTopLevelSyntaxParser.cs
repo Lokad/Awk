@@ -78,6 +78,7 @@ internal sealed class AwkTopLevelSyntaxParser
         [AwkT(AwkTokenKind.Function)] Pos<string> functionKeyword,
         [AwkT(AwkTokenKind.Identifier)] Pos<string> name,
         [NT] BalancedParenthesized parameterList,
+        [AwkL(Min = 0)] FunctionBodyGap[] beforeBody,
         [NT] BalancedBlock body)
     {
         var start = ToToken(AwkTokenKind.Function, functionKeyword);
@@ -87,6 +88,10 @@ internal sealed class AwkTopLevelSyntaxParser
             body.InnerTokens,
             SpanFrom(start, body.CloseToken));
     }
+
+    [Rule]
+    public FunctionBodyGap FunctionBodyGapRule(
+        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token) => new();
 
     [Rule]
     public TopLevelItem SpecialRule(
@@ -357,6 +362,8 @@ internal sealed class AwkTopLevelSyntaxParser
         Function,
         Rule
     }
+
+    public readonly struct FunctionBodyGap;
 
     public readonly struct DirectiveArgument(AwkToken token)
     {

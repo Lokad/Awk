@@ -53,6 +53,7 @@ public sealed class AwkExecutableRuntimeTests
             [
                 AwkOpcode.NoOp,
                 AwkOpcode.CheckBudget,
+                AwkOpcode.CheckStatementBudget,
                 AwkOpcode.Pop,
                 AwkOpcode.LoadConstant,
                 AwkOpcode.LoadField,
@@ -255,7 +256,7 @@ public sealed class AwkExecutableRuntimeTests
         Assert.True(counters.VmInstructions >= 2);
         Assert.True(counters.VmFallbackCalls >= 2);
         Assert.True(counters.VmOpcodeKindsExecuted >= 2);
-        Assert.True(counters.VmBudgetChecks >= 2);
+        Assert.True(counters.VmBudgetChecks >= 1);
         Assert.Equal(1, counters.VmMaxStackDepth);
     }
 
@@ -332,9 +333,10 @@ public sealed class AwkExecutableRuntimeTests
     }
 
     [Fact]
-    public async Task AwkExecutable_BatchesPrintOutputUntilActionBoundary()
+    public async Task AwkExecutable_FlushesPrintOutputAtStatementBoundaries()
     {
         var host = new TestOperationVisitor([]);
+        host.EnqueueAppendExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var compiled = await AwkExecutor.CompileAsync(
@@ -475,9 +477,11 @@ public sealed class AwkExecutableRuntimeTests
     }
 
     [Fact]
-    public async Task AwkExecutable_BatchesMixedFallbackStandardOutputUntilActionBoundary()
+    public async Task AwkExecutable_FlushesMixedFallbackOutputAtStatementBoundaries()
     {
         var host = new TestOperationVisitor([]);
+        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var compiled = await AwkExecutor.CompileAsync(

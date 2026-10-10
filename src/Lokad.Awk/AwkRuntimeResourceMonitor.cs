@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace Lokad.Awk;
 
@@ -6,7 +7,8 @@ internal sealed class AwkRuntimeResourceMonitor
 {
     private readonly AwkRuntimeLimits _limits;
     private readonly AwkRuntimeCounters _counters;
-    private long _executionSteps;
+    private readonly AwkExecutionGovernor _execution;
+    private readonly CancellationToken _cancellationToken;
     private long _hostCalls;
     private long _outputBytes;
     private long _inputBytes;
@@ -19,43 +21,45 @@ internal sealed class AwkRuntimeResourceMonitor
     private long _expandedSourceBytes;
     private int _includeFiles;
 
-    public AwkRuntimeResourceMonitor(AwkRuntimeLimits limits, AwkRuntimeCounters counters)
+    public AwkRuntimeResourceMonitor(
+        AwkRuntimeLimits limits,
+        AwkRuntimeCounters counters,
+        CancellationToken cancellationToken = default)
     {
         _limits = limits;
         _counters = counters;
+        _execution = new AwkExecutionGovernor(limits.MaxExecutionSteps, counters);
+        _cancellationToken = cancellationToken;
     }
 
     public AwkRuntimeLimits Limits => _limits;
 
     public void RecordHostCall()
     {
+        RecordExecutionStep();
         if (_limits.MaxHostCalls != AwkRuntimeLimits.Unlimited)
         {
             var next = AwkRuntimeMemory.CheckedAdd(_hostCalls, 1);
             if (next > _limits.MaxHostCalls)
                 throw new AwkRuntimeException(AwkMessages.ErrorHostCallLimit);
-
-            _hostCalls = next;
         }
 
+        _hostCalls++;
         _counters.RecordHostCall();
     }
 
     public void RecordCleanupHostCall() => _counters.RecordHostCall();
 
-    public void RecordExecutionStep()
-    {
-        var next = AwkRuntimeMemory.CheckedAdd(_executionSteps, 1);
-        if (next > _limits.MaxExecutionSteps)
-        {
-            throw new AwkRuntimeException(
-                AwkMessages.ErrorExecutionStepLimit,
-                AwkDiagnosticId.RuntimeResourceLimit);
-        }
+    public void RecordExecutionStep() => RecordExecutionStep(_cancellationToken);
 
-        _executionSteps = next;
-        _counters.RecordExecutionStep();
-    }
+    public void RecordExecutionStep(CancellationToken cancellationToken) =>
+        _execution.Check(1, cancellationToken);
+
+    public void ThrowIfCancellationRequested(CancellationToken cancellationToken) =>
+        _execution.ThrowIfCancellationRequested(cancellationToken);
+
+    public void RecordByteWork(int byteCount) =>
+        _execution.Check(AwkExecutionGovernor.ByteWorkSteps(byteCount), _cancellationToken);
 
     public void RecordBytesRead(long byteCount)
     {
@@ -88,12 +92,13 @@ internal sealed class AwkRuntimeResourceMonitor
         _records = next;
     }
 
-    public void RecordRegexOperation()
+    public void RecordRegexOperation(int inputBytes)
     {
         var next = AwkRuntimeMemory.CheckedAdd(_regexOperations, 1);
         if (next > _limits.MaxRegexOperations)
             throw new AwkRuntimeException(AwkMessages.ErrorRegexOperationLimit, AwkDiagnosticId.RuntimeResourceLimit);
 
+        _execution.Check(1 + AwkExecutionGovernor.ByteWorkSteps(inputBytes), _cancellationToken);
         _regexOperations = next;
         _counters.RecordRegexMatch();
     }
@@ -104,6 +109,7 @@ internal sealed class AwkRuntimeResourceMonitor
         if (next > _limits.MaxSortComparisons)
             throw new AwkRuntimeException(AwkMessages.ErrorSortComparisonLimit, AwkDiagnosticId.RuntimeResourceLimit);
 
+        RecordExecutionStep();
         _sortComparisons = next;
     }
 

@@ -22,6 +22,8 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: negative bitwise operand\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidRegex =
         AwkUtf8Codec.Encode("awk: invalid regular expression\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorRegexScalarBoundary =
+        AwkUtf8Codec.Encode("awk: regular expression splits a Unicode character\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidUtf8Input =
         AwkUtf8Codec.Encode("awk: invalid UTF-8 input\n");
     internal static readonly ReadOnlyMemory<byte> ErrorRegexTimeout =

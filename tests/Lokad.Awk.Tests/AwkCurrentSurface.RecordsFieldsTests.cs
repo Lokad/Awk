@@ -738,7 +738,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
         {
             ["NR==1{FIELDWIDTHS=\"2 2\"} NR==2{FIELDWIDTHS=\"3\"} {print NF, \"[\" $1 \"]\", \"[\" $2 \"]\"}", "/file.txt"],
             "abcd\nwxyz\n",
-            "2 [ab] [cd]\n1 [wxy] []\n"
+            "1 [abcd] []\n2 [wx] [yz]\n"
         },
         {
             ["--characters-as-bytes", "BEGIN{FIELDWIDTHS=\"2 2\"} {print $1, $2, NF}", "/file.txt"],

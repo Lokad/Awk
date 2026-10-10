@@ -13,17 +13,18 @@ internal abstract partial class AwkExpression
             var patternText = await pattern.ResolveStringAsync(context).ConfigureAwait(false);
             var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
             var regex = context.State.CreateRegex(new AwkRegexPattern(patternText));
-            var input = await target.ResolveInputTextAsync(context).ConfigureAwait(false);
+            var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
             var replaced = AwkRegexSubstitution.ReplaceAll(
                 context.State,
                 regex,
-                input,
+                resolvedTarget.Input,
                 replacementText,
                 AwkReplacementMode.Substitution,
                 maxReplacements: 0,
                 out var count);
 
-            await target.AssignTextAsync(context, replaced).ConfigureAwait(false);
+            if (count > 0)
+                resolvedTarget.AssignText(context.State, replaced);
             return AwkValue.FromNumber(count);
         }
     }
@@ -35,17 +36,18 @@ internal abstract partial class AwkExpression
             var patternText = await pattern.ResolveStringAsync(context).ConfigureAwait(false);
             var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
             var regex = context.State.CreateRegex(new AwkRegexPattern(patternText));
-            var input = await target.ResolveInputTextAsync(context).ConfigureAwait(false);
+            var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
             var replaced = AwkRegexSubstitution.ReplaceAll(
                 context.State,
                 regex,
-                input,
+                resolvedTarget.Input,
                 replacementText,
                 AwkReplacementMode.Substitution,
                 maxReplacements: 1,
                 out var count);
 
-            await target.AssignTextAsync(context, replaced).ConfigureAwait(false);
+            if (count > 0)
+                resolvedTarget.AssignText(context.State, replaced);
             return AwkValue.FromNumber(count > 0 ? 1 : 0);
         }
     }

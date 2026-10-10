@@ -24,6 +24,20 @@ internal sealed class AwkFieldFrame(
     private int _fieldPayloadByteLength;
     private long _retainedMemoryBytes;
 
+    public AwkRecordSplitPlan SplitPlan { get; private set; }
+
+    public void ResetRecord()
+    {
+        ReplaceRetainedMemory(0);
+        _recordText = AwkText.Empty;
+        _recordValue = AwkValue.FromText(string.Empty);
+        _recordValueIsCurrent = true;
+        _recordTextIsCurrent = true;
+        ClearSplitFields();
+        _fieldsAreSplit = true;
+        SplitPlan = default;
+    }
+
     public AwkText RecordAwkText
     {
         get
@@ -85,9 +99,12 @@ internal sealed class AwkFieldFrame(
         }
     }
 
-    public void SetRecordText(AwkText text)
+    public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan = default)
     {
-        ReplaceRetainedMemory(EstimateRetainedBytes(text, [], EmptyFieldValueCache));
+        ReplaceRetainedMemory(AwkRuntimeMemory.CheckedAdd(
+            EstimateRetainedBytes(text, [], EmptyFieldValueCache),
+            splitPlan.RetainedMemoryBytes));
+        SplitPlan = splitPlan;
         _recordText = text;
         _recordValue = AwkValue.FromText(string.Empty);
         _recordValueIsCurrent = false;
@@ -95,10 +112,21 @@ internal sealed class AwkFieldFrame(
         ClearSplitFields();
     }
 
-    public void SetRecordValue(AwkValue value, Func<AwkValue, AwkText> formatStringByteText)
+    public long EstimateRecordMemoryGrowth(AwkText text, AwkRecordSplitPlan splitPlan) =>
+        Math.Max(0, AwkRuntimeMemory.CheckedAdd(
+            EstimateRetainedBytes(text, [], EmptyFieldValueCache),
+            splitPlan.RetainedMemoryBytes) - _retainedMemoryBytes);
+
+    public void SetRecordValue(
+        AwkValue value,
+        Func<AwkValue, AwkText> formatStringByteText,
+        AwkRecordSplitPlan splitPlan = default)
     {
         var text = formatStringByteText(value);
-        ReplaceRetainedMemory(EstimateRetainedBytes(text, [], EmptyFieldValueCache));
+        ReplaceRetainedMemory(AwkRuntimeMemory.CheckedAdd(
+            EstimateRetainedBytes(text, [], EmptyFieldValueCache),
+            splitPlan.RetainedMemoryBytes));
+        SplitPlan = splitPlan;
         _recordText = text;
         _recordValue = value;
         _recordValueIsCurrent = true;
@@ -181,6 +209,31 @@ internal sealed class AwkFieldFrame(
                 AwkRuntimeMemory.EstimateDictionaryBufferBytes(_fieldValueCache.Count),
                 AwkRuntimeMemory.EstimateDictionaryBufferBytes(_fieldValueCache.Count + 1));
         }
+    }
+
+    public void ExtendFieldCountForReference(
+        AwkFieldIndex index,
+        Func<AwkText, List<AwkFieldText>> splitFields)
+    {
+        EnsureFields(splitFields);
+        ThrowIfFieldCountExceeded(index.Value);
+        if (index.Value <= _fieldTexts.Count)
+            return;
+
+        // Resolving an lvalue creates absent fields but does not assign them or rebuild $0.
+        // If earlier writes left $0 dirty, freeze their result before extending the field list.
+        EnsureRecordText();
+        var addedFields = index.Value - _fieldTexts.Count;
+        var newRetainedBytes = AdjustEstimate(
+            _retainedMemoryBytes,
+            AwkRuntimeMemory.EstimateReferenceListBytes(_fieldTexts.Count),
+            AwkRuntimeMemory.EstimateReferenceListBytes(index.Value));
+        ReplaceRetainedMemory(newRetainedBytes);
+        _fieldTexts.EnsureCapacity(index.Value);
+        while (_fieldTexts.Count < index.Value)
+            _fieldTexts.Add(AwkFieldText.Empty);
+
+        counters.RecordFieldsMaterialized(addedFields);
     }
 
     public void AssignFieldCount(
@@ -348,6 +401,7 @@ internal sealed class AwkFieldFrame(
         counters.RecordFieldsMaterialized(_fieldTexts.Count);
         _fieldValueCache = [];
         _fieldsAreSplit = true;
+        SplitPlan = default;
     }
 
     private void ClearSplitFields()

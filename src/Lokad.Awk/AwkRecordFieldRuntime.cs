@@ -8,6 +8,7 @@ internal sealed class AwkRecordFieldRuntime(
     Func<AwkText, AwkValue> createNumericByteText,
     Func<AwkValue, AwkText> formatStringByteText,
     Func<AwkText> resolveOutputFieldSeparator,
+    Func<AwkRecordFieldSplittingMode> resolveAssignedRecordMode,
     AwkRuntimeCounters counters,
     AwkMemoryGovernor governor,
     int maxFields,
@@ -22,24 +23,30 @@ internal sealed class AwkRecordFieldRuntime(
     public AwkText CurrentRecordByteText => _frame.RecordAwkText;
 
     public int FieldCount =>
-        _frame.GetFieldCount(fieldSplitter.SplitRecordFields);
+        _frame.GetFieldCount(SplitCurrentFields);
 
     public AwkValue CurrentRecordValue => _frame.GetRecordValue(createNumericByteText);
+
+    public void ResetRecord() => _frame.ResetRecord();
 
     public AwkValue GetFieldValue(int index) =>
         GetFieldValue(new AwkFieldIndex(index));
 
     public AwkValue GetFieldValue(AwkFieldIndex index) =>
-        _frame.GetFieldValue(index, fieldSplitter.SplitRecordFields, createNumericByteText);
+        _frame.GetFieldValue(index, SplitCurrentFields, createNumericByteText);
 
     public void SetCurrentRecord(AwkText line)
     {
-        _frame.SetRecordText(line);
+        _frame.SetRecordText(line, fieldSplitter.CaptureRecordPlan());
     }
+
+    public long EstimateRecordMemoryGrowth(AwkText text, AwkRecordFieldSplittingMode mode) =>
+        _frame.EstimateRecordMemoryGrowth(text, fieldSplitter.CaptureRecordPlan(mode));
 
     public void SetCurrentRecordValue(AwkValue value)
     {
-        _frame.SetRecordValue(value, formatStringByteText);
+        _frame.SetRecordValue(value, formatStringByteText,
+            fieldSplitter.CaptureRecordPlan(resolveAssignedRecordMode()));
     }
 
     public void AssignField(int index, string value)
@@ -74,8 +81,11 @@ internal sealed class AwkRecordFieldRuntime(
             value,
             resolveOutputFieldSeparator(),
             formatStringByteText,
-            fieldSplitter.SplitRecordFields);
+            SplitCurrentFields);
     }
+
+    public void ExtendFieldCountForReference(AwkFieldIndex index) =>
+        _frame.ExtendFieldCountForReference(index, SplitCurrentFields);
 
     public void AssignFieldCount(int count)
     {
@@ -90,6 +100,9 @@ internal sealed class AwkRecordFieldRuntime(
         _frame.AssignFieldCount(
             count,
             resolveOutputFieldSeparator(),
-            fieldSplitter.SplitRecordFields);
+            SplitCurrentFields);
     }
+
+    private List<AwkFieldText> SplitCurrentFields(AwkText text) =>
+        fieldSplitter.SplitRecordFields(text, _frame.SplitPlan);
 }

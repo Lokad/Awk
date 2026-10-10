@@ -56,9 +56,14 @@ executable-expression API.
 
 ## Budget And Limits
 
-The VM must check execution budget at instruction dispatch or at least at basic-block entry
-and loop backedges. Current fallback dispatch records VM budget checks before entering fallback
-actions/functions. Host calls remain separately counted by the host-call governor. VM stacks and
+Both engines consume the logical allowance documented in `RUNTIME_LIMITS.md`. The VM emits
+`CheckBudget` for compiled expression nodes and `CheckStatementBudget` for statements; the
+latter flushes preceding standard output before admitting the next statement. Constant folding
+retains the omitted expression's admission, and short-circuit branches admit only executed work.
+Fallback expressions and blocks use interpreter checkpoints; frame/dispatch wrappers check
+cancellation and memory without consuming extra execution steps. Host calls retain their
+100,000-call default cap and also consume the common execution allowance. Regex searches,
+comparisons, and bounded byte work use the same governor in both engines. VM stacks and
 temporary buffers use the same memory governor contract as arrays and UTF-8 builders: reserve
 before mutation, commit after success, release when shrinking. Opcode frames charge the estimated
 `AwkValue[]` operand-stack buffer before allocating it, and the same byte estimate feeds

@@ -37,23 +37,6 @@ internal readonly record struct AwkFieldCount
     public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
-internal readonly record struct AwkRecordNumber
-{
-    public AwkRecordNumber(int value)
-    {
-        if (value < 0)
-            throw new ArgumentOutOfRangeException(nameof(value), "Record numbers must be zero or positive.");
-
-        Value = value;
-    }
-
-    public int Value { get; }
-
-    public AwkRecordNumber Next() => new(Value + 1);
-
-    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
-}
-
 internal readonly record struct AwkArgvIndex
 {
     public AwkArgvIndex(int value)

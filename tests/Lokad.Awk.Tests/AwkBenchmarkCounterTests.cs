@@ -14,6 +14,24 @@ public sealed class AwkBenchmarkCounterTests
         "sku2 region2 closed 20\n" +
         "sku1 region2 open 30\n";
 
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task Awk_IntegerPrintBypassesCustomFormatWithoutStringInterop(AwkExecutionEngineKind engine)
+    {
+        var (exitCode, fileSystem, counters) = await RunAsync(
+            ["BEGIN{OFMT=\"%.2f\";print 1000000,9007199254740992,9223372036854775808,1e30,-0}"],
+            string.Empty, AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, exitCode);
+        Assert.Equal("1000000 9007199254740992 9223372036854775808 1000000000000000019884624838656 0\n",
+            fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, counters.FormattingFallbacks);
+        Assert.Equal(0, counters.FormattingStringInteropInputs);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+    }
+
     [Fact]
     public void Awk_RuntimeCountersDoNotLoseConcurrentUpdates()
     {
@@ -52,6 +70,45 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, exitCode);
         Assert.Equal("1000\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, counters.RecordSeparatorTailBytesMoved);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task Awk_LiteralRecordSeparatorScanWorkScalesWithInput(AwkExecutionEngineKind engine)
+    {
+        var row = "<row><cell>" + new string('a', 1_000) + "</cell></row>";
+        foreach (var recordCount in new[] { 100, 400, 1_600 })
+        {
+            var input = string.Concat(Enumerable.Repeat(row, recordCount));
+            var (exitCode, fileSystem, counters) = await RunAsync(
+                ["BEGIN{RS=\"</row>\"} {n++} END{print n}"],
+                input, AwkRegexEngineKind.DotNetCompatibility, engine);
+
+            Assert.Equal(0, exitCode);
+            Assert.Equal(recordCount + "\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.InRange(counters.RecordSeparatorBytesScanned, input.Length, input.Length * 2L);
+            Assert.Equal(0, counters.RegexMatches);
+            Assert.Equal(0, counters.RegexCompiles);
+            Assert.Equal(0, counters.RecordSeparatorTailBytesMoved);
+        }
+    }
+
+    [Fact]
+    public async Task Awk_LiteralRecordSeparatorPreservesPartialMatchesAcrossBatches()
+    {
+        var prefix = string.Concat(Enumerable.Repeat("line\n",
+            AwkRuntimeLimits.DefaultInputReadBatchLineCount - 1));
+        var input = prefix + "one</\nrow>two</\nrow>";
+        var (exitCode, fileSystem, counters) = await RunAsync(
+            ["BEGIN{RS=\"</\\nrow>\"} {n++} END{print n}"], input);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("2\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.InRange(counters.RecordSeparatorBytesScanned, input.Length, input.Length * 2L);
+        Assert.Equal(0, counters.RegexMatches);
     }
 
     [Fact]
@@ -224,6 +281,41 @@ public sealed class AwkBenchmarkCounterTests
         Assert.True(counters.SeparatorCaptureFallbacks > 0);
         Assert.True(counters.RegexMatches > 0);
         Assert.True(counters.ByteTextComparisons > 0);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Awk_RecordSplitSnapshotsStayLazyAndByteNative(bool useExecutable, bool charactersAsBytes)
+    {
+        const int rows = 8;
+        var shapes = new[]
+        {
+            ("BEGIN{FS=\",\"} {FS=\" \";print NF;FS=\",\"}", "a,b\n", false),
+            ("BEGIN{FIELDWIDTHS=\"2 2\"} {FIELDWIDTHS=\"1 3\";print NF;FIELDWIDTHS=\"2 2\"}", "abcd\n", false),
+            ("BEGIN{FPAT=\"[a-z]+\"} {FPAT=\"[0-9]+\";print NF;FPAT=\"[a-z]+\"}", "a1b2\n", true)
+        };
+        foreach (var (program, record, usesRegex) in shapes)
+        {
+            string[] arguments = charactersAsBytes ? ["--characters-as-bytes", program] : [program];
+            var result = await RunAsync(
+                arguments,
+                string.Concat(Enumerable.Repeat(record, rows)),
+                AwkRegexEngineKind.Utf8Adapter,
+                useExecutable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
+
+            Assert.Equal(0, result.ExitCode);
+            Assert.Equal(string.Concat(Enumerable.Repeat("2\n", rows)),
+                result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(rows, result.Counters.FieldSplits);
+            Assert.Equal(0, result.Counters.Utf8Encodes);
+            // FPAT source patterns may cross the compatibility boundary once. Records do not.
+            Assert.InRange(result.Counters.StringDecodes, 0, usesRegex ? 2 : 0);
+            Assert.Equal(0, result.Counters.RegexDotNetTextMatches);
+            Assert.Equal(usesRegex ? 1 : 0, result.Counters.RegexCompiles);
+        }
     }
 
     [Fact]
@@ -460,17 +552,17 @@ public sealed class AwkBenchmarkCounterTests
         {
             "{print $2}",
             "region1\nregion2\nregion2\n",
-            12
+            19
         },
         {
             "$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}",
             "2\n",
-            56
+            61
         },
         {
             "{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}",
             "3 2\n",
-            42
+            47
         }
     };
 

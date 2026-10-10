@@ -25,6 +25,7 @@ internal sealed class AwkInputScheduler(
     int maxHostErrorBytes = 4 << 10,
     AwkCleanupDeadline? cleanupDeadline = null) : IAwkInputRecordReader
 {
+    private static readonly AwkText StandardInputFileName = AwkText.FromSourceLiteralString("-");
     private readonly TimeSpan _hostOperationTimeout = hostOperationTimeout ?? TimeSpan.FromMinutes(5);
     private readonly TimeSpan _closeOperationTimeout =
         Min(hostOperationTimeout ?? TimeSpan.FromMinutes(5), cleanupTimeout ?? TimeSpan.FromSeconds(30));
@@ -33,7 +34,7 @@ internal sealed class AwkInputScheduler(
     private readonly HashSet<AwkFileDescriptor> _ownedDescriptors = [];
     private readonly AwkRecordProcessor _recordProcessor = new(state);
     private OpenMainInput? _currentInput;
-    private int _nextInputPlanIndex;
+    private long _nextArgvIndex = 1;
     private bool _selectedInputSource;
     private bool _usedStandardInputFallback;
     private MainInputReadProhibition _mainInputReadProhibition;
@@ -70,30 +71,37 @@ internal sealed class AwkInputScheduler(
 
         async ValueTask<bool> TryOpenNextInputAsync()
         {
-            while (_nextInputPlanIndex < invocation.InputPlan.InputArguments.Count)
+            while (_nextArgvIndex < state.MainInputArgumentCount)
             {
-                var inputArgument = invocation.InputPlan.InputArguments[_nextInputPlanIndex++];
-                var argumentIndex = inputArgument.ArgvIndex;
-                if (!state.ContainsArgumentVectorValue(argumentIndex) ||
-                    state.GetArgumentVectorByteText(argumentIndex).ByteLength == 0)
+                state.RecordExecutionStep();
+                var argumentIndex = new AwkArgvIndex((int)_nextArgvIndex++);
+                if (!state.TryGetArgumentVectorByteText(argumentIndex, out var argumentText) ||
+                    argumentText.ByteLength == 0)
                 {
                     continue;
                 }
 
-                if (inputArgument is AwkInputArgument.VariableAssignmentArgument assignmentArgument)
+                var inputArgument = GetOriginalInputArgument(argumentIndex);
+                var isUnchangedFile = inputArgument is AwkInputArgument.FileArgument originalFile &&
+                    argumentText.AsSpan().SequenceEqual(originalFile.Path.Display.Span);
+                if (!isUnchangedFile && argumentText.AsSpan().Contains((byte)'=') &&
+                    AwkVariableAssignment.TryParse(
+                        ResolveArgumentString(argumentText),
+                        AwkVariableAssignmentSource.InputArgument,
+                        out var assignment))
                 {
-                    state.AssignVariableFromExternalText(assignmentArgument.VariableAssignment);
+                    state.SetArgumentIndex(argumentIndex);
+                    state.AssignVariableFromExternalText(assignment);
                     continue;
                 }
 
                 _selectedInputSource = true;
-                var runtimeArgument = GetRuntimeArgumentValue(inputArgument);
-                if (!allowDynamicMainInputPaths && !IsOriginalInputArgument(inputArgument, runtimeArgument.Text))
+                if (!allowDynamicMainInputPaths && !IsOriginalInputArgument(inputArgument, argumentText))
                     throw new AwkRuntimeException(AwkMessages.ErrorDynamicMainInputPathsDisabled);
 
-                if (runtimeArgument.IsStandardInput)
+                if (argumentText.EqualsAscii("-") || argumentText.EqualsAscii("/dev/stdin"))
                 {
-                    state.BeginInputFile(runtimeArgument.Value, inputArgument.ArgvIndex);
+                    state.BeginInputFile(argumentText, argumentIndex);
                     if (await TryActivateInputAsync(
                             CreateRecordCursor(invocation.Stdio.StdIn),
                             OwnedInputDescriptor.None)
@@ -108,9 +116,12 @@ internal sealed class AwkInputScheduler(
                     continue;
                 }
 
-                var path = ResolveRuntimePath(inputArgument, runtimeArgument);
+                var path = ResolveRuntimePath(inputArgument, argumentText);
                 AwkHostPathPolicy.ThrowIfDenied(path.Absolute, accessiblePathRoot);
-                state.BeginInputFile(AwkUtf8Codec.Decode(path.Display), inputArgument.ArgvIndex);
+                var fileName = argumentText.AsSpan().SequenceEqual(path.Display.Span)
+                    ? argumentText
+                    : AwkText.CopyTrustedBytes(path.Display.Span, state.Counters, state.MemoryGovernor);
+                state.BeginInputFile(fileName, argumentIndex);
                 state.Resources.RecordHostCall();
                 var opened = await AwkHostBoundaryPolicy.AwaitAsync(
                         host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken),
@@ -142,51 +153,44 @@ internal sealed class AwkInputScheduler(
                 return false;
 
             _usedStandardInputFallback = true;
-            state.BeginInputFile("-", new AwkArgvIndex(0));
+            state.BeginInputFile(StandardInputFileName, new AwkArgvIndex(0));
             return await TryActivateInputAsync(
                     CreateRecordCursor(invocation.Stdio.StdIn),
                     OwnedInputDescriptor.None)
                 .ConfigureAwait(false);
 
-            RuntimeArgumentValue GetRuntimeArgumentValue(AwkInputArgument inputArgument)
+            AwkInputArgument? GetOriginalInputArgument(AwkArgvIndex index)
             {
-                var text = state.GetArgumentVectorByteText(inputArgument.ArgvIndex);
+                var planIndex = index.Value - 1;
+                if (planIndex >= invocation.InputPlan.InputArguments.Count)
+                    return null;
 
-                if (inputArgument is AwkInputArgument.StandardInputArgument)
-                {
-                    if (text.EqualsAscii("-"))
-                        return new RuntimeArgumentValue(text, "-");
-
-                    if (text.EqualsAscii("/dev/stdin"))
-                        return new RuntimeArgumentValue(text, "/dev/stdin");
-                }
-
-                if (inputArgument is AwkInputArgument.FileArgument file &&
-                    text.AsSpan().SequenceEqual(file.Path.Display.Span))
-                {
-                    return new RuntimeArgumentValue(text, AwkUtf8Codec.Decode(file.Path.Display));
-                }
-
-                state.Counters.RecordStringInteropFallback();
-                return new RuntimeArgumentValue(text, text.AsString(state.Counters));
+                var original = invocation.InputPlan.InputArguments[planIndex];
+                return original.ArgvIndex == index ? original : null;
             }
 
-            static bool IsOriginalInputArgument(AwkInputArgument inputArgument, AwkText text) =>
+            string ResolveArgumentString(AwkText text)
+            {
+                state.Counters.RecordStringInteropFallback();
+                return text.AsString(state.Counters);
+            }
+
+            static bool IsOriginalInputArgument(AwkInputArgument? inputArgument, AwkText text) =>
                 inputArgument switch
                 {
                     AwkInputArgument.StandardInputArgument => text.EqualsAscii("-") || text.EqualsAscii("/dev/stdin"),
                     AwkInputArgument.FileArgument file => text.AsSpan().SequenceEqual(file.Path.Display.Span),
-                    _ => true
+                    _ => false
                 };
 
             AwkResolvedPath ResolveRuntimePath(
-                AwkInputArgument inputArgument,
-                RuntimeArgumentValue runtimeArgument) =>
+                AwkInputArgument? inputArgument,
+                AwkText argumentText) =>
                 inputArgument is AwkInputArgument.FileArgument file &&
-                runtimeArgument.Text.AsSpan().SequenceEqual(file.Path.Display.Span)
+                argumentText.AsSpan().SequenceEqual(file.Path.Display.Span)
                     ? file.Path
                     : AwkPathResolution.ResolveRuntimeArgument(
-                        runtimeArgument.Value,
+                        ResolveArgumentString(argumentText),
                         invocation.RuntimeArgumentsPlan.CurrentDirectory);
 
             async ValueTask<bool> TryActivateInputAsync(
@@ -198,7 +202,9 @@ internal sealed class AwkInputScheduler(
                 if (beginFileFlow == AwkStatementFlow.Continue)
                     return true;
 
-                await CompleteCurrentInputAsync(EndFileAction.Skip).ConfigureAwait(false);
+                await CompleteCurrentInputAsync(
+                        beginFileFlow == AwkStatementFlow.NextFile ? EndFileAction.Execute : EndFileAction.Skip)
+                    .ConfigureAwait(false);
                 return false;
             }
 
@@ -400,15 +406,6 @@ internal sealed class AwkInputScheduler(
         ResolveHostErrorCore(error, exposeHostErrorDetails, maxHostErrorBytes);
 
     private static TimeSpan Min(TimeSpan left, TimeSpan right) => left <= right ? left : right;
-
-    private readonly struct RuntimeArgumentValue(AwkText? text, string? value)
-    {
-        public AwkText Text => text ?? AwkText.Empty;
-
-        public string Value => value ?? string.Empty;
-
-        public bool IsStandardInput => Value is "-" or "/dev/stdin";
-    }
 
     private readonly struct OwnedInputDescriptor
     {

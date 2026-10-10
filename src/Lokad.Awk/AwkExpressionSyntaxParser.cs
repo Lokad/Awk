@@ -69,7 +69,7 @@ internal sealed class AwkExpressionSyntaxParser
                     continue;
 
                 lexerTokens[next++] = new LexerToken<AwkTokenKind>(
-                    token.Kind,
+                    ResolveExpressionTokenKind(tokens, index),
                     token.Span.Start,
                     token.Span.Length);
                 end = Math.Max(end, token.Span.End);
@@ -108,6 +108,14 @@ internal sealed class AwkExpressionSyntaxParser
             if (significantTokens.Length == 0)
                 return AwkExpressionParseResult.EmptyResult;
 
+            for (var index = 0; index < significantTokens.Length; index++)
+            {
+                var token = significantTokens[index];
+                var kind = ResolveExpressionTokenKind(significantTokens, index);
+                if (kind != token.Kind)
+                    significantTokens[index] = new AwkToken(kind, token.Text, token.Span);
+            }
+
             parser.Tokens = AwkParsingSupport.ToLexerResult(significantTokens);
         }
         try
@@ -125,6 +133,41 @@ internal sealed class AwkExpressionSyntaxParser
         {
             return AwkExpressionParseResult.InvalidResult;
         }
+    }
+
+    private static AwkTokenKind ResolveExpressionTokenKind(IReadOnlyList<AwkToken> tokens, int index)
+    {
+        var token = tokens[index];
+        if (token.Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus)
+        {
+            var previous = index - 1;
+            while (previous >= 0 && !AwkTokenNavigation.IsSignificant(tokens[previous].Kind))
+                previous--;
+
+            if (previous >= 0 && tokens[previous].Kind is
+                AwkTokenKind.Identifier or AwkTokenKind.SpacedIdentifier or
+                AwkTokenKind.Number or AwkTokenKind.String or AwkTokenKind.InternationalizedString or
+                AwkTokenKind.Regex or AwkTokenKind.StrongRegex or
+                AwkTokenKind.RightBracket or AwkTokenKind.RightParen)
+            {
+                return token.Kind is AwkTokenKind.PlusPlus
+                    ? AwkTokenKind.PostfixPlusPlus
+                    : AwkTokenKind.PostfixMinusMinus;
+            }
+        }
+
+        if (token.Kind is not AwkTokenKind.Identifier)
+            return token.Kind;
+
+        var next = AwkTokenNavigation.FindNextSignificant(tokens, index + 1);
+        if (next is { Kind: AwkTokenKind.LeftParen } &&
+            token.Span.End < next.Value.Span.Start &&
+            !AwkBuiltins.IsKnownFunctionOrSpecialForm(token.Text))
+        {
+            return AwkTokenKind.SpacedIdentifier;
+        }
+
+        return token.Kind;
     }
 
     private static AwkExpressionSyntax? SingleExpressionOrNull(AwkExpressionParseResult result) =>
@@ -194,7 +237,8 @@ internal sealed class AwkExpressionSyntaxParser
         CreateTokenNode(AwkExpressionKind.Regex, AwkParsingSupport.ToToken(token));
 
     [Rule]
-    public AwkExpressionSyntax Variable([AwkT(AwkTokenKind.Identifier)] Pos<string> token) =>
+    public AwkExpressionSyntax Variable(
+        [AwkT(AwkTokenKind.Identifier, AwkTokenKind.SpacedIdentifier)] Pos<string> token) =>
         CreateTokenNode(AwkExpressionKind.Variable, ToToken(AwkTokenKind.Identifier, token));
 
     [Rule]
@@ -357,7 +401,7 @@ internal sealed class AwkExpressionSyntaxParser
     [Rule]
     public AwkExpressionSyntax PostfixMutation(
         [NT(0)] AwkExpressionSyntax target,
-        [AwkT(AwkTokenKind.PlusPlus, AwkTokenKind.MinusMinus)] Pos<string> op) =>
+        [AwkT(AwkTokenKind.PostfixPlusPlus, AwkTokenKind.PostfixMinusMinus)] Pos<string> op) =>
         CreateNode(AwkExpressionKind.Postfix, target, AwkParsingSupport.ToToken(op), [AwkParsingSupport.ToToken(op)]);
 
     [Rule]

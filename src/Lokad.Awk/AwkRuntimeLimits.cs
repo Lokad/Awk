@@ -5,13 +5,13 @@ namespace Lokad.Awk;
 internal sealed record AwkRuntimeLimits
 {
     public const long Unlimited = long.MaxValue;
-    public const int DefaultMaxExecutionSteps = 10_000_000;
-    public const int DefaultMaxFunctionCallDepth = 64;
+    public const int DefaultMaxExecutionSteps = AwkExecutionGovernor.DefaultMaxExecutionSteps;
+    public const int DefaultMaxFunctionCallDepth = AwkExecutionGovernor.DefaultMaxFunctionCallDepth;
     public const int DefaultMaxSyntaxNestingDepth = 128;
     public const int DefaultMaxArrayElements = 1_000_000;
     public const int DefaultMaxFields = 1_000_000;
     public const int DefaultMaxBuilderBytes = 64 << 20;
-    public const long DefaultMaxRegexRecordSeparatorBytesScanned = 64L << 20;
+    public const long DefaultMaxRegexRecordSeparatorBytesScanned = Unlimited;
     public const int DefaultMaxOutputFiles = 10_000;
     public const int DefaultMaxInputFiles = 10_000;
     public const int DefaultMaxPipes = 1_024;
@@ -35,7 +35,7 @@ internal sealed record AwkRuntimeLimits
 
     public int MaxSyntaxNestingDepth { get; private init; } = DefaultMaxSyntaxNestingDepth;
 
-    public long MaxHostCalls { get; private init; } = Unlimited;
+    public long MaxHostCalls { get; private init; } = AwkExecutionGovernor.DefaultMaxHostCalls;
 
     public long MaxRecordBytes { get; private init; } = Unlimited;
 
@@ -67,9 +67,9 @@ internal sealed record AwkRuntimeLimits
 
     public long MaxRegexCacheBytes { get; private init; } = 64L << 20;
 
-    public long MaxRegexOperations { get; private init; } = 10_000_000;
+    public long MaxRegexOperations { get; private init; } = Unlimited;
 
-    public long MaxSortComparisons { get; private init; } = 10_000_000;
+    public long MaxSortComparisons { get; private init; } = Unlimited;
 
     public long MaxRegexRecordSeparatorBytesScanned { get; private init; } =
         DefaultMaxRegexRecordSeparatorBytesScanned;

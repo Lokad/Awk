@@ -86,6 +86,29 @@ internal static class AwkSemanticValidator
             }
         }
 
+        static void ValidateFunctionVariableConflicts(
+            AwkSemanticModel semanticModel,
+            List<AwkDiagnostic> diagnostics)
+        {
+            var functions = new HashSet<AwkIdentifier>();
+            foreach (var declaration in semanticModel.Declarations)
+            {
+                if (declaration.Kind is AwkSemanticSymbolKind.FunctionDefinition)
+                    functions.Add(declaration.Identifier);
+            }
+
+            foreach (var usage in semanticModel.Usages)
+            {
+                if (usage.Kind is AwkSemanticSymbolKind.Variable or AwkSemanticSymbolKind.Array &&
+                    functions.Contains(usage.Identifier))
+                {
+                    diagnostics.Add(new AwkDiagnostic(usage.Span,
+                        "Function name `" + usage.Name + "' used as a variable.",
+                        AwkDiagnosticId.BindInvalidProgram));
+                }
+            }
+        }
+
         static void ValidateCompatibilityGatedCallables(
             AwkSemanticModel semanticModel,
             AwkCompatibilityMode compatibilityMode,
@@ -118,6 +141,7 @@ internal static class AwkSemanticValidator
 
         var diagnostics = new List<AwkDiagnostic>();
         ValidateFunctionDeclarations(syntax, diagnostics);
+        ValidateFunctionVariableConflicts(semanticModel, diagnostics);
         ValidateUndefinedFunctions(semanticModel, compatibilityProfile.LintMode, diagnostics);
         ValidateCompatibilityGatedCallables(semanticModel, compatibilityProfile.Mode, diagnostics);
         ValidateStatementSemantics(syntax, diagnostics);

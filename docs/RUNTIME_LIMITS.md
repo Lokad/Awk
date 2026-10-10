@@ -32,7 +32,8 @@ These limits are host-mediated and publicly configurable:
 - `MaxHostCalls`: ordinary host operations such as open, read, write, and close across input,
   output, redirections, pipes, and source loading for one execution. Cleanup calls are recorded by
   runtime counters but are allowed to proceed within the aggregate cleanup deadline even after this
-  budget has been exhausted.
+  budget has been exhausted. Both presets allow 100,000 ordinary host calls by default.
+  Each ordinary host entry also checks cancellation and consumes one execution step.
 - `HostOperationTimeout`: maximum await time for one ordinary host operation. `CommandTimeout`
   independently bounds pipe commands. `CleanupTimeout` is one shared best-effort deadline for all
   cleanup calls in a source-loading or runtime phase, rather than a fresh timeout for every open
@@ -66,11 +67,12 @@ dedicated awk diagnostics.
 
 These limits constrain awk execution without changing successful compatibility behavior:
 
-- `MaxExecutionSteps`: interpreter expression evaluation, statement dispatch, and explicit
-  loop-iteration budget for runaway scripts. The executable engine charges its documented VM
-  budget-check points. A step is not an input record: ordinary scans consume multiple steps per
-  record according to their expression and statement shape. The current default is 10,000,000.
-- `MaxFunctionCallDepth`: user-function recursion depth.
+- `MaxExecutionSteps`: one shared logical-work allowance for either engine. Both presets default
+  to 50,000,000 steps, aligned with Lokad.Lython. Explicit overrides remain effective.
+- `MaxFunctionCallDepth`: active user-function frames. The compatibility default is 1,000,
+  aligned with Lokad.Lython; the restricted preset retains 32. Nested function invocations
+  suspend at entry and unwind to keep completed asynchronous operations from growing the CLR
+  stack. Argument evaluation receives the same protection before a callee frame is pushed.
 - `MaxSyntaxNestingDepth`: delimiter, statement, and expression-tree depth, checked before binding
   and execution so hostile nesting cannot exhaust the CLR stack.
 - `MaxArrayElements`: associative array elements.
@@ -80,16 +82,22 @@ These limits constrain awk execution without changing successful compatibility b
   runtime regex patterns.
 - `MaxRegexCompilations` and `MaxRegexCacheBytes`: aggregate compilation work and estimated retained
   regex-cache capacity.
-- `MaxRegexOperations`: aggregate regex search/match calls, including cache hits.
+- `MaxRegexOperations`: optional secondary ceiling on aggregate regex search/match calls,
+  including cache hits. It defaults to unlimited in both presets; searches draw from the common
+  execution allowance. Explicit `WithMaxRegexOperations` overrides retain their existing diagnostic.
 - `MaxRegexCaptureBytes`: `match(..., array)` capture payloads, preflighted from backend spans before
   group values are copied. Capture-array replacement separately preflights its complete entry count
   and retained memory before changing the destination array or `RSTART`/`RLENGTH`.
 - `MaxRegexRecordSeparatorBytesScanned`: cumulative bytes submitted to the general regex record-
-  separator fallback. The 64 MiB default bounds repeated cross-batch searches when a backend cannot
-  resume an arbitrary partial match; specialized byte, literal, and byte-run separators do not
-  consume this budget.
-- `MaxSortComparisons`: built-in `asort`/`asorti` comparator calls. Cancellation and this budget are
-  checked from inside the comparison loop.
+  separator fallback. It defaults to unlimited in both presets; every repeated backend search
+  consumes the common execution allowance for its offered search span. Explicit overrides retain
+  their existing diagnostic. Specialized byte, literal, and byte-run separators do not consume
+  this secondary ceiling. Case-sensitive multi-character separators containing no regex
+  metacharacters use the literal cursor, preserving only a possible partial separator at
+  batch boundaries instead of submitting overlapping suffixes to the regex backend.
+- `MaxSortComparisons`: optional secondary ceiling on built-in and user-defined array-sort
+  comparisons. It defaults to unlimited in both presets; each comparison checks cancellation
+  and consumes one execution step. Explicit overrides retain their existing diagnostic.
 
 Compatibility defaults remain intentionally generous or unlimited where ordinary awk scripts
 historically expect no fixed ceiling. The restricted preset makes invocation, frontend, host-call,
@@ -98,12 +106,28 @@ include, file, pipe, syntax, field, array, and execution-step work finite. It al
 cooperative `ExecutionTimeout`; caller cancellation continues to take precedence and remains
 observable as cancellation.
 
-The ten-million-step default is calibrated against deterministic Release counter-report workloads,
-including projection, multi-key filtering, associative aggregation, and two-file comparison. It
-keeps the runaway-script guard finite while allowing representative streaming work to cross the old
-one-million-step ceiling. Hosts and tests can still inject a tighter execution-step budget, and the
-other resource governors are unchanged. Outer cancellation and a Studio command timeout remain
-independent safeguards.
+The execution governor charges one step for each evaluated expression node, dispatched statement,
+admitted input record, scanned main-input operand position, loop iteration, user-function invocation,
+ordinary host entry, regex search, and sort comparison. Short-circuited expressions charge only the
+selected path. VM lowering retains
+expression checkpoints even for folded field indexes, and fallback wrappers do not add steps.
+Both engines flush standard output at statement boundaries so host admission and already emitted
+output agree when a later statement exhausts the allowance.
+
+Byte-oriented built-in work additionally charges one step per started 4,096-byte chunk of offered
+input: field splitting, FIELDWIDTHS parsing, Unicode string length, string search and slicing,
+separator scanning, and each regex search's remaining input. Regex rescans charge the offered
+span again. Chunk admission is atomic; an insufficient allowance fails before backend matching,
+array replacement, or record publication. Incremental separator cursors charge bytes actually
+inspected before consuming the record. Cached operations retain the same documented allowance.
+Cleanup and emergency diagnostics bypass exhausted execution and host allowances.
+
+These units measure logical admitted work, not elapsed CPU time or input records. Backend regex
+timeouts, pattern and compilation safeguards, host deadlines, caller cancellation, and the
+restricted preset's 30-second execution deadline remain independent safeguards. Memory,
+reserve/commit/release, and size limits retain their awk-specific policy. To migrate from the old
+independent CPU ceilings, configure `WithMaxExecutionSteps`; keep the secondary `With...` overrides
+only when a separate regex, scan-byte, or comparison ceiling is wanted.
 
 `AwkRuntimeCounters.ExecutionSteps` exposes the charged total. The Release counter-report workflow
 in `docs/BENCHMARKS.md` includes deterministic streaming shapes so changes to the accounting model
@@ -135,6 +159,12 @@ groups and transfers the copied text portion of that lease into the destination 
 dropping or double-charging it. `gensub` leases only its observable capture prefix.
 Read-only built-in special arrays such as `FUNCTAB` are static runtime metadata and are not charged
 against the execution memory budget.
+
+Lazy record frames retain the admitted splitting configuration as described in
+`docs/RECORD_SEMANTICS.md`. Custom separator or FPAT text and retained FIELDWIDTHS list
+capacity are charged with the record before replacement. A failed admission preserves
+the previous record and plan. Successful field materialization releases the plan's
+retained charge; file-boundary reset releases the record, fields, caches, and plan.
 
 Array sorting reserves the entry snapshot required by every comparison mode, plus the merge buffer
 and four comparator arguments only for user functions with at least two entries. A sorted key

@@ -54,17 +54,17 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the aggregate deadline for best-effort cleanup calls in one execution phase.</summary>
     public TimeSpan CleanupTimeout { get; private init; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>Gets the maximum number of interpreted execution steps.</summary>
-    public int MaxExecutionSteps { get; private init; } = 10_000_000;
+    /// <summary>Gets the shared logical-work allowance for either execution engine.</summary>
+    public int MaxExecutionSteps { get; private init; } = AwkExecutionGovernor.DefaultMaxExecutionSteps;
 
     /// <summary>Gets the maximum active awk function-call depth.</summary>
-    public int MaxFunctionCallDepth { get; private init; } = 64;
+    public int MaxFunctionCallDepth { get; private init; } = AwkExecutionGovernor.DefaultMaxFunctionCallDepth;
 
     /// <summary>Gets the maximum frontend and expression-tree nesting depth.</summary>
     public int MaxSyntaxNestingDepth { get; private init; } = 128;
 
     /// <summary>Gets the maximum number of host calls.</summary>
-    public long MaxHostCalls { get; private init; } = Unlimited;
+    public long MaxHostCalls { get; private init; } = AwkExecutionGovernor.DefaultMaxHostCalls;
 
     /// <summary>Gets the maximum size of one input record in UTF-8 bytes.</summary>
     public long MaxRecordBytes { get; private init; } = Unlimited;
@@ -111,14 +111,14 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum estimated bytes retained across regex caches.</summary>
     public long MaxRegexCacheBytes { get; private init; } = 64L << 20;
 
-    /// <summary>Gets the maximum number of regex match/search operations.</summary>
-    public long MaxRegexOperations { get; private init; } = 10_000_000;
+    /// <summary>Gets an optional secondary regex search ceiling; the shared work allowance also applies.</summary>
+    public long MaxRegexOperations { get; private init; } = Unlimited;
 
-    /// <summary>Gets the maximum number of built-in array-sort comparisons.</summary>
-    public long MaxSortComparisons { get; private init; } = 10_000_000;
+    /// <summary>Gets an optional secondary array-sort comparison ceiling; the shared work allowance also applies.</summary>
+    public long MaxSortComparisons { get; private init; } = Unlimited;
 
-    /// <summary>Gets the maximum bytes scanned by regex record separators.</summary>
-    public long MaxRegexRecordSeparatorBytesScanned { get; private init; } = 64L << 20;
+    /// <summary>Gets an optional secondary regex separator scan ceiling; the shared work allowance also applies.</summary>
+    public long MaxRegexRecordSeparatorBytesScanned { get; private init; } = Unlimited;
 
     /// <summary>Gets the maximum executable-engine stack size in bytes.</summary>
     public long MaxVmStackBytes { get; private init; } = Unlimited;
@@ -194,10 +194,8 @@ public sealed record AwkExecutionPolicy
             HostOperationTimeout = TimeSpan.FromSeconds(10),
             ExecutionTimeout = TimeSpan.FromSeconds(30),
             CleanupTimeout = TimeSpan.FromSeconds(5),
-            MaxExecutionSteps = 1_000_000,
             MaxFunctionCallDepth = 32,
             MaxSyntaxNestingDepth = 64,
-            MaxHostCalls = 100_000,
             MaxRecordBytes = 8L << 20,
             MaxInputBytes = 64L << 20,
             MaxRecords = 1_000_000,
@@ -213,9 +211,6 @@ public sealed record AwkExecutionPolicy
             MaxRegexGroups = 256,
             MaxRegexCompilations = 256,
             MaxRegexCacheBytes = 8L << 20,
-            MaxRegexOperations = 1_000_000,
-            MaxSortComparisons = 1_000_000,
-            MaxRegexRecordSeparatorBytesScanned = 16L << 20,
             MaxVmStackBytes = 8L << 20,
             MaxExecutionMemoryBytes = 64L << 20,
             MaxOutputFiles = 64,

@@ -355,7 +355,6 @@ public sealed class AwkSyntaxParserTests
     [InlineData("BEGIN{split(\"a\", a) y}", "Unexpected token after split statement.")]
     [InlineData("BEGIN{while (1) {break 1}}", "`break' does not take an argument.")]
     [InlineData("{nextfile 1}", "`nextfile' does not take an argument.")]
-    [InlineData("BEGIN{i++j}", "Unexpected token after postfix update expression.")]
     public void AwkSyntaxParser_ReportsDirectStatementTrailingTokenDiagnostics(string source, string message)
     {
         var program = AwkSyntaxParser.Parse(source);
@@ -602,6 +601,26 @@ public sealed class AwkSyntaxParserTests
             statements[2].SwitchCases[0].BodyStatements.Select(statement => statement.Kind).ToArray());
         Assert.True(statements[2].SwitchCases[1].IsDefault);
         Assert.Equal(AwkStatementKind.Print, Assert.Single(statements[2].SwitchCases[1].BodyStatements).Kind);
+    }
+
+    [Fact]
+    public void AwkSyntaxParser_BindsElseInTheTreeToTheNearestUnbracedIf()
+    {
+        var program = AwkSyntaxParser.Parse(
+            "BEGIN{if(a) if(b) print 1; else if(c) print 2; else print 3; else print 4}");
+
+        Assert.Empty(program.Diagnostics);
+        var outer = Assert.Single(Assert.Single(program.Rules).ActionStatements);
+        var inner = Assert.Single(outer.BodyStatements);
+        var tail = Assert.Single(inner.ElseStatements);
+        Assert.Equal(AwkStatementKind.If, inner.Kind);
+        Assert.Equal(AwkStatementKind.If, tail.Kind);
+        Assert.Equal("print 1", string.Join(" ", Assert.Single(inner.BodyStatements).Tokens.Select(t => t.Text)));
+        Assert.Equal("print 2", string.Join(" ", Assert.Single(tail.BodyStatements).Tokens.Select(t => t.Text)));
+        Assert.Equal("print 3", string.Join(" ", Assert.Single(tail.ElseStatements).Tokens.Select(t => t.Text)));
+        Assert.Equal("print 4", string.Join(" ", Assert.Single(outer.ElseStatements).Tokens.Select(t => t.Text)));
+        Assert.True(outer.Span.End > inner.Span.End);
+        Assert.True(inner.Span.End >= tail.Span.End);
     }
 
     [Fact]

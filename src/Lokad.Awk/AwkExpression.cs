@@ -170,7 +170,6 @@ internal abstract partial class AwkExpression
     public ValueTask<AwkValue> EvaluateAsync(AwkEvaluationContext context)
     {
         context.State.RecordExecutionStep();
-        context.State.ThrowIfCancellationRequested();
         return EvaluateCoreAsync(context);
     }
 

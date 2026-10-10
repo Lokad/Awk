@@ -30,7 +30,15 @@ public sealed class AwkPublicBoundaryTests
         Assert.False(restricted.AllowCommandPipes);
         Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxInputBytes);
         Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxRecords);
-        Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxRegexOperations);
+        Assert.Equal(50_000_000, compatible.MaxExecutionSteps);
+        Assert.Equal(compatible.MaxExecutionSteps, restricted.MaxExecutionSteps);
+        Assert.Equal(100_000, compatible.MaxHostCalls);
+        Assert.Equal(compatible.MaxHostCalls, restricted.MaxHostCalls);
+        Assert.Equal(AwkExecutionPolicy.Unlimited, compatible.MaxRegexOperations);
+        Assert.Equal(compatible.MaxRegexOperations, restricted.MaxRegexOperations);
+        Assert.Equal(AwkExecutionPolicy.Unlimited, restricted.MaxSortComparisons);
+        Assert.Equal(AwkExecutionPolicy.Unlimited, restricted.MaxRegexRecordSeparatorBytesScanned);
+        Assert.Equal(32, restricted.MaxFunctionCallDepth);
         Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxExecutionMemoryBytes);
         Assert.Equal("/jail", Assert.IsType<AwkPath>(rooted.AccessiblePathRoot).Path);
     }

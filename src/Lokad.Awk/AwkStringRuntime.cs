@@ -7,14 +7,18 @@ namespace Lokad.Awk;
 internal sealed class AwkStringRuntime
 {
     private readonly AwkStringUnitMode _unitMode;
+    private readonly Action<int>? _recordByteWork;
 
-    public AwkStringRuntime(AwkStringUnitMode unitMode)
+    public AwkStringRuntime(AwkStringUnitMode unitMode, Action<int>? recordByteWork = null)
     {
         _unitMode = unitMode;
+        _recordByteWork = recordByteWork;
     }
 
     public int CountUnits(AwkText value)
     {
+        if (_unitMode is not AwkStringUnitMode.Byte)
+            _recordByteWork?.Invoke(value.ByteLength);
         return _unitMode is AwkStringUnitMode.Byte ? value.ByteLength : value.RuneLength;
     }
 
@@ -36,6 +40,7 @@ internal sealed class AwkStringRuntime
             return count;
         }
 
+        _recordByteWork?.Invoke(source.ByteLength);
         var position = source.IndexOf(value);
         if (position < 0)
             return 0;
@@ -52,6 +57,7 @@ internal sealed class AwkStringRuntime
         AwkRuntimeCounters counters,
         AwkMemoryGovernor governor)
     {
+        _recordByteWork?.Invoke(source.ByteLength);
         return _unitMode is AwkStringUnitMode.Byte
             ? source.CopyByteSlice(start, length, counters, governor)
             : source.CopyRuneSlice(start, length, counters, governor);

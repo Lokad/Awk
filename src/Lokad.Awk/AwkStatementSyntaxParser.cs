@@ -44,7 +44,7 @@ internal sealed class AwkStatementSyntaxParser
             var statements = StreamParser(parser, parser.Tokens).Statements;
             return AwkStatementParseResult.Success(
                 statements,
-                CollectParseDiagnostics(statements, tokens));
+                CollectParseDiagnostics(statements));
         }
         catch (ParseException)
         {
@@ -52,36 +52,11 @@ internal sealed class AwkStatementSyntaxParser
         }
 
         static List<AwkDiagnostic> CollectParseDiagnostics(
-            IReadOnlyList<AwkStatementSyntax> statements,
-            IReadOnlyList<AwkToken> tokens)
+            IReadOnlyList<AwkStatementSyntax> statements)
         {
             var diagnostics = new List<AwkDiagnostic>();
             AddStatementDiagnostics(statements, diagnostics);
-            AddPostfixAdjacencyDiagnostic(tokens, diagnostics);
             return diagnostics;
-
-            static void AddPostfixAdjacencyDiagnostic(
-                IReadOnlyList<AwkToken> tokens,
-                List<AwkDiagnostic> diagnostics)
-            {
-                var token = FindUnexpectedPostfixMutationTrailingToken(
-                    tokens,
-                    PostfixTrailingTokenScanMode.StatementStream);
-                if (token == null)
-                    return;
-
-                const string message = "Unexpected token after postfix update expression.";
-                for (var index = 0; index < diagnostics.Count; index++)
-                {
-                    if (diagnostics[index].Span.Start == token.Value.Span.Start &&
-                        string.Equals(diagnostics[index].Message, message, StringComparison.Ordinal))
-                    {
-                        return;
-                    }
-                }
-
-                diagnostics.Add(new AwkDiagnostic(token.Value.Span, message));
-            }
         }
     }
 
@@ -195,7 +170,7 @@ internal sealed class AwkStatementSyntaxParser
             new AwkStatementSyntaxOptions
             {
                 Header = headerSlot,
-                HasDanglingElseBody = BodyStartsWithBareIf(body)
+                HasUnbracedBody = IsUnbracedBody(body)
             });
     }
 
@@ -208,27 +183,15 @@ internal sealed class AwkStatementSyntaxParser
         [NT] ElseIntro elseIntro,
         [NT] StatementBody elseBody)
     {
-        var keywordToken = ToToken(AwkTokenKind.If, keyword);
-        var headerSlot = ParseExpressionSlot(header.InnerTokens);
-        return CreateStatement(
-            AwkStatementKind.If,
-            Flatten([
-                [keywordToken],
-                header.FullTokens,
-                Flatten(beforeBody),
-                body.Tokens,
-                elseIntro.Tokens,
-                elseBody.Tokens
-            ]),
-            ExpressionsFromSlots([headerSlot]),
-            body.Statements,
+        var statement = IfWithoutElse(keyword, header, beforeBody, body);
+        var continuation = new ElseContinuation(
+            Flatten([elseIntro.Tokens, elseBody.Tokens]),
             elseBody.Statements,
-            [],
-            new AwkStatementSyntaxOptions
-            {
-                Header = headerSlot,
-                HasDanglingElseBody = BodyStartsWithBareIf(body)
-            });
+            IsUnbracedBody(elseBody));
+        return TryAttachElse(statement, [], continuation, out var attached)
+            ? attached
+            : CreateStatement(AwkStatementKind.Unknown,
+                Flatten([statement.Tokens, continuation.Tokens]), [], [], [], []);
     }
 
     [Rule]
@@ -249,7 +212,8 @@ internal sealed class AwkStatementSyntaxParser
         var elseToken = ToToken(AwkTokenKind.Else, elseKeyword);
         return new ElseContinuation(
             Flatten([[elseToken], Flatten(afterElse), elseBody.Tokens]),
-            elseBody.Statements);
+            elseBody.Statements,
+            IsUnbracedBody(elseBody));
     }
 
     [Rule]
@@ -283,7 +247,7 @@ internal sealed class AwkStatementSyntaxParser
             body.Statements,
             [],
             [],
-            new AwkStatementSyntaxOptions { Header = headerSlot });
+            new AwkStatementSyntaxOptions { Header = headerSlot, HasUnbracedBody = IsUnbracedBody(body) });
     }
 
     [Rule]
@@ -358,7 +322,7 @@ internal sealed class AwkStatementSyntaxParser
             body.Statements,
             [],
             [],
-            new AwkStatementSyntaxOptions { ForHeader = forHeader });
+            new AwkStatementSyntaxOptions { ForHeader = forHeader, HasUnbracedBody = IsUnbracedBody(body) });
 
         AwkForHeaderSyntax ParseForHeader(IReadOnlyList<AwkToken> tokens)
         {
@@ -429,7 +393,22 @@ internal sealed class AwkStatementSyntaxParser
 
     [Rule]
     public StatementBody SingleStatementBody([NT] AwkStatementSyntax statement) =>
-        new(statement.Tokens, [statement]);
+        new(statement.Tokens,
+            statement.Kind is AwkStatementKind.Block ? statement.BodyStatements : [statement]);
+
+    [Rule]
+    public StatementBody NullStatementBody([AwkT(AwkTokenKind.Semicolon)] Pos<string> semicolon) =>
+        new([ToToken(AwkTokenKind.Semicolon, semicolon)], []);
+
+    [Rule]
+    public AwkStatementSyntax StandaloneBlock(
+        [AwkT(AwkTokenKind.LeftBrace)] Pos<string> open,
+        [AwkL(Min = 0)] StatementListItem[] items,
+        [AwkT(AwkTokenKind.RightBrace)] Pos<string> close)
+    {
+        var body = BracedStatementBody(open, items, close);
+        return CreateStatement(AwkStatementKind.Block, body.Tokens, [], body.Statements, [], []);
+    }
 
     [Rule]
     public SwitchBlock SwitchBlockRule(
@@ -805,11 +784,6 @@ internal sealed class AwkStatementSyntaxParser
                             ? new BoundaryDiagnostic(getlineTrailing, "Unexpected token after getline target.")
                             : null;
 
-                if (kind == AwkStatementKind.Expression)
-                    return FindUnexpectedParsedPostfixMutationTrailingToken(FirstExpression(expressions), tokens) is { } postfixTrailing
-                            ? new BoundaryDiagnostic(postfixTrailing, "Unexpected token after postfix update expression.")
-                            : null;
-
                 if (AwkStatementSyntaxFacts.RequiresCallBoundary(kind) &&
                     FirstExpression(expressions).TryGetValue(out var callExpression) &&
                     FindUnexpectedCallTrailingToken(callExpression, tokens[0].Text) is { } callTrailing)
@@ -854,45 +828,6 @@ internal sealed class AwkStatementSyntaxParser
                             AwkExpressionKind.ArrayElement or
                             AwkExpressionKind.Field or
                             AwkExpressionKind.Group;
-                }
-
-                static AwkToken? FindUnexpectedParsedPostfixMutationTrailingToken(
-                    AwkSyntaxOptional<AwkExpressionSyntax> expression,
-                    IReadOnlyList<AwkToken> tokens)
-                {
-                    if (!expression.TryGetValue(out var expressionSyntax) ||
-                        !ExpressionCoversTokenSegment(expressionSyntax, tokens))
-                    {
-                        return FindUnexpectedPostfixMutationTrailingToken(
-                            tokens,
-                            PostfixTrailingTokenScanMode.Expression);
-                    }
-
-                    if (expressionSyntax.Kind != AwkExpressionKind.Concatenation ||
-                        expressionSyntax.Children.Count < 2 ||
-                        !IsPostfixMutationExpression(expressionSyntax.Children[0]))
-                    {
-                        return null;
-                    }
-
-                    return FirstToken(expressionSyntax.Children[1]);
-
-                    static bool IsPostfixMutationExpression(AwkExpressionSyntax expression) =>
-                        expression.Kind == AwkExpressionKind.Postfix &&
-                        expression.OperatorTokens.Count > 0 &&
-                        expression.OperatorTokens[0].Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus;
-
-                    static bool ExpressionCoversTokenSegment(
-                        AwkExpressionSyntax expression,
-                        IReadOnlyList<AwkToken> tokens)
-                    {
-                        var first = AwkTokenNavigation.FindFirstSignificant(tokens);
-                        var last = AwkTokenNavigation.FindLastSignificant(tokens);
-                        return first != null &&
-                            last != null &&
-                            expression.Span.Start <= first.Value.Span.Start &&
-                            expression.Span.End >= last.Value.Span.End;
-                    }
                 }
 
                 static AwkToken? FindUnexpectedCallTrailingToken(AwkExpressionSyntax expression, string name)
@@ -1135,7 +1070,7 @@ internal sealed class AwkStatementSyntaxParser
             options.OutputRedirection,
             options.Getline,
             options.InputPipeGetline,
-            options.HasDanglingElseBody);
+            options.HasUnbracedBody);
         if (first == null || last == null)
         {
             return new AwkStatementSyntax(
@@ -1166,8 +1101,11 @@ internal sealed class AwkStatementSyntaxParser
             AwkSyntaxOptional<AwkOutputRedirectionSyntax> outputRedirection,
             AwkSyntaxOptional<AwkGetlineSyntax> getline,
             AwkSyntaxOptional<AwkInputPipeGetlineSyntax> inputPipeGetline,
-            bool hasDanglingElseBody)
+            bool hasUnbracedBody)
         {
+            if (kind is AwkStatementKind.Block)
+                return new AwkBlockStatementSyntaxPayload(bodyStatements);
+
             if (kind is AwkStatementKind.If or AwkStatementKind.While or AwkStatementKind.DoWhile)
             {
                 return new AwkControlStatementSyntaxPayload(
@@ -1175,7 +1113,7 @@ internal sealed class AwkStatementSyntaxParser
                     expressions,
                     bodyStatements,
                     elseStatements,
-                    hasDanglingElseBody);
+                    hasUnbracedBody);
             }
 
             if (kind == AwkStatementKind.For)
@@ -1183,7 +1121,8 @@ internal sealed class AwkStatementSyntaxParser
                 return new AwkForStatementSyntaxPayload(
                     forHeader.GetValueOr(AwkForHeaderSyntax.Empty),
                     expressions,
-                    bodyStatements);
+                    bodyStatements,
+                    hasUnbracedBody);
             }
 
             if (kind == AwkStatementKind.Switch)
@@ -1264,79 +1203,9 @@ internal sealed class AwkStatementSyntaxParser
 
         public AwkSyntaxOptional<AwkInputPipeGetlineSyntax> InputPipeGetline { get; init; }
 
-        public bool HasDanglingElseBody { get; init; }
+        public bool HasUnbracedBody { get; init; }
 
         public IReadOnlyList<AwkDiagnostic> Diagnostics { get; init; } = [];
-    }
-
-    private static AwkToken? FindUnexpectedPostfixMutationTrailingToken(
-        IReadOnlyList<AwkToken> tokens,
-        PostfixTrailingTokenScanMode mode)
-    {
-        var parenDepth = 0;
-        var bracketDepth = 0;
-        var braceDepth = 0;
-        for (var index = 0; index < tokens.Count; index++)
-        {
-            if (tokens[index].Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus &&
-                parenDepth == 0 &&
-                bracketDepth == 0 &&
-                braceDepth == 0 &&
-                IsPostfixMutation(tokens, index))
-            {
-                var nextIndex = index + 1;
-                if (mode == PostfixTrailingTokenScanMode.Expression)
-                {
-                    nextIndex = AwkTokenNavigation.SkipNonSignificant(tokens, nextIndex, tokens.Count);
-                }
-                else
-                {
-                    while (nextIndex < tokens.Count && tokens[nextIndex].Kind == AwkTokenKind.Comment)
-                        nextIndex++;
-                }
-
-                if (nextIndex < tokens.Count &&
-                    (mode != PostfixTrailingTokenScanMode.StatementStream ||
-                        tokens[nextIndex].Kind is not (AwkTokenKind.NewLine or AwkTokenKind.Semicolon)) &&
-                    CanStartImplicitPostfixOperand(tokens[nextIndex].Kind))
-                {
-                    return tokens[nextIndex];
-                }
-            }
-
-            AwkTokenNavigation.UpdateDepth(tokens[index].Kind, ref parenDepth, ref bracketDepth, ref braceDepth);
-        }
-
-        return null;
-
-        static bool IsPostfixMutation(IReadOnlyList<AwkToken> tokens, int mutationIndex)
-        {
-            var previousIndex = mutationIndex - 1;
-            while (previousIndex >= 0 && !AwkTokenNavigation.IsSignificant(tokens[previousIndex].Kind))
-                previousIndex--;
-
-            return previousIndex >= 0 && CanEndPostfixOperand(tokens[previousIndex].Kind);
-
-            static bool CanEndPostfixOperand(AwkTokenKind kind) =>
-                kind is AwkTokenKind.Identifier or
-                    AwkTokenKind.Number or
-                    AwkTokenKind.String or
-                    AwkTokenKind.InternationalizedString or
-                    AwkTokenKind.Regex or
-                    AwkTokenKind.StrongRegex or
-                    AwkTokenKind.RightBracket or
-                    AwkTokenKind.RightParen;
-        }
-
-        static bool CanStartImplicitPostfixOperand(AwkTokenKind kind) =>
-            kind is AwkTokenKind.Identifier or
-                AwkTokenKind.Number or
-                AwkTokenKind.String or
-                AwkTokenKind.InternationalizedString or
-                AwkTokenKind.Regex or
-                AwkTokenKind.StrongRegex or
-                AwkTokenKind.Dollar or
-                AwkTokenKind.LeftParen;
     }
 
     private static AwkToken? FirstToken(AwkExpressionSyntax expression) =>
@@ -1358,11 +1227,9 @@ internal sealed class AwkStatementSyntaxParser
         return expressions;
     }
 
-    private static bool BodyStartsWithBareIf(StatementBody body) =>
+    private static bool IsUnbracedBody(StatementBody body) =>
         body.Statements.Count == 1 &&
-        body.Statements[0].Kind == AwkStatementKind.If &&
-        body.Statements[0].ElseStatements.Count == 0 &&
-        FindFirstSignificant(body.Tokens)?.Kind == AwkTokenKind.If;
+        FindFirstSignificant(body.Tokens)?.Kind != AwkTokenKind.LeftBrace;
 
     private static List<AwkStatementSyntax> StatementsFrom(StatementListItem[] items)
     {
@@ -1373,13 +1240,6 @@ internal sealed class AwkStatementSyntaxParser
             var item = items[index];
             if (item.Statement != null)
             {
-                if (statements.Count > 0 &&
-                    pendingSeparators.Count == 0 &&
-                    ResolveAdjacentStatementDiagnostic(statements[^1], item.Statement) is { } diagnostic)
-                {
-                    statements[^1] = AddDiagnostic(statements[^1], diagnostic);
-                }
-
                 statements.Add(item.Statement);
                 pendingSeparators.Clear();
                 continue;
@@ -1387,9 +1247,10 @@ internal sealed class AwkStatementSyntaxParser
 
             if (item.ElseContinuation != null)
             {
-                if (statements.Count > 0 && statements[^1].Kind == AwkStatementKind.If)
+                if (statements.Count > 0 &&
+                    TryAttachElse(statements[^1], pendingSeparators, item.ElseContinuation.Value, out var attached))
                 {
-                    statements[^1] = AttachElse(statements[^1], pendingSeparators, item.ElseContinuation.Value);
+                    statements[^1] = attached;
                     pendingSeparators.Clear();
                     continue;
                 }
@@ -1409,48 +1270,61 @@ internal sealed class AwkStatementSyntaxParser
         }
 
         return statements;
+    }
 
-        static AwkDiagnostic? ResolveAdjacentStatementDiagnostic(
-            AwkStatementSyntax previous,
-            AwkStatementSyntax next)
+    private static bool TryAttachElse(
+        AwkStatementSyntax statement,
+        IReadOnlyList<AwkToken> separatorTokens,
+        ElseContinuation continuation,
+        out AwkStatementSyntax attached)
+    {
+        attached = statement;
+        AwkStatementSyntaxPayload payload;
+        if (statement.Payload is AwkControlStatementSyntaxPayload control)
         {
-            var nextFirst = FindFirstSignificant(next.Tokens);
-            if (nextFirst == null)
-                return null;
-
-            var combinedTokens = Flatten([previous.Tokens, next.Tokens]);
-            var trailing = FindUnexpectedPostfixMutationTrailingToken(
-                combinedTokens,
-                PostfixTrailingTokenScanMode.Expression);
-            if (trailing != null && trailing.Value.Span.Start >= nextFirst.Value.Span.Start)
+            if (statement.Kind is AwkStatementKind.If && control.HasElse)
             {
-                return new AwkDiagnostic(trailing.Value.Span, "Unexpected token after postfix update expression.");
+                if (!control.HasUnbracedElseBody || control.ElseStatements.Count != 1 ||
+                    !TryAttachElse(control.ElseStatements[0], separatorTokens, continuation, out var child))
+                {
+                    return false;
+                }
+
+                payload = control.WithElse([child], hasUnbracedElseBody: true);
             }
-
-            return null;
+            else if (control.HasUnbracedBody && control.BodyStatements.Count == 1 &&
+                TryAttachElse(control.BodyStatements[0], separatorTokens, continuation, out var child))
+            {
+                payload = control.WithBody([child]);
+            }
+            else if (statement.Kind is AwkStatementKind.If)
+            {
+                payload = control.WithElse(continuation.Statements, continuation.HasUnbracedBody);
+            }
+            else
+            {
+                return false;
+            }
         }
-
-        static AwkStatementSyntax AddDiagnostic(AwkStatementSyntax statement, AwkDiagnostic diagnostic) =>
-            statement.WithDiagnostics([.. statement.Diagnostics, diagnostic]);
-
-        static AwkStatementSyntax AttachElse(
-            AwkStatementSyntax ifStatement,
-            IReadOnlyList<AwkToken> separatorTokens,
-            ElseContinuation continuation)
+        else if (statement.Payload is AwkForStatementSyntaxPayload loop && loop.HasUnbracedBody &&
+            loop.BodyStatements.Count == 1 &&
+            TryAttachElse(loop.BodyStatements[0], separatorTokens, continuation, out var child))
         {
-            var tokens = Flatten([ifStatement.Tokens, separatorTokens, continuation.Tokens]);
-            var first = FindFirstSignificant(tokens);
-            var last = FindLastSignificant(tokens);
-            var payload = ifStatement.Payload is AwkControlStatementSyntaxPayload controlPayload
-                ? controlPayload.WithElse(continuation.Statements)
-                : ifStatement.Payload;
-            return ifStatement.WithPayload(
-                tokens,
-                payload,
-                first != null && last != null
-                    ? new AwkTextSpan(first.Value.Span.Start, last.Value.Span.End - first.Value.Span.Start)
-                    : ifStatement.Span);
+            payload = loop.WithBody([child]);
         }
+        else
+        {
+            return false;
+        }
+
+        var tokens = Flatten([statement.Tokens, separatorTokens, continuation.Tokens]);
+        var first = FindFirstSignificant(tokens);
+        var last = FindLastSignificant(tokens);
+        attached = statement.WithPayload(tokens, payload,
+            first != null && last != null
+                ? new AwkTextSpan(first.Value.Span.Start, last.Value.Span.End - first.Value.Span.Start)
+                : statement.Span);
+        return true;
     }
 
     private static void AddStatementDiagnostics(
@@ -1573,11 +1447,14 @@ internal sealed class AwkStatementSyntaxParser
 
     public readonly struct ElseContinuation(
         IReadOnlyList<AwkToken>? tokens,
-        IReadOnlyList<AwkStatementSyntax>? statements)
+        IReadOnlyList<AwkStatementSyntax>? statements,
+        bool hasUnbracedBody)
     {
         public IReadOnlyList<AwkToken> Tokens => tokens ?? [];
 
         public IReadOnlyList<AwkStatementSyntax> Statements => statements ?? [];
+
+        public bool HasUnbracedBody { get; } = hasUnbracedBody;
     }
 
     public readonly struct SwitchBlock(
@@ -1638,12 +1515,6 @@ internal sealed class AwkStatementSyntaxParser
         public AwkToken Token { get; } = token;
 
         public string Message => message ?? string.Empty;
-    }
-
-    private enum PostfixTrailingTokenScanMode
-    {
-        Expression,
-        StatementStream
     }
 
     public readonly struct MalformedControlPart(IReadOnlyList<AwkToken>? tokens)

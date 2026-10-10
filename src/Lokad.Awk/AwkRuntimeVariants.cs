@@ -31,33 +31,54 @@ internal abstract record AwkSubstitutionTarget
     public static AwkSubstitutionTarget ReferenceTarget(AwkReference reference) =>
         new AwkReferenceSubstitutionTarget(reference);
 
-    /// <summary>Resolves the target's current value as strict UTF-8 bytes.</summary>
-    public abstract ValueTask<AwkText> ResolveInputTextAsync(AwkEvaluationContext context);
-
-    /// <summary>Assigns the substituted byte-native value to the target.</summary>
-    public abstract ValueTask AssignTextAsync(AwkEvaluationContext context, AwkText value);
+    /// <summary>Evaluates the mutable location once and reads its strict UTF-8 value.</summary>
+    public abstract ValueTask<AwkResolvedSubstitutionTarget> ResolveAsync(AwkEvaluationContext context);
 }
 
 internal sealed record AwkCurrentRecordSubstitutionTarget : AwkSubstitutionTarget
 {
-    public override ValueTask<AwkText> ResolveInputTextAsync(AwkEvaluationContext context) =>
-        ValueTask.FromResult(context.State.CurrentRecordByteText);
-
-    public override ValueTask AssignTextAsync(AwkEvaluationContext context, AwkText value)
-    {
-        context.State.SetCurrentRecordValue(context.State.CreateByteTextValue(value));
-        return default;
-    }
+    public override ValueTask<AwkResolvedSubstitutionTarget> ResolveAsync(AwkEvaluationContext context) =>
+        ValueTask.FromResult(AwkResolvedSubstitutionTarget.CurrentRecord(context.State.CurrentRecordByteText));
 }
 
 internal sealed record AwkReferenceSubstitutionTarget(AwkReference Reference) : AwkSubstitutionTarget
 {
-    public override async ValueTask<AwkText> ResolveInputTextAsync(AwkEvaluationContext context) =>
-        context.State.FormatStringByteText(
-            await Reference.EvaluateAsync(context).ConfigureAwait(false));
+    public override ValueTask<AwkResolvedSubstitutionTarget> ResolveAsync(AwkEvaluationContext context) =>
+        Reference.ResolveSubstitutionTargetAsync(context);
+}
 
-    public override ValueTask AssignTextAsync(AwkEvaluationContext context, AwkText value) =>
-        Reference.AssignValueAsync(context, context.State.CreateByteTextValue(value));
+internal readonly struct AwkResolvedSubstitutionTarget
+{
+    private readonly AwkText? _input;
+    private readonly AwkResolvedReference _reference;
+    private readonly bool _isCurrentRecord;
+
+    private AwkResolvedSubstitutionTarget(
+        AwkText input,
+        AwkResolvedReference reference,
+        bool isCurrentRecord)
+    {
+        _input = input;
+        _reference = reference;
+        _isCurrentRecord = isCurrentRecord;
+    }
+
+    public AwkText Input => _input ?? AwkText.Empty;
+
+    public static AwkResolvedSubstitutionTarget CurrentRecord(AwkText input) =>
+        new(input, default, isCurrentRecord: true);
+
+    public static AwkResolvedSubstitutionTarget ReferenceTarget(AwkText input, AwkResolvedReference reference) =>
+        new(input, reference, isCurrentRecord: false);
+
+    public void AssignText(AwkRuntimeState state, AwkText text)
+    {
+        var value = state.CreateByteTextValue(text);
+        if (_isCurrentRecord)
+            state.SetCurrentRecordValue(value);
+        else
+            _reference.AssignValue(state, value);
+    }
 }
 
 internal abstract record AwkGetlineTarget

@@ -29,6 +29,15 @@ internal abstract record AwkReference
         target.AssignValue(context.State, value);
     }
 
+    internal async ValueTask<AwkResolvedSubstitutionTarget> ResolveSubstitutionTargetAsync(
+        AwkEvaluationContext context)
+    {
+        var target = await ResolveTargetAsync(context).ConfigureAwait(false);
+        target.PrepareForSubstitution(context.State);
+        var input = context.State.FormatStringByteText(target.Evaluate(context.State));
+        return AwkResolvedSubstitutionTarget.ReferenceTarget(input, target);
+    }
+
     public async ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
         AwkEvaluationContext context,
         AwkExpression value,
@@ -79,7 +88,7 @@ internal abstract record AwkReference
         AwkNumericUpdateResult resultSelection)
     {
         var target = await ResolveTargetAsync(context).ConfigureAwait(false);
-        var previous = target.Evaluate(context.State);
+        var previous = AwkValue.FromNumber(target.Evaluate(context.State).AsNumber());
         var result = AwkValue.FromNumber(update(previous.AsNumber()));
         target.AssignValue(context.State, result);
         return resultSelection is AwkNumericUpdateResult.Previous ? previous : result;
@@ -194,7 +203,7 @@ internal readonly struct AwkResolvedReference
     {
         return _kind switch
         {
-            AwkResolvedReferenceKind.Scalar => state.ResolveVariableValue(_scalarVariable),
+            AwkResolvedReferenceKind.Scalar => ResolveScalarValue(state, _scalarVariable),
             AwkResolvedReferenceKind.LocalScalar => state.ResolveFunctionLocalValue(
                 _localScalarSlotId,
                 _scalarVariable),
@@ -202,6 +211,12 @@ internal readonly struct AwkResolvedReference
             AwkResolvedReferenceKind.Field => EvaluateField(state, _fieldIndex),
             _ => AwkValue.Unassigned()
         };
+
+        static AwkValue ResolveScalarValue(AwkRuntimeState state, AwkVariableName name) =>
+            AwkSpecialVariables.TryGetScalar(name, out var id)
+                ? state.ResolveSpecialVariableValue(id)
+                : state.ResolveVariableValue(name);
+
         static AwkValue EvaluateField(AwkRuntimeState state, AwkFieldIndex fieldIndex)
         {
             if (fieldIndex.IsCurrentRecord)
@@ -213,6 +228,12 @@ internal readonly struct AwkResolvedReference
             return state.GetFieldValue(fieldIndex);
         }
     }
+    public void PrepareForSubstitution(AwkRuntimeState state)
+    {
+        if (_kind is AwkResolvedReferenceKind.Field && _fieldIndex.IsNamedField)
+            state.ExtendFieldCountForReference(_fieldIndex);
+    }
+
     public void AssignValue(AwkRuntimeState state, AwkValue value)
     {
         switch (_kind)
