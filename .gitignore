@@ -13,3 +13,6 @@ external/
 
 .claude/
 tmp/
+
+# Local planning and benchmark VM connection notes must remain untracked.
+/PLAN.md
