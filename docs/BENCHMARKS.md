@@ -197,12 +197,13 @@ costs; use the raw counts, rather than elapsed
 time, when estimating how much input a step ceiling permits. Use the report in handoffs when a
 change affects resource or fallback accounting but does not require a full timing baseline.
 
-Execution accounting now uses a common 50-million-step allowance and a 100,000-host-call cap.
-Both engines charge expression, statement, loop, record, operand scanning, function, host, regex, comparison, and
-bounded byte work consistently; VM fallback wrappers add no execution steps. Counter totals
-before this change are historical evidence. The pinned paired baseline below predates the
-governor change and describes its recorded source snapshot; rerun the comparison on a fresh
-snapshot before making performance claims about the new governor.
+Both policy presets have no implicit execution-step ceiling and retain a 100,000-host-call cap.
+ExecutionSteps counters observe expression, statement, loop, record, operand, function, host,
+regex, comparison and bounded byte work independently of an admission limit. A configured
+positive WithMaxExecutionSteps enables the same allowance in either execution engine; VM
+fallback wrappers add no steps. The pinned paired baseline below describes its recorded
+source and earlier policy. Rerun a fresh source snapshot before making performance claims
+about the current governor.
 
 Refresh a checked-in benchmark snapshot only when the commit intentionally changes runtime,
 allocation, regex, VM, record/field splitting, or counter behavior. A snapshot refresh must record:
