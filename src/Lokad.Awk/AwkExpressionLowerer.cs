@@ -285,10 +285,18 @@ internal static partial class AwkExpressionLowerer
                         return true;
                     }
 
-                    if (!TryLower(argument, scope, out _))
+                    var elementArgument = UnwrapIntrospectionGroups(argument);
+                    if (AwkExpressionSyntaxFacts.TryGetArrayElementTarget(elementArgument, out var arrayName) &&
+                        TryLowerArrayIndex(elementArgument.Children, scope, out var arrayIndex))
+                    {
+                        lowered = AwkExpression.IsArrayArrayElement(new AwkArrayName(arrayName.Identifier), arrayIndex);
+                        return true;
+                    }
+
+                    if (!TryLower(argument, scope, out var value))
                         return false;
 
-                    lowered = AwkExpression.Number("0", 0);
+                    lowered = AwkExpression.IsArray(value);
                     return true;
                 }
 
@@ -312,8 +320,9 @@ internal static partial class AwkExpressionLowerer
                         return true;
                     }
 
-                    if (AwkExpressionSyntaxFacts.TryGetArrayElementTarget(argument, out var arrayName) &&
-                        TryLowerArrayIndex(argument.Children, scope, out var arrayIndex))
+                    var elementArgument = UnwrapIntrospectionGroups(argument);
+                    if (AwkExpressionSyntaxFacts.TryGetArrayElementTarget(elementArgument, out var arrayName) &&
+                        TryLowerArrayIndex(elementArgument.Children, scope, out var arrayIndex))
                     {
                         lowered = AwkExpression.TypeOfArrayElement(new AwkArrayName(arrayName.Identifier), arrayIndex);
                         return true;
@@ -324,6 +333,13 @@ internal static partial class AwkExpressionLowerer
 
                     lowered = AwkExpression.TypeOf(value, AwkOptionalIdentifier.None);
                     return true;
+                }
+
+                static AwkExpressionSyntax UnwrapIntrospectionGroups(AwkExpressionSyntax argument)
+                {
+                    while (argument.Kind == AwkExpressionKind.Group && argument.Children.Count == 1)
+                        argument = argument.Children[0];
+                    return argument;
                 }
 
                 static bool TryLowerMatchCall(
@@ -561,6 +577,9 @@ internal static partial class AwkExpressionLowerer
                 if (!TryLower(expression.Children[index], scope, out var argument))
                     return false;
 
+                if (expression.Children[index].Kind == AwkExpressionKind.Group &&
+                    argument.TryGetVariableName(out _))
+                    argument = AwkExpression.ScalarArgument(argument);
                 arguments.Add(argument);
             }
 

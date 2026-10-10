@@ -347,6 +347,9 @@ internal static class AwkMessages
     internal static ReadOnlyMemory<byte> FormatCannotModifySpecialArray(string name) =>
         FormatSymbolDiagnostic(ErrorCannotModifySpecialArrayPrefix, name, ErrorCannotModifySpecialArraySuffix);
 
+    internal static ReadOnlyMemory<byte> FormatUninitializedSpecialArrayElement(string name, string index) =>
+        AwkUtf8Codec.Encode("awk: reference to uninitialized element `" + name + "[\"" + index + "\"]' is not allowed\n");
+
     internal static string FormatGensubThirdArgumentWarningText(string value) =>
         "awk: warning: gensub: third argument `" + value + "' treated as 1\n";
 

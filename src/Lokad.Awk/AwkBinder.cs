@@ -9,7 +9,7 @@ internal static class AwkBinder
         AwkParseResult parseResult,
         AwkCompatibilityProfile compatibilityProfile)
     {
-        var symbols = AwkSymbolCollector.Collect(parseResult.Syntax);
+        var symbols = AwkSymbolCollector.Collect(parseResult.Syntax, out var globalNames);
         var semanticModel = AwkSemanticModel.Create(symbols);
         if (parseResult.Errors.Count > 0)
             return new AwkBindingResult(
@@ -35,7 +35,7 @@ internal static class AwkBinder
                 AwkProgramResult.None,
                 compatibilityParseFailed: true);
 
-        var lowering = AwkProgramLowerer.Lower(parseResult.Syntax);
+        var lowering = AwkProgramLowerer.Lower(parseResult.Syntax, globalNames);
         if (lowering.Diagnostics.Count > 0)
             return new AwkBindingResult(
                 lowering.PhaseResult.Phase,

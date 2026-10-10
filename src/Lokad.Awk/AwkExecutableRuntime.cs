@@ -362,7 +362,7 @@ internal static class AwkExecutableDispatcher
 
                         case AwkOpcode.StoreScalar:
                             {
-                                var value = stack[--stackCount];
+                                var value = stack[--stackCount].AsScalarCopy();
                                 bindings.StoreScalar(instruction.ScalarIndex, state, value);
                                 if (instruction.StoredValueRetention == AwkStoredValueRetention.Retain)
                                     stack[stackCount++] = value;
@@ -374,7 +374,7 @@ internal static class AwkExecutableDispatcher
                         case AwkOpcode.StoreArrayElement:
                             {
                                 var key = state.ToArrayKey(stack[--stackCount]);
-                                var value = stack[--stackCount];
+                                var value = stack[--stackCount].AsScalarCopy();
                                 state.SetArrayAwkValue(
                                     tables.ArrayNames[instruction.ArrayNameIndex.Value],
                                     key,

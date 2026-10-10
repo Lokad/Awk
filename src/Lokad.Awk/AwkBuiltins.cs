@@ -494,7 +494,8 @@ internal static partial class AwkBuiltins
             if (context.ArgumentCount != 2)
                 return AwkValue.FromNumber(0);
 
-            return AwkValue.FromNumber(context.State.IndexOfStringUnits(context.GetByteText(0), context.GetByteText(1)));
+            return AwkValue.FromNumber(context.State.IndexOfStringUnits(
+                context.State.FormatStringByteText(context.GetValue(0).ForceScalar()), context.GetByteText(1)));
         }
 
         static AwkValue EvaluateSubstr(AwkBuiltinContext context)

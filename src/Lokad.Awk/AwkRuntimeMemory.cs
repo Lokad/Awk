@@ -50,6 +50,12 @@ internal static class AwkRuntimeMemory
     public static long EstimateVariableSlotBytes(AwkVariableSlot slot) =>
         CheckedAdd(VariableSlotBytes, slot.RetainedTextMemoryBytes);
 
+    public static long EstimateUntypedScalarBytes() => 24;
+
+    public static long EstimateUntypedArrayElementBytes(AwkArrayKey key) =>
+        CheckedAdd(CheckedAdd(ArrayEntryBytes, key.RetainedTextMemoryBytes),
+            CheckedAdd(VariableSlotBytes, EstimateUntypedScalarBytes()));
+
     public static long EstimateSymbolMetadataBytes(int characterCount) =>
         CheckedAdd(
             SymbolMetadataBytes,
@@ -74,7 +80,7 @@ internal static class AwkRuntimeMemory
         FunctionFrameBytes;
 
     public static long EstimateFunctionLocalSlotBytes(AwkFunctionLocalSlot slot) =>
-        slot.Kind is AwkFunctionLocalSlotKind.Scalar or AwkFunctionLocalSlotKind.MissingScalar
+        slot.Kind != AwkFunctionLocalSlotKind.ArrayAlias
             ? CheckedAdd(FunctionLocalEntryBytes, EstimateVariableSlotBytes(slot.Value))
             : FunctionLocalEntryBytes;
 

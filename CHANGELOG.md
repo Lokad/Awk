@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Preserved untyped array elements and argument origins during typeof/isarray, with
+  one-time index effects, shared initial typing, and scalar copies on assignment/return.
+  Empty user-function returns now have unassigned type. Grouped variable arguments use
+  scalar context, while bare arrays and array-valued SYMTAB arguments retain aliases.
+  Untyped cells are memory-governed without widening the 24-byte value/slot layouts;
+  failed reads and local assignments preflight before changing entries or origin types.
+
+- Missing SYMTAB/FUNCTAB reads now fail with awk diagnostics while membership tests remain
+  legal. SYMTAB includes declared globals before first use, excludes function parameters
+  and itself, and preserves untyped globals during indirect reads. Existing governed
+  dynamic SYMTAB writes and shared special-variable setters retain their explicit policy.
+  Non-variable isarray arguments now evaluate their effects once.
+
 - Made split separator arrays sparse: only actual separators are published, including
   empty separators between character fields. Numeric captures retain input classification;
   patsplit keeps its complete boundary captures. Direct `/ /` uses literal-space splitting.

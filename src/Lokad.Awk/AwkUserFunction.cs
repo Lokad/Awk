@@ -72,7 +72,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
                         continue;
                     }
 
-                    values[index] = AwkFunctionArgument.Scalar(
+                    values[index] = AwkFunctionArgument.FromValue(
                         await argument.EvaluateAsync(context).ConfigureAwait(false));
                 }
 
@@ -106,7 +106,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
             {
                 var values = buffer.Values;
                 for (var index = 0; index < arguments.Count; index++)
-                    values[index] = AwkFunctionArgument.Scalar(arguments[index]);
+                    values[index] = AwkFunctionArgument.FromValue(arguments[index]);
 
                 PushArguments(values, arguments.Count, context);
             }
@@ -136,16 +136,16 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         try
         {
             if (_statements.Length == 0)
-                return AwkValue.FromText(string.Empty);
+                return AwkValue.Unassigned();
 
             if (!context.TryGetExecutionContext(out _))
-                return AwkValue.FromText(string.Empty);
+                return AwkValue.Unassigned();
 
             var flow = await AwkStatementBlockExecutor
                 .ExecuteAsync(_statements, context)
                 .ConfigureAwait(false);
             if (flow == AwkStatementFlow.ReturnFunction)
-                return state.TryConsumeFunctionReturnValue(out var value) ? value : AwkValue.FromText(string.Empty);
+                return state.TryConsumeFunctionReturnValue(out var value) ? value : AwkValue.Unassigned();
 
             if (flow is AwkStatementFlow.BreakLoop or AwkStatementFlow.ContinueLoop)
                 throw new AwkRuntimeException(flow == AwkStatementFlow.BreakLoop
@@ -158,7 +158,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
                 throw new AwkFunctionFlowSignal(flow);
             }
 
-            return AwkValue.FromText(string.Empty);
+            return AwkValue.Unassigned();
         }
         finally
         {
@@ -212,16 +212,27 @@ internal readonly struct AwkFunctionArgument
     public static AwkFunctionArgument Scalar(AwkValue value) =>
         new(AwkFunctionArgumentKind.Scalar, value, default);
 
+    public static AwkFunctionArgument FromValue(AwkValue value) =>
+        value.TryGetArrayName(out var name)
+            ? Array(name)
+            : value.IsUntypedValue
+            ? new(AwkFunctionArgumentKind.UntypedScalar, value, default)
+            : Scalar(value.AsScalarCopy());
+
     public static AwkFunctionArgument Array(AwkArrayName arrayName) =>
         new(AwkFunctionArgumentKind.Array, default, arrayName);
 
     public static AwkFunctionArgument PotentialArray(AwkArrayName arrayName) =>
-        new(AwkFunctionArgumentKind.PotentialArray, default, arrayName);
+        PotentialArray(arrayName, AwkValue.FromUntypedScalar(new AwkUntypedScalar()));
+
+    public static AwkFunctionArgument PotentialArray(AwkArrayName arrayName, AwkValue value) =>
+        new(AwkFunctionArgumentKind.PotentialArray, value, arrayName);
 }
 
 internal enum AwkFunctionArgumentKind
 {
     Scalar,
     Array,
-    PotentialArray
+    PotentialArray,
+    UntypedScalar
 }

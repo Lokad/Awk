@@ -10,6 +10,7 @@ internal delegate bool AwkTryResolveScalarSlot(AwkVariableName name, out AwkGlob
 internal delegate bool AwkTryGetScalarSlot(AwkGlobalSlotId slotId, out AwkVariableSlot slot);
 
 internal sealed class AwkSymbolTableArray(
+    Func<IReadOnlySet<AwkVariableName>> getGlobalNames,
     Func<IEnumerable<AwkScalarInventoryItem>> getScalars,
     AwkTryResolveScalarSlot tryResolveScalar,
     AwkTryGetScalarSlot tryGetScalar,
@@ -25,38 +26,30 @@ internal sealed class AwkSymbolTableArray(
     {
         get
         {
-            var count = 1;
-            foreach (var scalar in getScalars())
-            {
-                if (!IsName(scalar.Name.Text))
-                    count++;
-            }
-
-            foreach (var arrayName in getArrayNames())
-            {
-                var name = arrayName.Text;
-                if (!IsName(name) && !tryResolveScalar(new AwkVariableName(arrayName.Identifier), out _))
-                    count++;
-            }
-
+            var count = 0;
+            foreach (var name in EnumerateNames())
+                count++;
             return count;
         }
     }
 
     public AwkValue GetValue(string name)
     {
-        var identifier = ParseName(name);
+        if (!AwkIdentifier.TryParse(name, out var identifier) || IsName(name))
+            throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(AwkVariables.SymbolTableName, name));
 
-        if (containsArray(new AwkArrayName(identifier)) || IsName(name))
-            throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(name));
+        if (containsArray(new AwkArrayName(identifier)))
+            return AwkValue.FromGlobalArrayReference(identifier);
 
         if (!tryResolveScalar(new AwkVariableName(identifier), out var slotId) ||
             !tryGetScalar(slotId, out var slot))
         {
-            return AwkValue.Unassigned();
+            if (getGlobalNames().Contains(new AwkVariableName(identifier)))
+                return AwkValue.Unassigned();
+            throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(AwkVariables.SymbolTableName, name));
         }
 
-        return createValue(slot);
+        return createValue(slot).AsScalarCopy();
     }
 
     public void AssignValue(string name, AwkValue value)
@@ -74,9 +67,19 @@ internal sealed class AwkSymbolTableArray(
         if (!AwkIdentifier.TryParse(name, out var identifier))
             return false;
 
-        return IsName(name) ||
+        return !IsName(name) && (
+            getGlobalNames().Contains(new AwkVariableName(identifier)) ||
             containsArray(new AwkArrayName(identifier)) ||
-            tryResolveScalar(new AwkVariableName(identifier), out _);
+            tryResolveScalar(new AwkVariableName(identifier), out _));
+    }
+
+    public AwkRuntimeValueKind GetElementRuntimeKind(string name)
+    {
+        if (!IsName(name) && AwkIdentifier.TryParse(name, out var identifier) &&
+            containsArray(new AwkArrayName(identifier)))
+            return AwkRuntimeValueKind.Array;
+
+        return GetValue(name).RuntimeKind;
     }
 
     public TResult[] SnapshotValues<TState, TResult>(
@@ -86,32 +89,14 @@ internal sealed class AwkSymbolTableArray(
     {
         var result = new TResult[count];
         var index = 0;
-        result[index++] = project(
-            state,
-            new AwkArrayKey(AwkVariables.SymbolTableName),
-            AwkValue.FromText(AwkText.Empty));
-
-        foreach (var scalar in getScalars())
+        foreach (var name in EnumerateNames())
         {
-            if (IsName(scalar.Name.Text))
-                continue;
-
-            var value = tryGetScalar(scalar.SlotId, out var slot)
-                ? createValue(slot)
-                : AwkValue.Unassigned();
-            result[index++] = project(state, new AwkArrayKey(scalar.Name.Text), value);
-        }
-
-        foreach (var arrayName in getArrayNames())
-        {
-            var name = arrayName.Text;
-            if (IsName(name) || tryResolveScalar(new AwkVariableName(arrayName.Identifier), out _))
-                continue;
-
-            result[index++] = project(
-                state,
-                new AwkArrayKey(name),
-                AwkValue.FromText(AwkText.Empty));
+            var value = containsArray(new AwkArrayName(name.Identifier))
+                ? AwkValue.FromText(AwkText.Empty)
+                : tryResolveScalar(name, out var slotId) && tryGetScalar(slotId, out var slot)
+                    ? createValue(slot).AsScalarCopy()
+                    : AwkValue.Unassigned();
+            result[index++] = project(state, new AwkArrayKey(name.Text), value);
         }
 
         return result;
@@ -120,19 +105,31 @@ internal sealed class AwkSymbolTableArray(
     public void CopyKeys(AwkArrayKey[] destination)
     {
         var index = 0;
-        destination[index++] = new AwkArrayKey(AwkVariables.SymbolTableName);
+        foreach (var name in EnumerateNames())
+            destination[index++] = new AwkArrayKey(name.Text);
+    }
+
+    private IEnumerable<AwkVariableName> EnumerateNames()
+    {
+        var globals = getGlobalNames();
+        foreach (var name in globals)
+        {
+            if (!IsName(name.Text))
+                yield return name;
+        }
 
         foreach (var scalar in getScalars())
         {
-            if (!IsName(scalar.Name.Text))
-                destination[index++] = new AwkArrayKey(scalar.Name.Text);
+            if (!IsName(scalar.Name.Text) && !globals.Contains(scalar.Name))
+                yield return scalar.Name;
         }
 
         foreach (var arrayName in getArrayNames())
         {
             var name = arrayName.Text;
-            if (!IsName(name) && !tryResolveScalar(new AwkVariableName(arrayName.Identifier), out _))
-                destination[index++] = new AwkArrayKey(name);
+            var variableName = new AwkVariableName(arrayName.Identifier);
+            if (!IsName(name) && !globals.Contains(variableName) && !tryResolveScalar(variableName, out _))
+                yield return variableName;
         }
     }
 

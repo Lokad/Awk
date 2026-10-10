@@ -88,6 +88,8 @@ internal abstract partial class AwkExpression
     public static AwkExpression FunctionCall(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments) =>
         new FunctionCallExpression(name, AwkCollectionSnapshots.Copy(arguments));
 
+    public static AwkExpression ScalarArgument(AwkExpression value) => new ScalarArgumentExpression(value);
+
     public static AwkExpression BuiltinCall(AwkBuiltinDefinition definition, IReadOnlyList<AwkExpression> arguments) =>
         new BuiltinCallExpression(definition, AwkCollectionSnapshots.Copy(arguments));
 
@@ -104,6 +106,11 @@ internal abstract partial class AwkExpression
         new LengthExpression(value, arrayName);
 
     public static AwkExpression IsArray(AwkArrayName variableName) => new IsArrayExpression(variableName);
+
+    public static AwkExpression IsArray(AwkExpression value) => new IsArrayValueExpression(value);
+
+    public static AwkExpression IsArrayArrayElement(AwkArrayName name, AwkArrayIndex index) =>
+        new IsArrayArrayElementExpression(name, index);
 
     public static AwkExpression TypeOf(AwkExpression value, AwkOptionalIdentifier variableName) =>
         new TypeOfExpression(value, variableName);

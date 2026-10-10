@@ -151,30 +151,31 @@ public sealed class AwkFunctionLocalSlotTests
     }
 
     [Fact]
-    public void AwkFunctionCallStack_ScalarProjectionLeavesSiblingPotentialAliasPromotable()
+    public void AwkFunctionCallStack_ScalarProjectionPromotesEverySharedUntypedOrigin()
     {
         var stack = CreateCallStack(AwkRuntimeCounters.Disabled);
         var firstName = AwkVariableName.FromText("first");
         var secondName = AwkVariableName.FromText("second");
         var sharedArrayName = AwkArrayName.FromText("shared");
+        var value = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
         stack.PushFrame(
             new AwkFunctionLocalLayout([firstName, secondName]),
             [
-                AwkFunctionArgument.PotentialArray(sharedArrayName),
-                AwkFunctionArgument.PotentialArray(sharedArrayName)
+                AwkFunctionArgument.PotentialArray(sharedArrayName, value),
+                AwkFunctionArgument.PotentialArray(sharedArrayName, value)
             ]);
 
         try
         {
             Assert.True(stack.TryResolveLocalValue(firstName, out var firstLocal));
             Assert.Equal(AwkFunctionLocalSlotKind.Scalar, firstLocal.Kind);
-            Assert.True(stack.TryResolveOrPromoteArrayName(secondName, out var promotedName));
-            Assert.Equal(sharedArrayName, promotedName);
+            Assert.False(stack.TryResolveOrPromoteArrayName(secondName, out _));
 
             Assert.True(stack.TryResolveLocal(firstName, out firstLocal));
             Assert.Equal(AwkFunctionLocalSlotKind.Scalar, firstLocal.Kind);
             Assert.True(stack.TryResolveLocal(secondName, out var secondLocal));
-            Assert.Equal(AwkFunctionLocalSlotKind.ArrayAlias, secondLocal.Kind);
+            Assert.Equal(AwkFunctionLocalSlotKind.Scalar, secondLocal.Kind);
+            Assert.True(secondLocal.Value.IsUnassignedValue);
         }
         finally
         {

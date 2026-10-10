@@ -283,7 +283,7 @@ internal abstract partial class AwkStatement
                 ? await valueExpression.Value
                     .EvaluateAsync(context)
                     .ConfigureAwait(false)
-                : AwkValue.FromText(string.Empty);
+                : AwkValue.Unassigned();
             state.SetFunctionReturnValue(value);
             return AwkStatementFlow.ReturnFunction;
         }

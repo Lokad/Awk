@@ -35,6 +35,11 @@ input records, `getline` data, and source-file contents.
 ## Runtime Text
 
 `AwkText` stores valid UTF-8 bytes and caches UTF-16 strings only for compatibility boundaries.
+SYMTAB identifier lookup and failed special-array key diagnostics use the counted key
+decoding boundary; ordinary successful FUNCTAB reads retain byte-native keys and values.
+Untyped value cells retain no text and project empty/zero values without decoding.
+Values and variable slots keep their 24-byte layouts. Array-valued SYMTAB references
+reuse existing identifier text; this adds no text conversion beyond SYMTAB lookup.
 Byte-native paths should avoid decoding records before field splitting, filtering, or printing.
 Runtime counters track string decodes, UTF-8 encodes, `AwkText.AsString()` calls, and formatting
 fallbacks so migrations can prove that hot paths stay byte-native.

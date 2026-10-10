@@ -616,10 +616,10 @@ internal readonly struct AwkValueArrayPrintfArguments(
     public string GetString(int index)
     {
         state.Counters.RecordFormattingStringInteropInput();
-        return state.FormatStringByteText(arguments[index]).AsString(state.Counters);
+        return state.FormatStringByteText(arguments[index].ForceScalar()).AsString(state.Counters);
     }
 
-    public double GetNumber(int index) => arguments[index].AsNumber();
+    public double GetNumber(int index) => arguments[index].ForceScalar().AsNumber();
 
     public bool IsNumeric(int index) =>
         arguments[index].IsNumberValue || arguments[index].IsNumericStringValue;
@@ -634,10 +634,11 @@ internal readonly struct AwkBuiltinContextPrintfArguments(
     public string GetString(int index)
     {
         context.State.Counters.RecordFormattingStringInteropInput();
-        return context.GetString(index + startIndex);
+        return context.State.FormatStringByteText(context.GetValue(index + startIndex).ForceScalar())
+            .AsString(context.State.Counters);
     }
 
-    public double GetNumber(int index) => context.GetNumber(index + startIndex);
+    public double GetNumber(int index) => context.GetValue(index + startIndex).ForceScalar().AsNumber();
 
     public bool IsNumeric(int index)
     {

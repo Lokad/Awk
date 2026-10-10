@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
 
@@ -25,6 +26,7 @@ internal sealed class AwkVariables
     private readonly AwkArrayKeyComparer _arrayKeyComparer = AwkArrayKeyComparer.Instance;
     private readonly AwkArrayStorage _arrays;
     private readonly AwkSymbolTableArray _symbolTable;
+    private IReadOnlySet<AwkVariableName> _globalNames = FrozenSet<AwkVariableName>.Empty;
     private readonly Func<AwkValue>? _resolveFieldCountValue;
     private readonly Action _prepareOutputFieldSeparatorAssignment;
     private bool _governScalarMemory;
@@ -95,6 +97,7 @@ internal sealed class AwkVariables
         _prepareOutputFieldSeparatorAssignment = prepareOutputFieldSeparatorAssignment ?? (() => { });
         _arrays = new AwkArrayStorage(_arrayKeyComparer);
         _symbolTable = new AwkSymbolTableArray(
+            () => _globalNames,
             EnumerateScalarInventory,
             TryResolveScalarSlot,
             TryGetScalarSlot,
@@ -143,7 +146,7 @@ internal sealed class AwkVariables
     }
 
     public bool ContainsScalar(AwkVariableName name) =>
-        _scalarSlotsByName.ContainsKey(name);
+        _scalarSlotsByName.TryGetValue(name, out var id) && !GetScalarState(id).Slot.IsUntyped;
 
     public bool ContainsArray(AwkArrayName name) =>
         !name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text) ||
@@ -232,6 +235,23 @@ internal sealed class AwkVariables
         _governScalarMemory = true;
     }
 
+    public void InitializeGlobalNames(IReadOnlySet<AwkVariableName> names) => _globalNames = names;
+
+    public AwkValue GetOrCreateUntypedScalarValue(AwkVariableName name)
+    {
+        if (_scalarSlotsByName.TryGetValue(name, out var id))
+            return CreateValue(GetScalarState(id).Slot);
+
+        ThrowIfNewScalarSlotExceeded(name);
+        if (_governScalarMemory)
+            _memoryGovernor.PreflightAllocation(AwkRuntimeMemory.CheckedAdd(
+                AwkRuntimeMemory.EstimateSymbolMetadataBytes(name.Text.Length),
+                AwkRuntimeMemory.CheckedAdd(24, AwkRuntimeMemory.EstimateUntypedScalarBytes())));
+        var slot = AwkVariableSlot.FromUntypedScalar(new AwkUntypedScalar());
+        SetScalarSlot(name, slot);
+        return CreateValue(slot);
+    }
+
     public AwkValue GetOrCreateScalarValue(AwkVariableName name)
     {
         if (_resolveFieldCountValue is not null &&
@@ -239,7 +259,7 @@ internal sealed class AwkVariables
             return _resolveFieldCountValue();
 
         if (TryGetScalarState(name, out var state))
-            return CreateValue(state.Slot);
+            return CreateValue(state.Slot).ForceScalar();
 
         SetScalarSlot(name, new AwkVariableSlot(string.Empty, AwkVariableSlotKind.Unassigned));
         return AwkValue.Unassigned();
@@ -263,7 +283,7 @@ internal sealed class AwkVariables
             AwkSpecialVariables.IsName(_scalarSlots[id.Value].Name.Text, AwkSpecialVariableId.FieldCount))
             return _resolveFieldCountValue();
 
-        return CreateValue(GetScalarState(id).Slot);
+        return CreateValue(GetScalarState(id).Slot).ForceScalar();
     }
 
     public void SetScalarValue(AwkGlobalSlotId id, AwkValue value)
@@ -365,11 +385,13 @@ internal sealed class AwkVariables
             return CreateValue(slot);
 
         if (!name.IsFunctionLocal && AwkSpecialArrayPolicy.IsElementReadOnly(name.Text))
-            return AwkValue.FromText(string.Empty);
+            throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, index.AsString(_counters)));
 
         ThrowIfArrayWouldGrowPastLimit(values, index);
-        SetArraySlot(values, index, new AwkVariableSlot(string.Empty, AwkVariableSlotKind.Unassigned));
-        return AwkValue.Unassigned();
+        _memoryGovernor.PreflightAllocation(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index));
+        var untypedSlot = AwkVariableSlot.FromUntypedScalar(new AwkUntypedScalar());
+        SetArraySlot(values, index, untypedSlot);
+        return CreateValue(untypedSlot);
     }
 
     public bool TryPeekArrayValue(AwkArrayName name, AwkArrayKey index, out AwkValue value)
@@ -386,6 +408,8 @@ internal sealed class AwkVariables
         var values = GetOrCreateArraySlots(name);
         if (!values.TryGetValue(index, out var slot))
         {
+            if (!name.IsFunctionLocal && AwkSpecialArrayPolicy.IsElementReadOnly(name.Text))
+                throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, index.AsString(_counters)));
             value = AwkValue.FromText(string.Empty);
             return false;
         }
@@ -452,6 +476,42 @@ internal sealed class AwkVariables
             AwkSpecialArrayPolicy.ThrowIfReplacementForbidden(name.Text);
         ThrowIfArrayReplacementWouldExceedLimit(values.Count);
         ReplaceArraySlots(name, CreateIndexedArraySlots(values, firstIndex: 1, createSlot));
+    }
+
+    public bool TryGetExistingArrayValue(AwkArrayName name, AwkArrayKey index, out AwkValue value)
+    {
+        if (!name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text))
+        {
+            value = _symbolTable.GetValue(index.AsString(_counters));
+            return true;
+        }
+        if (_arrays.TryGetSlots(name, out var slots) && slots.TryGetValue(index, out var slot))
+        {
+            value = CreateValue(slot);
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index) =>
+        !name.IsFunctionLocal && AwkSymbolTableArray.IsName(name.Text)
+            ? _symbolTable.GetElementRuntimeKind(index.AsString(_counters))
+            : GetArrayValue(name, index).RuntimeKind;
+
+    public void PreflightArrayElementRead(AwkArrayName name, AwkArrayKey index)
+    {
+        if (!name.IsFunctionLocal &&
+            (AwkSymbolTableArray.IsName(name.Text) || AwkSpecialArrayPolicy.IsElementReadOnly(name.Text)))
+            return;
+
+        if (_arrays.TryGetSlots(name, out var slots))
+        {
+            if (slots.ContainsKey(index))
+                return;
+            ThrowIfArrayWouldGrowPastLimit(slots, index);
+        }
+        _memoryGovernor.PreflightAllocation(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index));
     }
 
     public void SetArrayValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)

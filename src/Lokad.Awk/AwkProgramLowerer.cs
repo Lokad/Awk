@@ -8,6 +8,12 @@ internal static partial class AwkProgramLowerer
 {
     public static AwkLoweringResult Lower(AwkSyntaxProgram syntax)
     {
+        AwkSymbolCollector.Collect(syntax, out var globalNames);
+        return Lower(syntax, globalNames);
+    }
+
+    public static AwkLoweringResult Lower(AwkSyntaxProgram syntax, IReadOnlySet<AwkVariableName> globalNames)
+    {
         if (string.IsNullOrWhiteSpace(syntax.SourceText))
         {
             return AwkLoweringResult.SuccessResult(AwkProgram.Empty);
@@ -88,7 +94,7 @@ internal static partial class AwkProgramLowerer
         }
 
         return AwkLoweringResult.SuccessResult(
-            new AwkProgram(beginActions, mainActions, endActions, beginFileActions, endFileActions, functions));
+            new AwkProgram(beginActions, mainActions, endActions, beginFileActions, endFileActions, functions, globalNames));
 
         static AwkLoweringOutcome<AwkUserFunction> ParseFunctionDefinition(
             AwkFunctionSyntax functionSyntax)

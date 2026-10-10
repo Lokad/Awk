@@ -15,14 +15,16 @@ internal sealed class AwkFunctionRuntime
         AwkMemoryGovernor memoryGovernor,
         Func<AwkText, AwkValue> createByteTextValue,
         Func<AwkText, AwkValue> createNumericStringValue,
-        Func<AwkText, AwkValue> createDeferredTextValue)
+        Func<AwkText, AwkValue> createDeferredTextValue,
+        Func<AwkArrayName, bool> containsArray)
     {
         _calls = new AwkFunctionCallStack(
             maxFunctionCallDepth,
             memoryGovernor,
             createByteTextValue,
             createNumericStringValue,
-            createDeferredTextValue);
+            createDeferredTextValue,
+            containsArray);
     }
 
     public bool IsInsideFunction => _calls.IsInsideFunction;
@@ -72,6 +74,9 @@ internal sealed class AwkFunctionRuntime
 
     public bool TryResolveOrPromoteArrayName(AwkVariableName name, out AwkArrayName arrayName) =>
         _calls.TryResolveOrPromoteArrayName(name, out arrayName);
+
+    public bool TryGetArrayReadName(AwkVariableName name, out AwkArrayName arrayName) =>
+        _calls.TryGetArrayReadName(name, out arrayName);
 
     public bool TryAssignLocal(AwkVariableName name, string value) =>
         _calls.TryAssignLocal(name, value);

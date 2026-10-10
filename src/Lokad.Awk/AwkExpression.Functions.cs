@@ -46,8 +46,14 @@ internal abstract partial class AwkExpression
                 return AwkValue.FromNumber(count);
             }
 
-            var value = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
-            return AwkValue.FromNumber(context.State.CountStringUnits(value));
+            var value = await valueExpression.EvaluateAsync(context).ConfigureAwait(false);
+            if (value.TryGetArrayName(out var name) && context.State.TryGetExistingArrayCount(name, out var arrayCount))
+            {
+                if (context.State.CompatibilityMode == AwkCompatibilityMode.Posix)
+                    throw new AwkRuntimeException(AwkMessages.ErrorLengthArrayArgument);
+                return AwkValue.FromNumber(arrayCount);
+            }
+            return AwkValue.FromNumber(context.State.CountStringUnits(context.State.FormatStringByteText(value)));
         }
     }
 
@@ -59,6 +65,38 @@ internal abstract partial class AwkExpression
                 throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(AwkBuiltins.Name(AwkBuiltinId.IsArray)));
 
             return ValueTask.FromResult(AwkValue.FromNumber(context.State.IsArray(variableName) ? 1 : 0));
+        }
+    }
+
+    private sealed class IsArrayValueExpression(AwkExpression valueExpression) : AwkExpression
+    {
+        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        {
+            if (context.State.CompatibilityMode != AwkCompatibilityMode.GnuDefault)
+                throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(AwkBuiltins.Name(AwkBuiltinId.IsArray)));
+
+            var value = await valueExpression.EvaluateAsync(context).ConfigureAwait(false);
+            return AwkValue.FromNumber(value.IsArrayValue ? 1 : 0);
+        }
+    }
+
+    private sealed class ScalarArgumentExpression(AwkExpression valueExpression) : AwkExpression
+    {
+        // The wrapper preserves the source's scalar context and owns its ordinary
+        // expression checkpoint; evaluating the wrapped core adds no extra step.
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            valueExpression.EvaluateCoreAsync(context);
+    }
+
+    private sealed class IsArrayArrayElementExpression(AwkArrayName name, AwkArrayIndex indexExpression) : AwkExpression
+    {
+        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        {
+            if (context.State.CompatibilityMode != AwkCompatibilityMode.GnuDefault)
+                throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(AwkBuiltins.Name(AwkBuiltinId.IsArray)));
+
+            var key = await indexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
+            return AwkValue.FromNumber(context.State.GetArrayElementRuntimeKind(name, key) == AwkRuntimeValueKind.Array ? 1 : 0);
         }
     }
 
@@ -92,9 +130,7 @@ internal abstract partial class AwkExpression
                 throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(AwkBuiltins.Name(AwkBuiltinId.TypeOf)));
 
             var key = await indexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
-            return context.State.TryPeekArrayAwkValue(variableName, key, out var value)
-                ? TypeOf(value.RuntimeKind)
-                : TypeOf(AwkRuntimeValueKind.Untyped);
+            return TypeOf(context.State.GetArrayElementRuntimeKind(variableName, key));
         }
     }
 }

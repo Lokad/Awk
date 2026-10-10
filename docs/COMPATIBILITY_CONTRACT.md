@@ -38,6 +38,56 @@ or one terminating semicolon; a completed braced or null body needs no separator
 An additional semicolon creates another null statement and prevents attachment.
 These syntax errors are reported before execution, including unreachable bodies.
 
+## Special Array Reads
+
+Reading an absent `SYMTAB` or `FUNCTAB` element raises an awk diagnostic with exit 2,
+including reads through aliases, expressions, `typeof`, and `isarray`. Prior stdout
+is preserved. Membership tests return false without creating elements. `SYMTAB` does
+not contain itself. Declared global names are present before their first use, including
+globals in uncalled functions and unreachable branches; function parameters are excluded.
+An indirect read of a declared but untouched global yields an unassigned scalar without
+typing the ordinary variable or materializing its scalar storage.
+
+Lokad retains two existing embedding policies: a valid `SYMTAB` write may create a
+governed dynamic scalar name, and indirect special-variable assignments invoke the
+same setter as direct assignments. GNU rejects arbitrary new names and bypasses some
+setters, including FS splitter updates. These are explicit differences. Existing array
+values remain forbidden in scalar context, and `FUNCTAB` metadata remains read-only.
+Array-valued SYMTAB reads retain a reference for typeof/isarray, length, conditional
+selection and function arguments; scalar conversion, assignment and return diagnose
+the misuse instead of leaking an implementation exception.
+
+## Untyped Values And Arguments
+
+Reading a missing ordinary array element, including through typeof/isarray, creates
+one untyped entry and evaluates the index once. Membership does not create an entry.
+Arithmetic, concatenation, comparisons and scalar assignment copies can use its
+empty/zero value while preserving the source type. Printing, consumed printf/sprintf
+arguments and the first index argument promote it to unassigned. Argument evaluation
+finishes before output formatting, so a typeof argument in the same print observes
+the type before printing. Unused formatting arguments retain their untyped state.
+
+Untouched arguments retain their initial typing origin across aliases and forwarding.
+Reading or assigning a local scalar parameter promotes that origin; the assigned
+value remains local. Replacing or deleting the original storage does not rewrite an
+already captured argument. Assignments and function returns copy unassigned scalar
+values instead of sharing the type cell. Empty functions and bare return produce
+unassigned values.
+
+An explicitly grouped variable argument has scalar context: f((x)) consumes x and
+f((a)) rejects an array in every profile. Bare array arguments keep their aliases.
+Grouping an array element preserves its ordinary element-value behavior. The same
+distinction applies to grouped variable arguments of typeof/isarray.
+
+Type-state observations follow GNU 5.4. GNU 5.2 sometimes types a printed untouched
+element as string and rejects untouched element parameters with an invalid Node_var
+diagnostic. GNU 5.4 has native failures in several element-origin alias/forwarding
+cases and an internal error when comparing an array-valued SYMTAB entry with a scalar.
+These are classified as reference bugs. Independent shared-scalar controls qualify
+the initial typing model, and ordinary array scalar conversion qualifies the friendly
+diagnostic; these controls are not claimed as exact native array-case agreement.
+Nested arrays remain a separate rollout requirement.
+
 ## Split Separators
 
 `split` capture arrays contain only actual separators; `patsplit` retains its complete

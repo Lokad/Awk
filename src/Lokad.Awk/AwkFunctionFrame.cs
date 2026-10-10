@@ -43,7 +43,7 @@ internal sealed class AwkFunctionFrame
 
     public bool HasReturnValue { get; set; }
 
-    public AwkValue ReturnValue { get; set; } = AwkValue.FromText(string.Empty);
+    public AwkValue ReturnValue { get; set; } = AwkValue.Unassigned();
 
     public long RetainedMemoryBytes { get; set; }
 
@@ -62,7 +62,7 @@ internal sealed class AwkFunctionFrame
         Layout = AwkFunctionLocalLayout.Empty;
         Slots = [];
         HasReturnValue = false;
-        ReturnValue = AwkValue.FromText(string.Empty);
+        ReturnValue = AwkValue.Unassigned();
         RetainedMemoryBytes = 0;
         Id = 0;
         return slots;
@@ -99,8 +99,11 @@ internal readonly struct AwkFunctionLocalSlot
     public static AwkFunctionLocalSlot ArrayAlias(AwkArrayName arrayName) =>
         new(AwkFunctionLocalSlotKind.ArrayAlias, default, arrayName);
 
-    public static AwkFunctionLocalSlot PotentialArrayAlias(AwkArrayName arrayName) =>
-        new(AwkFunctionLocalSlotKind.PotentialArrayAlias, default, arrayName);
+    public static AwkFunctionLocalSlot PotentialArrayAlias(AwkArrayName arrayName, AwkValue value) =>
+        new(AwkFunctionLocalSlotKind.PotentialArrayAlias, AwkVariableSlot.FromArgumentValue(value), arrayName);
+
+    public static AwkFunctionLocalSlot UntypedScalar(AwkValue value) =>
+        new(AwkFunctionLocalSlotKind.UntypedScalar, AwkVariableSlot.FromArgumentValue(value), default);
 }
 
 internal enum AwkFunctionLocalSlotKind
@@ -108,7 +111,8 @@ internal enum AwkFunctionLocalSlotKind
     Scalar,
     MissingScalar,
     ArrayAlias,
-    PotentialArrayAlias
+    PotentialArrayAlias,
+    UntypedScalar
 }
 
 internal readonly struct AwkResolvedFunctionLocal
@@ -143,6 +147,9 @@ internal readonly struct AwkResolvedFunctionLocal
 
     public static AwkResolvedFunctionLocal PotentialArrayAlias(AwkArrayName arrayName) =>
         new(AwkFunctionLocalSlotKind.PotentialArrayAlias, AwkValue.Unassigned(), arrayName);
+
+    public static AwkResolvedFunctionLocal UntypedScalar(AwkValue value) =>
+        new(AwkFunctionLocalSlotKind.UntypedScalar, value, default);
 
     public static AwkResolvedFunctionLocal NotFound { get; } =
         new(AwkFunctionLocalSlotKind.Scalar, AwkValue.Unassigned(), default);

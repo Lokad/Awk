@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 namespace Lokad.Awk;
 
 internal enum AwkNumberParsingMode
@@ -21,6 +22,8 @@ internal enum AwkValueKind
     Number,
     NumericString,
     Unassigned,
+    Untyped,
+    ArrayReference,
     DeferredDecimalText,
     DeferredHexadecimalText,
     DeferredNonDecimalText,
@@ -30,12 +33,14 @@ internal enum AwkValueKind
 
 internal readonly struct AwkValue
 {
-    private readonly AwkText? _text;
+    // One reference holds either ordinary text or an untouched scalar cell. This
+    // preserves the value's 24-byte layout while retaining argument origins.
+    private readonly object? _text;
     private readonly double _number;
     private readonly AwkValueKind _kind;
 
     private AwkValue(
-        AwkText text,
+        object text,
         double number,
         AwkValueKind kind)
     {
@@ -111,6 +116,53 @@ internal readonly struct AwkValue
     public static AwkValue Unassigned() =>
         new(AwkText.Empty, 0, AwkValueKind.Unassigned);
 
+    public static AwkValue FromUntypedScalar(AwkUntypedScalar scalar) =>
+        new(scalar, 0, AwkValueKind.Untyped);
+
+    // SYMTAB names refer to global arrays. The existing identifier text is enough
+    // to retain this reference without allocating a wrapper or changing value size.
+    public static AwkValue FromGlobalArrayReference(AwkIdentifier identifier) =>
+        new(identifier.Text, 0, AwkValueKind.ArrayReference);
+
+    public bool IsArrayValue => _kind == AwkValueKind.ArrayReference;
+
+    public bool TryGetArrayName(out AwkArrayName name)
+    {
+        if (_kind == AwkValueKind.ArrayReference && _text is string text &&
+            AwkIdentifier.TryParse(text, out var identifier))
+        {
+            name = new AwkArrayName(identifier);
+            return true;
+        }
+        name = default;
+        return false;
+    }
+
+    private void ThrowIfArrayValue()
+    {
+        if (_kind == AwkValueKind.ArrayReference && _text is string name)
+            throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(name));
+    }
+
+    public bool TryGetUntypedScalar([NotNullWhen(true)] out AwkUntypedScalar? scalar)
+    {
+        scalar = _kind == AwkValueKind.Untyped ? _text as AwkUntypedScalar : null;
+        return scalar is not null;
+    }
+
+    public AwkValue AsScalarCopy()
+    {
+        ThrowIfArrayValue();
+        return _kind == AwkValueKind.Untyped ? Unassigned() : this;
+    }
+
+    public AwkValue ForceScalar()
+    {
+        if (TryGetUntypedScalar(out var scalar))
+            scalar.Promote();
+        return AsScalarCopy();
+    }
+
     public static bool TryParseNumber(
         string text,
         AwkNumberParsingMode numberParsingMode,
@@ -134,18 +186,27 @@ internal readonly struct AwkValue
     public string AsString(AwkRuntimeCounters counters) =>
         _kind == AwkValueKind.Number ? AwkNumberFormatter.ToString(_number) : ByteText.AsString(counters);
 
-    public AwkText ByteText =>
-        _kind == AwkValueKind.Number
-            ? AwkNumberFormatter.ToAwkText(_number)
-            : _text ?? AwkText.Empty;
+    public AwkText ByteText
+    {
+        get
+        {
+            ThrowIfArrayValue();
+            return _kind == AwkValueKind.Number
+                ? AwkNumberFormatter.ToAwkText(_number)
+                : _text as AwkText ?? AwkText.Empty;
+        }
+    }
 
     public long RetainedTextMemoryBytes =>
         _kind == AwkValueKind.Number
             ? 0
-            : (_text ?? AwkText.Empty).EstimatedRetainedMemoryBytes;
+            : _text is AwkUntypedScalar
+                ? AwkRuntimeMemory.EstimateUntypedScalarBytes()
+                : (_text as AwkText ?? AwkText.Empty).EstimatedRetainedMemoryBytes;
 
     public double AsNumber()
     {
+        ThrowIfArrayValue();
         if (_kind is AwkValueKind.NonDecimalConversionErrorText or AwkValueKind.NonDecimalConversionErrorInput)
             throw new AwkRuntimeException(AwkMessages.ErrorHexadecimalFloatExponent);
         var kind = _kind;
@@ -180,6 +241,7 @@ internal readonly struct AwkValue
 
     public bool TryGetNumber(out double number)
     {
+        ThrowIfArrayValue();
         ThrowIfInputConversionError();
         number = _number;
         return HasComparisonNumber;
@@ -199,7 +261,11 @@ internal readonly struct AwkValue
     internal bool RetainsInputClassification =>
         _kind is AwkValueKind.NumericString or AwkValueKind.NonDecimalConversionErrorInput;
 
-    public bool IsUnassignedValue => _kind == AwkValueKind.Unassigned;
+    public bool IsUnassignedValue => _kind == AwkValueKind.Unassigned ||
+        _kind == AwkValueKind.Untyped && _text is AwkUntypedScalar { IsScalar: true };
+
+    public bool IsUntypedValue => _kind == AwkValueKind.Untyped &&
+        _text is AwkUntypedScalar { IsScalar: false };
 
     public bool IsDeferredTextValue => _kind is
         AwkValueKind.DeferredDecimalText or
@@ -229,6 +295,8 @@ internal readonly struct AwkValue
             return _kind switch
             {
                 AwkValueKind.Unassigned => AwkRuntimeValueKind.Unassigned,
+                AwkValueKind.Untyped => IsUntypedValue ? AwkRuntimeValueKind.Untyped : AwkRuntimeValueKind.Unassigned,
+                AwkValueKind.ArrayReference => AwkRuntimeValueKind.Array,
                 AwkValueKind.Number => AwkRuntimeValueKind.Number,
                 AwkValueKind.NumericString => AwkRuntimeValueKind.NumericString,
                 _ => AwkRuntimeValueKind.String
@@ -252,18 +320,19 @@ internal readonly struct AwkValue
 
     public bool IsTruthy()
     {
+        ThrowIfArrayValue();
         ThrowIfInputConversionError();
-        if (_kind is AwkValueKind.Number or AwkValueKind.NumericString or AwkValueKind.Unassigned)
+        if (_kind is AwkValueKind.Number or AwkValueKind.NumericString or AwkValueKind.Unassigned or AwkValueKind.Untyped)
             return _number != 0;
 
         return ByteText.ByteLength != 0;
     }
 
     private bool HasArithmeticNumber =>
-        _kind is AwkValueKind.NumericText or AwkValueKind.Number or AwkValueKind.NumericString or AwkValueKind.Unassigned;
+        _kind is AwkValueKind.NumericText or AwkValueKind.Number or AwkValueKind.NumericString or AwkValueKind.Unassigned or AwkValueKind.Untyped;
 
     private bool HasComparisonNumber =>
-        _kind is AwkValueKind.Number or AwkValueKind.NumericString or AwkValueKind.Unassigned;
+        _kind is AwkValueKind.Number or AwkValueKind.NumericString or AwkValueKind.Unassigned or AwkValueKind.Untyped;
 
     private void ThrowIfInputConversionError()
     {

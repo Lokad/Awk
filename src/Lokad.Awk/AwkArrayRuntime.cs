@@ -81,8 +81,22 @@ internal sealed class AwkArrayRuntime
     public AwkText GetByteText(AwkArrayName name, AwkArrayKey index) =>
         _state.FormatStringByteText(GetAwkValue(name, index));
 
-    public AwkValue GetAwkValue(AwkArrayName name, AwkArrayKey index) =>
-        _variables.GetArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
+    public AwkValue GetAwkValue(AwkArrayName name, AwkArrayKey index)
+    {
+        var resolved = _variableRuntime.ResolveArrayReadName(name);
+        if (_variables.TryGetExistingArrayValue(resolved, index, out var value))
+            return value;
+        _variables.PreflightArrayElementRead(resolved, index);
+        return _variables.GetArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
+    }
+
+    public AwkRuntimeValueKind GetElementRuntimeKind(AwkArrayName name, AwkArrayKey index)
+    {
+        var resolved = _variableRuntime.ResolveArrayReadName(name);
+        return !resolved.IsFunctionLocal && AwkSymbolTableArray.IsName(resolved.Text)
+            ? _variables.GetArrayElementRuntimeKind(resolved, index)
+            : GetAwkValue(name, index).RuntimeKind;
+    }
 
     public bool TryPeekAwkValue(AwkArrayName name, AwkArrayKey index, out AwkValue value)
     {

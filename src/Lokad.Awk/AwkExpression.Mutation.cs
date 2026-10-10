@@ -13,7 +13,7 @@ internal abstract partial class AwkExpression
         {
             var value = await valueExpression.EvaluateAsync(context).ConfigureAwait(false);
             await target.AssignValueAsync(context, value).ConfigureAwait(false);
-            return value;
+            return value.AsScalarCopy();
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler) =>

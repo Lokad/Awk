@@ -93,7 +93,8 @@ internal sealed class AwkRuntimeState
             MemoryGovernor,
             CreateByteTextValue,
             CreateNumericStringValue,
-            CreateDeferredTextValue);
+            CreateDeferredTextValue,
+            _variables.ContainsArray);
         _regexRuntime = new AwkRegexRuntime(
             ResolveRegexCaseSensitivity,
             stringUnitMode,
@@ -345,6 +346,9 @@ internal sealed class AwkRuntimeState
             static (left, right) => StringComparer.Ordinal.Compare(left.Name, right.Name));
         return result;
     }
+
+    public void InitializeGlobalNames(IReadOnlySet<AwkVariableName> names) =>
+        _variables.InitializeGlobalNames(names);
 
     public void InitializeProcInfo()
     {
@@ -767,6 +771,9 @@ internal sealed class AwkRuntimeState
 
     public AwkValue GetArrayAwkValue(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.GetAwkValue(name, index);
+
+    public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index) =>
+        _arrayRuntime.GetElementRuntimeKind(name, index);
 
     public bool TryPeekArrayAwkValue(AwkArrayName name, AwkArrayKey index, out AwkValue value) =>
         _arrayRuntime.TryPeekAwkValue(name, index, out value);

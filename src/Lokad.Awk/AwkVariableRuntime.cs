@@ -48,7 +48,7 @@ internal sealed class AwkVariableRuntime(
             return false;
         }
 
-        argument = AwkFunctionArgument.PotentialArray(arrayName);
+        argument = AwkFunctionArgument.PotentialArray(arrayName, variables.GetOrCreateUntypedScalarValue(name));
         return true;
     }
 
@@ -198,7 +198,7 @@ internal sealed class AwkVariableRuntime(
         functions.TryResolveLocal(name, out var local) &&
         local.Kind is
             AwkFunctionLocalSlotKind.Scalar or
-            AwkFunctionLocalSlotKind.MissingScalar;
+            AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.UntypedScalar;
 
     public AwkArrayName ResolveOrPromoteArrayName(AwkArrayName name)
     {
@@ -236,11 +236,23 @@ internal sealed class AwkVariableRuntime(
                 AwkFunctionLocalSlotKind.ArrayAlias => AwkVariableNameResolution.LocalArrayAlias(local.ArrayName),
                 AwkFunctionLocalSlotKind.PotentialArrayAlias => AwkVariableNameResolution.PotentialArrayAlias(local.ArrayName),
                 AwkFunctionLocalSlotKind.MissingScalar => AwkVariableNameResolution.MissingLocalScalar,
+                AwkFunctionLocalSlotKind.UntypedScalar => AwkVariableNameResolution.MissingLocalScalar,
                 _ => AwkVariableNameResolution.LocalScalar
             };
         }
 
         return ResolveGlobalName(name);
+    }
+
+    public AwkArrayName ResolveArrayReadName(AwkArrayName name)
+    {
+        if (name.IsFunctionLocal)
+            return name;
+        if (functions.TryGetArrayReadName(new AwkVariableName(name.Identifier), out var local))
+            return local;
+        if (!AwkSymbolTableArray.IsName(name.Text))
+            EnsureArrayName(name);
+        return name;
     }
 
     private AwkVariableNameResolution ResolveGlobalName(AwkVariableName name)

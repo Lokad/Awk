@@ -88,6 +88,7 @@ internal static class AwkRuntime
             runtimeOptions,
             resources,
             executionOptions.CompatibilityProfile);
+        state.InitializeGlobalNames(program.GlobalNames);
         state.InitializeArguments(runtimeArguments.RuntimeArguments);
         state.InitializeEnvironment(
             runtimeOptions.ExposeEnvironment

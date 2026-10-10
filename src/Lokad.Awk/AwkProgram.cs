@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Frozen;
 
 namespace Lokad.Awk;
 
@@ -15,6 +16,7 @@ internal readonly struct AwkProgram
     private readonly AwkAction[]? _beginFileActions;
     private readonly AwkAction[]? _endFileActions;
     private readonly IReadOnlyDictionary<AwkFunctionName, AwkUserFunction>? _functions;
+    private readonly FrozenSet<AwkVariableName>? _globalNames;
 
     public static AwkProgram Empty => default;
 
@@ -24,7 +26,8 @@ internal readonly struct AwkProgram
         IReadOnlyList<AwkAction> endActions,
         IReadOnlyList<AwkAction> beginFileActions,
         IReadOnlyList<AwkAction> endFileActions,
-        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
+        IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions,
+        IReadOnlySet<AwkVariableName>? globalNames = null)
     {
         static ReadOnlyDictionary<AwkFunctionName, AwkUserFunction> CopyFunctions(
             IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
@@ -42,6 +45,7 @@ internal readonly struct AwkProgram
         _beginFileActions = AwkCollectionSnapshots.Copy(beginFileActions);
         _endFileActions = AwkCollectionSnapshots.Copy(endFileActions);
         _functions = CopyFunctions(functions);
+        _globalNames = globalNames?.ToFrozenSet();
     }
 
     public AwkAction[] BeginActions => _beginActions ?? [];
@@ -56,5 +60,7 @@ internal readonly struct AwkProgram
 
     public IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> Functions =>
         _functions ?? EmptyFunctions;
+
+    public IReadOnlySet<AwkVariableName> GlobalNames => _globalNames ?? FrozenSet<AwkVariableName>.Empty;
 
 }

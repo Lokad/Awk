@@ -18,6 +18,7 @@ internal sealed class AwkFormattingRuntime(
 
     public AwkText FormatPrintByteText(AwkValue value)
     {
+        value = value.ForceScalar();
         if (!value.IsNumberValue || !value.TryGetNumber(out var number))
             return value.ByteText;
 

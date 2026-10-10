@@ -9,8 +9,10 @@ internal sealed class AwkFunctionCallStack(
     AwkMemoryGovernor memoryGovernor,
     Func<AwkText, AwkValue> createByteTextValue,
     Func<AwkText, AwkValue> createNumericStringValue,
-    Func<AwkText, AwkValue> createDeferredTextValue)
+    Func<AwkText, AwkValue> createDeferredTextValue,
+    Func<AwkArrayName, bool>? containsArray = null)
 {
+    private readonly Func<AwkArrayName, bool> _containsArray = containsArray ?? (static _ => false);
     private readonly Stack<AwkFunctionFrame> _frames = new();
     private readonly Stack<AwkFunctionFrame> _recycledFrames = new();
     // Most potential aliases are independent function arguments. Counting live
@@ -56,7 +58,13 @@ internal sealed class AwkFunctionCallStack(
 
             if (argument.Kind == AwkFunctionArgumentKind.PotentialArray)
             {
-                slots[index] = AwkFunctionLocalSlot.PotentialArrayAlias(argument.ArrayName);
+                slots[index] = AwkFunctionLocalSlot.PotentialArrayAlias(argument.ArrayName, argument.Value);
+                continue;
+            }
+
+            if (argument.Kind == AwkFunctionArgumentKind.UntypedScalar)
+            {
+                slots[index] = AwkFunctionLocalSlot.UntypedScalar(argument.Value);
                 continue;
             }
 
@@ -163,6 +171,7 @@ internal sealed class AwkFunctionCallStack(
         if (_frames.Count == 0)
             throw new AwkRuntimeException(AwkMessages.ErrorReturnOutsideFunction);
 
+        value = value.AsScalarCopy();
         var frame = _frames.Peek();
         frame.HasReturnValue = true;
         frame.ReturnValue = value;
@@ -247,21 +256,36 @@ internal sealed class AwkFunctionCallStack(
             return true;
         }
 
-        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
+        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntyped)
         {
-            argument = AwkFunctionArgument.PotentialArray(slot.ArrayName);
+            if (_containsArray(slot.ArrayName))
+            {
+                argument = AwkFunctionArgument.Array(slot.ArrayName);
+                return true;
+            }
+            argument = AwkFunctionArgument.PotentialArray(slot.ArrayName,
+                slot.Value.ToValue(createByteTextValue, createNumericStringValue, createDeferredTextValue));
+            return true;
+        }
+
+        if (slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntyped)
+        {
+            argument = AwkFunctionArgument.FromValue(
+                slot.Value.ToValue(createByteTextValue, createNumericStringValue, createDeferredTextValue));
             return true;
         }
 
         if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
         {
             var localArrayName = AwkArrayName.FunctionLocal(name.Identifier, frame.Id);
+            memoryGovernor.PreflightAllocation(AwkRuntimeMemory.EstimateUntypedScalarBytes());
+            var value = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
             ReplaceLocalSlot(
                 frame,
                 slotId,
                 slot,
-                AwkFunctionLocalSlot.PotentialArrayAlias(localArrayName));
-            argument = AwkFunctionArgument.PotentialArray(localArrayName);
+                AwkFunctionLocalSlot.PotentialArrayAlias(localArrayName, value));
+            argument = AwkFunctionArgument.PotentialArray(localArrayName, value);
             return true;
         }
 
@@ -290,7 +314,7 @@ internal sealed class AwkFunctionCallStack(
             return true;
         }
 
-        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
+        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntyped)
         {
             arrayName = slot.ArrayName;
             PromotePotentialArrayAliases(frame, slotId, slot);
@@ -352,6 +376,30 @@ internal sealed class AwkFunctionCallStack(
         }
     }
 
+    public bool TryGetArrayReadName(AwkVariableName name, out AwkArrayName arrayName)
+    {
+        if (_frames.Count > 0)
+        {
+            var frame = _frames.Peek();
+            if (TryGetLocalSlot(frame, name, out _, out var slot))
+            {
+                if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias ||
+                    slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntyped)
+                {
+                    arrayName = slot.ArrayName;
+                    return true;
+                }
+                if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
+                {
+                    arrayName = AwkArrayName.FunctionLocal(name.Identifier, frame.Id);
+                    return true;
+                }
+            }
+        }
+        arrayName = default;
+        return false;
+    }
+
     public bool TryAssignLocal(AwkVariableName name, string value) =>
         TryAssignLocal(name, AwkVariableSlot.FromText(value));
 
@@ -365,12 +413,14 @@ internal sealed class AwkFunctionCallStack(
 
         var frame = _frames.Peek();
         if (!TryGetLocalSlot(frame, name, out var slotId, out var slot) ||
-            slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
+            slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias ||
+            slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && _containsArray(slot.ArrayName))
         {
             return false;
         }
 
         ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(value));
+        slot.Value.PromoteUntypedScalar();
         return true;
     }
 
@@ -387,12 +437,14 @@ internal sealed class AwkFunctionCallStack(
 
         var frame = _frames.Peek();
         if (!TryGetLocalSlot(frame, slotId, out var slot) ||
-            slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
+            slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias ||
+            slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && _containsArray(slot.ArrayName))
         {
             return false;
         }
 
         ReplaceLocalSlot(frame, slotId, slot, AwkFunctionLocalSlot.Scalar(value));
+        slot.Value.PromoteUntypedScalar();
         return true;
     }
 
@@ -468,8 +520,14 @@ internal sealed class AwkFunctionCallStack(
         if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
             return AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName);
 
-        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
-            return AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName);
+        if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && slot.Value.IsUntyped)
+            return _containsArray(slot.ArrayName)
+                ? AwkResolvedFunctionLocal.ArrayAlias(slot.ArrayName)
+                : AwkResolvedFunctionLocal.PotentialArrayAlias(slot.ArrayName);
+
+        if (slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntyped)
+            return AwkResolvedFunctionLocal.UntypedScalar(
+                slot.Value.ToValue(createByteTextValue, createNumericStringValue, createDeferredTextValue));
 
         if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
             return AwkResolvedFunctionLocal.MissingScalar();
@@ -507,7 +565,8 @@ internal sealed class AwkFunctionCallStack(
         AwkFunctionLocalProjection projection)
     {
         if (projection != AwkFunctionLocalProjection.Value ||
-            slot.Kind is not (AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.PotentialArrayAlias))
+            slot.Kind is not (AwkFunctionLocalSlotKind.MissingScalar or AwkFunctionLocalSlotKind.PotentialArrayAlias or AwkFunctionLocalSlotKind.UntypedScalar) ||
+            slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && _containsArray(slot.ArrayName))
         {
             return slot;
         }
@@ -517,6 +576,7 @@ internal sealed class AwkFunctionCallStack(
             : AwkVariableSlot.FromValue(AwkValue.Unassigned());
         var promoted = AwkFunctionLocalSlot.Scalar(value);
         ReplaceLocalSlot(frame, slotId, slot, promoted);
+        slot.Value.PromoteUntypedScalar();
         return promoted;
     }
 

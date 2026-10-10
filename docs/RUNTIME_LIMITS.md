@@ -194,6 +194,19 @@ groups and transfers the copied text portion of that lease into the destination 
 dropping or double-charging it. `gensub` leases only its observable capture prefix.
 Read-only built-in special arrays such as `FUNCTAB` are static runtime metadata and are not charged
 against the execution memory budget.
+The immutable declared-global inventory used by `SYMTAB` is compiled program metadata,
+bounded by source symbol/identifier limits. Indirect reads and membership checks do not
+materialize scalar values or charge execution memory. Dynamic SYMTAB writes still
+preflight the ordinary symbol, identifier, value, and execution memory limits.
+
+An untouched ordinary array element retains a governed 24-byte type cell in addition
+to the usual entry/key/slot charge. Untouched scalar function arguments retain the
+same origin cell, conservatively charged with each frame slot that holds it. Values
+and variable slots remain 24-byte structs. First-read count/memory checks run before
+array creation or alias promotion; local scalar assignment reserves its growth before
+promoting the caller's source type. Failure preserves entries, typing and committed
+memory and leaves no outstanding reservation. Scalar assignment/return copies drop
+the origin cell; replacing or deleting original storage does not invalidate arguments.
 
 Lazy record frames retain the admitted splitting configuration as described in
 `docs/RECORD_SEMANTICS.md`. Custom separator or FPAT text and retained FIELDWIDTHS list

@@ -5,7 +5,12 @@ namespace Lokad.Awk;
 
 internal static class AwkSymbolCollector
 {
-    public static IReadOnlyList<AwkSymbolReference> Collect(AwkSyntaxProgram syntax)
+    public static IReadOnlyList<AwkSymbolReference> Collect(AwkSyntaxProgram syntax) =>
+        Collect(syntax, out _);
+
+    public static IReadOnlyList<AwkSymbolReference> Collect(
+        AwkSyntaxProgram syntax,
+        out IReadOnlySet<AwkVariableName> globalNames)
     {
         var functionNames = new HashSet<AwkIdentifier>(syntax.Functions.Count);
         for (var index = 0; index < syntax.Functions.Count; index++)
@@ -16,6 +21,7 @@ internal static class AwkSymbolCollector
         }
 
         var symbols = new List<AwkSymbolReference>();
+        var globals = new HashSet<AwkVariableName>();
         for (var index = 0; index < syntax.Functions.Count; index++)
         {
             var function = syntax.Functions[index];
@@ -28,19 +34,40 @@ internal static class AwkSymbolCollector
             }
 
             CollectFunctionParameters(function, symbols);
+            var firstBodySymbol = symbols.Count;
             CollectStatements(function.BodyStatements, symbols, functionNames);
+            AddGlobals(firstBodySymbol, function.ParameterBinding.Parameters);
         }
 
         for (var index = 0; index < syntax.Rules.Count; index++)
         {
             var rule = syntax.Rules[index];
+            var firstRuleSymbol = symbols.Count;
             foreach (var expression in rule.PatternSyntax.EnumerateChildExpressions())
                 CollectExpression(expression, symbols, functionNames);
 
             CollectStatements(rule.ActionStatements, symbols, functionNames);
+            AddGlobals(firstRuleSymbol, []);
         }
 
+        globalNames = globals;
         return symbols;
+
+        void AddGlobals(int firstSymbol, IReadOnlyList<AwkVariableName> parameters)
+        {
+            HashSet<AwkVariableName>? locals = parameters.Count == 0 ? null : new(parameters);
+            for (var index = firstSymbol; index < symbols.Count; index++)
+            {
+                if (symbols[index] is not AwkNamedSymbolReference named ||
+                    named.Kind is not (AwkSymbolReferenceKind.Variable or AwkSymbolReferenceKind.Array or
+                        AwkSymbolReferenceKind.SpecialVariable or AwkSymbolReferenceKind.SpecialArray))
+                    continue;
+
+                var name = new AwkVariableName(named.Identifier);
+                if (locals?.Contains(name) != true && !AwkSymbolTableArray.IsName(name.Text))
+                    globals.Add(name);
+            }
+        }
 
         static void CollectFunctionParameters(
             AwkFunctionSyntax function,

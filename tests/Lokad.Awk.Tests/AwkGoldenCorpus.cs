@@ -93,6 +93,8 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(GrammarBoundaryCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
         .. Tagged(NumericFieldConversionCases(), AwkGoldenTag.Field, AwkGoldenTag.Variable),
         .. Tagged(SplitSeparatorCaptureCases(), AwkGoldenTag.Field, AwkGoldenTag.Array, AwkGoldenTag.Function),
+        .. Tagged(SpecialArrayReadCases(), AwkGoldenTag.Array, AwkGoldenTag.Function),
+        .. Tagged(UntypedStateCases(), AwkGoldenTag.Array, AwkGoldenTag.Function),
 
         .. Tagged(FormattingSyntaxCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
 
@@ -2260,16 +2262,16 @@ internal static partial class AwkGoldenCorpus
             "untyped 0\n1\n"),
 
         Passing(
-            "typeof-array-element-does-not-autovivify",
+            "typeof-array-element-creates-untyped-entry",
             ["BEGIN{a[2]=1; print typeof(a[1]), (1 in a), (2 in a); print typeof(a[2])}"],
             [],
-            "untyped 0 1\nnumber\n"),
+            "untyped 1 1\nnumber\n"),
 
         Passing(
-            "typeof-array-element-materializes-array-not-element",
+            "typeof-array-element-materializes-array-and-element",
             ["BEGIN{print typeof(a[1]), isarray(a), (1 in a)}"],
             [],
-            "untyped 1 0\n"),
+            "untyped 1 1\n"),
 
         Passing(
             "typeof-numeric-string-provenance",
@@ -4496,10 +4498,10 @@ internal static partial class AwkGoldenCorpus
                 "7 9\n");
 
             yield return Passing(
-                "user-function-untyped-scalar-argument-stays-local",
+                "user-function-untyped-scalar-argument-promotes-source",
                 ["function set(a){a=1} BEGIN{set(x); print typeof(x)}"],
                 [],
-                "untyped\n");
+                "unassigned\n");
 
             yield return Passing(
                 "user-function-mutual-recursion-statement-body",
@@ -4551,9 +4553,9 @@ internal static partial class AwkGoldenCorpus
 
             yield return Passing(
                 "symtab-scalar-bindings",
-                ["BEGIN{SYMTAB[\"x\"]=\"y\"; print x; x=\"z\"; print SYMTAB[\"x\"]; print (\"FS\" in SYMTAB), (SYMTAB[\"FS\"]==\" \"); print typeof(SYMTAB[\"missing\"])}"],
+                ["BEGIN{SYMTAB[\"x\"]=\"y\"; print x; x=\"z\"; print SYMTAB[\"x\"]; print (\"FS\" in SYMTAB), (SYMTAB[\"FS\"]==\" \")}"],
                 [],
-                "y\nz\n1 1\nunassigned\n");
+                "y\nz\n1 1\n");
 
             yield return Passing(
                 "symtab-special-scalar-assignment-updates-runtime-hook",
