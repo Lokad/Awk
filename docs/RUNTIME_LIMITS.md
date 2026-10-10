@@ -329,8 +329,33 @@ check within their loops. These callbacks do not charge bytes again: existing of
 admission remains separate. Interrupted rune scans publish no partial count/index, and sparse-index
 reservations remain live during construction and are released on failure.
 
-Cancellation coverage remains under audit in frontend lowering, other formatting helpers and regex
-translation/analysis. These checkpoints do not promise bounded latency for every builtin.
+Binding, symbol/semantic passes, lowering, function parameter/layout construction and executable
+compilation now propagate the caller's existing cancellation callback through their traversals.
+Owned contextual lexer comment/string/regex scans, literal scans/decoding and string-escape diagnostics
+check at roughly 1,024 UTF-16 units. Newline metadata scanning and syntax-depth audits also check within
+their loops. Frontend checks do not charge runtime fuel or retain the callback in returned artifacts.
+Canceled construction publishes no compiled artifact; a completed artifact can be reused under a
+fresh execution token. Existing frontend size/token/diagnostic/nesting budgets still apply.
+
+Top-level, statement and expression grammar reductions now observe the same operation-local callback,
+including separator and forwarding rules. Token preparation, navigation and detached-source copying,
+directive scans, continuation normalization/maps, source joining/include scans and diagnostic line
+mapping also check inside owned traversals. Long source copies use 1,024-character chunks. Lazy
+composite-token, expression-token and continuation-map snapshots publish only completed arrays;
+canceled construction can be retried and retains no callback. Frontend checks do not charge runtime
+fuel, and source spans, diagnostic budgets and host mediation retain their contracts.
+
+The installed Lokad.Parsing 1.1.0 TokenReader.ReadAllTokens/ReadAllTokensUpTo APIs and StreamParser
+delegate have no caller cancellation argument. Checks run before/after dependency calls and within
+owned reductions, but dependency token matching, parser shifts and first-time shared grammar
+compilation are not interruptible by those checks. Shared grammar initialization receives no per-run
+callback, so a canceled run cannot poison that cache. Source/token/nesting/diagnostic limits bound
+admitted frontend data; they do not promise a CPU deadline. Array allocation, token-array sorting,
+List.ToArray/AddRange, StringBuilder.ToString and substring/string construction remain one-shot
+framework boundaries. Checks surround completed construction/publication where applicable; a
+canceled caller receives no completed parse result. Later regex translation/analysis, remaining
+formatting helpers and lazy runtime-text materialization remain under audit. No universal bounded
+cancellation latency or forced CPU preemption is claimed.
 Utf8Parser decimal conversion, span search/comparison, UTF-8/string conversions, invariant Unicode
 casing, and .NET and UTF-8 regex constructors do not accept caller cancellation;
 pattern/group/cache/memory limits bound admitted data, but matching timeouts do not bound constructor

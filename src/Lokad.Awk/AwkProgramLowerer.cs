@@ -13,16 +13,31 @@ internal static partial class AwkProgramLowerer
     }
 
     public static AwkLoweringResult Lower(AwkSyntaxProgram syntax, IReadOnlySet<AwkVariableName> globalNames,
-        AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
     {
-        if (string.IsNullOrWhiteSpace(syntax.SourceText))
+        checkpoint?.Invoke();
+        if (IsWhiteSpace(syntax.SourceText, checkpoint))
         {
             return AwkLoweringResult.SuccessResult(AwkProgram.Empty);
+        }
+
+        static bool IsWhiteSpace(string text, Action? checkpoint)
+        {
+            for (var index = 0; index < text.Length; index++)
+            {
+                if ((index & 1023) == 0)
+                    checkpoint?.Invoke();
+                if (!char.IsWhiteSpace(text[index]))
+                    return false;
+            }
+            return true;
         }
 
         List<AwkDiagnostic>? syntaxErrors = null;
         for (var diagnosticIndex = 0; diagnosticIndex < syntax.Diagnostics.Count; diagnosticIndex++)
         {
+            checkpoint?.Invoke();
             if (!syntax.Diagnostics[diagnosticIndex].IsWarning)
             {
                 syntaxErrors ??= [];
@@ -44,7 +59,8 @@ internal static partial class AwkProgramLowerer
 
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
         {
-            var functionDefinition = ParseFunctionDefinition(syntax.Functions[functionIndex], mode);
+            checkpoint?.Invoke();
+            var functionDefinition = ParseFunctionDefinition(syntax.Functions[functionIndex], mode, checkpoint);
             if (!functionDefinition.Succeeded)
             {
                 return AwkLoweringResult.Failure(functionDefinition.Diagnostics);
@@ -54,10 +70,12 @@ internal static partial class AwkProgramLowerer
             functions[function.FunctionName] = function;
         }
 
+        var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint);
         for (var ruleIndex = 0; ruleIndex < syntax.Rules.Count; ruleIndex++)
         {
+            checkpoint?.Invoke();
             var rule = syntax.Rules[ruleIndex];
-            var actionLowering = LowerRule(rule, AwkLoweringScope.GlobalFor(mode));
+            var actionLowering = LowerRule(rule, globalScope);
             if (!actionLowering.Succeeded)
             {
                 return AwkLoweringResult.Failure(actionLowering.Diagnostics);
@@ -94,11 +112,13 @@ internal static partial class AwkProgramLowerer
             return AwkLoweringResult.Failure(syntax, "Expected awk pattern or action.");
         }
 
-        return AwkLoweringResult.SuccessResult(
-            new AwkProgram(beginActions, mainActions, endActions, beginFileActions, endFileActions, functions, globalNames));
+        checkpoint?.Invoke();
+        var program = new AwkProgram(beginActions, mainActions, endActions, beginFileActions, endFileActions, functions, globalNames);
+        checkpoint?.Invoke();
+        return AwkLoweringResult.SuccessResult(program);
 
         static AwkLoweringOutcome<AwkUserFunction> ParseFunctionDefinition(
-            AwkFunctionSyntax functionSyntax, AwkCompatibilityMode mode)
+            AwkFunctionSyntax functionSyntax, AwkCompatibilityMode mode, Action? checkpoint)
         {
             if (functionSyntax.Name.Length == 0 || AwkCompatibilityNames.IsReservedFunction(functionSyntax.Name, mode))
                 return AwkLoweringOutcome<AwkUserFunction>.Failure(new AwkDiagnostic(
@@ -110,10 +130,10 @@ internal static partial class AwkProgramLowerer
             if (!parameterBinding.Success)
                 return AwkLoweringOutcome<AwkUserFunction>.Failure(parameterBinding.Diagnostics);
 
-            var localLayout = new AwkFunctionLocalLayout(parameterBinding.Parameters);
+            var localLayout = new AwkFunctionLocalLayout(parameterBinding.Parameters, checkpoint);
             var body = AwkStatementLowerer.LowerList(
                 functionSyntax.BodyStatements,
-                AwkLoweringScope.Function(localLayout, mode));
+                AwkLoweringScope.Function(localLayout, mode, checkpoint));
             if (!body.Succeeded)
             {
                 return AwkLoweringOutcome<AwkUserFunction>.Failure(body.Diagnostics);
@@ -134,11 +154,12 @@ internal static partial class AwkProgramLowerer
                 AwkLoweringScope scope,
                 [NotNullWhen(true)] out AwkPattern? pattern)
             {
-                static bool IsSingleRegexPattern(AwkPatternSyntax pattern)
+                static bool IsSingleRegexPattern(AwkPatternSyntax pattern, AwkLoweringScope scope)
                 {
                     AwkToken? significantToken = null;
                     for (var index = 0; index < pattern.Tokens.Count; index++)
                     {
+                        scope.CheckCancellation();
                         if (!AwkTokenNavigation.IsSignificant(pattern.Tokens[index].Kind))
                             continue;
 
@@ -153,16 +174,16 @@ internal static partial class AwkProgramLowerer
 
                 pattern = null;
                 if (rule.PatternSyntax is AwkSinglePatternSyntax singlePattern &&
-                    IsSingleRegexPattern(singlePattern) &&
-                    AwkExpressionLowerer.TryLowerRegexLiteralPattern(singlePattern.Expression, out var regex, scope.CompatibilityMode))
+                    IsSingleRegexPattern(singlePattern, scope) &&
+                    AwkExpressionLowerer.TryLowerRegexLiteralPattern(singlePattern.Expression, out var regex, scope.CompatibilityMode, scope.Checkpoint))
                 {
                     pattern = AwkPattern.Regex(regex);
                     return true;
                 }
 
                 if (rule.PatternSyntax is not AwkRangePatternSyntax rangePattern ||
-                    !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.Start.Expression, out var start, scope.CompatibilityMode) ||
-                    !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.End.Expression, out var end, scope.CompatibilityMode))
+                    !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.Start.Expression, out var start, scope.CompatibilityMode, scope.Checkpoint) ||
+                    !AwkExpressionLowerer.TryLowerRegexLiteralPattern(rangePattern.End.Expression, out var end, scope.CompatibilityMode, scope.Checkpoint))
                 {
                     return false;
                 }

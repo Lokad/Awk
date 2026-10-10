@@ -9,12 +9,14 @@ internal sealed class AwkFunctionLocalLayout
 
     public static AwkFunctionLocalLayout Empty { get; } = new([]);
 
-    public AwkFunctionLocalLayout(IReadOnlyList<AwkVariableName> parameters)
+    public AwkFunctionLocalLayout(IReadOnlyList<AwkVariableName> parameters, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         var copiedParameters = new AwkVariableName[parameters.Count];
         _slotsByName = new Dictionary<AwkVariableName, AwkFunctionLocalSlotId>(parameters.Count);
         for (var index = 0; index < parameters.Count; index++)
         {
+            checkpoint?.Invoke();
             var parameter = parameters[index];
             copiedParameters[index] = parameter;
             _slotsByName[parameter] = new AwkFunctionLocalSlotId(index);

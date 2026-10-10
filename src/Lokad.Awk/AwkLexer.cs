@@ -14,10 +14,21 @@ internal static class AwkLexer
         int maxTokens,
         CancellationToken cancellationToken,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        => Tokenize(source, maxTokens,
+            cancellationToken.CanBeCanceled ? cancellationToken.ThrowIfCancellationRequested : null,
+            compatibilityMode);
+
+    internal static List<AwkToken> Tokenize(
+        string source,
+        int maxTokens,
+        Action? checkpoint,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var lexer = new Lexer(source, maxTokens, cancellationToken, compatibilityMode);
-        return lexer.Tokenize();
+        checkpoint?.Invoke();
+        var lexer = new Lexer(source, maxTokens, checkpoint, compatibilityMode);
+        var tokens = lexer.Tokenize();
+        checkpoint?.Invoke();
+        return tokens;
     }
 
     private sealed class Lexer
@@ -26,37 +37,39 @@ internal static class AwkLexer
         private readonly List<AwkToken> _lexemes;
         private readonly List<AwkToken> _tokens = [];
         private readonly int _maxTokens;
-        private readonly CancellationToken _cancellationToken;
+        private readonly Action? _checkpoint;
         private int _position;
         private int _lexemeIndex;
         private bool _canStartRegex = true;
         private readonly AwkLexicalNames _names;
 
-        public Lexer(string source, int maxTokens, CancellationToken cancellationToken, AwkCompatibilityMode compatibilityMode)
+        public Lexer(string source, int maxTokens, Action? checkpoint, AwkCompatibilityMode compatibilityMode)
         {
             _source = source;
             _names = new AwkLexicalNames(compatibilityMode);
             _maxTokens = maxTokens;
-            _cancellationToken = cancellationToken;
-            _lexemes = ReadContextFreeLexemes(source, cancellationToken);
+            _checkpoint = checkpoint;
+            _lexemes = ReadContextFreeLexemes(source, checkpoint);
 
             static List<AwkToken> ReadContextFreeLexemes(
                 string source,
-                CancellationToken cancellationToken)
+                Action? checkpoint)
             {
+                checkpoint?.Invoke();
                 var reader = new ReflectionTokenReader<AwkTokenKind>();
                 var result = reader.ReadAllTokens(source);
+                checkpoint?.Invoke();
                 var lexemes = new List<AwkToken>(result.Tokens.Count);
                 var index = 0;
                 foreach (var token in result.Tokens)
                 {
                     if ((index++ & 1023) == 0)
-                        cancellationToken.ThrowIfCancellationRequested();
+                        checkpoint?.Invoke();
 
                     lexemes.Add(AwkToken.FromSource(
                         token.Length == 0
                             ? token.Token
-                            : AwkParsingSupport.ResolveTextKind(source.AsSpan(token.Start, token.Length)),
+                            : AwkParsingSupport.ResolveTextKind(source.AsSpan(token.Start, token.Length), checkpoint),
                         source,
                         new AwkTextSpan(token.Start, token.Length)));
                 }
@@ -70,7 +83,7 @@ internal static class AwkLexer
             while (true)
             {
                 if ((_tokens.Count & 1023) == 0)
-                    _cancellationToken.ThrowIfCancellationRequested();
+                    _checkpoint?.Invoke();
 
                 SkipLexemesBeforePosition();
                 if (_lexemeIndex >= _lexemes.Count)
@@ -166,8 +179,10 @@ internal static class AwkLexer
             void ReadComment()
             {
                 var start = _position;
+                long nextCheckpoint = start;
                 while (_position < _source.Length && Current is not '\r' and not '\n')
                 {
+                    CheckScanProgress(ref nextCheckpoint);
                     _position++;
                 }
 
@@ -222,8 +237,10 @@ internal static class AwkLexer
         {
             _position++;
             var escaped = false;
+            long nextCheckpoint = _position;
             while (_position < _source.Length)
             {
+                CheckScanProgress(ref nextCheckpoint);
                 var current = Current;
                 _position++;
                 if (escaped)
@@ -261,7 +278,7 @@ internal static class AwkLexer
 
         private void ReadRegexBody(int start, AwkTokenKind kind)
         {
-            var scan = AwkRegexLiteral.Scan(_source, _position);
+            var scan = AwkRegexLiteral.Scan(_source, _position, _checkpoint);
             if (scan.Termination == AwkRegexLiteralTermination.Delimiter)
             {
                 _position = scan.EndIndex + 1;
@@ -271,6 +288,15 @@ internal static class AwkLexer
 
             _position = scan.EndIndex;
             AddToken(AwkTokenKind.BadToken, start, _position - start);
+        }
+
+        private void CheckScanProgress(ref long nextCheckpoint)
+        {
+            if (_position >= nextCheckpoint)
+            {
+                _checkpoint?.Invoke();
+                nextCheckpoint = (long)_position + 1024;
+            }
         }
 
         private void AddToken(AwkTokenKind kind, int start, int length)
@@ -293,6 +319,8 @@ internal static class AwkLexer
         {
             while (_lexemeIndex < _lexemes.Count && _lexemes[_lexemeIndex].Span.Start < _position)
             {
+                if ((_lexemeIndex & 1023) == 0)
+                    _checkpoint?.Invoke();
                 _lexemeIndex++;
             }
         }

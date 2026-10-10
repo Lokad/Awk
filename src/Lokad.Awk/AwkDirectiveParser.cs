@@ -4,42 +4,46 @@ namespace Lokad.Awk;
 
 internal static class AwkDirectiveParser
 {
-    public static bool TryParseLine(string line, out AwkParsedDirective directive)
+    public static bool TryParseLine(string line, out AwkParsedDirective directive, Action? checkpoint = null)
     {
-        var tokens = AwkLexer.Tokenize(line);
-        var atIndex = FindFirstSignificantIndex(tokens);
+        checkpoint?.Invoke();
+        IReadOnlyList<AwkToken> tokens = AwkLexer.Tokenize(line, int.MaxValue, checkpoint);
+        var atIndex = FindNextSignificantIndex(tokens, 0, checkpoint);
+        checkpoint?.Invoke();
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
         if (atIndex < 0 || tokens[atIndex].Kind != AwkTokenKind.At)
         {
             directive = default;
             return false;
         }
 
-        return TryParseAtCore(tokens, atIndex, out directive);
+        return TryParseAtCore(tokens, atIndex, out directive, checkpoint);
 
-        static int FindFirstSignificantIndex(IReadOnlyList<AwkToken> tokens) =>
-            FindNextSignificantIndex(tokens, 0);
     }
 
     public static bool TryParseAt(
         IReadOnlyList<AwkToken> tokens,
         int atIndex,
-        out AwkParsedDirective directive)
+        out AwkParsedDirective directive, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
         if (atIndex < 0 ||
             atIndex >= tokens.Count ||
             tokens[atIndex].Kind != AwkTokenKind.At ||
-            !IsDirectivePosition(tokens, atIndex))
+            !IsDirectivePosition(tokens, atIndex, checkpoint))
         {
             directive = default;
             return false;
         }
 
-        return TryParseAtCore(tokens, atIndex, out directive);
+        return TryParseAtCore(tokens, atIndex, out directive, checkpoint);
 
-        static bool IsDirectivePosition(IReadOnlyList<AwkToken> tokens, int index)
+        static bool IsDirectivePosition(IReadOnlyList<AwkToken> tokens, int index, Action? checkpoint)
         {
             for (var current = index - 1; current >= 0; current--)
             {
+                checkpoint?.Invoke();
                 var token = tokens[current];
                 if (token.Kind == AwkTokenKind.Comment)
                     continue;
@@ -51,10 +55,10 @@ internal static class AwkDirectiveParser
         }
     }
 
-    public static bool TryParseIncludeLine(string line, out string path)
+    public static bool TryParseIncludeLine(string line, out string path, Action? checkpoint = null)
     {
         path = string.Empty;
-        if (!TryParseLine(line, out var directive) ||
+        if (!TryParseLine(line, out var directive, checkpoint) ||
             directive.Kind != AwkDirectiveKind.Include ||
             directive.ArgumentTokens.Count == 0 ||
             directive.ArgumentTokens[0].Kind != AwkTokenKind.String)
@@ -66,7 +70,9 @@ internal static class AwkDirectiveParser
         if (tokenText.Length < 2)
             return false;
 
+        checkpoint?.Invoke();
         path = tokenText[1..^1];
+        checkpoint?.Invoke();
         return true;
     }
 
@@ -82,15 +88,16 @@ internal static class AwkDirectiveParser
     private static bool TryParseAtCore(
         IReadOnlyList<AwkToken> tokens,
         int atIndex,
-        out AwkParsedDirective directive)
+        out AwkParsedDirective directive, Action? checkpoint = null)
     {
         static List<AwkToken> ReadDirectiveArguments(
             IReadOnlyList<AwkToken> tokens,
-            int startIndex)
+            int startIndex, Action? checkpoint)
         {
             var arguments = new List<AwkToken>();
             for (var index = startIndex; index < tokens.Count; index++)
             {
+                checkpoint?.Invoke();
                 if (tokens[index].Kind is AwkTokenKind.EndOfFile or AwkTokenKind.NewLine or AwkTokenKind.Semicolon)
                     break;
 
@@ -101,7 +108,7 @@ internal static class AwkDirectiveParser
         }
 
         var atToken = tokens[atIndex];
-        var nameIndex = FindNextSignificantIndex(tokens, atIndex + 1);
+        var nameIndex = FindNextSignificantIndex(tokens, atIndex + 1, checkpoint);
         if (nameIndex < 0 ||
             tokens[nameIndex].Kind != AwkTokenKind.Identifier ||
             tokens[nameIndex].Span.Start != atToken.Span.End)
@@ -110,14 +117,14 @@ internal static class AwkDirectiveParser
             return false;
         }
 
-        var nextIndex = FindNextSignificantIndex(tokens, nameIndex + 1);
+        var nextIndex = FindNextSignificantIndex(tokens, nameIndex + 1, checkpoint);
         if (nextIndex >= 0 && tokens[nextIndex].Kind == AwkTokenKind.LeftParen)
         {
             directive = default;
             return false;
         }
 
-        var arguments = ReadDirectiveArguments(tokens, nameIndex + 1);
+        var arguments = ReadDirectiveArguments(tokens, nameIndex + 1, checkpoint);
         var endToken = arguments.Count == 0 ? tokens[nameIndex] : arguments[^1];
         directive = new AwkParsedDirective(
             ResolveKind(tokens[nameIndex].Text),
@@ -127,10 +134,11 @@ internal static class AwkDirectiveParser
         return true;
     }
 
-    private static int FindNextSignificantIndex(IReadOnlyList<AwkToken> tokens, int startIndex)
+    private static int FindNextSignificantIndex(IReadOnlyList<AwkToken> tokens, int startIndex, Action? checkpoint)
     {
         for (var index = startIndex; index < tokens.Count; index++)
         {
+            checkpoint?.Invoke();
             if (AwkTokenNavigation.IsSignificant(tokens[index].Kind) &&
                 tokens[index].Kind != AwkTokenKind.EndOfFile)
             {

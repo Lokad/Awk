@@ -33,6 +33,7 @@ internal static class AwkStatementLowerer
         out IReadOnlyList<AwkStatement> statements,
         out AwkDiagnostic diagnostic)
     {
+        scope.CheckCancellation();
         static AwkDiagnostic CreateFailureDiagnostic(AwkStatementSyntax syntax)
         {
             static string FormatFailureDiagnostic(AwkStatementSyntax syntax)
@@ -82,6 +83,7 @@ internal static class AwkStatementLowerer
         var loweredStatements = new List<AwkStatement>(syntaxStatements.Count);
         for (var index = 0; index < syntaxStatements.Count; index++)
         {
+            scope.CheckCancellation();
             if (syntaxStatements[index].Kind is AwkStatementKind.Block)
             {
                 if (!TryLowerListCore(syntaxStatements[index].BodyStatements, scope, out var body, out diagnostic))
@@ -543,6 +545,7 @@ internal static class AwkStatementLowerer
                 var arms = new List<AwkSwitchArm>();
                 for (var index = 0; index < switchShape.SwitchCases.Count; index++)
                 {
+                    scope.CheckCancellation();
                     var switchCase = switchShape.SwitchCases[index];
                     if (!TryLowerList(switchCase.BodyStatements, scope, out var body))
                         return false;

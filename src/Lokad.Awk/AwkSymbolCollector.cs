@@ -10,9 +10,11 @@ internal static class AwkSymbolCollector
     public static IReadOnlyList<AwkSymbolReference> Collect(
         AwkSyntaxProgram syntax,
         out IReadOnlySet<AwkVariableName> globalNames,
-        AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
     {
-        var collector = new Collector(syntax, mode);
+        checkpoint?.Invoke();
+        var collector = new Collector(syntax, mode, checkpoint);
         collector.CollectProgram(syntax);
         globalNames = collector.Globals;
         return collector.Symbols;
@@ -21,16 +23,19 @@ internal static class AwkSymbolCollector
     private sealed class Collector
     {
         private readonly AwkCompatibilityMode _mode;
+        private readonly Action? _checkpoint;
         private readonly HashSet<AwkIdentifier> _functionNames;
         private AwkLoweringScope _scope;
 
-        public Collector(AwkSyntaxProgram syntax, AwkCompatibilityMode mode)
+        public Collector(AwkSyntaxProgram syntax, AwkCompatibilityMode mode, Action? checkpoint)
         {
             _mode = mode;
-            _scope = AwkLoweringScope.GlobalFor(mode);
+            _checkpoint = checkpoint;
+            _scope = AwkLoweringScope.GlobalFor(mode, checkpoint);
             _functionNames = new(syntax.Functions.Count);
             foreach (var function in syntax.Functions)
             {
+                _checkpoint?.Invoke();
                 if (function.Identifier.HasValue)
                     _functionNames.Add(function.Identifier.Value);
             }
@@ -44,25 +49,28 @@ internal static class AwkSymbolCollector
         {
             foreach (var function in syntax.Functions)
             {
+                _checkpoint?.Invoke();
                 if (function.Identifier.HasValue)
                     Symbols.Add(new AwkNamedSymbolReference(function.Identifier.Value,
                         AwkSymbolReferenceKind.FunctionDefinition, function.Span));
 
                 foreach (var token in function.ParameterTokens)
                 {
+                    _checkpoint?.Invoke();
                     if (token.Kind == AwkTokenKind.Identifier &&
                         AwkIdentifier.TryParse(token.Text, out var identifier))
                         Symbols.Add(new AwkNamedSymbolReference(identifier,
                             AwkSymbolReferenceKind.FunctionParameter, token.Span, isFunctionLocal: true));
                 }
 
-                _scope = AwkLoweringScope.Function(new(function.ParameterBinding.Parameters), _mode);
+                _scope = AwkLoweringScope.Function(new(function.ParameterBinding.Parameters, _checkpoint), _mode, _checkpoint);
                 CollectStatements(function.BodyStatements);
             }
 
-            _scope = AwkLoweringScope.GlobalFor(_mode);
+            _scope = AwkLoweringScope.GlobalFor(_mode, _checkpoint);
             foreach (var rule in syntax.Rules)
             {
+                _checkpoint?.Invoke();
                 foreach (var expression in rule.PatternSyntax.EnumerateChildExpressions())
                     CollectExpression(expression);
                 CollectStatements(rule.ActionStatements);
@@ -73,12 +81,14 @@ internal static class AwkSymbolCollector
         {
             foreach (var statement in statements)
             {
+                _checkpoint?.Invoke();
                 foreach (var expression in statement.EnumerateChildExpressions())
                     CollectExpression(expression);
                 CollectStatements(statement.BodyStatements);
                 CollectStatements(statement.ElseStatements);
                 foreach (var switchCase in statement.SwitchCases)
                 {
+                    _checkpoint?.Invoke();
                     if (switchCase.Expression.TryGetValue(out var expression))
                         CollectExpression(expression);
                     CollectStatements(switchCase.BodyStatements);
@@ -88,6 +98,7 @@ internal static class AwkSymbolCollector
 
         private void CollectExpression(AwkExpressionSyntax? expression)
         {
+            _checkpoint?.Invoke();
             if (expression is null)
                 return;
 

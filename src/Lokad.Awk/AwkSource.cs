@@ -159,9 +159,10 @@ internal readonly record struct AwkSourceIdentity
 
 internal abstract record AwkSourceLoadResult
 {
-    public static AwkSourceLoadResult FromSources(IReadOnlyList<AwkSourceUnit> sources)
+    public static AwkSourceLoadResult FromSources(IReadOnlyList<AwkSourceUnit> sources, Action? checkpoint = null)
     {
-        static AwkSourceUnit AssembleCompilationSource(IReadOnlyList<AwkSourceUnit> sources)
+        checkpoint?.Invoke();
+        static AwkSourceUnit AssembleCompilationSource(IReadOnlyList<AwkSourceUnit> sources, Action? checkpoint)
         {
             if (sources.Count == 0)
                 return new AwkSourceUnit(new AwkSourceName("<program>"), string.Empty, []);
@@ -173,6 +174,7 @@ internal abstract record AwkSourceLoadResult
             var segmentCount = 0;
             for (var index = 0; index < sources.Count; index++)
             {
+                checkpoint?.Invoke();
                 textLength = checked(textLength + sources[index].Text.Length);
                 segmentCount = checked(segmentCount + sources[index].Segments.Count);
             }
@@ -181,14 +183,16 @@ internal abstract record AwkSourceLoadResult
             var segments = new List<AwkSourceSegment>(segmentCount);
             for (var sourceIndex = 0; sourceIndex < sources.Count; sourceIndex++)
             {
+                checkpoint?.Invoke();
                 if (sourceIndex > 0)
                     text.Append('\n');
 
                 var source = sources[sourceIndex];
                 var sourceOffset = text.Length;
-                text.Append(source.Text);
+                AwkParsingSupport.AppendText(text, source.Text, checkpoint);
                 for (var segmentIndex = 0; segmentIndex < source.Segments.Count; segmentIndex++)
                 {
+                    checkpoint?.Invoke();
                     var segment = source.Segments[segmentIndex];
                     segments.Add(new AwkSourceSegment(
                         segment.SourceName,
@@ -202,10 +206,15 @@ internal abstract record AwkSourceLoadResult
                 }
             }
 
-            return new AwkSourceUnit(new AwkSourceName("<program>"), text.ToString(), segments);
+            checkpoint?.Invoke();
+            var joined = text.ToString();
+            checkpoint?.Invoke();
+            return new AwkSourceUnit(new AwkSourceName("<program>"), joined, segments);
         }
 
-        return new Loaded(sources, AssembleCompilationSource(sources));
+        var compilationSource = AssembleCompilationSource(sources, checkpoint);
+        checkpoint?.Invoke();
+        return new Loaded(sources, compilationSource);
     }
 
     public static AwkSourceLoadResult Failure(ReadOnlyMemory<byte> errorMessage, AwkDiagnosticId id) =>

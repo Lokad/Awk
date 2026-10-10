@@ -8,14 +8,18 @@ namespace Lokad.Awk;
 internal static class AwkLineContinuations
 {
     public static AwkLineContinuationNormalization Normalize(string text, int maxTokens, CancellationToken cancellationToken)
+        => NormalizeWithCheckpoint(text, maxTokens,
+            cancellationToken.CanBeCanceled ? cancellationToken.ThrowIfCancellationRequested : null);
+
+    public static AwkLineContinuationNormalization NormalizeWithCheckpoint(string text, int maxTokens, Action? checkpoint)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        checkpoint?.Invoke();
         var firstContinuation = 0;
         while (firstContinuation < text.Length &&
             !TryReadAt(text, firstContinuation, text.Length, out _))
         {
             if ((firstContinuation & 1023) == 0)
-                cancellationToken.ThrowIfCancellationRequested();
+                checkpoint?.Invoke();
             firstContinuation++;
         }
 
@@ -24,19 +28,26 @@ internal static class AwkLineContinuations
 
         var builder = new StringBuilder(text.Length);
         var continuations = new List<AwkLineContinuationPoint>();
-        var tokens = AwkLexer.Tokenize(text, maxTokens, cancellationToken);
+        var tokens = AwkLexer.Tokenize(text, maxTokens, checkpoint);
         var tokenIndex = 0;
         var segmentStart = 0;
         var index = firstContinuation;
+        long nextCheckpoint = index;
         while (index < text.Length)
         {
-            if ((index & 1023) == 0)
-                cancellationToken.ThrowIfCancellationRequested();
+            if (index >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = (long)index + 1024;
+            }
             if (TryReadAt(text, index, text.Length, out var continuation))
             {
-                builder.Append(text, segmentStart, index - segmentStart);
+                AwkParsingSupport.AppendText(builder, text.AsSpan(segmentStart, index - segmentStart), checkpoint);
                 while (tokenIndex < tokens.Count && tokens[tokenIndex].Span.End <= index)
+                {
+                    checkpoint?.Invoke();
                     tokenIndex++;
+                }
                 var token = tokenIndex < tokens.Count ? tokens[tokenIndex] : default;
                 var insideToken = token.Span.Start <= index && index < token.Span.End;
                 if (insideToken && token.Kind == AwkTokenKind.BadToken)
@@ -69,9 +80,11 @@ internal static class AwkLineContinuations
             index++;
         }
 
-        builder.Append(text, segmentStart, text.Length - segmentStart);
+        AwkParsingSupport.AppendText(builder, text.AsSpan(segmentStart), checkpoint);
+        var normalized = builder.ToString();
+        checkpoint?.Invoke();
         return new AwkLineContinuationNormalization(
-            builder.ToString(),
+            normalized,
             new AwkLineContinuationMap(continuations));
     }
 
@@ -162,46 +175,47 @@ internal sealed class AwkLineContinuationMap
 
     public bool IsEmpty => Count == 0;
 
-    private IReadOnlyList<AwkLineContinuationPoint> Points
+    private IReadOnlyList<AwkLineContinuationPoint> GetPoints(Action? checkpoint = null)
     {
-        get
+        checkpoint?.Invoke();
+        if (_node is AwkLineContinuationMapNode.Leaf leaf)
+            return leaf.Points;
+
+        var materialized = Volatile.Read(ref _materializedPoints);
+        if (materialized != null)
+            return materialized;
+
+        materialized = MaterializePoints();
+        checkpoint?.Invoke();
+        return Interlocked.CompareExchange(ref _materializedPoints, materialized, null) ?? materialized;
+
+        AwkLineContinuationPoint[] MaterializePoints()
         {
-            if (_node is AwkLineContinuationMapNode.Leaf leaf)
-                return leaf.Points;
-
-            var materialized = Volatile.Read(ref _materializedPoints);
-            if (materialized != null)
-                return materialized;
-
-            materialized = MaterializePoints();
-            return Interlocked.CompareExchange(ref _materializedPoints, materialized, null) ?? materialized;
-
-            AwkLineContinuationPoint[] MaterializePoints()
+            var points = new AwkLineContinuationPoint[Count];
+            var writeIndex = 0;
+            var pending = new Stack<PendingMap>();
+            pending.Push(new PendingMap(this, 0));
+            while (pending.Count > 0)
             {
-                var points = new AwkLineContinuationPoint[Count];
-                var writeIndex = 0;
-                var pending = new Stack<PendingMap>();
-                pending.Push(new PendingMap(this, 0));
-                while (pending.Count > 0)
+                checkpoint?.Invoke();
+                var (map, offset) = pending.Pop();
+                if (map._node is AwkLineContinuationMapNode.Concat concat)
                 {
-                    var (map, offset) = pending.Pop();
-                    if (map._node is AwkLineContinuationMapNode.Concat concat)
-                    {
-                        pending.Push(new PendingMap(concat.Second, checked(offset + concat.SecondOffset)));
-                        pending.Push(new PendingMap(concat.First, offset));
-                        continue;
-                    }
-
-                    var leaf = (AwkLineContinuationMapNode.Leaf)map._node;
-                    for (var index = 0; index < leaf.Points.Count; index++)
-                    {
-                        points[writeIndex++] = new AwkLineContinuationPoint(
-                            checked(offset + leaf.Points[index].NormalizedOffset));
-                    }
+                    pending.Push(new PendingMap(concat.Second, checked(offset + concat.SecondOffset)));
+                    pending.Push(new PendingMap(concat.First, offset));
+                    continue;
                 }
 
-                return points;
+                var leaf = (AwkLineContinuationMapNode.Leaf)map._node;
+                for (var index = 0; index < leaf.Points.Count; index++)
+                {
+                    checkpoint?.Invoke();
+                    points[writeIndex++] = new AwkLineContinuationPoint(
+                        checked(offset + leaf.Points[index].NormalizedOffset));
+                }
             }
+
+            return points;
         }
     }
 
@@ -226,33 +240,41 @@ internal sealed class AwkLineContinuationMap
         }
     }
 
-    public AwkLineContinuationPoint this[int index] => Points[index];
+    public AwkLineContinuationPoint this[int index] => GetPoint(index);
 
-    public AwkLineContinuationMap Slice(int start, int length)
+    public AwkLineContinuationPoint GetPoint(int index, Action? checkpoint = null) => GetPoints(checkpoint)[index];
+
+    public AwkLineContinuationMap Slice(int start, int length, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
+        var indexed = GetPoints(checkpoint);
         if (IsEmpty)
             return Empty;
 
         var end = checked(start + length);
         var first = FindFirstAtOrAfter(start);
-        var afterLast = FindFirstAfter(end);
+        var afterLast = FindFirstAfter(end, checkpoint);
         if (first == afterLast)
             return Empty;
 
         var points = new List<AwkLineContinuationPoint>(afterLast - first);
         for (var index = first; index < afterLast; index++)
-            points.Add(new AwkLineContinuationPoint(Points[index].NormalizedOffset - start));
+        {
+            checkpoint?.Invoke();
+            points.Add(new AwkLineContinuationPoint(indexed[index].NormalizedOffset - start));
+        }
 
         return new AwkLineContinuationMap(points);
 
         int FindFirstAtOrAfter(int offset)
         {
             var low = 0;
-            var high = Points.Count;
+            var high = indexed.Count;
             while (low < high)
             {
+                checkpoint?.Invoke();
                 var middle = low + ((high - low) / 2);
-                if (Points[middle].NormalizedOffset < offset)
+                if (indexed[middle].NormalizedOffset < offset)
                     low = middle + 1;
                 else
                     high = middle;
@@ -263,13 +285,14 @@ internal sealed class AwkLineContinuationMap
 
     }
 
-    public int CountAtOrBefore(int normalizedOffset) => FindFirstAfter(normalizedOffset);
+    public int CountAtOrBefore(int normalizedOffset, Action? checkpoint = null) => FindFirstAfter(normalizedOffset, checkpoint);
 
-    public AwkLineContinuationMap Append(AwkLineContinuationMap next, int nextOffset)
+    public AwkLineContinuationMap Append(AwkLineContinuationMap next, int nextOffset, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         static AwkLineContinuationMap Shift(
             AwkLineContinuationMap map,
-            int offset)
+            int offset, Action? checkpoint)
         {
             if (map.IsEmpty || offset == 0)
                 return map;
@@ -277,15 +300,16 @@ internal sealed class AwkLineContinuationMap
             var shiftedPoints = new List<AwkLineContinuationPoint>(map.Count);
             for (var index = 0; index < map.Count; index++)
             {
+                checkpoint?.Invoke();
                 shiftedPoints.Add(new AwkLineContinuationPoint(
-                    offset + map[index].NormalizedOffset));
+                    offset + map.GetPoint(index, checkpoint).NormalizedOffset));
             }
 
             return new AwkLineContinuationMap(shiftedPoints);
         }
 
         if (IsEmpty)
-            return Shift(next, nextOffset);
+            return Shift(next, nextOffset, checkpoint);
 
         if (next.IsEmpty)
             return this;
@@ -293,14 +317,16 @@ internal sealed class AwkLineContinuationMap
         return new AwkLineContinuationMap(this, next, nextOffset);
     }
 
-    private int FindFirstAfter(int offset)
+    private int FindFirstAfter(int offset, Action? checkpoint = null)
     {
+        var indexed = GetPoints(checkpoint);
         var low = 0;
-        var high = Points.Count;
+        var high = indexed.Count;
         while (low < high)
         {
+            checkpoint?.Invoke();
             var middle = low + ((high - low) / 2);
-            if (Points[middle].NormalizedOffset <= offset)
+            if (indexed[middle].NormalizedOffset <= offset)
                 low = middle + 1;
             else
                 high = middle;

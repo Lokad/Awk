@@ -2,32 +2,40 @@ namespace Lokad.Awk;
 
 internal static class AwkRegexLiteral
 {
-    public static bool TryReadPattern(string text, out string pattern)
+    public static bool TryReadPattern(string text, out string pattern, Action? checkpoint = null)
     {
         pattern = string.Empty;
         if (text.Length < 2 || text[0] != '/')
             return false;
 
-        var scan = Scan(text, patternStart: 1);
+        var scan = Scan(text, patternStart: 1, checkpoint);
         if (scan.Termination != AwkRegexLiteralTermination.Delimiter ||
             scan.EndIndex != text.Length - 1)
         {
             return false;
         }
 
+        checkpoint?.Invoke();
         pattern = text.Substring(1, scan.EndIndex - 1);
         return true;
     }
 
-    public static AwkRegexLiteralScanResult Scan(string text, int patternStart)
+    public static AwkRegexLiteralScanResult Scan(string text, int patternStart, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         ArgumentOutOfRangeException.ThrowIfNegative(patternStart);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(patternStart, text.Length);
 
         var escaped = false;
         var inBracketExpression = false;
+        long nextCheckpoint = patternStart;
         for (var index = patternStart; index < text.Length; index++)
         {
+            if (index >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = (long)index + 1024;
+            }
             var current = text[index];
             if (escaped)
             {

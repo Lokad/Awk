@@ -7,10 +7,12 @@ internal static class AwkBinder
 
     public static AwkBindingResult Bind(
         AwkParseResult parseResult,
-        AwkCompatibilityProfile compatibilityProfile)
+        AwkCompatibilityProfile compatibilityProfile,
+        Action? checkpoint = null)
     {
-        var symbols = AwkSymbolCollector.Collect(parseResult.Syntax, out var globalNames, compatibilityProfile.Mode);
-        var semanticModel = AwkSemanticModel.Create(symbols);
+        checkpoint?.Invoke();
+        var symbols = AwkSymbolCollector.Collect(parseResult.Syntax, out var globalNames, compatibilityProfile.Mode, checkpoint);
+        var semanticModel = AwkSemanticModel.Create(symbols, checkpoint);
         if (parseResult.Errors.Count > 0)
             return new AwkBindingResult(
                 parseResult.PhaseResult.Phase,
@@ -24,7 +26,8 @@ internal static class AwkBinder
         var semanticDiagnostics = AwkSemanticValidator.Validate(
             parseResult.Syntax,
             semanticModel,
-            compatibilityProfile);
+            compatibilityProfile,
+            checkpoint);
         if (semanticDiagnostics.Count > 0)
             return new AwkBindingResult(
                 AwkPipelinePhase.Bind,
@@ -35,7 +38,7 @@ internal static class AwkBinder
                 AwkProgramResult.None,
                 compatibilityParseFailed: true);
 
-        var lowering = AwkProgramLowerer.Lower(parseResult.Syntax, globalNames, compatibilityProfile.Mode);
+        var lowering = AwkProgramLowerer.Lower(parseResult.Syntax, globalNames, compatibilityProfile.Mode, checkpoint);
         if (lowering.Diagnostics.Count > 0)
             return new AwkBindingResult(
                 lowering.PhaseResult.Phase,
@@ -46,6 +49,7 @@ internal static class AwkBinder
                 AwkProgramResult.None,
                 compatibilityParseFailed: true);
 
+        checkpoint?.Invoke();
         return new AwkBindingResult(
             lowering.PhaseResult.Phase,
             parseResult.Syntax,

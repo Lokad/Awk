@@ -36,6 +36,7 @@ internal static class AwkParser
         var warningCount = 0;
         foreach (var diagnostic in syntax.Diagnostics)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (diagnostic.IsWarning)
                 warningCount++;
         }
@@ -46,12 +47,14 @@ internal static class AwkParser
         var errorIndex = 0;
         foreach (var diagnostic in syntax.Diagnostics)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (diagnostic.IsWarning)
                 warnings[warningIndex++] = diagnostic;
             else
                 errors[errorIndex++] = diagnostic;
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         var phase = errors.Length == 0
             ? AwkPhaseResult<AwkSyntaxProgram>.SuccessResult(AwkPipelinePhase.Parse, syntax, warnings)
             : AwkPhaseResult<AwkSyntaxProgram>.Failure(AwkPipelinePhase.Parse, syntax, errors, warnings);

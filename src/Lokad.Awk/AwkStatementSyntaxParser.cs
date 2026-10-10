@@ -13,41 +13,50 @@ internal sealed class AwkStatementSyntaxParser
     private readonly IReadOnlyList<AwkToken> _originalTokens;
 
     private readonly AwkParsingSource? _source;
+    private readonly Action? _checkpoint;
 
-    private AwkStatementSyntaxParser(AwkParsingSource? source, IReadOnlyList<AwkToken> originalTokens)
+    private AwkStatementSyntaxParser(AwkParsingSource? source, IReadOnlyList<AwkToken> originalTokens, Action? checkpoint)
         : base(AwkTokenNamer.Instance)
     {
         _source = source;
         _originalTokens = originalTokens;
+        _checkpoint = checkpoint;
     }
 
     public static bool TryParse(
         AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics,
-        [NotNullWhen(true)] out IReadOnlyList<AwkStatementSyntax>? statements) =>
-        TryProjectParseResult(ParseCore(source, tokens), diagnostics, out statements);
+        [NotNullWhen(true)] out IReadOnlyList<AwkStatementSyntax>? statements,
+        Action? checkpoint = null) =>
+        TryProjectParseResult(ParseCore(source, tokens, checkpoint), diagnostics, out statements, checkpoint);
 
     public static bool TryParse(
         IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics,
-        [NotNullWhen(true)] out IReadOnlyList<AwkStatementSyntax>? statements) =>
-        TryProjectParseResult(ParseCore(null, tokens), diagnostics, out statements);
+        [NotNullWhen(true)] out IReadOnlyList<AwkStatementSyntax>? statements,
+        Action? checkpoint = null) =>
+        TryProjectParseResult(ParseCore(null, tokens, checkpoint), diagnostics, out statements, checkpoint);
 
     private static AwkStatementParseResult ParseCore(
         AwkParsingSource? source,
-        IReadOnlyList<AwkToken> tokens)
+        IReadOnlyList<AwkToken> tokens,
+        Action? checkpoint)
     {
-        var parser = new AwkStatementSyntaxParser(source, tokens);
+        checkpoint?.Invoke();
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
+        var parser = new AwkStatementSyntaxParser(source, tokens, checkpoint);
         parser.Tokens = source == null
-            ? AwkParsingSupport.ToLexerResult(tokens)
-            : AwkParsingSupport.ToLexerResultWithEndOfFile(source, tokens);
+            ? AwkParsingSupport.ToLexerResult(tokens, checkpoint)
+            : AwkParsingSupport.ToLexerResultWithEndOfFile(source, tokens, checkpoint);
         try
         {
+            checkpoint?.Invoke();
             var statements = StreamParser(parser, parser.Tokens).Statements;
+            checkpoint?.Invoke();
             return AwkStatementParseResult.Success(
                 statements,
-                CollectParseDiagnostics(statements));
+                CollectParseDiagnostics(statements, parser));
         }
         catch (ParseException)
         {
@@ -55,10 +64,10 @@ internal sealed class AwkStatementSyntaxParser
         }
 
         static List<AwkDiagnostic> CollectParseDiagnostics(
-            IReadOnlyList<AwkStatementSyntax> statements)
+            IReadOnlyList<AwkStatementSyntax> statements, AwkStatementSyntaxParser parser)
         {
             var diagnostics = new List<AwkDiagnostic>();
-            AddStatementDiagnostics(statements, diagnostics);
+            parser.AddStatementDiagnostics(statements, diagnostics);
             return diagnostics;
         }
     }
@@ -66,11 +75,14 @@ internal sealed class AwkStatementSyntaxParser
     private static bool TryProjectParseResult(
         AwkStatementParseResult result,
         List<AwkDiagnostic> diagnostics,
-        [NotNullWhen(true)] out IReadOnlyList<AwkStatementSyntax>? statements)
+        [NotNullWhen(true)] out IReadOnlyList<AwkStatementSyntax>? statements, Action? checkpoint)
     {
+        checkpoint?.Invoke();
         if (result is AwkStatementParseResult.Parsed parsed)
         {
+            checkpoint?.Invoke();
             diagnostics.AddRange(parsed.Diagnostics);
+            checkpoint?.Invoke();
             statements = parsed.Statements;
             return true;
         }
@@ -83,41 +95,47 @@ internal sealed class AwkStatementSyntaxParser
         AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics,
-        string invalidMessage)
+        string invalidMessage,
+        Action? checkpoint = null)
     {
-        var result = ParseCore(source, tokens);
+        var result = ParseCore(source, tokens, checkpoint);
         if (result is AwkStatementParseResult.Parsed parsed)
         {
+            checkpoint?.Invoke();
             diagnostics.AddRange(parsed.Diagnostics);
+            checkpoint?.Invoke();
             return parsed.Statements;
         }
 
-        AddInvalidStatementDiagnostic(tokens, diagnostics, invalidMessage);
+        AddInvalidStatementDiagnostic(tokens, diagnostics, invalidMessage, checkpoint);
         return [];
     }
 
     public static IReadOnlyList<AwkStatementSyntax> ParseStatements(
         IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics,
-        string invalidMessage)
+        string invalidMessage,
+        Action? checkpoint = null)
     {
-        var result = ParseCore(null, tokens);
+        var result = ParseCore(null, tokens, checkpoint);
         if (result is AwkStatementParseResult.Parsed parsed)
         {
+            checkpoint?.Invoke();
             diagnostics.AddRange(parsed.Diagnostics);
+            checkpoint?.Invoke();
             return parsed.Statements;
         }
 
-        AddInvalidStatementDiagnostic(tokens, diagnostics, invalidMessage);
+        AddInvalidStatementDiagnostic(tokens, diagnostics, invalidMessage, checkpoint);
         return [];
     }
 
     private static void AddInvalidStatementDiagnostic(
         IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics,
-        string invalidMessage)
+        string invalidMessage, Action? checkpoint)
     {
-        var first = AwkTokenNavigation.FindFirstSignificant(tokens);
+        var first = AwkTokenNavigation.FindFirstSignificant(tokens, checkpoint);
         if (first != null)
             diagnostics.Add(new AwkDiagnostic(first.Value.Span, invalidMessage));
     }
@@ -125,34 +143,55 @@ internal sealed class AwkStatementSyntaxParser
     [Rule]
     public ParseResult StatementListRoot(
         [AwkL(Min = 0)] StatementListItem[] items,
-        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile) =>
-        new(StatementsFrom(items));
+        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile)
+    {
+        _checkpoint?.Invoke();
+        return new(StatementsFrom(items));
+    }
 
     [Rule]
-    public StatementListItem StatementItem([NT] AwkStatementSyntax statement) =>
-        new(statement, statement.Tokens, null);
+    public StatementListItem StatementItem([NT] AwkStatementSyntax statement)
+    {
+        _checkpoint?.Invoke();
+        return new(statement, statement.Tokens, null);
+    }
 
     [Rule]
-    public StatementListItem SeparatorItem([NT] StatementSeparator separator) =>
-        new(null, separator.Tokens, null);
+    public StatementListItem SeparatorItem([NT] StatementSeparator separator)
+    {
+        _checkpoint?.Invoke();
+        return new(null, separator.Tokens, null);
+    }
 
     [Rule]
-    public StatementListItem ElseContinuationItem([NT] ElseContinuation continuation) =>
-        new(null, continuation.Tokens, continuation);
+    public StatementListItem ElseContinuationItem([NT] ElseContinuation continuation)
+    {
+        _checkpoint?.Invoke();
+        return new(null, continuation.Tokens, continuation);
+    }
 
     [Rule]
     public StatementSeparator StatementSeparatorRule(
-        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Semicolon, AwkTokenKind.Comment)] Pos<string> token) =>
-        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
+        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Semicolon, AwkTokenKind.Comment)] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, checkpoint: _checkpoint)]);
+    }
 
     [Rule]
-    public HeaderGap HeaderGapRule([AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token) =>
-        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
+    public HeaderGap HeaderGapRule([AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, checkpoint: _checkpoint)]);
+    }
 
     [Rule]
     public ContinuationSeparator ContinuationSeparatorRule(
-        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token) =>
-        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
+        [AwkT(AwkTokenKind.NewLine, AwkTokenKind.Comment)] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, checkpoint: _checkpoint)]);
+    }
 
     [Rule]
     public AwkStatementSyntax IfWithoutElse(
@@ -161,6 +200,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 0)] HeaderGap[] beforeBody,
         [NT] StatementBody body)
     {
+        _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.If, keyword);
         var headerSlot = ParseExpressionSlot(header.InnerTokens);
         return CreateStatement(
@@ -186,6 +226,7 @@ internal sealed class AwkStatementSyntaxParser
         [NT] ElseIntro elseIntro,
         [NT] StatementBody elseBody)
     {
+        _checkpoint?.Invoke();
         var statement = IfWithoutElse(keyword, header, beforeBody, body);
         var continuation = new ElseContinuation(
             Flatten([elseIntro.Tokens, elseBody.Tokens]),
@@ -202,6 +243,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkT(AwkTokenKind.Else)] Pos<string> elseKeyword,
         [AwkL(Min = 0)] HeaderGap[] afterElse)
     {
+        _checkpoint?.Invoke();
         var elseToken = ToToken(AwkTokenKind.Else, elseKeyword);
         return new ElseIntro(Flatten([[elseToken], Flatten(afterElse)]));
     }
@@ -212,6 +254,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 0)] HeaderGap[] afterElse,
         [NT] StatementBody elseBody)
     {
+        _checkpoint?.Invoke();
         var elseToken = ToToken(AwkTokenKind.Else, elseKeyword);
         return new ElseContinuation(
             Flatten([[elseToken], Flatten(afterElse), elseBody.Tokens]),
@@ -224,6 +267,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkT(AwkTokenKind.If)] Pos<string> keyword,
         [AwkL(Min = 0)] MalformedControlPart[] parts)
     {
+        _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.If, keyword);
         return CreateStatement(
             AwkStatementKind.If,
@@ -241,6 +285,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 0)] HeaderGap[] beforeBody,
         [NT] StatementBody body)
     {
+        _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.While, keyword);
         var headerSlot = ParseExpressionSlot(header.InnerTokens);
         return CreateStatement(
@@ -262,6 +307,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkT(AwkTokenKind.While)] Pos<string> whileKeyword,
         [NT] ParenthesizedGroup header)
     {
+        _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.Do, keyword);
         var whileToken = ToToken(AwkTokenKind.While, whileKeyword);
         var headerSlot = ParseExpressionSlot(header.InnerTokens);
@@ -291,6 +337,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkT(AwkTokenKind.While)] Pos<string> whileKeyword,
         [AwkL(Min = 0)] MalformedControlPart[] condition)
     {
+        _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.Do, keyword);
         var whileToken = ToToken(AwkTokenKind.While, whileKeyword);
         return CreateStatement(
@@ -316,6 +363,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 0)] HeaderGap[] beforeBody,
         [NT] StatementBody body)
     {
+        _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.For, keyword);
         var forHeader = ParseForHeader(header.InnerTokens);
         return CreateStatement(
@@ -329,21 +377,21 @@ internal sealed class AwkStatementSyntaxParser
 
         AwkForHeaderSyntax ParseForHeader(IReadOnlyList<AwkToken> tokens)
         {
-            var inIndex = AwkTokenNavigation.FindTopLevel(tokens, AwkTokenKind.In, 0, tokens.Count);
+            var inIndex = AwkTokenNavigation.FindTopLevel(tokens, AwkTokenKind.In, 0, tokens.Count, checkpoint: _checkpoint);
             if (inIndex >= 0)
             {
                 return new AwkForHeaderSyntax(
                     isForIn: true,
                     ParseExpressionSlots(
                     [
-                        AwkTokenNavigation.Slice(tokens, 0, inIndex),
-                    AwkTokenNavigation.Slice(tokens, inIndex + 1, tokens.Count - inIndex - 1)
+                        AwkTokenNavigation.Slice(tokens, 0, inIndex, checkpoint: _checkpoint),
+                    AwkTokenNavigation.Slice(tokens, inIndex + 1, tokens.Count - inIndex - 1, checkpoint: _checkpoint)
                     ], allowLeadingNewlines: false));
             }
 
             return new AwkForHeaderSyntax(
                 isForIn: false,
-                ParseExpressionSlots(AwkTokenNavigation.SplitTopLevel(tokens, AwkTokenKind.Semicolon), allowLeadingNewlines: true));
+                ParseExpressionSlots(AwkTokenNavigation.SplitTopLevel(tokens, AwkTokenKind.Semicolon, checkpoint: _checkpoint), allowLeadingNewlines: true));
 
             AwkExpressionSlotSyntax[] ParseExpressionSlots(
                 IReadOnlyList<IReadOnlyList<AwkToken>> segments,
@@ -352,16 +400,20 @@ internal sealed class AwkStatementSyntaxParser
                 var slots = new AwkExpressionSlotSyntax[segments.Count];
                 for (var index = 0; index < segments.Count; index++)
                 {
+                    _checkpoint?.Invoke();
                     var start = 0;
                     if (allowLeadingNewlines && index > 0)
                     {
                         while (start < segments[index].Count &&
                             segments[index][start].Kind is AwkTokenKind.NewLine or AwkTokenKind.Comment)
+                        {
+                            _checkpoint?.Invoke();
                             start++;
+                        }
                     }
                     slots[index] = new AwkExpressionSlotSyntax(segments[index],
                         AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(
-                            start == 0 ? segments[index] : AwkTokenNavigation.Slice(segments[index], start, segments[index].Count - start))));
+                            start == 0 ? segments[index] : AwkTokenNavigation.Slice(segments[index], start, segments[index].Count - start, checkpoint: _checkpoint))));
                 }
 
                 return slots;
@@ -376,6 +428,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 0)] HeaderGap[] beforeBody,
         [NT] SwitchBlock body)
     {
+        _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.Switch, keyword);
         var headerSlot = ParseExpressionSlot(header.InnerTokens);
         return CreateStatement(
@@ -394,6 +447,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 0)] StatementListItem[] items,
         [AwkT(AwkTokenKind.RightBrace)] Pos<string> close)
     {
+        _checkpoint?.Invoke();
         var openToken = ToToken(AwkTokenKind.LeftBrace, open);
         var closeToken = ToToken(AwkTokenKind.RightBrace, close);
         var innerTokens = Flatten(items.Select(item => item.Tokens));
@@ -403,13 +457,19 @@ internal sealed class AwkStatementSyntaxParser
     }
 
     [Rule]
-    public StatementBody SingleStatementBody([NT] AwkStatementSyntax statement) =>
-        new(statement.Tokens,
+    public StatementBody SingleStatementBody([NT] AwkStatementSyntax statement)
+    {
+        _checkpoint?.Invoke();
+        return new(statement.Tokens,
             statement.Kind is AwkStatementKind.Block ? statement.BodyStatements : [statement]);
+    }
 
     [Rule]
-    public StatementBody NullStatementBody([AwkT(AwkTokenKind.Semicolon)] Pos<string> semicolon) =>
-        new([ToToken(AwkTokenKind.Semicolon, semicolon)], []);
+    public StatementBody NullStatementBody([AwkT(AwkTokenKind.Semicolon)] Pos<string> semicolon)
+    {
+        _checkpoint?.Invoke();
+        return new([ToToken(AwkTokenKind.Semicolon, semicolon)], []);
+    }
 
     [Rule]
     public AwkStatementSyntax StandaloneBlock(
@@ -417,6 +477,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 0)] StatementListItem[] items,
         [AwkT(AwkTokenKind.RightBrace)] Pos<string> close)
     {
+        _checkpoint?.Invoke();
         var body = BracedStatementBody(open, items, close);
         return CreateStatement(AwkStatementKind.Block, body.Tokens, [], body.Statements, [], []);
     }
@@ -427,11 +488,13 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 0)] SwitchBlockItem[] items,
         [AwkT(AwkTokenKind.RightBrace)] Pos<string> close)
     {
+        _checkpoint?.Invoke();
         var openToken = ToToken(AwkTokenKind.LeftBrace, open);
         var closeToken = ToToken(AwkTokenKind.RightBrace, close);
         var cases = new List<AwkSwitchCaseSyntax>();
         for (var index = 0; index < items.Length; index++)
         {
+            _checkpoint?.Invoke();
             if (items[index].Case is { } switchCase)
                 cases.Add(switchCase);
         }
@@ -442,12 +505,18 @@ internal sealed class AwkStatementSyntaxParser
     }
 
     [Rule]
-    public SwitchBlockItem SwitchCaseItem([NT] SwitchCasePart switchCase) =>
-        new(switchCase.Syntax, switchCase.Tokens);
+    public SwitchBlockItem SwitchCaseItem([NT] SwitchCasePart switchCase)
+    {
+        _checkpoint?.Invoke();
+        return new(switchCase.Syntax, switchCase.Tokens);
+    }
 
     [Rule]
-    public SwitchBlockItem SwitchSeparatorItem([NT] StatementSeparator separator) =>
-        new(null, separator.Tokens);
+    public SwitchBlockItem SwitchSeparatorItem([NT] StatementSeparator separator)
+    {
+        _checkpoint?.Invoke();
+        return new(null, separator.Tokens);
+    }
 
     [Rule]
     public SwitchCasePart CaseClause(
@@ -456,6 +525,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkT(AwkTokenKind.Colon)] Pos<string> colon,
         [AwkL(Min = 0)] StatementListItem[] body)
     {
+        _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.Case, keyword);
         var colonToken = ToToken(AwkTokenKind.Colon, colon);
         var labelTokens = Flatten(label.Select(part => part.Tokens));
@@ -480,6 +550,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkT(AwkTokenKind.Colon)] Pos<string> colon,
         [AwkL(Min = 0)] StatementListItem[] body)
     {
+        _checkpoint?.Invoke();
         var keywordToken = ToToken(AwkTokenKind.Default, keyword);
         var colonToken = ToToken(AwkTokenKind.Colon, colon);
         var bodyTokens = Flatten(body.Select(item => item.Tokens));
@@ -494,82 +565,122 @@ internal sealed class AwkStatementSyntaxParser
     }
 
     [Rule]
-    public CaseLabelPart CaseLabelParenthesized([NT] ParenthesizedGroup group) =>
-        new(group.FullTokens);
+    public CaseLabelPart CaseLabelParenthesized([NT] ParenthesizedGroup group)
+    {
+        _checkpoint?.Invoke();
+        return new(group.FullTokens);
+    }
 
     [Rule]
-    public CaseLabelPart CaseLabelBracketed([NT] BracketedGroup group) =>
-        new(group.FullTokens);
+    public CaseLabelPart CaseLabelBracketed([NT] BracketedGroup group)
+    {
+        _checkpoint?.Invoke();
+        return new(group.FullTokens);
+    }
 
     [Rule]
-    public CaseLabelPart CaseLabelLeaf([AwkStatementCaseLabelLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
+    public CaseLabelPart CaseLabelLeaf([AwkStatementCaseLabelLeaf] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, checkpoint: _checkpoint)]);
+    }
 
     [Rule]
     public AwkStatementSyntax PrintStatement(
         [AwkT(AwkTokenKind.Print)] Pos<string> keyword,
-        [AwkL(Min = 0)] SimpleTail[] tails) =>
-        CreateSimpleStatement(AwkStatementKind.Print, ToToken(AwkTokenKind.Print, keyword), tails);
+        [AwkL(Min = 0)] SimpleTail[] tails)
+    {
+        _checkpoint?.Invoke();
+        return CreateSimpleStatement(AwkStatementKind.Print, ToToken(AwkTokenKind.Print, keyword), tails);
+    }
 
     [Rule]
     public AwkStatementSyntax PrintfStatement(
         [AwkT(AwkTokenKind.Printf)] Pos<string> keyword,
-        [AwkL(Min = 0)] SimpleTail[] tails) =>
-        CreateSimpleStatement(AwkStatementKind.Printf, ToToken(AwkTokenKind.Printf, keyword), tails);
+        [AwkL(Min = 0)] SimpleTail[] tails)
+    {
+        _checkpoint?.Invoke();
+        return CreateSimpleStatement(AwkStatementKind.Printf, ToToken(AwkTokenKind.Printf, keyword), tails);
+    }
 
     [Rule]
     public AwkStatementSyntax DeleteStatement(
         [AwkT(AwkTokenKind.Delete)] Pos<string> keyword,
-        [AwkL(Min = 0)] SimpleTail[] tails) =>
-        CreateSimpleStatement(AwkStatementKind.Delete, ToToken(AwkTokenKind.Delete, keyword), tails);
+        [AwkL(Min = 0)] SimpleTail[] tails)
+    {
+        _checkpoint?.Invoke();
+        return CreateSimpleStatement(AwkStatementKind.Delete, ToToken(AwkTokenKind.Delete, keyword), tails);
+    }
 
     [Rule]
     public AwkStatementSyntax GetlineStatement(
         [AwkT(AwkTokenKind.Getline)] Pos<string> keyword,
-        [AwkL(Min = 0)] SimpleTail[] tails) =>
-        CreateSimpleStatement(AwkStatementKind.Getline, ToToken(AwkTokenKind.Getline, keyword), tails);
+        [AwkL(Min = 0)] SimpleTail[] tails)
+    {
+        _checkpoint?.Invoke();
+        return CreateSimpleStatement(AwkStatementKind.Getline, ToToken(AwkTokenKind.Getline, keyword), tails);
+    }
 
     [Rule]
     public AwkStatementSyntax BreakStatement(
         [AwkT(AwkTokenKind.Break)] Pos<string> keyword,
-        [AwkL(Min = 0)] SimpleTail[] tails) =>
-        CreateSimpleStatement(AwkStatementKind.Break, ToToken(AwkTokenKind.Break, keyword), tails);
+        [AwkL(Min = 0)] SimpleTail[] tails)
+    {
+        _checkpoint?.Invoke();
+        return CreateSimpleStatement(AwkStatementKind.Break, ToToken(AwkTokenKind.Break, keyword), tails);
+    }
 
     [Rule]
     public AwkStatementSyntax ContinueStatement(
         [AwkT(AwkTokenKind.Continue)] Pos<string> keyword,
-        [AwkL(Min = 0)] SimpleTail[] tails) =>
-        CreateSimpleStatement(AwkStatementKind.Continue, ToToken(AwkTokenKind.Continue, keyword), tails);
+        [AwkL(Min = 0)] SimpleTail[] tails)
+    {
+        _checkpoint?.Invoke();
+        return CreateSimpleStatement(AwkStatementKind.Continue, ToToken(AwkTokenKind.Continue, keyword), tails);
+    }
 
     [Rule]
     public AwkStatementSyntax NextStatement(
         [AwkT(AwkTokenKind.Next)] Pos<string> keyword,
-        [AwkL(Min = 0)] SimpleTail[] tails) =>
-        CreateSimpleStatement(AwkStatementKind.Next, ToToken(AwkTokenKind.Next, keyword), tails);
+        [AwkL(Min = 0)] SimpleTail[] tails)
+    {
+        _checkpoint?.Invoke();
+        return CreateSimpleStatement(AwkStatementKind.Next, ToToken(AwkTokenKind.Next, keyword), tails);
+    }
 
     [Rule]
     public AwkStatementSyntax NextFileStatement(
         [AwkT(AwkTokenKind.NextFile)] Pos<string> keyword,
-        [AwkL(Min = 0)] SimpleTail[] tails) =>
-        CreateSimpleStatement(AwkStatementKind.NextFile, ToToken(AwkTokenKind.NextFile, keyword), tails);
+        [AwkL(Min = 0)] SimpleTail[] tails)
+    {
+        _checkpoint?.Invoke();
+        return CreateSimpleStatement(AwkStatementKind.NextFile, ToToken(AwkTokenKind.NextFile, keyword), tails);
+    }
 
     [Rule]
     public AwkStatementSyntax ExitStatement(
         [AwkT(AwkTokenKind.Exit)] Pos<string> keyword,
-        [AwkL(Min = 0)] SimpleTail[] tails) =>
-        CreateSimpleStatement(AwkStatementKind.Exit, ToToken(AwkTokenKind.Exit, keyword), tails);
+        [AwkL(Min = 0)] SimpleTail[] tails)
+    {
+        _checkpoint?.Invoke();
+        return CreateSimpleStatement(AwkStatementKind.Exit, ToToken(AwkTokenKind.Exit, keyword), tails);
+    }
 
     [Rule]
     public AwkStatementSyntax ReturnStatement(
         [AwkT(AwkTokenKind.Return)] Pos<string> keyword,
-        [AwkL(Min = 0)] SimpleTail[] tails) =>
-        CreateSimpleStatement(AwkStatementKind.Return, ToToken(AwkTokenKind.Return, keyword), tails);
+        [AwkL(Min = 0)] SimpleTail[] tails)
+    {
+        _checkpoint?.Invoke();
+        return CreateSimpleStatement(AwkStatementKind.Return, ToToken(AwkTokenKind.Return, keyword), tails);
+    }
 
     [Rule]
     public AwkStatementSyntax IdentifierStartedStatement(
         [AwkT(AwkTokenKind.Identifier)] Pos<string> identifier,
         [AwkL(Min = 0)] SimpleTail[] tails)
     {
+        _checkpoint?.Invoke();
         var identifierToken = ToToken(AwkTokenKind.Identifier, identifier);
         var kind = AwkStatementSyntaxFacts.TryResolveIdentifier(identifierToken.Text, out var resolvedKind)
             ? resolvedKind
@@ -580,28 +691,46 @@ internal sealed class AwkStatementSyntaxParser
     [Rule]
     public AwkStatementSyntax ExpressionStartedStatement(
         [NT] ExpressionStart first,
-        [AwkL(Min = 0)] SimpleTail[] tails) =>
-        CreateSimpleStatement(AwkStatementKind.Expression, first.Tokens, tails);
+        [AwkL(Min = 0)] SimpleTail[] tails)
+    {
+        _checkpoint?.Invoke();
+        return CreateSimpleStatement(AwkStatementKind.Expression, first.Tokens, tails);
+    }
 
     [Rule]
-    public ExpressionStart ExpressionStartParenthesized([NT] ParenthesizedGroup group) =>
-        new(group.FullTokens);
+    public ExpressionStart ExpressionStartParenthesized([NT] ParenthesizedGroup group)
+    {
+        _checkpoint?.Invoke();
+        return new(group.FullTokens);
+    }
 
     [Rule]
-    public ExpressionStart ExpressionStartBracketed([NT] BracketedGroup group) =>
-        new(group.FullTokens);
+    public ExpressionStart ExpressionStartBracketed([NT] BracketedGroup group)
+    {
+        _checkpoint?.Invoke();
+        return new(group.FullTokens);
+    }
 
     [Rule]
-    public ExpressionStart ExpressionStartLeaf([AwkStatementExpressionStartLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
+    public ExpressionStart ExpressionStartLeaf([AwkStatementExpressionStartLeaf] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, checkpoint: _checkpoint)]);
+    }
 
     [Rule]
-    public SimpleTail SimpleTailElement([NT] SimpleElement element) =>
-        new(element.Tokens);
+    public SimpleTail SimpleTailElement([NT] SimpleElement element)
+    {
+        _checkpoint?.Invoke();
+        return new(element.Tokens);
+    }
 
     [Rule]
-    public SimpleTail SimpleTailComment([AwkT(AwkTokenKind.Comment)] Pos<string> comment) =>
-        new([ToToken(AwkTokenKind.Comment, comment)]);
+    public SimpleTail SimpleTailComment([AwkT(AwkTokenKind.Comment)] Pos<string> comment)
+    {
+        _checkpoint?.Invoke();
+        return new([ToToken(AwkTokenKind.Comment, comment)]);
+    }
 
     [Rule]
     public SimpleTail SimpleContinuation(
@@ -638,25 +767,38 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 1)] ContinuationSeparator[] separators,
         [NT] SimpleElement element)
     {
-        return new([AwkParsingSupport.RestoreToken(_originalTokens, continuation), .. FlattenSeparators(separators), .. element.Tokens]);
-        static IReadOnlyList<AwkToken> FlattenSeparators(IEnumerable<ContinuationSeparator> separators) =>
+        _checkpoint?.Invoke();
+        return new([AwkParsingSupport.RestoreToken(_originalTokens, continuation, checkpoint: _checkpoint), .. FlattenSeparators(separators), .. element.Tokens]);
+        IReadOnlyList<AwkToken> FlattenSeparators(IEnumerable<ContinuationSeparator> separators) =>
             Flatten(separators.Select(separator => separator.Tokens));
     }
     [Rule]
-    public SimpleElement SimpleParenthesized([NT] ParenthesizedGroup group) =>
-        new(group.FullTokens);
+    public SimpleElement SimpleParenthesized([NT] ParenthesizedGroup group)
+    {
+        _checkpoint?.Invoke();
+        return new(group.FullTokens);
+    }
 
     [Rule]
-    public SimpleElement SimpleBracketed([NT] BracketedGroup group) =>
-        new(group.FullTokens);
+    public SimpleElement SimpleBracketed([NT] BracketedGroup group)
+    {
+        _checkpoint?.Invoke();
+        return new(group.FullTokens);
+    }
 
     [Rule]
-    public SimpleElement SimpleLeaf([AwkStatementSimpleLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
+    public SimpleElement SimpleLeaf([AwkStatementSimpleLeaf] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, checkpoint: _checkpoint)]);
+    }
 
     [Rule]
-    public MalformedControlPart MalformedControlLeaf([AwkStatementMalformedControlLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
+    public MalformedControlPart MalformedControlLeaf([AwkStatementMalformedControlLeaf] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, checkpoint: _checkpoint)]);
+    }
 
     [Rule]
     public ParenthesizedGroup ParenthesizedGroupRule(
@@ -664,6 +806,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 0)] GroupPart[] parts,
         [AwkT(AwkTokenKind.RightParen)] Pos<string> close)
     {
+        _checkpoint?.Invoke();
         var openToken = ToToken(AwkTokenKind.LeftParen, open);
         var closeToken = ToToken(AwkTokenKind.RightParen, close);
         var inner = Flatten(parts.Select(part => part.Tokens));
@@ -676,6 +819,7 @@ internal sealed class AwkStatementSyntaxParser
         [AwkL(Min = 0)] GroupPart[] parts,
         [AwkT(AwkTokenKind.RightBracket)] Pos<string> close)
     {
+        _checkpoint?.Invoke();
         var openToken = ToToken(AwkTokenKind.LeftBracket, open);
         var closeToken = ToToken(AwkTokenKind.RightBracket, close);
         var inner = Flatten(parts.Select(part => part.Tokens));
@@ -683,16 +827,25 @@ internal sealed class AwkStatementSyntaxParser
     }
 
     [Rule]
-    public GroupPart NestedParenthesizedGroup([NT] ParenthesizedGroup group) =>
-        new(group.FullTokens);
+    public GroupPart NestedParenthesizedGroup([NT] ParenthesizedGroup group)
+    {
+        _checkpoint?.Invoke();
+        return new(group.FullTokens);
+    }
 
     [Rule]
-    public GroupPart NestedBracketedGroup([NT] BracketedGroup group) =>
-        new(group.FullTokens);
+    public GroupPart NestedBracketedGroup([NT] BracketedGroup group)
+    {
+        _checkpoint?.Invoke();
+        return new(group.FullTokens);
+    }
 
     [Rule]
-    public GroupPart GroupLeaf([AwkStatementGroupLeaf] Pos<string> token) =>
-        new([AwkParsingSupport.RestoreToken(_originalTokens, token)]);
+    public GroupPart GroupLeaf([AwkStatementGroupLeaf] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return new([AwkParsingSupport.RestoreToken(_originalTokens, token, checkpoint: _checkpoint)]);
+    }
 
     private AwkStatementSyntax CreateSimpleStatement(
         AwkStatementKind kind,
@@ -740,24 +893,24 @@ internal sealed class AwkStatementSyntaxParser
                     : [];
 
             if (kind == AwkStatementKind.Delete)
-                return ExpressionListFromParsed(ParseExpressionList(AwkTokenNavigation.Slice(tokens, 1, tokens.Count - 1)));
+                return ExpressionListFromParsed(ParseExpressionList(AwkTokenNavigation.Slice(tokens, 1, tokens.Count - 1, checkpoint: _checkpoint)));
 
             if (AwkStatementSyntaxFacts.HasWholeStatementExpression(kind))
                 return ExpressionListFromParsed(ParseExpression(tokens));
 
             if (AwkStatementKindFacts.IsOptionalValue(kind))
-                return ExpressionListFromParsed(ParseExpression(AwkTokenNavigation.Slice(tokens, 1, tokens.Count - 1)));
+                return ExpressionListFromParsed(ParseExpression(AwkTokenNavigation.Slice(tokens, 1, tokens.Count - 1, checkpoint: _checkpoint)));
 
             return [];
 
-            static IReadOnlyList<AwkExpressionSyntax> ExpressionListFromParsed(AwkExpressionSyntax? expression) =>
+            IReadOnlyList<AwkExpressionSyntax> ExpressionListFromParsed(AwkExpressionSyntax? expression) =>
                 expression == null ? [] : [expression];
 
-            static IReadOnlyList<AwkExpressionSyntax> ExpressionListFromSlot(AwkExpressionSlotSyntax slot) =>
+            IReadOnlyList<AwkExpressionSyntax> ExpressionListFromSlot(AwkExpressionSlotSyntax slot) =>
                 slot.Expression.TryGetValue(out var expression) ? [expression] : [];
         }
 
-        static IReadOnlyList<AwkDiagnostic> ResolveStatementDiagnostics(
+        IReadOnlyList<AwkDiagnostic> ResolveStatementDiagnostics(
             AwkStatementKind kind,
             IReadOnlyList<AwkToken> tokens,
             IReadOnlyList<AwkExpressionSyntax> expressions,
@@ -768,7 +921,7 @@ internal sealed class AwkStatementSyntaxParser
                 ? [new AwkDiagnostic(diagnostic.Value.Token.Span, diagnostic.Value.Message)]
                 : [];
 
-            static BoundaryDiagnostic? ResolveStatementDiagnostic(
+            BoundaryDiagnostic? ResolveStatementDiagnostic(
                 AwkStatementKind kind,
                 IReadOnlyList<AwkToken> tokens,
                 IReadOnlyList<AwkExpressionSyntax> expressions,
@@ -776,7 +929,7 @@ internal sealed class AwkStatementSyntaxParser
             {
                 if (AwkStatementValidationFacts.IsArgumentless(kind))
                 {
-                    var trailing = AwkTokenNavigation.FindNextSignificant(tokens, 1);
+                    var trailing = AwkTokenNavigation.FindNextSignificant(tokens, 1, checkpoint: _checkpoint);
                     return trailing == null
                         ? null
                         : new BoundaryDiagnostic(trailing.Value, AwkStatementValidationFacts.ArgumentlessDiagnostic(kind));
@@ -804,12 +957,12 @@ internal sealed class AwkStatementSyntaxParser
 
                 return null;
 
-                static AwkSyntaxOptional<AwkExpressionSyntax> FirstExpression(IReadOnlyList<AwkExpressionSyntax> expressions) =>
+                AwkSyntaxOptional<AwkExpressionSyntax> FirstExpression(IReadOnlyList<AwkExpressionSyntax> expressions) =>
                     expressions.Count == 0
                         ? AwkSyntaxOptional<AwkExpressionSyntax>.None
                         : AwkSyntaxOptional<AwkExpressionSyntax>.Some(expressions[0]);
 
-                static AwkToken? FindUnexpectedSimpleTargetTrailingToken(AwkExpressionSyntax expression)
+                AwkToken? FindUnexpectedSimpleTargetTrailingToken(AwkExpressionSyntax expression)
                 {
                     if (IsSimpleTargetExpression(expression))
                         return null;
@@ -834,14 +987,14 @@ internal sealed class AwkStatementSyntaxParser
 
                     return null;
 
-                    static bool IsSimpleTargetExpression(AwkExpressionSyntax expression) =>
+                    bool IsSimpleTargetExpression(AwkExpressionSyntax expression) =>
                         expression.Kind is AwkExpressionKind.Variable or
                             AwkExpressionKind.ArrayElement or
                             AwkExpressionKind.Field or
                             AwkExpressionKind.Group;
                 }
 
-                static AwkToken? FindUnexpectedCallTrailingToken(AwkExpressionSyntax expression, string name)
+                AwkToken? FindUnexpectedCallTrailingToken(AwkExpressionSyntax expression, string name)
                 {
                     if (IsCallExpression(expression, name))
                         return null;
@@ -855,7 +1008,7 @@ internal sealed class AwkStatementSyntaxParser
 
                     return null;
 
-                    static bool IsCallExpression(AwkExpressionSyntax expression, string name) =>
+                    bool IsCallExpression(AwkExpressionSyntax expression, string name) =>
                         AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var target) &&
                         string.Equals(target.Name, name, StringComparison.Ordinal);
                 }
@@ -869,11 +1022,11 @@ internal sealed class AwkStatementSyntaxParser
             if (kind is not (AwkStatementKind.Print or AwkStatementKind.Printf))
                 return default;
 
-            var payloadTokens = AwkTokenNavigation.Slice(tokens, startIndex: 1, count: tokens.Count - 1);
+            var payloadTokens = AwkTokenNavigation.Slice(tokens, startIndex: 1, count: tokens.Count - 1, checkpoint: _checkpoint);
             var redirectionIndex = FindTopLevelOutputRedirection(payloadTokens, out var redirectionKind);
             var expressionTokens = redirectionIndex < 0
                 ? payloadTokens
-                : AwkTokenNavigation.Slice(payloadTokens, startIndex: 0, count: redirectionIndex);
+                : AwkTokenNavigation.Slice(payloadTokens, startIndex: 0, count: redirectionIndex, checkpoint: _checkpoint);
             var payload = new AwkExpressionSlotSyntax(
                 expressionTokens,
                 AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpressionList(expressionTokens)));
@@ -885,7 +1038,7 @@ internal sealed class AwkStatementSyntaxParser
             var targetTokens = AwkTokenNavigation.Slice(
                 payloadTokens,
                 redirectionIndex + 1,
-                payloadTokens.Count - redirectionIndex - 1);
+                payloadTokens.Count - redirectionIndex - 1, checkpoint: _checkpoint);
             var redirection = new AwkOutputRedirectionSyntax(
                 redirectionKind,
                 payloadTokens[redirectionIndex],
@@ -894,7 +1047,7 @@ internal sealed class AwkStatementSyntaxParser
                     AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(targetTokens))));
             return new OutputStatementParts(payload, redirection);
 
-            static int FindTopLevelOutputRedirection(
+            int FindTopLevelOutputRedirection(
                 IReadOnlyList<AwkToken> tokens,
                 out AwkOutputRedirectionKind kind)
             {
@@ -903,6 +1056,7 @@ internal sealed class AwkStatementSyntaxParser
                 var braceDepth = 0;
                 for (var index = 0; index < tokens.Count; index++)
                 {
+                    _checkpoint?.Invoke();
                     if (parenDepth == 0 &&
                         bracketDepth == 0 &&
                         braceDepth == 0 &&
@@ -917,7 +1071,7 @@ internal sealed class AwkStatementSyntaxParser
                 kind = AwkOutputRedirectionKind.Write;
                 return -1;
 
-                static bool TryResolveOutputRedirectionKind(
+                bool TryResolveOutputRedirectionKind(
                     AwkTokenKind tokenKind,
                     out AwkOutputRedirectionKind kind)
                 {
@@ -941,18 +1095,18 @@ internal sealed class AwkStatementSyntaxParser
             if (kind != AwkStatementKind.Getline)
                 return AwkSyntaxOptional<AwkGetlineSyntax>.None;
 
-            var payloadTokens = AwkTokenNavigation.Slice(tokens, startIndex: 1, count: tokens.Count - 1);
+            var payloadTokens = AwkTokenNavigation.Slice(tokens, startIndex: 1, count: tokens.Count - 1, checkpoint: _checkpoint);
             var redirectionIndex = AwkTokenNavigation.FindTopLevel(
                 payloadTokens,
                 AwkTokenKind.Less,
                 0,
-                payloadTokens.Count);
+                payloadTokens.Count, checkpoint: _checkpoint);
             var targetTokens = redirectionIndex < 0
                 ? payloadTokens
-                : AwkTokenNavigation.Slice(payloadTokens, startIndex: 0, count: redirectionIndex);
+                : AwkTokenNavigation.Slice(payloadTokens, startIndex: 0, count: redirectionIndex, checkpoint: _checkpoint);
             var sourceTokens = redirectionIndex < 0
                 ? []
-                : AwkTokenNavigation.Slice(payloadTokens, redirectionIndex + 1, payloadTokens.Count - redirectionIndex - 1);
+                : AwkTokenNavigation.Slice(payloadTokens, redirectionIndex + 1, payloadTokens.Count - redirectionIndex - 1, checkpoint: _checkpoint);
 
             return new AwkGetlineSyntax(
                 new AwkExpressionSlotSyntax(
@@ -968,13 +1122,15 @@ internal sealed class AwkStatementSyntaxParser
             IReadOnlyList<AwkToken> tokens,
             AwkStatementKind kind)
         {
-            static int FindFirstTopLevelPipe(IReadOnlyList<AwkToken> source)
+            int FindFirstTopLevelPipe(IReadOnlyList<AwkToken> source)
             {
+                source = AwkTokenNavigation.ForIndexedAccess(source, _checkpoint);
                 var parenDepth = 0;
                 var bracketDepth = 0;
                 var braceDepth = 0;
                 for (var index = 0; index < source.Count; index++)
                 {
+                    _checkpoint?.Invoke();
                     var tokenKind = source[index].Kind;
                     if (tokenKind is (AwkTokenKind.Pipe or AwkTokenKind.PipeAmpersand) &&
                         parenDepth == 0 &&
@@ -1013,7 +1169,7 @@ internal sealed class AwkStatementSyntaxParser
                 return AwkSyntaxOptional<AwkInputPipeGetlineSyntax>.None;
             }
 
-            var rightIndex = AwkTokenNavigation.SkipNonSignificant(tokens, pipeIndex + 1, tokens.Count);
+            var rightIndex = AwkTokenNavigation.SkipNonSignificant(tokens, pipeIndex + 1, tokens.Count, checkpoint: _checkpoint);
             if (rightIndex >= tokens.Count ||
                 tokens[rightIndex].Kind is not (AwkTokenKind.Identifier or AwkTokenKind.Getline) ||
                 !AwkBuiltins.IsName(tokens[rightIndex].Text, AwkBuiltinId.Getline))
@@ -1021,11 +1177,11 @@ internal sealed class AwkStatementSyntaxParser
                 return AwkSyntaxOptional<AwkInputPipeGetlineSyntax>.None;
             }
 
-            var commandTokens = AwkTokenNavigation.Slice(tokens, 0, pipeIndex);
-            var targetStart = AwkTokenNavigation.SkipNonSignificant(tokens, rightIndex + 1, tokens.Count);
+            var commandTokens = AwkTokenNavigation.Slice(tokens, 0, pipeIndex, checkpoint: _checkpoint);
+            var targetStart = AwkTokenNavigation.SkipNonSignificant(tokens, rightIndex + 1, tokens.Count, checkpoint: _checkpoint);
             var targetTokens = targetStart >= tokens.Count
                 ? []
-                : AwkTokenNavigation.Slice(tokens, targetStart, tokens.Count - targetStart);
+                : AwkTokenNavigation.Slice(tokens, targetStart, tokens.Count - targetStart, checkpoint: _checkpoint);
 
             return new AwkInputPipeGetlineSyntax(
                 tokens[pipeIndex],
@@ -1037,11 +1193,12 @@ internal sealed class AwkStatementSyntaxParser
                     AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(targetTokens))));
         }
 
-        static List<AwkToken> CopyStatementTokens(IReadOnlyList<AwkToken> tokens)
+        List<AwkToken> CopyStatementTokens(IReadOnlyList<AwkToken> tokens)
         {
             var result = new List<AwkToken>(tokens.Count);
             for (var index = 0; index < tokens.Count; index++)
             {
+                _checkpoint?.Invoke();
                 var token = tokens[index];
                 if (token.Kind is not AwkTokenKind.NewLine)
                     result.Add(token);
@@ -1051,7 +1208,7 @@ internal sealed class AwkStatementSyntaxParser
         }
     }
 
-    private static AwkStatementSyntax CreateStatement(
+    private AwkStatementSyntax CreateStatement(
         AwkStatementKind kind,
         IReadOnlyList<AwkToken> tokens,
         IReadOnlyList<AwkExpressionSyntax> expressions,
@@ -1067,7 +1224,7 @@ internal sealed class AwkStatementSyntaxParser
             switchCases,
             AwkStatementSyntaxOptions.Empty);
 
-    private static AwkStatementSyntax CreateStatement(
+    private AwkStatementSyntax CreateStatement(
         AwkStatementKind kind,
         IReadOnlyList<AwkToken> tokens,
         IReadOnlyList<AwkExpressionSyntax> expressions,
@@ -1076,6 +1233,7 @@ internal sealed class AwkStatementSyntaxParser
         IReadOnlyList<AwkSwitchCaseSyntax> switchCases,
         AwkStatementSyntaxOptions options)
     {
+        _checkpoint?.Invoke();
         var first = FindFirstSignificant(tokens);
         var last = FindLastSignificant(tokens);
         var lValue = AwkSyntaxOptional<AwkLValueSyntax>.FromNullable(
@@ -1111,7 +1269,7 @@ internal sealed class AwkStatementSyntaxParser
             new AwkTextSpan(first.Value.Span.Start, last.Value.Span.End - first.Value.Span.Start),
             diagnostics: options.Diagnostics);
 
-        static AwkStatementSyntaxPayload CreatePayload(
+        AwkStatementSyntaxPayload CreatePayload(
             AwkStatementKind kind,
             AwkSyntaxOptional<AwkLValueSyntax> lValue,
             IReadOnlyList<AwkExpressionSyntax> expressions,
@@ -1179,7 +1337,7 @@ internal sealed class AwkStatementSyntaxParser
             return new AwkSimpleStatementSyntaxPayload(lValue, expressions);
         }
 
-        static AwkLValueSyntax? ResolveLValue(AwkExpressionSyntax? expression)
+        AwkLValueSyntax? ResolveLValue(AwkExpressionSyntax? expression)
         {
             if (expression == null)
                 return null;
@@ -1231,18 +1389,22 @@ internal sealed class AwkStatementSyntaxParser
         public IReadOnlyList<AwkDiagnostic> Diagnostics { get; init; } = [];
     }
 
-    private static AwkToken? FirstToken(AwkExpressionSyntax expression) =>
-        expression.Tokens.Count == 0 ? null : expression.Tokens[0];
+    private AwkToken? FirstToken(AwkExpressionSyntax expression)
+    {
+        var tokens = expression.GetTokens(_checkpoint);
+        return tokens.Count == 0 ? null : tokens[0];
+    }
 
     private AwkExpressionSlotSyntax ParseExpressionSlot(IReadOnlyList<AwkToken> tokens) =>
         new(tokens, AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(tokens)));
 
-    private static List<AwkExpressionSyntax> ExpressionsFromSlots(
+    private List<AwkExpressionSyntax> ExpressionsFromSlots(
         IReadOnlyList<AwkExpressionSlotSyntax> slots)
     {
         var expressions = new List<AwkExpressionSyntax>();
         for (var index = 0; index < slots.Count; index++)
         {
+            _checkpoint?.Invoke();
             if (slots[index].Expression.TryGetValue(out var expression))
                 expressions.Add(expression);
         }
@@ -1250,16 +1412,17 @@ internal sealed class AwkStatementSyntaxParser
         return expressions;
     }
 
-    private static bool IsUnbracedBody(StatementBody body) =>
+    private bool IsUnbracedBody(StatementBody body) =>
         body.Statements.Count == 1 &&
         FindFirstSignificant(body.Tokens)?.Kind != AwkTokenKind.LeftBrace;
 
-    private static List<AwkStatementSyntax> StatementsFrom(StatementListItem[] items)
+    private List<AwkStatementSyntax> StatementsFrom(StatementListItem[] items)
     {
         var statements = new List<AwkStatementSyntax>();
         var pendingSeparators = new List<AwkToken>();
         for (var index = 0; index < items.Length; index++)
         {
+            _checkpoint?.Invoke();
             var item = items[index];
             if (item.Statement != null)
             {
@@ -1289,13 +1452,14 @@ internal sealed class AwkStatementSyntaxParser
                 continue;
             }
 
-            pendingSeparators.AddRange(item.Tokens);
+            foreach (var token in AwkTokenNavigation.Enumerate(item.Tokens, _checkpoint))
+                pendingSeparators.Add(token);
         }
 
         return statements;
     }
 
-    private static bool TryAttachElse(
+    private bool TryAttachElse(
         AwkStatementSyntax statement,
         IReadOnlyList<AwkToken> separatorTokens,
         ElseContinuation continuation,
@@ -1343,6 +1507,7 @@ internal sealed class AwkStatementSyntaxParser
         }
 
         var tokens = Flatten([statement.Tokens, separatorTokens, continuation.Tokens]);
+        _checkpoint?.Invoke();
         var first = FindFirstSignificant(tokens);
         var last = FindLastSignificant(tokens);
         attached = statement.WithPayload(tokens, payload,
@@ -1352,14 +1517,20 @@ internal sealed class AwkStatementSyntaxParser
         return true;
     }
 
-    private static bool CanAttachElse(AwkStatementSyntax statement, IReadOnlyList<AwkToken> separators)
+    private bool CanAttachElse(AwkStatementSyntax statement, IReadOnlyList<AwkToken> separators)
     {
-        var last = statement.Tokens.Count - 1;
-        while (last >= 0 && statement.Tokens[last].Kind is AwkTokenKind.NewLine or AwkTokenKind.Comment)
+        var statementTokens = AwkTokenNavigation.ForIndexedAccess(statement.Tokens, _checkpoint);
+        separators = AwkTokenNavigation.ForIndexedAccess(separators, _checkpoint);
+        var last = statementTokens.Count - 1;
+        while (last >= 0 && statementTokens[last].Kind is AwkTokenKind.NewLine or AwkTokenKind.Comment)
+        {
+            _checkpoint?.Invoke();
             last--;
-        var terminated = last >= 0 && statement.Tokens[last].Kind is AwkTokenKind.RightBrace or AwkTokenKind.Semicolon;
+        }
+        var terminated = last >= 0 && statementTokens[last].Kind is AwkTokenKind.RightBrace or AwkTokenKind.Semicolon;
         for (var index = 0; index < separators.Count; index++)
         {
+            _checkpoint?.Invoke();
             var kind = separators[index].Kind;
             if (kind == AwkTokenKind.Semicolon)
             {
@@ -1375,22 +1546,29 @@ internal sealed class AwkStatementSyntaxParser
         return terminated;
     }
 
-    private static void AddStatementDiagnostics(
+    private void AddStatementDiagnostics(
         IReadOnlyList<AwkStatementSyntax> statements,
         List<AwkDiagnostic> diagnostics)
     {
         for (var index = 0; index < statements.Count; index++)
+        {
+            _checkpoint?.Invoke();
             AddNestedStatementDiagnostics(statements[index], diagnostics);
+        }
 
-        static void AddNestedStatementDiagnostics(
+        void AddNestedStatementDiagnostics(
             AwkStatementSyntax statement,
             List<AwkDiagnostic> diagnostics)
         {
             for (var index = 0; index < statement.Diagnostics.Count; index++)
+            {
+                _checkpoint?.Invoke();
                 diagnostics.Add(statement.Diagnostics[index]);
+            }
 
             foreach (var expression in statement.EnumerateChildExpressions())
             {
+                _checkpoint?.Invoke();
                 if (expression.Kind == AwkExpressionKind.Unknown)
                     diagnostics.Add(AwkExpressionSyntaxParser.CreateSyntaxDiagnostic(expression));
             }
@@ -1398,37 +1576,40 @@ internal sealed class AwkStatementSyntaxParser
             AddStatementDiagnostics(statement.BodyStatements, diagnostics);
             AddStatementDiagnostics(statement.ElseStatements, diagnostics);
             for (var index = 0; index < statement.SwitchCases.Count; index++)
+            {
+                _checkpoint?.Invoke();
                 AddStatementDiagnostics(statement.SwitchCases[index].BodyStatements, diagnostics);
+            }
         }
     }
 
-    private static AwkToken? FindFirstSignificant(IReadOnlyList<AwkToken> tokens) =>
-        AwkTokenNavigation.FindFirstSignificant(tokens);
+    private AwkToken? FindFirstSignificant(IReadOnlyList<AwkToken> tokens) =>
+        AwkTokenNavigation.FindFirstSignificant(tokens, checkpoint: _checkpoint);
 
-    private static AwkToken? FindLastSignificant(IReadOnlyList<AwkToken> tokens) =>
-        AwkTokenNavigation.FindLastSignificant(tokens);
+    private AwkToken? FindLastSignificant(IReadOnlyList<AwkToken> tokens) =>
+        AwkTokenNavigation.FindLastSignificant(tokens, checkpoint: _checkpoint);
 
-    private static IReadOnlyList<AwkToken> Flatten(IEnumerable<IReadOnlyList<AwkToken>> groups) =>
-        AwkTokenNavigation.Flatten(groups);
+    private IReadOnlyList<AwkToken> Flatten(IEnumerable<IReadOnlyList<AwkToken>> groups) =>
+        AwkTokenNavigation.Flatten(groups, checkpoint: _checkpoint);
 
-    private static IReadOnlyList<AwkToken> Flatten(IEnumerable<HeaderGap> gaps) =>
+    private IReadOnlyList<AwkToken> Flatten(IEnumerable<HeaderGap> gaps) =>
         Flatten(gaps.Select(gap => gap.Tokens));
 
-    private static IReadOnlyList<AwkToken> Flatten(IEnumerable<StatementSeparator> separators) =>
+    private IReadOnlyList<AwkToken> Flatten(IEnumerable<StatementSeparator> separators) =>
         Flatten(separators.Select(separator => separator.Tokens));
 
     private AwkExpressionSyntax? ParseExpression(IReadOnlyList<AwkToken> tokens) =>
         _source == null
-            ? AwkExpressionSyntaxParser.Parse(tokens)
-            : AwkExpressionSyntaxParser.Parse(_source, tokens);
+            ? AwkExpressionSyntaxParser.Parse(tokens, _checkpoint)
+            : AwkExpressionSyntaxParser.Parse(_source, tokens, _checkpoint);
 
     private AwkExpressionSyntax? ParseExpressionList(IReadOnlyList<AwkToken> tokens) =>
         _source == null
-            ? AwkExpressionSyntaxParser.ParseList(tokens)
-            : AwkExpressionSyntaxParser.ParseList(_source, tokens);
+            ? AwkExpressionSyntaxParser.ParseList(tokens, _checkpoint)
+            : AwkExpressionSyntaxParser.ParseList(_source, tokens, _checkpoint);
 
-    private static AwkToken ToToken(AwkTokenKind kind, Pos<string> token) =>
-        AwkParsingSupport.ToToken(kind, token);
+    private AwkToken ToToken(AwkTokenKind kind, Pos<string> token) =>
+        AwkParsingSupport.ToToken(kind, token, checkpoint: _checkpoint);
 
     internal sealed class ParseResult(IReadOnlyList<AwkStatementSyntax> statements)
     {

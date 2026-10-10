@@ -6,8 +6,9 @@ namespace Lokad.Awk;
 internal static partial class AwkSourceLoader
 {
 
-    private static void AddSegment(List<AwkSourceSegment> segments, AwkSourceSegment segment)
+    private static void AddSegment(List<AwkSourceSegment> segments, AwkSourceSegment segment, Action? checkpoint)
     {
+        checkpoint?.Invoke();
         if (segment.Span.Length == 0)
             return;
 
@@ -24,7 +25,7 @@ internal static partial class AwkSourceLoader
                     new AwkTextSpan(previous.Span.Start, previous.Span.Length + segment.Span.Length),
                     previous.SourceLineOffset,
                     previous.SourceColumnOffset,
-                    previous.LineContinuations.Append(segment.LineContinuations, previous.Span.Length));
+                    previous.LineContinuations.Append(segment.LineContinuations, previous.Span.Length, checkpoint));
                 return;
             }
         }

@@ -7,11 +7,14 @@ internal static class AwkSyntaxNesting
     public static bool TryFindExcessiveDelimiterDepth(
         IReadOnlyList<AwkToken> tokens,
         int maxDepth,
-        out AwkTextSpan span)
+        out AwkTextSpan span,
+        Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         var depth = 0;
         for (var index = 0; index < tokens.Count; index++)
         {
+            checkpoint?.Invoke();
             var token = tokens[index];
             if (token.Kind is AwkTokenKind.LeftBrace or AwkTokenKind.LeftBracket or AwkTokenKind.LeftParen)
             {
@@ -36,13 +39,16 @@ internal static class AwkSyntaxNesting
     public static bool TryFindExcessiveTreeDepth(
         AwkSyntaxProgram program,
         int maxDepth,
-        out AwkTextSpan span)
+        out AwkTextSpan span,
+        Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         var expressions = new Stack<ExpressionFrame>();
         var statements = new Stack<StatementFrame>();
 
         for (var ruleIndex = 0; ruleIndex < program.Rules.Count; ruleIndex++)
         {
+            checkpoint?.Invoke();
             var rule = program.Rules[ruleIndex];
             foreach (var expression in rule.PatternSyntax.EnumerateChildExpressions())
                 expressions.Push(new ExpressionFrame(expression, 1));
@@ -51,10 +57,14 @@ internal static class AwkSyntaxNesting
         }
 
         for (var functionIndex = 0; functionIndex < program.Functions.Count; functionIndex++)
+        {
+            checkpoint?.Invoke();
             PushStatements(program.Functions[functionIndex].BodyStatements, 1);
+        }
 
         while (statements.Count > 0)
         {
+            checkpoint?.Invoke();
             var frame = statements.Pop();
             if (frame.Depth > maxDepth)
             {
@@ -69,6 +79,7 @@ internal static class AwkSyntaxNesting
             PushStatements(frame.Statement.ElseStatements, frame.Depth + 1);
             for (var caseIndex = 0; caseIndex < frame.Statement.SwitchCases.Count; caseIndex++)
             {
+                checkpoint?.Invoke();
                 var switchCase = frame.Statement.SwitchCases[caseIndex];
                 if (switchCase.Expression.TryGetValue(out var caseExpression))
                     expressions.Push(new ExpressionFrame(caseExpression, frame.Depth + 1));
@@ -79,6 +90,7 @@ internal static class AwkSyntaxNesting
 
         while (expressions.Count > 0)
         {
+            checkpoint?.Invoke();
             var frame = expressions.Pop();
             if (frame.Depth > maxDepth)
             {
@@ -88,6 +100,7 @@ internal static class AwkSyntaxNesting
 
             for (var childIndex = 0; childIndex < frame.Expression.Children.Count; childIndex++)
             {
+                checkpoint?.Invoke();
                 expressions.Push(new ExpressionFrame(
                     frame.Expression.Children[childIndex],
                     frame.Depth + 1));
@@ -100,7 +113,10 @@ internal static class AwkSyntaxNesting
         void PushStatements(IReadOnlyList<AwkStatementSyntax> source, int depth)
         {
             for (var index = 0; index < source.Count; index++)
+            {
+                checkpoint?.Invoke();
                 statements.Push(new StatementFrame(source[index], depth));
+            }
         }
     }
 

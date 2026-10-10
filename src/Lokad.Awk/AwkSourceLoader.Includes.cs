@@ -18,11 +18,14 @@ internal static partial class AwkSourceLoader
         AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
+        Action checkpoint = cancellationToken.ThrowIfCancellationRequested;
+        checkpoint();
         var normalization = AwkLineContinuations.Normalize(source, resources.Limits.MaxFrontendTokens, cancellationToken);
         var normalizedSource = normalization.Text;
         if (plan.CompatibilityMode != AwkCompatibilityMode.GnuDefault ||
             normalizedSource.IndexOf('@', StringComparison.Ordinal) < 0)
         {
+            checkpoint();
             if (normalizedSource.Length == 0)
                 return SourceExpansionResult.FromSource(AwkExpandedSource.Empty);
 
@@ -37,6 +40,7 @@ internal static partial class AwkSourceLoader
                     normalization.LineContinuations)]));
         }
 
+        checkpoint();
         var builder = new StringBuilder(normalizedSource.Length);
         var segments = new List<AwkSourceSegment>();
         var index = 0;
@@ -45,9 +49,18 @@ internal static partial class AwkSourceLoader
         var sourceChunkLine = 0;
         while (index < normalizedSource.Length)
         {
+            checkpoint();
             var lineStart = index;
+            long nextCheckpoint = index;
             while (index < normalizedSource.Length && normalizedSource[index] is not '\r' and not '\n')
+            {
+                if (index >= nextCheckpoint)
+                {
+                    checkpoint();
+                    nextCheckpoint = (long)index + 1024;
+                }
                 index++;
+            }
 
             var lineEnd = index;
             if (index < normalizedSource.Length)
@@ -59,11 +72,12 @@ internal static partial class AwkSourceLoader
 
             var lineLength = lineEnd - lineStart;
             var sourceLineAdvance = 1 +
-                normalization.LineContinuations.CountAtOrBefore(index) -
-                normalization.LineContinuations.CountAtOrBefore(lineStart - 1);
+                normalization.LineContinuations.CountAtOrBefore(index, checkpoint) -
+                normalization.LineContinuations.CountAtOrBefore(lineStart - 1, checkpoint);
             var directiveMarker = normalizedSource.IndexOf('@', lineStart, lineLength);
+            checkpoint();
             if (directiveMarker < 0 ||
-                !AwkDirectiveParser.TryParseIncludeLine(normalizedSource[lineStart..lineEnd], out var includePath))
+                !AwkDirectiveParser.TryParseIncludeLine(normalizedSource[lineStart..lineEnd], out var includePath, checkpoint))
             {
                 sourceLine += sourceLineAdvance;
                 continue;
@@ -88,7 +102,7 @@ internal static partial class AwkSourceLoader
                 0,
                 normalization.LineContinuations.Slice(
                     sourceChunkStart,
-                    lineStart - sourceChunkStart));
+                    lineStart - sourceChunkStart, checkpoint));
             var include = await TryReadIncludeAsync(
                     host,
                     plan,
@@ -129,10 +143,13 @@ internal static partial class AwkSourceLoader
             0,
             normalization.LineContinuations.Slice(
                 sourceChunkStart,
-                normalizedSource.Length - sourceChunkStart));
+                normalizedSource.Length - sourceChunkStart, checkpoint));
 
-        return SourceExpansionResult.FromSource(AwkExpandedSource.Create(builder.ToString(), segments));
-        static void AppendSourceSegment(
+        checkpoint();
+        var expandedText = builder.ToString();
+        checkpoint();
+        return SourceExpansionResult.FromSource(AwkExpandedSource.Create(expandedText, segments));
+        void AppendSourceSegment(
             StringBuilder builder,
             List<AwkSourceSegment> segments,
             AwkSourceName sourceName,
@@ -148,17 +165,17 @@ internal static partial class AwkSourceLoader
                 return;
 
             var span = new AwkTextSpan(builder.Length, sourceLength);
-            builder.Append(sourceText, sourceStart, sourceLength);
+            AwkParsingSupport.AppendText(builder, sourceText.AsSpan(sourceStart, sourceLength), checkpoint);
             AddSegment(segments, new AwkSourceSegment(
                 sourceName,
                 sourceKind,
                 span,
                 new AwkLineOffset(lineOffset),
                 new AwkColumnOffset(columnOffset),
-                lineContinuations));
+                lineContinuations), checkpoint: checkpoint);
         }
 
-        static void AppendExpandedSource(
+        void AppendExpandedSource(
             StringBuilder builder,
             List<AwkSourceSegment> segments,
             AwkExpandedSource source)
@@ -167,9 +184,10 @@ internal static partial class AwkSourceLoader
                 return;
 
             var offset = builder.Length;
-            builder.Append(source.Text);
+            AwkParsingSupport.AppendText(builder, source.Text, checkpoint);
             for (var index = 0; index < source.Segments.Count; index++)
             {
+                checkpoint();
                 var segment = source.Segments[index];
                 AddSegment(
                     segments,
@@ -179,11 +197,11 @@ internal static partial class AwkSourceLoader
                         new AwkTextSpan(segment.Span.Start + offset, segment.Span.Length),
                         segment.SourceLineOffset,
                         segment.SourceColumnOffset,
-                        segment.LineContinuations));
+                        segment.LineContinuations), checkpoint: checkpoint);
             }
         }
 
-        static void AppendSyntheticNewLine(
+        void AppendSyntheticNewLine(
             StringBuilder builder,
             List<AwkSourceSegment> segments,
             AwkSourceSegment? sourceSegment)
@@ -200,7 +218,7 @@ internal static partial class AwkSourceLoader
                         new AwkTextSpan(start, 1),
                         segment.SourceLineOffset,
                         segment.SourceColumnOffset,
-                        AwkLineContinuationMap.Empty));
+                        AwkLineContinuationMap.Empty), checkpoint: checkpoint);
             }
         }
     }

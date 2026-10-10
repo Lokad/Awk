@@ -7,10 +7,12 @@ internal sealed class AwkExecutableCompiler
 {
     private readonly List<AwkInstruction> _instructions = [];
     private int _stackDepth;
+    private readonly Action? _checkpoint;
 
-    public AwkExecutableCompiler(AwkExecutableTableBuilder tables)
+    public AwkExecutableCompiler(AwkExecutableTableBuilder tables, Action? checkpoint = null)
     {
         Tables = tables;
+        _checkpoint = checkpoint;
     }
 
     public AwkExecutableTableBuilder Tables { get; }
@@ -145,6 +147,7 @@ internal sealed class AwkExecutableCompiler
 
     private bool TryEmitWithRollback(Func<AwkExecutableCompiler, bool> emit)
     {
+        _checkpoint?.Invoke();
         var checkpoint = new Checkpoint(_instructions.Count, _stackDepth, MaxStackDepth);
         if (emit(this))
             return true;
@@ -164,6 +167,8 @@ internal sealed class AwkExecutableCompiler
 
     private int Add(AwkInstruction instruction)
     {
+        if ((_instructions.Count & 1023) == 0)
+            _checkpoint?.Invoke();
         _instructions.Add(instruction);
         return _instructions.Count - 1;
     }

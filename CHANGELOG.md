@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Grammar reductions, token preparation/navigation, source/include assembly, directives,
+  continuation maps and diagnostic mapping now propagate cooperative cancellation.
+  Interrupted frontend cache construction publishes no partial snapshot and can be retried;
+  completed syntax retains no callback. Lokad.Parsing token matching/parser shifts and
+  one-shot framework copies/sorting remain documented boundaries. Frontend budgets,
+  public policy, explicit fuel enforcement and runtime counter admission are unchanged.
+
+- Frontend binding, symbol/semantic passes, lowering and executable compilation now
+  propagate cooperative cancellation. Owned lexer/literal/string-diagnostic scans,
+  parameter/layout construction, newline metadata and nesting audits check internally;
+  returned artifacts retain no caller callback. Parser dependency calls and one-shot
+  framework construction are documented cancellation boundaries; frontend budgets and runtime
+  fuel/counter admission remain unchanged.
+
 - Runtime numeric scans, UTF-8 rune counting and sparse-index construction, ASCII case
   conversion and printf numeric arguments now reuse the execution's cancellation callback.
   Interrupted rune scans publish no partial cache and release index reservations.

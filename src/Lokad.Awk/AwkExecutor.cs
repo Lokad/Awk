@@ -248,7 +248,7 @@ internal static class AwkExecutor
         return new AwkCompiledProgram(
             invocation,
             resolvedProgram.Program,
-            AwkExecutableProgram.Compile(resolvedProgram.Program),
+            AwkExecutableProgram.Compile(resolvedProgram.Program, cancellationToken.ThrowIfCancellationRequested),
             [.. optionWarnings, .. resolved.Warnings]);
     }
 
@@ -295,15 +295,16 @@ internal static class AwkExecutor
             AwkFrontendBudget.FromResources(resources, previousDiagnostics),
             cancellationToken,
             invocation.ExecutionOptions.CompatibilityProfile.Mode);
-        var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings);
+        var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings, cancellationToken.ThrowIfCancellationRequested);
         cancellationToken.ThrowIfCancellationRequested();
-        var binding = AwkBinder.Bind(parsed, invocation.ExecutionOptions.CompatibilityProfile);
+        var binding = AwkBinder.Bind(parsed, invocation.ExecutionOptions.CompatibilityProfile,
+            () => resources.ThrowIfCancellationRequested(cancellationToken));
         cancellationToken.ThrowIfCancellationRequested();
         var phase = binding.PhaseResult;
         if (!phase.Success)
         {
             return AwkProgramResolution.Fail(
-                AwkDiagnostics.Parse(AwkSourceDiagnosticMap.MapDiagnostics(source, phase.Diagnostics)),
+                AwkDiagnostics.Parse(AwkSourceDiagnosticMap.MapDiagnostics(source, phase.Diagnostics, cancellationToken.ThrowIfCancellationRequested)),
                 warnings);
         }
 

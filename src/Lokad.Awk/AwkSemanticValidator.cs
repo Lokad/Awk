@@ -7,20 +7,27 @@ internal static class AwkSemanticValidator
     public static IReadOnlyList<AwkDiagnostic> Validate(
         AwkSyntaxProgram syntax,
         AwkSemanticModel semanticModel,
-        AwkCompatibilityProfile compatibilityProfile)
+        AwkCompatibilityProfile compatibilityProfile,
+        Action? checkpoint = null)
     {
-        static void ValidateFunctionDeclarations(
+        checkpoint?.Invoke();
+        void ValidateFunctionDeclarations(
             AwkSyntaxProgram syntax,
             AwkCompatibilityMode mode,
             List<AwkDiagnostic> diagnostics)
         {
-            var functionNames = new HashSet<string>(syntax.Functions.Select(function => function.Name),
-                System.StringComparer.Ordinal);
+            var functionNames = new HashSet<string>(System.StringComparer.Ordinal);
+            foreach (var function in syntax.Functions)
+            {
+                checkpoint?.Invoke();
+                functionNames.Add(function.Name);
+            }
             var declarations = new Dictionary<string, AwkTextSpan>(
                 syntax.Functions.Count,
                 System.StringComparer.Ordinal);
             for (var index = 0; index < syntax.Functions.Count; index++)
             {
+                checkpoint?.Invoke();
                 var function = syntax.Functions[index];
                 if (function.Name.Length == 0)
                 {
@@ -46,7 +53,7 @@ internal static class AwkSemanticValidator
                 ValidateFunctionParameters(function, mode, functionNames, diagnostics);
             }
 
-            static void ValidateFunctionParameters(
+            void ValidateFunctionParameters(
                 AwkFunctionSyntax function,
                 AwkCompatibilityMode mode,
                 IReadOnlySet<string> functionNames,
@@ -55,12 +62,14 @@ internal static class AwkSemanticValidator
                 var binding = function.ParameterBinding;
                 for (var index = 0; index < binding.Diagnostics.Count; index++)
                 {
+                    checkpoint?.Invoke();
                     diagnostics.Add(binding.Diagnostics[index]);
                 }
                 if (!binding.Success)
                     return;
                 foreach (var token in function.ParameterTokens)
                 {
+                    checkpoint?.Invoke();
                     if (token.Kind != AwkTokenKind.Identifier)
                         continue;
                     var name = token.Text;
@@ -75,7 +84,7 @@ internal static class AwkSemanticValidator
             }
         }
 
-        static void ValidateUndefinedFunctions(
+        void ValidateUndefinedFunctions(
             AwkSemanticModel semanticModel,
             AwkLintMode lintMode,
             List<AwkDiagnostic> diagnostics)
@@ -91,6 +100,7 @@ internal static class AwkSemanticValidator
             HashSet<AwkIdentifier>? reported = null;
             for (var index = 0; index < semanticModel.Usages.Count; index++)
             {
+                checkpoint?.Invoke();
                 var symbol = semanticModel.Usages[index];
                 if (symbol.Kind != AwkSemanticSymbolKind.UnknownFunction || symbol.IsFunctionLocal)
                     continue;
@@ -106,19 +116,21 @@ internal static class AwkSemanticValidator
             }
         }
 
-        static void ValidateFunctionVariableConflicts(
+        void ValidateFunctionVariableConflicts(
             AwkSemanticModel semanticModel,
             List<AwkDiagnostic> diagnostics)
         {
             var functions = new HashSet<AwkIdentifier>();
             foreach (var declaration in semanticModel.Declarations)
             {
+                checkpoint?.Invoke();
                 if (declaration.Kind is AwkSemanticSymbolKind.FunctionDefinition)
                     functions.Add(declaration.Identifier);
             }
 
             foreach (var usage in semanticModel.Usages)
             {
+                checkpoint?.Invoke();
                 if (!usage.IsFunctionLocal &&
                     usage.Kind is AwkSemanticSymbolKind.Variable or AwkSemanticSymbolKind.Array &&
                     functions.Contains(usage.Identifier))
@@ -130,7 +142,7 @@ internal static class AwkSemanticValidator
             }
         }
 
-        static void ValidateCompatibilityGatedCallables(
+        void ValidateCompatibilityGatedCallables(
             AwkSemanticModel semanticModel,
             AwkCompatibilityMode compatibilityMode,
             List<AwkDiagnostic> diagnostics)
@@ -141,6 +153,7 @@ internal static class AwkSemanticValidator
             HashSet<AwkIdentifier>? reported = null;
             for (var index = 0; index < semanticModel.Usages.Count; index++)
             {
+                checkpoint?.Invoke();
                 var symbol = semanticModel.Usages[index];
                 if (symbol.Kind != AwkSemanticSymbolKind.BuiltinFunction ||
                     !AwkBuiltins.TryGetCallable(symbol.Name, out var definition) ||
@@ -160,7 +173,7 @@ internal static class AwkSemanticValidator
             }
         }
 
-        static void ValidatePosixPowerOperators(
+        void ValidatePosixPowerOperators(
             AwkSyntaxProgram syntax,
             AwkCompatibilityMode compatibilityMode,
             List<AwkDiagnostic> diagnostics)
@@ -170,11 +183,13 @@ internal static class AwkSemanticValidator
 
             foreach (var function in syntax.Functions)
             {
+                checkpoint?.Invoke();
                 if (ReportUnsupportedOperator(function.BodyTokens))
                     return;
             }
             foreach (var rule in syntax.Rules)
             {
+                checkpoint?.Invoke();
                 if (ReportUnsupportedOperator(rule.PatternTokens) || ReportUnsupportedOperator(rule.ActionTokens))
                     return;
             }
@@ -183,6 +198,7 @@ internal static class AwkSemanticValidator
             {
                 foreach (var token in tokens)
                 {
+                    checkpoint?.Invoke();
                     if (token.Kind is not (AwkTokenKind.Caret or AwkTokenKind.CaretEqual) ||
                         !token.TextSpan.StartsWith("**", System.StringComparison.Ordinal))
                         continue;
@@ -196,7 +212,7 @@ internal static class AwkSemanticValidator
             }
         }
 
-        static void ValidatePosixTernaryContinuations(
+        void ValidatePosixTernaryContinuations(
             AwkSyntaxProgram syntax,
             AwkCompatibilityMode compatibilityMode,
             List<AwkDiagnostic> diagnostics)
@@ -204,9 +220,13 @@ internal static class AwkSemanticValidator
             if (compatibilityMode != AwkCompatibilityMode.Posix)
                 return;
             foreach (var function in syntax.Functions)
+            {
+                checkpoint?.Invoke();
                 Check(function.BodyTokens);
+            }
             foreach (var rule in syntax.Rules)
             {
+                checkpoint?.Invoke();
                 Check(rule.PatternTokens);
                 Check(rule.ActionTokens);
             }
@@ -216,6 +236,7 @@ internal static class AwkSemanticValidator
                 var previous = AwkTokenKind.EndOfFile;
                 foreach (var token in tokens)
                 {
+                    checkpoint?.Invoke();
                     if (token.Kind == AwkTokenKind.Comment)
                         continue;
                     if (token.Kind == AwkTokenKind.NewLine && previous is AwkTokenKind.Question or AwkTokenKind.Colon)
@@ -239,24 +260,26 @@ internal static class AwkSemanticValidator
         ValidateStatementSemantics(syntax, compatibilityProfile.Mode, diagnostics);
         return diagnostics;
 
-        static void ValidateStatementSemantics(
+        void ValidateStatementSemantics(
             AwkSyntaxProgram syntax,
             AwkCompatibilityMode mode,
             List<AwkDiagnostic> diagnostics)
         {
             for (var index = 0; index < syntax.Functions.Count; index++)
             {
+                checkpoint?.Invoke();
                 ValidateStatements(
                     syntax.Functions[index].BodyStatements,
                     AwkStatementValidationContext.FunctionBody(AwkLoweringScope.Function(
-                        new(syntax.Functions[index].ParameterBinding.Parameters), mode)),
+                        new(syntax.Functions[index].ParameterBinding.Parameters, checkpoint), mode, checkpoint)),
                     diagnostics);
             }
 
             for (var index = 0; index < syntax.Rules.Count; index++)
             {
+                checkpoint?.Invoke();
                 var rule = syntax.Rules[index];
-                var context = AwkStatementValidationContext.RuleBody(rule.Kind, AwkLoweringScope.GlobalFor(mode));
+                var context = AwkStatementValidationContext.RuleBody(rule.Kind, AwkLoweringScope.GlobalFor(mode, checkpoint));
                 foreach (var expression in rule.PatternSyntax.EnumerateChildExpressions())
                     ValidateExpressionSemantics(expression, context, diagnostics);
 
@@ -357,6 +380,7 @@ internal static class AwkSemanticValidator
 
         for (var index = 0; index < statements.Count; index++)
         {
+            context.Scope.CheckCancellation();
             var statement = statements[index];
             ValidateControlStatementShape(statement, diagnostics);
             ValidateArgumentlessStatementShape(statement, diagnostics);
@@ -379,6 +403,7 @@ internal static class AwkSemanticValidator
             ValidateStatements(statement.ElseStatements, context, diagnostics);
             for (var caseIndex = 0; caseIndex < statement.SwitchCases.Count; caseIndex++)
             {
+                context.Scope.CheckCancellation();
                 ValidateExpressionSemantics(statement.SwitchCases[caseIndex].Expression, context, diagnostics);
                 ValidateStatements(statement.SwitchCases[caseIndex].BodyStatements, context.EnterSwitch(), diagnostics);
             }
@@ -462,6 +487,7 @@ internal static class AwkSemanticValidator
         AwkStatementValidationContext context,
         List<AwkDiagnostic> diagnostics)
     {
+        context.Scope.CheckCancellation();
         static void ValidateBareCallableVariable(
             AwkExpressionSyntax expression,
             AwkStatementValidationContext context,
@@ -552,13 +578,14 @@ internal static class AwkSemanticValidator
                 AwkDiagnosticId.BindInvalidProgram));
         }
 
-        static bool IsMalformedArrayElement(AwkExpressionSyntax expression)
+        bool IsMalformedArrayElement(AwkExpressionSyntax expression)
         {
             if (expression.Kind != AwkExpressionKind.ArrayElement)
                 return false;
 
             for (var index = 0; index < expression.DelimiterTokens.Count; index++)
             {
+                context.Scope.CheckCancellation();
                 if (expression.DelimiterTokens[index].Kind == AwkTokenKind.RightBracket)
                     return false;
             }

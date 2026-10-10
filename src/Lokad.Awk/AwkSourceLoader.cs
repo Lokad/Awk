@@ -33,6 +33,7 @@ internal static partial class AwkSourceLoader
         var inlineSourceIndex = 0;
         for (var index = 0; index < plan.SourceCount; index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var source = plan.GetSource(index);
             if (source is AwkSourceReference.InlineSource inline)
             {
@@ -128,7 +129,7 @@ internal static partial class AwkSourceLoader
                 expandedFile.Source.Segments));
         }
 
-        return AwkSourceLoadResult.FromSources(sources);
+        return AwkSourceLoadResult.FromSources(sources, cancellationToken.ThrowIfCancellationRequested);
 
         void RecordExpandedSource(string text)
         {

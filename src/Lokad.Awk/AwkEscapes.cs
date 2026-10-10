@@ -7,21 +7,23 @@ internal static class AwkEscapes
     public static string DecodeSourceString(string text, AwkCompatibilityMode compatibilityMode,
         Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         var slash = text.IndexOf('\\', StringComparison.Ordinal);
+        checkpoint?.Invoke();
         if (slash < 0)
             return text;
 
         var builder = new StringBuilder(text.Length);
         builder.Append(text, 0, slash);
         Span<char> scalarBuffer = stackalloc char[2];
-        var nextCheckpoint = slash;
+        long nextCheckpoint = slash;
 
         for (var index = slash; index < text.Length; index++)
         {
             if (index >= nextCheckpoint)
             {
                 checkpoint?.Invoke();
-                nextCheckpoint = index + 1024;
+                nextCheckpoint = (long)index + 1024;
             }
             var current = text[index];
             if (current != '\\' || index + 1 >= text.Length)
@@ -52,7 +54,10 @@ internal static class AwkEscapes
             builder.Append(TryDecodeSimpleEscape(escaped, out var decoded) ? decoded : escaped);
         }
 
-        return builder.ToString();
+        checkpoint?.Invoke();
+        var decodedText = builder.ToString();
+        checkpoint?.Invoke();
+        return decodedText;
     }
 
     public static void ReportUnicodeWarnings(string text, AwkCompatibilityMode mode, Action<string> report,
@@ -60,13 +65,13 @@ internal static class AwkEscapes
     {
         if (mode == AwkCompatibilityMode.Posix)
             return;
-        var nextCheckpoint = 0;
+        long nextCheckpoint = 0;
         for (var index = 0; index + 1 < text.Length; index++)
         {
             if (index >= nextCheckpoint)
             {
                 checkpoint?.Invoke();
-                nextCheckpoint = index + 1024;
+                nextCheckpoint = (long)index + 1024;
             }
             if (text[index] != '\\')
                 continue;

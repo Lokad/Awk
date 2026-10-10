@@ -11,36 +11,48 @@ namespace Lokad.Awk;
 internal sealed class AwkExpressionSyntaxParser
     : GrammarParser<AwkExpressionSyntaxParser, AwkTokenKind, AwkExpressionSyntaxParser.RootParseResult>
 {
-    private AwkExpressionSyntaxParser()
+    private readonly Action? _checkpoint;
+
+    private AwkExpressionSyntaxParser(Action? checkpoint = null)
         : base(AwkTokenNamer.Instance)
     {
+        _checkpoint = checkpoint;
     }
 
-    public static AwkExpressionSyntax? Parse(AwkParsingSource source, IReadOnlyList<AwkToken> tokens) =>
-        SingleExpressionOrNull(ParseCore(source, tokens));
+    public static AwkExpressionSyntax? Parse(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
+        SingleExpressionOrNull(ParseCore(source, tokens, checkpoint));
 
-    public static AwkExpressionSyntax? Parse(IReadOnlyList<AwkToken> tokens) =>
-        SingleExpressionOrNull(ParseCore(null, tokens));
+    public static AwkExpressionSyntax? Parse(IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
+        SingleExpressionOrNull(ParseCore(null, tokens, checkpoint));
 
-    public static AwkExpressionSyntax? ParseList(AwkParsingSource source, IReadOnlyList<AwkToken> tokens) =>
-        ParsedExpressionOrNull(ParseCore(source, tokens));
+    public static AwkExpressionSyntax? ParseList(AwkParsingSource source, IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
+        ParsedExpressionOrNull(ParseCore(source, tokens, checkpoint));
 
-    public static AwkExpressionSyntax? ParseList(IReadOnlyList<AwkToken> tokens) =>
-        ParsedExpressionOrNull(ParseCore(null, tokens));
+    public static AwkExpressionSyntax? ParseList(IReadOnlyList<AwkToken> tokens, Action? checkpoint = null) =>
+        ParsedExpressionOrNull(ParseCore(null, tokens, checkpoint));
 
-    private static AwkExpressionParseResult ParseCore(AwkParsingSource? source, IReadOnlyList<AwkToken> tokens)
+    private static AwkExpressionParseResult ParseCore(AwkParsingSource? source, IReadOnlyList<AwkToken> tokens, Action? checkpoint)
     {
-        if (TryGetSeparatorDiagnostic(tokens, out var separatorDiagnostic))
+        checkpoint?.Invoke();
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
+        var parser = new AwkExpressionSyntaxParser(checkpoint);
+        if (TryGetSeparatorDiagnostic(tokens, out var separatorDiagnostic, checkpoint))
         {
-            var token = tokens.First(token => token.Span.Start == separatorDiagnostic.Span.Start &&
-                token.Span.Length == separatorDiagnostic.Span.Length);
-            return AwkExpressionParseResult.Single(CreateTokenNode(AwkExpressionKind.Unknown, token));
+            for (var index = 0; index < tokens.Count; index++)
+            {
+                checkpoint?.Invoke();
+                var token = tokens[index];
+                if (token.Span.Start == separatorDiagnostic.Span.Start &&
+                    token.Span.Length == separatorDiagnostic.Span.Length)
+                    return AwkExpressionParseResult.Single(parser.CreateTokenNode(AwkExpressionKind.Unknown, token));
+            }
+            throw new InvalidOperationException("A separator diagnostic must reference a lexical token.");
         }
 
         static bool TryCreateLexerResult(
             AwkParsingSource source,
             IReadOnlyList<AwkToken> tokens,
-            [NotNullWhen(true)] out LexerResult<AwkTokenKind>? result)
+            [NotNullWhen(true)] out LexerResult<AwkTokenKind>? result, Action? checkpoint)
         {
             static bool IsExpressionToken(AwkTokenKind kind) =>
                 kind is not AwkTokenKind.Comment and
@@ -51,6 +63,7 @@ internal sealed class AwkExpressionSyntaxParser
             var hasEndOfFile = false;
             for (var index = 0; index < tokens.Count; index++)
             {
+                checkpoint?.Invoke();
                 if (!IsExpressionToken(tokens[index].Kind))
                     continue;
 
@@ -71,12 +84,13 @@ internal sealed class AwkExpressionSyntaxParser
             var hasInvalidTokens = false;
             for (var index = 0; index < tokens.Count; index++)
             {
+                checkpoint?.Invoke();
                 var token = tokens[index];
                 if (!IsExpressionToken(token.Kind))
                     continue;
 
                 lexerTokens[next++] = new LexerToken<AwkTokenKind>(
-                    ResolveExpressionTokenKind(tokens, index),
+                    ResolveExpressionTokenKind(tokens, index, checkpoint),
                     token.Span.Start,
                     token.Span.Length);
                 end = Math.Max(end, token.Span.End);
@@ -99,35 +113,44 @@ internal sealed class AwkExpressionSyntaxParser
             return true;
         }
 
-        var parser = new AwkExpressionSyntaxParser();
         if (source != null)
         {
-            if (!TryCreateLexerResult(source, tokens, out var lexerResult))
+            if (!TryCreateLexerResult(source, tokens, out var lexerResult, checkpoint))
                 return AwkExpressionParseResult.EmptyResult;
 
             parser.Tokens = lexerResult;
         }
         else
         {
-            var significantTokens = tokens
-                .Where(token => token.Kind is not AwkTokenKind.Comment and not AwkTokenKind.NewLine and not AwkTokenKind.Semicolon)
-                .ToArray();
+            var significant = new List<AwkToken>(tokens.Count);
+            for (var index = 0; index < tokens.Count; index++)
+            {
+                checkpoint?.Invoke();
+                if (tokens[index].Kind is not AwkTokenKind.Comment and not AwkTokenKind.NewLine and not AwkTokenKind.Semicolon)
+                    significant.Add(tokens[index]);
+            }
+            checkpoint?.Invoke();
+            var significantTokens = significant.ToArray();
             if (significantTokens.Length == 0)
                 return AwkExpressionParseResult.EmptyResult;
 
             for (var index = 0; index < significantTokens.Length; index++)
             {
+                checkpoint?.Invoke();
                 var token = significantTokens[index];
-                var kind = ResolveExpressionTokenKind(significantTokens, index);
+                var kind = ResolveExpressionTokenKind(significantTokens, index, checkpoint);
                 if (kind != token.Kind)
                     significantTokens[index] = new AwkToken(kind, token.Text, token.Span);
             }
 
-            parser.Tokens = AwkParsingSupport.ToLexerResult(significantTokens);
+            parser.Tokens = AwkParsingSupport.ToLexerResult(significantTokens, checkpoint);
         }
         try
         {
-            return StreamParser(parser, parser.Tokens) switch
+            checkpoint?.Invoke();
+            var parsed = StreamParser(parser, parser.Tokens);
+            checkpoint?.Invoke();
+            return parsed switch
             {
                 RootParseResult.Expression expression =>
                     AwkExpressionParseResult.Single(expression.Syntax),
@@ -144,11 +167,15 @@ internal sealed class AwkExpressionSyntaxParser
 
     internal static bool TryGetSeparatorDiagnostic(
         IReadOnlyList<AwkToken> tokens,
-        out AwkDiagnostic diagnostic)
+        out AwkDiagnostic diagnostic,
+        Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
         var previous = AwkTokenKind.EndOfFile;
         for (var index = 0; index < tokens.Count; index++)
         {
+            checkpoint?.Invoke();
             var token = tokens[index];
             if (token.Kind == AwkTokenKind.Comment)
                 continue;
@@ -157,7 +184,8 @@ internal sealed class AwkExpressionSyntaxParser
                     (AwkTokenKind.Comma or AwkTokenKind.AmpersandAmpersand or
                      AwkTokenKind.PipePipe or AwkTokenKind.Question or AwkTokenKind.Colon))
             {
-                diagnostic = CreateSyntaxDiagnostic(CreateTokenNode(AwkExpressionKind.Unknown, token));
+                diagnostic = CreateSyntaxDiagnostic(new AwkExpressionSyntax(
+                    AwkExpressionKind.Unknown, [token], [], token.Span));
                 return true;
             }
             if (token.Kind != AwkTokenKind.NewLine)
@@ -179,14 +207,17 @@ internal sealed class AwkExpressionSyntaxParser
             _ => "Invalid expression."
         });
 
-    private static AwkTokenKind ResolveExpressionTokenKind(IReadOnlyList<AwkToken> tokens, int index)
+    private static AwkTokenKind ResolveExpressionTokenKind(IReadOnlyList<AwkToken> tokens, int index, Action? checkpoint = null)
     {
         var token = tokens[index];
         if (token.Kind is AwkTokenKind.PlusPlus or AwkTokenKind.MinusMinus)
         {
             var previous = index - 1;
             while (previous >= 0 && !AwkTokenNavigation.IsSignificant(tokens[previous].Kind))
+            {
+                checkpoint?.Invoke();
                 previous--;
+            }
 
             if (previous >= 0 && tokens[previous].Kind is
                 AwkTokenKind.Identifier or AwkTokenKind.SpacedIdentifier or
@@ -203,7 +234,7 @@ internal sealed class AwkExpressionSyntaxParser
         if (token.Kind is not AwkTokenKind.Identifier)
             return token.Kind;
 
-        var next = AwkTokenNavigation.FindNextSignificant(tokens, index + 1);
+        var next = AwkTokenNavigation.FindNextSignificant(tokens, index + 1, checkpoint);
         if (next is { Kind: AwkTokenKind.LeftParen } &&
             token.Span.End < next.Value.Span.Start &&
             !AwkBuiltins.IsKnownFunctionOrSpecialForm(token.Text))
@@ -230,24 +261,32 @@ internal sealed class AwkExpressionSyntaxParser
     [Rule]
     public RootParseResult ExpressionRoot(
         [NT] AwkExpressionSyntax expression,
-        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile) =>
-        new RootParseResult.Expression(expression);
+        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile)
+    {
+        _checkpoint?.Invoke();
+        return new RootParseResult.Expression(expression);
+    }
 
     [Rule]
     public RootParseResult ExpressionListRoot(
         [NT] ExpressionListSyntax expressionList,
-        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile) =>
-        new RootParseResult.ExpressionList(expressionList.Expression);
+        [AwkT(AwkTokenKind.EndOfFile)] Pos<string> endOfFile)
+    {
+        _checkpoint?.Invoke();
+        return new RootParseResult.ExpressionList(expressionList.Expression);
+    }
 
     [Rule]
     public ExpressionListSyntax ExpressionList(
         [NT] AwkExpressionSyntax first,
         [AwkL(Min = 1)] ExpressionListTail[] tails)
     {
+        _checkpoint?.Invoke();
         var expressions = new List<AwkExpressionSyntax>(tails.Length + 1) { first };
         var separators = new List<AwkToken>(tails.Length);
         for (var index = 0; index < tails.Length; index++)
         {
+            _checkpoint?.Invoke();
             separators.Add(tails[index].Separator);
             expressions.Add(tails[index].Expression);
         }
@@ -265,25 +304,40 @@ internal sealed class AwkExpressionSyntaxParser
     [Rule]
     public ExpressionListTail ExpressionListTailRule(
         [AwkT(AwkTokenKind.Comma)] Pos<string> comma,
-        [NT] AwkExpressionSyntax expression) =>
-        new(ToToken(AwkTokenKind.Comma, comma), expression);
+        [NT] AwkExpressionSyntax expression)
+    {
+        _checkpoint?.Invoke();
+        return new(ToToken(AwkTokenKind.Comma, comma), expression);
+    }
 
     [Rule]
-    public AwkExpressionSyntax NumberLiteral([AwkT(AwkTokenKind.Number)] Pos<string> token) =>
-        CreateTokenNode(AwkExpressionKind.Number, ToToken(AwkTokenKind.Number, token));
+    public AwkExpressionSyntax NumberLiteral([AwkT(AwkTokenKind.Number)] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return CreateTokenNode(AwkExpressionKind.Number, ToToken(AwkTokenKind.Number, token));
+    }
 
     [Rule]
-    public AwkExpressionSyntax StringLiteral([AwkT(AwkTokenKind.String, AwkTokenKind.InternationalizedString)] Pos<string> token) =>
-        CreateTokenNode(AwkExpressionKind.String, AwkParsingSupport.ToToken(token));
+    public AwkExpressionSyntax StringLiteral([AwkT(AwkTokenKind.String, AwkTokenKind.InternationalizedString)] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return CreateTokenNode(AwkExpressionKind.String, AwkParsingSupport.ToToken(token, _checkpoint));
+    }
 
     [Rule]
-    public AwkExpressionSyntax RegexLiteral([AwkT(AwkTokenKind.Regex, AwkTokenKind.StrongRegex)] Pos<string> token) =>
-        CreateTokenNode(AwkExpressionKind.Regex, AwkParsingSupport.ToToken(token));
+    public AwkExpressionSyntax RegexLiteral([AwkT(AwkTokenKind.Regex, AwkTokenKind.StrongRegex)] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return CreateTokenNode(AwkExpressionKind.Regex, AwkParsingSupport.ToToken(token, _checkpoint));
+    }
 
     [Rule]
     public AwkExpressionSyntax Variable(
-        [AwkT(AwkTokenKind.Identifier, AwkTokenKind.SpacedIdentifier)] Pos<string> token) =>
-        CreateTokenNode(AwkExpressionKind.Variable, ToToken(AwkTokenKind.Identifier, token));
+        [AwkT(AwkTokenKind.Identifier, AwkTokenKind.SpacedIdentifier)] Pos<string> token)
+    {
+        _checkpoint?.Invoke();
+        return CreateTokenNode(AwkExpressionKind.Variable, ToToken(AwkTokenKind.Identifier, token));
+    }
 
     [Rule]
     public AwkExpressionSyntax Group(
@@ -292,6 +346,7 @@ internal sealed class AwkExpressionSyntaxParser
         [NT] AwkExpressionSyntax expression,
         [AwkT(AwkTokenKind.RightParen)] Pos<string> close)
     {
+        _checkpoint?.Invoke();
         var openToken = ToToken(AwkTokenKind.LeftParen, open);
         var closeToken = ToToken(AwkTokenKind.RightParen, close);
         var child = list?.Expression ?? expression;
@@ -311,6 +366,7 @@ internal sealed class AwkExpressionSyntaxParser
         [NT] ExpressionListSyntax list,
         [AwkT(AwkTokenKind.RightParen)] Pos<string> close)
     {
+        _checkpoint?.Invoke();
         var openToken = ToToken(AwkTokenKind.LeftParen, open);
         var closeToken = ToToken(AwkTokenKind.RightParen, close);
         return CreateNode(
@@ -328,6 +384,7 @@ internal sealed class AwkExpressionSyntaxParser
         [AwkT(AwkTokenKind.Dollar)] Pos<string> dollar,
         [NT(0)] AwkExpressionSyntax index)
     {
+        _checkpoint?.Invoke();
         var dollarToken = ToToken(AwkTokenKind.Dollar, dollar);
         if (index.Kind == AwkExpressionKind.Postfix &&
             index.Children.Count == 1 &&
@@ -344,8 +401,11 @@ internal sealed class AwkExpressionSyntaxParser
     public AwkExpressionSyntax FieldWithUnaryIndex(
         [AwkT(AwkTokenKind.Dollar)] Pos<string> dollar,
         [AwkT(AwkTokenKind.Bang, AwkTokenKind.Plus, AwkTokenKind.Minus)] Pos<string> op,
-        [NT(2)] AwkExpressionSyntax operand) =>
-        Field(dollar, Unary(op, operand));
+        [NT(2)] AwkExpressionSyntax operand)
+    {
+        _checkpoint?.Invoke();
+        return Field(dollar, Unary(op, operand));
+    }
 
     [Rule]
     public AwkExpressionSyntax FunctionCallNoArguments(
@@ -353,6 +413,7 @@ internal sealed class AwkExpressionSyntaxParser
         [AwkT(AwkTokenKind.LeftParen)] Pos<string> open,
         [AwkT(AwkTokenKind.RightParen)] Pos<string> close)
     {
+        _checkpoint?.Invoke();
         var targetToken = ToToken(AwkTokenKind.Identifier, target);
         var openToken = ToToken(AwkTokenKind.LeftParen, open);
         var closeToken = ToToken(AwkTokenKind.RightParen, close);
@@ -375,6 +436,7 @@ internal sealed class AwkExpressionSyntaxParser
         [AwkL(Min = 0)] ArgumentTail[] tails,
         [AwkT(AwkTokenKind.RightParen)] Pos<string> close)
     {
+        _checkpoint?.Invoke();
         var targetToken = ToToken(AwkTokenKind.Identifier, target);
         var openToken = ToToken(AwkTokenKind.LeftParen, open);
         var closeToken = ToToken(AwkTokenKind.RightParen, close);
@@ -383,6 +445,7 @@ internal sealed class AwkExpressionSyntaxParser
         var separators = new List<AwkToken>(tails.Length);
         for (var index = 0; index < tails.Length; index++)
         {
+            _checkpoint?.Invoke();
             separators.Add(tails[index].Separator);
             children.Add(tails[index].Expression);
         }
@@ -400,8 +463,11 @@ internal sealed class AwkExpressionSyntaxParser
     [Rule]
     public ArgumentTail ArgumentTailRule(
         [AwkT(AwkTokenKind.Comma)] Pos<string> comma,
-        [NT] AwkExpressionSyntax expression) =>
-        new(ToToken(AwkTokenKind.Comma, comma), expression);
+        [NT] AwkExpressionSyntax expression)
+    {
+        _checkpoint?.Invoke();
+        return new(ToToken(AwkTokenKind.Comma, comma), expression);
+    }
 
     [Rule]
     public AwkExpressionSyntax ArrayElementNoIndex(
@@ -409,6 +475,7 @@ internal sealed class AwkExpressionSyntaxParser
         [AwkT(AwkTokenKind.LeftBracket)] Pos<string> open,
         [AwkT(AwkTokenKind.RightBracket)] Pos<string> close)
     {
+        _checkpoint?.Invoke();
         var openToken = ToToken(AwkTokenKind.LeftBracket, open);
         var closeToken = ToToken(AwkTokenKind.RightBracket, close);
         return CreateNode(
@@ -429,12 +496,14 @@ internal sealed class AwkExpressionSyntaxParser
         [AwkL(Min = 0)] ArgumentTail[] tails,
         [AwkT(AwkTokenKind.RightBracket)] Pos<string> close)
     {
+        _checkpoint?.Invoke();
         var openToken = ToToken(AwkTokenKind.LeftBracket, open);
         var closeToken = ToToken(AwkTokenKind.RightBracket, close);
         var children = new List<AwkExpressionSyntax>(tails.Length + 2) { target, firstIndex };
         var separators = new List<AwkToken>(tails.Length);
         for (var index = 0; index < tails.Length; index++)
         {
+            _checkpoint?.Invoke();
             separators.Add(tails[index].Separator);
             children.Add(tails[index].Expression);
         }
@@ -452,47 +521,66 @@ internal sealed class AwkExpressionSyntaxParser
     [Rule]
     public AwkExpressionSyntax PostfixMutation(
         [NT(0)] AwkExpressionSyntax target,
-        [AwkT(AwkTokenKind.PostfixPlusPlus, AwkTokenKind.PostfixMinusMinus)] Pos<string> op) =>
-        CreateNode(AwkExpressionKind.Postfix, target, AwkParsingSupport.ToToken(op), [AwkParsingSupport.ToToken(op)]);
+        [AwkT(AwkTokenKind.PostfixPlusPlus, AwkTokenKind.PostfixMinusMinus)] Pos<string> op)
+    {
+        _checkpoint?.Invoke();
+        return CreateNode(AwkExpressionKind.Postfix, target, AwkParsingSupport.ToToken(op, _checkpoint), [AwkParsingSupport.ToToken(op, _checkpoint)]);
+    }
 
     [Rule]
     public AwkExpressionSyntax PrefixMutation(
         [AwkT(AwkTokenKind.PlusPlus, AwkTokenKind.MinusMinus)] Pos<string> op,
         [NT(0)] AwkExpressionSyntax target)
     {
-        var operatorToken = AwkParsingSupport.ToToken(op);
+        _checkpoint?.Invoke();
+        var operatorToken = AwkParsingSupport.ToToken(op, _checkpoint);
         return CreateNode(AwkExpressionKind.Unary, operatorToken, target, [operatorToken]);
     }
 
     [Rule]
-    public AwkExpressionSyntax GetlineOnly([AwkT(AwkTokenKind.Getline)] Pos<string> getline) =>
-        CreateGetlineCall(getline, null, null, null);
+    public AwkExpressionSyntax GetlineOnly([AwkT(AwkTokenKind.Getline)] Pos<string> getline)
+    {
+        _checkpoint?.Invoke();
+        return CreateGetlineCall(getline, null, null, null);
+    }
 
     [Rule]
     public AwkExpressionSyntax GetlineTarget(
         [AwkT(AwkTokenKind.Getline)] Pos<string> getline,
-        [NT] GetlineDestination target) =>
-        CreateGetlineCall(getline, target.Expression, null, null);
+        [NT] GetlineDestination target)
+    {
+        _checkpoint?.Invoke();
+        return CreateGetlineCall(getline, target.Expression, null, null);
+    }
 
     [Rule]
     public AwkExpressionSyntax GetlineSource(
         [AwkT(AwkTokenKind.Getline)] Pos<string> getline,
         [AwkT(AwkTokenKind.Less)] Pos<string> less,
-        [NT(4)] AwkExpressionSyntax source) =>
-        CreateGetlineCall(getline, null, less, source);
+        [NT(4)] AwkExpressionSyntax source)
+    {
+        _checkpoint?.Invoke();
+        return CreateGetlineCall(getline, null, less, source);
+    }
 
     [Rule]
     public AwkExpressionSyntax GetlineTargetSource(
         [AwkT(AwkTokenKind.Getline)] Pos<string> getline,
         [NT] GetlineDestination target,
         [AwkT(AwkTokenKind.Less)] Pos<string> less,
-        [NT(4)] AwkExpressionSyntax source) =>
-        CreateGetlineCall(getline, target.Expression, less, source);
+        [NT(4)] AwkExpressionSyntax source)
+    {
+        _checkpoint?.Invoke();
+        return CreateGetlineCall(getline, target.Expression, less, source);
+    }
 
     [Rule]
     public GetlineDestination GetlineVariableDestination(
-        [AwkT(AwkTokenKind.Identifier, AwkTokenKind.SpacedIdentifier)] Pos<string> target) =>
-        new(Variable(target));
+        [AwkT(AwkTokenKind.Identifier, AwkTokenKind.SpacedIdentifier)] Pos<string> target)
+    {
+        _checkpoint?.Invoke();
+        return new(Variable(target));
+    }
 
     [Rule]
     public GetlineDestination GetlineArrayDestination(
@@ -500,21 +588,30 @@ internal sealed class AwkExpressionSyntaxParser
         [AwkT(AwkTokenKind.LeftBracket)] Pos<string> open,
         [NT] AwkExpressionSyntax firstIndex,
         [AwkL(Min = 0)] ArgumentTail[] tails,
-        [AwkT(AwkTokenKind.RightBracket)] Pos<string> close) =>
-        new(ArrayElement(Variable(target), open, firstIndex, tails, close));
+        [AwkT(AwkTokenKind.RightBracket)] Pos<string> close)
+    {
+        _checkpoint?.Invoke();
+        return new(ArrayElement(Variable(target), open, firstIndex, tails, close));
+    }
 
     [Rule]
     public GetlineDestination GetlineFieldDestination(
         [AwkT(AwkTokenKind.Dollar)] Pos<string> dollar,
-        [NT(0)] AwkExpressionSyntax index) =>
-        new(Field(dollar, index));
+        [NT(0)] AwkExpressionSyntax index)
+    {
+        _checkpoint?.Invoke();
+        return new(Field(dollar, index));
+    }
 
     [Rule]
     public GetlineDestination GetlineUnaryFieldDestination(
         [AwkT(AwkTokenKind.Dollar)] Pos<string> dollar,
         [AwkT(AwkTokenKind.Bang, AwkTokenKind.Plus, AwkTokenKind.Minus)] Pos<string> op,
-        [NT(2)] AwkExpressionSyntax operand) =>
-        new(FieldWithUnaryIndex(dollar, op, operand));
+        [NT(2)] AwkExpressionSyntax operand)
+    {
+        _checkpoint?.Invoke();
+        return new(FieldWithUnaryIndex(dollar, op, operand));
+    }
 
     public readonly struct GetlineDestination(AwkExpressionSyntax? expression)
     {
@@ -526,57 +623,78 @@ internal sealed class AwkExpressionSyntaxParser
     public AwkExpressionSyntax Power(
         [NT(0)] AwkExpressionSyntax left,
         [AwkT(AwkTokenKind.Caret)] Pos<string> op,
-        [NT(2)] AwkExpressionSyntax right) =>
-        CreateNode(AwkExpressionKind.Binary, left, right, [ToToken(AwkTokenKind.Caret, op)]);
+        [NT(2)] AwkExpressionSyntax right)
+    {
+        _checkpoint?.Invoke();
+        return CreateNode(AwkExpressionKind.Binary, left, right, [ToToken(AwkTokenKind.Caret, op)]);
+    }
 
     [Rule(Rank = 2)]
     public AwkExpressionSyntax Unary(
         [AwkT(AwkTokenKind.Bang, AwkTokenKind.Plus, AwkTokenKind.Minus)] Pos<string> op,
         [NT(2)] AwkExpressionSyntax operand)
     {
-        var operatorToken = AwkParsingSupport.ToToken(op);
+        _checkpoint?.Invoke();
+        var operatorToken = AwkParsingSupport.ToToken(op, _checkpoint);
         return CreateNode(AwkExpressionKind.Unary, operatorToken, operand, [operatorToken]);
     }
 
     [Rule]
     public MultiplicativeTailPart MultiplicativeTail(
         [AwkT(AwkTokenKind.Star, AwkTokenKind.Slash, AwkTokenKind.Percent)] Pos<string> op,
-        [NT(2)] AwkExpressionSyntax right) =>
-        new(AwkParsingSupport.ToToken(op), right);
+        [NT(2)] AwkExpressionSyntax right)
+    {
+        _checkpoint?.Invoke();
+        return new(AwkParsingSupport.ToToken(op, _checkpoint), right);
+    }
 
     [Rule(Rank = 3)]
     public AwkExpressionSyntax Multiplicative(
         [NT(2)] AwkExpressionSyntax left,
-        [AwkL(Min = 1)] MultiplicativeTailPart[] tails) =>
-        FoldLeftBinary(left, tails);
+        [AwkL(Min = 1)] MultiplicativeTailPart[] tails)
+    {
+        _checkpoint?.Invoke();
+        return FoldLeftBinary(left, tails);
+    }
 
     [Rule]
     public AdditiveTailPart AdditiveTail(
         [AwkT(AwkTokenKind.Plus, AwkTokenKind.Minus)] Pos<string> op,
-        [NT(3)] AwkExpressionSyntax right) =>
-        new(AwkParsingSupport.ToToken(op), right);
+        [NT(3)] AwkExpressionSyntax right)
+    {
+        _checkpoint?.Invoke();
+        return new(AwkParsingSupport.ToToken(op, _checkpoint), right);
+    }
 
     [Rule(Rank = 4)]
     public AwkExpressionSyntax Additive(
         [NT(3)] AwkExpressionSyntax left,
-        [AwkL(Min = 1)] AdditiveTailPart[] tails) =>
-        FoldLeftBinary(left, tails);
+        [AwkL(Min = 1)] AdditiveTailPart[] tails)
+    {
+        _checkpoint?.Invoke();
+        return FoldLeftBinary(left, tails);
+    }
 
     [Rule]
-    public ConcatenationTail ConcatenationTailRule([NT(4)] AwkExpressionSyntax right) => new(right);
+    public ConcatenationTail ConcatenationTailRule([NT(4)] AwkExpressionSyntax right)
+    {
+        _checkpoint?.Invoke();
+        return new(right);
+    }
 
     [Rule(Rank = 5)]
     public AwkExpressionSyntax Concatenation(
         [NT(4)] AwkExpressionSyntax left,
         [AwkL(Min = 1)] ConcatenationTail[] tails)
     {
+        _checkpoint?.Invoke();
         var current = left;
         for (var index = 0; index < tails.Length; index++)
             current = CreateConcatenationNode(AwkExpressionKind.Concatenation, current, tails[index].Right);
 
         return current;
 
-        static AwkExpressionSyntax CreateConcatenationNode(AwkExpressionKind kind, AwkExpressionSyntax left, AwkExpressionSyntax right) =>
+        AwkExpressionSyntax CreateConcatenationNode(AwkExpressionKind kind, AwkExpressionSyntax left, AwkExpressionSyntax right) =>
             CreateNode(kind, left, right, []);
     }
 
@@ -593,20 +711,25 @@ internal sealed class AwkExpressionSyntaxParser
             AwkTokenKind.Greater,
             AwkTokenKind.GreaterEqual,
             AwkTokenKind.Pipe)] Pos<string> op,
-        [NT(5)] AwkExpressionSyntax right) =>
-        new(AwkParsingSupport.ToToken(op), right);
+        [NT(5)] AwkExpressionSyntax right)
+    {
+        _checkpoint?.Invoke();
+        return new(AwkParsingSupport.ToToken(op, _checkpoint), right);
+    }
 
     [Rule(Rank = 6)]
     public AwkExpressionSyntax Comparison(
         [NT(5)] AwkExpressionSyntax left,
         [AwkL(Min = 1)] ComparisonTailPart[] tails)
     {
+        _checkpoint?.Invoke();
         // Match binds less tightly than relations. Membership consumes an array name,
         // so it completes before following arithmetic, matching, or relational tokens.
         var operands = new List<AwkExpressionSyntax>(tails.Length + 1) { left };
         var operators = new List<AwkToken>(tails.Length);
         foreach (var tail in tails)
         {
+            _checkpoint?.Invoke();
             if (tail.Operator.Kind == AwkTokenKind.In)
             {
                 while (operators.Count > 0)
@@ -618,6 +741,7 @@ internal sealed class AwkExpressionSyntaxParser
             var precedence = Precedence(tail.Operator.Kind);
             while (operators.Count > 0 && Precedence(operators[^1].Kind) >= precedence)
             {
+                _checkpoint?.Invoke();
                 if (precedence == 2 && Precedence(operators[^1].Kind) == 2)
                     return CreateTokenNode(AwkExpressionKind.Unknown, tail.Operator);
                 Reduce();
@@ -639,14 +763,14 @@ internal sealed class AwkExpressionSyntaxParser
             operators.RemoveAt(operators.Count - 1);
         }
 
-        static int Precedence(AwkTokenKind kind) => kind switch
+        int Precedence(AwkTokenKind kind) => kind switch
         {
             AwkTokenKind.Pipe => 3,
             AwkTokenKind.Tilde or AwkTokenKind.BangTilde => 1,
             _ => 2
         };
 
-        static AwkExpressionSyntax Membership(
+        AwkExpressionSyntax Membership(
             AwkExpressionSyntax left,
             AwkExpressionSyntax right,
             AwkToken op)
@@ -657,7 +781,7 @@ internal sealed class AwkExpressionSyntaxParser
         }
     }
 
-    private static AwkExpressionSyntax AttachInputPipe(
+    private AwkExpressionSyntax AttachInputPipe(
         AwkExpressionSyntax command, AwkExpressionSyntax right, AwkToken pipe)
     {
         // Pipe getline is a simple expression after its command has been read.
@@ -666,6 +790,7 @@ internal sealed class AwkExpressionSyntaxParser
         var containers = new Stack<AwkExpressionSyntax>();
         while (right.Kind is AwkExpressionKind.Binary or AwkExpressionKind.Concatenation)
         {
+            _checkpoint?.Invoke();
             containers.Push(right);
             right = right.Children[0];
         }
@@ -675,7 +800,7 @@ internal sealed class AwkExpressionSyntaxParser
             expression = CreateNode(container.Kind, expression, container.Children[1], container.OperatorTokens);
         return expression;
 
-        static AwkExpressionSyntax AttachRead(
+        AwkExpressionSyntax AttachRead(
             AwkExpressionSyntax command, AwkExpressionSyntax right, AwkToken pipe)
         {
             if (right.Kind != AwkExpressionKind.FunctionCall || right.Children.Count == 0 ||
@@ -697,7 +822,7 @@ internal sealed class AwkExpressionSyntaxParser
             return CreatePipeCall(command, right, pipe);
         }
 
-        static AwkExpressionSyntax CreatePipeCall(
+        AwkExpressionSyntax CreatePipeCall(
             AwkExpressionSyntax command, AwkExpressionSyntax read, AwkToken pipe)
         {
             var children = new List<AwkExpressionSyntax>(read.Children) { command };
@@ -709,26 +834,38 @@ internal sealed class AwkExpressionSyntaxParser
     [Rule]
     public LogicalAndTailPart LogicalAndTail(
         [AwkT(AwkTokenKind.AmpersandAmpersand)] Pos<string> op,
-        [NT(6)] AwkExpressionSyntax right) =>
-        new(ToToken(AwkTokenKind.AmpersandAmpersand, op), right);
+        [NT(6)] AwkExpressionSyntax right)
+    {
+        _checkpoint?.Invoke();
+        return new(ToToken(AwkTokenKind.AmpersandAmpersand, op), right);
+    }
 
     [Rule(Rank = 7)]
     public AwkExpressionSyntax LogicalAnd(
         [NT(6)] AwkExpressionSyntax left,
-        [AwkL(Min = 1)] LogicalAndTailPart[] tails) =>
-        FoldLeftBinary(left, tails);
+        [AwkL(Min = 1)] LogicalAndTailPart[] tails)
+    {
+        _checkpoint?.Invoke();
+        return FoldLeftBinary(left, tails);
+    }
 
     [Rule]
     public LogicalOrTailPart LogicalOrTail(
         [AwkT(AwkTokenKind.PipePipe)] Pos<string> op,
-        [NT(7)] AwkExpressionSyntax right) =>
-        new(ToToken(AwkTokenKind.PipePipe, op), right);
+        [NT(7)] AwkExpressionSyntax right)
+    {
+        _checkpoint?.Invoke();
+        return new(ToToken(AwkTokenKind.PipePipe, op), right);
+    }
 
     [Rule(Rank = 8)]
     public AwkExpressionSyntax LogicalOr(
         [NT(7)] AwkExpressionSyntax left,
-        [AwkL(Min = 1)] LogicalOrTailPart[] tails) =>
-        FoldLeftBinary(left, tails);
+        [AwkL(Min = 1)] LogicalOrTailPart[] tails)
+    {
+        _checkpoint?.Invoke();
+        return FoldLeftBinary(left, tails);
+    }
 
     [Rule(Rank = 9)]
     public AwkExpressionSyntax Conditional(
@@ -738,13 +875,14 @@ internal sealed class AwkExpressionSyntaxParser
         [AwkT(AwkTokenKind.Colon)] Pos<string> colon,
         [NT(9)] AwkExpressionSyntax whenFalse)
     {
+        _checkpoint?.Invoke();
         return CreateConditionalNode(
             AwkExpressionKind.Conditional,
             condition,
             whenTrue,
             whenFalse,
             [ToToken(AwkTokenKind.Question, question), ToToken(AwkTokenKind.Colon, colon)]);
-        static AwkExpressionSyntax CreateConditionalNode(
+        AwkExpressionSyntax CreateConditionalNode(
             AwkExpressionKind kind,
             AwkExpressionSyntax first,
             AwkExpressionSyntax second,
@@ -765,7 +903,8 @@ internal sealed class AwkExpressionSyntaxParser
             AwkTokenKind.CaretEqual)] Pos<string> op,
         [NT(10)] AwkExpressionSyntax right)
     {
-        var operatorToken = AwkParsingSupport.ToToken(op);
+        _checkpoint?.Invoke();
+        var operatorToken = AwkParsingSupport.ToToken(op, _checkpoint);
         if (!AcceptsAssignmentOperand(left))
             return CreateNode(AwkExpressionKind.Assignment, left, right, [operatorToken]);
 
@@ -776,6 +915,7 @@ internal sealed class AwkExpressionSyntaxParser
         var target = left;
         while (AcceptsAssignmentOperand(target))
         {
+            _checkpoint?.Invoke();
             containers.Push(target);
             target = target.Children[^1];
         }
@@ -783,6 +923,7 @@ internal sealed class AwkExpressionSyntaxParser
         var expression = CreateNode(AwkExpressionKind.Assignment, target, right, [operatorToken]);
         while (containers.TryPop(out var container))
         {
+            _checkpoint?.Invoke();
             expression = container.Kind == AwkExpressionKind.Conditional
                 ? CreateNode(AwkExpressionKind.Conditional, container.FirstToken, expression.LastToken,
                     [container.Children[0], container.Children[1], expression], container.OperatorTokens)
@@ -790,7 +931,7 @@ internal sealed class AwkExpressionSyntaxParser
         }
         return expression;
 
-        static bool AcceptsAssignmentOperand(AwkExpressionSyntax expression) =>
+        bool AcceptsAssignmentOperand(AwkExpressionSyntax expression) =>
             expression.Kind == AwkExpressionKind.Conditional ||
             expression.Kind == AwkExpressionKind.Binary && expression.OperatorTokens[0].Kind is
                 AwkTokenKind.AmpersandAmpersand or AwkTokenKind.PipePipe or
@@ -800,7 +941,7 @@ internal sealed class AwkExpressionSyntaxParser
                 AwkTokenKind.Greater or AwkTokenKind.GreaterEqual;
     }
 
-    private static AwkExpressionSyntax CreateGetlineCall(
+    private AwkExpressionSyntax CreateGetlineCall(
         Pos<string> getline,
         AwkExpressionSyntax? target,
         Pos<string>? less,
@@ -830,7 +971,7 @@ internal sealed class AwkExpressionSyntaxParser
             []);
     }
 
-    private static AwkExpressionSyntax FoldLeftBinary<TTail>(
+    private AwkExpressionSyntax FoldLeftBinary<TTail>(
         AwkExpressionSyntax left,
         IReadOnlyList<TTail> tails)
         where TTail : IBinaryTailPart
@@ -842,31 +983,34 @@ internal sealed class AwkExpressionSyntaxParser
         return current;
     }
 
-    private static AwkExpressionSyntax CreateTokenNode(AwkExpressionKind kind, AwkToken token) =>
-        new(kind, [token], [], token.Span);
+    private AwkExpressionSyntax CreateTokenNode(AwkExpressionKind kind, AwkToken token)
+    {
+        _checkpoint?.Invoke();
+        return new(kind, [token], [], token.Span);
+    }
 
-    private static AwkExpressionSyntax CreateNode(
+    private AwkExpressionSyntax CreateNode(
         AwkExpressionKind kind,
         AwkExpressionSyntax left,
         AwkExpressionSyntax right,
         IReadOnlyList<AwkToken> operatorTokens) =>
         CreateNode(kind, left.FirstToken, right.LastToken, [left, right], operatorTokens: operatorTokens);
 
-    private static AwkExpressionSyntax CreateNode(
+    private AwkExpressionSyntax CreateNode(
         AwkExpressionKind kind,
         AwkExpressionSyntax first,
         AwkToken last,
         IReadOnlyList<AwkToken> operatorTokens) =>
         CreateNode(kind, first.FirstToken, last, [first], operatorTokens: operatorTokens);
 
-    private static AwkExpressionSyntax CreateNode(
+    private AwkExpressionSyntax CreateNode(
         AwkExpressionKind kind,
         AwkToken first,
         AwkExpressionSyntax child,
         IReadOnlyList<AwkToken> operatorTokens) =>
         CreateNode(kind, first, child.LastToken, [child], operatorTokens: operatorTokens);
 
-    private static AwkExpressionSyntax CreateNode(
+    private AwkExpressionSyntax CreateNode(
         AwkExpressionKind kind,
         AwkToken first,
         AwkToken last,
@@ -874,7 +1018,7 @@ internal sealed class AwkExpressionSyntaxParser
         IReadOnlyList<AwkToken> operatorTokens) =>
         CreateNode(kind, first, last, children, operatorTokens, [], []);
 
-    private static AwkExpressionSyntax CreateNode(
+    private AwkExpressionSyntax CreateNode(
         AwkExpressionKind kind,
         AwkToken first,
         AwkToken last,
@@ -883,8 +1027,10 @@ internal sealed class AwkExpressionSyntaxParser
         IReadOnlyList<AwkToken> delimiterTokens,
         IReadOnlyList<AwkToken> separatorTokens)
     {
+        _checkpoint?.Invoke();
         for (var index = 0; index < children.Count; index++)
         {
+            _checkpoint?.Invoke();
             if (children[index].Kind == AwkExpressionKind.Unknown)
                 return children[index];
         }
@@ -900,8 +1046,8 @@ internal sealed class AwkExpressionSyntaxParser
             last);
     }
 
-    private static AwkToken ToToken(AwkTokenKind kind, Pos<string> token) =>
-        AwkParsingSupport.ToToken(kind, token);
+    private AwkToken ToToken(AwkTokenKind kind, Pos<string> token) =>
+        AwkParsingSupport.ToToken(kind, token, _checkpoint);
 
     private abstract class AwkExpressionParseResult
     {

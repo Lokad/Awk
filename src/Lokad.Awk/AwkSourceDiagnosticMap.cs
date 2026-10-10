@@ -6,9 +6,11 @@ internal static class AwkSourceDiagnosticMap
 {
     public static IReadOnlyList<AwkDiagnostic> MapDiagnostics(
         AwkSourceUnit source,
-        IReadOnlyList<AwkDiagnostic> diagnostics)
+        IReadOnlyList<AwkDiagnostic> diagnostics,
+        Action? checkpoint = null)
     {
-        static bool TryFindSegment(
+        checkpoint?.Invoke();
+        bool TryFindSegment(
             IReadOnlyList<AwkSourceSegment> segments,
             int position,
             out AwkSourceSegment segment)
@@ -17,6 +19,7 @@ internal static class AwkSourceDiagnosticMap
             var high = segments.Count;
             while (low < high)
             {
+                checkpoint?.Invoke();
                 var middle = low + ((high - low) / 2);
                 if (segments[middle].Span.Start <= position)
                     low = middle + 1;
@@ -38,7 +41,7 @@ internal static class AwkSourceDiagnosticMap
             return false;
         }
 
-        static AwkSourceLocation CreateLocation(
+        AwkSourceLocation CreateLocation(
             AwkSourceUnit source,
             AwkSourceSegment segment,
             int position,
@@ -47,13 +50,13 @@ internal static class AwkSourceDiagnosticMap
             var relativeOffset = Math.Clamp(position - segment.Span.Start, 0, segment.Span.Length);
             var end = Math.Min(segment.Span.Start + relativeOffset, source.Text.Length);
             var sourceLines = lineIndex.GetPrefix(segment.Span.Start, end);
-            var continuationCount = segment.LineContinuations.CountAtOrBefore(relativeOffset);
+            var continuationCount = segment.LineContinuations.CountAtOrBefore(relativeOffset, checkpoint);
 
             var lastLineStart = sourceLines.LastStart;
             if (continuationCount > 0)
             {
                 var lastContinuation = segment.Span.Start +
-                    segment.LineContinuations[continuationCount - 1].NormalizedOffset;
+                    segment.LineContinuations.GetPoint(continuationCount - 1, checkpoint).NormalizedOffset;
                 if (lastContinuation > lastLineStart)
                     lastLineStart = lastContinuation;
             }
@@ -75,6 +78,7 @@ internal static class AwkSourceDiagnosticMap
         AwkDiagnostic[]? mapped = null;
         for (var index = 0; index < diagnostics.Count; index++)
         {
+            checkpoint?.Invoke();
             var diagnostic = diagnostics[index];
             if (diagnostic.SourceLocation.HasValue ||
                 !TryFindSegment(source.Segments, diagnostic.Span.Start, out var segment) ||
@@ -89,14 +93,18 @@ internal static class AwkSourceDiagnosticMap
             {
                 mapped = new AwkDiagnostic[diagnostics.Count];
                 for (var copyIndex = 0; copyIndex < diagnostics.Count; copyIndex++)
+                {
+                    checkpoint?.Invoke();
                     mapped[copyIndex] = diagnostics[copyIndex];
+                }
             }
 
-            lineIndex ??= new SourceLineIndex(source.Text);
+            lineIndex ??= new SourceLineIndex(source.Text, checkpoint);
             mapped[index] = diagnostic.WithSourceLocation(
                 CreateLocation(source, segment, diagnostic.Span.Start, lineIndex));
         }
 
+        checkpoint?.Invoke();
         return mapped ?? diagnostics;
     }
 
@@ -104,13 +112,21 @@ internal static class AwkSourceDiagnosticMap
     {
         private readonly string _source;
         private readonly List<int> _starts;
+        private readonly Action? _checkpoint;
 
-        public SourceLineIndex(string source)
+        public SourceLineIndex(string source, Action? checkpoint)
         {
             _source = source;
+            _checkpoint = checkpoint;
             _starts = [0];
+            long nextCheckpoint = 0;
             for (var index = 0; index < source.Length; index++)
             {
+                if (index >= nextCheckpoint)
+                {
+                    _checkpoint?.Invoke();
+                    nextCheckpoint = (long)index + 1024;
+                }
                 if (source[index] == '\r')
                 {
                     if (index + 1 < source.Length && source[index + 1] == '\n')
@@ -127,6 +143,7 @@ internal static class AwkSourceDiagnosticMap
 
         public SourceLinePrefix GetPrefix(int segmentStart, int end)
         {
+            _checkpoint?.Invoke();
             var first = FindFirstAfter(segmentStart);
             var afterLast = FindFirstAfter(end);
             var count = afterLast - first;
@@ -151,6 +168,7 @@ internal static class AwkSourceDiagnosticMap
                 var high = _starts.Count;
                 while (low < high)
                 {
+                    _checkpoint?.Invoke();
                     var middle = low + ((high - low) / 2);
                     if (_starts[middle] <= position)
                         low = middle + 1;

@@ -18,6 +18,7 @@ internal static partial class AwkExpressionLowerer
         AwkLoweringScope scope,
         [NotNullWhen(true)] out AwkExpression? lowered)
     {
+        scope.CheckCancellation();
         static bool TryLowerVariable(
             AwkExpressionSyntax expression,
             AwkLoweringScope scope,
@@ -116,15 +117,17 @@ internal static partial class AwkExpressionLowerer
 
         static bool TryLowerNumber(
             AwkExpressionSyntax expression,
+            AwkLoweringScope scope,
             [NotNullWhen(true)] out AwkExpression? lowered)
         {
             lowered = null;
-            if (expression.Tokens.Count != 1 || expression.Tokens[0].Kind != AwkTokenKind.Number)
+            var tokens = expression.GetTokens(scope.Checkpoint);
+            if (tokens.Count != 1 || tokens[0].Kind != AwkTokenKind.Number)
                 return false;
 
-            var text = expression.Tokens[0].Text;
+            var text = tokens[0].Text;
             var index = 0;
-            if (!TryReadNumericLiteralToken(text, ref index, out var numberText, out var numberValue) ||
+            if (!TryReadNumericLiteralToken(text, ref index, out var numberText, out var numberValue, scope.Checkpoint) ||
                 index != text.Length)
             {
                 return false;
@@ -140,12 +143,13 @@ internal static partial class AwkExpressionLowerer
             [NotNullWhen(true)] out AwkExpression? lowered)
         {
             lowered = null;
-            if (expression.Tokens.Count != 1 || expression.Tokens[0].Kind != AwkTokenKind.String)
+            var tokens = expression.GetTokens(scope.Checkpoint);
+            if (tokens.Count != 1 || tokens[0].Kind != AwkTokenKind.String)
                 return false;
 
-            var text = expression.Tokens[0].Text;
+            var text = tokens[0].Text;
             var index = 0;
-            if (!TryReadStringLiteralToken(text, ref index, out var literal, scope.CompatibilityMode) ||
+            if (!TryReadStringLiteralToken(text, ref index, out var literal, scope.CompatibilityMode, scope.Checkpoint) ||
                 index != text.Length)
             {
                 return false;
@@ -161,7 +165,7 @@ internal static partial class AwkExpressionLowerer
             [NotNullWhen(true)] out AwkExpression? lowered)
         {
             lowered = null;
-            if (!TryLowerRegexLiteralPattern(expression, out var regex, scope.CompatibilityMode))
+            if (!TryLowerRegexLiteralPattern(expression, out var regex, scope.CompatibilityMode, scope.Checkpoint))
                 return false;
 
             lowered = AwkExpression.RegexMatch(
@@ -399,7 +403,7 @@ internal static partial class AwkExpressionLowerer
                         {
                             return false;
                         }
-                        isRegexLiteral = TryReadRegexLiteralPattern(separatorSyntax, out _);
+                        isRegexLiteral = TryReadRegexLiteralPattern(separatorSyntax, out _, scope.Checkpoint);
                     }
 
                     if (!call.TryGetOptionalArrayIdentifierArgument(3, out var separatorArrayName))
@@ -850,7 +854,7 @@ internal static partial class AwkExpressionLowerer
         switch (expression.Kind)
         {
             case AwkExpressionKind.Number:
-                return TryLowerNumber(expression, out lowered);
+                return TryLowerNumber(expression, scope, out lowered);
             case AwkExpressionKind.String:
                 return TryLowerString(expression, scope, out lowered);
             case AwkExpressionKind.Regex:

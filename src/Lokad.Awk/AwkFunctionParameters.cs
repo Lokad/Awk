@@ -21,8 +21,9 @@ internal sealed class AwkFunctionParameterBinding
 
 internal static class AwkFunctionParameters
 {
-    public static AwkFunctionParameterBinding Bind(IReadOnlyList<AwkToken> parameterTokens)
+    public static AwkFunctionParameterBinding Bind(IReadOnlyList<AwkToken> parameterTokens, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         static void AddDiagnostic(
             List<AwkDiagnostic> diagnostics,
             AwkTextSpan span,
@@ -39,6 +40,7 @@ internal static class AwkFunctionParameters
 
         for (var index = 0; index < parameterTokens.Count; index++)
         {
+            checkpoint?.Invoke();
             var token = parameterTokens[index];
             if (token.Kind is AwkTokenKind.NewLine or AwkTokenKind.Comment)
                 continue;

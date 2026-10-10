@@ -129,11 +129,12 @@ internal sealed class AwkFunctionSyntax
         IReadOnlyList<AwkToken> parameterTokens,
         IReadOnlyList<AwkToken> bodyTokens,
         IReadOnlyList<AwkStatementSyntax> bodyStatements,
-        AwkTextSpan span)
+        AwkTextSpan span,
+        Action? checkpoint = null)
     {
         Identifier = AwkOptionalIdentifier.FromText(name);
         ParameterTokens = parameterTokens;
-        ParameterBinding = AwkFunctionParameters.Bind(parameterTokens);
+        ParameterBinding = AwkFunctionParameters.Bind(parameterTokens, checkpoint);
         BodyTokens = bodyTokens;
         BodyStatements = bodyStatements;
         Span = span;

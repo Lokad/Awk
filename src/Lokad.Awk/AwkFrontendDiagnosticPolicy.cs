@@ -22,12 +22,16 @@ internal static class AwkFrontendDiagnosticPolicy
         IReadOnlyList<AwkToken> tokens,
         List<AwkDiagnostic> diagnostics,
         AwkFrontendBudget budget,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
         for (var index = 0; index < tokens.Count; index++)
         {
+            checkpoint?.Invoke();
             if (tokens[index].Kind == AwkTokenKind.At &&
-                AwkDirectiveParser.TryParseAt(tokens, index, out var directive) &&
+                AwkDirectiveParser.TryParseAt(tokens, index, out var directive, checkpoint) &&
                 directive.Kind == AwkDirectiveKind.Include)
             {
                 if (compatibilityMode != AwkCompatibilityMode.GnuDefault)
@@ -35,7 +39,10 @@ internal static class AwkFrontendDiagnosticPolicy
                         AwkDiagnosticId.BindInvalidProgram));
                 // Include names are raw filename text rather than string expressions.
                 while (index + 1 < tokens.Count && tokens[index + 1].Span.Start < directive.Span.End)
+                {
+                    checkpoint?.Invoke();
                     index++;
+                }
                 continue;
             }
             if (tokens[index].Kind == AwkTokenKind.Identifier &&
@@ -55,7 +62,7 @@ internal static class AwkFrontendDiagnosticPolicy
                     : AwkDiagnosticId.ParseSyntax;
                 AddDiagnostic(new AwkDiagnostic(tokens[index].Span, "Unrecognized awk token.", id));
             }
-            else if (TryGetUnsupportedDiagnostic(source, tokens, index, out var unsupportedMessage))
+            else if (TryGetUnsupportedDiagnostic(source, tokens, index, out var unsupportedMessage, checkpoint))
             {
                 AddDiagnostic(new AwkDiagnostic(
                     tokens[index].Span,
@@ -77,8 +84,14 @@ internal static class AwkFrontendDiagnosticPolicy
             var text = token.TextSpan;
             var start = token.Kind == AwkTokenKind.InternationalizedString ? 2 : 1;
             var end = text.Length - 1;
+            long nextCheckpoint = start;
             for (var index = start; index < end; index++)
             {
+                if (index >= nextCheckpoint)
+                {
+                    checkpoint?.Invoke();
+                    nextCheckpoint = (long)index + 1024;
+                }
                 if (text[index] != '\\' || index + 1 >= end)
                     continue;
 
@@ -132,13 +145,13 @@ internal static class AwkFrontendDiagnosticPolicy
             var text = token.Text;
             var start = token.Kind == AwkTokenKind.StrongRegex ? 2 : 1;
             AwkRegexEscapes.ReportUnicodeWarnings(text[start..^1], compatibilityMode, message =>
-                AddDiagnostic(new AwkDiagnostic(token.Span, message, AwkDiagnosticId.WarningRegexEscape)));
+                AddDiagnostic(new AwkDiagnostic(token.Span, message, AwkDiagnosticId.WarningRegexEscape)), checkpoint);
             budget.ReserveRegexLiteralCompilations();
             if (!AwkRegexSyntaxValidator.IsValidLiteral(
                     token,
                     budget.MaxRegexPatternBytes,
                     budget.MaxRegexGroups,
-                    compatibilityMode))
+                    compatibilityMode, checkpoint))
             {
                 AddDiagnostic(new AwkDiagnostic(
                     token.Span,
@@ -163,11 +176,11 @@ internal static class AwkFrontendDiagnosticPolicy
             string source,
             IReadOnlyList<AwkToken> tokens,
             int index,
-            out ReadOnlyMemory<byte> errorMessage)
+            out ReadOnlyMemory<byte> errorMessage, Action? checkpoint)
         {
             var token = tokens[index];
             if (token.Kind == AwkTokenKind.At &&
-                AwkDirectiveParser.TryParseAt(tokens, index, out var directive))
+                AwkDirectiveParser.TryParseAt(tokens, index, out var directive, checkpoint))
             {
                 if (directive.Kind == AwkDirectiveKind.Load)
                 {
@@ -205,7 +218,7 @@ internal static class AwkFrontendDiagnosticPolicy
                     if (TokenAtOrEnd(
                             source,
                             tokens,
-                            NextSignificantTokenIndex(tokens, index + 1))
+                            NextSignificantTokenIndex(tokens, index + 1, checkpoint))
                         .Kind == AwkTokenKind.LeftBracket)
                     {
                         errorMessage = AwkMessages.ErrorUnsupportedArrayOfArrays;
@@ -220,7 +233,7 @@ internal static class AwkFrontendDiagnosticPolicy
 
             bool IsIndirectFunctionCall()
             {
-                var identifierIndex = NextSignificantTokenIndex(tokens, index + 1);
+                var identifierIndex = NextSignificantTokenIndex(tokens, index + 1, checkpoint);
                 var identifier = TokenAtOrEnd(source, tokens, identifierIndex);
                 if (identifier.Kind != AwkTokenKind.Identifier || identifier.Span.Start != token.Span.End)
                     return false;
@@ -228,16 +241,17 @@ internal static class AwkFrontendDiagnosticPolicy
                 return TokenAtOrEnd(
                         source,
                         tokens,
-                        NextSignificantTokenIndex(tokens, identifierIndex + 1))
+                        NextSignificantTokenIndex(tokens, identifierIndex + 1, checkpoint))
                     .Kind == AwkTokenKind.LeftParen;
             }
         }
     }
 
-    private static int NextSignificantTokenIndex(IReadOnlyList<AwkToken> tokens, int index)
+    private static int NextSignificantTokenIndex(IReadOnlyList<AwkToken> tokens, int index, Action? checkpoint)
     {
         for (var current = index; current < tokens.Count; current++)
         {
+            checkpoint?.Invoke();
             if (tokens[current].Kind is not (AwkTokenKind.Comment or AwkTokenKind.NewLine))
                 return current;
         }
@@ -264,20 +278,22 @@ internal static class AwkRegexSyntaxValidator
         AwkToken token,
         long maxPatternBytes,
         int maxGroups,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         var text = token.Text;
         string pattern;
         if (token.Kind == AwkTokenKind.StrongRegex)
         {
             pattern = text.Length >= 3 ? text[2..^1] : string.Empty;
         }
-        else if (!AwkRegexLiteral.TryReadPattern(text, out pattern))
+        else if (!AwkRegexLiteral.TryReadPattern(text, out pattern, checkpoint))
         {
             return false;
         }
 
-        return IsValidPattern(pattern, maxPatternBytes, maxGroups, compatibilityMode);
+        return IsValidPattern(pattern, maxPatternBytes, maxGroups, compatibilityMode, checkpoint);
     }
 
     public static bool IsValidPattern(string pattern)
@@ -287,18 +303,23 @@ internal static class AwkRegexSyntaxValidator
         string pattern,
         long maxPatternBytes,
         int maxGroups,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         try
         {
+            checkpoint?.Invoke();
             AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(pattern, maxPatternBytes, maxGroups);
             var translated = AwkRegexScalarPattern.Translate(
-                AwkRegex.TranslatePattern(new AwkRegexPattern(pattern), compatibilityMode));
+                AwkRegex.TranslatePattern(new AwkRegexPattern(pattern), compatibilityMode, checkpoint));
             AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(translated, maxPatternBytes, maxGroups);
+            checkpoint?.Invoke();
             _ = new Regex(
                 translated,
                 RegexOptions.CultureInvariant,
                 AwkRegex.MatchTimeout);
+            checkpoint?.Invoke();
             return true;
         }
         catch (ArgumentException)

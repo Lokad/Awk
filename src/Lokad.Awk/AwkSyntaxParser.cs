@@ -16,15 +16,22 @@ internal static class AwkSyntaxParser
         AwkFrontendBudget budget,
         CancellationToken cancellationToken,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        => ParseWithCheckpoint(source, budget,
+            cancellationToken.CanBeCanceled ? cancellationToken.ThrowIfCancellationRequested : null,
+            compatibilityMode);
+
+    internal static AwkSyntaxProgram ParseWithCheckpoint(
+        string source, AwkFrontendBudget budget, Action? checkpoint,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var parsingSource = AwkParsingSource.Create(source);
-        var tokens = AwkLexer.Tokenize(source, budget.MaxTokens, cancellationToken, compatibilityMode);
-        cancellationToken.ThrowIfCancellationRequested();
+        checkpoint?.Invoke();
+        var parsingSource = AwkParsingSource.Create(source, checkpoint);
+        var tokens = AwkLexer.Tokenize(source, budget.MaxTokens, checkpoint, compatibilityMode);
+        checkpoint?.Invoke();
         if (AwkSyntaxNesting.TryFindExcessiveDelimiterDepth(
                 tokens,
                 budget.MaxSyntaxNestingDepth,
-                out var excessiveDelimiter))
+                out var excessiveDelimiter, checkpoint))
         {
             return new AwkSyntaxProgram(
                 source,
@@ -38,7 +45,7 @@ internal static class AwkSyntaxParser
             parsingSource,
             tokens,
             budget,
-            cancellationToken,
+            checkpoint,
             compatibilityMode);
         return parser.ParseProgram();
     }
@@ -47,7 +54,7 @@ internal static class AwkSyntaxParser
         AwkParsingSource source,
         IReadOnlyList<AwkToken> tokens,
         AwkFrontendBudget budget,
-        CancellationToken cancellationToken,
+        Action? checkpoint,
         AwkCompatibilityMode compatibilityMode)
     {
         private readonly AwkParsingSource _source = source;
@@ -59,13 +66,13 @@ internal static class AwkSyntaxParser
 
         public AwkSyntaxProgram ParseProgram()
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            checkpoint?.Invoke();
             AddLexicalDiagnostics();
 
-            if (AwkTopLevelSyntaxParser.TryParse(_source, _tokens, out var parsedProgram))
+            if (AwkTopLevelSyntaxParser.TryParse(_source, _tokens, out var parsedProgram, checkpoint))
             {
                 AddTopLevelItems(parsedProgram.Items);
-                cancellationToken.ThrowIfCancellationRequested();
+                checkpoint?.Invoke();
                 var program = new AwkSyntaxProgram(
                     _source.Text,
                     _rules,
@@ -75,7 +82,7 @@ internal static class AwkSyntaxParser
                 if (AwkSyntaxNesting.TryFindExcessiveTreeDepth(
                         program,
                         budget.MaxSyntaxNestingDepth,
-                        out var excessiveNode))
+                        out var excessiveNode, checkpoint))
                 {
                     _diagnostics.Add(CreateNestingDiagnostic(excessiveNode));
                 }
@@ -90,6 +97,7 @@ internal static class AwkSyntaxParser
             {
                 for (var index = 0; index < _tokens.Count; index++)
                 {
+                    checkpoint?.Invoke();
                     if (_tokens[index].Kind != AwkTokenKind.Function)
                         continue;
 
@@ -103,6 +111,7 @@ internal static class AwkSyntaxParser
 
                 for (var index = 0; index < _tokens.Count; index++)
                 {
+                    checkpoint?.Invoke();
                     if (!IsSpecialRuleKeyword(_tokens[index].Kind))
                         continue;
 
@@ -129,6 +138,7 @@ internal static class AwkSyntaxParser
                 {
                     for (var index = startIndex; index < _tokens.Count; index++)
                     {
+                        checkpoint?.Invoke();
                         if (AwkTokenNavigation.IsSignificant(_tokens[index].Kind) &&
                             _tokens[index].Kind != AwkTokenKind.EndOfFile)
                         {
@@ -144,6 +154,7 @@ internal static class AwkSyntaxParser
                     var stack = new List<AwkToken>();
                     for (var index = 0; index < _tokens.Count; index++)
                     {
+                        checkpoint?.Invoke();
                         if (_tokens[index].Kind == AwkTokenKind.LeftBrace)
                         {
                             stack.Add(_tokens[index]);
@@ -173,7 +184,7 @@ internal static class AwkSyntaxParser
             {
                 for (var index = 0; index < items.Count; index++)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
+                    checkpoint?.Invoke();
                     var item = items[index];
                     switch (item.Kind)
                     {
@@ -185,7 +196,7 @@ internal static class AwkSyntaxParser
                                 item.Span));
                             break;
                         case AwkTopLevelSyntaxParser.TopLevelItemKind.Function:
-                            if (AwkExpressionSyntaxParser.TryGetSeparatorDiagnostic(item.FirstTokens, out var parameterDiagnostic))
+                            if (AwkExpressionSyntaxParser.TryGetSeparatorDiagnostic(item.FirstTokens, out var parameterDiagnostic, checkpoint))
                                 _diagnostics.Add(parameterDiagnostic);
                             _functions.Add(new AwkFunctionSyntax(
                                 item.Name,
@@ -195,8 +206,8 @@ internal static class AwkSyntaxParser
                                     _source,
                                     item.SecondTokens,
                                     _diagnostics,
-                                    "Invalid function declaration."),
-                                item.Span));
+                                    "Invalid function declaration.", checkpoint),
+                                item.Span, checkpoint));
                             break;
                         case AwkTopLevelSyntaxParser.TopLevelItemKind.Rule:
                             if (item.Pattern is { } pattern)
@@ -215,7 +226,7 @@ internal static class AwkSyntaxParser
                                     _source,
                                     item.SecondTokens,
                                     _diagnostics,
-                                    "Invalid action block."),
+                                    "Invalid action block.", checkpoint),
                                 item.HasExplicitAction,
                                 item.Span));
                             break;
@@ -236,7 +247,8 @@ internal static class AwkSyntaxParser
                     _tokens,
                     _diagnostics,
                     budget,
-                    compatibilityMode);
+                    compatibilityMode,
+                    checkpoint);
         }
     }
 

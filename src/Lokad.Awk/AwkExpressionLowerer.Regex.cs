@@ -11,7 +11,7 @@ internal static partial class AwkExpressionLowerer
         [NotNullWhen(true)] out AwkExpression? lowered)
     {
         lowered = null;
-        if (TryReadRegexLiteralPattern(expression, out var pattern))
+        if (TryReadRegexLiteralPattern(expression, out var pattern, scope.Checkpoint))
         {
             lowered = AwkExpression.SourceRegexPattern(pattern);
             return true;
@@ -23,18 +23,22 @@ internal static partial class AwkExpressionLowerer
     public static bool TryLowerRegexLiteralPattern(
         AwkExpressionSyntax? expression,
         [NotNullWhen(true)] out AwkRegex? regex,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         regex = null;
-        if (!TryReadRegexLiteralPattern(expression, out var pattern))
+        if (!TryReadRegexLiteralPattern(expression, out var pattern, checkpoint))
             return false;
 
         try
         {
+            checkpoint?.Invoke();
             regex = AwkRegex.Create(
                 new AwkRegexPattern(pattern),
                 AwkRegexCaseSensitivity.CaseSensitive,
                 compatibilityMode);
+            checkpoint?.Invoke();
             return true;
         }
         catch (ArgumentException)
@@ -45,18 +49,21 @@ internal static partial class AwkExpressionLowerer
 
     private static bool TryReadRegexLiteralPattern(
         AwkExpressionSyntax? expression,
-        [NotNullWhen(true)] out string? pattern)
+        [NotNullWhen(true)] out string? pattern,
+        Action? checkpoint = null)
     {
         pattern = null;
-        if (expression?.Kind != AwkExpressionKind.Regex ||
-            expression.Tokens.Count != 1 ||
-            expression.Tokens[0].Kind != AwkTokenKind.Regex)
+        if (expression?.Kind != AwkExpressionKind.Regex)
+            return false;
+
+        var tokens = expression.GetTokens(checkpoint);
+        if (tokens.Count != 1 || tokens[0].Kind != AwkTokenKind.Regex)
         {
             return false;
         }
 
-        var token = expression.Tokens[0];
-        if (!AwkRegexLiteral.TryReadPattern(token.Text, out var literalPattern))
+        var token = tokens[0];
+        if (!AwkRegexLiteral.TryReadPattern(token.Text, out var literalPattern, checkpoint))
         {
             return false;
         }

@@ -9,14 +9,31 @@ namespace Lokad.Awk;
 
 internal static class AwkParsingSupport
 {
+    public static void AppendText(System.Text.StringBuilder builder, ReadOnlySpan<char> text, Action? checkpoint)
+    {
+        checkpoint?.Invoke();
+        for (var offset = 0; offset < text.Length;)
+        {
+            checkpoint?.Invoke();
+            var length = Math.Min(1024, text.Length - offset);
+            builder.Append(text.Slice(offset, length));
+            offset += length;
+        }
+        checkpoint?.Invoke();
+    }
+
     public static LexerResult<AwkTokenKind> ToLexerResult(
         AwkParsingSource source,
-        IReadOnlyList<AwkToken> tokens)
+        IReadOnlyList<AwkToken> tokens,
+        Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
         var lexerTokens = new LexerToken<AwkTokenKind>[tokens.Count];
         var hasInvalidTokens = false;
         for (var index = 0; index < tokens.Count; index++)
         {
+            checkpoint?.Invoke();
             var token = tokens[index];
             lexerTokens[index] = new LexerToken<AwkTokenKind>(token.Kind, token.Span.Start, token.Span.Length);
             hasInvalidTokens |= token.Kind == AwkTokenKind.BadToken;
@@ -31,56 +48,93 @@ internal static class AwkParsingSupport
 
     public static LexerResult<AwkTokenKind> ToLexerResultWithEndOfFile(
         AwkParsingSource source,
-        IReadOnlyList<AwkToken> tokens)
+        IReadOnlyList<AwkToken> tokens,
+        Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
         if (tokens.Count > 0 && tokens[^1].Kind == AwkTokenKind.EndOfFile)
-            return ToLexerResult(source, tokens);
+            return ToLexerResult(source, tokens, checkpoint);
 
         var end = 0;
         for (var index = 0; index < tokens.Count; index++)
+        {
+            checkpoint?.Invoke();
             end = Math.Max(end, tokens[index].Span.End);
+        }
 
         var withEnd = new AwkToken[tokens.Count + 1];
         for (var index = 0; index < tokens.Count; index++)
-            withEnd[index] = tokens[index];
-
-        withEnd[^1] = new AwkToken(AwkTokenKind.EndOfFile, string.Empty, new AwkTextSpan(end, 0));
-        return ToLexerResult(source, withEnd);
-    }
-
-    public static LexerResult<AwkTokenKind> ToLexerResult(IReadOnlyList<AwkToken> tokens)
-    {
-        var tokenList = tokens as AwkToken[] ?? tokens.ToArray();
-        var end = tokenList.Length == 0 ? 0 : tokenList.Max(token => token.Span.End);
-        var buffer = new char[end];
-        Array.Fill(buffer, ' ');
-        for (var index = 0; index < tokenList.Length; index++)
         {
-            var token = tokenList[index];
-            token.TextSpan.CopyTo(buffer.AsSpan(token.Span.Start, token.Span.Length));
+            checkpoint?.Invoke();
+            withEnd[index] = tokens[index];
         }
 
-        var withEnd = new AwkToken[tokenList.Length + 1];
-        Array.Copy(tokenList, withEnd, tokenList.Length);
         withEnd[^1] = new AwkToken(AwkTokenKind.EndOfFile, string.Empty, new AwkTextSpan(end, 0));
-        return ToLexerResult(AwkParsingSource.Create(new string(buffer)), withEnd);
+        return ToLexerResult(source, withEnd, checkpoint);
     }
 
-    public static AwkToken ToToken(AwkTokenKind kind, Pos<string> value) =>
-        new(kind, value.Value, new AwkTextSpan(value.Location.Location.Position, value.Location.Length));
+    public static LexerResult<AwkTokenKind> ToLexerResult(IReadOnlyList<AwkToken> tokens, Action? checkpoint = null)
+    {
+        checkpoint?.Invoke();
+        var tokenList = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
+        var end = 0;
+        for (var index = 0; index < tokenList.Count; index++)
+        {
+            checkpoint?.Invoke();
+            end = Math.Max(end, tokenList[index].Span.End);
+        }
+        var buffer = new char[end];
+        for (var offset = 0; offset < buffer.Length; offset += Math.Min(1024, buffer.Length - offset))
+        {
+            checkpoint?.Invoke();
+            buffer.AsSpan(offset, Math.Min(1024, buffer.Length - offset)).Fill(' ');
+        }
+        for (var index = 0; index < tokenList.Count; index++)
+        {
+            checkpoint?.Invoke();
+            var token = tokenList[index];
+            for (var offset = 0; offset < token.Span.Length; offset += Math.Min(1024, token.Span.Length - offset))
+            {
+                checkpoint?.Invoke();
+                var length = Math.Min(1024, token.Span.Length - offset);
+                token.TextSpan.Slice(offset, length).CopyTo(buffer.AsSpan(token.Span.Start + offset, length));
+            }
+        }
 
-    public static AwkToken ToToken(Pos<string> value) =>
-        ToToken(ResolveTextKind(value.Value), value);
+        var withEnd = new AwkToken[tokenList.Count + 1];
+        for (var index = 0; index < tokenList.Count; index++)
+        {
+            checkpoint?.Invoke();
+            withEnd[index] = tokenList[index];
+        }
+        withEnd[^1] = new AwkToken(AwkTokenKind.EndOfFile, string.Empty, new AwkTextSpan(end, 0));
+        checkpoint?.Invoke();
+        var source = AwkParsingSource.Create(new string(buffer), checkpoint);
+        return ToLexerResult(source, withEnd, checkpoint);
+    }
+
+    public static AwkToken ToToken(AwkTokenKind kind, Pos<string> value, Action? checkpoint = null)
+    {
+        checkpoint?.Invoke();
+        return new(kind, value.Value, new AwkTextSpan(value.Location.Location.Position, value.Location.Length));
+    }
+
+    public static AwkToken ToToken(Pos<string> value, Action? checkpoint = null) =>
+        ToToken(ResolveTextKind(value.Value, checkpoint), value, checkpoint);
 
     // Generic grammar leaves must retain the lexical classification selected by the
     // compatibility profile and function scope. Reclassifying their text loses it.
-    public static AwkToken RestoreToken(IReadOnlyList<AwkToken> tokens, Pos<string> value)
+    public static AwkToken RestoreToken(IReadOnlyList<AwkToken> tokens, Pos<string> value, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
+        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
         var start = value.Location.Location.Position;
         var low = 0;
         var high = tokens.Count - 1;
         while (low <= high)
         {
+            checkpoint?.Invoke();
             var middle = low + ((high - low) / 2);
             var token = tokens[middle];
             if (token.Span.Start < start)
@@ -95,13 +149,14 @@ internal static class AwkParsingSupport
         throw new InvalidOperationException("A grammar leaf must reference its original lexical token.");
     }
 
-    public static AwkTokenKind ResolveTextKind(string text)
+    public static AwkTokenKind ResolveTextKind(string text, Action? checkpoint = null)
     {
-        return ResolveTextKind(text.AsSpan());
+        return ResolveTextKind(text.AsSpan(), checkpoint);
     }
 
-    public static AwkTokenKind ResolveTextKind(ReadOnlySpan<char> text)
+    public static AwkTokenKind ResolveTextKind(ReadOnlySpan<char> text, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         if (text.Length == 0)
             return AwkTokenKind.EndOfFile;
 
@@ -128,7 +183,7 @@ internal static class AwkParsingSupport
 
         return text[0] == '/'
             ? AwkTokenKind.Regex
-            : IsIdentifierText(text) ? AwkTokenKind.Identifier : AwkTokenKind.BadToken;
+            : IsIdentifierText(text, checkpoint) ? AwkTokenKind.Identifier : AwkTokenKind.BadToken;
 
         static bool TryResolveLiteralTokenKind(
             ReadOnlySpan<char> text,
@@ -261,13 +316,14 @@ internal static class AwkParsingSupport
                 text.SequenceEqual(value.AsSpan());
         }
 
-        static bool IsIdentifierText(ReadOnlySpan<char> text)
+        static bool IsIdentifierText(ReadOnlySpan<char> text, Action? checkpoint)
         {
             if (text.Length == 0 || !(char.IsLetter(text[0]) || text[0] == '_'))
                 return false;
 
             for (var index = 1; index < text.Length; index++)
             {
+                checkpoint?.Invoke();
                 if (!char.IsLetterOrDigit(text[index]) && text[index] != '_')
                     return false;
             }
@@ -292,16 +348,23 @@ internal sealed class AwkParsingSource
     // rescanning the complete program.
     public IReadOnlyList<int> NewLines { get; }
 
-    public static AwkParsingSource Create(string text)
+    public static AwkParsingSource Create(string text, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         var newLines = new List<int>();
         var position = 0;
         while (position < text.Length)
         {
-            var newline = text.IndexOf('\n', position);
-            if (newline < 0)
-                break;
+            checkpoint?.Invoke();
+            var length = Math.Min(1024, text.Length - position);
+            var relative = text.AsSpan(position, length).IndexOf('\n');
+            if (relative < 0)
+            {
+                position += length;
+                continue;
+            }
 
+            var newline = position + relative;
             newLines.Add(newline);
             position = newline + 1;
         }

@@ -45,75 +45,94 @@ internal sealed class AwkExpressionSyntax(
 
     public AwkExpressionKind Kind { get; } = kind;
 
-    public IReadOnlyList<AwkToken> Tokens
+    public IReadOnlyList<AwkToken> Tokens => GetTokens();
+
+    public IReadOnlyList<AwkToken> GetTokens(Action? checkpoint = null)
     {
-        get
+        checkpoint?.Invoke();
+        var cached = Volatile.Read(ref _tokens);
+        if (cached != null)
+            return cached;
+        static int CopyTo(IReadOnlyList<AwkToken> source, AwkToken[] destination, int offset, Action? checkpoint)
         {
-            static int CopyTo(IReadOnlyList<AwkToken> source, AwkToken[] destination, int offset)
+            source = AwkTokenNavigation.ForIndexedAccess(source, checkpoint);
+            for (var index = 0; index < source.Count; index++)
             {
-                for (var index = 0; index < source.Count; index++)
-                    destination[offset++] = source[index];
-
-                return offset;
+                checkpoint?.Invoke();
+                destination[offset++] = source[index];
             }
 
-            static AwkToken[] BuildTokens(AwkExpressionSyntax root)
-            {
-                var nodes = new Stack<AwkExpressionSyntax>();
-                nodes.Push(root);
-                var count = 0;
-                while (nodes.Count > 0)
-                {
-                    var node = nodes.Pop();
-                    if (node._tokens is { } materializedTokens)
-                    {
-                        count = checked(count + materializedTokens.Count);
-                        continue;
-                    }
-
-                    count = checked(
-                        count +
-                        node.OperatorTokens.Count +
-                        node.DelimiterTokens.Count +
-                        node.SeparatorTokens.Count);
-                    for (var index = 0; index < node.Children.Count; index++)
-                        nodes.Push(node.Children[index]);
-                }
-
-                if (count == 0)
-                    return [];
-
-                var result = new AwkToken[count];
-                var offset = 0;
-                nodes.Push(root);
-                while (nodes.Count > 0)
-                {
-                    var node = nodes.Pop();
-                    if (node._tokens is { } materializedTokens)
-                    {
-                        offset = CopyTo(materializedTokens, result, offset);
-                        continue;
-                    }
-
-                    offset = CopyTo(node.OperatorTokens, result, offset);
-                    offset = CopyTo(node.DelimiterTokens, result, offset);
-                    offset = CopyTo(node.SeparatorTokens, result, offset);
-                    for (var index = 0; index < node.Children.Count; index++)
-                        nodes.Push(node.Children[index]);
-                }
-
-                System.Array.Sort(
-                    result,
-                    static (left, right) =>
-                    {
-                        var start = left.Span.Start.CompareTo(right.Span.Start);
-                        return start != 0 ? start : left.Span.Length.CompareTo(right.Span.Length);
-                    });
-                return result;
-            }
-
-            return _tokens ??= BuildTokens(this);
+            return offset;
         }
+
+        static AwkToken[] BuildTokens(AwkExpressionSyntax root, Action? checkpoint)
+        {
+            var nodes = new Stack<AwkExpressionSyntax>();
+            nodes.Push(root);
+            var count = 0;
+            while (nodes.Count > 0)
+            {
+                checkpoint?.Invoke();
+                var node = nodes.Pop();
+                if (Volatile.Read(ref node._tokens) is { } materializedTokens)
+                {
+                    count = checked(count + materializedTokens.Count);
+                    continue;
+                }
+
+                count = checked(
+                    count +
+                    node.OperatorTokens.Count +
+                    node.DelimiterTokens.Count +
+                    node.SeparatorTokens.Count);
+                for (var index = 0; index < node.Children.Count; index++)
+                {
+                    checkpoint?.Invoke();
+                    nodes.Push(node.Children[index]);
+                }
+            }
+
+            if (count == 0)
+                return [];
+
+            var result = new AwkToken[count];
+            var offset = 0;
+            nodes.Push(root);
+            while (nodes.Count > 0)
+            {
+                checkpoint?.Invoke();
+                var node = nodes.Pop();
+                if (Volatile.Read(ref node._tokens) is { } materializedTokens)
+                {
+                    offset = CopyTo(materializedTokens, result, offset, checkpoint);
+                    continue;
+                }
+
+                offset = CopyTo(node.OperatorTokens, result, offset, checkpoint);
+                offset = CopyTo(node.DelimiterTokens, result, offset, checkpoint);
+                offset = CopyTo(node.SeparatorTokens, result, offset, checkpoint);
+                for (var index = 0; index < node.Children.Count; index++)
+                {
+                    checkpoint?.Invoke();
+                    nodes.Push(node.Children[index]);
+                }
+            }
+
+            checkpoint?.Invoke();
+            System.Array.Sort(
+                result,
+                static (left, right) =>
+                {
+                    var start = left.Span.Start.CompareTo(right.Span.Start);
+                    return start != 0 ? start : left.Span.Length.CompareTo(right.Span.Length);
+                });
+            checkpoint?.Invoke();
+            return result;
+        }
+
+        var built = BuildTokens(this, checkpoint);
+        checkpoint?.Invoke();
+        return Interlocked.CompareExchange(ref _tokens, built, null) ?? built;
     }
 
     public IReadOnlyList<AwkToken> OperatorTokens { get; } = operatorTokens;

@@ -63,36 +63,43 @@ internal sealed class AwkExecutableProgram
         }
     }
 
-    public static AwkExecutableProgram Compile(AwkProgram program)
+    public static AwkExecutableProgram Compile(AwkProgram program, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         static ReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction> CompileFunctions(
-            IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
+            IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions, Action? checkpoint)
         {
             var executable = new Dictionary<AwkFunctionName, AwkExecutableFunction>(functions.Count);
             foreach (var function in functions.Values)
+            {
+                checkpoint?.Invoke();
                 executable[function.FunctionName] = AwkExecutableFunction.FromFallback(function);
+            }
 
             return new ReadOnlyDictionary<AwkFunctionName, AwkExecutableFunction>(executable);
         }
 
         var tables = new AwkExecutableTableBuilder();
-        return new AwkExecutableProgram(
-            CompileActions(program.BeginActions, tables),
-            CompileActions(program.MainActions, tables),
-            CompileActions(program.EndActions, tables),
-            CompileActions(program.BeginFileActions, tables),
-            CompileActions(program.EndFileActions, tables),
-            CompileFunctions(program.Functions),
+        var executable = new AwkExecutableProgram(
+            CompileActions(program.BeginActions, tables, checkpoint),
+            CompileActions(program.MainActions, tables, checkpoint),
+            CompileActions(program.EndActions, tables, checkpoint),
+            CompileActions(program.BeginFileActions, tables, checkpoint),
+            CompileActions(program.EndFileActions, tables, checkpoint),
+            CompileFunctions(program.Functions, checkpoint),
             tables.ToTables());
+        checkpoint?.Invoke();
+        return executable;
 
         static AwkExecutableAction[] CompileActions(
             AwkAction[] actions,
-            AwkExecutableTableBuilder tables)
+            AwkExecutableTableBuilder tables, Action? checkpoint)
         {
             var executable = new AwkExecutableAction[actions.Length];
             for (var index = 0; index < actions.Length; index++)
             {
-                executable[index] = AwkExecutableAction.Compile(actions[index], tables);
+                checkpoint?.Invoke();
+                executable[index] = AwkExecutableAction.Compile(actions[index], tables, checkpoint);
             }
 
             return executable;
@@ -130,18 +137,23 @@ internal sealed class AwkExecutableAction
 
     public static AwkExecutableAction Compile(
         AwkAction action,
-        AwkExecutableTableBuilder tables)
+        AwkExecutableTableBuilder tables,
+        Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         if (!action.IsPatternless || action.Statements.Length == 0)
             return FromFallback(action);
 
-        var compiler = new AwkExecutableCompiler(tables);
+        var compiler = new AwkExecutableCompiler(tables, checkpoint);
         for (var index = 0; index < action.Statements.Length; index++)
         {
+            checkpoint?.Invoke();
             compiler.EmitStatementOrFallback(action.Statements[index]);
         }
 
+        checkpoint?.Invoke();
         var block = new AwkExecutableBlock(compiler.Instructions);
+        checkpoint?.Invoke();
         return new AwkExecutableAction(block, action, compiler.MaxStackDepth);
     }
 }

@@ -25,8 +25,9 @@ internal sealed class AwkSemanticModel
 
     public bool ReferencesFields { get; }
 
-    public static AwkSemanticModel Create(IReadOnlyList<AwkSymbolReference> symbols)
+    public static AwkSemanticModel Create(IReadOnlyList<AwkSymbolReference> symbols, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         static bool IsDeclaration(AwkSymbolReferenceKind kind) =>
             kind is AwkSymbolReferenceKind.FunctionDefinition or AwkSymbolReferenceKind.FunctionParameter;
 
@@ -53,6 +54,7 @@ internal sealed class AwkSemanticModel
 
         for (var index = 0; index < symbols.Count; index++)
         {
+            checkpoint?.Invoke();
             var symbol = symbols[index];
             if (symbol is AwkFieldSymbolReference)
             {
@@ -80,6 +82,7 @@ internal sealed class AwkSemanticModel
                 usages.Add(semanticSymbol);
         }
 
+        checkpoint?.Invoke();
         return new AwkSemanticModel(
             semanticSymbols,
             declarations,
