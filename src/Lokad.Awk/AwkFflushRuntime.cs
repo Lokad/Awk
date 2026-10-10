@@ -31,7 +31,7 @@ internal static class AwkFflushRuntime
         }
 
         // Redirection names cross the counted host-path boundary without consuming UNTYPE cells.
-        var path = state.FormatStringByteText(value).AsString(state.Counters);
+        var path = state.FormatStringByteText(value).AsString(state.Counters, state.CancellationCheckpoint);
         var status = path.Length == 0
             ? await execution.Io.FlushAllAsync().ConfigureAwait(false)
             : await execution.Io.FlushPathAsync(path).ConfigureAwait(false);

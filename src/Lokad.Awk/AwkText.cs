@@ -62,7 +62,8 @@ internal sealed class AwkText : IEquatable<AwkText>
         if (cached > UnknownTextFacts)
             return cached - 1;
 
-        var runeLength = CountRunes(AsSpan(), checkpoint);
+        var runeLength = CountRunes(AsSpan(checkpoint), checkpoint);
+        checkpoint?.Invoke();
         Volatile.Write(ref _textFacts, runeLength + 1);
         return runeLength;
     }
@@ -88,15 +89,21 @@ internal sealed class AwkText : IEquatable<AwkText>
         return count;
     }
 
-    public ReadOnlySpan<byte> AsSpan() =>
-        _concatenation is null
+    public ReadOnlySpan<byte> AsSpan(Action? checkpoint = null)
+    {
+        checkpoint?.Invoke();
+        return _concatenation is null
             ? _bytes.AsSpan(_byteOffset, _byteLength)
-            : MaterializeConcatenation(_concatenation).AsSpan();
+            : MaterializeConcatenation(_concatenation, checkpoint).AsSpan();
+    }
 
-    public ReadOnlyMemory<byte> AsMemory() =>
-        _concatenation is null
+    public ReadOnlyMemory<byte> AsMemory(Action? checkpoint = null)
+    {
+        checkpoint?.Invoke();
+        return _concatenation is null
             ? _bytes.AsMemory(_byteOffset, _byteLength)
-            : MaterializeConcatenation(_concatenation).AsMemory();
+            : MaterializeConcatenation(_concatenation, checkpoint).AsMemory();
+    }
 
     public bool ContainsNonAscii(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
@@ -111,12 +118,14 @@ internal sealed class AwkText : IEquatable<AwkText>
     public static AwkText FromString(string text) =>
         FromString(text, AwkRuntimeCounters.Disabled);
 
-    public static AwkText FromString(string text, AwkRuntimeCounters counters)
+    public static AwkText FromString(string text, AwkRuntimeCounters counters, Action? checkpoint = null)
     {
         if (text.Length == 0)
             return Empty;
 
+        checkpoint?.Invoke();
         var bytes = AwkUtf8Codec.EncodeOwned(text, counters);
+        checkpoint?.Invoke();
         counters.RecordValueCreated();
         counters.RecordAwkTextAllocation(bytes.Length);
         return new AwkText(bytes);
@@ -125,24 +134,30 @@ internal sealed class AwkText : IEquatable<AwkText>
     public static AwkText FromString(
         string text,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null)
     {
         if (text.Length == 0)
             return Empty;
 
-        return FromUtf16(text.AsSpan(), counters, governor);
+        return FromUtf16(text.AsSpan(), counters, governor, checkpoint);
     }
 
     internal static AwkText FromUtf16(
         ReadOnlySpan<char> text,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null)
     {
         if (text.IsEmpty)
             return Empty;
 
-        var bytes = AllocateOwnedBytes(AwkUtf8Codec.GetEncodedByteCount(text), governor);
+        checkpoint?.Invoke();
+        var byteCount = AwkUtf8Codec.GetEncodedByteCount(text);
+        checkpoint?.Invoke();
+        var bytes = AllocateOwnedBytes(byteCount, governor);
         AwkUtf8Codec.Encode(text, bytes, counters);
+        checkpoint?.Invoke();
         counters.RecordValueCreated();
         counters.RecordAwkTextAllocation(bytes.Length);
         return new AwkText(bytes);
@@ -151,21 +166,21 @@ internal sealed class AwkText : IEquatable<AwkText>
     public static AwkText FromHostBytes(ReadOnlyMemory<byte> bytes) =>
         FromHostBytes(bytes, AwkRuntimeCounters.Disabled);
 
-    public static AwkText FromHostBytes(ReadOnlyMemory<byte> bytes, AwkRuntimeCounters counters)
+    public static AwkText FromHostBytes(ReadOnlyMemory<byte> bytes, AwkRuntimeCounters counters, Action? checkpoint = null)
     {
         if (bytes.IsEmpty)
             return Empty;
 
-        ThrowIfInvalidUtf8(bytes.Span);
-        return FromTrustedOwnedBytes(bytes.ToArray(), counters);
+        ThrowIfInvalidUtf8(bytes.Span, checkpoint);
+        return CopyTrustedBytes(bytes.Span, counters, AwkMemoryGovernor.Disabled, checkpoint);
     }
 
-    public static AwkText FromOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)
+    public static AwkText FromOwnedBytes(byte[] bytes, AwkRuntimeCounters counters, Action? checkpoint = null)
     {
         if (bytes.Length == 0)
             return Empty;
 
-        ThrowIfInvalidUtf8(bytes);
+        ThrowIfInvalidUtf8(bytes, checkpoint);
         return FromTrustedOwnedBytes(bytes, counters);
     }
 
@@ -214,23 +229,26 @@ internal sealed class AwkText : IEquatable<AwkText>
     internal static AwkText CopyTrustedBytes(
         ReadOnlySpan<byte> bytes,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null)
     {
         if (bytes.IsEmpty)
             return Empty;
 
+        checkpoint?.Invoke();
         var ownedBytes = AllocateOwnedBytes(bytes.Length, governor);
-        bytes.CopyTo(ownedBytes);
+        CopyBytes(bytes, ownedBytes, checkpoint);
         return FromTrustedOwnedBytes(ownedBytes, counters);
     }
 
     internal static AwkText CopyHostBytes(
         ReadOnlySpan<byte> bytes,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null)
     {
-        ThrowIfInvalidUtf8(bytes);
-        return CopyTrustedBytes(bytes, counters, governor);
+        ThrowIfInvalidUtf8(bytes, checkpoint);
+        return CopyTrustedBytes(bytes, counters, governor, checkpoint);
     }
 
     internal static AwkText FromTrustedBorrowedBytes(
@@ -253,45 +271,68 @@ internal sealed class AwkText : IEquatable<AwkText>
     public string AsString() =>
         AsString(AwkRuntimeCounters.Disabled);
 
-    public string AsString(AwkRuntimeCounters counters)
+    public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         counters.RecordAwkTextAsStringCall();
         if (_byteLength == 0)
             return string.Empty;
 
-        var cached = _cachedString;
+        var cached = Volatile.Read(ref _cachedString);
         if (cached is not null)
             return cached;
 
         counters.RecordAwkTextAsStringDecodeMiss();
-        var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(), counters);
+        var decoded = AwkUtf8Codec.DecodeRuntimeText(AsSpan(checkpoint), counters);
+        checkpoint?.Invoke();
         return Interlocked.CompareExchange(ref _cachedString, decoded, null) ?? decoded;
     }
 
-    public int CompareBytes(AwkText other)
+    public int CompareBytes(AwkText other, Action? checkpoint = null) =>
+        CompareBytes(AsSpan(checkpoint), other.AsSpan(checkpoint), checkpoint);
+
+    private static int CompareBytes(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, Action? checkpoint)
     {
-        return AsSpan().SequenceCompareTo(other.AsSpan());
+        if (checkpoint is null)
+            return left.SequenceCompareTo(right);
+
+        var commonLength = Math.Min(left.Length, right.Length);
+        for (var offset = 0; offset < commonLength;)
+        {
+            checkpoint();
+            var length = Math.Min(AwkExecutionGovernor.WorkChunkBytes, commonLength - offset);
+            var comparison = left.Slice(offset, length).SequenceCompareTo(right.Slice(offset, length));
+            if (comparison != 0)
+                return comparison;
+            offset += length;
+        }
+        checkpoint();
+        return left.Length - right.Length;
     }
 
-    public bool EqualsAscii(string value)
+    public bool EqualsAscii(string value, Action? checkpoint = null)
     {
-        var span = AsSpan();
+        var span = AsSpan(checkpoint);
         if (span.Length != value.Length)
             return false;
 
         for (var index = 0; index < span.Length; index++)
         {
+            if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                checkpoint?.Invoke();
             if (value[index] > 0x7F || span[index] != (byte)value[index])
                 return false;
         }
 
+        checkpoint?.Invoke();
         return true;
     }
 
     public AwkText Concat(
         AwkText other,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null)
     {
         if (ByteLength == 0)
             return other;
@@ -303,8 +344,8 @@ internal sealed class AwkText : IEquatable<AwkText>
         governor.PreflightAllocation(length);
         counters.RecordValueCreated();
         return new AwkText(
-            SnapshotBorrowedText(this, counters, governor),
-            SnapshotBorrowedText(other, counters, governor),
+            SnapshotBorrowedText(this, counters, governor, checkpoint),
+            SnapshotBorrowedText(other, counters, governor, checkpoint),
             length,
             counters,
             governor);
@@ -313,19 +354,22 @@ internal sealed class AwkText : IEquatable<AwkText>
     public static AwkText Concat(
         ReadOnlySpan<AwkText> parts,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor) =>
-        Concat<AwkText, AwkTextPartSelector>(parts, counters, governor);
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null) =>
+        Concat<AwkText, AwkTextPartSelector>(parts, counters, governor, checkpoint);
 
     public static AwkText Concat(
         ReadOnlySpan<AwkValue> parts,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor) =>
-        Concat<AwkValue, AwkValueTextPartSelector>(parts, counters, governor);
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null) =>
+        Concat<AwkValue, AwkValueTextPartSelector>(parts, counters, governor, checkpoint);
 
     private static AwkText Concat<TPart, TSelector>(
         ReadOnlySpan<TPart> parts,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null)
         where TSelector : struct, IAwkTextPartSelector<TPart>
     {
         var totalLength = 0;
@@ -334,6 +378,8 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkText? secondNonEmptyPart = null;
         for (var index = 0; index < parts.Length; index++)
         {
+            if ((index & 1023) == 0)
+                checkpoint?.Invoke();
             var part = TSelector.Select(parts, index);
             if (part.ByteLength == 0)
                 continue;
@@ -363,8 +409,8 @@ internal sealed class AwkText : IEquatable<AwkText>
 
             counters.RecordValueCreated();
             return new AwkText(
-                SnapshotBorrowedText(firstNonEmptyPart, counters, governor),
-                SnapshotBorrowedText(secondNonEmptyPart, counters, governor),
+                SnapshotBorrowedText(firstNonEmptyPart, counters, governor, checkpoint),
+                SnapshotBorrowedText(secondNonEmptyPart, counters, governor, checkpoint),
                 totalLength,
                 counters,
                 governor);
@@ -374,12 +420,14 @@ internal sealed class AwkText : IEquatable<AwkText>
         var destinationOffset = 0;
         for (var index = 0; index < parts.Length; index++)
         {
+            if ((index & 1023) == 0)
+                checkpoint?.Invoke();
             var part = TSelector.Select(parts, index);
             if (part.ByteLength == 0)
                 continue;
 
-            var source = part.AsSpan();
-            source.CopyTo(bytes.AsSpan(destinationOffset));
+            var source = part.AsSpan(checkpoint);
+            CopyBytes(source, bytes.AsSpan(destinationOffset), checkpoint);
             destinationOffset += source.Length;
         }
 
@@ -409,7 +457,8 @@ internal sealed class AwkText : IEquatable<AwkText>
         int start,
         int length,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null)
     {
         if (start < 0 || start > ByteLength)
             throw new ArgumentOutOfRangeException(nameof(start));
@@ -424,8 +473,8 @@ internal sealed class AwkText : IEquatable<AwkText>
             return this;
 
         var bytes = AllocateOwnedBytes(length, governor);
-        AsSpan().Slice(start, length).CopyTo(bytes);
-        return FromOwnedBytes(bytes, counters);
+        CopyBytes(AsSpan(checkpoint).Slice(start, length), bytes, checkpoint);
+        return FromOwnedBytes(bytes, counters, checkpoint);
     }
 
     public AwkText CopyRuneSlice(
@@ -445,7 +494,7 @@ internal sealed class AwkText : IEquatable<AwkText>
 
         var byteLength = byteEnd - byteStart;
         var bytes = AllocateOwnedBytes(byteLength, governor);
-        AsSpan()[byteStart..byteEnd].CopyTo(bytes);
+        CopyBytes(AsSpan(checkpoint)[byteStart..byteEnd], bytes, checkpoint);
         return FromTrustedOwnedBytes(bytes, counters);
 
         void ResolveRuneByteRange(out int resolvedByteStart, out int resolvedByteEnd)
@@ -490,7 +539,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             using var checkpointLease = governor.ReserveTransient(checkpointBytes);
             var created = new int[checkpointCount];
 
-            var span = AsSpan();
+            var span = AsSpan(checkpoint);
             var byteOffset = 0;
             var runeIndex = 0;
             long nextCheckpoint = 0;
@@ -511,6 +560,7 @@ internal sealed class AwkText : IEquatable<AwkText>
                     created[runeIndex / RuneCheckpointStride] = byteOffset;
             }
 
+            checkpoint?.Invoke();
             counters.RecordRuneSliceBytesScanned(span.Length);
             counters.RecordRuneSliceIndexAllocation(checkpointBytes);
             Volatile.Write(ref _textFacts, runeIndex + 1);
@@ -522,7 +572,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             var checkpointIndex = runeIndex / RuneCheckpointStride;
             var currentRuneIndex = checkpointIndex * RuneCheckpointStride;
             var byteOffset = checkpoints[checkpointIndex];
-            var span = AsSpan();
+            var span = AsSpan(checkpoint);
             var scannedByteCount = 0;
             while (currentRuneIndex < runeIndex)
             {
@@ -540,22 +590,22 @@ internal sealed class AwkText : IEquatable<AwkText>
         }
     }
 
-    public int IndexOf(AwkText value)
+    public int IndexOf(AwkText value, Action? checkpoint = null)
     {
-        return AsSpan().IndexOf(value.AsSpan());
+        var position = AsSpan(checkpoint).IndexOf(value.AsSpan(checkpoint));
+        checkpoint?.Invoke();
+        return position;
     }
 
-    public bool Contains(AwkText value) => IndexOf(value) >= 0;
+    public bool Contains(AwkText value, Action? checkpoint = null) => IndexOf(value, checkpoint) >= 0;
 
-    public bool StartsWith(AwkText value)
-    {
-        return AsSpan().StartsWith(value.AsSpan());
-    }
+    public bool StartsWith(AwkText value, Action? checkpoint = null) =>
+        ByteLength >= value.ByteLength &&
+        CompareBytes(AsSpan(checkpoint)[..value.ByteLength], value.AsSpan(checkpoint), checkpoint) == 0;
 
-    public bool EndsWith(AwkText value)
-    {
-        return AsSpan().EndsWith(value.AsSpan());
-    }
+    public bool EndsWith(AwkText value, Action? checkpoint = null) =>
+        ByteLength >= value.ByteLength &&
+        CompareBytes(AsSpan(checkpoint)[(ByteLength - value.ByteLength)..], value.AsSpan(checkpoint), checkpoint) == 0;
 
     public bool TryParseNumber(
         AwkNumberParsingMode numberParsingMode,
@@ -563,7 +613,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         out double number,
         Action? checkpoint = null)
     {
-        var span = AsSpan();
+        var span = AsSpan(checkpoint);
         if (!TryParseNumberPrefix(span, numberParsingMode, out number, out var end, checkpoint))
             return false;
 
@@ -582,7 +632,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         out bool consumedAll,
         Action? checkpoint = null)
     {
-        var span = AsSpan();
+        var span = AsSpan(checkpoint);
         if (!TryParseNumberPrefix(span, numberParsingMode, out number, out var end, checkpoint))
         {
             number = 0;
@@ -594,15 +644,21 @@ internal sealed class AwkText : IEquatable<AwkText>
         return true;
     }
 
-    public bool Equals(AwkText? other)
+    public bool Equals(AwkText? other) => Equals(other, checkpoint: null);
+
+    public bool Equals(AwkText? other, Action? checkpoint)
     {
-        return other is not null && AsSpan().SequenceEqual(other.AsSpan());
+        checkpoint?.Invoke();
+        return other is not null && ByteLength == other.ByteLength && CompareBytes(other, checkpoint) == 0;
     }
 
     public override bool Equals(object? obj) =>
         obj is AwkText other && Equals(other);
 
-    public override int GetHashCode() => AwkByteFacts.GetOrdinalHashCode(AsSpan());
+    public override int GetHashCode() => GetHashCode(checkpoint: null);
+
+    internal int GetHashCode(Action? checkpoint) =>
+        AwkByteFacts.GetOrdinalHashCode(AsSpan(checkpoint), checkpoint);
 
     public override string ToString() => AsString();
 
@@ -621,7 +677,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             return false;
         }
 
-        var span = AsSpan();
+        var span = AsSpan(checkpoint);
         for (var index = 0; index < span.Length; index++)
         {
             if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
@@ -642,26 +698,63 @@ internal sealed class AwkText : IEquatable<AwkText>
         return true;
     }
 
-    private byte[] MaterializeConcatenation(AwkTextConcatenation concatenation)
+    private byte[] MaterializeConcatenation(AwkTextConcatenation concatenation, Action? checkpoint)
     {
         var cached = Volatile.Read(ref concatenation.MaterializedBytes);
         if (cached is not null)
             return cached;
 
-        lock (concatenation)
+        var lockTaken = false;
+        try
         {
+            if (checkpoint is null)
+                Monitor.Enter(concatenation, ref lockTaken);
+            else
+            {
+                while (!Monitor.TryEnter(concatenation, millisecondsTimeout: 50))
+                    checkpoint();
+                lockTaken = true;
+                checkpoint();
+            }
             cached = concatenation.MaterializedBytes;
             if (cached is not null)
                 return cached;
 
-            var bytes = AllocateOwnedBytes(ByteLength, concatenation.Governor);
-            CopyConcatenationTo(bytes);
-            concatenation.Counters.RecordConcatenationBytesCopied(ByteLength);
-            concatenation.Counters.RecordAwkTextAllocation(ByteLength);
-            Volatile.Write(ref concatenation.MaterializedBytes, bytes);
-            concatenation.LeftPart = null;
-            concatenation.RightPart = null;
-            return bytes;
+            // Keep the allocation live while copying; cancellation releases the lease
+            // and leaves the retained parts available for an independent retry.
+            var governor = concatenation.Governor;
+            governor.Reserve(ByteLength);
+            byte[] bytes;
+            try
+            {
+                bytes = new byte[ByteLength];
+                governor.CommitReserved(ByteLength);
+            }
+            catch
+            {
+                governor.ReleaseReserved(ByteLength);
+                throw;
+            }
+            try
+            {
+                CopyConcatenationTo(bytes);
+                checkpoint?.Invoke();
+                concatenation.Counters.RecordConcatenationBytesCopied(ByteLength);
+                concatenation.Counters.RecordAwkTextAllocation(ByteLength);
+                Volatile.Write(ref concatenation.MaterializedBytes, bytes);
+                concatenation.LeftPart = null;
+                concatenation.RightPart = null;
+                return bytes;
+            }
+            finally
+            {
+                governor.ReleaseCommitted(ByteLength);
+            }
+        }
+        finally
+        {
+            if (lockTaken)
+                Monitor.Exit(concatenation);
         }
 
         void CopyConcatenationTo(Span<byte> destination)
@@ -672,14 +765,17 @@ internal sealed class AwkText : IEquatable<AwkText>
             pending[0] = this;
             try
             {
+                var visited = 0;
                 while (pendingCount > 0)
                 {
+                    if ((visited++ & 1023) == 0)
+                        checkpoint?.Invoke();
                     var current = pending[--pendingCount];
                     var currentConcatenation = current._concatenation;
                     if (currentConcatenation is null)
                     {
                         var source = current._bytes.AsSpan(current._byteOffset, current._byteLength);
-                        source.CopyTo(destination[destinationOffset..]);
+                        CopyBytes(source, destination[destinationOffset..], checkpoint);
                         destinationOffset += source.Length;
                         continue;
                     }
@@ -687,7 +783,7 @@ internal sealed class AwkText : IEquatable<AwkText>
                     var materialized = Volatile.Read(ref currentConcatenation.MaterializedBytes);
                     if (materialized is not null)
                     {
-                        materialized.CopyTo(destination[destinationOffset..]);
+                        CopyBytes(materialized, destination[destinationOffset..], checkpoint);
                         destinationOffset += materialized.Length;
                         continue;
                     }
@@ -700,7 +796,7 @@ internal sealed class AwkText : IEquatable<AwkText>
                         if (materialized is null)
                             throw new InvalidOperationException("Concatenated text lost both its parts and materialized bytes.");
 
-                        materialized.CopyTo(destination[destinationOffset..]);
+                        CopyBytes(materialized, destination[destinationOffset..], checkpoint);
                         destinationOffset += materialized.Length;
                         continue;
                     }
@@ -725,7 +821,17 @@ internal sealed class AwkText : IEquatable<AwkText>
 
                 var expanded = ArrayPool<AwkText>.Shared.Rent(
                     AwkRuntimeMemory.CheckedAdd(pendingCount, additionalCount));
-                pending.AsSpan(0, pendingCount).CopyTo(expanded);
+                try
+                {
+                    checkpoint?.Invoke();
+                    pending.AsSpan(0, pendingCount).CopyTo(expanded);
+                    checkpoint?.Invoke();
+                }
+                catch
+                {
+                    ArrayPool<AwkText>.Shared.Return(expanded, clearArray: true);
+                    throw;
+                }
                 ArrayPool<AwkText>.Shared.Return(pending, clearArray: true);
                 pending = expanded;
             }
@@ -735,9 +841,10 @@ internal sealed class AwkText : IEquatable<AwkText>
     private static AwkText SnapshotBorrowedText(
         AwkText text,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor) =>
+        AwkMemoryGovernor governor,
+        Action? checkpoint = null) =>
         text._isBorrowed
-            ? CopyTrustedBytes(text.AsSpan(), counters, governor)
+            ? CopyTrustedBytes(text.AsSpan(checkpoint), counters, governor, checkpoint)
             : text;
 
     private sealed class AwkTextConcatenation
@@ -806,17 +913,49 @@ internal sealed class AwkText : IEquatable<AwkText>
         return bytes;
     }
 
-    private static void ThrowIfInvalidUtf8(ReadOnlySpan<byte> bytes)
+    private static void ThrowIfInvalidUtf8(ReadOnlySpan<byte> bytes, Action? checkpoint)
     {
         var remaining = bytes;
+        long nextCheckpoint = 0;
         while (!remaining.IsEmpty)
         {
+            var offset = bytes.Length - remaining.Length;
+            if (offset >= nextCheckpoint)
+            {
+                checkpoint?.Invoke();
+                nextCheckpoint = (long)offset + AwkExecutionGovernor.WorkChunkBytes;
+            }
             var status = Rune.DecodeFromUtf8(remaining, out _, out var consumed);
             if (status != OperationStatus.Done)
                 throw new AwkRuntimeException(AwkMessages.ErrorInvalidUtf8Input);
 
             remaining = remaining[consumed..];
         }
+        checkpoint?.Invoke();
+    }
+
+    internal static void CopyBytes(ReadOnlySpan<byte> source, Span<byte> destination, Action? checkpoint)
+    {
+        if (checkpoint is null)
+        {
+            source.CopyTo(destination);
+            return;
+        }
+        checkpoint();
+        // Preserve memmove behavior for callers passing overlapping builder views.
+        if (source.Overlaps(destination))
+            source.CopyTo(destination);
+        else
+        {
+            for (var offset = 0; offset < source.Length;)
+            {
+                checkpoint();
+                var length = Math.Min(AwkExecutionGovernor.WorkChunkBytes, source.Length - offset);
+                source.Slice(offset, length).CopyTo(destination.Slice(offset, length));
+                offset += length;
+            }
+        }
+        checkpoint();
     }
 
     private static int SkipAsciiWhitespace(ReadOnlySpan<byte> span, int index, Action? checkpoint) =>

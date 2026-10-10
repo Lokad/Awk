@@ -54,7 +54,7 @@ internal readonly struct AwkValue
 
     public static AwkValue FromText(string text, AwkNumberParsingMode numberParsingMode, Action? checkpoint = null)
     {
-        return FromText(AwkText.FromString(text), numberParsingMode, checkpoint);
+        return FromText(AwkText.FromString(text, AwkRuntimeCounters.Disabled, checkpoint), numberParsingMode, checkpoint);
     }
 
     public static AwkValue FromText(AwkText text) =>
@@ -83,7 +83,9 @@ internal readonly struct AwkValue
 
     private static AwkValue FromParsedText(AwkText text, AwkNumberParsingMode mode, bool input, Action? checkpoint)
     {
-        var span = text.AsSpan();
+        // Preserve bounded initialization and post-cancellation inspection reads.
+        // Long text must check before lazy materialization, then within parsing.
+        var span = text.AsSpan(text.ByteLength >= AwkExecutionGovernor.WorkChunkBytes ? checkpoint : null);
         var parsed = AwkNumberParser.Parse(span, mode, checkpoint);
         // Text may still be printed or sliced. GNU diagnoses this only when numeric conversion/type is requested.
         if (parsed.Status == AwkNumberParseStatus.MissingHexExponent)
@@ -184,8 +186,8 @@ internal readonly struct AwkValue
     public string AsString() =>
         _kind == AwkValueKind.Number ? AwkNumberFormatter.ToString(_number) : ByteText.AsString();
 
-    public string AsString(AwkRuntimeCounters counters) =>
-        _kind == AwkValueKind.Number ? AwkNumberFormatter.ToString(_number) : ByteText.AsString(counters);
+    public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null) =>
+        _kind == AwkValueKind.Number ? AwkNumberFormatter.ToString(_number) : ByteText.AsString(counters, checkpoint);
 
     public AwkText ByteText
     {

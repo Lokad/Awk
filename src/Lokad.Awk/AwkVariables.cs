@@ -25,7 +25,7 @@ internal sealed class AwkVariables
     private readonly AwkMemoryGovernor _memoryGovernor;
     private readonly Dictionary<AwkVariableName, AwkGlobalSlotId> _scalarSlotsByName = new();
     private readonly List<AwkScalarSlot> _scalarSlots = [];
-    private readonly AwkArrayKeyComparer _arrayKeyComparer = AwkArrayKeyComparer.Instance;
+    private readonly AwkArrayKeyComparer _arrayKeyComparer;
     private readonly AwkArrayStorage _arrays;
     private readonly AwkSymbolTableArray _symbolTable;
     private IReadOnlySet<AwkVariableName> _globalNames = FrozenSet<AwkVariableName>.Empty;
@@ -101,6 +101,7 @@ internal sealed class AwkVariables
         _throwIfValueBytesExceeded = throwIfValueBytesExceeded;
         _resolveFieldCountValue = resolveFieldCountValue;
         _prepareOutputFieldSeparatorAssignment = prepareOutputFieldSeparatorAssignment ?? (() => { });
+        _arrayKeyComparer = AwkArrayKeyComparer.ForRuntime(checkpoint);
         _arrays = new AwkArrayStorage(_arrayKeyComparer);
         _symbolTable = new AwkSymbolTableArray(
             () => _globalNames,
@@ -367,7 +368,7 @@ internal sealed class AwkVariables
                 prospectiveBytes,
                 AwkRuntimeMemory.EstimateExternalArrayElementBytes(keyBytes, valueBytes));
             _memoryGovernor.PreflightAllocation(prospectiveBytes);
-            slots[new AwkArrayKey(keyText)] = AwkVariableSlot.FromExternalText(valueText);
+            slots[new AwkArrayKey(keyText, _checkpoint)] = AwkVariableSlot.FromExternalText(valueText);
         }
 
         ReplaceArraySlots(name, slots);
@@ -380,7 +381,7 @@ internal sealed class AwkVariables
     {
         var slots = CreateArraySlots(count);
         foreach (var value in names)
-            slots[new AwkArrayKey(value)] = AwkVariableSlot.FromText(value);
+            slots[new AwkArrayKey(value, _checkpoint)] = AwkVariableSlot.FromText(value);
 
         ReplaceArraySlots(name, slots);
     }
@@ -388,14 +389,14 @@ internal sealed class AwkVariables
     public AwkValue GetArrayValue(AwkArrayName name, AwkArrayKey index)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
-            return _symbolTable.GetValue(index.AsString(_counters));
+            return _symbolTable.GetValue(index.AsString(_counters, _checkpoint));
 
         var values = GetOrCreateArraySlots(name);
         if (values.TryGetValue(index, out var slot))
             return CreateValue(slot);
 
         if (!name.IsFunctionLocal && AwkSpecialArrayPolicy.IsElementReadOnly(name.Text, _mode))
-            throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, index.AsString(_counters)));
+            throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, index.AsString(_counters, _checkpoint)));
 
         ThrowIfArrayWouldGrowPastLimit(values, index);
         _memoryGovernor.PreflightAllocation(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index));
@@ -408,7 +409,7 @@ internal sealed class AwkVariables
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
-            value = _symbolTable.GetValue(index.AsString(_counters));
+            value = _symbolTable.GetValue(index.AsString(_counters, _checkpoint));
             return true;
         }
 
@@ -419,7 +420,7 @@ internal sealed class AwkVariables
         if (!values.TryGetValue(index, out var slot))
         {
             if (!name.IsFunctionLocal && AwkSpecialArrayPolicy.IsElementReadOnly(name.Text, _mode))
-                throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, index.AsString(_counters)));
+                throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, index.AsString(_counters, _checkpoint)));
             value = AwkValue.FromText(string.Empty);
             return false;
         }
@@ -430,7 +431,7 @@ internal sealed class AwkVariables
 
     public bool ContainsArrayValue(AwkArrayName name, AwkArrayKey index) =>
         !name.IsFunctionLocal && IsSymbolTable(name.Text)
-            ? _symbolTable.ContainsValue(index.AsString(_counters))
+            ? _symbolTable.ContainsValue(index.AsString(_counters, _checkpoint))
             : GetOrCreateArraySlots(name).ContainsKey(index);
 
     public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value)
@@ -438,7 +439,7 @@ internal sealed class AwkVariables
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
             _symbolTable.AssignValue(
-                index.AsString(_counters),
+                index.AsString(_counters, _checkpoint),
                 _createByteTextValue(AwkText.FromString(value, _counters, _memoryGovernor)));
             return;
         }
@@ -454,7 +455,7 @@ internal sealed class AwkVariables
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
-            _symbolTable.AssignValue(index.AsString(_counters), value);
+            _symbolTable.AssignValue(index.AsString(_counters, _checkpoint), value);
             return;
         }
 
@@ -506,7 +507,7 @@ internal sealed class AwkVariables
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
         {
-            value = _symbolTable.GetValue(index.AsString(_counters));
+            value = _symbolTable.GetValue(index.AsString(_counters, _checkpoint));
             return true;
         }
         if (_arrays.TryGetSlots(name, out var slots) && slots.TryGetValue(index, out var slot))
@@ -520,7 +521,7 @@ internal sealed class AwkVariables
 
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index) =>
         !name.IsFunctionLocal && IsSymbolTable(name.Text)
-            ? _symbolTable.GetElementRuntimeKind(index.AsString(_counters))
+            ? _symbolTable.GetElementRuntimeKind(index.AsString(_counters, _checkpoint))
             : GetArrayValue(name, index).RuntimeKind;
 
     public void PreflightArrayElementRead(AwkArrayName name, AwkArrayKey index)

@@ -90,25 +90,29 @@ internal sealed class AwkUtf8Builder : IDisposable
         return _buffer.AsMemory(_contentOffset, Length);
     }
 
-    public AwkUtf8Builder Append(AwkText text)
+    public AwkUtf8Builder Append(AwkText text, Action? checkpoint = null)
     {
-        return Append(text.AsSpan());
+        return Append(text.AsSpan(checkpoint), checkpoint);
     }
 
-    public AwkUtf8Builder Append(ReadOnlySpan<AwkText> texts)
+    public AwkUtf8Builder Append(ReadOnlySpan<AwkText> texts, Action? checkpoint = null)
     {
         ThrowIfDisposed();
 
         var nextLength = Length;
         for (var index = 0; index < texts.Length; index++)
+        {
+            if ((index & 1023) == 0)
+                checkpoint?.Invoke();
             nextLength = AwkRuntimeMemory.CheckedAdd(nextLength, texts[index].ByteLength);
+        }
 
         EnsureCapacity(nextLength);
         var destinationOffset = _contentOffset + Length;
         for (var index = 0; index < texts.Length; index++)
         {
-            var bytes = texts[index].AsSpan();
-            bytes.CopyTo(_buffer.AsSpan(destinationOffset));
+            var bytes = texts[index].AsSpan(checkpoint);
+            AwkText.CopyBytes(bytes, _buffer.AsSpan(destinationOffset), checkpoint);
             destinationOffset += bytes.Length;
         }
 
@@ -118,7 +122,7 @@ internal sealed class AwkUtf8Builder : IDisposable
 
     public AwkUtf8Builder Append(ReadOnlyMemory<byte> bytes) => Append(bytes.Span);
 
-    public AwkUtf8Builder Append(ReadOnlySpan<byte> bytes)
+    public AwkUtf8Builder Append(ReadOnlySpan<byte> bytes, Action? checkpoint = null)
     {
         ThrowIfDisposed();
         if (bytes.IsEmpty)
@@ -126,7 +130,7 @@ internal sealed class AwkUtf8Builder : IDisposable
 
         var nextLength = AwkRuntimeMemory.CheckedAdd(Length, bytes.Length);
         EnsureCapacity(nextLength);
-        bytes.CopyTo(_buffer.AsSpan(_contentOffset + Length));
+        AwkText.CopyBytes(bytes, _buffer.AsSpan(_contentOffset + Length), checkpoint);
         Length = nextLength;
         return this;
     }
@@ -212,14 +216,14 @@ internal sealed class AwkUtf8Builder : IDisposable
             Length + prefixLength);
     }
 
-    public AwkText CopyToAwkText(AwkRuntimeCounters counters)
+    public AwkText CopyToAwkText(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
         ThrowIfDisposed();
         if (Length == 0)
             return AwkText.Empty;
 
         var bytes = AwkText.AllocateOwnedBytes(Length, _governor);
-        AsSpan().CopyTo(bytes);
+        AwkText.CopyBytes(AsSpan(), bytes, checkpoint);
         return AwkText.FromTrustedOwnedBytes(bytes, counters);
     }
 

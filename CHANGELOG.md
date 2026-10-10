@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Lazy text materialization, strict UTF-8 validation, byte hashing/comparison and
+  runtime key/string callers now propagate cooperative cancellation. Interrupted
+  copying releases live memory and retains complete parts for retry; text caches
+  retain no callback. Formatting caches publish their key and decoded format only
+  after success. Runtime array comparers are invocation-owned; the shared comparer
+  remains callback-free. Framework decoding/randomized hashing/search still use
+  boundary checks, and remaining field/record/replacement callers are under audit.
+
 - Printf flag/digit parsing, Unicode width/precision traversal and floating-point
   postprocessing now propagate cooperative cancellation without extra fuel charges.
   Pending formatted output is discarded on cancellation and builder reservations are

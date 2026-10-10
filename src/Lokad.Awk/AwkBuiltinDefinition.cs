@@ -57,7 +57,7 @@ internal readonly struct AwkBuiltinContext
                 "Unevaluated builtin arguments are unavailable."))[index].EvaluateAsync(Evaluation);
 
     public string GetString(int index) =>
-        State.FormatStringByteText(GetValue(index)).AsString(State.Counters);
+        State.FormatStringByteText(GetValue(index)).AsString(State.Counters, State.CancellationCheckpoint);
 
     public AwkRegexPattern GetRegexPattern(int index) =>
         new(GetString(index), _expressions is { } expressions
@@ -67,7 +67,7 @@ internal readonly struct AwkBuiltinContext
     public async ValueTask<string> GetStringAsync(int index) =>
         State.FormatStringByteText(
                 await GetValueAsync(index).ConfigureAwait(false))
-            .AsString(State.Counters);
+            .AsString(State.Counters, State.CancellationCheckpoint);
 
     public AwkText GetByteText(int index) => State.FormatStringByteText(GetValue(index));
 

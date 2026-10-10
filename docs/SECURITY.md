@@ -104,7 +104,16 @@ expression and statement admission. Runtime numeric scans, UTF-8 rune counting/i
 and ASCII case conversion use periodic cancellation callbacks without duplicate fuel charging.
 Printf directive scans, string width/precision traversal and float postprocessing now propagate the
 same callback. Interrupted formatting discards staged output and releases the builder; output/memory
-preflight still applies. Framework numeric formatting, UTF-8 encoding, string/copy construction and
+preflight still applies. Lazy text flattening, strict UTF-8 validation, byte hashing/comparison and
+runtime key/string/regex-input callers now propagate the operation-local callback. Interrupted
+materialization releases its live allocation charge and keeps complete parts for retry; lock
+acquisition polls cancellation. Completed text retains no callback. Runtime dictionary comparers
+are invocation-owned, while the global comparer remains callback-free. Bounded short initialization
+and dictionary inspection preserve their existing behavior; execution boundaries still check cancellation.
+Formatting caches publish
+key/string pairs only after decoding succeeds; canceled builder appends expose no partial suffix.
+These checkpoints add no logical fuel/byte charges. Randomized hashing and UTF-8 decode/encode
+remain one-shot framework work with boundary checks. Framework numeric formatting, UTF-8 encoding, string/copy construction and
 large padding fills remain one-shot work with boundary checks and admitted-data limits.
 Binding, lowering, symbol/semantic traversal and executable compilation propagate cancellation
 without retaining a callback in returned artifacts. Owned lexer/literal/string-diagnostic scans,
@@ -114,8 +123,8 @@ Completed frontend caches publish atomically and retain no per-run callback. Lok
 token-reader/parser APIs have no caller token: token matching, parser shifts and shared grammar
 initialization remain one-shot dependency work. Frontend data/depth limits still apply. Array sorting,
 source string/array construction and other framework numeric/string, span search/comparison and regex
-construction calls may finish before cancellation is observed. Runtime text materialization,
-formatting caches and regex translation/analysis remain under audit.
+construction calls may finish before cancellation is observed. Remaining field/record/separator,
+replacement/capture and virtual-array text callers, plus regex translation/analysis, remain under audit.
 The memory governor, mutation preflight, backend regex timeouts, and host/cleanup deadlines remain
 independent safeguards. Runtime warning queues also govern message retention, backing-array
 growth, and diagnostic formatting headroom, so repeated math warnings cannot grow an

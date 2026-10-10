@@ -7,7 +7,7 @@ internal static class AwkByteFacts
             ? (byte)(value + 32)
             : value;
 
-    public static int GetOrdinalHashCode(ReadOnlySpan<byte> bytes)
+    public static int GetOrdinalHashCode(ReadOnlySpan<byte> bytes, Action? checkpoint = null)
     {
         // Stable FNV-1a keeps byte text and compact ordinal array keys in the
         // same hash domain without materializing the ordinal as AwkText.
@@ -16,10 +16,13 @@ internal static class AwkByteFacts
             var hash = (int)2166136261;
             for (var index = 0; index < bytes.Length; index++)
             {
+                if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                    checkpoint?.Invoke();
                 hash ^= bytes[index];
                 hash *= 16777619;
             }
 
+            checkpoint?.Invoke();
             return hash;
         }
     }

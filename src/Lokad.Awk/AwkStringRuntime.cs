@@ -28,10 +28,10 @@ internal sealed class AwkStringRuntime
     public int Compare(AwkText left, AwkText right, bool ignoreCase, bool sorting)
     {
         if (!ignoreCase)
-            return left.CompareBytes(right);
+            return left.CompareBytes(right, _checkpoint);
 
-        var comparison = AwkCaseText.Compare(left.AsSpan(), right.AsSpan(), _unitMode, _recordByteWork);
-        return comparison == 0 && sorting ? left.CompareBytes(right) : comparison;
+        var comparison = AwkCaseText.Compare(left.AsSpan(_checkpoint), right.AsSpan(_checkpoint), _unitMode, _recordByteWork);
+        return comparison == 0 && sorting ? left.CompareBytes(right, _checkpoint) : comparison;
     }
 
     public int IndexOfUnits(AwkText source, AwkText value, bool ignoreCase)
@@ -39,14 +39,14 @@ internal sealed class AwkStringRuntime
         if (!ignoreCase)
             _recordByteWork?.Invoke(source.ByteLength);
         var position = ignoreCase
-            ? AwkCaseText.IndexOf(source.AsSpan(), value.AsSpan(), _unitMode, _recordByteWork)
-            : source.IndexOf(value);
+            ? AwkCaseText.IndexOf(source.AsSpan(_checkpoint), value.AsSpan(_checkpoint), _unitMode, _recordByteWork)
+            : source.IndexOf(value, _checkpoint);
         if (position < 0)
             return 0;
 
         return _unitMode is AwkStringUnitMode.Byte
             ? position + 1
-            : AwkText.CountRunes(source.AsSpan()[..position], _checkpoint) + 1;
+            : AwkText.CountRunes(source.AsSpan(_checkpoint)[..position], _checkpoint) + 1;
     }
 
     public AwkText SubstringByUnits(
@@ -58,7 +58,7 @@ internal sealed class AwkStringRuntime
     {
         _recordByteWork?.Invoke(source.ByteLength);
         return _unitMode is AwkStringUnitMode.Byte
-            ? source.CopyByteSlice(start, length, counters, governor)
+            ? source.CopyByteSlice(start, length, counters, governor, _checkpoint)
             : source.CopyRuneSlice(start, length, counters, governor, _checkpoint);
     }
 

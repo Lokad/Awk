@@ -24,7 +24,7 @@ internal static partial class AwkBuiltins
                         : value
                     : AwkByteFacts.ToAsciiLower(value);
 
-            var bytes = source.AsSpan();
+            var bytes = source.AsSpan(checkpoint);
             var firstChange = -1;
             for (var index = 0; index < bytes.Length; index++)
             {
@@ -48,7 +48,7 @@ internal static partial class AwkBuiltins
             }
 
             var converted = AwkText.AllocateOwnedBytes(bytes.Length, governor);
-            bytes.CopyTo(converted);
+            AwkText.CopyBytes(bytes, converted, checkpoint);
             for (var index = firstChange; index < converted.Length; index++)
             {
                 if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
@@ -76,7 +76,7 @@ internal static partial class AwkBuiltins
         }
 
         context.State.Counters.RecordStringInteropFallback();
-        var decoded = source.AsString(context.State.Counters);
+        var decoded = source.AsString(context.State.Counters, context.State.CancellationCheckpoint);
         context.State.ThrowIfCancellationRequested();
         var converted = conversion is AwkCaseConversion.Upper
             ? decoded.ToUpperInvariant()

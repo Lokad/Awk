@@ -91,18 +91,18 @@ internal sealed class AwkFormattingRuntime(
     {
         var format = resolveVariable(variable);
         var text = format.Text;
-        return text.EqualsAscii(AwkFormattingVariableFacts.DefaultFormat(variable));
+        return text.EqualsAscii(AwkFormattingVariableFacts.DefaultFormat(variable), checkpoint);
     }
 
     private string ResolveFormatString(AwkFormattingVariable variable)
     {
         string ResolveConversionFormatString(AwkText text)
         {
-            if (_hasConversionFormatString && _conversionFormatText.Equals(text))
+            if (_hasConversionFormatString && _conversionFormatText.Equals(text, checkpoint))
                 return _conversionFormatString;
 
             var defaultFormat = AwkFormattingVariableFacts.DefaultFormat(AwkFormattingVariable.ConversionFormat);
-            if (text.EqualsAscii(defaultFormat))
+            if (text.EqualsAscii(defaultFormat, checkpoint))
             {
                 _conversionFormatText = text;
                 _conversionFormatString = defaultFormat;
@@ -111,8 +111,10 @@ internal sealed class AwkFormattingRuntime(
             }
 
             counters.RecordFormattingStringInteropInput();
+            var decoded = text.AsString(counters, checkpoint);
+            checkpoint?.Invoke();
             _conversionFormatText = text;
-            _conversionFormatString = text.AsString(counters);
+            _conversionFormatString = decoded;
             _hasConversionFormatString = true;
             return _conversionFormatString;
         }
@@ -122,11 +124,11 @@ internal sealed class AwkFormattingRuntime(
         if (variable == AwkFormattingVariable.ConversionFormat)
             return ResolveConversionFormatString(text);
 
-        if (_hasOutputFormatString && _outputFormatText.Equals(text))
+        if (_hasOutputFormatString && _outputFormatText.Equals(text, checkpoint))
             return _outputFormatString;
 
         var defaultFormat = AwkFormattingVariableFacts.DefaultFormat(variable);
-        if (text.EqualsAscii(defaultFormat))
+        if (text.EqualsAscii(defaultFormat, checkpoint))
         {
             _outputFormatText = text;
             _outputFormatString = defaultFormat;
@@ -135,8 +137,10 @@ internal sealed class AwkFormattingRuntime(
         }
 
         counters.RecordFormattingStringInteropInput();
+        var decoded = text.AsString(counters, checkpoint);
+        checkpoint?.Invoke();
         _outputFormatText = text;
-        _outputFormatString = text.AsString(counters);
+        _outputFormatString = decoded;
         _hasOutputFormatString = true;
         return _outputFormatString;
     }

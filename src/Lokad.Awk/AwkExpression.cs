@@ -176,7 +176,7 @@ internal abstract partial class AwkExpression
     public async ValueTask<string> ResolveStringAsync(AwkEvaluationContext context) =>
         context.State.FormatStringByteText(
                 await EvaluateAsync(context).ConfigureAwait(false))
-            .AsString(context.State.Counters);
+            .AsString(context.State.Counters, context.State.CancellationCheckpoint);
 
     public async ValueTask<AwkText> ResolveByteTextAsync(AwkEvaluationContext context) =>
         context.State.FormatStringByteText(

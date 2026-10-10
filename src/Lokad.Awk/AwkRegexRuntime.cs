@@ -182,7 +182,7 @@ internal sealed class AwkRegexRuntime
         try
         {
             _resources.RecordRegexOperation(input.ByteLength);
-            return ResolveUtf8Regex(regex).Match(input.AsSpan()).Success;
+            return ResolveUtf8Regex(regex).Match(input.AsSpan(_throwIfCancellationRequested)).Success;
         }
         catch (RegexMatchTimeoutException)
         {
@@ -296,7 +296,7 @@ internal sealed class AwkRegexRuntime
         {
             _resources.RecordRegexOperation(input.ByteLength - searchOffset.ByteIndex);
             var match = ResolveUtf8Regex(regex)
-                .MatchDetailedFromUtf16Offset(input.AsSpan(), searchOffset.Utf16Index);
+                .MatchDetailedFromUtf16Offset(input.AsSpan(_throwIfCancellationRequested), searchOffset.Utf16Index);
             if (!match.Success)
             {
                 matchSpan = AwkRegexMatchSpan.NoMatch;
@@ -370,7 +370,7 @@ internal sealed class AwkRegexRuntime
         {
             _resources.RecordRegexOperation(input.ByteLength - searchOffset.ByteIndex);
             var match = ResolveUtf8Regex(regex)
-                .MatchDetailedFromUtf16Offset(input.AsSpan(), searchOffset.Utf16Index);
+                .MatchDetailedFromUtf16Offset(input.AsSpan(_throwIfCancellationRequested), searchOffset.Utf16Index);
             if (match.Success)
                 AwkRegexScalarBoundary.ThrowIfUnaligned(match.IsByteAligned);
             return match.Success
@@ -410,7 +410,7 @@ internal sealed class AwkRegexRuntime
         var executionPolicy = ResolveExecutionPolicy(regex, input);
         return new AwkRegexInputContext(
             executionPolicy,
-            executionPolicy.UsesUtf8Adapter ? string.Empty : input.AsString(_counters));
+            executionPolicy.UsesUtf8Adapter ? string.Empty : input.AsString(_counters, _throwIfCancellationRequested));
 
         AwkRegexExecutionPolicy ResolveExecutionPolicy(AwkRegex regex, AwkText input)
         {

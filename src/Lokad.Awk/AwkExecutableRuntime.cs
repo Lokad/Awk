@@ -457,7 +457,8 @@ internal static class AwkExecutableDispatcher
                                 var concatenated = AwkText.Concat(
                                     stack.AsSpan(partStart, partCount),
                                     state.Counters,
-                                    state.MemoryGovernor);
+                                    state.MemoryGovernor,
+                                    state.CancellationCheckpoint);
                                 stackCount = partStart;
                                 stack[stackCount++] = state.CreateDeferredTextValue(concatenated);
 

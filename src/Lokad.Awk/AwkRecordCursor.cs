@@ -87,7 +87,8 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             var record = AwkText.CopyHostBytes(
                 line.RecordBytes.Span,
                 _state.Counters,
-                _state.MemoryGovernor);
+                _state.MemoryGovernor,
+                _state.CancellationCheckpoint);
             return AwkInputRecordResult.Record(
                 record,
                 line.Terminator,
@@ -319,7 +320,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             {
                 var scanStart = GetRelativeScanStart(content);
                 var candidate = content[scanStart..];
-                var separatorBytes = separator.Value.AsSpan();
+                var separatorBytes = separator.Value.AsSpan(_state.CancellationCheckpoint);
                 var relativeIndex = candidate.IndexOf(separatorBytes);
                 RecordSeparatorScan(relativeIndex < 0
                     ? candidate.Length
@@ -614,7 +615,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
             RecordSeparator CreateSeparator(AwkText separatorText)
             {
-                var separatorBytes = separatorText.AsSpan();
+                var separatorBytes = separatorText.AsSpan(_state.CancellationCheckpoint);
                 if (separatorBytes.Length == 0)
                     return ParagraphSeparator.Instance;
 
@@ -664,7 +665,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     return new LiteralSeparator(separatorText, AwkRecordTerminator.FromText(separatorText));
 
                 return new RegexSeparator(_state.CreateRegex(
-                    new AwkRegexPattern(separatorText.AsString(_state.Counters), warningSite: this)));
+                    new AwkRegexPattern(separatorText.AsString(_state.Counters, _state.CancellationCheckpoint), warningSite: this)));
 
                 bool TryCreateByteSet(ReadOnlySpan<byte> separatorText, out ByteSetSeparator separator)
                 {
@@ -794,7 +795,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private AwkText CreateText(ReadOnlySpan<byte> content) =>
         content.IsEmpty
             ? AwkText.Empty
-            : AwkText.CopyHostBytes(content, _state.Counters, _state.MemoryGovernor);
+            : AwkText.CopyHostBytes(content, _state.Counters, _state.MemoryGovernor, _state.CancellationCheckpoint);
 
     private static bool IsLiteralPattern(ReadOnlySpan<byte> pattern)
     {

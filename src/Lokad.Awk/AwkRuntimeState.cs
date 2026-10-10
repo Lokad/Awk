@@ -203,7 +203,7 @@ internal sealed class AwkRuntimeState
         set => AssignSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber, AwkValue.FromNumber(value));
     }
 
-    public string FileName => ResolveSpecialVariableText(AwkSpecialVariableId.FileName).AsString(Counters);
+    public string FileName => ResolveSpecialVariableText(AwkSpecialVariableId.FileName).AsString(Counters, CancellationCheckpoint);
 
     public AwkText CurrentRecordByteText => _recordFields.CurrentRecordByteText;
 
@@ -246,7 +246,7 @@ internal sealed class AwkRuntimeState
     {
         Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(text));
         Counters.RecordValueCreated();
-        return AwkValue.FromText(AwkText.FromString(text, Counters, MemoryGovernor), NumberParsingMode, CancellationCheckpoint);
+        return AwkValue.FromText(AwkText.FromString(text, Counters, MemoryGovernor, CancellationCheckpoint), NumberParsingMode, CancellationCheckpoint);
     }
 
     public AwkValue CreateByteTextValue(AwkText text)
@@ -276,7 +276,7 @@ internal sealed class AwkRuntimeState
         Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(text));
         Counters.RecordValueCreated();
         return AwkValue.FromNumericString(
-            AwkText.FromString(text, Counters, MemoryGovernor),
+            AwkText.FromString(text, Counters, MemoryGovernor, CancellationCheckpoint),
             NumberParsingMode, CancellationCheckpoint);
     }
 
@@ -296,7 +296,7 @@ internal sealed class AwkRuntimeState
     public AwkArrayKey ToArrayKey(AwkValue value) =>
         value.TryGetArrayOrdinal(out var ordinal)
             ? AwkArrayKey.FromOrdinal(ordinal)
-            : new AwkArrayKey(FormatStringByteText(value));
+            : new AwkArrayKey(FormatStringByteText(value), CancellationCheckpoint);
 
     public AwkValue CreateArrayKeyValue(AwkArrayKey key) =>
         CreateByteTextValue(key.ToByteText(Counters, MemoryGovernor));
@@ -350,8 +350,8 @@ internal sealed class AwkRuntimeState
             EnvironmentArrayName,
             this,
             static (state, key, value) => new AwkEnvironmentVariable(
-                key.ToByteText(state.Counters, state.MemoryGovernor).AsString(state.Counters),
-                state.FormatStringByteText(value).AsString(state.Counters)));
+                key.ToByteText(state.Counters, state.MemoryGovernor).AsString(state.Counters, state.CancellationCheckpoint),
+                state.FormatStringByteText(value).AsString(state.Counters, state.CancellationCheckpoint)));
         Array.Sort(
             result,
             static (left, right) => StringComparer.Ordinal.Compare(left.Name, right.Name));
@@ -543,7 +543,7 @@ internal sealed class AwkRuntimeState
         {
             Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(assignment.Value));
             AssignSpecialVariableValue(AwkSpecialVariableId.FieldSeparator,
-                CreateByteTextValue(AwkText.FromString(assignment.Value, Counters, MemoryGovernor)));
+                CreateByteTextValue(AwkText.FromString(assignment.Value, Counters, MemoryGovernor, CancellationCheckpoint)));
             return;
         }
         if (assignment.Source == AwkVariableAssignmentSource.InputArgument)
@@ -689,14 +689,14 @@ internal sealed class AwkRuntimeState
             return fallback;
         if (!_variables.TryPeekArrayValue(
             ProcInfoArrayName,
-            new AwkArrayKey(key),
+            new AwkArrayKey(key, CancellationCheckpoint),
             out var value))
         {
             return fallback;
         }
 
         var text = FormatStringByteText(value);
-        return text.ByteLength > 0 ? text.AsString(Counters) : fallback;
+        return text.ByteLength > 0 ? text.AsString(Counters, CancellationCheckpoint) : fallback;
     }
 
     public void BeginInputFile(AwkText fileName, AwkArgvIndex argvIndex, bool resetRecord = true)
@@ -758,10 +758,10 @@ internal sealed class AwkRuntimeState
             Limits,
             MemoryGovernor,
             first.ByteLength + separator.ByteLength + second.ByteLength);
-        first.AppendTo(builder);
-        builder.Append(separator);
-        builder.Append(second);
-        return new AwkArrayKey(builder.CopyToAwkText(Counters));
+        first.AppendTo(builder, CancellationCheckpoint);
+        builder.Append(separator, CancellationCheckpoint);
+        builder.Append(second, CancellationCheckpoint);
+        return new AwkArrayKey(builder.CopyToAwkText(Counters, CancellationCheckpoint), CancellationCheckpoint);
     }
 
     public AwkText ResolveSubscriptSeparatorText() =>

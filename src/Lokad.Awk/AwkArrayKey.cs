@@ -12,17 +12,17 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     private readonly int _ordinal;
     private readonly int _hashCode;
 
-    public AwkArrayKey(string text)
-        : this(AwkText.FromString(text))
+    public AwkArrayKey(string text, Action? checkpoint = null)
+        : this(AwkText.FromString(text, AwkRuntimeCounters.Disabled, checkpoint), checkpoint)
     {
     }
 
-    public AwkArrayKey(AwkText text)
+    public AwkArrayKey(AwkText text, Action? checkpoint = null)
     {
         _kind = AwkArrayKeyKind.Text;
         _text = text;
         _ordinal = 0;
-        _hashCode = text.GetHashCode();
+        _hashCode = text.GetHashCode(checkpoint);
     }
 
     public static AwkArrayKey FromOrdinal(int ordinal) =>
@@ -40,10 +40,10 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     public static AwkArrayKey FromArgvIndex(AwkArgvIndex index) =>
         FromOrdinal(index.Value);
 
-    public string AsString(AwkRuntimeCounters counters) =>
+    public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null) =>
         IsOrdinal
             ? _ordinal.ToString(CultureInfo.InvariantCulture)
-            : Text.AsString(counters);
+            : Text.AsString(counters, checkpoint);
 
     public int ByteLength
     {
@@ -78,11 +78,11 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         return AwkText.FromTrustedOwnedBytes(bytes, counters);
     }
 
-    public void AppendTo(AwkUtf8Builder builder)
+    public void AppendTo(AwkUtf8Builder builder, Action? checkpoint = null)
     {
         if (!IsOrdinal)
         {
-            builder.Append(Text);
+            builder.Append(Text, checkpoint);
             return;
         }
 
@@ -90,19 +90,22 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         builder.Append(FormatOrdinalBytes(_ordinal, buffer));
     }
 
-    public bool Equals(AwkArrayKey other)
+    public bool Equals(AwkArrayKey other) => Equals(other, checkpoint: null);
+
+    internal bool Equals(AwkArrayKey other, Action? checkpoint)
     {
+        checkpoint?.Invoke();
         return IsOrdinal
             ? other.IsOrdinal
                 ? _ordinal == other._ordinal
-                : OrdinalEqualsText(_ordinal, other.Text)
+                : OrdinalEqualsText(_ordinal, other.Text, checkpoint)
             : other.IsOrdinal
-                ? OrdinalEqualsText(other._ordinal, Text)
-                : Text.Equals(other.Text);
-        static bool OrdinalEqualsText(int ordinal, AwkText text)
+                ? OrdinalEqualsText(other._ordinal, Text, checkpoint)
+                : Text.Equals(other.Text, checkpoint);
+        static bool OrdinalEqualsText(int ordinal, AwkText text, Action? checkpoint)
         {
             Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-            return text.AsSpan().SequenceEqual(FormatOrdinalBytes(ordinal, buffer));
+            return text.AsSpan(checkpoint).SequenceEqual(FormatOrdinalBytes(ordinal, buffer));
         }
     }
     public override bool Equals(object? obj) =>
@@ -113,8 +116,9 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
             ? AwkText.Empty.GetHashCode()
             : _hashCode;
 
-    internal int GetRandomizedHashCode()
+    internal int GetRandomizedHashCode(Action? checkpoint = null)
     {
+        checkpoint?.Invoke();
         var hash = new System.HashCode();
         if (IsOrdinal)
         {
@@ -123,9 +127,10 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         }
         else
         {
-            hash.AddBytes(Text.AsSpan());
+            hash.AddBytes(Text.AsSpan(checkpoint));
         }
 
+        checkpoint?.Invoke();
         return hash.ToHashCode();
     }
 

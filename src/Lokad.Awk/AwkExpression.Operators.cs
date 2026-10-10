@@ -73,7 +73,8 @@ internal abstract partial class AwkExpression
             context.State.CreateDeferredTextValue(AwkText.Concat(
                 formattedParts.AsSpan(0, _parts.Length),
                 context.State.Counters,
-                context.State.MemoryGovernor));
+                context.State.MemoryGovernor,
+                context.State.CancellationCheckpoint));
 
         private static void ReturnParts(AwkText[] formattedParts) =>
             ArrayPool<AwkText>.Shared.Return(formattedParts, clearArray: true);

@@ -687,7 +687,7 @@ internal readonly struct AwkValueArrayPrintfArguments(
     public string GetString(int index)
     {
         state.Counters.RecordFormattingStringInteropInput();
-        return state.FormatStringByteText(arguments[index].ForceScalar()).AsString(state.Counters);
+        return state.FormatStringByteText(arguments[index].ForceScalar()).AsString(state.Counters, state.CancellationCheckpoint);
     }
 
     public double GetNumber(int index) => arguments[index].ForceScalar().AsNumber(state.CancellationCheckpoint);
@@ -706,7 +706,7 @@ internal readonly struct AwkBuiltinContextPrintfArguments(
     {
         context.State.Counters.RecordFormattingStringInteropInput();
         return context.State.FormatStringByteText(context.GetValue(index + startIndex).ForceScalar())
-            .AsString(context.State.Counters);
+            .AsString(context.State.Counters, context.State.CancellationCheckpoint);
     }
 
     public double GetNumber(int index) => context.GetValue(index + startIndex).ForceScalar().AsNumber(context.State.CancellationCheckpoint);
@@ -730,7 +730,7 @@ internal readonly struct AwkSingleValuePrintfArguments(
         ArgumentOutOfRangeException.ThrowIfNotEqual(index, 0);
 
         counters.RecordFormattingStringInteropInput();
-        return value.AsString(counters);
+        return value.AsString(counters, checkpoint);
     }
 
     public double GetNumber(int index) =>

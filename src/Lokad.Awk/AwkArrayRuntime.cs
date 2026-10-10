@@ -413,7 +413,7 @@ internal sealed class AwkArrayRuntime
         if (text.ByteLength == 0)
             return false;
 
-        order = AwkArraySortOrder.Parse(text.AsString(_state.Counters));
+        order = AwkArraySortOrder.Parse(text.AsString(_state.Counters, _state.CancellationCheckpoint));
         return order is not AwkArraySortOrder.BuiltinOrder { Kind: AwkArrayBuiltinSortOrder.Unsorted };
     }
 

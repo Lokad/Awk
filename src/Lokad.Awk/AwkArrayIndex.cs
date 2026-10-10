@@ -50,13 +50,13 @@ internal sealed record AwkCompositeArrayIndex(IReadOnlyList<AwkExpression> Expre
         for (var index = 0; index < Expressions.Count; index++)
         {
             if (index > 0)
-                builder.Append(separator);
+                builder.Append(separator, context.State.CancellationCheckpoint);
 
             var part = context.State.FormatStringByteText(
                 await Expressions[index].EvaluateAsync(context).ConfigureAwait(false));
-            builder.Append(part);
+            builder.Append(part, context.State.CancellationCheckpoint);
         }
 
-        return new AwkArrayKey(builder.CopyToAwkText(context.State.Counters));
+        return new AwkArrayKey(builder.CopyToAwkText(context.State.Counters, context.State.CancellationCheckpoint), context.State.CancellationCheckpoint);
     }
 }
