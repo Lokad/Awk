@@ -111,7 +111,8 @@ internal enum AwkDiagnosticId
     HostIoFailure,
     WarningStringEscape,
     WarningRuntime,
-    UnsupportedPolicy
+    UnsupportedPolicy,
+    WarningRegexEscape
 }
 
 internal enum AwkDiagnosticCategory
@@ -147,6 +148,7 @@ internal static class AwkDiagnosticFacts
                 AwkDiagnosticId.OptionInvalidVariableAssignment => AwkDiagnosticCategory.Option,
             AwkDiagnosticId.HostIoFailure => AwkDiagnosticCategory.HostIo,
             AwkDiagnosticId.WarningStringEscape or
+                AwkDiagnosticId.WarningRegexEscape or
                 AwkDiagnosticId.WarningRuntime => AwkDiagnosticCategory.Warning,
             AwkDiagnosticId.UnsupportedPolicy => AwkDiagnosticCategory.UnsupportedPolicy,
             _ => AwkDiagnosticCategory.Unknown

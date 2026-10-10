@@ -101,7 +101,8 @@ internal sealed class AwkRuntimeState
             runtimeOptions.RegexEngineKind,
             resources,
             MemoryGovernor,
-            CompatibilityMode);
+            CompatibilityMode,
+            ReportRegexUnicodeWarning);
         _stringRuntime = new AwkStringRuntime(stringUnitMode, Resources.RecordByteWork);
         _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryGovernor, CompatibilityMode);
         _fieldSplitter = new AwkFieldSplitter(
@@ -768,6 +769,12 @@ internal sealed class AwkRuntimeState
 
     public AwkRegex CreateRegex(AwkRegexPattern pattern) =>
         _regexRuntime.Create(pattern);
+
+    private void ReportRegexUnicodeWarning(string message)
+    {
+        if (TryGetExecutionContext(out var execution))
+            execution.Output.ReportDiagnostic(new AwkDiagnostic(default, message, AwkDiagnosticId.WarningRegexEscape));
+    }
 
     public AwkRegexMatchEnumerator EnumerateRegexMatches(
         AwkRegex regex,

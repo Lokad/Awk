@@ -46,8 +46,17 @@ string content, not the start of another source escape.
 
 Warnings retain the string token's source span and are emitted even for unreachable
 code. Both source and compiled execution emit them before runtime effects through the
-same governed output boundary. This support applies to source strings; regex literals,
-command-option values and include-path escapes remain separate compatibility work.
+same governed output boundary. Command-option values and include-path escapes remain
+separate compatibility work.
+
+Raw regex literals and runtime patterns share the profile-aware Unicode scalar
+decoder. Numeric escapes are decoded before the separate ERE interpretation pass;
+invalid scalars produce a quoted literal `?`. Literal warnings retain regex token
+spans, while runtime warnings track the expression and its compiled case variants.
+Regex translation remains a string compatibility boundary. Escape decoding adds no
+AwkText string-decode/encode boundary counts, as covered by deterministic counters;
+its intermediate string allocation is not represented by those counters. General
+unknown-ERE warnings and special-variable assignment warning parity remain pending.
 
 `AwkText` stores valid UTF-8 bytes and caches UTF-16 strings only for compatibility boundaries.
 SYMTAB identifier lookup and failed special-array key diagnostics use the counted key

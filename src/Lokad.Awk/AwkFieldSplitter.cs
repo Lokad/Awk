@@ -60,7 +60,7 @@ internal sealed class AwkFieldSplitter(
     }
 
     public void ValidateFieldPattern(AwkText value) =>
-        _ = createRegex(new AwkRegexPattern(value.AsString(counters)), resolveRegexCaseSensitivity());
+        _ = createRegex(new AwkRegexPattern(value.AsString(counters), warningSite: this), resolveRegexCaseSensitivity());
 
     public long EstimateFieldWidthsMemory(AwkText value)
     {
@@ -238,7 +238,7 @@ internal sealed class AwkFieldSplitter(
         return plan.Mode switch
         {
             AwkFieldSplittingMode.FieldPattern => _byteSplitter.PatsplitRecordFields(
-                line, new AwkRegexPattern(plan.FieldPattern.AsString(counters)), plan.CaseSensitivity),
+                line, new AwkRegexPattern(plan.FieldPattern.AsString(counters), warningSite: this), plan.CaseSensitivity),
             AwkFieldSplittingMode.FieldWidths => SplitFieldWidthRecordFields(),
             _ => plan.RecordMode == AwkRecordFieldSplittingMode.Paragraph
                 ? _byteSplitter.SplitParagraphRecordFieldsBySeparator(

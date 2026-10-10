@@ -281,9 +281,9 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
-            var pattern = await patternExpression.ResolveStringAsync(context).ConfigureAwait(false);
+            var pattern = await patternExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             var matched = context.State.IsRegexMatch(
-                context.State.CreateRegex(new AwkRegexPattern(pattern)),
+                context.State.CreateRegex(pattern),
                 input);
             return AwkValue.FromNumber(matched != (polarity is AwkRegexMatchPolarity.Negated) ? 1 : 0);
         }

@@ -25,6 +25,14 @@ internal abstract partial class AwkExpression
 
     public static AwkExpression Literal(string literal) => new LiteralExpression(literal);
 
+    public static AwkExpression SourceRegexPattern(string pattern) =>
+        new LiteralExpression(pattern, AwkRegexPatternOrigin.SourceLiteral);
+
+    internal virtual AwkRegexPatternOrigin RegexPatternOrigin => AwkRegexPatternOrigin.Runtime;
+
+    public async ValueTask<AwkRegexPattern> ResolveRegexPatternAsync(AwkEvaluationContext context) =>
+        new(await ResolveStringAsync(context).ConfigureAwait(false), RegexPatternOrigin, this);
+
     public static AwkExpression Variable(AwkVariableName name) => new VariableExpression(name);
 
     public static AwkExpression LocalVariable(AwkVariableName name, AwkFunctionLocalSlotId slotId) =>

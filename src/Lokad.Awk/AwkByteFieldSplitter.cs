@@ -275,7 +275,9 @@ internal sealed class AwkByteFieldSplitter(
             caseSensitivity = AwkRegexCaseSensitivity.CaseSensitive;
         if (_resolvedSeparator is { } resolvedSeparator &&
             ReferenceEquals(resolvedSeparator.SeparatorText, separatorText) &&
-            resolvedSeparator.CaseSensitivity == caseSensitivity)
+            resolvedSeparator.CaseSensitivity == caseSensitivity &&
+            resolvedSeparator.PatternOrigin == separator.PatternOrigin &&
+            ReferenceEquals(resolvedSeparator.WarningSite, separator.WarningSite))
         {
             return resolvedSeparator.Plan;
         }
@@ -291,11 +293,12 @@ internal sealed class AwkByteFieldSplitter(
             var regexText = separatorText.AsString(counters);
             plan = FieldSeparatorPlan.FromRegex(
                 separatorText.RuneLength > 1
-                    ? createRegex(new AwkRegexPattern(regexText), caseSensitivity)
+                    ? createRegex(new AwkRegexPattern(regexText, separator.PatternOrigin, separator.WarningSite ?? this), caseSensitivity)
                     : createLiteralRegex(new AwkRegexLiteralText(regexText), caseSensitivity));
         }
 
-        _resolvedSeparator = new ResolvedFieldSeparatorPlan(separatorText, caseSensitivity, plan);
+        _resolvedSeparator = new ResolvedFieldSeparatorPlan(separatorText, caseSensitivity, plan,
+            separator.PatternOrigin, separator.WarningSite);
         return plan;
 
         static bool TryGetSingleByteLiteralSeparator(AwkText separator, out byte separatorByte)
@@ -549,13 +552,19 @@ internal sealed class AwkByteFieldSplitter(
     private readonly struct ResolvedFieldSeparatorPlan(
         AwkText? separatorText,
         AwkRegexCaseSensitivity caseSensitivity,
-        FieldSeparatorPlan plan)
+        FieldSeparatorPlan plan,
+        AwkRegexPatternOrigin patternOrigin,
+        object? warningSite)
     {
         public AwkText SeparatorText => separatorText ?? AwkText.Empty;
 
         public AwkRegexCaseSensitivity CaseSensitivity { get; } = caseSensitivity;
 
         public FieldSeparatorPlan Plan { get; } = plan;
+
+        public AwkRegexPatternOrigin PatternOrigin { get; } = patternOrigin;
+
+        public object? WarningSite { get; } = warningSite;
     }
 
     private readonly struct FieldSeparatorPlan

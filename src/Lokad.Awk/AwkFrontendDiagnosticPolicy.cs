@@ -117,6 +117,10 @@ internal static class AwkFrontendDiagnosticPolicy
 
         void AddRegexDiagnosticIfInvalid(AwkToken token)
         {
+            var text = token.Text;
+            var start = token.Kind == AwkTokenKind.StrongRegex ? 2 : 1;
+            AwkRegexEscapes.ReportUnicodeWarnings(text[start..^1], compatibilityMode, message =>
+                AddDiagnostic(new AwkDiagnostic(token.Span, message, AwkDiagnosticId.WarningRegexEscape)));
             budget.ReserveRegexLiteralCompilations();
             if (!AwkRegexSyntaxValidator.IsValidLiteral(
                     token,

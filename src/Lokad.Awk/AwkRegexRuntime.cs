@@ -23,6 +23,7 @@ internal sealed class AwkRegexRuntime
     private readonly AwkBoundedCache<AwkRegexCacheKey, PosixCompilation> _posixRegexCache;
     private readonly AwkMemoryGovernor _memoryGovernor;
     private readonly AwkCompatibilityMode _compatibilityMode;
+    private readonly AwkRegexUnicodeWarnings _unicodeWarnings;
 
     public AwkRegexRuntime(
         Func<AwkRegexCaseSensitivity> resolveCaseSensitivity,
@@ -48,7 +49,8 @@ internal sealed class AwkRegexRuntime
         AwkRegexEngineKind engineKind,
         AwkRuntimeResourceMonitor resources,
         AwkMemoryGovernor? memoryGovernor = null,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        Action<string>? reportUnicodeWarning = null)
     {
         _resolveCaseSensitivity = resolveCaseSensitivity;
         _stringUnitMode = stringUnitMode;
@@ -58,6 +60,8 @@ internal sealed class AwkRegexRuntime
         _resources = resources;
         _memoryGovernor = memoryGovernor ?? AwkMemoryGovernor.Create(resources.Limits, counters);
         _compatibilityMode = compatibilityMode;
+        _unicodeWarnings = new AwkRegexUnicodeWarnings(_memoryGovernor, compatibilityMode,
+            reportUnicodeWarning, throwIfCancellationRequested);
         var cachePartitionBytes = Math.Max(1, resources.Limits.MaxRegexCacheBytes / 5);
         _regexCache = new AwkBoundedCache<AwkRegexCacheKey, AwkRegex>(
             MaxCachedRegexes,
@@ -87,6 +91,8 @@ internal sealed class AwkRegexRuntime
         bool hasFixedCaseSensitivity)
     {
         _throwIfCancellationRequested();
+        ThrowIfPatternExceedsLimits(pattern.Text);
+        _unicodeWarnings.Report(pattern, caseSensitivity);
         var kind = hasFixedCaseSensitivity ? AwkRegexCacheKind.FixedPattern : AwkRegexCacheKind.Pattern;
         var key = new AwkRegexCacheKey(pattern.Text, caseSensitivity, kind, _engineKind);
         if (_regexCache.TryGetValue(key, out var cached))
@@ -107,7 +113,9 @@ internal sealed class AwkRegexRuntime
             AwkRegexCaseSensitivity caseSensitivity)
         {
             ThrowIfPatternExceedsLimits(pattern.Text);
-            var ere = AwkRegex.TranslatePattern(pattern, _compatibilityMode);
+            using var decoding = _memoryGovernor.ReserveTransient(pattern.Text.Contains('\\')
+                ? AwkRuntimeMemory.EstimateRegexEscapeDecodingBytes(pattern.Text.Length) : 0);
+            var ere = AwkRegex.TranslatePattern(pattern, _compatibilityMode, _throwIfCancellationRequested);
             var selection = AwkRegexSelection.Analyze(ere);
             var translated = AwkRegexScalarPattern.Translate(ere);
             ThrowIfPatternExceedsLimits(translated);

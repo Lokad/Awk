@@ -9,10 +9,13 @@ internal readonly record struct AwkFieldSeparatorSpec
     private readonly AwkText? _customText;
     private readonly AwkFieldSeparatorKind _kind;
 
-    private AwkFieldSeparatorSpec(AwkText text)
+    private AwkFieldSeparatorSpec(AwkText text, AwkRegexPatternOrigin origin = AwkRegexPatternOrigin.Runtime,
+        object? warningSite = null)
     {
         _customText = text;
         _kind = AwkFieldSeparatorKind.Custom;
+        PatternOrigin = origin;
+        WarningSite = warningSite;
     }
 
     public static AwkFieldSeparatorSpec Default => default;
@@ -26,7 +29,14 @@ internal readonly record struct AwkFieldSeparatorSpec
         text.EqualsAscii(" ") ? Default : new AwkFieldSeparatorSpec(text);
 
     public static AwkFieldSeparatorSpec FromRegexLiteral(string text) =>
-        new(AwkText.FromSourceLiteralString(text));
+        new(AwkText.FromSourceLiteralString(text), AwkRegexPatternOrigin.SourceLiteral);
+
+    public static AwkFieldSeparatorSpec FromRegexPattern(AwkRegexPattern pattern, bool isLiteral) =>
+        !isLiteral && pattern.Text == " " ? Default :
+        new(AwkText.FromSourceLiteralString(pattern.Text), pattern.Origin, pattern.WarningSite);
+
+    public AwkRegexPatternOrigin PatternOrigin { get; }
+    public object? WarningSite { get; }
 
     public AwkText ByteText => _kind == AwkFieldSeparatorKind.Custom ? _customText ?? AwkText.Empty : Space;
 

@@ -99,11 +99,6 @@ internal static class AwkRuntime
             state.InitializeFunctions(program.Functions);
         else
             state.InitializeFunctions(executableProgram.Functions);
-        foreach (var variable in runtimeArguments.Variables)
-        {
-            state.AssignVariableFromExternalText(variable);
-        }
-
         var cleanupDeadline = new AwkCleanupDeadline(runtimeOptions.CleanupTimeout);
         var io = new AwkIo(
             host,
@@ -143,8 +138,12 @@ internal static class AwkRuntime
             runtimeOptions.MaxHostErrorBytes,
             cleanupDeadline);
         io.BindMainInputReader(inputScheduler);
+        using var execution = state.PushExecutionContext(actionExecutor.Output, io);
         try
         {
+            foreach (var variable in runtimeArguments.Variables)
+                state.AssignVariableFromExternalText(variable);
+            await actionExecutor.Output.FlushDiagnosticsAsync(io).ConfigureAwait(false);
             if (executionOptions.CompatibilityProfile.OverridesCharactersAsBytes)
                 await io.WriteStandardErrorAsync(AwkMessages.WarningPosixOverridesCharactersAsBytes)
                     .ConfigureAwait(false);
@@ -159,6 +158,14 @@ internal static class AwkRuntime
         }
         catch (AwkRuntimeException exception)
         {
+            try
+            {
+                await actionExecutor.Output.FlushDiagnosticsAsync(io).ConfigureAwait(false);
+            }
+            catch (AwkRuntimeException warningFailure)
+            {
+                exception = warningFailure;
+            }
             await CleanupAfterFailureAsync(inputScheduler, io).ConfigureAwait(false);
             var failure = AwkDiagnostics.Runtime(exception);
             runtimeOptions.Counters.RecordHostCall();

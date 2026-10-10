@@ -13,7 +13,7 @@ internal static partial class AwkExpressionLowerer
         lowered = null;
         if (TryReadRegexLiteralPattern(expression, out var pattern))
         {
-            lowered = AwkExpression.Literal(pattern);
+            lowered = AwkExpression.SourceRegexPattern(pattern);
             return true;
         }
 

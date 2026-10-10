@@ -22,6 +22,8 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
 
     public bool HasBeginFileActions => _program.BeginFileActions.Length > 0;
 
+    public AwkOutputSink Output => _output;
+
     public ValueTask<AwkStatementFlow> ExecuteBeginActionsAsync(AwkRuntimeState state, AwkIo io) =>
         ExecutePhaseActionsAsync(
             _program.BeginActions,

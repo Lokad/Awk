@@ -156,9 +156,12 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class LiteralExpression(string literal) : AwkExpression
+    private sealed class LiteralExpression(string literal,
+        AwkRegexPatternOrigin patternOrigin = AwkRegexPatternOrigin.Runtime) : AwkExpression
     {
         private readonly AwkText _literalText = AwkText.FromSourceLiteralString(literal);
+
+        internal override AwkRegexPatternOrigin RegexPatternOrigin => patternOrigin;
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(context.State.CreateByteTextValue(_literalText));

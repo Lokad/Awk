@@ -17,11 +17,11 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
-            var separator = await separatorExpression.ResolveStringAsync(context).ConfigureAwait(false);
+            var separator = await separatorExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             return AwkValue.FromNumber(context.State.SplitIntoArray(
                 input,
                 arrayName,
-                isRegexLiteral ? AwkFieldSeparatorSpec.FromRegexLiteral(separator) : AwkFieldSeparatorSpec.FromText(separator),
+                AwkFieldSeparatorSpec.FromRegexPattern(separator, isRegexLiteral),
                 separatorArrayName));
         }
     }
@@ -38,11 +38,11 @@ internal abstract partial class AwkExpression
                 throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(AwkBuiltins.Name(AwkBuiltinId.Patsplit)));
 
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
-            var pattern = await patternExpression.ResolveStringAsync(context).ConfigureAwait(false);
+            var pattern = await patternExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             return AwkValue.FromNumber(context.State.PatsplitIntoArray(
                 input,
                 arrayName,
-                new AwkRegexPattern(pattern),
+                pattern,
                 separatorArrayName));
         }
     }

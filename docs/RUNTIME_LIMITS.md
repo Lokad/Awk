@@ -264,6 +264,17 @@ also covers normalization and UTF-8 encoding during flush. Flush releases queued
 charges even when a host write fails; retained reusable capacity stays charged until
 sink disposal. A warning admission failure preserves previously queued diagnostics.
 
+Runtime Unicode-regex warning history also charges retained pattern text and dictionary
+capacity. Replacement/growth reserves the new entry and capacity while the old data
+remain live; a memory failure leaves the old history intact. Source literals use their
+lexical warnings and allocate no runtime history. Repeated expressions and case variants
+share compiled regexes while keeping warning admission independent. New escape/warning
+scans observe runtime cancellation checkpoints. These checks do not alter the existing
+fuel policy or make an uninterruptible backend call cancellable.
+The first regex decoding pass reserves its temporary UTF-16 builder/string buffers
+before allocation and releases that lease after compilation, including failed attempts.
+Patterns without escapes and compiled cache hits need no decoding-buffer lease.
+
 ## Mutation Semantics
 
 Getline evaluates its source expression and then resolves its destination before opening or

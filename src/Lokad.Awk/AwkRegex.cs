@@ -89,12 +89,13 @@ internal sealed class AwkRegex
             : RegexOptions.None);
 
     public static string TranslatePattern(AwkRegexPattern pattern,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
     {
-        return Translate(pattern.Text, compatibilityMode);
-        static string Translate(string pattern, AwkCompatibilityMode mode)
+        return Translate(pattern.Text, compatibilityMode, checkpoint);
+        static string Translate(string pattern, AwkCompatibilityMode mode, Action? checkpoint)
         {
-            return TranslatePosixCharacterClasses(TranslateEscapes(pattern, mode));
+            return TranslatePosixCharacterClasses(TranslateEscapes(AwkRegexEscapes.Decode(pattern, mode, checkpoint), mode));
             static string TranslateEscapes(string pattern, AwkCompatibilityMode mode)
             {
                 StringBuilder? builder = null;
@@ -114,34 +115,13 @@ internal sealed class AwkRegex
                     var output = GetBuilder(index);
                     index++;
                     var escaped = pattern[index];
-                    if (!(mode == AwkCompatibilityMode.Posix && escaped == 'x') &&
-                        AwkEscapes.TryReadNumericEscape(pattern, ref index, pattern.Length, out var numeric))
-                    {
-                        if (mode == AwkCompatibilityMode.Traditional && ".*+(){}[]|?^$\\".Contains(numeric))
-                            AppendLiteral(output, numeric, bracketStart >= 0);
-                        else if (numeric == '\\' && index + 1 < pattern.Length)
-                        {
-                            // Numeric escapes are decoded before the ERE parser sees them.
-                            // A resulting backslash introduces an ERE escape, not another
-                            // awk numeric or string escape (\134y differs from \y).
-                            index++;
-                            AppendOperator(output, pattern[index], fromNumeric: true);
-                        }
-                        else
-                            AppendPatternCharacter(numeric, index);
-                        continue;
-                    }
-
                     if (bracketStart >= 0 || mode != AwkCompatibilityMode.GnuDefault)
                     {
-                        if (bracketStart >= 0 && mode == AwkCompatibilityMode.GnuDefault && escaped == 'y')
-                            AppendLiteral(output, 'b', inBracket: true);
-                        else
-                            AppendEscapedCharacter(output, escaped);
+                        AppendLiteral(output, escaped, bracketStart >= 0);
                         continue;
                     }
 
-                    AppendOperator(output, escaped, fromNumeric: false);
+                    AppendOperator(output, escaped);
                 }
 
                 return builder?.ToString() ?? pattern;
@@ -155,14 +135,8 @@ internal sealed class AwkRegex
                     return builder;
                 }
 
-                void AppendOperator(StringBuilder output, char escaped, bool fromNumeric)
+                void AppendOperator(StringBuilder output, char escaped)
                 {
-                    if (fromNumeric && (bracketStart >= 0 || mode != AwkCompatibilityMode.GnuDefault))
-                    {
-                        AppendLiteral(output, escaped, bracketStart >= 0);
-                        return;
-                    }
-
                     switch (escaped)
                     {
                         case '<':
@@ -171,8 +145,7 @@ internal sealed class AwkRegex
                         case '>':
                             output.Append(@"(?<=\w)\b");
                             break;
-                        case 'y' when !fromNumeric:
-                        case 'b' when fromNumeric:
+                        case 'b':
                             output.Append(@"\b");
                             break;
                         case 'B':
@@ -200,21 +173,9 @@ internal sealed class AwkRegex
                             output.Append('/');
                             break;
                         default:
-                            if (fromNumeric)
-                                AppendLiteral(output, escaped, bracketStart >= 0);
-                            else
-                                AppendEscapedCharacter(output, escaped);
+                            AppendLiteral(output, escaped, bracketStart >= 0);
                             break;
                     }
-                }
-
-                void AppendEscapedCharacter(StringBuilder output, char escaped)
-                {
-                    if (escaped is 'a' or 'b' or 'f' or 'n' or 'r' or 't' or 'v' &&
-                        AwkEscapes.TryDecodeSimpleEscape(escaped, out var decoded))
-                        AppendLiteral(output, decoded, bracketStart >= 0);
-                    else
-                        AppendLiteral(output, escaped, bracketStart >= 0);
                 }
 
                 void AppendPatternCharacter(char value, int index)

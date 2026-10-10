@@ -59,8 +59,13 @@ locations and occur even when the containing expression never executes.
 
 String decoding runs once. A decoded backslash is passed as string data; if that
 string is later used as a regular expression, it crosses the separate regex translation
-boundary. Unicode decoding inside regex literals, command-option values and include
-paths is not covered by this source-string increment.
+boundary. Regex literals and runtime patterns also support profile-aware `\u` decoding
+before ERE interpretation. Invalid scalars produce a quoted literal `?`; literal
+warnings are lexical, and runtime warnings track the last pattern and compiled case
+variants at each expression. Shared regex cache hits do not suppress warnings from
+another expression, and compiled executions have independent warning history.
+General unknown-ERE warnings, assignment-time FS/FPAT/RS warning parity, command-option
+values and include paths remain pending compatibility work.
 
 ## Field Splitting Modes
 

@@ -24,11 +24,12 @@ internal readonly struct AwkBuiltinContext
     }
 
     private AwkBuiltinContext(
+        IReadOnlyList<AwkExpression>? expressions,
         AwkValue[] evaluatedArguments,
         int argumentCount,
         AwkEvaluationContext evaluationContext)
     {
-        _expressions = [];
+        _expressions = expressions;
         _values = evaluatedArguments;
         _valueCount = argumentCount;
         _argumentsAreEvaluated = true;
@@ -58,6 +59,11 @@ internal readonly struct AwkBuiltinContext
     public string GetString(int index) =>
         State.FormatStringByteText(GetValue(index)).AsString(State.Counters);
 
+    public AwkRegexPattern GetRegexPattern(int index) =>
+        new(GetString(index), _expressions is { } expressions
+            ? expressions[index].RegexPatternOrigin : AwkRegexPatternOrigin.Runtime,
+            _expressions is { } sites ? sites[index] : null);
+
     public async ValueTask<string> GetStringAsync(int index) =>
         State.FormatStringByteText(
                 await GetValueAsync(index).ConfigureAwait(false))
@@ -71,7 +77,7 @@ internal readonly struct AwkBuiltinContext
         Evaluation.TryGetExecutionContext(out context);
 
     public AwkBuiltinContext WithEvaluatedArguments(AwkValue[] values, int argumentCount) =>
-        new(values, argumentCount, Evaluation);
+        new(_expressions, values, argumentCount, Evaluation);
 }
 
 internal abstract class AwkArity

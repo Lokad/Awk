@@ -634,7 +634,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                                 Math.Min(0x10FFFF, ((first & 0x07) << 18) + 0x3FFFF))
                         };
                         var pattern = "[" + char.ConvertFromUtf32(minimum) + "-" + char.ConvertFromUtf32(maximum) + "]";
-                        return new RegexSeparator(_state.CreateRegex(new AwkRegexPattern(pattern)));
+                        return new RegexSeparator(_state.CreateRegex(new AwkRegexPattern(pattern, warningSite: this)));
                     }
                     return first == (byte)'\n'
                         ? NewlineSeparator.Instance
@@ -664,7 +664,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     return new LiteralSeparator(separatorText, AwkRecordTerminator.FromText(separatorText));
 
                 return new RegexSeparator(_state.CreateRegex(
-                    new AwkRegexPattern(separatorText.AsString(_state.Counters))));
+                    new AwkRegexPattern(separatorText.AsString(_state.Counters), warningSite: this)));
 
                 bool TryCreateByteSet(ReadOnlySpan<byte> separatorText, out ByteSetSeparator separator)
                 {

@@ -10,9 +10,9 @@ internal abstract partial class AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var patternText = await pattern.ResolveStringAsync(context).ConfigureAwait(false);
+            var regexPattern = await pattern.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
-            var regex = context.State.CreateRegex(new AwkRegexPattern(patternText));
+            var regex = context.State.CreateRegex(regexPattern);
             var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
             var replaced = AwkRegexSubstitution.ReplaceAll(
                 context.State,
@@ -33,9 +33,9 @@ internal abstract partial class AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var patternText = await pattern.ResolveStringAsync(context).ConfigureAwait(false);
+            var regexPattern = await pattern.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
-            var regex = context.State.CreateRegex(new AwkRegexPattern(patternText));
+            var regex = context.State.CreateRegex(regexPattern);
             var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
             var replaced = AwkRegexSubstitution.ReplaceAll(
                 context.State,
@@ -74,8 +74,8 @@ internal abstract partial class AwkExpression
             }
 
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
-            var regex = context.State.CreateRegex(new AwkRegexPattern(
-                await patternExpression.ResolveStringAsync(context).ConfigureAwait(false)));
+            var regex = context.State.CreateRegex(
+                await patternExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false));
             if (!captureArrayName.HasValue)
             {
                 var position = context.State.MatchRegexPosition(regex, input);

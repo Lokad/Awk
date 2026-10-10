@@ -13,6 +13,34 @@ public sealed class AwkBenchmarkCounterTests
     [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.DotNetCompatibility)]
     [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.Utf8Adapter)]
     [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.Utf8Adapter)]
+    internal async Task Awk_UnicodeRegexEscapesPreserveRuntimeBoundaries(AwkExecutionEngineKind engine,
+        AwkRegexEngineKind regex)
+    {
+        foreach (var literal in new[] { false, true })
+        {
+            string Script(string pattern) => literal
+                ? "BEGIN{for(i=0;i<3;i++)v=(\"A\"~/" + pattern + "/);print v;exit}"
+                : "BEGIN{p=\"" + pattern + "\";for(i=0;i<3;i++)v=(\"A\"~p);print v;exit}";
+            var control = await RunAsync([Script("A")], "", regex, engine);
+            var escaped = await RunAsync([Script(literal ? "\\u0041" : "\\\\u0041")], "", regex, engine);
+            Assert.Equal(0, escaped.ExitCode);
+            Assert.Equal("1\n", escaped.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(string.Empty, escaped.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(control.Counters.RegexCompiles, escaped.Counters.RegexCompiles);
+            Assert.InRange(escaped.Counters.RegexCompiles, 0, 1);
+            Assert.Equal(3, escaped.Counters.RegexMatches);
+            Assert.Equal(control.Counters.StringDecodes, escaped.Counters.StringDecodes);
+            Assert.Equal(control.Counters.Utf8Encodes, escaped.Counters.Utf8Encodes);
+            Assert.Equal(control.Counters.StringInteropFallbacks, escaped.Counters.StringInteropFallbacks);
+            Assert.Equal(control.Counters.AwkTextAllocations, escaped.Counters.AwkTextAllocations);
+        }
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.DotNetCompatibility)]
+    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.DotNetCompatibility)]
+    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.Utf8Adapter)]
+    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.Utf8Adapter)]
     internal async Task Awk_UnicodeStringEscapesShareLiteralRuntimeCounters(AwkExecutionEngineKind engine, AwkRegexEngineKind regex)
     {
         var control = await RunAsync(["BEGIN{v=\"\U0001f600\";printf \"%s\",v;exit}"], "", regex, engine);

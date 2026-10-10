@@ -28,8 +28,24 @@ whereas `\134y` is a literal y. Bracket escapes retain character-class context.
 Source strings decode GNU 5.4 `\u` escapes before they become dynamic regex patterns.
 An escaped dot, bracket, anchor, group or quantifier produced by that source decoding
 has its ordinary ERE effect; an escape-produced backslash crosses the regex boundary
-as pattern data. Source string decoding is a single pass. Unicode escapes inside raw
-regex literals and runtime regex escape warnings remain separate, unfinished work.
+as pattern data. Source string decoding is a single pass.
+
+Raw regex literals and runtime patterns also decode GNU 5.4 lower-case `\u` escapes
+in default/traditional profiles, consuming one to eight hexadecimal digits. Numeric
+escape decoding runs before ERE escape interpretation; `\u005c\u0041` becomes `\A`
+and matches an ordinary A. Traditional mode quotes numeric metacharacters. Missing
+Unicode digits retain u and warn; invalid scalars become a quoted literal `?` and
+warn. POSIX keeps escaped u as an ordinary character without GNU Unicode warnings.
+
+Literal Unicode warnings are lexical and preserve source locations, including dead
+code. Runtime Unicode warnings track the expression's last pattern and compiled case
+variants, independently of the shared regex cache. Distinct expressions each warn;
+repeating the same pattern at one expression does not. Pattern changes reset that
+history, and each compiled execution has fresh history. Pending warnings survive a
+later runtime failure. General unknown-ERE warnings remain unfinished, as does GNU's
+assignment-time compilation of both case variants for FS/FPAT/RS; Lokad can emit fewer
+Unicode warnings for these special variables. Command-option/include decoding and
+regex character-unit alignment remain separate compatibility work.
 
 An unmatched closing `)` denotes a literal character, including in patterns without
 backslashes. Balanced groups and parentheses inside brackets keep their ERE meanings.

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Raw regex literals and runtime patterns now decode GNU 5.4 `\u` escapes before
+  ERE interpretation in default/traditional profiles. Literal Unicode warnings retain
+  source locations; runtime warnings follow each expression's pattern and case history
+  independently of compiled-regex caching. Pending warnings survive later runtime
+  errors. Warning history uses the memory governor. General unknown-ERE warnings and
+  FS/FPAT/RS assignment-warning parity remain pending.
+
 - Source string literals now support GNU 5.4 `\u` escapes with one to eight hexadecimal
   digits in default/traditional profiles. Supplementary characters remain valid UTF-8;
   invalid scalars become `?` with a source warning. POSIX strings treat `\u` and `\x`
