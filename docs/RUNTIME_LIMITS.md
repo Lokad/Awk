@@ -367,6 +367,18 @@ chunks without splitting surrogate pairs; boundary-array sorting and dependency 
 remain one-shot calls with checks around them. General regex record payload/terminator copies and
 empty-match advancement pass the same operation callback before consuming buffered input.
 These checks add no fuel/byte charge and preserve existing capture, memory and mutation admission.
+Buffered newline reads inspect a line before advancing it: record/value admission, strict UTF-8
+validation and copying finish before consumption. Changing RS similarly stages and copies the
+line-reader tail before detaching its reader; failure disposes the staged builder. A successful
+host read remains pending until its bytes append successfully. Retry appends that same borrowed
+batch before another host read, preserving EOF metadata and avoiding duplicate input-byte charges.
+Append copies use the existing callback before exposing their completed length; disposal releases
+the buffer and drops the pending host view. Record-associated paragraph leaders remain buffered
+across separator continuation and extraction failure; failed extraction restores its search metadata.
+Earlier successful all-blank discards remain streaming progress. These changes preserve resource
+preflights and add no logical fuel charges. Owned record scans and one-shot search/count/compaction
+boundaries remain in the wider cancellation audit.
+
 With finite aggregate memory, gensub counts its actual parsed parts using the same checked parser
 before allocating an exact-sized array. Its lease charges the array header and 16 bytes per part
 through matching and result construction, including no-match/missing-occurrence exits. Counting

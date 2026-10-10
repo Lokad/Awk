@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Failed record reads now preserve buffered input: newline consumption and switching
+  to buffered RS commit after admission/copying, delivered host batches survive failed
+  appends, and paragraph leaders remain with their record through batch boundaries.
+  Retrying does not repeat a delivered host read or its input-byte charge. Staged tail
+  copies and batch appends use cooperative cancellation; failed staging and disposal
+  release buffer charges. Execution defaults and logical work charges are unchanged.
+
 - Finite execution-memory policies now admit gensub-part and heap capture-coordinate
   scratch before allocation and retain their leases while the buffers are live.
   Gensub counts actual parsed parts before allocating; long literals use one part.

@@ -90,6 +90,14 @@ internal sealed class AsyncLineReader
 
     public ReadOnlyMemory<byte> ReadLine()
     {
+        var line = PeekLine();
+        _lineStart += line.Length;
+        _lineIndex++;
+        return line;
+    }
+
+    public ReadOnlyMemory<byte> PeekLine()
+    {
         if (_lineIndex >= BufferedLineCount)
         {
             throw new InvalidOperationException(
@@ -99,21 +107,20 @@ internal sealed class AsyncLineReader
         var nextStart = _lineIndex < _lineStartOffsets.Length
             ? _lineStartOffsets.Span[_lineIndex]
             : _content.Length;
-        var line = _content.Slice(_lineStart, nextStart - _lineStart);
-        _lineStart = nextStart;
-        _lineIndex++;
-        return line;
+        return _content.Slice(_lineStart, nextStart - _lineStart);
     }
 
     public AwkBufferedInputTail TakeBufferedTail()
     {
-        var content = _lineIndex < BufferedLineCount
-            ? _content[_lineStart..]
-            : ReadOnlyMemory<byte>.Empty;
+        var tail = PeekBufferedTail();
         _lineStart = _content.Length;
         _lineIndex = BufferedLineCount;
-        return new AwkBufferedInputTail(content, _reachedEof);
+        return tail;
     }
+
+    public AwkBufferedInputTail PeekBufferedTail() =>
+        new(_lineIndex < BufferedLineCount ? _content[_lineStart..] : ReadOnlyMemory<byte>.Empty,
+            _reachedEof);
 
     public AwkFileDescriptor Descriptor => _descriptor;
 

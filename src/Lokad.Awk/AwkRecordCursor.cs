@@ -21,6 +21,10 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private readonly AwkParagraphLeaderPolicy _paragraphLeaderPolicy;
     private AsyncLineReader? _lineReader;
     private AwkUtf8Builder? _buffer;
+    // A successful host read cannot be undone. Keep its borrowed bytes until append
+    // commits, and do not issue another read while this batch is pending.
+    private AwkRecordReadBatch _pendingBatch;
+    private bool _hasPendingBatch;
     // All buffered-search positions are absolute indexes into _buffer. The
     // unread record begins at _bufferStart; _scanOffset is the earliest byte
     // that the active separator strategy has not ruled out.
@@ -81,7 +85,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             if (!await reader.TryBufferLineAsync().ConfigureAwait(false))
                 return AwkInputRecordResult.EndOfFile;
 
-            var line = AwkRecordLine.SplitDefaultNewline(reader.ReadLine());
+            var line = AwkRecordLine.SplitDefaultNewline(reader.PeekLine());
             _state.Resources.ThrowIfRecordBytesExceeded(line.RecordBytes.Length);
             _state.Resources.ThrowIfValueBytesExceeded(line.RecordBytes.Length);
             var record = AwkText.CopyHostBytes(
@@ -89,6 +93,8 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 _state.Counters,
                 _state.MemoryGovernor,
                 _state.CancellationCheckpoint);
+            _state.ThrowIfCancellationRequested();
+            reader.ReadLine();
             return AwkInputRecordResult.Record(
                 record,
                 line.Terminator,
@@ -100,16 +106,30 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             if (_buffer is not null)
                 return;
 
-            var tail = _lineReader?.TakeBufferedTail() ?? default;
-            _lineReader = null;
+            var reader = _lineReader;
+            var tail = reader?.PeekBufferedTail() ?? default;
+            _state.ThrowIfCancellationRequested();
             // SOH stays outside the record bytes and the regex search window. Including it after
             // compaction keeps ^ anchored to the descriptor start rather than the compacted tail.
-            _buffer = AwkUtf8Builder.CreateWithReservedPrefix(
+            var buffer = AwkUtf8Builder.CreateWithReservedPrefix(
                 _state.Limits,
                 _state.MemoryGovernor,
                 Math.Max(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, tail.Content.Length),
                 0x01);
-            _buffer.Append(tail.Content);
+            try
+            {
+                buffer.Append(tail.Content.Span, _state.CancellationCheckpoint);
+                _state.ThrowIfCancellationRequested();
+            }
+            catch
+            {
+                buffer.Dispose();
+                throw;
+            }
+
+            reader?.TakeBufferedTail();
+            _buffer = buffer;
+            _lineReader = null;
             _descriptorReachedEof = tail.DescriptorReachedEof;
         }
 
@@ -119,11 +139,21 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 throw new InvalidOperationException("Cannot append input after reaching end of file.");
 
             CompactBufferBeforeAppend();
-            var batch = await _descriptorReader.ReadNextBatchAsync(_descriptor).ConfigureAwait(false);
-            _buffer?.Append(batch.Content);
+            if (!_hasPendingBatch)
+            {
+                _pendingBatch = await _descriptorReader.ReadNextBatchAsync(_descriptor).ConfigureAwait(false);
+                _hasPendingBatch = true;
+            }
+
+            var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
+            _state.ThrowIfCancellationRequested();
+            // Drop borrowed regex views before append can resize their backing buffer.
             _regexInput = null;
             _regexOffsetBufferStart = -1;
-            _descriptorReachedEof = batch.ReachedEof;
+            buffer.Append(_pendingBatch.Content.Span, _state.CancellationCheckpoint);
+            _descriptorReachedEof = _pendingBatch.ReachedEof;
+            _pendingBatch = default;
+            _hasPendingBatch = false;
 
             void CompactBufferBeforeAppend()
             {
@@ -131,6 +161,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 if (_bufferStart == 0)
                     return;
 
+                _state.ThrowIfCancellationRequested();
                 var removedLength = _bufferStart;
                 var remainingLength = buffer.Length - _bufferStart;
                 if (remainingLength > 0)
@@ -453,6 +484,32 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
             BufferedReadResult TryReadParagraph(ReadOnlySpan<byte> content)
             {
+                var previous = new ParagraphReadPosition(
+                    _bufferStart, _scanOffset, _pendingSeparatorStart, _pendingSeparatorEnd,
+                    _hasConsumedDescriptorBytes, _discardedParagraphLeader,
+                    _paragraphLeaderScanLength, _regexOffsetBufferStart);
+                try
+                {
+                    return ReadParagraph(content);
+                }
+                catch
+                {
+                    // Buffered extraction does not mutate bytes. Restore its positions
+                    // so a failed copy/admission cannot consume paragraph leaders.
+                    _bufferStart = previous.BufferStart;
+                    _scanOffset = previous.ScanOffset;
+                    _pendingSeparatorStart = previous.PendingSeparatorStart;
+                    _pendingSeparatorEnd = previous.PendingSeparatorEnd;
+                    _hasConsumedDescriptorBytes = previous.HasConsumedDescriptorBytes;
+                    _discardedParagraphLeader = previous.DiscardedParagraphLeader;
+                    _paragraphLeaderScanLength = previous.ParagraphLeaderScanLength;
+                    _regexOffsetBufferStart = previous.RegexOffsetBufferStart;
+                    throw;
+                }
+            }
+
+            BufferedReadResult ReadParagraph(ReadOnlySpan<byte> content)
+            {
                 if (_pendingSeparatorStart >= 0)
                     return ContinueParagraphSeparator(content);
 
@@ -477,21 +534,24 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     }
                 }
 
-                _bufferStart += recordStart;
-                _regexOffsetBufferStart = -1;
                 content = content[recordStart..];
-                if (recordStart > 0)
-                    ResetSeparatorSearch();
                 if (content.IsEmpty)
                 {
+                    // Discarding an all-blank batch remains streaming progress. Once
+                    // a record body exists, keep its leaders until that record commits.
+                    _bufferStart += recordStart;
+                    _regexOffsetBufferStart = -1;
+                    if (recordStart > 0)
+                        ResetSeparatorSearch();
                     return _descriptorReachedEof
                         ? ParagraphEndOfFile(ParagraphSeparator.Instance)
                         : BufferedReadResult.NeedMoreData;
                 }
 
+                _paragraphLeaderScanLength = recordStart;
                 _discardedParagraphLeader = false;
 
-                var scanStart = GetRelativeScanStart(content);
+                var scanStart = Math.Clamp(_scanOffset - (_bufferStart + recordStart), 0, content.Length);
                 if (!TryFindParagraphSeparator(
                         content,
                         scanStart,
@@ -516,7 +576,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                         : AwkRecordTerminator.FromText(CreateText(trailingNewlines));
                     return ConsumeRecord(
                         content[..recordLength],
-                        content.Length,
+                        recordStart + content.Length,
                         finalTerminator,
                         AwkRecordFieldSplittingMode.Paragraph);
                 }
@@ -524,8 +584,8 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 RecordSeparatorScan(separatorIndex + separatorLength - scanStart);
                 if (!_descriptorReachedEof && separatorIndex + separatorLength == content.Length)
                 {
-                    _pendingSeparatorStart = _bufferStart + separatorIndex;
-                    _pendingSeparatorEnd = _bufferStart + separatorIndex + separatorLength;
+                    _pendingSeparatorStart = _bufferStart + recordStart + separatorIndex;
+                    _pendingSeparatorEnd = _bufferStart + recordStart + separatorIndex + separatorLength;
                     _scanOffset = _pendingSeparatorEnd;
                     return BufferedReadResult.NeedMoreData;
                 }
@@ -534,7 +594,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     content.Slice(separatorIndex, separatorLength)));
                 return ConsumeRecord(
                     content[..TrimTrailingRecordNewlines(content[..separatorIndex])],
-                    separatorIndex + separatorLength,
+                    recordStart + separatorIndex + separatorLength,
                     terminator,
                     AwkRecordFieldSplittingMode.Paragraph);
 
@@ -558,8 +618,9 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
                     var terminator = AwkRecordTerminator.FromText(CreateText(
                         content[separatorStart..separatorEnd]));
+                    var recordBytes = content[_paragraphLeaderScanLength..separatorStart];
                     return ConsumeRecord(
-                        content[..TrimTrailingRecordNewlines(content[..separatorStart])],
+                        recordBytes[..TrimTrailingRecordNewlines(recordBytes)],
                         separatorEnd,
                         terminator,
                         AwkRecordFieldSplittingMode.Paragraph);
@@ -742,6 +803,8 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         _buffer = null;
         _lineReader = null;
         _regexInput = null;
+        _pendingBatch = default;
+        _hasPendingBatch = false;
     }
 
     private BufferedReadResult FinalRecordOrNeedMore(
@@ -964,6 +1027,16 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
         return end;
     }
+
+    private readonly record struct ParagraphReadPosition(
+        int BufferStart,
+        int ScanOffset,
+        int PendingSeparatorStart,
+        int PendingSeparatorEnd,
+        bool HasConsumedDescriptorBytes,
+        bool DiscardedParagraphLeader,
+        int ParagraphLeaderScanLength,
+        int RegexOffsetBufferStart);
 
     private enum BufferedReadStatus
     {

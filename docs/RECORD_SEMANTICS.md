@@ -20,10 +20,24 @@ This follows the [documented single-character exception](https://www.gnu.org/sof
 
 ## Paragraph Records And Range Patterns
 
+Buffered record extraction preserves input on resource failure. Default newline reads advance
+their buffered line only after record/value admission, UTF-8 validation and copying succeed.
+Changing RS builds and populates the new buffer before consuming the line reader's unread tail.
+If appending a delivered host batch fails, the cursor retains that batch and its completion
+metadata for retry. It issues no further read on that descriptor until the pending bytes append,
+which also preserves the host's borrowed-buffer lifetime and avoids duplicate input-byte charges.
+Tail and batch copies use the execution's cancellation callback; failed staging and cursor disposal
+release their builder charge.
+
 With `RS=""`, leading empty lines are skipped and a run of at least two newlines
 separates paragraphs. A final single newline is removed from `$0` and retained in GNU
 `RT`; a record ending without a newline has empty `RT`. POSIX/traditional modes keep
 `RT` as an ordinary variable. Plain and redirected `getline` use the same cursor.
+
+Once a nonempty paragraph body is found, its leading empty lines remain with its unread record
+through batch boundaries until extraction succeeds. Copy/admission failure restores the extraction's
+search metadata, so a later RS change can still read those bytes. Successful all-blank discards
+remain streaming progress; the pipe's intentional blank-tail retention policy is unchanged.
 
 Paragraph field splitting adds LF as an implicit separator for a literal single-byte
 `FS`. Whitespace `FS` already includes LF. A multibyte literal separator or a regex
