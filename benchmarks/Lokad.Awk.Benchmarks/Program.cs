@@ -6,6 +6,7 @@ using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Reports;
 using BenchmarkDotNet.Running;
 using Lokad.Awk;
+using Lokad.Awk.Benchmarking;
 
 if (args.Length == 1 && string.Equals(args[0], "--counter-report", StringComparison.Ordinal))
 {
@@ -13,7 +14,15 @@ if (args.Length == 1 && string.Equals(args[0], "--counter-report", StringCompari
     return;
 }
 
-BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+if (args.Length > 0 && args[0] is "--compare" or "--smoke" or "--reference-benchmarks" or "--check-machine" or "--render-report" or "--driver-smoke")
+{
+    Environment.ExitCode = await ReferenceComparison.RunCommandAsync(args, CancellationToken.None).ConfigureAwait(false);
+    return;
+}
+
+BenchmarkSwitcher.FromTypes(
+    [typeof(FullInvocationBenchmarks), typeof(LegacyLayerBenchmarks), typeof(FrontendLayerBenchmarks),
+     typeof(FrontendScalingBenchmarks), typeof(ExecutableLayerBenchmarks), typeof(WorkloadAllocationBenchmarks)]).Run(args);
 
 public sealed class AwkBenchmarkConfig : ManualConfig
 {
@@ -881,6 +890,7 @@ internal static class BenchmarkCounterReport
             [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
             recordCount: 1,
             counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+        .. new[] { 100, 400, 1_600 }.Select(CreateLiteralRecordSeparatorScenario),
         new(
             "counter non-ASCII record separator",
             "BEGIN{RS=\"\u00e9\"} {total += length($0)} END{print NR, total}",
@@ -1008,6 +1018,20 @@ internal static class BenchmarkCounterReport
             recordCount: 2,
             counterExecutionEngineKind: AwkExecutionEngineKind.Executable)
         ];
+            static BenchmarkScenario CreateLiteralRecordSeparatorScenario(int recordCount)
+            {
+                const string script = "BEGIN{RS=\"</row>\"} {n++} END{print n}";
+                var row = "<row><cell>" + new string('a', 1_000) + "</cell></row>";
+                var input = string.Concat(Enumerable.Repeat(row, recordCount));
+                return new BenchmarkScenario(
+                    "counter literal record separator (" + recordCount + " records)",
+                    script,
+                    [script, "/literal-rs.txt"],
+                    [new BenchmarkFile("/literal-rs.txt", input)],
+                    recordCount,
+                    counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            }
+
             static string BuildCounterStreamingRows()
             {
                 var builder = new StringBuilder();
@@ -1455,6 +1479,13 @@ internal sealed class BenchmarkHost : IAwkHost
         }
 
         return new BenchmarkHost(encoded);
+    }
+
+    public static BenchmarkHost FromStandardInput(byte[] content, IReadOnlyList<BenchmarkFile> files)
+    {
+        var host = FromFiles(files);
+        host._openFiles[AwkFileDescriptor.StdIn] = new ReadState(content);
+        return host;
     }
 
     public BenchmarkRunResult Result =>

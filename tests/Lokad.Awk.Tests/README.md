@@ -38,6 +38,12 @@ Use `AwkOracleCapture` for ad-hoc oracle reports from a local harness. The repor
 
 Oracle comparison remains opt-in so CI stays deterministic unless a developer explicitly wires an oracle executable through `LOKAD_AWK_ORACLE_EXE`.
 
+`AwkBenchmarkHarnessTests` checks raw byte consumption, output bounds, paired statistics,
+quiet-machine gates, and report claim qualification. It compile-links the pure helpers
+from benchmark tooling without referencing BenchmarkDotNet or an external process.
+The optional native driver's `--driver-smoke` integration checks require explicitly
+selected GNU awk and stay outside ordinary test execution.
+
 ## Review Gates
 
 Every new awk feature, compatibility decision, or diagnostic needs a golden case unless the behavior is only observable at a narrower structural layer. Parser and runtime refactors should state which duplicate current-surface or end-to-end tests were removed, narrowed, or intentionally retained.

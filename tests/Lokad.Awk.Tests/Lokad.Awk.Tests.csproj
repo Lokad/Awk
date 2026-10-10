@@ -16,4 +16,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Lokad.Awk\Lokad.Awk.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceOutput.cs" Link="Benchmarking\ReferenceOutput.cs" />
+    <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceClaimPolicy.cs" Link="Benchmarking\ReferenceClaimPolicy.cs" />
+    <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\PairedStatistics.cs" Link="Benchmarking\PairedStatistics.cs" />
+    <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\MachineQuietProbe.cs" Link="Benchmarking\MachineQuietProbe.cs" />
+  </ItemGroup>
 </Project>
