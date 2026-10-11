@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Numeric policy budgets now share one immutable limits value with runtime execution.
+  Public configuration methods, both presets, optional specialized quotas and diagnostics
+  retain their existing behavior; argument/environment/host-error budgets remain host-owned.
+
 - Field and `NF` access now reuse the record-splitting callback within an execution,
   removing per-read delegate allocations while preserving lazy splitting and record plans.
 

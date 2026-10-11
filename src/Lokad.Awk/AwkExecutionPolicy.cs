@@ -8,8 +8,11 @@ public sealed record AwkExecutionPolicy
     /// <summary>Represents an effectively unlimited numeric budget.</summary>
     public const long Unlimited = long.MaxValue;
 
-    private AwkExecutionPolicy()
+    internal AwkRuntimeLimits Limits { get; private init; }
+
+    private AwkExecutionPolicy(AwkRuntimeLimits limits)
     {
+        Limits = limits;
     }
 
     /// <summary>Gets whether awk file redirections are allowed.</summary>
@@ -56,103 +59,103 @@ public sealed record AwkExecutionPolicy
 
     /// <summary>Gets the explicit logical-work allowance, or zero when execution has no fuel limit.</summary>
     /// <remarks>Both presets default to zero. Configure a positive allowance with <see cref="WithMaxExecutionSteps"/>.</remarks>
-    public int MaxExecutionSteps { get; private init; } = AwkExecutionGovernor.DefaultMaxExecutionSteps;
+    public int MaxExecutionSteps => Limits.MaxExecutionSteps;
 
     /// <summary>Gets the maximum active awk function-call depth.</summary>
-    public int MaxFunctionCallDepth { get; private init; } = AwkExecutionGovernor.DefaultMaxFunctionCallDepth;
+    public int MaxFunctionCallDepth => Limits.MaxFunctionCallDepth;
 
     /// <summary>Gets the maximum frontend and expression-tree nesting depth.</summary>
-    public int MaxSyntaxNestingDepth { get; private init; } = 128;
+    public int MaxSyntaxNestingDepth => Limits.MaxSyntaxNestingDepth;
 
     /// <summary>Gets the maximum number of host calls.</summary>
-    public long MaxHostCalls { get; private init; } = AwkExecutionGovernor.DefaultMaxHostCalls;
+    public long MaxHostCalls => Limits.MaxHostCalls;
 
     /// <summary>Gets the maximum size of one input record in UTF-8 bytes.</summary>
-    public long MaxRecordBytes { get; private init; } = Unlimited;
+    public long MaxRecordBytes => Limits.MaxRecordBytes;
 
     /// <summary>Gets the maximum aggregate bytes read from runtime input descriptors.</summary>
-    public long MaxInputBytes { get; private init; } = Unlimited;
+    public long MaxInputBytes => Limits.MaxInputBytes;
 
     /// <summary>Gets the maximum number of input records consumed by one execution.</summary>
-    public long MaxRecords { get; private init; } = Unlimited;
+    public long MaxRecords => Limits.MaxRecords;
 
     /// <summary>Gets the maximum size of one runtime value in UTF-8 bytes.</summary>
-    public long MaxValueBytes { get; private init; } = Unlimited;
+    public long MaxValueBytes => Limits.MaxValueBytes;
 
     /// <summary>Gets the maximum total number of bytes appended to host descriptors.</summary>
-    public long MaxOutputBytes { get; private init; } = Unlimited;
+    public long MaxOutputBytes => Limits.MaxOutputBytes;
 
     /// <summary>Gets the maximum element count of each awk array.</summary>
-    public int MaxArrayElements { get; private init; } = 1_000_000;
+    public int MaxArrayElements => Limits.MaxArrayElements;
 
     /// <summary>Gets the maximum number of record fields.</summary>
-    public int MaxFields { get; private init; } = 1_000_000;
+    public int MaxFields => Limits.MaxFields;
 
     /// <summary>Gets the maximum number of scalar symbols retained by one execution.</summary>
-    public int MaxSymbols { get; private init; } = 100_000;
+    public int MaxSymbols => Limits.MaxSymbols;
 
     /// <summary>Gets the maximum UTF-8 byte length of an awk identifier.</summary>
-    public int MaxIdentifierBytes { get; private init; } = 64 << 10;
+    public int MaxIdentifierBytes => Limits.MaxIdentifierBytes;
 
     /// <summary>Gets the maximum size of a governed runtime builder.</summary>
-    public int MaxBuilderBytes { get; private init; } = 64 << 20;
+    public int MaxBuilderBytes => Limits.MaxBuilderBytes;
 
     /// <summary>Gets the maximum retained bytes in one regex capture result.</summary>
-    public long MaxRegexCaptureBytes { get; private init; } = Unlimited;
+    public long MaxRegexCaptureBytes => Limits.MaxRegexCaptureBytes;
 
     /// <summary>Gets the maximum UTF-8 byte length of a source or translated regex pattern.</summary>
-    public long MaxRegexPatternBytes { get; private init; } = 8L << 20;
+    public long MaxRegexPatternBytes => Limits.MaxRegexPatternBytes;
 
     /// <summary>Gets the maximum number of group constructs in one regex pattern.</summary>
-    public int MaxRegexGroups { get; private init; } = 10_000;
+    public int MaxRegexGroups => Limits.MaxRegexGroups;
 
     /// <summary>Gets the maximum regex constructor calls in one execution.</summary>
-    public int MaxRegexCompilations { get; private init; } = 10_000;
+    public int MaxRegexCompilations => Limits.MaxRegexCompilations;
 
     /// <summary>Gets the maximum estimated bytes retained across regex caches.</summary>
-    public long MaxRegexCacheBytes { get; private init; } = 64L << 20;
+    public long MaxRegexCacheBytes => Limits.MaxRegexCacheBytes;
 
     /// <summary>Gets an optional secondary regex search ceiling; any explicitly configured shared work allowance also applies.</summary>
-    public long MaxRegexOperations { get; private init; } = Unlimited;
+    public long MaxRegexOperations => Limits.MaxRegexOperations;
 
     /// <summary>Gets an optional secondary array-sort comparison ceiling; any explicitly configured shared work allowance also applies.</summary>
-    public long MaxSortComparisons { get; private init; } = Unlimited;
+    public long MaxSortComparisons => Limits.MaxSortComparisons;
 
     /// <summary>Gets an optional secondary regex separator scan ceiling; any explicitly configured shared work allowance also applies.</summary>
-    public long MaxRegexRecordSeparatorBytesScanned { get; private init; } = Unlimited;
+    public long MaxRegexRecordSeparatorBytesScanned => Limits.MaxRegexRecordSeparatorBytesScanned;
 
     /// <summary>Gets the maximum executable-engine stack size in bytes.</summary>
-    public long MaxVmStackBytes { get; private init; } = Unlimited;
+    public long MaxVmStackBytes => Limits.MaxVmStackBytes;
 
     /// <summary>Gets the maximum estimated aggregate retained execution memory.</summary>
-    public long MaxExecutionMemoryBytes { get; private init; } = Unlimited;
+    public long MaxExecutionMemoryBytes => Limits.MaxExecutionMemoryBytes;
 
     /// <summary>Gets the maximum concurrently open output redirections.</summary>
-    public int MaxOutputFiles { get; private init; } = 10_000;
+    public int MaxOutputFiles => Limits.MaxOutputFiles;
 
     /// <summary>Gets the maximum concurrently open input-file redirections.</summary>
-    public int MaxInputFiles { get; private init; } = 10_000;
+    public int MaxInputFiles => Limits.MaxInputFiles;
 
     /// <summary>Gets the maximum concurrently open command pipes.</summary>
-    public int MaxPipes { get; private init; } = 1_024;
+    public int MaxPipes => Limits.MaxPipes;
 
     /// <summary>Gets the maximum aggregate UTF-8 bytes loaded as awk source.</summary>
-    public long MaxSourceBytes { get; private init; } = 64L << 20;
+    public long MaxSourceBytes => Limits.MaxSourceBytes;
 
     /// <summary>Gets the maximum number of top-level source units in one invocation.</summary>
-    public int MaxSourceUnits { get; private init; } = 10_000;
+    public int MaxSourceUnits => Limits.MaxSourceUnits;
 
     /// <summary>Gets the maximum UTF-8 bytes in the fully expanded compilation source.</summary>
-    public long MaxExpandedSourceBytes { get; private init; } = 64L << 20;
+    public long MaxExpandedSourceBytes => Limits.MaxExpandedSourceBytes;
 
     /// <summary>Gets the maximum UTF-16 characters admitted to the frontend.</summary>
-    public int MaxFrontendCharacters { get; private init; } = int.MaxValue;
+    public int MaxFrontendCharacters => Limits.MaxFrontendCharacters;
 
     /// <summary>Gets the maximum token count produced by the frontend.</summary>
-    public int MaxFrontendTokens { get; private init; } = int.MaxValue;
+    public int MaxFrontendTokens => Limits.MaxFrontendTokens;
 
     /// <summary>Gets the maximum lexical diagnostics produced by the frontend.</summary>
-    public int MaxFrontendDiagnostics { get; private init; } = int.MaxValue;
+    public int MaxFrontendDiagnostics => Limits.MaxFrontendDiagnostics;
 
     /// <summary>Gets the maximum command argument count admitted before invocation planning.</summary>
     public int MaxArguments { get; private init; } = 100_000;
@@ -170,17 +173,17 @@ public sealed record AwkExecutionPolicy
     public int MaxHostErrorBytes { get; private init; } = 4 << 10;
 
     /// <summary>Gets the maximum nested <c>@include</c> depth.</summary>
-    public int MaxIncludeDepth { get; private init; } = 128;
+    public int MaxIncludeDepth => Limits.MaxIncludeDepth;
 
     /// <summary>Gets the maximum number of distinct <c>@include</c> directives followed.</summary>
-    public int MaxIncludeFiles { get; private init; } = 1_024;
+    public int MaxIncludeFiles => Limits.MaxIncludeFiles;
 
     /// <summary>Creates the compatibility-oriented default policy.</summary>
-    public static AwkExecutionPolicy CreateDefault() => new();
+    public static AwkExecutionPolicy CreateDefault() => new(AwkRuntimeLimits.CreateDefault());
 
     /// <summary>Creates a finite deny-by-default policy suitable for untrusted awk.</summary>
     public static AwkExecutionPolicy CreateRestricted() =>
-        new()
+        new(AwkRuntimeLimits.CreateRestricted())
         {
             AllowFileRedirections = false,
             AllowCommandPipes = false,
@@ -195,41 +198,11 @@ public sealed record AwkExecutionPolicy
             HostOperationTimeout = TimeSpan.FromSeconds(10),
             ExecutionTimeout = TimeSpan.FromSeconds(30),
             CleanupTimeout = TimeSpan.FromSeconds(5),
-            MaxFunctionCallDepth = 32,
-            MaxSyntaxNestingDepth = 64,
-            MaxRecordBytes = 8L << 20,
-            MaxInputBytes = 64L << 20,
-            MaxRecords = 1_000_000,
-            MaxValueBytes = 8L << 20,
-            MaxOutputBytes = 16L << 20,
-            MaxArrayElements = 100_000,
-            MaxFields = 100_000,
-            MaxSymbols = 10_000,
-            MaxIdentifierBytes = 1 << 10,
-            MaxBuilderBytes = 8 << 20,
-            MaxRegexCaptureBytes = 8L << 20,
-            MaxRegexPatternBytes = 64L << 10,
-            MaxRegexGroups = 256,
-            MaxRegexCompilations = 256,
-            MaxRegexCacheBytes = 8L << 20,
-            MaxVmStackBytes = 8L << 20,
-            MaxExecutionMemoryBytes = 64L << 20,
-            MaxOutputFiles = 64,
-            MaxInputFiles = 64,
-            MaxPipes = 8,
-            MaxSourceBytes = 4L << 20,
-            MaxSourceUnits = 256,
-            MaxExpandedSourceBytes = 4L << 20,
-            MaxFrontendCharacters = 512 << 10,
-            MaxFrontendTokens = 250_000,
-            MaxFrontendDiagnostics = 256,
             MaxArguments = 1_024,
             MaxArgumentBytes = 4L << 20,
             MaxEnvironmentEntries = 1_024,
             MaxEnvironmentBytes = 1L << 20,
-            MaxHostErrorBytes = 1 << 10,
-            MaxIncludeDepth = 16,
-            MaxIncludeFiles = 64
+            MaxHostErrorBytes = 1 << 10
         };
 
     /// <summary>Returns a copy with file-redirection capability configured.</summary>
@@ -299,175 +272,163 @@ public sealed record AwkExecutionPolicy
 
     /// <summary>Returns a copy with the execution-step budget configured.</summary>
     public AwkExecutionPolicy WithMaxExecutionSteps(int value) =>
-        this with { MaxExecutionSteps = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxExecutionSteps(value) };
 
     /// <summary>Returns a copy with the awk function-call depth configured.</summary>
     public AwkExecutionPolicy WithMaxFunctionCallDepth(int value) =>
-        this with { MaxFunctionCallDepth = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxFunctionCallDepth(value) };
 
     /// <summary>Returns a copy with the frontend nesting depth configured.</summary>
     public AwkExecutionPolicy WithMaxSyntaxNestingDepth(int value) =>
-        this with { MaxSyntaxNestingDepth = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxSyntaxNestingDepth(value) };
 
     /// <summary>Returns a copy with the host-call budget configured.</summary>
     public AwkExecutionPolicy WithMaxHostCalls(long value) =>
-        this with { MaxHostCalls = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxHostCalls(value) };
 
     /// <summary>Returns a copy with the per-record byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxRecordBytes(long value) =>
-        this with { MaxRecordBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxRecordBytes(value) };
 
     /// <summary>Returns a copy with the aggregate runtime-input byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxInputBytes(long value) =>
-        this with { MaxInputBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxInputBytes(value) };
 
     /// <summary>Returns a copy with the input-record budget configured.</summary>
     public AwkExecutionPolicy WithMaxRecords(long value) =>
-        this with { MaxRecords = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxRecords(value) };
 
     /// <summary>Returns a copy with the per-value byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxValueBytes(long value) =>
-        this with { MaxValueBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxValueBytes(value) };
 
     /// <summary>Returns a copy with the total output-byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxOutputBytes(long value) =>
-        this with { MaxOutputBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxOutputBytes(value) };
 
     /// <summary>Returns a copy with the per-array element budget configured.</summary>
     public AwkExecutionPolicy WithMaxArrayElements(int value) =>
-        this with { MaxArrayElements = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxArrayElements(value) };
 
     /// <summary>Returns a copy with the field-count budget configured.</summary>
     public AwkExecutionPolicy WithMaxFields(int value) =>
-        this with { MaxFields = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxFields(value) };
 
     /// <summary>Returns a copy with the retained scalar-symbol budget configured.</summary>
     public AwkExecutionPolicy WithMaxSymbols(int value) =>
-        this with { MaxSymbols = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxSymbols(value) };
 
     /// <summary>Returns a copy with the identifier byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxIdentifierBytes(int value) =>
-        this with { MaxIdentifierBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxIdentifierBytes(value) };
 
     /// <summary>Returns a copy with the governed-builder byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxBuilderBytes(int value) =>
-        this with { MaxBuilderBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxBuilderBytes(value) };
 
     /// <summary>Returns a copy with the regex-capture byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexCaptureBytes(long value) =>
-        this with { MaxRegexCaptureBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxRegexCaptureBytes(value) };
 
     /// <summary>Returns a copy with the regex pattern-byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexPatternBytes(long value) =>
-        this with { MaxRegexPatternBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxRegexPatternBytes(value) };
 
     /// <summary>Returns a copy with the per-pattern regex group budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexGroups(int value) =>
-        this with { MaxRegexGroups = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxRegexGroups(value) };
 
     /// <summary>Returns a copy with the regex compilation budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexCompilations(int value) =>
-        this with { MaxRegexCompilations = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxRegexCompilations(value) };
 
     /// <summary>Returns a copy with the retained regex-cache byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexCacheBytes(long value) =>
-        this with { MaxRegexCacheBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxRegexCacheBytes(value) };
 
     /// <summary>Returns a copy with the regex-operation budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexOperations(long value) =>
-        this with { MaxRegexOperations = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxRegexOperations(value) };
 
     /// <summary>Returns a copy with the built-in sort-comparison budget configured.</summary>
     public AwkExecutionPolicy WithMaxSortComparisons(long value) =>
-        this with { MaxSortComparisons = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxSortComparisons(value) };
 
     /// <summary>Returns a copy with the regex record-separator scan budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexRecordSeparatorBytesScanned(long value) =>
-        this with { MaxRegexRecordSeparatorBytesScanned = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxRegexRecordSeparatorBytesScanned(value) };
 
     /// <summary>Returns a copy with the executable stack-byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxVmStackBytes(long value) =>
-        this with { MaxVmStackBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxVmStackBytes(value) };
 
     /// <summary>Returns a copy with the aggregate retained-memory budget configured.</summary>
     public AwkExecutionPolicy WithMaxExecutionMemoryBytes(long value) =>
-        this with { MaxExecutionMemoryBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxExecutionMemoryBytes(value) };
 
     /// <summary>Returns a copy with the open output-file budget configured.</summary>
     public AwkExecutionPolicy WithMaxOutputFiles(int value) =>
-        this with { MaxOutputFiles = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxOutputFiles(value) };
 
     /// <summary>Returns a copy with the open input-file budget configured.</summary>
     public AwkExecutionPolicy WithMaxInputFiles(int value) =>
-        this with { MaxInputFiles = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxInputFiles(value) };
 
     /// <summary>Returns a copy with the open command-pipe budget configured.</summary>
     public AwkExecutionPolicy WithMaxPipes(int value) =>
-        this with { MaxPipes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxPipes(value) };
 
     /// <summary>Returns a copy with the aggregate source-byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxSourceBytes(long value) =>
-        this with { MaxSourceBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxSourceBytes(value) };
 
     /// <summary>Returns a copy with the top-level source-unit budget configured.</summary>
     public AwkExecutionPolicy WithMaxSourceUnits(int value) =>
-        this with { MaxSourceUnits = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxSourceUnits(value) };
 
     /// <summary>Returns a copy with the expanded compilation-source byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxExpandedSourceBytes(long value) =>
-        this with { MaxExpandedSourceBytes = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxExpandedSourceBytes(value) };
 
     /// <summary>Returns a copy with the frontend character budget configured.</summary>
     public AwkExecutionPolicy WithMaxFrontendCharacters(int value) =>
-        this with { MaxFrontendCharacters = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxFrontendCharacters(value) };
 
     /// <summary>Returns a copy with the frontend token budget configured.</summary>
     public AwkExecutionPolicy WithMaxFrontendTokens(int value) =>
-        this with { MaxFrontendTokens = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxFrontendTokens(value) };
 
     /// <summary>Returns a copy with the frontend diagnostic budget configured.</summary>
     public AwkExecutionPolicy WithMaxFrontendDiagnostics(int value) =>
-        this with { MaxFrontendDiagnostics = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxFrontendDiagnostics(value) };
 
     /// <summary>Returns a copy with the command argument-count budget configured.</summary>
     public AwkExecutionPolicy WithMaxArguments(int value) =>
-        this with { MaxArguments = RequirePositive(value) };
+        this with { MaxArguments = AwkRuntimeLimits.RequirePositive(value) };
 
     /// <summary>Returns a copy with the aggregate command argument-byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxArgumentBytes(long value) =>
-        this with { MaxArgumentBytes = RequirePositive(value) };
+        this with { MaxArgumentBytes = AwkRuntimeLimits.RequirePositive(value) };
 
     /// <summary>Returns a copy with the environment entry-count budget configured.</summary>
     public AwkExecutionPolicy WithMaxEnvironmentEntries(int value) =>
-        this with { MaxEnvironmentEntries = RequirePositive(value) };
+        this with { MaxEnvironmentEntries = AwkRuntimeLimits.RequirePositive(value) };
 
     /// <summary>Returns a copy with the aggregate environment-byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxEnvironmentBytes(long value) =>
-        this with { MaxEnvironmentBytes = RequirePositive(value) };
+        this with { MaxEnvironmentBytes = AwkRuntimeLimits.RequirePositive(value) };
 
     /// <summary>Returns a copy with the host-error byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxHostErrorBytes(int value) =>
-        this with { MaxHostErrorBytes = RequirePositive(value) };
+        this with { MaxHostErrorBytes = AwkRuntimeLimits.RequirePositive(value) };
 
     /// <summary>Returns a copy with the include-depth budget configured.</summary>
     public AwkExecutionPolicy WithMaxIncludeDepth(int value) =>
-        this with { MaxIncludeDepth = RequirePositive(value) };
+        this with { Limits = Limits.WithMaxIncludeDepth(value) };
 
     /// <summary>Returns a copy with the included-file budget configured.</summary>
     public AwkExecutionPolicy WithMaxIncludeFiles(int value) =>
-        this with { MaxIncludeFiles = RequirePositive(value) };
-
-    private static int RequirePositive(int value)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-        return value;
-    }
-
-    private static long RequirePositive(long value)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-        return value;
-    }
+        this with { Limits = Limits.WithMaxIncludeFiles(value) };
 
     private static TimeSpan RequirePositive(TimeSpan value)
     {

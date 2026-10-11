@@ -102,45 +102,46 @@ internal sealed record AwkRuntimeLimits
 
     public static AwkRuntimeLimits CreateDefault() => new();
 
-    public static AwkRuntimeLimits FromPolicy(AwkExecutionPolicy policy) =>
+    public static AwkRuntimeLimits CreateRestricted() =>
         new()
         {
-            MaxExecutionSteps = policy.MaxExecutionSteps,
-            MaxFunctionCallDepth = policy.MaxFunctionCallDepth,
-            MaxSyntaxNestingDepth = policy.MaxSyntaxNestingDepth,
-            MaxHostCalls = policy.MaxHostCalls,
-            MaxRecordBytes = policy.MaxRecordBytes,
-            MaxInputBytes = policy.MaxInputBytes,
-            MaxRecords = policy.MaxRecords,
-            MaxValueBytes = policy.MaxValueBytes,
-            MaxOutputBytes = policy.MaxOutputBytes,
-            MaxArrayElements = policy.MaxArrayElements,
-            MaxFields = policy.MaxFields,
-            MaxSymbols = policy.MaxSymbols,
-            MaxIdentifierBytes = policy.MaxIdentifierBytes,
-            MaxBuilderBytes = policy.MaxBuilderBytes,
-            MaxRegexCaptureBytes = policy.MaxRegexCaptureBytes,
-            MaxRegexPatternBytes = policy.MaxRegexPatternBytes,
-            MaxRegexGroups = policy.MaxRegexGroups,
-            MaxRegexCompilations = policy.MaxRegexCompilations,
-            MaxRegexCacheBytes = policy.MaxRegexCacheBytes,
-            MaxRegexOperations = policy.MaxRegexOperations,
-            MaxSortComparisons = policy.MaxSortComparisons,
-            MaxRegexRecordSeparatorBytesScanned = policy.MaxRegexRecordSeparatorBytesScanned,
-            MaxVmStackBytes = policy.MaxVmStackBytes,
-            MaxExecutionMemoryBytes = policy.MaxExecutionMemoryBytes,
-            MaxOutputFiles = policy.MaxOutputFiles,
-            MaxInputFiles = policy.MaxInputFiles,
-            MaxPipes = policy.MaxPipes,
-            MaxSourceBytes = policy.MaxSourceBytes,
-            MaxSourceUnits = policy.MaxSourceUnits,
-            MaxExpandedSourceBytes = policy.MaxExpandedSourceBytes,
-            MaxFrontendCharacters = policy.MaxFrontendCharacters,
-            MaxFrontendTokens = policy.MaxFrontendTokens,
-            MaxFrontendDiagnostics = policy.MaxFrontendDiagnostics,
-            MaxIncludeDepth = policy.MaxIncludeDepth,
-            MaxIncludeFiles = policy.MaxIncludeFiles
+            MaxFunctionCallDepth = 32,
+            MaxSyntaxNestingDepth = 64,
+            MaxRecordBytes = 8L << 20,
+            MaxInputBytes = 64L << 20,
+            MaxRecords = 1_000_000,
+            MaxValueBytes = 8L << 20,
+            MaxOutputBytes = 16L << 20,
+            MaxArrayElements = 100_000,
+            MaxFields = 100_000,
+            MaxSymbols = 10_000,
+            MaxIdentifierBytes = 1 << 10,
+            MaxBuilderBytes = 8 << 20,
+            MaxRegexCaptureBytes = 8L << 20,
+            MaxRegexPatternBytes = 64L << 10,
+            MaxRegexGroups = 256,
+            MaxRegexCompilations = 256,
+            MaxRegexCacheBytes = 8L << 20,
+            MaxVmStackBytes = 8L << 20,
+            MaxExecutionMemoryBytes = 64L << 20,
+            MaxOutputFiles = 64,
+            MaxInputFiles = 64,
+            MaxPipes = 8,
+            MaxSourceBytes = 4L << 20,
+            MaxSourceUnits = 256,
+            MaxExpandedSourceBytes = 4L << 20,
+            MaxFrontendCharacters = 512 << 10,
+            MaxFrontendTokens = 250_000,
+            MaxFrontendDiagnostics = 256,
+            MaxIncludeDepth = 16,
+            MaxIncludeFiles = 64
         };
+
+    public static AwkRuntimeLimits FromPolicy(AwkExecutionPolicy policy)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        return policy.Limits;
+    }
 
     public AwkRuntimeLimits WithMaxExecutionSteps(int value) =>
         this with { MaxExecutionSteps = RequirePositive(value) };
@@ -247,9 +248,15 @@ internal sealed record AwkRuntimeLimits
     public AwkRuntimeLimits WithMaxIncludeFiles(int value) =>
         this with { MaxIncludeFiles = RequirePositive(value) };
 
-    private static int RequirePositive(int value) =>
-        value > 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
+    internal static int RequirePositive(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+        return value;
+    }
 
-    private static long RequirePositive(long value) =>
-        value > 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
+    internal static long RequirePositive(long value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+        return value;
+    }
 }

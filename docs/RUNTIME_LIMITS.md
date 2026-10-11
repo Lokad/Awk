@@ -3,8 +3,32 @@
 Embedding applications configure limits through the public immutable `AwkExecutionPolicy` passed
 to `Awk.ExecuteAsync`. `CreateDefault()` preserves command-line compatibility. The finite
 `CreateRestricted()` preset is the starting point for untrusted awk and can be refined through its
-`With...` methods. Internal execution maps the public policy to `AwkRuntimeLimits` and carries it
-through `AwkRuntimeOptions`.
+`With...` methods. The policy owns an immutable `AwkRuntimeLimits` value for its 35 shared
+numeric budgets; internal execution reuses that value through `AwkRuntimeOptions`.
+Defaults, numeric presets and validation have one owner. Public getters and `WithMax...`
+methods retain their signatures, preset values and positive-value validation. A copied
+policy cannot mutate the original. The five argument/environment/host-error ingress
+budgets remain at the public host boundary; capabilities, clocks and deadlines also stay
+in the policy.
+
+Choose the preset by capability and memory needs, then override the relevant budget:
+
+| Budget group | Default | Restricted |
+| --- | --- | --- |
+| Execution fuel | No implicit quota | No implicit quota |
+| Function depth / host calls | 1,000 / 100,000 | 32 / 100,000 |
+| Aggregate governed memory | Unlimited | 64 MiB |
+| Record and value size | Unlimited | 8 MiB each |
+| Regex-operation, sort-comparison, regex-separator scan quotas | Optional | Optional |
+| Ordinary host / command deadlines | 5 minutes | 10 seconds |
+| Aggregate cleanup deadline | 30 seconds | 5 seconds |
+| Complete execution deadline | Caller cancellation | 30 seconds, cooperative |
+
+Specialized quotas remain optional in both presets. Enable positive explicit fuel with
+`WithMaxExecutionSteps`; zero in a preset denotes absence and is not a valid setter
+argument. Host calls, deadlines, memory/size limits, cancellation and bounded caches
+retain their independent contracts. Policy consolidation changes configuration ownership,
+not admission rules or the default interpreter.
 
 Frontend warning appends count toward the same output-byte and host-call totals as runtime
 IO. This also applies to precompiled interpreter/executable runs: warning admission happens
