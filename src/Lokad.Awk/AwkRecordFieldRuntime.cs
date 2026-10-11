@@ -26,12 +26,19 @@ internal sealed class AwkRecordFieldRuntime(
         recordByteWork,
         checkpoint);
 
+    private Func<AwkText, List<AwkFieldText>>? _splitCurrentFields;
+
+    // Reuse the callback on every field/NF read. Resolve the current plan when
+    // invoked so lazy splitting still observes the plan captured for that record.
+    private Func<AwkText, List<AwkFieldText>> SplitFields =>
+        _splitCurrentFields ??= SplitCurrentFields;
+
     public AwkText CurrentRecordByteText => _frame.RecordAwkText;
 
     public int FieldCount =>
-        _frame.GetFieldCount(SplitCurrentFields);
+        _frame.GetFieldCount(SplitFields);
 
-    public AwkValue FieldCountValue => _frame.GetFieldCountValue(SplitCurrentFields);
+    public AwkValue FieldCountValue => _frame.GetFieldCountValue(SplitFields);
 
     public AwkValue CurrentRecordValue => _frame.GetRecordValue(createNumericByteText, createStringByteText);
 
@@ -43,7 +50,7 @@ internal sealed class AwkRecordFieldRuntime(
         GetFieldValue(new AwkFieldIndex(index));
 
     public AwkValue GetFieldValue(AwkFieldIndex index) =>
-        _frame.GetFieldValue(index, SplitCurrentFields, createNumericByteText);
+        _frame.GetFieldValue(index, SplitFields, createNumericByteText);
 
     public void SetCurrentRecord(AwkText line)
     {
@@ -90,11 +97,11 @@ internal sealed class AwkRecordFieldRuntime(
             index,
             value,
             resolveOutputFieldSeparator(),
-            SplitCurrentFields);
+            SplitFields);
     }
 
     public void ExtendFieldCountForReference(AwkFieldIndex index) =>
-        _frame.ExtendFieldCountForReference(index, SplitCurrentFields);
+        _frame.ExtendFieldCountForReference(index, SplitFields);
 
     public void AssignFieldCount(int count)
     {
@@ -109,7 +116,7 @@ internal sealed class AwkRecordFieldRuntime(
         _frame.AssignFieldCount(
             count,
             resolveOutputFieldSeparator(),
-            SplitCurrentFields);
+            SplitFields);
     }
 
     public void AssignFieldCountValue(AwkValue value)
@@ -121,7 +128,7 @@ internal sealed class AwkRecordFieldRuntime(
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
 
         _frame.AssignFieldCount(new AwkFieldCount((int)count), value,
-            resolveOutputFieldSeparator(), SplitCurrentFields);
+            resolveOutputFieldSeparator(), SplitFields);
     }
 
     private List<AwkFieldText> SplitCurrentFields(AwkText text) =>

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Field and `NF` access now reuse the record-splitting callback within an execution,
+  removing per-read delegate allocations while preserving lazy splitting and record plans.
+
 - Reference tooling now checks nullable record separators, scalar empty replacement,
   successive gensub captures and mixed alpha/literal classes separately. Exact GNU
   defect signatures retain raw byte evidence and cannot qualify equivalent-work timings.
