@@ -4,6 +4,9 @@ Lokad.Awk benchmarks live in `benchmarks/Lokad.Awk.Benchmarks` and are separate 
 suite. `BenchmarkDotNet.Artifacts/` is ignored because most benchmark output is environment-specific
 noise.
 
+See the [2026-10-11 focused comparison](BENCHMARK_SUMMARY_2026-10-11.md) for current-policy
+field-access allocation measurements, GNU comparison and validation.
+
 ## GNU awk comparison
 
 Reference comparisons are opt-in. Normal local benchmarks, tests, and counter reports do not
