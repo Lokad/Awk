@@ -123,3 +123,38 @@ The profiling job is separate and exploratory; exclude its timings from comparis
 Preserve raw logs/exports and source/assembly identities before later runs overwrite
 the standard BenchmarkDotNet export files. Repeat only the affected cases to confirm
 a candidate; expand the catalog when a specific regression question requires it.
+
+## Field-cache allocation follow-up
+
+A second bounded investigation compares `8b11217968f2` with `cebddb04e4d3`, using
+the same environment, four managed cases and five/nine/one measurement protocol.
+Inspection of field-frame transitions found a duplicate empty dictionary allocation:
+record reset creates a fresh cache, then lazy splitting replaces that empty cache.
+Every unsplit state originates in the reset path. Removing the second construction
+deletes one production line and preserves the per-record cache lifetime, materialized
+field ownership, lazy splitting and all memory admission/publication checks.
+
+An isolated prepared-splitter test measures 10,000 record resets and field counts.
+Allocation falls from 2,240,000 to 1,440,000 bytes with default limits, and from
+2,560,000 to 1,760,000 bytes with a 4 KiB governor. Both Windows and Linux measure
+the same after values: **80 bytes removed per split record**. New allocation ceilings
+fail before the change and pass afterward; field/counter/cleanup assertions pass.
+
+| Workload | Before median | After median | Before MiB/s | After MiB/s | Before allocation | After allocation | Reduction |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Projection | 4.911 ms | 4.922 ms | 11.92 | 11.90 | 3.47 MiB | 3.15 MiB | 9.02% |
+| Filtering | 6.899 ms | 6.820 ms | 3.40 | 3.43 | 4.24 MiB | 3.93 MiB | 7.37% |
+| Aggregation | 5.830 ms | 5.732 ms | 4.02 | 4.09 | 3.89 MiB | 3.57 MiB | 8.04% |
+| Wide processing | 17.679 ms | 16.956 ms | 4.42 | 4.60 | 4.47 MiB | 4.46 MiB | 0.44% |
+
+Allocation percentages use raw diagnostic byte totals, rather than rounded display
+values. Projection timing is unchanged; the other timings are nominally lower in
+this single comparison. The retention decision rests on deterministic allocation
+removal with no observed throughput regression, not a repeatable CPU-speedup claim.
+Gen0 collections decline for projection/filter/aggregation; wide GC counts are unchanged.
+
+Windows/Linux Debug/Release each pass 71,497 tests. All 44 GNU reference cases agree
+exactly, all 31 Linux counter rows remain unchanged, and the four recorded quiet
+gates pass. This closes the second experiment after one candidate. No field buffers
+are retained across records, shared mutable cache is introduced, dependency/default
+is changed, or additional benchmark framework is required.

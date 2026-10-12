@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Global scalar reads avoid repeated local/scalar classification while preserving
+  function-local promotion, array diagnostics and lazy scalar memory admission.
+
+- Lazy field splitting keeps the fresh per-record cache instead of creating a second
+  empty dictionary, removing 80 allocated bytes per split record. Cache lifetime,
+  field materialization and memory/cancellation boundaries are unchanged.
+
 - Supplementary regex category metadata now scans scalars once, admits buffer growth
   incrementally and publishes one immutable table on success. Failed/canceled construction
   remains retryable; translated patterns and warm/cold memory envelopes are unchanged.
