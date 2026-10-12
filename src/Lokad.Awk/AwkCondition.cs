@@ -13,7 +13,12 @@ internal readonly struct AwkCondition
         _alternatives = AwkCollectionSnapshots.CopyNested(alternatives);
     }
 
-    public async ValueTask<bool> EvaluateAsync(AwkEvaluationContext context)
+    public ValueTask<bool> EvaluateAsync(AwkEvaluationContext context) =>
+        _alternatives.Length == 1 && _alternatives[0].Length == 1
+            ? _alternatives[0][0].EvaluateAsync(context)
+            : EvaluateAlternativesAsync(context);
+
+    private async ValueTask<bool> EvaluateAlternativesAsync(AwkEvaluationContext context)
     {
         if (_alternatives.Length == 0)
             return false;
@@ -68,8 +73,16 @@ internal sealed class AwkConditionClause
     public static AwkConditionClause Truthy(AwkExpression expression) =>
         new(expression);
 
-    public async ValueTask<bool> EvaluateAsync(AwkEvaluationContext context) =>
-        (await _expression.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy();
+    public ValueTask<bool> EvaluateAsync(AwkEvaluationContext context)
+    {
+        var pending = _expression.EvaluateAsync(context);
+        return pending.IsCompletedSuccessfully
+            ? ValueTask.FromResult(pending.Result.IsTruthy())
+            : AwaitValueAsync(pending);
+    }
+
+    private static async ValueTask<bool> AwaitValueAsync(ValueTask<AwkValue> pending) =>
+        (await pending.ConfigureAwait(false)).IsTruthy();
 
     internal bool TryEmitExecutable(AwkExecutableCompiler compiler)
     {

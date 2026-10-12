@@ -233,6 +233,76 @@ public sealed class AwkExpressionCompletionTests
         Assert.Equal(field == 0 ? 0 : 1, counters.FieldSplits);
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task ConditionsKeepTruthinessOrderAndShortCircuiting(bool truthy, bool pending, bool general)
+    {
+        var (state, counters) = CreateState();
+        var chosen = new ValueSource(truthy ? 1 : 0, pending);
+        var guard = new ValueSource(0, pending: false);
+        var skipped = new ValueSource(1, pending: false);
+        var last = new ValueSource(1, pending: false);
+        var fallback = new ValueSource(0, pending: false);
+        AwkCondition condition = general
+            ? new([
+                [AwkConditionClause.Truthy(new SourceExpression(guard)), AwkConditionClause.Truthy(new SourceExpression(skipped))],
+                [AwkConditionClause.Truthy(new SourceExpression(chosen)), AwkConditionClause.Truthy(new SourceExpression(last))],
+                [AwkConditionClause.Truthy(new SourceExpression(fallback))]])
+            : new([[AwkConditionClause.Truthy(new SourceExpression(chosen))]]);
+        var before = counters.ExecutionSteps;
+        var result = condition.EvaluateAsync(new AwkEvaluationContext(state));
+        if (pending)
+        {
+            Assert.False(result.IsCompleted);
+            Assert.False(last.Started.Task.IsCompleted);
+            Assert.False(fallback.Started.Task.IsCompleted);
+            chosen.Complete();
+        }
+
+        Assert.Equal(truthy, await result);
+        Assert.Equal(1, chosen.Consumptions);
+        Assert.Equal(general ? 3 : 1, counters.ExecutionSteps - before);
+        Assert.False(skipped.Started.Task.IsCompleted);
+        if (general)
+        {
+            Assert.Equal(1, guard.Consumptions);
+            Assert.Equal(truthy, last.Started.Task.IsCompleted);
+            Assert.Equal(!truthy, fallback.Started.Task.IsCompleted);
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task FailedConditionsStopLaterClauses(bool pending, bool general)
+    {
+        var (state, _) = CreateState();
+        var first = new ValueSource(1, pending: true);
+        var later = new ValueSource(1, pending: false);
+        var error = new AwkRuntimeException("test condition failure"u8.ToArray());
+        if (!pending)
+            first.Fail(error);
+        AwkCondition condition = general
+            ? new([[AwkConditionClause.Truthy(new SourceExpression(first)), AwkConditionClause.Truthy(new SourceExpression(later))]])
+            : new([[AwkConditionClause.Truthy(new SourceExpression(first))]]);
+        var result = condition.EvaluateAsync(new AwkEvaluationContext(state));
+        if (pending)
+            first.Fail(error);
+
+        Assert.Same(error, await Assert.ThrowsAsync<AwkRuntimeException>(() => result.AsTask()));
+        Assert.False(later.Started.Task.IsCompleted);
+        Assert.Equal(1, first.Consumptions);
+    }
+
     private sealed class EffectSourceExpression(ValueSource source, Action effect) : AwkExpression
     {
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
