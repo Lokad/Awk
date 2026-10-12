@@ -100,7 +100,8 @@ internal sealed class AwkRuntimeState
             CreateByteTextValue,
             CreateNumericStringValue,
             CreateDeferredTextValue,
-            _variables.ContainsArray);
+            _variables.ContainsArray,
+            _variables.RemoveFunctionLocalArray);
         _regexRuntime = new AwkRegexRuntime(
             ResolveRegexCaseSensitivity,
             stringUnitMode,
@@ -411,7 +412,7 @@ internal sealed class AwkRuntimeState
 
     public void PopFunctionFrame()
     {
-        _functions.PopFrame(_variables.RemoveFunctionLocalArray);
+        _functions.PopFrame();
     }
 
     public bool IsInsideFunction => _functions.IsInsideFunction;

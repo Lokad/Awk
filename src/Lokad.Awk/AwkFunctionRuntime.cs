@@ -7,6 +7,7 @@ namespace Lokad.Awk;
 internal sealed class AwkFunctionRuntime
 {
     private readonly AwkFunctionCallStack _calls;
+    private readonly Action<AwkArrayName> _removeFunctionLocalArray;
     private Dictionary<AwkFunctionName, IAwkUserFunction> _functions =
         new Dictionary<AwkFunctionName, IAwkUserFunction>();
 
@@ -16,8 +17,10 @@ internal sealed class AwkFunctionRuntime
         Func<AwkText, AwkValue> createByteTextValue,
         Func<AwkText, AwkValue> createNumericStringValue,
         Func<AwkText, AwkValue> createDeferredTextValue,
-        Func<AwkArrayName, bool> containsArray)
+        Func<AwkArrayName, bool> containsArray,
+        Action<AwkArrayName> removeFunctionLocalArray)
     {
+        _removeFunctionLocalArray = removeFunctionLocalArray;
         _calls = new AwkFunctionCallStack(
             maxFunctionCallDepth,
             memoryGovernor,
@@ -48,8 +51,8 @@ internal sealed class AwkFunctionRuntime
     public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments) =>
         _calls.PushFrame(layout, arguments);
 
-    public void PopFrame(Action<AwkArrayName> removeFunctionLocalArray) =>
-        _calls.PopFrame(removeFunctionLocalArray);
+    public void PopFrame() =>
+        _calls.PopFrame(_removeFunctionLocalArray);
 
     public void SetReturnValue(AwkValue value) =>
         _calls.SetReturnValue(value);
