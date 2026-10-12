@@ -121,6 +121,127 @@ public sealed class AwkExpressionCompletionTests
         Assert.Equal(1, first.Consumptions);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task CompoundUpdateReadsTargetBeforeRightHandEffects(bool pendingIndex, bool pendingValue)
+    {
+        var (state, counters) = CreateState();
+        var array = AwkArrayName.FromText("a");
+        var key = AwkArrayKey.FromOrdinal(2);
+        state.SetArrayString(array, key, "7");
+        var index = new ValueSource(2, pendingIndex);
+        var value = new ValueSource(3, pendingValue);
+        var expression = AwkExpression.CompoundAssignment(
+            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(index))),
+            new EffectSourceExpression(value, () => state.SetArrayString(array, key, "100")),
+            AwkCompoundAssignmentOperation.Add);
+        var before = counters.ExecutionSteps;
+
+        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
+        if (pendingIndex)
+        {
+            Assert.False(value.Started.Task.IsCompleted);
+            Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
+            index.Complete();
+        }
+        await value.Started.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        if (pendingValue)
+        {
+            Assert.False(result.IsCompleted);
+            Assert.Equal(100, state.GetArrayAwkValue(array, key).AsNumber());
+            value.Complete();
+        }
+
+        Assert.Equal(10, (await result).AsNumber());
+        Assert.Equal(10, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(1, index.Consumptions);
+        Assert.Equal(1, value.Consumptions);
+        Assert.Equal(3, counters.ExecutionSteps - before);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task NumericUpdatesConsumeIndexOnceAndReturnNumericValues(bool decrement, bool post, bool pendingIndex)
+    {
+        var (state, counters) = CreateState();
+        var array = AwkArrayName.FromText("a");
+        var key = AwkArrayKey.FromOrdinal(2);
+        state.SetArrayString(array, key, "007");
+        var index = new ValueSource(2, pendingIndex);
+        var target = AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(index)));
+        var expression = (decrement, post) switch
+        {
+            (true, true) => AwkExpression.PostDecrement(target),
+            (true, false) => AwkExpression.PreDecrement(target),
+            (false, true) => AwkExpression.PostIncrement(target),
+            _ => AwkExpression.PreIncrement(target)
+        };
+        var before = counters.ExecutionSteps;
+        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
+        if (pendingIndex)
+        {
+            Assert.False(result.IsCompleted);
+            Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
+            index.Complete();
+        }
+
+        var value = await result;
+        var updated = decrement ? 6 : 8;
+        Assert.True(value.IsNumberValue);
+        Assert.Equal(post ? 7 : updated, value.AsNumber());
+        Assert.Equal(updated, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(1, index.Consumptions);
+        Assert.Equal(2, counters.ExecutionSteps - before);
+    }
+
+    [Theory]
+    [InlineData(0, false, "one two")]
+    [InlineData(0, true, "one two")]
+    [InlineData(1, false, "one")]
+    [InlineData(1, true, "one")]
+    [InlineData(3, false, "")]
+    [InlineData(3, true, "")]
+    public async Task DynamicFieldReadsWaitAndConsumeIndexOnce(int field, bool pendingIndex, string expected)
+    {
+        var (state, counters) = CreateState();
+        state.SetCurrentRecord(AwkText.FromString("one two"));
+        var index = new ValueSource(field, pendingIndex);
+        var expression = AwkExpression.FieldIndex(new SourceExpression(index));
+        var before = counters.ExecutionSteps;
+        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
+        if (pendingIndex)
+        {
+            Assert.False(result.IsCompleted);
+            Assert.Equal(0, counters.FieldSplits);
+            index.Complete();
+        }
+
+        Assert.Equal(expected, state.FormatStringByteText(await result).AsString());
+        Assert.Equal(1, index.Consumptions);
+        // Splitting a short record also contributes one bounded byte-work checkpoint.
+        Assert.Equal(field == 0 ? 2 : 3, counters.ExecutionSteps - before);
+        Assert.Equal(field == 0 ? 0 : 1, counters.FieldSplits);
+    }
+
+    private sealed class EffectSourceExpression(ValueSource source, Action effect) : AwkExpression
+    {
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        {
+            effect();
+            return source.Start();
+        }
+    }
+
     private static (AwkRuntimeState State, AwkRuntimeCounters Counters) CreateState()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();

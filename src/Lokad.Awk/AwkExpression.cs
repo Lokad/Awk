@@ -182,8 +182,17 @@ internal abstract partial class AwkExpression
         context.State.FormatStringByteText(
             await EvaluateAsync(context).ConfigureAwait(false));
 
-    public async ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context) =>
-        (await EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint);
+    public ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
+    {
+        var pending = EvaluateAsync(context);
+        return pending.IsCompletedSuccessfully
+            ? ValueTask.FromResult(pending.Result.AsNumber(context.State.CancellationCheckpoint))
+            : AwaitNumberAsync(context, pending);
+    }
+
+    private static async ValueTask<double> AwaitNumberAsync(
+        AwkEvaluationContext context, ValueTask<AwkValue> pending) =>
+        (await pending.ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint);
 
     public ValueTask<AwkValue> EvaluateAsync(AwkEvaluationContext context)
     {

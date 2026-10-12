@@ -38,14 +38,43 @@ internal abstract record AwkReference
         return AwkResolvedSubstitutionTarget.ReferenceTarget(input, target);
     }
 
-    public async ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
+    public ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
         AwkEvaluationContext context,
         AwkExpression value,
         AwkCompoundAssignmentOperation operation)
     {
-        var target = await ResolveTargetAsync(context).ConfigureAwait(false);
+        var pending = ResolveTargetAsync(context);
+        if (!pending.IsCompletedSuccessfully)
+            return AwaitCompoundTargetAsync(context, value, operation, pending);
+
+        var target = pending.Result;
         var currentValue = target.Evaluate(context.State).AsNumber(context.State.CancellationCheckpoint);
-        var rightValue = (await value.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint);
+        var right = value.EvaluateAsync(context);
+        return right.IsCompletedSuccessfully
+            ? ValueTask.FromResult(AssignCompound(context, target, currentValue, right.Result, operation))
+            : AwaitCompoundValueAsync(context, target, currentValue, right, operation);
+    }
+
+    private static async ValueTask<AwkValue> AwaitCompoundTargetAsync(
+        AwkEvaluationContext context, AwkExpression value, AwkCompoundAssignmentOperation operation,
+        ValueTask<AwkResolvedReference> pending)
+    {
+        var target = await pending.ConfigureAwait(false);
+        var currentValue = target.Evaluate(context.State).AsNumber(context.State.CancellationCheckpoint);
+        var rightValue = await value.EvaluateAsync(context).ConfigureAwait(false);
+        return AssignCompound(context, target, currentValue, rightValue, operation);
+    }
+
+    private static async ValueTask<AwkValue> AwaitCompoundValueAsync(
+        AwkEvaluationContext context, AwkResolvedReference target, double currentValue,
+        ValueTask<AwkValue> pending, AwkCompoundAssignmentOperation operation) =>
+        AssignCompound(context, target, currentValue, await pending.ConfigureAwait(false), operation);
+
+    private static AwkValue AssignCompound(
+        AwkEvaluationContext context, AwkResolvedReference target, double currentValue,
+        AwkValue right, AwkCompoundAssignmentOperation operation)
+    {
+        var rightValue = right.AsNumber(context.State.CancellationCheckpoint);
         var result = AwkValue.FromNumber(
             AwkNumericOperations.ApplyCompoundAssignment(currentValue, rightValue, operation));
         target.AssignValue(context.State, result);
@@ -89,12 +118,26 @@ internal abstract record AwkReference
         return false;
     }
 
-    private async ValueTask<AwkValue> ApplyNumericUpdateAsync(
+    private ValueTask<AwkValue> ApplyNumericUpdateAsync(
         AwkEvaluationContext context,
         Func<double, double> update,
         AwkNumericUpdateResult resultSelection)
     {
-        var target = await ResolveTargetAsync(context).ConfigureAwait(false);
+        var pending = ResolveTargetAsync(context);
+        return pending.IsCompletedSuccessfully
+            ? ValueTask.FromResult(ApplyNumericUpdate(context, pending.Result, update, resultSelection))
+            : AwaitNumericTargetAsync(context, pending, update, resultSelection);
+    }
+
+    private static async ValueTask<AwkValue> AwaitNumericTargetAsync(
+        AwkEvaluationContext context, ValueTask<AwkResolvedReference> pending,
+        Func<double, double> update, AwkNumericUpdateResult resultSelection) =>
+        ApplyNumericUpdate(context, await pending.ConfigureAwait(false), update, resultSelection);
+
+    private static AwkValue ApplyNumericUpdate(
+        AwkEvaluationContext context, AwkResolvedReference target,
+        Func<double, double> update, AwkNumericUpdateResult resultSelection)
+    {
         var previous = AwkValue.FromNumber(target.Evaluate(context.State).AsNumber(context.State.CancellationCheckpoint));
         var result = AwkValue.FromNumber(update(previous.AsNumber(context.State.CancellationCheckpoint)));
         target.AssignValue(context.State, result);

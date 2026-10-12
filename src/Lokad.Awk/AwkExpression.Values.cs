@@ -32,9 +32,20 @@ internal abstract partial class AwkExpression
 
     private sealed class DynamicFieldIndexExpression(AwkExpression indexExpression) : AwkExpression
     {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var index = (int)(await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false));
+            var pending = indexExpression.ResolveNumberAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? ValueTask.FromResult(ResolveField(context, (int)pending.Result))
+                : AwaitIndexAsync(context, pending);
+        }
+
+        private static async ValueTask<AwkValue> AwaitIndexAsync(
+            AwkEvaluationContext context, ValueTask<double> pending) =>
+            ResolveField(context, (int)await pending.ConfigureAwait(false));
+
+        private static AwkValue ResolveField(AwkEvaluationContext context, int index)
+        {
             if (index == 0)
                 return context.State.GetCurrentRecordValue();
 
