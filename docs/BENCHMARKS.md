@@ -9,6 +9,9 @@ field-access allocation measurements, GNU comparison and validation.
 
 ## Function scheduling and stack probes
 
+See the [2026-10-12 measured comparison](BENCHMARK_SUMMARY_2026-10-12.md) for the
+stack-pressure implementation, same-shape before/after timings and validation matrix.
+
 Function scheduling has a separate generated workload class. It executes 512 calls per
 public invocation, comparing direct calls, shallow wrappers, 16-level recursion and
 recursion while evaluating arguments. Every shape must produce exactly `8704\n` before
