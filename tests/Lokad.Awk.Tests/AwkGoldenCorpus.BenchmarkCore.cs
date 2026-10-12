@@ -25,4 +25,3 @@ internal static partial class AwkGoldenCorpus
             [], "24\n", "sku007\nitem010\n");
     }
 }
-

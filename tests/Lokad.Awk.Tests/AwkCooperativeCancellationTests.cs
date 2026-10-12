@@ -1,5 +1,6 @@
 namespace Lokad.Awk.Tests;
 
+[Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkCooperativeCancellationTests
 {
     [Theory]
