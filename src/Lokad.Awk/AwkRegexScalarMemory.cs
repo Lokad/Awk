@@ -1,12 +1,9 @@
 using System.Runtime.ExceptionServices;
-using System.Text;
 
 namespace Lokad.Awk;
 
 internal static partial class AwkRegexScalarPattern
 {
-    private static int _supplementaryCategoryCount;
-
     public static string Translate(string pattern, Action? checkpoint = null,
         AwkMemoryGovernor? governor = null, AwkMemoryLease? resultLease = null)
     {
@@ -229,27 +226,7 @@ internal static partial class AwkRegexScalarPattern
             var categories = _categories;
             if (categories is null)
             {
-                var count = Volatile.Read(ref _supplementaryCategoryCount);
-                if (count == 0)
-                {
-                    count = 1;
-                    var previous = Rune.GetUnicodeCategory(new Rune(0x10000));
-                    for (var scalar = 0x10001; scalar <= 0x10FFFF; scalar++)
-                    {
-                        if ((scalar & 2047) == 0) checkpoint?.Invoke();
-                        var category = Rune.GetUnicodeCategory(new Rune(scalar));
-                        if (category != previous) count++;
-                        previous = category;
-                    }
-                    checkpoint?.Invoke();
-                    Interlocked.CompareExchange(ref _supplementaryCategoryCount, count, 0);
-                }
-                // List growth and ToArray can coexist. The charge is deterministic
-                // for warm/cold metadata; process-wide retention is not transferred.
-                metadata.ReserveAdditional(Add(128, Times(count, 48)));
-                checkpoint?.Invoke();
-                categories = SupplementaryCategories.Value;
-                checkpoint?.Invoke();
+                categories = GetCategoryRanges(checkpoint, metadata);
                 _categories = categories;
             }
             var selected = 0;

@@ -8,7 +8,8 @@ internal static partial class AwkRegexScalarPattern
 {
     internal const string AnyScalar = @"(?:[^\uD800-\uDFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF])";
     private const string BmpBoundary = @"(?![\uD800-\uDFFF])";
-    private static readonly Lazy<CategoryRange[]> SupplementaryCategories = new(BuildCategoryRanges);
+    private static readonly object CategoryInitialization = new();
+    private static CategoryRange[]? SupplementaryCategories;
 
     private static string TranslateCore(string pattern, Action? checkpoint)
     {
@@ -329,34 +330,68 @@ internal static partial class AwkRegexScalarPattern
 
     private static uint Bit(UnicodeCategory category) => 1U << (int)category;
 
-    private static CategoryRange[] BuildCategoryRanges()
+    private static CategoryRange[] GetCategoryRanges(Action? checkpoint, AwkMemoryLease? metadata = null)
     {
+        checkpoint?.Invoke();
+        var categories = Volatile.Read(ref SupplementaryCategories);
+        if (categories is null)
+        {
+            lock (CategoryInitialization)
+            {
+                checkpoint?.Invoke();
+                categories = SupplementaryCategories;
+                if (categories is null)
+                {
+                    categories = BuildCategoryRanges(checkpoint, metadata);
+                    checkpoint?.Invoke();
+                    // Failed admission/cancellation publishes nothing. The table
+                    // retains no caller lease, governor or cancellation callback.
+                    Volatile.Write(ref SupplementaryCategories, categories);
+                    return categories;
+                }
+            }
+        }
+        // Keep the existing exact conservative envelope for every warm caller.
+        metadata?.ReserveAdditional(Add(128, Times(categories.Length, 48)));
+        checkpoint?.Invoke();
+        return categories;
+    }
+
+    private static CategoryRange[] BuildCategoryRanges(Action? checkpoint, AwkMemoryLease? metadata)
+    {
+        metadata?.ReserveAdditional(128);
+        checkpoint?.Invoke();
         var ranges = new List<CategoryRange>();
         var first = 0x10000;
         var category = Rune.GetUnicodeCategory(new Rune(first));
         for (var scalar = first + 1; scalar <= 0x10FFFF; scalar++)
         {
+            if ((scalar & 2047) == 0) checkpoint?.Invoke();
             var next = Rune.GetUnicodeCategory(new Rune(scalar));
             if (next == category)
                 continue;
-            ranges.Add(new CategoryRange(first, scalar - 1, category));
+            AddRange(ranges, metadata, first, scalar - 1, category);
             first = scalar;
             category = next;
         }
 
-        ranges.Add(new CategoryRange(first, 0x10FFFF, category));
-        var result = ranges.ToArray();
-        Volatile.Write(ref _supplementaryCategoryCount, result.Length);
-        return result;
+        AddRange(ranges, metadata, first, 0x10FFFF, category);
+        checkpoint?.Invoke();
+        return ranges.ToArray();
+
+        static void AddRange(List<CategoryRange> ranges, AwkMemoryLease? metadata,
+            int start, int end, UnicodeCategory category)
+        {
+            // 48 bytes per range admits List growth (including old/new buffers)
+            // and ToArray together, before the allocation that extends either.
+            metadata?.ReserveAdditional(48);
+            ranges.Add(new CategoryRange(start, end, category));
+        }
     }
 
     private static void AddCategoryRanges(List<ScalarRange> ranges, uint mask, Action? checkpoint)
     {
-        // Shared metadata initialization must never capture a caller's cancellation callback.
-        // Its fixed scalar walk is noninterruptible; check the caller before and after it.
-        checkpoint?.Invoke();
-        var categories = SupplementaryCategories.Value;
-        checkpoint?.Invoke();
+        var categories = GetCategoryRanges(checkpoint);
         for (var index = 0; index < categories.Length; index++)
         {
             if ((index & 63) == 0) checkpoint?.Invoke();

@@ -14,9 +14,9 @@ internal static class RegexCategoryProbe
     public static async Task RunAsync(string mode)
     {
         if (IsPublished()) throw new InvalidOperationException("Category probe must start cold.");
-        if (mode is "limit" or "cancel")
+        if (mode is "limit" or "growth" or "cancel")
         {
-            var governor = CreateGovernor(mode == "limit" ? 44 : 16L << 20);
+            var governor = CreateGovernor(mode == "limit" ? 44 : mode == "growth" ? 8192 : 16L << 20);
             using var borrowed = governor.CreateTransientLease();
             borrowed.ReserveAdditional(43);
             using var cancellation = new CancellationTokenSource();
@@ -31,7 +31,7 @@ internal static class RegexCategoryProbe
                 throw new InvalidOperationException("Expected cold preparation failure.");
             }
             catch (OperationCanceledException error) when (mode == "cancel" && error.CancellationToken == cancellation.Token) { }
-            catch (AwkRuntimeException error) when (mode == "limit" &&
+            catch (AwkRuntimeException error) when (mode is "limit" or "growth" &&
                 AwkUtf8Codec.Decode(error.MessageBytes) == "awk: memory limit exceeded\n") { }
             if (IsPublished() || governor.CurrentCommittedBytes != 43 || governor.CurrentReservedBytes != 0)
                 throw new InvalidOperationException("Failed category preparation published metadata or changed borrowed admission.");
@@ -47,7 +47,7 @@ internal static class RegexCategoryProbe
             Console.WriteLine(JsonSerializer.Serialize(new { Mode = mode, Results = results }));
             return;
         }
-        if (mode != "timing") throw new ArgumentException("Usage: --regex-category-probe timing|limit|cancel|concurrent");
+        if (mode != "timing") throw new ArgumentException("Usage: --regex-category-probe timing|limit|growth|cancel|concurrent");
         // Exercise translation/JIT paths without constructing category metadata.
         _ = AwkRegexScalarPattern.Translate(".[A]$()", () => { }, CreateGovernor(16L << 20));
         if (IsPublished()) throw new InvalidOperationException("Probe warmup populated category metadata.");

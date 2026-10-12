@@ -77,6 +77,7 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     [InlineData("ascii")]
     [InlineData("mixed")]
     [InlineData("small")]
+    [InlineData("sparse")]
     [InlineData("pool-growth")]
     public void LiteralEscapingPreservesBclResultsAndRetainsOneExactString(string shape)
     {
@@ -87,6 +88,7 @@ public sealed class AwkRegexHistoryLiteralResourceTests
             "ascii" => new string(Enumerable.Range(0, 128).Select(value => (char)value).ToArray()),
             "mixed" => "aé\U0001F600.*[\\\t\n\r\f #]{|}$?()^+",
             "small" => ".",
+            "sparse" => "abc.",
             "pool-growth" => new string('.', 4096),
             _ => throw new ArgumentException("Unknown escape shape.")
         };
@@ -103,6 +105,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         }
         Assert.Equal(0, governor.CurrentCommittedBytes);
         var peak = governor.PeakLiveBytes;
+        // A uniform twice-input bound would reject this valid exact-budget literal.
+        if (shape == "sparse") Assert.Equal(34, peak);
         var exact = Governor(Math.Max(1, peak));
         using (var resultText = exact.CreateTransientLease())
             Assert.Equal(expected, AwkRegexConstruction.EscapeLiteral(text, () => { }, exact, resultText));
