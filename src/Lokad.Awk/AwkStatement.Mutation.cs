@@ -38,11 +38,19 @@ internal abstract partial class AwkStatement
 
     private sealed class ExpressionStatement(AwkExpression expression) : AwkStatement
     {
-        public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
+        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
-            _ = await expression
-                .EvaluateAsync(context)
-                .ConfigureAwait(false);
+            var pending = expression.EvaluateAsync(context);
+            if (!pending.IsCompletedSuccessfully)
+                return AwaitExpressionAsync(pending);
+
+            _ = pending.Result;
+            return ValueTask.FromResult(AwkStatementFlow.Continue);
+        }
+
+        private static async ValueTask<AwkStatementFlow> AwaitExpressionAsync(ValueTask<AwkValue> pending)
+        {
+            _ = await pending.ConfigureAwait(false);
             return AwkStatementFlow.Continue;
         }
 

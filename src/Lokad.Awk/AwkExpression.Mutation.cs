@@ -9,10 +9,30 @@ internal abstract partial class AwkExpression
 {
     private sealed class AssignmentExpression(AwkReference target, AwkExpression valueExpression) : AwkExpression
     {
-        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var value = await valueExpression.EvaluateAsync(context).ConfigureAwait(false);
-            await target.AssignValueAsync(context, value).ConfigureAwait(false);
+            var pending = valueExpression.EvaluateAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? Assign(context, pending.Result)
+                : AwaitValueAsync(context, pending);
+        }
+
+        private ValueTask<AwkValue> Assign(AwkEvaluationContext context, AwkValue value)
+        {
+            var pending = target.AssignValueAsync(context, value);
+            if (!pending.IsCompletedSuccessfully)
+                return AwaitAssignmentAsync(pending, value);
+
+            pending.GetAwaiter().GetResult();
+            return ValueTask.FromResult(value.AsScalarCopy());
+        }
+
+        private async ValueTask<AwkValue> AwaitValueAsync(AwkEvaluationContext context, ValueTask<AwkValue> pending) =>
+            await Assign(context, await pending.ConfigureAwait(false)).ConfigureAwait(false);
+
+        private static async ValueTask<AwkValue> AwaitAssignmentAsync(ValueTask pending, AwkValue value)
+        {
+            await pending.ConfigureAwait(false);
             return value.AsScalarCopy();
         }
 
