@@ -35,6 +35,16 @@ limits. Each row validates exact stdout/stderr/exit and balanced transient reser
 Stack overflow terminates the probe process, leaving the test runner intact. Suspension
 counts are observational and depend on actual stack availability.
 
+## Cold regex category preparation
+
+Category metadata must be measured in fresh processes; normal benchmark warmups build
+the static table before samples begin. `--regex-category-probe timing` reports one cold
+and one warm translation, allocated bytes, governed peaks and exact output hashes.
+The `limit`, `growth`, `cancel` and `concurrent` modes validate cold failure/publication
+and retry contracts. Run Debug and Release separately. See the
+[2026-10-12 category and memory qualification](BENCHMARK_SUMMARY_2026-10-12_REGEX.md)
+for eleven-process before/after samples and the unchanged admission envelope.
+
 ## GNU awk comparison
 
 Reference comparisons are opt-in. Normal local benchmarks, tests, and counter reports do not
