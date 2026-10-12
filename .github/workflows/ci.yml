@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    paths-ignore:
+      - '**/*.md'
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    name: validate (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: 10.0.401
+      - name: Restore locked dependencies
+        run: dotnet restore Lokad.Awk.slnx --locked-mode
+      - name: Build Release
+        run: dotnet build Lokad.Awk.slnx -c Release --no-restore
+      - name: Test Release
+        run: dotnet test Lokad.Awk.slnx -c Release --no-build --no-restore --logger trx --results-directory TestResults
+      - name: Pack Release
+        run: dotnet pack src/Lokad.Awk/Lokad.Awk.csproj -c Release --no-build --no-restore
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: test-results-${{ matrix.os }}
+          path: TestResults/
+          if-no-files-found: ignore
+      # These packages validate the CI build; the pinned release candidate is separate.
+      - name: Upload packages
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: packages-${{ matrix.os }}
+          path: artifacts/nuget/
+          if-no-files-found: error
