@@ -1,334 +1,206 @@
-# Benchmark Workflow
+# Benchmarks
 
-Lokad.Awk benchmarks live in `benchmarks/Lokad.Awk.Benchmarks` and are separate from the test
-suite. `BenchmarkDotNet.Artifacts/` is ignored because most benchmark output is environment-specific
-noise.
+The latest representative processing measurements cover projection, filtering,
+aggregation and wide records at runtime `cebddb04e4d3` on 2026-10-12. They measure warm
+embedded public invocation, including parsing/compilation, execution and verified output
+consumption. The 0.3.0 package source `5dc6544b6c55` changes metadata/documentation after
+that runtime, with no execution-code change. The interpreter and DotNetCompatibility
+remain the defaults; Utf8Regex adoption is postponed.
 
-See the [2026-10-11 focused comparison](BENCHMARK_SUMMARY_2026-10-11.md) for current-policy
-field-access allocation measurements, GNU comparison and validation.
+## Current representative results
 
-See the [2026-10-12 processing investigation](BENCHMARK_SUMMARY_2026-10-12_PROCESSING.md)
-for a current four-script baseline, scalar-read before/after evidence, and the limits
-of an exploratory EventPipe profile. It uses the existing catalog and profiler.
+Medium-scale inputs: 4,096 records for projection/filter/aggregation; 256 records with
+64 fields each for wide processing. Throughput uses mean time; elapsed values are medians.
+Allocated bytes are managed GC allocations per complete invocation, not governed memory
+allowances, total process memory or native GNU memory.
 
-## Function scheduling and stack probes
+| Useful script | Input bytes | Median | MiB/s | Allocated/invocation |
+| --- | ---: | ---: | ---: | ---: |
+| Project column 2: `{print $2}` | 61,440 | 4.922 ms | 11.90 | 3.15 MiB |
+| Filter by three fields and count | 24,576 | 6.820 ms | 3.43 | 3.93 MiB |
+| Aggregate numeric values into 16 keys | 24,576 | 5.732 ms | 4.09 | 3.57 MiB |
+| Count nonempty fields and characters across wide records | 81,920 | 16.956 ms | 4.60 | 4.46 MiB |
 
-See the [2026-10-12 measured comparison](BENCHMARK_SUMMARY_2026-10-12.md) for the
-stack-pressure implementation, same-shape before/after timings and validation matrix.
+Removing a duplicate empty field cache saves 80 bytes per split record: allocations
+fall 9.02%, 7.37%, 8.04% and 0.44% respectively against `8b11217968f2`. Timing is one
+matched comparison: projection is unchanged and the other elapsed times are nominally
+lower. A separate scalar-read comparison, `b22b09deb7f6` to `8b11217968f2`, repeats
+filtering improvements of 4.4–7.0%. Neither result establishes a universal CPU speedup.
+Full before/after rows, raw-byte derivation, profile limitations and validation are in
+the [processing evidence](BENCHMARK_SUMMARY_2026-10-12_PROCESSING.md).
 
-Function scheduling has a separate generated workload class. It executes 512 calls per
-public invocation, comparing direct calls, shallow wrappers, 16-level recursion and
-recursion while evaluating arguments. Every shape must produce exactly `8704\n` before
-timing. This is an interpreter scheduling benchmark, outside the native-reference catalog:
+Environment: Ubuntu 24.04.4, four AMD EPYC 9V45 vCPUs, 16 GiB, no swap; SDK 10.0.401,
+.NET 10.0.12, BenchmarkDotNet 0.15.8. Clean committed Release checkouts; five warmups,
+nine measured iterations, one launch, `LC_ALL=C`, `TZ=UTC`; quiet-machine gates passed.
+Builds, transfers, tests and profiling occurred outside measurement windows.
 
-```bash
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*FunctionSchedulingBenchmarks*' --warmupCount 5 --iterationCount 9 --launchCount 1
+## Embedded execution versus GNU process costs
+
+GNU comparisons measure CLI invocation, including process launch and pipes. Lokad uses
+`Awk.TryParse`/`Awk.ExecuteAsync` against an application-owned in-memory host, compiling
+source anew. Both consume complete output and verify status, stderr, length and SHA-256.
+File workloads compare native fixture files with host-mediated in-memory files. Fixture
+generation and correctness preflight are outside timing; startup is never subtracted.
+This boundary describes embedding versus CLI application throughput, not pure evaluator
+speed. Small inputs and startup controls can be dominated by GNU launch costs.
+
+The latest focused GNU timing comparison was at `b22b09deb7f6`, before the subsequent
+scalar-read/field-cache changes. GNU awk 5.2.1 was faster for these medium cases:
+
+| Workload at `b22b09d` | Lokad median | GNU median |
+| --- | ---: | ---: |
+| Projection | 5.017 ms | 1.330 ms |
+| Filtering | 7.030 ms | 1.537 ms |
+| Aggregation | 5.961 ms | 1.369 ms |
+| Wide processing | 18.520 ms | 2.174 ms |
+
+These reference timings are from an earlier runtime, not a new paired comparison with
+the current table. No aggregate or current GNU/Lokad speedup is calculated. All 44
+reference cases still agree exactly at the 0.3.0 package source; correctness equivalence
+does not provide current timing evidence. GNU binary SHA-256:
+`9150b42e78b22231bd83131e1db2530a7a7fa0677e189ac7c5cc1520c42c9e88`.
+
+## Evidence by source and scope
+
+| Evidence | Source revisions | Scope |
+| --- | --- | --- |
+| [Current processing](BENCHMARK_SUMMARY_2026-10-12_PROCESSING.md) | `b22b09d` → `8b11217` → `cebddb0` | Four processing families, managed time/allocation, focused GNU baseline and counter/correctness evidence |
+| [Field access and policy](BENCHMARK_SUMMARY_2026-10-11.md) | `f0fc53c` → `715fe4d` | Wide allocations 9.49 → 4.47 MiB; modest CPU changes; superseded as a current processing baseline |
+| [Function scheduling](BENCHMARK_SUMMARY_2026-10-12.md) | `cedd1e6` → `3c5d81b` | Nested calls improve 2.04–3.00x; separate four-shape scheduling benchmarks and constrained-stack validation |
+| [Cold category preparation](BENCHMARK_SUMMARY_2026-10-12_REGEX.md) | `456842e` → `b22b09d` | Fresh-process preparation falls 17.4%; unchanged output/allocation/governed peak; no matcher-speed claim |
+| [Historical full GNU campaign](BENCHMARK_GNU_2026-10-07.md) | private snapshot `fc6b930`, origin `e4126b3` | 44 recorded paired cases under the then-current source/policy; not release-source/current timing evidence |
+| [Older layer snapshots](BENCHMARK_SUMMARY_2026-08-11.md) | recorded revisions in that report | Historical parser/interpreter/VM observations with their own boundaries |
+
+Retain the reports' source/assembly identities and protocols. Do not combine epochs,
+different output hosts, policy changes or benchmark layers into a single performance claim.
+Raw logs, traces, packages and connection notes stay in ignored local artifact folders.
+
+## Existing tools and representative scripts
+
+Benchmarks live in `benchmarks/Lokad.Awk.Benchmarks`; ordinary tests/CI require no GNU
+executable. Build once, verify correctness, then select a bounded timing/allocation subset:
+
+```text
+dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --smoke --scale all
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*projection*' '*WorkloadAllocationBenchmarks*medium*filter*' '*WorkloadAllocationBenchmarks*medium*aggregate*' '*WorkloadAllocationBenchmarks*medium*profile-wide*' --warmupCount 5 --iterationCount 9 --launchCount 1
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-benchmarks --awk PATH_TO_GAWK --filter '*medium*projection*' '*medium*filter*' '*medium*aggregate*' '*medium*profile-wide*' --warmupCount 5 --iterationCount 9 --launchCount 1
 ```
 
-Validate stack changes in a separate process. The probe runs both execution engines with
-256 KiB initial thread stacks; configure the same default for continuation threads:
+Supply an independently installed GNU binary through `--awk` or `LOKAD_AWK_ORACLE_EXE`.
+The driver checks its version and hash; it neither downloads GNU nor uses `external/`.
+Verification requires exact stdout/stderr/exit, with no normalization. `--smoke` defaults
+to small workloads/startup controls; `--compare` verifies all scales by default.
+`--case NAME` and `--scale small|medium|large|control|all` select a subset.
+Correctness commands do not collect timings. `--output` selects a JSON path beneath
+`BenchmarkDotNet.Artifacts/` for comparison commands.
 
-```bash
-DOTNET_DefaultStackSize=40000 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --function-stack-probe
-```
+The catalog has 14 families at three scales plus two startup controls: projection,
+filter, aggregate, profile-narrow/profile-wide, two-file, fs-literal/fs-regex,
+rs-literal/rs-regex, substitution, formatting, sorting and unicode. Ordinary scales
+have 16/4,096/65,536 records; wide has 16/256/4,096 records with 64 fields; two-file
+has the ordinary count in each file. ASCII uses C locale, Unicode uses C.UTF-8 and
+BMP text where reference units agree. Runs use default execution policy and UTC;
+budgets are never raised to admit rejected sizes.
 
-The CLR stack-size setting is hexadecimal. Run Debug and Release separately. Nine shapes
-cover 1,000 active calls, mutual recursion, nested arguments, deep return expressions,
-asynchronous input, exact recursion/fuel/runtime failures, cancellation, and raised syntax
-limits. Each row validates exact stdout/stderr/exit and balanced transient reservations.
-Stack overflow terminates the probe process, leaving the test runner intact. Suspension
-counts are observational and depend on actual stack availability.
+ReferenceAwkBenchmarks has no MemoryDiagnoser: its wrapper allocations are not GNU
+memory. WorkloadAllocationBenchmarks measures only Lokad managed allocations/GC for
+the same public-invocation catalog. Local, precompiled and executable classes have
+separate labeled boundaries. Preserve their standard exports before later runs overwrite
+them; never commit BenchmarkDotNet.Artifacts/.
 
-## Cold regex category preparation
+## Quiet-machine timing qualification
 
-Category metadata must be measured in fresh processes; normal benchmark warmups build
-the static table before samples begin. `--regex-category-probe timing` reports one cold
-and one warm translation, allocated bytes, governed peaks and exact output hashes.
-The `limit`, `growth`, `cancel` and `concurrent` modes validate cold failure/publication
-and retry contracts. Run Debug and Release separately. See the
-[2026-10-12 category and memory qualification](BENCHMARK_SUMMARY_2026-10-12_REGEX.md)
-for eleven-process before/after samples and the unchanged admission envelope.
+Use a clean committed Release checkout whose assembly revisions match the tested source:
 
-## GNU awk comparison
-
-Reference comparisons are opt-in. Normal local benchmarks, tests, and counter reports do not
-require an external executable. Supply an independently installed GNU awk through `--awk PATH`
-or `LOKAD_AWK_ORACLE_EXE`. The driver verifies its GNU version and records the resolved binary's
-SHA-256. It does not download a reference or use `external/`.
-
-Build once, then run correctness separately from timing:
-
-~~~powershell
-dotnet build .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benchmarks.csproj -c Release
-dotnet .\benchmarks\Lokad.Awk.Benchmarks\bin\Release\net10.0\Lokad.Awk.Benchmarks.dll --smoke
-dotnet .\benchmarks\Lokad.Awk.Benchmarks\bin\Release\net10.0\Lokad.Awk.Benchmarks.dll --smoke --scale all
-dotnet .\benchmarks\Lokad.Awk.Benchmarks\bin\Release\net10.0\Lokad.Awk.Benchmarks.dll --compare --awk /usr/bin/gawk
-~~~
-
-The GNU command needs an executable path on the same machine as the driver.
-`--smoke` checks small workloads and startup controls against deterministic byte expectations.
-`--smoke --scale all` checks all scales; adding `--awk` also checks GNU. `--compare` requires GNU
-and checks the full catalog by default. `--case NAME` and
-`--scale small|medium|large|control|all` select a subset. Before measurement, exact stdout bytes,
-separate stderr, exit status, length, and SHA-256 must agree. No output normalization is applied.
-Correctness modes collect no timings. JSON checkpoints stay under
-`BenchmarkDotNet.Artifacts/reference/`; `--output` may select another path under
-`BenchmarkDotNet.Artifacts/`.
-
-Run the separate regex reference contract checks before release qualification:
-
-~~~sh
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-contracts --awk /usr/bin/gawk --output BenchmarkDotNet.Artifacts/reference/contracts-52.json
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-contracts --awk /path/to/gawk-5.4 --output BenchmarkDotNet.Artifacts/reference/contracts-54.json
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-contracts --awk /path/to/gawk-5.4 --matcher legacy --output BenchmarkDotNet.Artifacts/reference/contracts-54-legacy.json
-~~~
-
-Without a selected executable, this command checks only Lokad and marks GNU as `NotRun`.
-It reuses golden programs, inputs and expectations for nullable RS, scalar empty replacement,
-successive gensub captures and mixed POSIX alpha/literal classes. Reports record source and
-assembly hashes, GNU binary hash/version, C.UTF-8, UTC, explicit matcher environment, and raw
-stdout/stderr hex. `--matcher legacy` sets `GAWK_GNU_MATCHERS=1`; default clears inherited
-GNU matcher settings. The command collects no timings.
-
-An exact, versioned historical defect signature is `KnownReferenceDifference`; an unexpected
-exit, stderr or byte difference fails the command. Known differences do not become equivalence
-and cannot qualify timings for that case. A zero exit means the reference observations are
-classified and Lokad passes its contracts; it does not mean GNU agrees with every contract.
-Benchmark workloads still require their own exact equivalence preflight.
-
-| Family | Work performed |
-| --- | --- |
-| `projection` | Print the second field |
-| `filter` | Match three columns and count selected rows |
-| `aggregate` | Sum into 16 keys and print in declared index order |
-| `profile-narrow` / `profile-wide` | Count nonempty fields and characters across 3 / 64 columns |
-| `two-file` | Compare keyed values using `NR==FNR` |
-| `fs-literal` / `fs-regex` | Literal / regular-expression field splitting |
-| `rs-literal` / `rs-regex` | Count delimited records |
-| `substitution` | Replace numeric runs and print the result |
-| `formatting` | Print a string and a zero-padded integer |
-| `sorting` | Explicit numeric `asort` and complete sorted output |
-| `unicode` | Length and substring of BMP Unicode fields |
-
-Ordinary scales have 16, 4,096, and 65,536 records. Wide profiling has 16, 256, and 4,096
-records of 64 fields. Two-file comparison has the ordinary count in each file.
-Separate `startup-empty` and `startup-tiny` controls expose launch cost for zero/one records.
-Fixture generation and temporary-file creation occur outside timing.
-The catalog uses the default execution policy with UTC. ASCII cases use `LC_ALL=C`;
-Unicode uses `C.UTF-8` and BMP text where character units agree. The driver never raises
-budgets to admit rejected sizes. Artifacts include actual limits, input/script/output hashes,
-records, fields, and an untimed counter pass. Memory peak is zero when the default governor
-is disabled.
-
-Run the explicit BenchmarkDotNet comparison, forwarding its options:
-
-~~~powershell
-dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benchmarks.csproj -- --reference-benchmarks --awk /usr/bin/gawk --filter "*ReferenceAwkBenchmarks*"
-~~~
-
-`ReferenceAwkBenchmarks` compares the GNU CLI baseline with Lokad public full invocation.
-Both lanes compile, execute, and consume complete output with the same SHA-256 collector.
-Lokad calls `Awk.TryParse` and `Awk.ExecuteAsync` each time, compiling source anew. GNU includes
-launch, stdin/stdout/stderr pipes, and exit. File workloads use native temporary files for
-GNU and host-mediated in-memory files for Lokad. Ratios describe warm embedded invocation
-versus CLI invocation; startup is never subtracted and no mixed-workload speedup is calculated.
-
-The native driver uses argument lists, concurrent byte-stream pumps, a 15-second invocation
-deadline, 64 MiB stdout and 64 KiB stderr bounds, and kill/reap on interruption.
-`--driver-smoke --awk /usr/bin/gawk` tests concurrent output drains, early nonzero exit with
-blocked stdin, output bounds, deadlines, cancellation, and reaped children. It is opt-in
-driver validation, not an additional awk language corpus.
-
-The comparison has no `MemoryDiagnoser`: wrapper allocations are not GNU memory.
-`WorkloadAllocationBenchmarks` measures managed allocations/GC for the same Lokad catalog
-without GNU; select it through normal BenchmarkDotNet `--filter "*WorkloadAllocationBenchmarks*"`.
-Other local/precompiled/VM classes keep their own labeled boundaries. Native process memory
-is not measured.
-
-## Quiet-machine qualification
-
-Use a clean committed Release checkout whose assemblies identify that revision:
-
-~~~bash
+```text
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk /usr/bin/gawk --mode qualify --output BenchmarkDotNet.Artifacts/reference/qualified.json
-~~~
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode qualify --case projection --scale medium --output BenchmarkDotNet.Artifacts/reference/qualified.json
+```
 
-Five one-second idle windows must have at most 3% median and 5% maximum CPU load.
-Each lane warms for at least 32 invocations and one second. Calibration doubles independent
-batch sizes until two consecutive batches reach 40 ms, capped at 4,096 invocations.
-Eleven pairs alternate order by default; `--pairs` accepts 9–31. Between pairs, the driver
-settles for 500 ms and samples another one-second idle window. These recorded load samples
-measure background CPU during the campaign's idle windows, not evaluator CPU usage.
-Build/restore, transfers, fixture preparation, and preflight occur outside measurement.
+The machine check prints JSON to stdout; redirect it to retain an artifact. It does not
+write an `--output` file. Five one-second idle samples need <=3% median and <=5% maximum
+CPU load. Quietness is necessary, not proof of noise-free virtualization or I/O.
 
-Both samples in every accepted pair must last at least 20 ms. More than 10% lane interquartile
-spread or 10% comparator-order effect is unqualified. A fixed-seed 10,000-draw bootstrap
-computes a 95% interval for the median paired GNU/Lokad ratio; an interval wider than 15%
-is unqualified, and an interval containing 1 is inconclusive. Cases have a 120-second deadline.
-Busy machines pause. Dirty, interrupted, incomplete, failing, or unqualified evidence cannot
-produce comparative claims.
+Each lane warms for >=32 invocations and one second, then calibrates independent batches
+with two consecutive >=40 ms runs, capped at 4,096 invocations. Eleven alternating pairs
+are the default; `--pairs` accepts 9–31. Idle gaps settle for 500 ms and sample another
+one-second CPU window. Both accepted sample batches need >=20 ms. Lane interquartile
+spread >10%, order effect >10% or bootstrap interval width >15% is unqualified. A fixed-seed
+10,000-resample bootstrap supplies the median GNU/Lokad ratio's 95% interval; crossing
+parity is inconclusive. Invocations have 15-second watchdogs and cases a 120-second deadline.
+Busy machines pause; failed/incomplete/dirty/unqualified rows cannot support timing claims.
 
-JSON records source/build identities, source-tree and assembly hashes, GNU version/hash,
-OS/CPU/memory, SDK/runtime, locale, policy, warmup counts, order, and raw samples.
-Checkpoints save after each case and preserve completed samples on cancellation.
-Private VM snapshots additionally carry their origin revision, original checkout state,
-and source/archive hashes. `AWK_BENCH_SNAPSHOT_MANIFEST` selects that manifest; the launcher
-automatically uses a sibling `CHECKOUT.json` when present and verifies its revision/content.
-An isolated snapshot commit must not be presented as an upstream release commit.
-`--render-report PATH` regenerates only this document's marked comparison section from JSON.
-Verification-only/incomplete reports render status rows without timings; otherwise only
-qualified rows expose timings. Review provenance before keeping a generated summary.
+Reports retain source/assembly hashes, clean state, SDK/runtime, OS/CPU/memory, GNU identity,
+policy, input/output digests, warmup/order and raw samples. Native I/O is bounded and
+drained concurrently, with kill/reap on cancellation. `--driver-smoke --awk PATH_TO_GAWK`
+validates the process driver separately. `--render-report PATH` replaces a marked
+comparison block in this document, or appends one if absent; review its source/protocol
+before presenting it as current. Older snapshots are explicitly historical.
 
-The Linux launcher checks SDK 10.0.401/runtime 10.0.12 and a pinned GNU awk 5.2.1 hash:
+The existing Linux launcher pins SDK 10.0.401/.NET 10.0.12 and the GNU 5.2.1 hash:
 
-~~~bash
+```bash
 bash benchmarks/run-reference-linux.sh build
 bash benchmarks/run-reference-linux.sh driver-smoke
 bash benchmarks/run-reference-linux.sh verify
 bash benchmarks/run-reference-linux.sh check-machine
-bash benchmarks/run-reference-linux.sh qualify --output BenchmarkDotNet.Artifacts/reference/qualified.json
-~~~
-
-The default SDK location is `$HOME/awk-bench-toolchains/dotnet/10.0.401`; GNU is
-`/usr/bin/gawk`. `AWK_BENCH_DOTNET_ROOT` selects another installation of the same SDK/runtime.
-Changing GNU needs both `AWK_BENCH_GAWK` and `AWK_BENCH_GAWK_SHA256` and fresh correctness
-qualification. Only the launcher's environment changes. Private connection details belong
-in ignored local planning notes.
-
-## Runtime-counter evidence and historical snapshots
-
-Run benchmarks from the repository root:
-
-```powershell
-dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benchmarks.csproj
+bash benchmarks/run-reference-linux.sh qualify --case projection --scale medium
 ```
 
-Generate the repeatable runtime-counter evidence table without running BenchmarkDotNet:
+Its default SDK root is `$HOME/awk-bench-toolchains/dotnet/10.0.401`; GNU is `/usr/bin/gawk`.
+`AWK_BENCH_DOTNET_ROOT` chooses another installation of the same toolchain. Changing GNU
+requires `AWK_BENCH_GAWK`, `AWK_BENCH_GAWK_SHA256` and fresh reference qualification.
+`AWK_BENCH_SNAPSHOT_MANIFEST` supplies a private snapshot manifest; the launcher otherwise
+looks for the checkout-path plus `.json`, not a `CHECKOUT.json` file. A private snapshot
+commit is not an upstream release revision.
 
-```powershell
-dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benchmarks.csproj -- --counter-report
+## Counters, regex contracts and focused probes
+
+```text
+dotnet run -c Release --project benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -- --counter-report
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-contracts --awk PATH_TO_GAWK --output BenchmarkDotNet.Artifacts/reference/contracts.json
 ```
 
-The counter report prints runtime, date, command, record and byte counts, execution steps, output
-size, and the key decode, regex, formatting, VM, byte-comparison, concatenation, rune-slicing,
-record-separator, and memory counters for curated scenarios. Counter runs enable a one-gibibyte
-execution-memory ceiling so the memory peak column reports governed live bytes instead of the
-disabled governor's zero. Record-separator resolutions count effective separator plan rebuilds,
-bytes scanned measure separator search work, and tail bytes moved measure buffer compaction copies.
-The literal `</row>` separator rows cover 100, 400, and 1,600 records of 1,024 bytes each:
-102,400, 409,600, and 1,638,400 input bytes. Their scanned-byte totals should equal those
-input sizes, with zero regex matches and zero tail movement for these single-batch inputs.
-Multi-character literals containing no regex metacharacters use this incremental byte cursor
-when matching is case-sensitive; regex and case-insensitive separators retain their compatibility
-paths. A focused counter test also covers a literal spanning host batches.
-The grouped byte-run row deliberately spans multiple host batches without a separator and should
-scan each input byte once. Single-byte, byte-set, literal, paragraph, and recognized punctuation byte-run
-separators—including redundant capture or noncapturing wrappers and equivalent punctuation-only
-alternations—retain incremental scan checkpoints. General unbounded regex separators may inspect
-buffered bytes again after another batch arrives because neither regex backend exposes resumable
-partial-match state; they borrow the
-cursor buffer rather than copying an accumulated snapshot, and focused batched-host tests keep
-that correctness fallback distinct from the incremental plans. Regex policy bytes inspected and
-capture groups materialized distinguish routing work from capture work. The capture-array row
-keeps complete group materialization and its governed memory visible; the `gensub` selection row
-uses a high-group pattern with only `\1` observable so selective materialization is exact and
-regression-testable. Its streaming projection, three-key filter, associative aggregation, and
-two-file comparison rows are deterministic
-calibration shapes for execution-budget decisions. The UTF-8 rune-slicing row reports bytes
-inspected plus the count and size of sparse indexes, making repeated `substr` complexity visible
-without timing noise. Divide the calibration rows' execution steps by records to compare per-record
-costs; use the raw counts, rather than elapsed
-time, when estimating how much input a step ceiling permits. Use the report in handoffs when a
-change affects resource or fallback accounting but does not require a full timing baseline.
+Counter scenarios enable a 1 GiB logical execution-memory budget, so peaks are meaningful.
+Default comparison reports show zero governed peak when accounting is disabled; zero is
+not zero allocation or process memory. ExecutionSteps are observations: both presets have
+no implicit fuel; positive WithMaxExecutionSteps enables admission. Decode/encode, regex
+policy/groups, field splits, concatenation, rune indexes, RS resolutions/scanning/tail copies,
+VM instruction/fallback and memory reserve/commit/release observations guide attribution.
+Compare counts independently of elapsed time and keep intentional compatibility boundaries
+visible. General regex RS can rescan buffered bytes, unlike incremental literal/byte-run
+plans; neither path copies an accumulated snapshot merely for a regex rescan.
 
-Both policy presets have no implicit execution-step ceiling and retain a 100,000-host-call cap.
-ExecutionSteps counters observe expression, statement, loop, record, operand, function, host,
-regex, comparison and bounded byte work independently of an admission limit. A configured
-positive WithMaxExecutionSteps enables the same allowance in either execution engine; VM
-fallback wrappers add no steps. The pinned paired baseline below describes its recorded
-source and earlier policy. Rerun a fresh source snapshot before making performance claims
-about the current governor.
+Reference contracts classify exact native signatures separately from equivalent workloads.
+Known GNU defects are not passing equivalence or eligible performance cases. `--matcher
+legacy` explicitly selects GNU's legacy matcher; otherwise inherited matcher settings are
+cleared. Reports record raw bytes, locale, timezone and binary identity; a classified
+command success does not establish full native agreement. See [regex compatibility](REGEX_COMPATIBILITY.md).
 
-Refresh a checked-in benchmark snapshot only when the commit intentionally changes runtime,
-allocation, regex, VM, record/field splitting, or counter behavior. A snapshot refresh must record:
+FunctionSchedulingBenchmarks is outside the 44-case native catalog. Its four shapes each
+validate `8704\n` from 512 calls. `--function-stack-probe` exercises both engines with
+256 KiB initial stacks; set DOTNET_DefaultStackSize=40000 (hexadecimal) for continuations.
+Nine shapes cover argument evaluation, execution/unwinding, raised syntax, asynchronous
+input, cancellation and exact resource failures. Run Debug/Release separately.
 
-- commit hash, date, OS, CPU, .NET SDK, and benchmark command;
-- scenario name and benchmark layer;
-- median time, allocation, throughput, and GC counts;
-- runtime counters relevant to the change, especially string decode, formatting fallback,
-  regex policy bytes/groups, record-separator resolutions/scanned bytes/tail movement,
-  concatenation and rune-slicing bytes, VM, and memory-governor counters;
-- a short explanation for material regressions or improvements.
+Cold category metadata needs fresh processes: `--regex-category-probe timing` measures
+cold/warm translation; `limit`, `growth`, `cancel` and `concurrent` validate admitted
+construction/publication/retry. This measures Awk preparation rather than matcher CPU.
+The existing EventPipe profiler is selected with `--profiler EP`; keep profiling separate
+from accepted timings. The current wide profile is dominated by ambiguous GC-polling
+attribution and does not establish a precise field-versus-dispatch CPU percentage.
 
-Do not commit raw `BenchmarkDotNet.Artifacts/` output. If a stable baseline is needed, copy the
-curated summary into a docs or release artifact with the evidence above. The current baseline is
-`docs/BENCHMARK_SUMMARY_2026-08-11.md`. Release readiness requires benchmark deltas only for changes
-that can plausibly affect performance or allocation behavior.
+## Bounded follow-up optimization
 
-<!-- BEGIN GENERATED AWK COMPARISON -->
-## Recorded GNU awk comparison
-
-Recorded UTC: 2026-10-07 12:57:05Z; mode qualify.
-Revision: fc6b9306243433a4a8a81e2902fc643dbc075a7d; SDK 10.0.401; .NET 10.0.12; Ubuntu 24.04.4 LTS.
-Machine: AMD EPYC 9V45 96-Core Processor; 4 logical processors; MemTotal:       16373452 kB; SwapTotal:             0 kB.
-Assembly SHA-256: benchmark 2698bb4c0047b11599bd7b3b57717bfd11c2ed4418ced01bba8a343bce49cf25; library e876254ec24d58d2341e891be31e0a7b3647271c9d08a224e83f85c6be8c3c29.
-Private source snapshot from e4126b39aaa4cbc101a6b9fa7b38fe9850e2fff0 (origin clean: False); source SHA-256 a7f53544801913a997fe7b71eb251cbf206955f2796659c85b36997b5084db5c; archive SHA-256 924dbfe5325b8c85b634c669007f14ff6aceb8db98a2381e72d792678f0f2d01.
-Reference: GNU Awk 5.2.1, API 3.2, PMA Avon 8-g1, (GNU MPFR 4.2.1, GNU MP 6.3.0); SHA-256 9150b42e78b22231bd83131e1db2530a7a7fa0677e189ac7c5cc1520c42c9e88.
-
-Warm embedded Lokad.Awk public full invocation versus GNU awk CLI. Both include compilation, execution, complete output consumption and SHA-256. GNU includes launch and pipes; multi-file cases use native fixture files versus in-memory host files. Fixture generation and preflight are excluded. No startup subtraction or overall speedup.
-
-| Case / scale | Records | Input bytes | Status | Lokad ms | GNU ms | GNU / Lokad, 95% CI | Interpretation |
-| --- | ---: | ---: | --- | ---: | ---: | --- | --- |
-| projection/small | 16 | 240 | Qualified | 0.038 | 1.165 | 30.547 [30.059, 31.176] | Lokad.Awk faster |
-| projection/medium | 4096 | 61440 | Qualified | 4.479 | 1.523 | 0.340 [0.337, 0.342] | GNU awk faster |
-| projection/large | 65536 | 983040 | Qualified | 71.852 | 6.905 | 0.096 [0.095, 0.097] | GNU awk faster |
-| filter/small | 16 | 96 | Qualified | 0.061 | 1.172 | 19.237 [18.801, 19.493] | Lokad.Awk faster |
-| filter/medium | 4096 | 24576 | Qualified | 6.118 | 1.758 | 0.288 [0.286, 0.292] | GNU awk faster |
-| filter/large | 65536 | 393216 | Qualified | 96.088 | 10.328 | 0.108 [0.106, 0.108] | GNU awk faster |
-| aggregate/small | 16 | 96 | Qualified | 0.098 | 1.182 | 12.023 [11.971, 12.184] | Lokad.Awk faster |
-| aggregate/medium | 4096 | 24576 | Qualified | 5.832 | 1.549 | 0.266 [0.263, 0.269] | GNU awk faster |
-| aggregate/large | 65536 | 393216 | Qualified | 91.531 | 7.204 | 0.079 [0.078, 0.080] | GNU awk faster |
-| profile-narrow/small | 16 | 240 | Qualified | 0.125 | 1.181 | 9.453 [9.251, 9.549] | Lokad.Awk faster |
-| profile-narrow/medium | 4096 | 61440 | Qualified | 18.189 | 2.509 | 0.139 [0.137, 0.141] | GNU awk faster |
-| profile-narrow/large | 65536 | 983040 | Qualified | 285.667 | 22.518 | 0.080 [0.078, 0.081] | GNU awk faster |
-| profile-wide/small | 16 | 5120 | Qualified | 1.236 | 1.262 | 1.030 [1.009, 1.033] | Lokad.Awk faster |
-| profile-wide/medium | 256 | 81920 | Qualified | 19.032 | 2.513 | 0.131 [0.131, 0.135] | GNU awk faster |
-| profile-wide/large | 4096 | 1310720 | Qualified | 298.056 | 22.629 | 0.076 [0.075, 0.078] | GNU awk faster |
-| two-file/small | 32 | 236 | Qualified | 0.111 | 1.203 | 10.789 [10.714, 10.896] | Lokad.Awk faster |
-| two-file/medium | 8192 | 79700 | Qualified | 16.071 | 3.227 | 0.201 [0.198, 0.213] | GNU awk faster |
-| two-file/large | 131072 | 1419572 | Qualified | 259.491 | 33.919 | 0.131 [0.130, 0.135] | GNU awk faster |
-| fs-literal/small | 16 | 192 | Qualified | 0.056 | 1.175 | 20.916 [20.545, 21.192] | Lokad.Awk faster |
-| fs-literal/medium | 4096 | 49152 | Qualified | 4.754 | 1.607 | 0.337 [0.336, 0.342] | GNU awk faster |
-| fs-literal/large | 65536 | 786432 | Qualified | 75.252 | 7.842 | 0.104 [0.103, 0.105] | GNU awk faster |
-| fs-regex/small | 16 | 192 | Qualified | 0.066 | 1.208 | 18.317 [18.112, 18.671] | Lokad.Awk faster |
-| fs-regex/medium | 4096 | 49152 | Qualified | 6.428 | 2.272 | 0.353 [0.348, 0.356] | GNU awk faster |
-| fs-regex/large | 65536 | 786432 | Qualified | 101.781 | 18.053 | 0.177 [0.176, 0.179] | GNU awk faster |
-| rs-literal/small | 16 | 208 | Qualified | 0.045 | 1.214 | 26.812 [26.607, 27.078] | Lokad.Awk faster |
-| rs-literal/medium | 4096 | 53248 | Qualified | 2.904 | 1.692 | 0.581 [0.580, 0.587] | GNU awk faster |
-| rs-literal/large | 65536 | 851968 | Qualified | 45.946 | 8.920 | 0.194 [0.193, 0.194] | GNU awk faster |
-| rs-regex/small | 16 | 144 | Qualified | 0.046 | 1.215 | 26.724 [26.075, 26.876] | Lokad.Awk faster |
-| rs-regex/medium | 4096 | 36864 | Qualified | 3.085 | 1.658 | 0.537 [0.534, 0.542] | GNU awk faster |
-| rs-regex/large | 65536 | 589824 | Qualified | 49.367 | 8.277 | 0.167 [0.166, 0.169] | GNU awk faster |
-| substitution/small | 16 | 224 | Qualified | 0.060 | 1.201 | 20.167 [19.683, 20.457] | Lokad.Awk faster |
-| substitution/medium | 4096 | 57344 | Qualified | 8.020 | 2.392 | 0.301 [0.293, 0.303] | GNU awk faster |
-| substitution/large | 65536 | 917504 | Qualified | 127.039 | 20.249 | 0.160 [0.152, 0.161] | GNU awk faster |
-| formatting/small | 16 | 96 | Qualified | 0.051 | 1.168 | 22.827 [22.638, 23.492] | Lokad.Awk faster |
-| formatting/medium | 4096 | 24576 | Qualified | 6.342 | 2.003 | 0.316 [0.314, 0.320] | GNU awk faster |
-| formatting/large | 65536 | 393216 | Qualified | 99.939 | 14.369 | 0.144 [0.143, 0.145] | GNU awk faster |
-| sorting/small | 16 | 39 | Qualified | 0.114 | 1.190 | 10.486 [10.312, 10.569] | Lokad.Awk faster |
-| sorting/medium | 4096 | 19373 | Qualified | 12.066 | 2.869 | 0.236 [0.232, 0.248] | GNU awk faster |
-| sorting/large | 65536 | 382110 | Qualified | 210.960 | 29.510 | 0.140 [0.135, 0.147] | GNU awk faster |
-| unicode/small | 16 | 240 | Qualified | 0.055 | 1.315 | 23.789 [23.414, 24.021] | Lokad.Awk faster |
-| unicode/medium | 4096 | 61440 | Qualified | 6.579 | 2.372 | 0.360 [0.359, 0.367] | GNU awk faster |
-| unicode/large | 65536 | 983040 | Qualified | 104.158 | 18.743 | 0.180 [0.180, 0.181] | GNU awk faster |
-| startup-empty/control | 0 | 0 | Qualified | 0.016 | 1.125 | 70.079 [64.492, 71.989] | Lokad.Awk faster |
-| startup-tiny/control | 1 | 6 | Qualified | 0.021 | 1.165 | 55.956 [54.920, 57.596] | Lokad.Awk faster |
-
-<!-- END GENERATED AWK COMPARISON -->
-
-Execution fuel is now opt-in in both policy presets. Deterministic ExecutionSteps counters observe
-logical work without enabling admission limits. Configure a positive WithMaxExecutionSteps only
-when the benchmark is testing explicit fuel; normal correctness/smoke runs use cancellation
-watchdogs and independently configured finite memory/host limits. Historical timing reports keep
-their original source/policy identity and do not qualify timings for the changed default policy.
+Start with a useful script and a measured cost. Prioritize significant interpreter
+expression/reference dispatch and field splitting/value creation. Use one focused profile
+and at most two localized trials in a 30–60 minute investigation. Require repeatable gains
+beyond noise (target >=5% CPU or material allocation removal), unchanged exact results,
+resource/cancellation/mutation-preflight behavior and no unexplained regression in the
+four representative families. Stop at noise, host/producer ownership or a larger redesign.
+Expand VM coverage only when measurements justify it; preserve the interpreter default
+and postponed Utf8Regex adoption. Additional benchmark infrastructure needs demonstrated
+need. Refresh evidence only when execution code, allocation behavior, protocol or source
+claims make the previous measurements inadequate; docs/CI edits alone need no new timings.
