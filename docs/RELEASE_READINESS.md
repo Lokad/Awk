@@ -1,5 +1,8 @@
 # Release Readiness Gate
 
+The [0.3.0 core candidate qualification](RELEASE_QUALIFICATION_0.3.0.md) records the
+current qualified source, exact package identity, consumer checks and pending release action.
+
 Do not mark the UTF-8 runtime and VM migration acceptance criteria complete until a release note,
 PR, or handoff record contains the evidence below.
 
