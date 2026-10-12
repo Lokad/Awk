@@ -590,7 +590,6 @@ internal sealed class AwkFieldFrame(
         _fieldCountValue = AwkValue.FromNumber(fieldTexts.Count);
         _fieldPayloadByteLength = payloadByteLength;
         counters.RecordFieldsMaterialized(_fieldTexts.Count);
-        _fieldValueCache = [];
         _fieldsAreSplit = true;
         SplitPlan = default;
     }
