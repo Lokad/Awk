@@ -7,6 +7,10 @@ noise.
 See the [2026-10-11 focused comparison](BENCHMARK_SUMMARY_2026-10-11.md) for current-policy
 field-access allocation measurements, GNU comparison and validation.
 
+See the [2026-10-12 processing investigation](BENCHMARK_SUMMARY_2026-10-12_PROCESSING.md)
+for a current four-script baseline, scalar-read before/after evidence, and the limits
+of an exploratory EventPipe profile. It uses the existing catalog and profiler.
+
 ## Function scheduling and stack probes
 
 See the [2026-10-12 measured comparison](BENCHMARK_SUMMARY_2026-10-12.md) for the
