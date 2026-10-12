@@ -32,6 +32,8 @@ internal sealed class AwkRuntimeState
     private readonly AwkRandomRuntime _randomRuntime;
     private readonly AwkTimeRuntime _timeRuntime;
     private readonly AwkVariables _variables;
+    private readonly AwkGlobalSlotId _recordNumberSlot;
+    private readonly AwkGlobalSlotId _fileRecordNumberSlot;
     private readonly AwkRegexRuntime _regexRuntime;
     private readonly AwkStringEscapeWarnings _stringEscapeWarnings;
     private readonly AwkStringRuntime _stringRuntime;
@@ -154,6 +156,8 @@ internal sealed class AwkRuntimeState
         _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables, CancellationCheckpoint);
         _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
         _specialVariables.InitializeScalars(fieldSeparator);
+        _recordNumberSlot = _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordNumber));
+        _fileRecordNumberSlot = _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.FileRecordNumber));
         _recordSeparatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
         _recordSeparatorCaseSensitivity = ResolveRegexCaseSensitivity();
         _variables.CaptureScalarMemoryBaseline();
@@ -587,10 +591,34 @@ internal sealed class AwkRuntimeState
         AwkValue value) =>
         _variableRuntime.AssignFunctionLocalValue(slotId, name, value);
 
-    public AwkValue ResolveSpecialVariableValue(AwkSpecialVariableId id) =>
-        id == AwkSpecialVariableId.FieldCount
-            ? _recordFields.FieldCountValue
+    public AwkValue ResolveSpecialVariableValue(AwkSpecialVariableId id)
+    {
+        if (id == AwkSpecialVariableId.FieldCount)
+            return _recordFields.FieldCountValue;
+        return TryGetRecordCounterSlot(id, out var slot)
+            ? _variables.GetScalarValue(slot)
             : _variableRuntime.ResolveVariableValue(AwkSpecialVariables.VariableName(id));
+    }
+
+    private bool TryGetRecordCounterSlot(AwkSpecialVariableId id, out AwkGlobalSlotId slot)
+    {
+        // Getline inside functions retains the existing local-special-name behavior.
+        if (!_functions.IsInsideFunction)
+        {
+            if (id == AwkSpecialVariableId.RecordNumber)
+            {
+                slot = _recordNumberSlot;
+                return true;
+            }
+            if (id == AwkSpecialVariableId.FileRecordNumber)
+            {
+                slot = _fileRecordNumberSlot;
+                return true;
+            }
+        }
+        slot = default;
+        return false;
+    }
 
     public AwkText ResolveSpecialVariableText(AwkSpecialVariableId id) =>
         FormatStringByteText(ResolveSpecialVariableValue(id));
@@ -603,7 +631,10 @@ internal sealed class AwkRuntimeState
             return;
         }
 
-        _variableRuntime.AssignVariableValue(AwkSpecialVariables.VariableName(id), value);
+        if (TryGetRecordCounterSlot(id, out var slot))
+            _variables.SetScalarValue(slot, value);
+        else
+            _variableRuntime.AssignVariableValue(AwkSpecialVariables.VariableName(id), value);
     }
 
     public AwkExecutableRuntimeBindings GetExecutableBindings(AwkExecutableTables tables)
