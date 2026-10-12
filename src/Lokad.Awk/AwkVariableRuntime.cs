@@ -128,7 +128,9 @@ internal sealed class AwkVariableRuntime(
 
     public void AssignGlobalVariableValue(AwkVariableName name, AwkValue value)
     {
-        ThrowIfArrayAsScalar(name.Text, ResolveGlobalName(name));
+        // Storage owns scalar creation and update. This boundary only rejects arrays.
+        if (variables.ContainsArray(new AwkArrayName(name.Identifier)))
+            throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(name.Text));
 
         specialVariables.Assign(name, value);
     }
