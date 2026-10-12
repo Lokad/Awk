@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Supplementary regex category metadata now scans scalars once, admits buffer growth
+  incrementally and publishes one immutable table on success. Failed/canceled construction
+  remains retryable; translated patterns and warm/cold memory envelopes are unchanged.
+
+- Immediate memory charges share governor rollback bookkeeping. Staged allocation and
+  publication keep their existing preflight, commit, cleanup and counter behavior.
+
 - User functions now suspend only when CLR stack space is low, with independent entry
   and unwind checks. Raised syntax-depth budgets retain suspension at every call.
   Ordinary shallow calls avoid thread-pool scheduling; function-depth admission, explicit

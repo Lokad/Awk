@@ -615,11 +615,20 @@ Borrowed POSIX translation charges survive this stage unchanged. Canceled or rej
 preparation publishes no wrapper and can be retried.
 
 Supplementary category metadata receives a separate conservative charge covering list
-growth and array publication. Cold sizing scans scalars with caller checkpoints; the
-shared Lazy initializer still receives no caller callback. Warm/cold access uses the
-same logical admission. The charge covers construction/access, without transferring
-process-wide immutable retention to an execution. Unlimited memory skips the added
-sizing pass. Regex matching semantics and logical fuel are unchanged.
+growth and array publication. Cold construction scans supplementary scalars once and
+admits each range before extending its buffer. A single immutable table is published
+only after construction succeeds; failed quota admission or cancellation leaves no
+published table and permits retry. Concurrent callers share that publication. Warm
+access charges the same `128 + 48 * range-count` envelope, preserving tight-budget
+behavior. The process table retains no caller lease, governor or cancellation callback.
+Owned scanning polls cancellation every 2,048 scalars. Construction/access admission
+is scoped, without transferring process-wide retention to an execution. Regex text,
+matching semantics, cache weight and logical fuel are unchanged.
+
+Immediate charges in scoped leases and numeric-field formatting share the governor's
+reserve/commit rollback operation. Allocation/publication stages retain separate
+reservations and commit only at their existing mutation boundary. This consolidates
+bookkeeping without changing quota thresholds, release order or counter totals.
 
 Finite-memory literal regex preparation measures the escaped string before invoking
 the existing `Regex.Escape` API. It admits one exact output string and conservative

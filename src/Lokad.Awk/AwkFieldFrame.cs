@@ -518,9 +518,7 @@ internal sealed class AwkFieldFrame(
                         recordByteWork(text.ByteLength);
                         var bytes = text.EstimatedRetainedMemoryBytes;
                         var next = AwkRuntimeMemory.CheckedAdd(formattedBytes, bytes);
-                        governor.Reserve(bytes);
-                        try { governor.CommitReserved(bytes); }
-                        catch { governor.ReleaseReserved(bytes); throw; }
+                        governor.ReserveAndCommit(bytes);
                         formattedBytes = next;
                         payloadByteLength = AwkRuntimeMemory.CheckedAdd(payloadByteLength, text.ByteLength);
                         field = AwkFieldText.FromOwned(text);

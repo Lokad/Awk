@@ -138,6 +138,14 @@ internal sealed class AwkMemoryGovernor
         if (!_enabled || byteCount <= 0)
             return AwkMemoryLease.Disabled;
 
+        ReserveAndCommit(byteCount);
+        return new AwkMemoryLease(this, byteCount);
+    }
+
+    // Only for immediate charges. Allocation/publication stages keep their
+    // separate reservation and commit so failure can preserve prior state.
+    public void ReserveAndCommit(long byteCount)
+    {
         Reserve(byteCount);
         try
         {
@@ -148,8 +156,6 @@ internal sealed class AwkMemoryGovernor
             ReleaseReserved(byteCount);
             throw;
         }
-
-        return new AwkMemoryLease(this, byteCount);
     }
 
     public AwkMemoryLease CreateTransientLease() =>
@@ -194,16 +200,7 @@ internal sealed class AwkMemoryLease : IDisposable
             return;
 
         var nextByteCount = AwkRuntimeMemory.CheckedAdd(_byteCount, byteCount);
-        governor.Reserve(byteCount);
-        try
-        {
-            governor.CommitReserved(byteCount);
-        }
-        catch
-        {
-            governor.ReleaseReserved(byteCount);
-            throw;
-        }
+        governor.ReserveAndCommit(byteCount);
         _byteCount = nextByteCount;
     }
 
