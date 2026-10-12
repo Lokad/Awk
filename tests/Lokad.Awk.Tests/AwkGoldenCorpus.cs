@@ -41,6 +41,8 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(ExpressionCases(), AwkGoldenTag.Expression),
 
+        .. Tagged(BenchmarkCoreCases(), AwkGoldenTag.Expression, AwkGoldenTag.Function, AwkGoldenTag.Regex),
+
         .. Tagged(ExpressionCompatibilityRepairs(), AwkGoldenTag.Expression),
 
         .. Tagged(FrontendWarningCases(), AwkGoldenTag.Expression),

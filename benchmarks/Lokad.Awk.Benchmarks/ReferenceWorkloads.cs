@@ -16,7 +16,8 @@ internal static class ReferenceWorkloads
     public static readonly string[] Families =
     [
         "projection", "filter", "aggregate", "profile-narrow", "profile-wide", "two-file",
-        "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode"
+        "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
+        "arithmetic-loops", "user-functions", "string-functions", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
 
@@ -132,6 +133,48 @@ internal static class ReferenceWorkloads
                 fields = 2;
                 locale = "C.UTF-8";
                 Repeat("café résumé\n", "4 ré\n");
+                break;
+            // Scripts have canonical small controls in AwkGoldenCorpus.BenchmarkCore.cs.
+            // Expected scaled results below use independent fixture formulas, outside timing.
+            case "arithmetic-loops":
+                program = "{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}";
+                fields = 1;
+                Repeat("7\n", "");
+                expected.Append(rows * 20).Append('\n');
+                break;
+            case "user-functions":
+                program = "function inc(x){return x+1} function twice(x){return inc(inc(x))} {total+=twice($1)} END{print total}";
+                fields = 1;
+                Repeat("7\n", "");
+                expected.Append(rows * 9).Append('\n');
+                break;
+            case "string-functions":
+                program = "{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}";
+                fields = 1;
+                Repeat("id:beta:tail\n", "");
+                expected.Append(rows * 12).Append('\n');
+                break;
+            case "concatenation":
+                program = "{s=\"[\" $0 \":\" NR \"]\";total+=length(s)} END{print total}";
+                fields = 1;
+                Repeat("item\n", "");
+                var concatenatedLength = rows * 7;
+                for (var i = 1; i <= rows; i++)
+                    concatenatedLength += i.ToString(CultureInfo.InvariantCulture).Length;
+                expected.Append(concatenatedLength).Append('\n');
+                break;
+            case "regex-match":
+                program = "$0~/^[A-Z]{3}[0-9]{4}$/{n++} END{print n+0}";
+                fields = 1;
+                for (var i = 0; i < rows; i++)
+                    input.Append(i % 2 == 0 ? "ABC0123\n" : "abc0123\n");
+                expected.Append(rows / 2).Append('\n');
+                break;
+            case "regex-captures":
+                program = "match($0,/^([[:alpha:]]+)([0-9]+)$/,m){total+=length(m[1])+m[2]} END{print total}";
+                fields = 1;
+                Repeat("sku007\n", "");
+                expected.Append(rows * 10).Append('\n');
                 break;
             default:
                 throw new ArgumentException("Unknown workload family.");
