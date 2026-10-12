@@ -195,19 +195,10 @@ internal static class ReferenceReport
         var report = JsonSerializer.Deserialize<ReferenceComparisonReport>(
             await File.ReadAllTextAsync(artifact, token).ConfigureAwait(false), JsonOptions)
             ?? throw new InvalidOperationException("Missing comparison report.");
-        const string path = "docs/BENCHMARKS.md";
-        var content = await File.ReadAllTextAsync(path, token).ConfigureAwait(false);
-        var begin = content.IndexOf(BeginMarker, StringComparison.Ordinal);
-        if (begin >= 0)
-        {
-            var end = content.IndexOf(EndMarker, begin, StringComparison.Ordinal);
-            if (end < 0)
-                throw new InvalidOperationException("Missing comparison report end marker.");
-            var after = content[(end + EndMarker.Length)..].TrimStart('\r', '\n');
-            content = content[..begin] + Render(report) + (after.Length == 0 ? "" : "\n" + after);
-        }
-        else
-            content = content.TrimEnd() + "\n\n" + Render(report);
-        await File.WriteAllTextAsync(path, content, token).ConfigureAwait(false);
+        // Generated evidence belongs beside its artifact; the maintained guide also
+        // combines separate allocation measurements and must not accumulate report history.
+        var path = Path.GetFullPath(artifact) + ".md";
+        await File.WriteAllTextAsync(path, Render(report), token).ConfigureAwait(false);
+        Console.WriteLine(path);
     }
 }

@@ -1,30 +1,48 @@
 # Benchmarks
 
-Current baseline, 2026-10-12: Release source `5dc6544b6c55098dfd6669218ac8e21bee3fc672`
+Current baseline, 2026-10-12: Release source `08d3ceb0a045fea8185863dd095c9ebcdbd8a501`
 versus GNU awk 5.2.1. The interpreter and DotNetCompatibility are the defaults;
 newer Utf8Regex adoption remains postponed.
 
 ## Representative processing
 
-Projection/filter/aggregation use 4,096 records; wide processing uses 256 records with
-64 fields. Times are medians; throughput uses mean time. Each result covers a complete
-invocation and verified output. GNU is faster in all four measured cases.
+Twenty families separate fields/records, scalar/control work, arrays, functions, strings,
+regex and output. Each medium case uses 4,096 records, except wide (256 x 64 fields)
+and two-file (4,096 in each file). Narrow/wide and literal/ERE pairs deliberately control
+field density and separator cost; compare implementations within a row, not across scripts.
+Times are medians; throughput uses mean time. Each result covers a complete invocation
+and verified output. GNU is faster in all 20 measured cases.
 
-| Script | Input KiB | Lokad ms | GNU ms | Lokad MiB/s | GNU MiB/s | Lokad allocated MiB |
+| Case | Input KiB | Lokad ms | GNU ms | Lokad MiB/s | GNU MiB/s | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Project column 2 | 60 | 4.769 | 1.330 | 12.26 | 44.04 | 3.15 |
-| Filter three fields and count | 24 | 6.637 | 1.536 | 3.53 | 15.24 | 3.93 |
-| Sum numeric values into 16 keys | 24 | 5.757 | 1.370 | 4.07 | 17.11 | 3.57 |
-| Count nonempty fields/characters in wide records | 80 | 18.072 | 2.170 | 4.32 | 36.02 | 4.46 |
+| Project a column / output | 60 | 4.849 | 1.327 | 12.07 | 44.19 | 3.15 |
+| Filter three fields | 24 | 6.799 | 1.534 | 3.45 | 15.24 | 3.93 |
+| Loop and numeric arithmetic | 8 | 24.059 | 2.929 | 0.32 | 2.67 | 2.72 |
+| Nested user calls | 8 | 7.977 | 1.620 | 0.98 | 4.82 | 3.47 |
+| ASCII substr/index/length/casing | 52 | 7.379 | 1.555 | 6.88 | 32.58 | 1.89 |
+| Concatenate record and number | 20 | 6.012 | 1.535 | 3.25 | 12.72 | 2.24 |
+| Boolean ERE matching | 32 | 4.298 | 1.271 | 7.26 | 24.6 | 1.56 |
+| ERE capture arrays (GNU) | 28 | 55.495 | 7.714 | 0.49 | 3.54 | 18.93 |
+| Literal field separator | 48 | 4.939 | 1.391 | 9.49 | 33.71 | 3.08 |
+| ERE field separator | 48 | 6.362 | 1.986 | 7.36 | 23.55 | 5.61 |
+| Field loop, 3 fields | 60 | 17.061 | 2.209 | 3.43 | 26.46 | 4.02 |
+| Field loop, 64 fields | 80 | 18.731 | 2.171 | 4.17 | 35.97 | 4.46 |
+| Multicharacter record separator (GNU) | 52 | 3.216 | 1.470 | 15.76 | 34.54 | 1.43 |
+| Byte-run ERE record separator (GNU) | 36 | 3.272 | 1.441 | 10.74 | 24.4 | 1.82 |
+| gsub and output | 56 | 8.098 | 2.110 | 6.76 | 25.96 | 5.45 |
+| printf strings and integers | 24 | 6.769 | 1.823 | 3.46 | 12.87 | 4.69 |
+| Keyed sum / sorted output (GNU) | 24 | 5.626 | 1.365 | 4.17 | 17.17 | 3.57 |
+| Numeric array sort (GNU) | 18.92 | 11.007 | 2.488 | 1.68 | 7.42 | 4.68 |
+| Two-file membership / join | 77.83 | 15.146 | 2.820 | 5.02 | 26.98 | 7.97 |
+| Unicode length/substr / output | 60 | 6.973 | 2.079 | 8.4 | 28.18 | 4.51 |
 
 Allocations are managed GC bytes per Lokad invocation, measured separately with
-MemoryDiagnoser at `cebddb04e4d3c8c9c5738d2bedb494f4c1659efa`; the release source only
-changes metadata/documentation after that runtime. They are not native GNU allocations,
+MemoryDiagnoser at the same source and settings. They are not native GNU allocations,
 retained live memory, governor allowances or total process memory. Both runs use the same
 [script/fixture catalog](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs).
 
 Environment: Ubuntu 24.04.4, four AMD EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401,
-.NET 10.0.12, BenchmarkDotNet 0.15.8, C locale and UTC. Each benchmark has five warmups,
+.NET 10.0.12, BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode) and UTC. Each has five warmups,
 nine measured iterations and one launch. Clean-source identities and GNU binary hash
 were recorded; idle CPU gates passed before/after. No concurrent builds or transfers.
 
@@ -37,9 +55,12 @@ length and SHA-256. Fixtures and correctness preflight are outside timing. File 
 use native fixture files for GNU and host-mediated in-memory files for Lokad.
 
 These are embedding-versus-CLI costs, not pure evaluator timings. Small cases can be
-dominated by process startup. The four rows are a focused baseline, not a claim of
-full conformance or an aggregate speedup. All 44 catalog cases pass exact reference
-checks at the release source. Ordinary builds/tests/CI require no GNU installation.
+dominated by process startup. All rows use the GNU/default profile, including the marked
+supported GNU conveniences;
+this is not a conformance test or an aggregate speedup. All 62 small/medium/large and
+startup-control cases pass exact reference checks at this source. The six new script
+controls are in the [golden corpus](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.BenchmarkCore.cs).
+Ordinary builds/tests/CI require no GNU installation.
 
 ## Reproduce and maintain
 
@@ -49,8 +70,8 @@ Build once, verify, then measure on an idle machine using the existing tools:
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-benchmarks --awk PATH_TO_GAWK --filter '*medium*projection*' '*medium*filter*' '*medium*aggregate*' '*medium*profile-wide*' --warmupCount 5 --iterationCount 9 --launchCount 1
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*projection*' '*WorkloadAllocationBenchmarks*medium*filter*' '*WorkloadAllocationBenchmarks*medium*aggregate*' '*WorkloadAllocationBenchmarks*medium*profile-wide*' --warmupCount 5 --iterationCount 9 --launchCount 1
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-benchmarks --awk PATH_TO_GAWK --filter '*medium*' --warmupCount 5 --iterationCount 9 --launchCount 1
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*' --warmupCount 5 --iterationCount 9 --launchCount 1
 ```
 
 `--check-machine` emits JSON on stdout; retain it and repeat after timing. The Linux
@@ -62,10 +83,12 @@ Update this table in place when runtime or measurement conditions change. Record
 toolchain, input sizes, exact-result checks and quiet gates; retain raw CSV/logs locally.
 Keep this as the single maintained benchmark document, with at most three tables.
 Do not commit BenchmarkDotNet.Artifacts or add dated summary documents.
+`--render-report PATH.json` writes a generated `PATH.json.md` beside the artifact;
+it does not append history to this maintained guide.
 
 For a runtime change, compare before/after on the same workloads and run the existing
 `--counter-report`. It uses a finite logical memory budget; a zero governed peak under
 unlimited policy does not mean zero allocation. Profile separately (`--profiler EP`).
 Try at most two bounded improvements to measured interpreter/field costs; retain
 repeatable gains beyond noise with exact semantics/resource behavior and no unexplained
-regression across these four scripts. Expand VM coverage only when measurements justify it.
+regression across representative families. Expand VM coverage only when measurements justify it.

@@ -9,6 +9,13 @@ getline into a variable retains the current record within the same file.
 Literal one-character FS is case-sensitive, including a multibyte Unicode scalar.
 Regex FS honors captured IGNORECASE. Character/byte units follow [UTF-8 policy](UTF8_POLICY.md).
 
+Whitespace FS strips leading/trailing separators. GNU empty FS splits characters;
+POSIX/traditional empty FS keeps an ordinary nonempty record whole, with paragraph LF rules.
+Assigning FS/FPAT/FIELDWIDTHS selects that mode. PROCINFO["FS"] is writable metadata,
+republished on parser transitions. FIELDWIDTHS accepts positive widths/skips and a final
+remainder marker; short records create only reached fields. Invalid FS/FPAT/width settings
+fail at assignment before publishing a new splitter or value.
+
 ## Record separators and paragraphs
 
 Main input and every getline source use the current RS. Changing RS preserves unread
@@ -43,7 +50,8 @@ Restricted input paths remain capabilities at their original operand indices.
 
 Starting a file clears `$0`, fields and caches before BEGINFILE when that phase exists;
 without BEGINFILE, the prior lazy record remains until a new record is installed. Explicit file
-operands reset FNR. Main-input records, including `getline variable`, increment NR/FNR;
+operands reset FNR; implicit stdin retains a BEGIN-assigned FNR. Main-input records,
+including `getline variable`, increment NR/FNR;
 redirected getline does not. Assigned counter values retain their type until admission truncates
 the numeric value toward zero and increments it. Direct and SYMTAB writes share storage/setters.
 
@@ -51,6 +59,7 @@ Range patterns include both endpoints, test the end on the starting record and r
 independent state across file boundaries. next skips the current record; nextfile closes the
 current input and runs the applicable ENDFILE phase. Unhandled main-input failures are fatal;
 BEGINFILE can explicitly recover with nextfile. See [host failures](COMPATIBILITY_CONTRACT.md#main-input-directories).
+Only successfully opened files receive ENDFILE when skipped; exit from BEGINFILE skips it.
 
 Functions may execute next/nextfile only in valid input phases. Control unwinds the full
 expression/call chain before the action handles it; later arguments, assignments and effects
@@ -61,7 +70,8 @@ Nested file actions through getline restore the caller's phase/context.
 
 Reading an absent field returns empty without growing NF. Field writes or mutable references
 can extend it. NF assignment preserves its supplied type/text while resizing to its truncated
-numeric count; negative/nonfinite counts fail. Existing-field writes retain that NF value;
+numeric count; negative truncated counts, nonfinite values and counts over MaxFields fail.
+Fractions between -1 and zero produce zero fields. Existing-field writes retain that NF value;
 growth replaces it with the new integer count. Record reset or `$0` assignment restores
 computed NF. Direct and SYMTAB NF access share behavior.
 
