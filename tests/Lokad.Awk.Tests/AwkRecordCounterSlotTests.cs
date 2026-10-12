@@ -54,6 +54,31 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DisabledMemoryAdmissionStillChecksCancellationBeforeCountersChange(bool longTerminator)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+            new AwkRandomGenerator(), counters, limits,
+            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options,
+            new AwkRuntimeResourceMonitor(limits, counters, cancellation.Token), AwkCompatibilityProfile.Default);
+        var terminator = longTerminator
+            ? AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(new string('x', 8_192)))
+            : AwkRecordTerminator.NewLine;
+        cancellation.Cancel();
+
+        var error = Assert.Throws<OperationCanceledException>(() => state.AdvanceMainInputRecord(terminator));
+
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(0, state.RecordNumber);
+        Assert.Equal(0, state.FileRecordNumber);
+    }
+
     private static AwkRuntimeState CreateState(AwkCompatibilityMode mode, long memory)
     {
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(memory);

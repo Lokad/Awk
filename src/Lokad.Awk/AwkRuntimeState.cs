@@ -689,6 +689,11 @@ internal sealed class AwkRuntimeState
         if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
             return 0;
         Resources.ThrowIfValueBytesExceeded(terminator.ByteText.ByteLength);
+        if (!MemoryGovernor.IsEnabled)
+        {
+            ThrowIfCancellationRequested();
+            return 0;
+        }
         return _variables.EstimateScalarValueMemoryGrowth(
             RecordTerminatorVariableName, AwkValue.FromText(terminator.ByteText, NumberParsingMode, CancellationCheckpoint));
     }
