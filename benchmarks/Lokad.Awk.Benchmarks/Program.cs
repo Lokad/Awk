@@ -22,7 +22,8 @@ if (args.Length > 0 && args[0] is "--compare" or "--smoke" or "--reference-bench
 
 BenchmarkSwitcher.FromTypes(
     [typeof(FullInvocationBenchmarks), typeof(LegacyLayerBenchmarks), typeof(FrontendLayerBenchmarks),
-     typeof(FrontendScalingBenchmarks), typeof(ExecutableLayerBenchmarks), typeof(WorkloadAllocationBenchmarks)]).Run(args);
+     typeof(FrontendScalingBenchmarks), typeof(ExecutableLayerBenchmarks), typeof(WorkloadAllocationBenchmarks),
+     typeof(FunctionSchedulingBenchmarks)]).Run(args);
 
 public sealed class AwkBenchmarkConfig : ManualConfig
 {
