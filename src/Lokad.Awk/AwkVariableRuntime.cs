@@ -75,8 +75,10 @@ internal sealed class AwkVariableRuntime(
             ThrowIfArrayAsScalar(name.Text, AwkVariableNameResolution.LocalArrayAlias(local.ArrayName));
         }
 
-        var resolved = ResolveName(name);
-        ThrowIfArrayAsScalar(name.Text, resolved);
+        // Local values were resolved above. A global scalar read only needs to
+        // reject arrays; scalar existence and creation belong to AwkVariables.
+        if (variables.ContainsArray(new AwkArrayName(name.Identifier)))
+            throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(name.Text));
 
         return variables.GetOrCreateScalarValue(name);
     }
