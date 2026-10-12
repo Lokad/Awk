@@ -7,6 +7,42 @@ public sealed class AwkRegexSelectionTests
     [Theory]
     [InlineData(AwkRegexEngineKind.DotNetCompatibility)]
     [InlineData(AwkRegexEngineKind.Utf8Adapter)]
+    internal void EquivalentPatternsAndCaseChangesKeepCompiledCacheIdentity(AwkRegexEngineKind engine)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var sensitivity = AwkRegexCaseSensitivity.CaseSensitive;
+        var runtime = new AwkRegexRuntime(() => sensitivity, AwkStringUnitMode.Utf8Rune,
+            static () => { }, counters, engine);
+        const string pattern = "^(SKU)([[:alpha:]]+)([0-9]+)$";
+        var regex = runtime.Create(new AwkRegexPattern(pattern));
+        var equalText = new string(pattern.ToCharArray());
+        Assert.Same(regex, runtime.Create(new AwkRegexPattern(equalText)));
+        var input = AwkText.FromString("skuItem007");
+        long preparedCompiles = 0;
+        for (var pass = 0; pass < 4; pass++)
+        {
+            foreach (var ignoreCase in new[] { false, true })
+            {
+                sensitivity = ignoreCase ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive;
+                using var match = runtime.MatchCaptureValue(regex, input, AwkMemoryGovernor.Disabled, AwkRuntimeLimits.Unlimited);
+                Assert.Equal(ignoreCase, match.Match.Success);
+                if (ignoreCase)
+                {
+                    Assert.Equal("sku", match.Match.Groups[1].Value.AsString());
+                    Assert.Equal("Item", match.Match.Groups[2].Value.AsString());
+                    Assert.Equal("007", match.Match.Groups[3].Value.AsString());
+                }
+            }
+            if (pass == 0)
+                preparedCompiles = counters.RegexCompiles;
+            else
+                Assert.Equal(preparedCompiles, counters.RegexCompiles);
+        }
+    }
+
+    [Theory]
+    [InlineData(AwkRegexEngineKind.DotNetCompatibility)]
+    [InlineData(AwkRegexEngineKind.Utf8Adapter)]
     internal void SelectionIsCachedAndOnlyObservableMatchesNeedIt(AwkRegexEngineKind engine)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();

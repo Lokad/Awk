@@ -528,7 +528,7 @@ internal sealed class AwkRegexRuntime
         [NotNullWhen(true)] out AwkPosixRegex? program)
     {
         var sensitivity = regex.ResolveCaseSensitivity(_resolveCaseSensitivity);
-        var key = new AwkRegexCacheKey(regex.Pattern, sensitivity, AwkRegexCacheKind.TranslatedPattern,
+        var key = new AwkRegexCacheKey(regex, sensitivity, AwkRegexCacheKind.TranslatedPattern,
             AwkRegexEngineKind.DotNetCompatibility);
         if (_posixRegexCache.TryGetValue(key, out var cached))
         {
@@ -560,7 +560,7 @@ internal sealed class AwkRegexRuntime
     private AwkLongestRegex ResolveLongestRegex(AwkRegex regex)
     {
         var caseSensitivity = regex.ResolveCaseSensitivity(_resolveCaseSensitivity);
-        var key = new AwkRegexCacheKey(regex.Pattern, caseSensitivity,
+        var key = new AwkRegexCacheKey(regex, caseSensitivity,
             AwkRegexCacheKind.TranslatedPattern, AwkRegexEngineKind.DotNetCompatibility);
         if (_longestRegexCache.TryGetValue(key, out var cached))
             return cached;
@@ -592,7 +592,7 @@ internal sealed class AwkRegexRuntime
             return precompiled.Value;
         }
 
-        var key = new AwkRegexCacheKey(regex.Pattern, caseSensitivity, AwkRegexCacheKind.TranslatedPattern, _engineKind);
+        var key = new AwkRegexCacheKey(regex, caseSensitivity, AwkRegexCacheKind.TranslatedPattern, _engineKind);
         if (_utf8RegexCache.TryGetValue(key, out var cached))
             return cached;
 
@@ -624,7 +624,7 @@ internal sealed class AwkRegexRuntime
         }
 
         var key = new AwkRegexCacheKey(
-            regex.Pattern,
+            regex,
             caseSensitivity,
             AwkRegexCacheKind.TranslatedPattern,
             AwkRegexEngineKind.DotNetCompatibility);
@@ -654,14 +654,35 @@ internal sealed class AwkRegexRuntime
     private readonly struct AwkRegexCacheKey : IEquatable<AwkRegexCacheKey>
     {
         private readonly string? _pattern;
+        private readonly int _patternHashCode;
 
         public AwkRegexCacheKey(
             string pattern,
             AwkRegexCaseSensitivity caseSensitivity,
             AwkRegexCacheKind kind,
             AwkRegexEngineKind engineKind)
+            : this(pattern, pattern.GetHashCode(), caseSensitivity, kind, engineKind)
+        {
+        }
+
+        public AwkRegexCacheKey(
+            AwkRegex regex,
+            AwkRegexCaseSensitivity caseSensitivity,
+            AwkRegexCacheKind kind,
+            AwkRegexEngineKind engineKind)
+            : this(regex.Pattern, regex.PatternHashCode, caseSensitivity, kind, engineKind)
+        {
+        }
+
+        private AwkRegexCacheKey(
+            string pattern,
+            int patternHashCode,
+            AwkRegexCaseSensitivity caseSensitivity,
+            AwkRegexCacheKind kind,
+            AwkRegexEngineKind engineKind)
         {
             _pattern = pattern;
+            _patternHashCode = patternHashCode;
             CaseSensitivity = caseSensitivity;
             Kind = kind;
             EngineKind = engineKind;
@@ -685,7 +706,8 @@ internal sealed class AwkRegexRuntime
             obj is AwkRegexCacheKey other && Equals(other);
 
         public override int GetHashCode() =>
-            HashCode.Combine(PatternText, CaseSensitivity, Kind, EngineKind);
+            HashCode.Combine(_pattern is null ? string.Empty.GetHashCode() : _patternHashCode,
+                CaseSensitivity, Kind, EngineKind);
     }
 
     private enum AwkRegexCacheKind

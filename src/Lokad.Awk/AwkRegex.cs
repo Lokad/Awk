@@ -26,12 +26,15 @@ internal sealed class AwkRegex
         checkpoint?.Invoke();
         Selection = selection ?? AwkRegexSelection.Analyze(pattern, checkpoint);
         _hasFixedCaseSensitivity = hasFixedCaseSensitivity;
+        PatternHashCode = pattern.GetHashCode();
+        checkpoint?.Invoke();
     }
 
     public static readonly TimeSpan MatchTimeout =
         TimeSpan.FromSeconds(AwkRuntimeLimits.DefaultRegexMatchTimeoutSeconds);
 
     public string Pattern { get; }
+    internal int PatternHashCode { get; }
     internal string ErePattern { get; }
 
     public bool RequiresDotNetFallback { get; }
