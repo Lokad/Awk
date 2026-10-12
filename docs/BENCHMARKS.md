@@ -10,31 +10,32 @@ Twenty families separate fields/records, scalar/control work, arrays, functions,
 regex and output. Each medium case uses 4,096 records, except wide (256 x 64 fields)
 and two-file (4,096 in each file). Narrow/wide and literal/ERE pairs deliberately control
 field density and separator cost; compare implementations within a row, not across scripts.
-Times are medians; throughput uses mean time. Each result covers a complete invocation
-and verified output. GNU is faster in all 20 measured cases.
+Times are medians. Lokad.Awk/awk is Lokad median time divided by GNU median time:
+1.00× is parity; higher is slower. Rows run from worst to best ratio, rounded to two decimals.
+Each result covers a complete invocation and verified output. GNU is faster in all 20 cases.
 
-| Case | Input KiB | Lokad ms | GNU ms | Lokad MiB/s | GNU MiB/s | Lokad allocated MiB |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Project a column / output | 60 | 5.016 | 1.321 | 11.67 | 44.33 | 3.15 |
-| Filter three fields | 24 | 6.654 | 1.528 | 3.52 | 15.34 | 3.93 |
-| Loop and numeric arithmetic | 8 | 23.189 | 2.919 | 0.34 | 2.68 | 2.72 |
-| Nested user calls | 8 | 7.883 | 1.617 | 0.99 | 4.82 | 3.47 |
-| ASCII substr/index/length/casing | 52 | 7.091 | 1.556 | 7.16 | 32.62 | 1.89 |
-| Concatenate record and number | 20 | 5.953 | 1.530 | 3.28 | 12.75 | 2.24 |
-| Boolean ERE matching | 32 | 4.199 | 1.273 | 7.41 | 24.55 | 1.56 |
-| ERE capture arrays (GNU) | 28 | 55.376 | 7.696 | 0.49 | 3.55 | 18.93 |
-| Literal field separator | 48 | 4.686 | 1.391 | 9.95 | 33.69 | 3.08 |
-| ERE field separator | 48 | 6.147 | 1.986 | 7.63 | 23.58 | 5.61 |
-| Field loop, 3 fields | 60 | 16.208 | 2.196 | 3.61 | 26.69 | 4.02 |
-| Field loop, 64 fields | 80 | 16.229 | 2.170 | 4.81 | 35.99 | 4.46 |
-| Multicharacter record separator (GNU) | 52 | 2.843 | 1.471 | 17.8 | 34.51 | 1.43 |
-| Byte-run ERE record separator (GNU) | 36 | 3.125 | 1.438 | 11.25 | 24.38 | 1.82 |
-| gsub and output | 56 | 8.022 | 2.103 | 6.82 | 25.99 | 5.45 |
-| printf strings and integers | 24 | 6.494 | 1.818 | 3.61 | 12.89 | 4.69 |
-| Keyed sum / sorted output (GNU) | 24 | 5.610 | 1.365 | 4.18 | 17.18 | 3.57 |
-| Numeric array sort (GNU) | 18.92 | 10.418 | 2.484 | 1.77 | 7.45 | 4.68 |
-| Two-file membership / join | 77.83 | 14.922 | 2.819 | 5.09 | 26.95 | 7.97 |
-| Unicode length/substr / output | 60 | 6.686 | 2.076 | 8.75 | 28.22 | 4.51 |
+| Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Loop and numeric arithmetic | 8 | 23.189 | 2.919 | 7.94× | 2.72 |
+| Field loop, 64 fields | 80 | 16.229 | 2.170 | 7.48× | 4.46 |
+| Field loop, 3 fields | 60 | 16.208 | 2.196 | 7.38× | 4.02 |
+| ERE capture arrays (GNU) | 28 | 55.376 | 7.696 | 7.20× | 18.93 |
+| Two-file membership / join | 77.83 | 14.922 | 2.819 | 5.29× | 7.97 |
+| Nested user calls | 8 | 7.883 | 1.617 | 4.88× | 3.47 |
+| ASCII substr/index/length/casing | 52 | 7.091 | 1.556 | 4.56× | 1.89 |
+| Filter three fields | 24 | 6.654 | 1.528 | 4.35× | 3.93 |
+| Numeric array sort (GNU) | 18.92 | 10.418 | 2.484 | 4.19× | 4.68 |
+| Keyed sum / sorted output (GNU) | 24 | 5.610 | 1.365 | 4.11× | 3.57 |
+| Concatenate record and number | 20 | 5.953 | 1.530 | 3.89× | 2.24 |
+| gsub and output | 56 | 8.022 | 2.103 | 3.81× | 5.45 |
+| Project a column / output | 60 | 5.016 | 1.321 | 3.80× | 3.15 |
+| printf strings and integers | 24 | 6.494 | 1.818 | 3.57× | 4.69 |
+| Literal field separator | 48 | 4.686 | 1.391 | 3.37× | 3.08 |
+| Boolean ERE matching | 32 | 4.199 | 1.273 | 3.30× | 1.56 |
+| Unicode length/substr / output | 60 | 6.686 | 2.076 | 3.22× | 4.51 |
+| ERE field separator | 48 | 6.147 | 1.986 | 3.10× | 5.61 |
+| Byte-run ERE record separator (GNU) | 36 | 3.125 | 1.438 | 2.17× | 1.82 |
+| Multicharacter record separator (GNU) | 52 | 2.843 | 1.471 | 1.93× | 1.43 |
 
 Allocations are managed GC bytes per Lokad invocation, measured separately with
 MemoryDiagnoser at the same source and settings. They are not native GNU allocations,
@@ -89,6 +90,10 @@ it does not append history to this maintained guide.
 For a runtime change, compare before/after on the same workloads and run the existing
 `--counter-report`. It uses a finite logical memory budget; a zero governed peak under
 unlimited policy does not mean zero allocation. Profile separately (`--profiler EP`).
-Try at most two bounded improvements to measured interpreter/field costs; retain
-repeatable gains beyond noise with exact semantics/resource behavior and no unexplained
-regression across representative families. Expand VM coverage only when measurements justify it.
+Work toward parity by profiling the highest ratios first. Initially pursue changes likely
+to reduce Lokad elapsed time by more than 10% on a priority case, favoring shared costs
+affecting several scripts. Reproduce gains in matched runs; record before/after ratios and
+allocations, exact semantics/resource behavior and any representative regressions. Lower
+the target to 5%, then smaller gains, only after larger leads are exhausted or rejected
+with evidence. Bound each investigation to a focused profile and at most two candidates;
+stop for noise or costs owned elsewhere. Expand VM coverage only when measurements justify it.

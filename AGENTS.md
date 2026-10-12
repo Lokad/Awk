@@ -63,5 +63,5 @@ or environment dependencies.
 - Update docs under `docs/` when changing UTF-8 policy, runtime limits, regex compatibility,
   executable rollout behavior, benchmark workflow, or release readiness assumptions.
 - Maintain `docs/BENCHMARKS.md` as the single current comparison, with at most three tables,
-  throughput and managed allocations. Update it in place; keep raw/history evidence local.
+  elapsed-time ratios and managed allocations. Update it in place; keep raw/history evidence local.
 - Leave local planning notes untracked unless they are intended as public project documentation.
