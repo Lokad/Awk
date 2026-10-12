@@ -1,6 +1,6 @@
 # Benchmarks
 
-Current baseline, 2026-10-12: Release source `08d3ceb0a045fea8185863dd095c9ebcdbd8a501`
+Current baseline, 2026-10-12: Release source `ab8fa250ffe395c2c4cd2a92c22b96e6eeee1b1b`
 versus GNU awk 5.2.1. The interpreter and DotNetCompatibility are the defaults;
 newer Utf8Regex adoption remains postponed.
 
@@ -15,26 +15,26 @@ and verified output. GNU is faster in all 20 measured cases.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad MiB/s | GNU MiB/s | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Project a column / output | 60 | 4.849 | 1.327 | 12.07 | 44.19 | 3.15 |
-| Filter three fields | 24 | 6.799 | 1.534 | 3.45 | 15.24 | 3.93 |
-| Loop and numeric arithmetic | 8 | 24.059 | 2.929 | 0.32 | 2.67 | 2.72 |
-| Nested user calls | 8 | 7.977 | 1.620 | 0.98 | 4.82 | 3.47 |
-| ASCII substr/index/length/casing | 52 | 7.379 | 1.555 | 6.88 | 32.58 | 1.89 |
-| Concatenate record and number | 20 | 6.012 | 1.535 | 3.25 | 12.72 | 2.24 |
-| Boolean ERE matching | 32 | 4.298 | 1.271 | 7.26 | 24.6 | 1.56 |
-| ERE capture arrays (GNU) | 28 | 55.495 | 7.714 | 0.49 | 3.54 | 18.93 |
-| Literal field separator | 48 | 4.939 | 1.391 | 9.49 | 33.71 | 3.08 |
-| ERE field separator | 48 | 6.362 | 1.986 | 7.36 | 23.55 | 5.61 |
-| Field loop, 3 fields | 60 | 17.061 | 2.209 | 3.43 | 26.46 | 4.02 |
-| Field loop, 64 fields | 80 | 18.731 | 2.171 | 4.17 | 35.97 | 4.46 |
-| Multicharacter record separator (GNU) | 52 | 3.216 | 1.470 | 15.76 | 34.54 | 1.43 |
-| Byte-run ERE record separator (GNU) | 36 | 3.272 | 1.441 | 10.74 | 24.4 | 1.82 |
-| gsub and output | 56 | 8.098 | 2.110 | 6.76 | 25.96 | 5.45 |
-| printf strings and integers | 24 | 6.769 | 1.823 | 3.46 | 12.87 | 4.69 |
-| Keyed sum / sorted output (GNU) | 24 | 5.626 | 1.365 | 4.17 | 17.17 | 3.57 |
-| Numeric array sort (GNU) | 18.92 | 11.007 | 2.488 | 1.68 | 7.42 | 4.68 |
-| Two-file membership / join | 77.83 | 15.146 | 2.820 | 5.02 | 26.98 | 7.97 |
-| Unicode length/substr / output | 60 | 6.973 | 2.079 | 8.4 | 28.18 | 4.51 |
+| Project a column / output | 60 | 5.016 | 1.321 | 11.67 | 44.33 | 3.15 |
+| Filter three fields | 24 | 6.654 | 1.528 | 3.52 | 15.34 | 3.93 |
+| Loop and numeric arithmetic | 8 | 23.189 | 2.919 | 0.34 | 2.68 | 2.72 |
+| Nested user calls | 8 | 7.883 | 1.617 | 0.99 | 4.82 | 3.47 |
+| ASCII substr/index/length/casing | 52 | 7.091 | 1.556 | 7.16 | 32.62 | 1.89 |
+| Concatenate record and number | 20 | 5.953 | 1.530 | 3.28 | 12.75 | 2.24 |
+| Boolean ERE matching | 32 | 4.199 | 1.273 | 7.41 | 24.55 | 1.56 |
+| ERE capture arrays (GNU) | 28 | 55.376 | 7.696 | 0.49 | 3.55 | 18.93 |
+| Literal field separator | 48 | 4.686 | 1.391 | 9.95 | 33.69 | 3.08 |
+| ERE field separator | 48 | 6.147 | 1.986 | 7.63 | 23.58 | 5.61 |
+| Field loop, 3 fields | 60 | 16.208 | 2.196 | 3.61 | 26.69 | 4.02 |
+| Field loop, 64 fields | 80 | 16.229 | 2.170 | 4.81 | 35.99 | 4.46 |
+| Multicharacter record separator (GNU) | 52 | 2.843 | 1.471 | 17.8 | 34.51 | 1.43 |
+| Byte-run ERE record separator (GNU) | 36 | 3.125 | 1.438 | 11.25 | 24.38 | 1.82 |
+| gsub and output | 56 | 8.022 | 2.103 | 6.82 | 25.99 | 5.45 |
+| printf strings and integers | 24 | 6.494 | 1.818 | 3.61 | 12.89 | 4.69 |
+| Keyed sum / sorted output (GNU) | 24 | 5.610 | 1.365 | 4.18 | 17.18 | 3.57 |
+| Numeric array sort (GNU) | 18.92 | 10.418 | 2.484 | 1.77 | 7.45 | 4.68 |
+| Two-file membership / join | 77.83 | 14.922 | 2.819 | 5.09 | 26.95 | 7.97 |
+| Unicode length/substr / output | 60 | 6.686 | 2.076 | 8.75 | 28.22 | 4.51 |
 
 Allocations are managed GC bytes per Lokad invocation, measured separately with
 MemoryDiagnoser at the same source and settings. They are not native GNU allocations,

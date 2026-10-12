@@ -51,8 +51,8 @@ arguments follow the declared GNU 5.4 literal rule. Grouping evaluates a regex a
 ## Values, numbers and formatting
 
 Numbers use invariant-culture binary64. Whole-input numeric-string classification differs
-from arithmetic prefix conversion; numeric scans use ASCII C whitespace. NaN arithmetic
-comparisons are false (including equality), while NaN is true as a condition. Ordinary
+from arithmetic prefix conversion; numeric scans use ASCII C whitespace. NaN equality
+and ordered comparisons are false; inequality is true. NaN is true as a condition. Ordinary
 strings retain string truth/comparison rules. No arbitrary-precision execution.
 
 Numeric fields and strings retain their origins/spelling. Missing ordinary array reads
