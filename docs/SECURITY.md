@@ -1,179 +1,48 @@
-# Security And Containment
+# Security and host containment
 
-Lokad.Awk is a capability-oriented runtime. An awk program cannot directly use .NET filesystem,
-process, console, environment, networking, reflection, or native-interop APIs. Files, descriptors,
-and commands cross the application-owned `IAwkHost` boundary. This keeps authority explicit, but it
-does not make an arbitrary host implementation or the containing .NET process an operating-system
-sandbox.
+Lokad.Awk runs managed code and routes all files, descriptors, environment data and
+commands through the embedding application's `IAwkHost`. Awk code has no direct .NET
+filesystem, process, console, networking, reflection or native-loading capability.
+The host and its dependencies remain trusted; this boundary is not an OS sandbox.
 
-## Recommended Boundary
+## Configure authority
 
-Use `AwkExecutionPolicy.CreateRestricted()` for awk supplied by an untrusted party. It:
+Use `AwkExecutionPolicy.CreateRestricted()` for untrusted scripts. It disables
+script-created redirections and pipes, `@include` and changed `ARGV` input paths;
+hides environment and host-error details; fixes time to the Unix epoch/UTC; and
+applies finite data/memory budgets, host deadlines and a cooperative 30-second deadline.
+Explicit invocation inputs remain available through the host.
 
-- disables script-created file redirections, command pipes, `@include`, and runtime replacement of
-  command-line main-input paths through `ARGV`;
-- hides the invocation environment from `ENVIRON` and `AWKPATH`, and does not forward it to commands
-  if command pipes are subsequently enabled;
-- replaces structured host failure details with a generic diagnostic;
-- fixes `systime()`, zero-argument `srand()`, and local time formatting to the Unix epoch and UTC;
-- applies finite invocation, frontend, execution, input, sort, syntax, source, include, memory,
-  value, record, output, host-call, descriptor, pipe, field, symbol, array, regex, and stack budgets;
-  and
-- applies a cooperative wall-time limit, a deadline to every ordinary host operation, a command
-  deadline, and one aggregate deadline to best-effort cleanup in each execution phase.
+`--sandbox` only disables file/command redirections. It does not replace the restricted
+preset or host policy. `AccessiblePathRoot` checks canonical virtual paths lexically;
+a filesystem host must enforce its own root, including symlinks, reparse points and races.
+Standard `/dev/*` paths refer to supplied descriptors, not ambient operating-system files.
 
-Set an `AccessiblePathRoot` when the host exposes a virtual subtree. This is a lexical check over
-canonical `AwkPath` values. A host mapping those values to an operating-system filesystem must still
-perform symlink-, junction-, reparse-point-, case-, and race-safe resolution at open time. Never map
-the virtual `/` to an unrestricted operating-system root merely because the runtime canonicalized
-the string.
+## Implement the host boundary
 
-For the strongest isolation, run untrusted awk in a separate operating-system process or container
-with memory, CPU, wall-time, descriptor, process, and network limits. This protects the application
-from defects in the runtime, its parser and regex dependencies, and the host implementation itself.
+Return structured missing, unsupported, failure and exit results. Unexpected host/framework
+exceptions become generic awk diagnostics without CLR exception text. Caller cancellation
+propagates to the application as cancellation. Follow the read-buffer lifetime and outcome
+contract in the [embedding guide](../README.md#embedding).
 
-## Commands And Pipes
+One-way pipes require both policy and host permission. Their complete command text is
+passed as an opaque command identity; the runtime does not tokenize or invoke a shell.
+A host should resolve allowed commands, build arguments without shell parsing, control
+working directory/environment and bound execution/output. `system()`, coprocesses,
+network special files and dynamic/native extensions are unsupported.
 
-`system()` and dynamic extension loading are unsupported. Coprocess and `/inet` extensions are also
-rejected. Ordinary one-way awk pipes are supported only when both the execution policy and the host
-permit them.
+## Bound resource use
 
-The text to the right or left of a pipe is delivered as the complete
-`AwkCommandInvocation.CommandName`; Lokad.Awk does not split it into executable and arguments.
-Hosts must not pass this opaque, attacker-controlled text to a shell. Resolve a stable allowlisted
-command identity, construct arguments without shell parsing, use a fixed working directory, replace
-the environment, and independently limit command time, output, process count, filesystem, and
-network access.
+Both presets have no implicit execution fuel. Supply caller cancellation or an owned
+deadline, and choose memory/data limits appropriate to the workload. Mutation preflights
+preserve prior state/output when resource admission fails. See [runtime limits](RUNTIME_LIMITS.md).
 
-The compatibility policy forwards the current awk `ENVIRON` snapshot because existing awk scripts
-may depend on it. The restricted policy does not. Even when forwarding is enabled, the host remains
-responsible for removing sensitive variables and loader/search-path controls such as `PATH` and
-platform-specific preload variables.
+Memory is a conservative logical runtime budget, not a total-process heap cap.
+Cancellation is cooperative: dependency calls can finish before it is observed, and a
+timed-out host task can continue effects if the host ignores cancellation. Host and cleanup
+deadlines bound awaiting, not forced termination. Use OS process/container limits when
+untrusted workloads require hard availability guarantees.
 
-`--sandbox` disables awk file redirections, input pipes, and output pipes before a host capability is
-called. Main input and source files still cross `IAwkHost`, allowing an embedding application to
-provide explicitly authorized inputs. The public restricted policy additionally freezes the source
-and main-input capability sets, hides the environment and host details, and adds finite budgets and
-deterministic time.
-
-## Files And Descriptors
-
-Main input, `getline`, output redirections, `-f`, `-i`, `@include`, and `AWKPATH` source resolution
-are host-mediated. Relative paths may move from the current directory toward the virtual root.
-Above-root paths are rejected as awk diagnostics. Configure `AccessiblePathRoot` or enforce an
-equivalent host capability root if the virtual root is broader than the intended execution scope.
-Under the restricted preset, the invocation's explicit `-f`, `-i`, and original main-input paths
-remain capabilities, while script-originated `@include`, `AWKPATH`, and changed `ARGV` paths do not.
-Main-input capabilities are tied to their original operand index. Appending a path, copying an
-original path to a new index, or replacing an assignment operand with a path requires
-`AllowDynamicMainInputPaths`. Removing operands or changing them to assignments remains allowed.
-
-Standard paths such as `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, and their supported `/dev/fd`
-forms refer only to descriptors supplied in `AwkCommandInvocation`. A host should reject any other
-special-looking path it does not deliberately implement.
-
-Hosts must return structured missing, unsupported, failure, and exit outcomes. Unexpected host or
-framework exceptions are converted to a generic fatal diagnostic without exposing exception text.
-Caller-requested cancellation remains an exception so the embedding application can distinguish it
-from an awk failure.
-
-## Availability And Limits
-
-Frontend delimiter and syntax-tree depth are checked before binding or execution. This includes
-deeply nested calls and flat left-associated expression trees, which otherwise consume the CLR
-evaluation stack independently of awk function recursion.
-
-Source units and bytes are charged before decoding and again for the fully expanded compilation
-source. Character, token, diagnostic, identifier, and symbol limits bound frontend breadth.
-Regex pattern size, group count, compilation work, and cache retention have separate budgets.
-Regex searches, sort comparisons, and repeated separator scans observe cancellation and any
-explicit fuel allowance; their optional secondary ceilings remain configurable. Runtime input bytes and records, invocation arguments and
-environment, open descriptors, and host-visible output are also independently bounded by the
-restricted preset. Retained awk memory is governed in aggregate when `MaxExecutionMemoryBytes` is
-finite; per-value, per-record, per-array, field, builder, regex, output, and VM-stack ceilings provide
-additional preflight checks.
-
-Both policy presets have no implicit fuel cutoff and retain 100,000 ordinary host calls, aligned
-with current Lokad.Lython defaults. MaxExecutionSteps is zero when unset; positive explicit quotas
-remain enforced. The default aggregate memory budget remains unlimited; restricted memory is finite.
-Choose finite memory with WithMaxExecutionMemoryBytes and pass cancellation or an owned deadline. Compatibility allows 1,000 active function frames; restricted execution retains 32.
-Nested calls suspend at entry and unwind, including during argument evaluation, so completed
-tasks do not turn deep awk recursion into CLR stack exhaustion. Byte-oriented built-ins and
-regex rescans retain cooperative checkpoints; explicit fuel charges input chunks in addition to
-expression and statement admission. Runtime numeric scans, UTF-8 rune counting/index construction
-and ASCII case conversion use periodic cancellation callbacks without duplicate fuel charging.
-Printf directive scans, string width/precision traversal and float postprocessing now propagate the
-same callback. Interrupted formatting discards staged output and releases the builder; output/memory
-preflight still applies. Lazy text flattening, strict UTF-8 validation, byte hashing/comparison and
-runtime key/string/regex-input callers now propagate the operation-local callback. Interrupted
-materialization releases its live allocation charge and keeps complete parts for retry; lock
-acquisition polls cancellation. Completed text retains no callback. Runtime dictionary comparers
-are invocation-owned, while the global comparer remains callback-free. Bounded short initialization
-and dictionary inspection preserve their existing behavior; execution boundaries still check cancellation.
-Formatting caches publish
-key/string pairs only after decoding succeeds; canceled builder appends expose no partial suffix.
-These checkpoints add no logical fuel/byte charges. Randomized hashing and UTF-8 decode/encode
-remain one-shot framework work with boundary checks. Framework numeric formatting, UTF-8 encoding, string/copy construction and
-large padding fills remain one-shot work with boundary checks and admitted-data limits.
-Binding, lowering, symbol/semantic traversal and executable compilation propagate cancellation
-without retaining a callback in returned artifacts. Owned lexer/literal/string-diagnostic scans,
-newline metadata and nesting audits have internal checks. Grammar reductions, token navigation/copying,
-directive/continuation scans, source/include assembly and diagnostic mapping now check internally too.
-Completed frontend caches publish atomically and retain no per-run callback. Lokad.Parsing 1.1.0
-token-reader/parser APIs have no caller token: token matching, parser shifts and shared grammar
-initialization remain one-shot dependency work. Frontend data/depth limits still apply. Array sorting,
-source string/array construction and other framework numeric/string, span search/comparison and regex
-construction calls may finish before cancellation is observed. Field-width, whitespace/literal/character
-separator scans and rune advancement now check internally; field copying and record recomposition
-use callback-aware byte copying. Split payload/memory estimates and completed field/record caches
-publish only after successful construction. Cancellation releases transient reservations and keeps
-the previous state available for retry. Returned text and separator/split plans retain no callback,
-and no duplicate logical fuel/byte charge is added. Long field/NF expansion/truncation now stage
-field lists and retained value caches, checking during analysis/copying and before publication.
-The old/new buffer overlap is admitted before allocation; successful publication transfers the
-retained portion once and releases the remainder. Canceled staging or rejected peak memory keeps
-the old fields, NF value and cache. Smaller changes retain a bounded commit after a checkpoint.
-Replacement classification/parsing, escaped/literal runs, appends and result copies now check
-internally or pass the operation callback through text copying. Capture validation, measurement,
-coordinate conversion and selected-group construction check before returning the completed result;
-failure releases the existing match lease and heap boundary storage. Replacement plans and
-completed capture texts retain no callback. UTF-16 counting preserves surrogate pairs across
-chunks. General regex record copies and empty-match advancement also pass the callback before
-buffer consumption. Boundary sorting and dependency string extraction remain one-shot work with
-checks around them. Existing logical fuel/byte admission and mutation preflights are unchanged.
-Finite-memory gensub plans now count parsed parts before allocating exact-sized scratch under a
-lease; the lease remains live through matching/result construction and is released on all exits.
-Large byte-coordinate scratch has a separate exact-sized array lease admitted alongside the
-retained match lease. It is released before returning the completed match. Smaller coordinate
-scratch is bounded to 1 KiB on the stack. Cancellation/admission failure releases both charges
-before publication. Unbounded execution retains pooling and returns its buffers on failure/success;
-governed admission does not guess pool capacity. Logical fuel/byte work and defaults remain.
-Owned record-cursor scans, virtual-array snapshots, output staging and regex preparation
-observe the operation-local callback within their traversals. Runtime dialect/scalar
-preparation admits builder scratch and result strings through cache publication; structured
-POSIX predicates share this admission and include expanded expressions in cache estimates.
-Framework allocation, resizing/probing, span search, overlapping compaction, conversion and
-dependency constructors remain indivisible calls with checks at their owned boundaries.
-Frontend breadth limits and compiled-regex cache estimates are separate from governed
-runtime memory; immutable process metadata and backend allocator internals are outside a
-whole-heap measurement. See [the runtime memory and cancellation scope](RUNTIME_LIMITS.md#memory-and-cancellation-scope).
-The memory governor, mutation preflight, backend regex timeouts, and host/cleanup deadlines remain
-independent safeguards. Runtime warning queues also govern message retention, backing-array
-growth, and diagnostic formatting headroom, so repeated math warnings cannot grow an
-unbounded queue outside the memory budget.
-
-Explicit execution steps are deterministic accounting, not a wall-clock CPU guarantee.
-Ordinary execution has no default CPU/fuel ceiling; the restricted preset retains its cooperative
-30-second deadline. Optional secondary quotas do not replace caller/deadline ownership. Cancellation is
-cooperative. Lokad.Awk stops awaiting a host operation at `HostOperationTimeout`, but .NET cannot
-forcibly stop a malicious or defective host task: it may ignore cancellation or continue side
-effects after the caller has received a timeout. The host must implement its own deadlines and
-backpressure. Operating-system isolation remains necessary when process availability is a security
-requirement.
-
-## Trusted Computing Base
-
-The Lokad.Awk project is compiled with unsafe C# disabled. Parser and UTF-8 regex packages remain
-part of the trusted computing base; the regex implementation uses low-level memory and generated
-code internally. Keep locked dependencies reviewed and fuzz parser, binder, evaluator, path,
-formatting, source-loading, and regex boundaries when updating them.
+Ingress stays [strict UTF-8](UTF8_POLICY.md). The library disables unsafe C#; parser and
+regex dependencies remain part of the trusted implementation and require qualification
+when updated.

@@ -34,6 +34,9 @@ var exitCode = await awk.ExecuteAsync(host, policy, cancellation.Token);
 `ExecuteAsync` returns an `AwkExitCode`; embedding code can keep the result typed and cross to its
 integer `Value` only at a process boundary.
 
+The example reads unquoted comma-separated values. Quoted or multiline CSV requires host
+preprocessing; GNU CSV mode is not implemented.
+
 For an in-memory host implementation pattern, see
 [`MockFileSystem`](tests/Lokad.Awk.Tests/MockFileSystem.cs) in the test suite.
 Host reads report EOF and failure as separate outcomes: successful batches use
@@ -69,12 +72,18 @@ Release notes are tracked in [CHANGELOG.md](CHANGELOG.md).
 
 ## Status
 
-This repository preserves command-line awk behavior for common valid-UTF-8 workflows while the
-runtime is being migrated toward byte-native text execution, explicit resource limits, and an
-internal executable representation. The interpreter remains the default engine. The opt-in
-executable engine runs its supported expression and statement shapes as opcodes, represents every
-unsupported shape as an explicit interpreter fallback, and reports both paths through runtime
-counters. Its default-engine gate is defined in [docs/VM_ROLLOUT.md](docs/VM_ROLLOUT.md).
+Lokad.Awk qualifies ordinary valid-UTF-8 text processing: patterns, expressions, loops, user
+functions, flat arrays, records/fields, getline and formatting. This is a supported core with
+selected GNU conveniences, not full POSIX/GNU conformance. CSV, nested arrays, system(), namespaces,
+typed regex values and indirect calls remain unsupported; see the
+[compatibility matrix](docs/COMPATIBILITY_MATRIX.md).
+
+The interpreter remains the default engine. The opt-in executable engine uses explicit interpreter
+fallbacks for unsupported shapes. DotNetCompatibility remains the regex default, with
+documented [backend differences](docs/REGEX_COMPATIBILITY.md); newer Utf8Regex adoption is postponed.
+
+Current representative throughput, GNU comparison and managed allocations are maintained in
+[benchmarks](docs/BENCHMARKS.md). CI builds and tests on Windows and Linux.
 
 Compatibility note: `--characters-as-bytes` keeps awk string units in UTF-8 bytes for valid text,
 but `FS=""` in byte mode is intentionally limited to ASCII input. Non-ASCII valid UTF-8 would
@@ -100,9 +109,7 @@ Detailed runtime contracts live in:
 - [docs/COMPATIBILITY_CONTRACT.md](docs/COMPATIBILITY_CONTRACT.md)
 - [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)
 - [docs/REGEX_COMPATIBILITY.md](docs/REGEX_COMPATIBILITY.md)
-- [docs/VM_ROLLOUT.md](docs/VM_ROLLOUT.md)
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
-- [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md)
 
 ## Dependencies
 

@@ -20,8 +20,9 @@ or environment dependencies.
 
 ## Architecture Rules
 
-- Keep the default execution engine as the interpreter. Executable/VM work stays opt-in until the
-  rollout contract in `docs/VM_ROLLOUT.md` is satisfied.
+- Keep the default execution engine as the interpreter. Executable/VM work stays opt-in.
+  A default change needs golden parity, resource/cancellation parity, fallback counter evidence,
+  representative benchmark gains and a rollback path for the same source revision.
 - Preserve strict UTF-8 ingress. `AwkText` represents valid UTF-8 bytes; hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
 - Keep unsupported host capabilities explicit. Host failures must become awk-shaped diagnostics,
@@ -61,4 +62,6 @@ or environment dependencies.
   filesystem host; examples should make the `IAwkHost` boundary explicit.
 - Update docs under `docs/` when changing UTF-8 policy, runtime limits, regex compatibility,
   executable rollout behavior, benchmark workflow, or release readiness assumptions.
+- Maintain `docs/BENCHMARKS.md` as the single current comparison, with at most three tables,
+  throughput and managed allocations. Update it in place; keep raw/history evidence local.
 - Leave local planning notes untracked unless they are intended as public project documentation.

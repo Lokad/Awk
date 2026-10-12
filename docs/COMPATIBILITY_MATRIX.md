@@ -3,7 +3,7 @@
 Lokad.Awk implements common awk workflows over valid UTF-8, with all IO supplied by
 `IAwkHost`. This matrix describes the current implementation. It is not a claim of
 complete POSIX or GNU awk conformance. The interpreter is the default; the executable
-engine remains opt-in under the [rollout contract](VM_ROLLOUT.md).
+engine remains opt-in.
 
 Status meanings:
 
