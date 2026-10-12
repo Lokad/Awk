@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- User functions now suspend only when CLR stack space is low, with independent entry
+  and unwind checks. Raised syntax-depth budgets retain suspension at every call.
+  Ordinary shallow calls avoid thread-pool scheduling; function-depth admission, explicit
+  fuel, cancellation, argument evaluation and failure cleanup retain their contracts.
+
 - Numeric policy budgets now share one immutable limits value with runtime execution.
   Public configuration methods, both presets, optional specialized quotas and diagnostics
   retain their existing behavior; argument/environment/host-error budgets remain host-owned.

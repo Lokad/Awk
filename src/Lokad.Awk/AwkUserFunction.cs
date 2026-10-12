@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace Lokad.Awk;
@@ -51,12 +52,15 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         AwkEvaluationContext context)
     {
         var state = context.State;
-        var requiresStackBoundary = state.EnterFunctionInvocation();
+        state.RecordExecutionStep();
         try
         {
             // Completed ValueTasks otherwise deepen the CLR stack even while evaluating arguments.
-            if (requiresStackBoundary)
+            if (RequiresStackBoundary(state))
+            {
+                state.Counters.RecordFunctionStackSuspension();
                 await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+            }
             state.ThrowIfCancellationRequested();
 
             using (var buffer = RentedFunctionArguments.Rent(arguments.Count))
@@ -83,10 +87,13 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         }
         finally
         {
-            // The unwind needs its own boundary: a chain of inline continuations can also overflow.
-            if (requiresStackBoundary)
+            // Check unwind independently: asynchronous host calls can create a long
+            // continuation chain without consuming stack during function entry.
+            if (RequiresStackBoundary(state))
+            {
+                state.Counters.RecordFunctionStackSuspension();
                 await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
-            state.LeaveFunctionInvocation();
+            }
         }
     }
 
@@ -95,11 +102,14 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         AwkEvaluationContext context)
     {
         var state = context.State;
-        var requiresStackBoundary = state.EnterFunctionInvocation();
+        state.RecordExecutionStep();
         try
         {
-            if (requiresStackBoundary)
+            if (RequiresStackBoundary(state))
+            {
+                state.Counters.RecordFunctionStackSuspension();
                 await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+            }
             state.ThrowIfCancellationRequested();
 
             using (var buffer = RentedFunctionArguments.Rent(arguments.Count))
@@ -115,11 +125,19 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         }
         finally
         {
-            if (requiresStackBoundary)
+            if (RequiresStackBoundary(state))
+            {
+                state.Counters.RecordFunctionStackSuspension();
                 await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
-            state.LeaveFunctionInvocation();
+            }
         }
     }
+
+    private static bool RequiresStackBoundary(AwkRuntimeState state) =>
+        // The CLR probe reserves space for ordinary work. A host allowing larger
+        // expression trees retains an unconditional boundary for each invocation.
+        state.Limits.MaxSyntaxNestingDepth > AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth ||
+        !RuntimeHelpers.TryEnsureSufficientExecutionStack();
 
     private void PushArguments(
         AwkFunctionArgument[] arguments,

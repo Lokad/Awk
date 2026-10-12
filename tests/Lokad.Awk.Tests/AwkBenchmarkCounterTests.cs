@@ -820,6 +820,30 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.FormattingFallbacks);
     }
 
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter, false)]
+    [InlineData(AwkExecutionEngineKind.Interpreter, true)]
+    [InlineData(AwkExecutionEngineKind.Executable, false)]
+    [InlineData(AwkExecutionEngineKind.Executable, true)]
+    internal async Task Awk_ShallowFunctionCallsDoNotForceStackSuspension(
+        AwkExecutionEngineKind engine, bool nestedArguments)
+    {
+        var body = nestedArguments ? "return leaf(leaf(n-1))" : "return leaf(n)";
+        var (exitCode, host, counters) = await RunAsync(
+            ["function leaf(n){return n+1} function outer(n){" + body +
+             "} BEGIN{for(i=0;i<512;i++)sum+=outer(1);print sum}"],
+            string.Empty, AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, exitCode);
+        Assert.Equal("1024\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, counters.FunctionStackSuspensions);
+        Assert.True(counters.ExecutionSteps > 0);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters.AwkTextAsStringCalls);
+        Assert.Equal(counters.MemoryReservedBytes, counters.MemoryCommittedBytes + counters.MemoryReleasedReservedBytes);
+    }
+
     [Fact]
     public async Task Awk_RuntimeCounterEvidenceCoversExecutableMixedFallbackPrograms()
     {

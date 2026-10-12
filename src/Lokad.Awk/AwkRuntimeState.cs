@@ -49,7 +49,6 @@ internal sealed class AwkRuntimeState
     private AwkText _recordSeparatorText = AwkText.Empty;
     private AwkRegexCaseSensitivity _recordSeparatorCaseSensitivity;
     private long _recordSeparatorVersion;
-    private int _functionInvocationDepth;
 
     internal AwkRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
@@ -411,14 +410,6 @@ internal sealed class AwkRuntimeState
     }
 
     public bool IsInsideFunction => _functions.IsInsideFunction;
-
-    public bool EnterFunctionInvocation()
-    {
-        RecordExecutionStep();
-        return ++_functionInvocationDepth > 1;
-    }
-
-    public void LeaveFunctionInvocation() => _functionInvocationDepth--;
 
     public void SetFunctionReturnValue(AwkValue value)
     {

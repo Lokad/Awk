@@ -162,9 +162,17 @@ These limits constrain awk execution without changing successful compatibility b
   accepts positive finite quotas only, including int.MaxValue; zero/negative arguments still fail.
   Default zero is absence, rather than a finite allowance or a silently ignored explicit quota.
 - `MaxFunctionCallDepth`: active user-function frames. The compatibility default is 1,000,
-  aligned with Lokad.Lython; the restricted preset retains 32. Nested function invocations
-  suspend at entry and unwind to keep completed asynchronous operations from growing the CLR
-  stack. Argument evaluation receives the same protection before a callee frame is pushed.
+  aligned with Lokad.Lython; the restricted preset retains 32. Function entry and unwind
+  independently probe available CLR stack space and suspend when it is low. Shallow calls
+  normally complete without scheduling a continuation. The entry check runs before argument
+  evaluation, including calls whose callee frame has not yet been pushed; the unwind check
+  also covers continuation chains created by asynchronous host reads. Hosts raising
+  `MaxSyntaxNestingDepth` above the default 128 retain an unconditional suspension at both
+  boundaries, since larger expression trees need more stack than the ordinary CLR probe
+  promises. These checks add no quota or logical execution steps. Invocation depth is no
+  longer separately counted for scheduling; the existing function-frame limit owns admission.
+  `FunctionStackSuspensions` is an internal observational counter whose count depends on
+  thread stack size, compilation mode and runtime. It does not drive resource admission.
 - `MaxSyntaxNestingDepth`: delimiter, statement, and expression-tree depth, checked before binding
   and execution so hostile nesting cannot exhaust the CLR stack.
 - `MaxArrayElements`: associative array elements.

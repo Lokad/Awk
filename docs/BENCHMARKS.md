@@ -7,6 +7,31 @@ noise.
 See the [2026-10-11 focused comparison](BENCHMARK_SUMMARY_2026-10-11.md) for current-policy
 field-access allocation measurements, GNU comparison and validation.
 
+## Function scheduling and stack probes
+
+Function scheduling has a separate generated workload class. It executes 512 calls per
+public invocation, comparing direct calls, shallow wrappers, 16-level recursion and
+recursion while evaluating arguments. Every shape must produce exactly `8704\n` before
+timing. This is an interpreter scheduling benchmark, outside the native-reference catalog:
+
+```bash
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*FunctionSchedulingBenchmarks*' --warmupCount 5 --iterationCount 9 --launchCount 1
+```
+
+Validate stack changes in a separate process. The probe runs both execution engines with
+256 KiB initial thread stacks; configure the same default for continuation threads:
+
+```bash
+DOTNET_DefaultStackSize=40000 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --function-stack-probe
+```
+
+The CLR stack-size setting is hexadecimal. Run Debug and Release separately. Nine shapes
+cover 1,000 active calls, mutual recursion, nested arguments, deep return expressions,
+asynchronous input, exact recursion/fuel/runtime failures, cancellation, and raised syntax
+limits. Each row validates exact stdout/stderr/exit and balanced transient reservations.
+Stack overflow terminates the probe process, leaving the test runner intact. Suspension
+counts are observational and depend on actual stack availability.
+
 ## GNU awk comparison
 
 Reference comparisons are opt-in. Normal local benchmarks, tests, and counter reports do not

@@ -3,7 +3,8 @@ using Lokad.Awk;
 
 namespace Lokad.Awk.Benchmarking;
 
-internal sealed class ReferenceBenchmarkHost(ReferenceWorkload workload, bool capture) : IAwkHost, IDisposable
+internal sealed class ReferenceBenchmarkHost(ReferenceWorkload workload, bool capture,
+    Func<AwkFileDescriptor, int, CancellationToken, Task<AwkReadResult>>? readOverride = null) : IAwkHost, IDisposable
 {
     private readonly BenchmarkHost _input = BenchmarkHost.FromStandardInput(workload.StandardInput, workload.Files);
     private readonly ReferenceOutput _stdout = new(capture, 64L << 20);
@@ -25,7 +26,7 @@ internal sealed class ReferenceBenchmarkHost(ReferenceWorkload workload, bool ca
     public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) =>
         _input.OpenFileAsync(path, mode, token);
     public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int limit, CancellationToken token) =>
-        _input.ReadLinesAsync(descriptor, limit, token);
+        readOverride is null ? _input.ReadLinesAsync(descriptor, limit, token) : readOverride(descriptor, limit, token);
     public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) =>
         _input.CloseDescriptorAsync(descriptor, token);
     public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands,

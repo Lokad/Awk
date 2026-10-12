@@ -83,6 +83,17 @@ internal sealed class AwkRuntimeCounters
 
     public long CancellationChecks { get; private set; }
 
+    public long FunctionStackSuspensions { get; private set; }
+
+    public void RecordFunctionStackSuspension()
+    {
+        if (!_enabled)
+            return;
+
+        lock (_sync)
+            FunctionStackSuspensions++;
+    }
+
     public long AwkTextAsStringCalls { get; private set; }
 
     public long AwkTextAsStringDecodeMisses { get; private set; }
