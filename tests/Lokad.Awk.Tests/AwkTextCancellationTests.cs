@@ -233,19 +233,23 @@ public sealed class AwkTextCancellationTests
         var text = AwkText.FromString(new string('a', LongText)).Concat(AwkText.FromString("z"), counters, governor);
         using var copying = new ManualResetEventSlim();
         using var resume = new ManualResetEventSlim();
-        var owner = Task.Run(() => text.AsMemory(() =>
+        // Both participants must run independently of the test runner's constrained
+        // worker pool while the owner deliberately blocks at the copy checkpoint.
+        var owner = Task.Factory.StartNew(() => text.AsMemory(() =>
         {
             if (governor.CurrentCommittedBytes > 0 && !copying.IsSet)
             {
                 copying.Set();
                 if (!resume.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException("Materializer watchdog elapsed.");
             }
-        }).ToArray());
+        }).ToArray(), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         try
         {
             Assert.True(copying.Wait(TimeSpan.FromSeconds(5)));
             using var cancellation = new CancellationTokenSource();
-            var waiter = Task.Run(() => text.AsMemory(CancelOnCheck(cancellation, 2)).ToArray());
+            var waiter = Task.Factory.StartNew(
+                () => text.AsMemory(CancelOnCheck(cancellation, 2)).ToArray(),
+                CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
             var error = await Assert.ThrowsAsync<OperationCanceledException>(async () => await waiter.WaitAsync(TimeSpan.FromSeconds(5)));
             Assert.Equal(cancellation.Token, error.CancellationToken);
             Assert.False(owner.IsCompleted);
