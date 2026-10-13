@@ -1,6 +1,6 @@
 # Benchmarks
 
-Current baseline, 2026-10-12: Release source `fa6ff06007fad71624444eaaff672aa584373cbe`
+Current baseline, 2026-10-13: Release source `5a152632596ddc6771bf78c061bbd1352d829a82`
 versus GNU awk 5.2.1. The interpreter and DotNetCompatibility are the defaults;
 newer Utf8Regex adoption remains postponed.
 
@@ -16,26 +16,26 @@ Each result covers a complete invocation and verified output. GNU is faster in a
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Field loop, 64 fields | 80 | 14.969 | 2.176 | 6.88× | 4.46 |
-| Field loop, 3 fields | 60 | 14.896 | 2.200 | 6.77× | 4.02 |
-| Loop and numeric arithmetic | 8 | 18.466 | 2.926 | 6.31× | 2.72 |
-| ERE capture arrays (GNU) | 28 | 42.076 | 7.708 | 5.46× | 18.93 |
-| Two-file membership / join | 77.83 | 12.529 | 2.799 | 4.48× | 7.97 |
-| Nested user calls | 8 | 7.064 | 1.633 | 4.33× | 3.47 |
-| ASCII substr/index/length/casing | 52 | 6.408 | 1.556 | 4.12× | 1.89 |
-| Numeric array sort (GNU) | 18.92 | 9.715 | 2.489 | 3.90× | 4.68 |
-| Filter three fields | 24 | 5.898 | 1.532 | 3.85× | 3.93 |
-| Keyed sum / sorted output (GNU) | 24 | 4.976 | 1.367 | 3.64× | 3.57 |
-| gsub and output | 56 | 7.474 | 2.105 | 3.55× | 5.45 |
-| printf strings and integers | 24 | 6.046 | 1.815 | 3.33× | 4.69 |
-| Concatenate record and number | 20 | 4.966 | 1.531 | 3.24× | 2.24 |
-| Project a column / output | 60 | 4.297 | 1.327 | 3.24× | 3.15 |
-| Unicode length/substr / output | 60 | 6.350 | 2.076 | 3.06× | 4.51 |
-| Literal field separator | 48 | 4.083 | 1.393 | 2.93× | 3.08 |
-| ERE field separator | 48 | 5.523 | 1.993 | 2.77× | 5.61 |
-| Boolean ERE matching | 32 | 3.534 | 1.277 | 2.77× | 1.56 |
-| Byte-run ERE record separator (GNU) | 36 | 2.478 | 1.445 | 1.71× | 1.82 |
-| Multicharacter record separator (GNU) | 52 | 2.335 | 1.478 | 1.58× | 1.43 |
+| Field loop, 64 fields | 80 | 13.468 | 2.162 | 6.23× | 4.46 |
+| Field loop, 3 fields | 60 | 13.412 | 2.191 | 6.12× | 4.02 |
+| Loop and numeric arithmetic | 8 | 17.301 | 2.923 | 5.92× | 2.72 |
+| ERE capture arrays (GNU) | 28 | 39.682 | 7.696 | 5.16× | 18.93 |
+| Two-file membership / join | 77.83 | 12.582 | 2.793 | 4.50× | 7.97 |
+| Nested user calls | 8 | 7.103 | 1.613 | 4.40× | 3.47 |
+| Numeric array sort (GNU) | 18.92 | 9.604 | 2.473 | 3.88× | 4.68 |
+| ASCII substr/index/length/casing | 52 | 5.939 | 1.557 | 3.81× | 1.89 |
+| Keyed sum / sorted output (GNU) | 24 | 5.017 | 1.360 | 3.69× | 3.57 |
+| Filter three fields | 24 | 5.549 | 1.532 | 3.62× | 3.93 |
+| gsub and output | 56 | 7.409 | 2.110 | 3.51× | 5.45 |
+| printf strings and integers | 24 | 5.992 | 1.819 | 3.29× | 4.69 |
+| Project a column / output | 60 | 4.311 | 1.322 | 3.26× | 3.15 |
+| Concatenate record and number | 20 | 4.755 | 1.557 | 3.05× | 2.24 |
+| Unicode length/substr / output | 60 | 6.131 | 2.081 | 2.95× | 4.51 |
+| Literal field separator | 48 | 4.036 | 1.391 | 2.90× | 3.08 |
+| ERE field separator | 48 | 5.334 | 1.981 | 2.69× | 5.61 |
+| Boolean ERE matching | 32 | 3.392 | 1.279 | 2.65× | 1.56 |
+| Byte-run ERE record separator (GNU) | 36 | 2.455 | 1.437 | 1.71× | 1.82 |
+| Multicharacter record separator (GNU) | 52 | 2.250 | 1.474 | 1.53× | 1.43 |
 
 Allocations are managed GC bytes per Lokad invocation, measured separately with
 MemoryDiagnoser at the same source and settings. They are not native GNU allocations,
@@ -90,10 +90,11 @@ it does not append history to this maintained guide.
 For a runtime change, compare before/after on the same workloads and run the existing
 `--counter-report`. It uses a finite logical memory budget; a zero governed peak under
 unlimited policy does not mean zero allocation. Profile separately (`--profiler EP`).
-Work toward parity by profiling the highest ratios first. Initially pursue changes likely
-to reduce Lokad elapsed time by more than 10% on a priority case, favoring shared costs
-affecting several scripts. Reproduce gains in matched runs; record before/after ratios and
-allocations, exact semantics/resource behavior and any representative regressions. Lower
-the target to 5%, then smaller gains, only after larger leads are exhausted or rejected
-with evidence. Bound each investigation to a focused profile and at most two candidates;
-stop for noise or costs owned elsewhere. Expand VM coverage only when measurements justify it.
+Work toward parity by profiling the highest ratios first. The active acceptance target
+is more than 5% lower elapsed time on a useful priority script, after the initial >10%
+pass. Confirm gains in matched orders, inspect process-launch variation when it is near
+the target, and retain allocations and semantic/resource evidence. Bound each investigation
+to existing profiles/controls and at most two candidates; stop for noise or costs owned
+elsewhere. Keep allocation-only improvements separate. Lower the speed target again only
+after larger leads are delivered or rejected with evidence. Expand VM coverage only when
+measurements justify it.
