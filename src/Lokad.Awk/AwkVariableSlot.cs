@@ -35,6 +35,13 @@ internal readonly struct AwkVariableSlot
         Kind = AwkVariableSlotKind.Untyped;
     }
 
+    private AwkVariableSlot(AwkText text, double number)
+    {
+        _text = text;
+        _number = number;
+        Kind = AwkVariableSlotKind.PreparedNumericString;
+    }
+
     public static AwkVariableSlot FromUntypedScalar(AwkUntypedScalar scalar) => new(scalar);
 
     public static AwkVariableSlot FromArgumentValue(AwkValue value) =>
@@ -66,6 +73,8 @@ internal readonly struct AwkVariableSlot
         value = value.AsScalarCopy();
         if (value.IsNumberValue)
             return new AwkVariableSlot(value.AsNumber());
+        if (value.TryGetPreparedNumericInput(out var number))
+            return new AwkVariableSlot(value.ByteText, number);
 
         AwkVariableSlotKind kind;
         if (value.IsUnassignedValue)
@@ -94,6 +103,10 @@ internal readonly struct AwkVariableSlot
 
     public AwkVariableSlotKind Kind { get; }
 
+    // Selected only after the caller checks PreparedNumericString.
+    public AwkValue GetPreparedNumericInput() =>
+        AwkValue.FromPreparedNumericInput(ByteText, _number);
+
     public AwkValue ToValue(
         Func<AwkText, AwkValue> createByteTextValue,
         Func<AwkText, AwkValue> createNumericStringValue,
@@ -103,7 +116,7 @@ internal readonly struct AwkVariableSlot
             AwkVariableSlotKind.Unassigned => AwkValue.Unassigned(),
             AwkVariableSlotKind.Untyped when _text is AwkUntypedScalar scalar => AwkValue.FromUntypedScalar(scalar),
             AwkVariableSlotKind.Number => AwkValue.FromNumber(_number),
-            AwkVariableSlotKind.NumericString => createNumericStringValue(ByteText),
+            AwkVariableSlotKind.NumericString or AwkVariableSlotKind.PreparedNumericString => createNumericStringValue(ByteText),
             AwkVariableSlotKind.DeferredText => createDeferredTextValue(ByteText),
             _ => createByteTextValue(ByteText)
         };
@@ -116,5 +129,6 @@ internal enum AwkVariableSlotKind
     Untyped,
     Number,
     NumericString,
-    DeferredText
+    DeferredText,
+    PreparedNumericString
 }

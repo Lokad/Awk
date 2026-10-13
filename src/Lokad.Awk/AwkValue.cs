@@ -103,6 +103,17 @@ internal readonly struct AwkValue
     public static AwkValue FromNumber(double value) =>
         new(AwkText.Empty, value, AwkValueKind.Number);
 
+    internal static AwkValue FromPreparedNumericInput(AwkText text, double number) =>
+        new(text, number, AwkValueKind.NumericString);
+
+    internal bool TryGetPreparedNumericInput(out double number)
+    {
+        number = _number;
+        // Nonzero initial decimal digits have the same meaning in every input-number mode.
+        return _kind == AwkValueKind.NumericString && _text is AwkText text &&
+            text.ByteLength != 0 && text.AsSpan()[0] is >= (byte)'1' and <= (byte)'9';
+    }
+
     public static AwkValue FromDeferredText(AwkText text, AwkNumberParsingMode numberParsingMode) =>
         new(
             text,

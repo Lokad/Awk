@@ -760,7 +760,20 @@ internal sealed class AwkVariables
     }
 
     private AwkValue CreateValue(AwkVariableSlot slot) =>
-        slot.ToValue(_createByteTextValue, _createNumericStringValue, _createDeferredTextValue);
+        slot.Kind == AwkVariableSlotKind.PreparedNumericString
+            ? CreatePreparedNumericInput(slot)
+            : slot.ToValue(_createByteTextValue, _createNumericStringValue, _createDeferredTextValue);
+
+    private AwkValue CreatePreparedNumericInput(AwkVariableSlot slot)
+    {
+        var value = slot.GetPreparedNumericInput();
+        var byteLength = value.ByteText.ByteLength;
+        _throwIfValueBytesExceeded(byteLength);
+        _counters.RecordValueCreated();
+        if (byteLength >= AwkExecutionGovernor.WorkChunkBytes)
+            _checkpoint?.Invoke();
+        return value;
+    }
 
     private AwkScalarState GetScalarState(AwkGlobalSlotId id) =>
         _scalarSlots[id.Value].State;
