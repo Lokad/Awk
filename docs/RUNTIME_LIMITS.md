@@ -70,6 +70,9 @@ Ordinary global reads and updates reuse those slots. Scalar creation stays lazy;
 write binds only after its normal assignment succeeds. The vector charge can cause a
 tight finite-memory budget to reject earlier.
 
+Capture metadata reuses scoped UTF-8 scratch sized before key construction and released
+before array publication. Its initial capacity can shift tight-budget rejection earlier.
+
 Owned long scans/copies observe periodic cancellation and publish completed caches only.
 Framework allocation/conversion/search, parser operations and regex constructors can be
 indivisible; matching deadlines do not bound constructor time. Data/depth admission,
