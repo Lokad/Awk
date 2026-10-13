@@ -70,6 +70,10 @@ Ordinary global reads and updates reuse those slots. Scalar creation stays lazy;
 write binds only after its normal assignment succeeds. The vector charge can cause a
 tight finite-memory budget to reject earlier.
 
+Already-parsed mode-independent numeric input can reuse the number field in an existing
+slot. Original text/classification, value-size admission and long-read cancellation remain
+intact; no extra retained storage is introduced.
+
 Without a finite memory budget, small field-value dictionary buffers are reused
 across records; cached values are cleared and larger buffers discarded. Finite
 record/field memory admission and accounting are unchanged.
