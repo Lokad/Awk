@@ -59,14 +59,16 @@ within one aggregate cleanup deadline per phase; it does not receive a new deadl
 ## Memory and cancellation scope
 
 `MaxExecutionMemoryBytes` measures conservative live storage owned by the runtime:
-values/arrays, record/field caches, prepared global-read slots, builders, staged output, VM frames and admitted regex
+values/arrays, record/field caches, prepared global scalar slots, builders, staged output, VM frames and admitted regex
 preparation/scratch. Estimates include retained capacity and cache headroom. It is not a
 measurement of managed allocations or process heap use. Frontend/compiled artifacts,
 immutable process metadata, host storage and parser/backend internals have separate limits
 or ownership. Streaming reads remain bounded; general regex RS can rescan buffered data.
 
-Prepared-read storage belongs to each execution and is admitted before allocation; scalar
-creation stays lazy. Its charge can cause a tight finite-memory budget to reject earlier.
+Prepared slots belong to each execution; their vector is admitted before allocation.
+Ordinary global reads and updates reuse those slots. Scalar creation stays lazy; a first
+write binds only after its normal assignment succeeds. The vector charge can cause a
+tight finite-memory budget to reject earlier.
 
 Owned long scans/copies observe periodic cancellation and publish completed caches only.
 Framework allocation/conversion/search, parser operations and regex constructors can be
