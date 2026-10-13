@@ -8,6 +8,9 @@ internal abstract record AwkReference
     public static AwkReference Scalar(AwkVariableName variable) =>
         new AwkScalarReference(variable);
 
+    public static AwkReference PreparedGlobalScalar(AwkVariableName variable, int index) =>
+        new AwkPreparedGlobalScalarReference(variable, index);
+
     public static AwkReference LocalScalar(AwkVariableName variable, AwkFunctionLocalSlotId slotId) =>
         new AwkLocalScalarReference(variable, slotId);
 
@@ -163,6 +166,18 @@ internal sealed record AwkScalarReference(AwkVariableName Variable) : AwkReferen
     }
 }
 
+internal sealed record AwkPreparedGlobalScalarReference(AwkVariableName Variable, int Index) : AwkReference
+{
+    protected override ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context) =>
+        ValueTask.FromResult(AwkResolvedReference.PreparedGlobalScalar(Variable, Index));
+
+    internal override bool TryGetScalarName(out AwkVariableName variable)
+    {
+        variable = Variable;
+        return true;
+    }
+}
+
 internal sealed record AwkLocalScalarReference(
     AwkVariableName Variable,
     AwkFunctionLocalSlotId SlotId) : AwkReference
@@ -218,6 +233,7 @@ internal readonly struct AwkResolvedReference
     private readonly AwkArrayName _arrayVariable;
     private readonly AwkArrayKey _arrayIndex;
     private readonly AwkFieldIndex _fieldIndex;
+    private readonly int _globalIndex;
 
     private AwkResolvedReference(
         AwkResolvedReferenceKind kind,
@@ -225,7 +241,8 @@ internal readonly struct AwkResolvedReference
         AwkFunctionLocalSlotId localScalarSlotId,
         AwkArrayName arrayVariable,
         AwkArrayKey arrayIndex,
-        AwkFieldIndex fieldIndex)
+        AwkFieldIndex fieldIndex,
+        int globalIndex = default)
     {
         _kind = kind;
         _scalarVariable = scalarVariable;
@@ -233,10 +250,14 @@ internal readonly struct AwkResolvedReference
         _arrayVariable = arrayVariable;
         _arrayIndex = arrayIndex;
         _fieldIndex = fieldIndex;
+        _globalIndex = globalIndex;
     }
 
     public static AwkResolvedReference Scalar(AwkVariableName variable) =>
         new(AwkResolvedReferenceKind.Scalar, variable, default, default, default, default);
+
+    public static AwkResolvedReference PreparedGlobalScalar(AwkVariableName variable, int index) =>
+        new(AwkResolvedReferenceKind.PreparedGlobalScalar, variable, default, default, default, default, index);
 
     public static AwkResolvedReference LocalScalar(
         AwkVariableName variable,
@@ -254,6 +275,7 @@ internal readonly struct AwkResolvedReference
         return _kind switch
         {
             AwkResolvedReferenceKind.Scalar => ResolveScalarValue(state, _scalarVariable),
+            AwkResolvedReferenceKind.PreparedGlobalScalar => state.ResolvePreparedGlobalValue(_scalarVariable, _globalIndex),
             AwkResolvedReferenceKind.LocalScalar => state.ResolveFunctionLocalValue(
                 _localScalarSlotId,
                 _scalarVariable),
@@ -307,6 +329,10 @@ internal readonly struct AwkResolvedReference
                 AssignScalarValue(state, value, _scalarVariable);
                 break;
 
+            case AwkResolvedReferenceKind.PreparedGlobalScalar:
+                state.AssignPreparedGlobalValue(_scalarVariable, _globalIndex, value);
+                break;
+
             case AwkResolvedReferenceKind.LocalScalar:
                 state.AssignFunctionLocalValue(_localScalarSlotId, _scalarVariable, value);
                 break;
@@ -336,6 +362,7 @@ internal readonly struct AwkResolvedReference
 internal enum AwkResolvedReferenceKind
 {
     Scalar,
+    PreparedGlobalScalar,
     LocalScalar,
     ArrayElement,
     Field

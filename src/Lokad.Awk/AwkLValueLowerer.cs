@@ -23,7 +23,9 @@ internal static class AwkLValueLowerer
             return AwkLValueLoweringResult.Valid(
                 scope.TryGetFunctionLocalSlot(variableName, out var slotId)
                     ? AwkReference.LocalScalar(variableName, slotId)
-                    : AwkReference.Scalar(variableName));
+                    : scope.TryGetGlobalReadIndex(variableName, out var index)
+                        ? AwkReference.PreparedGlobalScalar(variableName, index)
+                        : AwkReference.Scalar(variableName));
         }
 
         static AwkLValueLoweringResult LowerArrayElement(

@@ -549,6 +549,26 @@ internal sealed class AwkRuntimeState
         AwkVariableName name) =>
         _variableRuntime.ResolveFunctionLocalValue(slotId, name);
 
+    public void AssignPreparedGlobalValue(AwkVariableName name, int index, AwkValue value)
+    {
+        if (_globalReadSlots is not { } slots)
+        {
+            AssignVariableValue(name, value);
+            return;
+        }
+        var encoded = slots[index];
+        if (encoded != 0)
+        {
+            AssignVariableValue(new AwkGlobalSlotId(encoded - 1), value);
+            return;
+        }
+
+        // Preserve first-write admission and failure timing; bind only after success.
+        AssignVariableValue(name, value);
+        var slot = GetOrCreateGlobalScalarSlot(name);
+        slots[index] = slot.Value + 1;
+    }
+
     public void AssignVariable(AwkIdentifier identifier, string value)
     {
         Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));

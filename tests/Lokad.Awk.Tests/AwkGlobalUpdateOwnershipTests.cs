@@ -4,6 +4,10 @@ public sealed class AwkGlobalUpdateOwnershipTests
 {
     private const int Limit = 1 << 20;
 
+    [Fact]
+    public void ResolvedTargetRetainsItsManagedLayout() =>
+        Assert.Equal(72, System.Runtime.CompilerServices.Unsafe.SizeOf<AwkResolvedReference>());
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
