@@ -1,8 +1,9 @@
 # Benchmarks
 
-Current baseline, 2026-10-13: Release source `38c2dba8a7bf5de1dfd2630c2e22118a1723f55d`
+Last complete baseline, measured 2026-10-13: Release source `38c2dba8a7bf5de1dfd2630c2e22118a1723f55d`
 versus GNU awk 5.2.1. The interpreter and DotNetCompatibility are the defaults;
-newer Utf8Regex adoption remains postponed.
+newer Utf8Regex adoption remains postponed. Retain this date and revision until the next
+complete measurement; results do not become fresh when runtime code advances.
 
 ## Representative processing
 
@@ -67,14 +68,14 @@ Ordinary builds/tests/CI require no GNU installation.
 
 ## Reproduce and maintain
 
-Build once, verify, then measure on an idle machine using the existing tools:
+Build once, verify, then measure the affected script and up to two contrasting controls
+on an idle machine. For example, investigate joins with aggregation and arithmetic:
 
 ```text
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-benchmarks --awk PATH_TO_GAWK --filter '*medium*' --warmupCount 5 --iterationCount 9 --launchCount 1
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*' --warmupCount 5 --iterationCount 9 --launchCount 1
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*two-file*' '*WorkloadAllocationBenchmarks*medium*aggregate*' '*WorkloadAllocationBenchmarks*medium*arithmetic-loops*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 `--check-machine` emits JSON on stdout; retain it and repeat after timing. The Linux
@@ -82,9 +83,21 @@ launcher `benchmarks/run-reference-linux.sh` pins the measured SDK/runtime/GNU i
 Keep its build step separate from timing. An independently installed GNU binary can
 also be selected with `LOKAD_AWK_ORACLE_EXE`; the driver never downloads it.
 
-Update this table in place when runtime or measurement conditions change. Record source,
-toolchain, input sizes, exact-result checks and quiet gates; retain raw CSV/logs locally.
-Keep this as the single maintained benchmark document, with at most three tables.
+Confirm promising candidates once in both before/after orders with two launches per source,
+three warmups and five iterations, using the affected case and the most useful control.
+Stop for inconclusive noise; add checks only for specific unresolved concerns. Keep full
+correctness tests, exact GNU verification and CI; GNU timing and startup campaigns are optional.
+
+Refresh all 20 families at declared milestones: after a batch of five accepted runtime
+optimizations, or an explicit full-comparison/new-source release or cumulative parity assessment.
+At that point run `--reference-benchmarks --awk PATH_TO_GAWK --filter '*medium*'` and
+`--filter '*WorkloadAllocationBenchmarks*medium*'`, each with five warmups, nine iterations
+and one launch. An accepted optimization alone does not trigger a complete refresh.
+
+Keep the retained complete table's revision/date explicit. Add focused comparisons separately
+with before/after revisions, cases, scales, settings and allocations. Never present retained
+measurements as fresh or an old GNU denominator as a freshly measured ratio. Record toolchain,
+exact-result checks and quiet gates; retain raw CSV/logs locally. Keep at most three tables.
 Do not commit BenchmarkDotNet.Artifacts or add dated summary documents.
 `--render-report PATH.json` writes a generated `PATH.json.md` beside the artifact;
 it does not append history to this maintained guide.
@@ -96,6 +109,5 @@ Work toward parity by profiling the highest ratios first. Prioritize gains above
 but accept useful, repeatable improvements around 4%. Confirm gains in matched orders,
 inspect process-launch variation, and retain allocations and semantic/resource evidence.
 Bound each investigation to existing profiles/controls and at most two candidates;
-stop for noise or costs owned
-elsewhere. Keep allocation-only improvements separate. Lower the target further as larger
+stop for noise or costs owned elsewhere. Keep allocation-only improvements separate. Lower the target further as larger
 leads are exhausted. Expand VM coverage only when measurements justify it.
