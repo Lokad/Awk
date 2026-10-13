@@ -253,18 +253,37 @@ internal sealed class AwkArrayRuntime
 
         _variables.PreflightMutableArrayReplacement(entryCount);
         var slots = _variables.CreateMutableArraySlots(entryCount);
-        for (var index = 0; index < groups.Count; index++)
+        if (entryCount != 0)
         {
-            var group = groups[index];
-            if (!group.Success)
-                continue;
+            var separator = _state.ResolveSubscriptSeparatorText();
+            var capacity = AwkRuntimeMemory.CheckedAdd(
+                AwkRuntimeMemory.CheckedAdd(AwkArrayKey.FromOrdinal(groups.Count - 1).ByteLength, separator.ByteLength),
+                MatchLengthCaptureKeyPart.ByteLength);
+            using var builder = new AwkUtf8Builder(_state.Limits, _state.MemoryGovernor, capacity);
 
-            var ordinalKey = AwkArrayKey.FromOrdinal(index);
-            slots[ordinalKey] = AwkVariableSlot.FromValue(_state.CreateByteTextValue(group.Value));
-            slots[_state.ComposeArrayKey(ordinalKey, MatchStartCaptureKeyPart)] =
-                AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Index + 1));
-            slots[_state.ComposeArrayKey(ordinalKey, MatchLengthCaptureKeyPart)] =
-                AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Length));
+            AwkArrayKey MetadataKey(AwkArrayKey ordinal, AwkText part)
+            {
+                builder.Clear();
+                ordinal.AppendTo(builder, _state.CancellationCheckpoint);
+                builder.Append(separator, _state.CancellationCheckpoint);
+                builder.Append(part, _state.CancellationCheckpoint);
+                return new AwkArrayKey(builder.CopyToAwkText(_state.Counters, _state.CancellationCheckpoint),
+                    _state.CancellationCheckpoint);
+            }
+
+            for (var index = 0; index < groups.Count; index++)
+            {
+                var group = groups[index];
+                if (!group.Success)
+                    continue;
+
+                var ordinalKey = AwkArrayKey.FromOrdinal(index);
+                slots[ordinalKey] = AwkVariableSlot.FromValue(_state.CreateByteTextValue(group.Value));
+                slots[MetadataKey(ordinalKey, MatchStartCaptureKeyPart)] =
+                    AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Index + 1));
+                slots[MetadataKey(ordinalKey, MatchLengthCaptureKeyPart)] =
+                    AwkVariableSlot.FromValue(AwkValue.FromNumber(group.Length));
+            }
         }
 
         _variables.ReplaceMutableArraySlots(
