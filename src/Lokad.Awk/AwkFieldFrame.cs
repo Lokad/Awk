@@ -13,6 +13,7 @@ internal sealed class AwkFieldFrame(
     Action? checkpoint = null)
 {
     private const int MutationCheckpointFields = 1024;
+    private const int MaxReusableFieldCacheCapacity = 128;
     private static readonly Dictionary<int, AwkValue> EmptyFieldValueCache = [];
 
     private AwkText _recordText = AwkText.Empty;
@@ -598,7 +599,10 @@ internal sealed class AwkFieldFrame(
     {
         _fieldCountValue = AwkValue.FromNumber(0);
         _fieldTexts = [];
-        _fieldValueCache = [];
+        if (!governor.IsEnabled && _fieldValueCache.EnsureCapacity(0) <= MaxReusableFieldCacheCapacity)
+            _fieldValueCache.Clear();
+        else
+            _fieldValueCache = [];
         _fieldsAreSplit = false;
         _recompositionSeparator = AwkText.Empty;
         _fieldPayloadByteLength = 0;
