@@ -203,6 +203,17 @@ internal abstract partial class AwkExpression
         return EvaluateCoreAsync(context);
     }
 
+    internal virtual ValueTask<bool> EvaluateConditionAsync(AwkEvaluationContext context)
+    {
+        var pending = EvaluateAsync(context);
+        return pending.IsCompletedSuccessfully
+            ? ValueTask.FromResult(pending.Result.IsTruthy())
+            : AwaitConditionValueAsync(pending);
+    }
+
+    private static async ValueTask<bool> AwaitConditionValueAsync(ValueTask<AwkValue> pending) =>
+        (await pending.ConfigureAwait(false)).IsTruthy();
+
     /// <summary>Evaluates this expression after the shared execution-step and cancellation checks have run.</summary>
     protected abstract ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context);
 

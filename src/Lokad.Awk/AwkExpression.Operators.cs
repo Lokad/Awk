@@ -204,6 +204,30 @@ internal abstract partial class AwkExpression
         AwkExpression right,
         AwkComparison comparison) : AwkExpression
     {
+        internal override ValueTask<bool> EvaluateConditionAsync(AwkEvaluationContext context)
+        {
+            context.State.RecordExecutionStep();
+            var pending = left.EvaluateAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? EvaluateConditionRight(context, pending.Result)
+                : AwaitConditionLeftAsync(context, pending);
+        }
+
+        private ValueTask<bool> EvaluateConditionRight(AwkEvaluationContext context, AwkValue leftValue)
+        {
+            var pending = right.EvaluateAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? ValueTask.FromResult(AwkComparisonOperations.Evaluate(leftValue, pending.Result, comparison, context.State))
+                : AwaitConditionRightAsync(context, leftValue, pending);
+        }
+
+        private async ValueTask<bool> AwaitConditionLeftAsync(AwkEvaluationContext context, ValueTask<AwkValue> pending) =>
+            await EvaluateConditionRight(context, await pending.ConfigureAwait(false)).ConfigureAwait(false);
+
+        private async ValueTask<bool> AwaitConditionRightAsync(
+            AwkEvaluationContext context, AwkValue leftValue, ValueTask<AwkValue> pending) =>
+            AwkComparisonOperations.Evaluate(leftValue, await pending.ConfigureAwait(false), comparison, context.State);
+
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var pending = left.EvaluateAsync(context);

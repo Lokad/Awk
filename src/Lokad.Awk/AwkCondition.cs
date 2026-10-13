@@ -73,16 +73,8 @@ internal sealed class AwkConditionClause
     public static AwkConditionClause Truthy(AwkExpression expression) =>
         new(expression);
 
-    public ValueTask<bool> EvaluateAsync(AwkEvaluationContext context)
-    {
-        var pending = _expression.EvaluateAsync(context);
-        return pending.IsCompletedSuccessfully
-            ? ValueTask.FromResult(pending.Result.IsTruthy())
-            : AwaitValueAsync(pending);
-    }
-
-    private static async ValueTask<bool> AwaitValueAsync(ValueTask<AwkValue> pending) =>
-        (await pending.ConfigureAwait(false)).IsTruthy();
+    public ValueTask<bool> EvaluateAsync(AwkEvaluationContext context) =>
+        _expression.EvaluateConditionAsync(context);
 
     internal bool TryEmitExecutable(AwkExecutableCompiler compiler)
     {
