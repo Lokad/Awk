@@ -4,27 +4,39 @@ internal sealed class AwkLoweringScope
 {
     private readonly AwkFunctionLocalLayout _functionLocals;
     private readonly bool _hasFunctionLocals;
+    private readonly AwkGlobalReadLayout? _globalReads;
 
     private AwkLoweringScope(AwkFunctionLocalLayout functionLocals, bool hasFunctionLocals, AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null)
+        Action? checkpoint = null, AwkGlobalReadLayout? globalReads = null)
     {
         _functionLocals = functionLocals;
         _hasFunctionLocals = hasFunctionLocals;
         CompatibilityMode = compatibilityMode;
         Checkpoint = checkpoint;
+        _globalReads = globalReads;
     }
 
     public static AwkLoweringScope Global { get; } =
         new(AwkFunctionLocalLayout.Empty, hasFunctionLocals: false);
 
-    public static AwkLoweringScope GlobalFor(AwkCompatibilityMode mode, Action? checkpoint = null) =>
-        mode == AwkCompatibilityMode.GnuDefault && checkpoint is null
+    public static AwkLoweringScope GlobalFor(AwkCompatibilityMode mode, Action? checkpoint = null,
+        AwkGlobalReadLayout? globalReads = null) =>
+        mode == AwkCompatibilityMode.GnuDefault && checkpoint is null && globalReads is null
             ? Global
-            : new(AwkFunctionLocalLayout.Empty, false, mode, checkpoint);
+            : new(AwkFunctionLocalLayout.Empty, false, mode, checkpoint, globalReads);
 
     public static AwkLoweringScope Function(AwkFunctionLocalLayout functionLocals,
         AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null) => new(functionLocals, true, mode, checkpoint);
+        Action? checkpoint = null, AwkGlobalReadLayout? globalReads = null) =>
+        new(functionLocals, true, mode, checkpoint, globalReads);
+
+    public bool TryGetGlobalReadIndex(AwkVariableName name, out int index)
+    {
+        if (_globalReads is not null)
+            return _globalReads.TryGetIndex(name, out index);
+        index = default;
+        return false;
+    }
 
     public AwkCompatibilityMode CompatibilityMode { get; }
 

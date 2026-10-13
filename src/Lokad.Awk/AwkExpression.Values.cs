@@ -204,6 +204,25 @@ internal abstract partial class AwkExpression
         }
     }
 
+    private sealed class PreparedGlobalVariableExpression(AwkVariableName name, int index) : AwkExpression
+    {
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
+            ValueTask.FromResult(context.State.ResolvePreparedGlobalValue(name, index));
+
+        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
+        {
+            compiler.EmitLoadScalar(name);
+            compiler.Push();
+            return true;
+        }
+
+        public override bool TryGetVariableName(out AwkVariableName variableName)
+        {
+            variableName = name;
+            return true;
+        }
+    }
+
     private sealed class LocalVariableExpression(
         AwkVariableName name,
         AwkFunctionLocalSlotId slotId) : AwkExpression

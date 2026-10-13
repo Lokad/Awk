@@ -99,6 +99,8 @@ internal static class AwkRuntime
             executionOptions.CompatibilityProfile,
             stringEscapeWarnings, regexEscapeWarnings);
         state.InitializeGlobalNames(program.GlobalNames);
+        if (executableProgram is null)
+            state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeArguments(runtimeArguments.RuntimeArguments);
         state.InitializeEnvironment(
             runtimeOptions.ExposeEnvironment

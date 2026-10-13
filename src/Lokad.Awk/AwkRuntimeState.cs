@@ -44,6 +44,7 @@ internal sealed class AwkRuntimeState
     private readonly AwkSpecialVariableDispatcher _specialVariables;
     private readonly AwkVariableRuntime _variableRuntime;
     private readonly AwkFunctionRuntime _functions;
+    private AwkOptionalGlobalSlotId[]? _globalReadSlots;
     private readonly AwkExecutionContextStack _executionContexts = new();
     private readonly AwkRangePatternRuntime _rangePatterns = new();
     private readonly AwkExecutionControlRuntime _executionControl = new();
@@ -507,6 +508,40 @@ internal sealed class AwkRuntimeState
 
     public AwkValue GetGlobalScalarValue(AwkGlobalSlotId id) =>
         _variableRuntime.GetGlobalScalarValue(id);
+
+    public void InitializeGlobalReadSlots(int count)
+    {
+        if (count == 0)
+            return;
+        ThrowIfCancellationRequested();
+        var bytes = AwkRuntimeMemory.EstimateGlobalReadSlotsBytes(count);
+        MemoryGovernor.Reserve(bytes);
+        AwkOptionalGlobalSlotId[] slots;
+        try
+        {
+            slots = new AwkOptionalGlobalSlotId[count];
+        }
+        catch
+        {
+            MemoryGovernor.ReleaseReserved(bytes);
+            throw;
+        }
+        MemoryGovernor.CommitReserved(bytes);
+        _globalReadSlots = slots;
+    }
+
+    public AwkValue ResolvePreparedGlobalValue(AwkVariableName name, int index)
+    {
+        if (_globalReadSlots is not { } slots)
+            return ResolveVariableValue(name);
+        if (slots[index].TryGetValue(out var slot))
+            return GetGlobalScalarValue(slot);
+
+        var value = ResolveVariableValue(name);
+        slot = GetOrCreateGlobalScalarSlot(name);
+        slots[index] = AwkOptionalGlobalSlotId.FromValue(slot);
+        return value;
+    }
 
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,

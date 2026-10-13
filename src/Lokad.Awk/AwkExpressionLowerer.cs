@@ -69,7 +69,9 @@ internal static partial class AwkExpressionLowerer
             if (scope.IsReservedVariable(identifier))
                 return false;
 
-            lowered = AwkExpression.Variable(variableName);
+            lowered = scope.TryGetGlobalReadIndex(variableName, out var globalIndex)
+                ? AwkExpression.PreparedGlobalVariable(variableName, globalIndex)
+                : AwkExpression.Variable(variableName);
             return true;
         }
 

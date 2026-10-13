@@ -35,6 +35,9 @@ internal abstract partial class AwkExpression
 
     public static AwkExpression Variable(AwkVariableName name) => new VariableExpression(name);
 
+    public static AwkExpression PreparedGlobalVariable(AwkVariableName name, int index) =>
+        new PreparedGlobalVariableExpression(name, index);
+
     public static AwkExpression LocalVariable(AwkVariableName name, AwkFunctionLocalSlotId slotId) =>
         new LocalVariableExpression(name, slotId);
 

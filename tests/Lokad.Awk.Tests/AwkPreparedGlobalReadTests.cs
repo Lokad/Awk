@@ -1,0 +1,129 @@
+using System.Runtime.CompilerServices;
+
+namespace Lokad.Awk.Tests;
+
+public sealed class AwkPreparedGlobalReadTests
+{
+    [Fact]
+    public void LayoutCopiesNamesAndExcludesSpecials()
+    {
+        var name = AwkVariableName.FromText("value");
+        var names = new HashSet<AwkVariableName> { name, AwkVariableName.FromText("FS") };
+        var layout = new AwkGlobalReadLayout(names, null);
+        names.Clear();
+        Assert.Equal(1, layout.Count);
+        Assert.True(layout.TryGetIndex(name, out var index));
+        Assert.Equal(0, index);
+        Assert.False(layout.TryGetIndex(AwkVariableName.FromText("FS"), out _));
+    }
+
+    [Fact]
+    public void SlotVectorIsAdmittedWithoutCreatingScalarsAndFirstReadStaysLazy()
+    {
+        var (state, counters) = State(CancellationToken.None);
+        var name = AwkVariableName.FromText("missing");
+        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        Assert.Equal(8, Unsafe.SizeOf<AwkOptionalGlobalSlotId>());
+        state.InitializeGlobalReadSlots(3);
+        Assert.Equal(24 + 3 * 8, state.MemoryGovernor.CurrentCommittedBytes - before);
+        Assert.False(state.HasScalar(name));
+        var admitted = state.MemoryGovernor.CurrentCommittedBytes;
+        Assert.True(state.ResolvePreparedGlobalValue(name, 1).IsUnassignedValue);
+        Assert.True(state.HasScalar(name));
+        Assert.Equal(AwkRuntimeMemory.EstimateSymbolMetadataBytes(name.Text.Length) + 24,
+            state.MemoryGovernor.CurrentCommittedBytes - admitted);
+        var typed = state.MemoryGovernor.CurrentCommittedBytes;
+        Assert.True(state.ResolvePreparedGlobalValue(name, 1).IsUnassignedValue);
+        Assert.Equal(typed, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, counters.StringDecodes);
+    }
+
+    [Fact]
+    public void FailedVectorAdmissionPublishesNothing()
+    {
+        const int limit = 1 << 20;
+        var (state, _) = State(CancellationToken.None);
+        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        using (var pressure = state.MemoryGovernor.ReserveTransient(limit - before))
+        {
+            var pressured = state.MemoryGovernor.CurrentCommittedBytes;
+            Assert.Throws<AwkRuntimeException>(() => state.InitializeGlobalReadSlots(3));
+            Assert.Equal(pressured, state.MemoryGovernor.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        }
+        // With no vector published, legacy evaluation ignores an ordinal.
+        Assert.True(state.ResolvePreparedGlobalValue(AwkVariableName.FromText("missing"), 99).IsUnassignedValue);
+    }
+
+    [Fact]
+    public void CanceledVectorPreparationDoesNotChargeOrPublish()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var (state, _) = State(cancellation.Token);
+        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        cancellation.Cancel();
+        Assert.Throws<OperationCanceledException>(() => state.InitializeGlobalReadSlots(3));
+        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+    }
+
+    [Fact]
+    public void ArrayReadFailureDoesNotCacheAReplacementScalar()
+    {
+        var (state, _) = State(CancellationToken.None);
+        var name = AwkVariableName.FromText("values");
+        var array = new AwkArrayName(name.Identifier);
+        state.SetArrayString(array, AwkArrayKey.FromOrdinal(1), "kept");
+        state.InitializeGlobalReadSlots(1);
+        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        Assert.Throws<AwkRuntimeException>(() => state.ResolvePreparedGlobalValue(name, 0));
+        Assert.Throws<AwkRuntimeException>(() => state.ResolvePreparedGlobalValue(name, 0));
+        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal("kept", state.GetArrayAwkValue(array, AwkArrayKey.FromOrdinal(1)).AsString());
+        Assert.False(state.HasScalar(name));
+    }
+
+    [Fact]
+    public async Task CompiledReadsOwnSlotsAcrossPendingConcurrentAndRepeatedExecutions()
+    {
+        var source = new MockFileSystem();
+        source.AddFile("/script", "{SYMTAB[$1]=$2;seen+=x+0} END{print seen+0,x+0,y+0}");
+        var compiled = await AwkExecutor.CompileAsync(source,
+            AwkTestHarness.BuildInvocation("awk", "-f", "/script", "/data"), CancellationToken.None);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var arrivals = 0;
+        async Task RunAsync(string input, string expected, bool pending)
+        {
+            var host = new MockFileSystem();
+            host.AddFile("/data", input);
+            if (pending) host.ReadLinesAsyncOverride = ReadAsync;
+            async Task<AwkReadResult> ReadAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
+            {
+                if (Interlocked.Increment(ref arrivals) == 2) ready.TrySetResult();
+                await ready.Task.WaitAsync(token).ConfigureAwait(false);
+                host.ReadLinesAsyncOverride = null;
+                try { return await host.ReadLinesAsync(descriptor, count, token).ConfigureAwait(false); }
+                finally { host.ReadLinesAsyncOverride = ReadAsync; }
+            }
+            var exit = await compiled.ExecuteAsync(host, deadline.Token);
+            Assert.Equal(AwkExitCode.Success, exit);
+            Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+        }
+        await Task.WhenAll(RunAsync("x 10\ny 20\n", "20 10 20\n", true),
+            RunAsync("padding 99\ny 40\nx 30\n", "30 30 40\n", true));
+        await RunAsync("y 7\nx 9\n", "9 9 7\n", false);
+    }
+
+    private static (AwkRuntimeState State, AwkRuntimeCounters Counters) State(CancellationToken token)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
+            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options), counters);
+    }
+}

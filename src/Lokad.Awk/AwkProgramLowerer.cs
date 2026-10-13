@@ -56,11 +56,12 @@ internal static partial class AwkProgramLowerer
         var beginFileActions = new List<AwkAction>();
         var endFileActions = new List<AwkAction>();
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction>(syntax.Functions.Count);
+        var globalReads = new AwkGlobalReadLayout(globalNames, checkpoint);
 
         for (var functionIndex = 0; functionIndex < syntax.Functions.Count; functionIndex++)
         {
             checkpoint?.Invoke();
-            var functionDefinition = ParseFunctionDefinition(syntax.Functions[functionIndex], mode, checkpoint);
+            var functionDefinition = ParseFunctionDefinition(syntax.Functions[functionIndex], mode, checkpoint, globalReads);
             if (!functionDefinition.Succeeded)
             {
                 return AwkLoweringResult.Failure(functionDefinition.Diagnostics);
@@ -70,7 +71,7 @@ internal static partial class AwkProgramLowerer
             functions[function.FunctionName] = function;
         }
 
-        var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint);
+        var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint, globalReads);
         for (var ruleIndex = 0; ruleIndex < syntax.Rules.Count; ruleIndex++)
         {
             checkpoint?.Invoke();
@@ -113,12 +114,14 @@ internal static partial class AwkProgramLowerer
         }
 
         checkpoint?.Invoke();
-        var program = new AwkProgram(beginActions, mainActions, endActions, beginFileActions, endFileActions, functions, globalNames);
+        var program = new AwkProgram(beginActions, mainActions, endActions, beginFileActions, endFileActions, functions,
+            globalNames, globalReads);
         checkpoint?.Invoke();
         return AwkLoweringResult.SuccessResult(program);
 
         static AwkLoweringOutcome<AwkUserFunction> ParseFunctionDefinition(
-            AwkFunctionSyntax functionSyntax, AwkCompatibilityMode mode, Action? checkpoint)
+            AwkFunctionSyntax functionSyntax, AwkCompatibilityMode mode, Action? checkpoint,
+            AwkGlobalReadLayout globalReads)
         {
             if (functionSyntax.Name.Length == 0 || AwkCompatibilityNames.IsReservedFunction(functionSyntax.Name, mode))
                 return AwkLoweringOutcome<AwkUserFunction>.Failure(new AwkDiagnostic(
@@ -133,7 +136,7 @@ internal static partial class AwkProgramLowerer
             var localLayout = new AwkFunctionLocalLayout(parameterBinding.Parameters, checkpoint);
             var body = AwkStatementLowerer.LowerList(
                 functionSyntax.BodyStatements,
-                AwkLoweringScope.Function(localLayout, mode, checkpoint));
+                AwkLoweringScope.Function(localLayout, mode, checkpoint, globalReads));
             if (!body.Succeeded)
             {
                 return AwkLoweringOutcome<AwkUserFunction>.Failure(body.Diagnostics);
