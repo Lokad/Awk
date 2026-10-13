@@ -70,6 +70,10 @@ Ordinary global reads and updates reuse those slots. Scalar creation stays lazy;
 write binds only after its normal assignment succeeds. The vector charge can cause a
 tight finite-memory budget to reject earlier.
 
+Without a finite memory budget, small field-value dictionary buffers are reused
+across records; cached values are cleared and larger buffers discarded. Finite
+record/field memory admission and accounting are unchanged.
+
 Capture metadata reuses scoped UTF-8 scratch sized before key construction and released
 before array publication. Its initial capacity can shift tight-budget rejection earlier.
 
