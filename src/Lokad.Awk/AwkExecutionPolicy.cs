@@ -12,6 +12,7 @@ public sealed record AwkExecutionPolicy
     public IMemoryBudget? MemoryBudget { get; private init; }
 
     /// <summary>Uses a borrowed shared allowance; the library owns only its child scopes.</summary>
+    /// <remarks>A budget carried by the command takes precedence, preserving nested command ownership.</remarks>
     public AwkExecutionPolicy WithMemoryBudget(IMemoryBudget budget)
     {
         ArgumentNullException.ThrowIfNull(budget);

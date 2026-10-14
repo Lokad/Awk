@@ -4,6 +4,7 @@
 The library declares the interfaces; hosts implement adapters over their own governor.
 Each execution owns a child scope and a coarse charge. Command descriptors carry that active
 budget into nested execution. Refusal uses the existing awk memory-limit diagnostic.
+An invocation's budget takes precedence over the policy budget to preserve transitive ownership.
 `MaxExecutionMemoryBytes` remains an optional execution quota, not a copied root allowance.
 
 Governed cleanup waits for actual host-task completion before refunding borrowed storage;
@@ -23,7 +24,7 @@ budgets for untrusted scripts. Refine either with its public `With...` methods.
 | Execution fuel | No implicit quota | No implicit quota |
 | Function depth / syntax depth | 1,000 / 128 | 32 / 64 |
 | Ordinary host calls | 100,000 | 100,000 |
-| Governed execution memory | Unlimited | 64 MiB |
+| Optional execution-memory quota | Unlimited | 64 MiB |
 | Record / value / builder bytes | Unlimited / unlimited / 64 MiB | 8 MiB each |
 | Runtime input / output bytes | Unlimited | 64 MiB / 16 MiB |
 | Fields / entries per array | 1,000,000 | 100,000 |

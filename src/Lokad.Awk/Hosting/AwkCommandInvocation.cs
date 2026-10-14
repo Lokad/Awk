@@ -65,8 +65,21 @@ public sealed class AwkCommandInvocation
         AwkPath currentDirectory,
         AwkFileDescriptor stdIn,
         AwkFileDescriptor stdOut,
+        AwkFileDescriptor stdErr)
+        : this(commandName, arguments, environment, currentDirectory, stdIn, stdOut, stdErr, null)
+    {
+    }
+
+    /// <summary>Initializes an invocation carrying a borrowed cooperative memory budget.</summary>
+    public AwkCommandInvocation(
+        string commandName,
+        IReadOnlyList<string> arguments,
+        IReadOnlyList<AwkEnvironmentVariable> environment,
+        AwkPath currentDirectory,
+        AwkFileDescriptor stdIn,
+        AwkFileDescriptor stdOut,
         AwkFileDescriptor stdErr,
-        IMemoryBudget? memoryBudget = null)
+        IMemoryBudget? memoryBudget)
     {
         static ReadOnlyCollection<string> CopyArguments(IReadOnlyList<string> arguments)
         {
