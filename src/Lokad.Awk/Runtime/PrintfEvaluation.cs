@@ -576,7 +576,7 @@ internal static class PrintfEvaluation
         return leadingSpace ? " " + formatted : formatted;
     }
 
-    private sealed class PrintfByteOutput : IDisposable
+    private readonly struct PrintfByteOutput : IDisposable
     {
         private readonly AwkRuntimeLimits _limits;
         private readonly AwkRuntimeCounters _counters;
