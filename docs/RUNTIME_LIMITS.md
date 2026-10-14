@@ -78,6 +78,9 @@ Without a finite memory budget, small field-value dictionary buffers are reused
 across records; cached values are cleared and larger buffers discarded. Finite
 record/field memory admission and accounting are unchanged.
 
+Empty lists used only for estimates are shared; each frame keeps its own zero-capacity
+placeholder. Published/staged field ownership and logical charges remain unchanged.
+
 Capture metadata reuses scoped UTF-8 scratch sized before key construction and released
 before array publication. Its initial capacity can shift tight-budget rejection earlier.
 

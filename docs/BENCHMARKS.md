@@ -52,32 +52,31 @@ were recorded; idle CPU gates passed before/after. No concurrent builds or trans
 
 ## Focused current-source comparison
 
-Measured 2026-10-14: `599a1f8871327dc6e670ea9d98ef2eb5f05e2ce4` before,
-`9a6a2b65c8974246992d7e08e8e089bed3e6ccc2` after, on the same toolchain above. Prepared global
-compound assignments call the existing admitted state reads/writes directly, avoiding
-resolved-location transport and kind switches. The change adds 24 runtime lines;
-left-value capture before RHS effects/suspension, consume-once evaluation, numeric
-semantics, cancellation and mutation preflights remain unchanged. Other references
-retain their completed/pending paths. No extra storage, public API or default-engine change.
+Measured 2026-10-14: `9a6a2b65c8974246992d7e08e8e089bed3e6ccc2` before,
+`7fd1f9d36812b5e8c072a55b61f0e99e9d180ded` after, on the same toolchain above. Empty field-list
+bookkeeping reuses a private estimate-only sentinel and each frame's zero-capacity
+placeholder. Three net runtime lines remove repeated allocations; published field lists,
+logical charges, finite admission/staging, cancellation and mutation preflights are unchanged.
+No public API, per-execution storage growth or default-engine change.
 
 Each order uses two launches/source, three warmups and five iterations. Times below are
 the medians of launch medians in candidate-first order; reductions show candidate-first /
 baseline-first orders. Both run the medium fixtures. This is a focused comparison;
 the complete table above retains its original source/date and GNU timings.
 
-| Case | Before ms | After ms | Time reduction, both orders | Allocated bytes, both sources |
-| --- | ---: | ---: | ---: | ---: |
-| Field loop, 3 fields | 10.115 | 9.657 | +4.5% / +2.3% | 3,136,810 |
-| Arithmetic control | 11.419 | 11.235 | +1.6% / +2.2% | 1,774,736 |
+| Case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| ASCII string processing | 5.413 | 5.596 | -3.4% / +0.1% | 1,652,407 | 1,390,259 |
+| Field loop, 3 fields | 9.336 | 9.167 | +1.8% / -3.6% | 3,136,810 | 3,005,706 |
 
-Narrow fields improve 2.3–4.5% in both orders; every candidate launch median is faster
-than every baseline launch median. Within each order, field launch variation is at most
-1.82% before and 0.31% after. Arithmetic-control reductions are 1.6–2.2%, with overlapping
-launch medians; no broad arithmetic-speed claim follows. The wide-field pilot's 3.3%
-reduction is unconfirmed. All allocations and 31 finite counter rows are unchanged.
-All 62 GNU comparisons, 18 stack scenarios and 71,697 Windows/Linux correctness tests
+Allocations decrease 15.86% for ASCII strings and 4.18% for narrow fields in both orders.
+Timing varies by launch/order (up to 4.53% launch variation); no throughput improvement
+is claimed. The pilot's narrow-field slowdown does not repeat in both orders. The three
+new allocation checks fail on the old source and pass on the optimized source.
+All 31 finite counter rows, including logical memory accounting, are unchanged.
+All 62 GNU comparisons, 18 stack scenarios and 71,700 Windows/Linux correctness tests
 pass at the optimized source.
-Windows/Linux build/test/pack [CI is green](https://github.com/Lokad/Awk/actions/runs/38542602594).
+Windows/Linux build/test/pack [CI is green](https://github.com/Lokad/Awk/actions/runs/38552851978).
 
 ## What is measured
 
