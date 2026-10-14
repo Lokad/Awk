@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Governed record processing reuses its smallest field-value cache while retaining a
+  coarse capacity charge. Values clear between records, reset refunds the buffer and
+  larger caches are discarded. Finite admission can conservatively reject earlier.
+
 - A borrowed `IMemoryBudget` can govern major runtime storage across overlapping
   invocations and nested host commands. Shared admission precedes mutation; owned
   scopes refund only after actual host users finish, including canceled/timed-out

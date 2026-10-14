@@ -92,8 +92,9 @@ slot. Original text/classification, value-size admission and long-read cancellat
 intact; no extra retained storage is introduced.
 
 Without a finite memory budget, small field-value dictionary buffers are reused
-across records; cached values are cleared and larger buffers discarded. Finite
-record/field memory admission and accounting are unchanged.
+across records. Governed execution also reuses the smallest cache, keeping a coarse
+320-byte capacity charge until reset; cached values are cleared and larger buffers discarded.
+The added backing-capacity allowance can make tight finite quotas reject earlier.
 
 Empty lists used only for estimates are shared; each frame keeps its own zero-capacity
 placeholder. Published/staged field ownership and logical charges remain unchanged.
