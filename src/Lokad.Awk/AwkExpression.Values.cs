@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Threading.Tasks;
 
@@ -33,6 +34,12 @@ internal abstract partial class AwkExpression
     private sealed class DynamicFieldIndexExpression(AwkExpression indexExpression) : AwkExpression
     {
         public AwkExpression IndexExpression => indexExpression;
+
+        internal override bool TryGetFieldIndexExpression([NotNullWhen(true)] out AwkExpression? index)
+        {
+            index = indexExpression;
+            return true;
+        }
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {

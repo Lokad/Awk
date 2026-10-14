@@ -462,6 +462,20 @@ internal sealed class AwkRuntimeState
     public int CountStringUnits(AwkText value) =>
         _stringRuntime.CountUnits(value);
 
+    public void AppendFieldPrint(AwkOutputSink output, int index)
+    {
+        if (index < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+
+        ReadOnlySpan<byte> bytes = default;
+        var borrowed = index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
+        var value = borrowed ? default : index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
+        using var formatting = MemoryAccounting.CreateTransientLease();
+        var terminator = FormatStringByteText(ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator), formatting);
+        // Copy into owned output synchronously, before the record can advance or refund.
+        output.Append(borrowed ? bytes : FormatPrintByteText(value, formatting).AsSpan(CancellationCheckpoint), terminator);
+    }
+
     public int CountFieldStringUnits(int index)
     {
         if (index == 0)

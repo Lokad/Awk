@@ -64,8 +64,13 @@ internal abstract partial class AwkStatement
     public static AwkStatement Print(IReadOnlyList<AwkExpression> expressions, AwkOutputRedirection redirection) =>
         Print(expressions, AwkOutputTarget.Redirected(redirection));
 
-    public static AwkStatement Print(IReadOnlyList<AwkExpression> expressions, AwkOutputTarget target) =>
-        new PrintStatement(AwkCollectionSnapshots.Copy(expressions), target);
+    public static AwkStatement Print(IReadOnlyList<AwkExpression> expressions, AwkOutputTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(expressions);
+        return !target.IsRedirected && expressions.Count == 1 && expressions[0].TryGetFieldIndexExpression(out var index)
+            ? new FieldPrintStatement(index, expressions[0])
+            : new PrintStatement(AwkCollectionSnapshots.Copy(expressions), target);
+    }
 
     public static AwkStatement Printf(AwkExpression format, IReadOnlyList<AwkExpression> arguments) =>
         Printf(format, arguments, AwkOutputTarget.Standard);

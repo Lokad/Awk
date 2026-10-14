@@ -6,6 +6,28 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkStatement
 {
+    private sealed class FieldPrintStatement(AwkExpression indexExpression, AwkExpression fieldExpression) : AwkStatement
+    {
+        public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
+        {
+            var output = RequireExecutionContext(context).Output;
+            // Keep the ordinary field-expression checkpoint before its index.
+            context.State.RecordExecutionStep();
+            var index = (int)await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
+            context.State.AppendFieldPrint(output, index);
+            return AwkStatementFlow.Continue;
+        }
+
+        internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
+        {
+            // The opt-in engine retains its existing field evaluation and print instruction.
+            compiler.EmitExpressionOrFallback(fieldExpression);
+            compiler.EmitPrint(1);
+            compiler.Pop();
+            return true;
+        }
+    }
+
     private sealed class PrintStatement(
         AwkExpression[] expressions,
         AwkOutputTarget target) : AwkStatement

@@ -122,6 +122,18 @@ internal sealed class AwkUtf8Builder : IDisposable
 
     public AwkUtf8Builder Append(ReadOnlyMemory<byte> bytes) => Append(bytes.Span);
 
+    public AwkUtf8Builder Append(ReadOnlySpan<byte> bytes, AwkText terminator, Action? checkpoint = null)
+    {
+        ThrowIfDisposed();
+        var ending = terminator.AsSpan(checkpoint);
+        var nextLength = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(Length, bytes.Length), ending.Length);
+        EnsureCapacity(nextLength);
+        AwkText.CopyBytes(bytes, _buffer.AsSpan(_contentOffset + Length), checkpoint);
+        AwkText.CopyBytes(ending, _buffer.AsSpan(_contentOffset + Length + bytes.Length), checkpoint);
+        Length = nextLength;
+        return this;
+    }
+
     public AwkUtf8Builder Append(ReadOnlySpan<byte> bytes, Action? checkpoint = null)
     {
         ThrowIfDisposed();

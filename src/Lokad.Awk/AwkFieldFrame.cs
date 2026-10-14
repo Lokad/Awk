@@ -149,6 +149,24 @@ internal sealed class AwkFieldFrame(
         return true;
     }
 
+    public bool TryGetUnmaterializedFieldBytes(
+        AwkFieldIndex index, Func<AwkText, List<AwkFieldText>> splitFields, out ReadOnlySpan<byte> bytes)
+    {
+        EnsureFields(splitFields);
+        bytes = default;
+        if (!index.IsNamedField || index.Value > _fieldTexts.Count)
+            return true;
+
+        var fieldIndex = index.Value - 1;
+        var field = _fieldTexts[fieldIndex];
+        if (_fieldValueCache.ContainsKey(fieldIndex) || field.Kind == AwkFieldTextKind.Owned)
+            return false;
+
+        throwIfValueBytesExceeded(field.ByteLength());
+        bytes = field.AsSpan(_recordText, checkpoint);
+        return true;
+    }
+
     public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan = default)
     {
         ReplaceRetainedMemory(AwkRuntimeMemory.CheckedAdd(

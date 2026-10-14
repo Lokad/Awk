@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Threading.Tasks;
 
@@ -10,6 +11,12 @@ internal abstract partial class AwkExpression
     public static AwkExpression FieldIndex(int index) => new FieldIndexExpression(index);
 
     public static AwkExpression FieldIndex(AwkExpression indexExpression) => new DynamicFieldIndexExpression(indexExpression);
+
+    internal virtual bool TryGetFieldIndexExpression([NotNullWhen(true)] out AwkExpression? indexExpression)
+    {
+        indexExpression = null;
+        return false;
+    }
 
     public static AwkExpression FieldCount() => FieldCountExpression.Instance;
 
