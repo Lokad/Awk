@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Reads of initialized global IGNORECASE use its existing scalar slot in GNU mode,
+  avoiding repeated name/array lookup. Setters and in-function/non-GNU behavior remain
+  unchanged. Focused projection and field-loop measurements improve in both source orders.
+
 - Main input processing reuses one record callback per pass, removing repeated delegate
   allocation with unchanged counters, resource admission and record/file ordering.
 

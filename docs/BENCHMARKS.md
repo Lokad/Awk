@@ -45,7 +45,7 @@ Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
 BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Five warmups/nine iterations/one
 launch; clean-source/GNU identities and all four quiet gates pass. No concurrent builds/transfers.
 
-## Current callback allocation improvement
+## Focused current changes
 
 Measured 2026-10-14: `a5bbdbfa5f285b361c378baf1987282bc8ab477c` before, `3b800e8656dc13315f137a082dd6131e9b098482` after.
 One callback per input-processing pass replaces repeated per-record lambdas; record/state/io,
@@ -58,12 +58,23 @@ time reductions give first/reverse order. Arithmetic is a separate bounded conce
 | Field loop, 3 fields | 9.148 | 9.468 | -3.5% / +2.1% | 3,005,746 | 2,743,662 |
 | Project a column / output | 3.271 | 3.257 | +0.4% / -0.4% | 1,667,903 | 1,405,819 |
 | Arithmetic concern control | 11.060 | 10.247 | +7.3% / -0.3% | 1,643,688 | 1,381,605 |
+| IGNORECASE read: 3 fields | 8.997 | 8.663 | +3.7% / +2.4% | 2,743,662 | 2,743,670 |
+| IGNORECASE read: projection | 3.294 | 3.149 | +4.4% / +3.7% | 1,405,819 | 1,405,827 |
 
 Allocations fall 15.71% projection, 8.72% narrow and 15.94% arithmetic in both orders.
 No throughput claim: projection is flat; narrow changes direction; arithmetic before-launch
 spread reaches 17%/7.5%. No repeatable material regression is confirmed. Empty processing
 may allocate one extra small callback. All 71,819 tests/OS, 62 exact GNU cases, 31 identical
 finite-counter rows including memory and 18 stack scenarios pass; exact source CI is green.
+
+Initialized IGNORECASE read, measured 2026-10-14: `30df7b3b390817673cf0c06ab218ec8278eb393d` before and
+`ca0f79e70a9401d7a0f3a245a2f99f0fa2a6c3de` after. GNU scalar reads outside functions use the existing
+slot; setters, in-function name resolution and non-GNU lazy behavior remain unchanged.
+One slot-id field increases managed allocation by eight bytes/invocation. The same BDN
+settings (two source orders, two launches/source/order, three warmups/five iterations)
+confirm projection/narrow improvements; this is separate from the retained complete baseline.
+No GNU retiming or broad gain is claimed.71,824 tests/OS,62 exact GNU cases,31 identical
+finite-counter rows including memory and18 stack scenarios pass.
 
 ## Retained length-only evidence
 
