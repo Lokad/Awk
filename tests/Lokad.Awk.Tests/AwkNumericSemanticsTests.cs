@@ -88,7 +88,7 @@ public sealed class AwkNumericSemanticsTests
         var outputBuffer = AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity;
         var limit = outputBuffer + retainedBuffer + (initialCount + 1) * messageBytes + growingBuffer - 1;
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(limit);
-        var governor = AwkMemoryGovernor.Create(limits);
+        var governor = AwkMemoryAccounting.Create(limits);
         using var sink = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
         for (var index = 0; index < initialCount; index++)
             sink.ReportDiagnostic(Warning(message));
@@ -120,7 +120,7 @@ public sealed class AwkNumericSemanticsTests
         var outputBuffer = AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity;
         var limit = outputBuffer + oldBuffer + (initialCount + 1) * messageBytes + (initialCount == 4 ? newBuffer : 0);
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(limit);
-        var governor = AwkMemoryGovernor.Create(limits);
+        var governor = AwkMemoryAccounting.Create(limits);
         using var sink = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
         for (var index = 0; index <= initialCount; index++)
             sink.ReportDiagnostic(Warning(message));
@@ -148,7 +148,7 @@ public sealed class AwkNumericSemanticsTests
     public async Task DiagnosticHostFailureReleasesMessagesAndDoesNotRepeatThem()
     {
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var governor = AwkMemoryGovernor.Create(limits);
+        var governor = AwkMemoryAccounting.Create(limits);
         using var sink = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
         sink.ReportDiagnostic(Warning("awk: warning: first\n"));
         sink.ReportDiagnostic(Warning("awk: warning: second\n"));

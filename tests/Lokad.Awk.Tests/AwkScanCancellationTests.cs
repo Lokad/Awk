@@ -118,7 +118,7 @@ public sealed class AwkScanCancellationTests
     public void InterruptedRuneIndexReleasesReservationAndCanBeRebuilt()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters);
         var text = AwkText.FromString(new string('\u754c', LongScan));
         using var cancellation = new CancellationTokenSource();
@@ -212,7 +212,7 @@ public sealed class AwkScanCancellationTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(32 << 10);
-        var governor = AwkMemoryGovernor.Create(limits, counters);
+        var governor = AwkMemoryAccounting.Create(limits, counters);
         var format = new string('a', 4095) + "\ud83d\ude00a";
         using var cancellation = new CancellationTokenSource();
 

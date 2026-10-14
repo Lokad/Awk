@@ -220,7 +220,7 @@ public sealed class AwkRegexPreparationCancellationTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var governor = AwkMemoryGovernor.Create(limits, counters);
+        var governor = AwkMemoryAccounting.Create(limits, counters);
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         var armed = true;

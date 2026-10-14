@@ -14,7 +14,7 @@ internal sealed class AwkFieldSplitter(
     Func<AwkRegexCaseSensitivity> resolveRegexCaseSensitivity,
     AwkStringUnitMode stringUnitMode,
     Action throwIfCancellationRequested,
-    AwkMemoryGovernor memoryGovernor,
+    AwkMemoryAccounting memoryGovernor,
     AwkRuntimeCounters counters,
     Action<int>? recordByteWork = null,
     AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,

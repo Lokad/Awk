@@ -13,7 +13,7 @@ internal static class AwkCalendarTime
         TimeZoneInfo timeZone,
         TimeZoneInfo.AdjustmentRule[] rules,
         AwkRuntimeResourceMonitor resources,
-        AwkMemoryGovernor memoryGovernor)
+        AwkMemoryAccounting memoryGovernor)
     {
         var reader = new DateReader(specification, resources);
         Span<long> values = stackalloc long[7];

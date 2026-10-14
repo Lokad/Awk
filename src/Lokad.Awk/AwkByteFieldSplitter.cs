@@ -12,7 +12,7 @@ internal sealed class AwkByteFieldSplitter(
     Func<AwkRegexCaseSensitivity> resolveRegexCaseSensitivity,
     AwkStringUnitMode stringUnitMode,
     Action throwIfCancellationRequested,
-    AwkMemoryGovernor memoryGovernor,
+    AwkMemoryAccounting memoryGovernor,
     AwkRuntimeCounters runtimeCounters,
     Action<object>? resetRegexWarningSite = null)
 {
@@ -506,14 +506,14 @@ internal sealed class AwkByteFieldSplitter(
     {
         private readonly AwkText _line;
         private readonly AwkRuntimeCounters _counters;
-        private readonly AwkMemoryGovernor _memoryGovernor;
+        private readonly AwkMemoryAccounting _memoryGovernor;
         private readonly Action _checkpoint;
         private readonly List<AwkText> _fields;
 
         public OwnedListFieldSink(
             AwkText line,
             AwkRuntimeCounters counters,
-            AwkMemoryGovernor memoryGovernor,
+            AwkMemoryAccounting memoryGovernor,
             Action checkpoint)
         {
             _checkpoint = checkpoint;
@@ -526,7 +526,7 @@ internal sealed class AwkByteFieldSplitter(
         public OwnedListFieldSink(
             AwkText line,
             AwkRuntimeCounters counters,
-            AwkMemoryGovernor memoryGovernor,
+            AwkMemoryAccounting memoryGovernor,
             int capacity,
             Action checkpoint)
         {
@@ -551,7 +551,7 @@ internal sealed class AwkByteFieldSplitter(
     private struct OwnedArrayFieldSink(
         AwkText line,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor memoryGovernor,
+        AwkMemoryAccounting memoryGovernor,
         AwkText[] fields,
         Action checkpoint) : IFieldSink<AwkText[]>
     {

@@ -8,9 +8,9 @@ namespace Lokad.Awk;
 internal readonly record struct AwkRegexSelection(bool RequiresLongest, int MaximumScalars,
     bool RequiresCaptureSelection = false)
 {
-    public static AwkRegexSelection Analyze(string pattern, Action? checkpoint = null, AwkMemoryGovernor? governor = null)
+    public static AwkRegexSelection Analyze(string pattern, Action? checkpoint = null, AwkMemoryAccounting? governor = null)
     {
-        governor ??= AwkMemoryGovernor.Disabled;
+        governor ??= AwkMemoryAccounting.Disabled;
         using var storage = governor.CreateTransientLease();
         Frame[] frames = [];
         var depth = 0;

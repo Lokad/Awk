@@ -8,14 +8,14 @@ internal sealed class AwkOutputSink : IDisposable
 {
     private readonly AwkUtf8Builder _standardOutput;
     private readonly List<AwkDiagnostic> _diagnostics = [];
-    private readonly AwkMemoryGovernor _governor;
+    private readonly AwkMemoryAccounting _governor;
     private readonly Action? _checkpoint;
     private long _diagnosticBufferBytes;
     private long _diagnosticMessageBytes;
 
     public AwkOutputSink(
         AwkRuntimeLimits limits,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         AwkRuntimeCounters counters,
         Action? checkpoint = null)
     {

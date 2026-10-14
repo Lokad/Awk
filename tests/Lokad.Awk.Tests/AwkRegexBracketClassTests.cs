@@ -14,7 +14,7 @@ public sealed class AwkRegexBracketClassTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        var governor = AwkMemoryGovernor.Create(limits, counters);
+        var governor = AwkMemoryAccounting.Create(limits, counters);
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             static () => { }, counters, engine, new AwkRuntimeResourceMonitor(limits, counters), governor, mode);
         for (var run = 0; run < 2; run++)
@@ -168,6 +168,6 @@ public sealed class AwkRegexBracketClassTests
         Assert.Equal(2, counters.RegexCompiles);
     }
 
-    private static AwkMemoryGovernor Governor(long bytes) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
+    private static AwkMemoryAccounting Governor(long bytes) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
 }

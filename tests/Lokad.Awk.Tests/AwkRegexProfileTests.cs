@@ -37,7 +37,7 @@ public sealed class AwkRegexProfileTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxRegexPatternBytes(2);
-        var governor = AwkMemoryGovernor.Create(limits, counters);
+        var governor = AwkMemoryAccounting.Create(limits, counters);
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters, engine,
             new AwkRuntimeResourceMonitor(limits, counters), governor, mode);

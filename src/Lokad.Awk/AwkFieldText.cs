@@ -66,7 +66,7 @@ internal readonly struct AwkFieldText
     public AwkText Materialize(
         AwkText recordText,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null) =>
         Kind switch
         {

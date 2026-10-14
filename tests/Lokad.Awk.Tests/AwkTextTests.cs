@@ -64,17 +64,17 @@ public sealed class AwkTextTests
 
         Assert.Equal(
             "Alpha caf\u00e9!",
-            source.Concat(suffix, AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
+            source.Concat(suffix, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled).AsString());
         Assert.Equal(
             "ha",
-            source.CopyByteSlice(3, 2, AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
+            source.CopyByteSlice(3, 2, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled).AsString());
         Assert.Equal(
             "caf\u00e9",
             source.CopyRuneSlice(
                 6,
                 4,
                 AwkRuntimeCounters.Disabled,
-                AwkMemoryGovernor.Disabled).AsString());
+                AwkMemoryAccounting.Disabled).AsString());
         Assert.Equal(6, source.IndexOf(AwkText.FromString("caf\u00e9")));
         Assert.True(source.StartsWith(AwkText.FromString("Alpha")));
         Assert.True(source.EndsWith(AwkText.FromString("caf\u00e9")));
@@ -83,7 +83,7 @@ public sealed class AwkTextTests
             10,
             1,
             AwkRuntimeCounters.Disabled,
-            AwkMemoryGovernor.Disabled));
+            AwkMemoryAccounting.Disabled));
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class AwkTextTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var concatenated = AwkText.FromString("ab", counters)
-            .Concat(AwkText.FromString("cd", counters), counters, AwkMemoryGovernor.Disabled);
+            .Concat(AwkText.FromString("cd", counters), counters, AwkMemoryAccounting.Disabled);
 
         Assert.Equal(0, counters.ConcatenationBytesCopied);
         Assert.Equal("abcd", concatenated.AsString());
@@ -108,7 +108,7 @@ public sealed class AwkTextTests
         var concatenated = borrowed.Concat(
             AwkText.FromString("cd"),
             AwkRuntimeCounters.Disabled,
-            AwkMemoryGovernor.Disabled);
+            AwkMemoryAccounting.Disabled);
 
         buffer[0] = (byte)'x';
 
@@ -119,7 +119,7 @@ public sealed class AwkTextTests
     public void AwkText_GovernedAllocationsCoverConcatAndSlices()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(64),
             counters);
         var source = AwkText.FromString("café", counters, governor);
@@ -139,7 +139,7 @@ public sealed class AwkTextTests
     public void AwkText_GovernedAllocationFailsBeforeOversizedConcat()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(6),
             counters);
         var left = AwkText.FromString("abc", counters, governor);
@@ -154,7 +154,7 @@ public sealed class AwkTextTests
     public void AwkText_GovernedCopyFailsBeforeCreatingText()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(3),
             counters);
 
@@ -171,7 +171,7 @@ public sealed class AwkTextTests
     public void AwkText_GovernedRuneIndexFailsBeforeAllocation()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4),
             counters);
         var source = AwkText.FromString(new string('\u00e9', 128));
@@ -231,7 +231,7 @@ public sealed class AwkTextTests
         var retainedBytes = text.EstimatedRetainedMemoryBytes;
 
         _ = text.AsString(counters);
-        _ = text.CopyRuneSlice(1, 1, counters, AwkMemoryGovernor.Disabled);
+        _ = text.CopyRuneSlice(1, 1, counters, AwkMemoryAccounting.Disabled);
 
         Assert.True(retainedBytes > text.ByteLength);
         Assert.Equal(retainedBytes, text.EstimatedRetainedMemoryBytes);

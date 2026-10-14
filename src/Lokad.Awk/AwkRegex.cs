@@ -97,13 +97,13 @@ internal sealed class AwkRegex
 
     public static string TranslatePattern(AwkRegexPattern pattern,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null, AwkMemoryLease? resultLease = null, AwkMemoryGovernor? governor = null)
+        Action? checkpoint = null, AwkMemoryLease? resultLease = null, AwkMemoryAccounting? governor = null)
     {
-        var memory = governor ?? AwkMemoryGovernor.Disabled;
+        var memory = governor ?? AwkMemoryAccounting.Disabled;
         using var ownedResults = resultLease is null ? memory.CreateTransientLease() : AwkMemoryLease.Disabled;
         return Translate(pattern.Text, compatibilityMode, checkpoint, resultLease ?? ownedResults, memory);
         static string Translate(string pattern, AwkCompatibilityMode mode, Action? checkpoint,
-            AwkMemoryLease resultLease, AwkMemoryGovernor memory)
+            AwkMemoryLease resultLease, AwkMemoryAccounting memory)
         {
             using var decoding = memory.ReserveTransient(memory.IsEnabled &&
                 AwkRegexConstruction.IndexOf(pattern, '\\', 0, checkpoint) >= 0
@@ -115,7 +115,7 @@ internal sealed class AwkRegex
             return TranslatePosixCharacterClasses(TranslateEscapes(decoded, mode, checkpoint, memory, resultLease),
                 checkpoint, resultLease, memory);
             static string TranslateEscapes(string pattern, AwkCompatibilityMode mode, Action? checkpoint,
-                AwkMemoryGovernor memory, AwkMemoryLease resultLease)
+                AwkMemoryAccounting memory, AwkMemoryLease resultLease)
             {
                 using var scratch = memory.CreateTransientLease();
                 StringBuilder? builder = null;
@@ -251,7 +251,7 @@ internal sealed class AwkRegex
             }
 
             static string TranslatePosixCharacterClasses(string pattern, Action? checkpoint,
-                AwkMemoryLease resultLease, AwkMemoryGovernor memory)
+                AwkMemoryLease resultLease, AwkMemoryAccounting memory)
             {
                 if (AwkRegexConstruction.IndexOf(pattern, "[:", 0, checkpoint) < 0 &&
                     AwkRegexConstruction.IndexOf(pattern, "[=", 0, checkpoint) < 0 &&
@@ -356,7 +356,7 @@ internal sealed class AwkRegex
                 }
 
                 static string TranslatePosixClassTokens(string content, Action? checkpoint,
-                    AwkMemoryLease resultLease, AwkMemoryGovernor memory)
+                    AwkMemoryLease resultLease, AwkMemoryAccounting memory)
                 {
                     var translated = TranslatePosixEquivalenceAndCollatingTokens(content, checkpoint, resultLease, memory);
                     translated = AwkRegexConstruction.Replace(translated, "[:alnum:]", "\\p{L}\\p{Nd}", checkpoint, resultLease);
@@ -374,7 +374,7 @@ internal sealed class AwkRegex
                     return translated;
 
                     static string TranslatePosixEquivalenceAndCollatingTokens(string content, Action? checkpoint,
-                        AwkMemoryLease resultLease, AwkMemoryGovernor memory)
+                        AwkMemoryLease resultLease, AwkMemoryAccounting memory)
                     {
                         var tokenStart = AwkRegexConstruction.IndexOf(content, '[', 0, checkpoint);
                         if (tokenStart < 0)

@@ -79,7 +79,7 @@ public sealed class AwkValueTests
     public void AwkValue_IntegerConversionFormattingAvoidsStringProjection()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters);
         var formatter = new AwkFormattingRuntime(
             static _ => new AwkFormatString(AwkText.FromSourceLiteralString("%.6g")),
             AwkRuntimeLimits.CreateDefault(),
@@ -100,7 +100,7 @@ public sealed class AwkValueTests
     public void AwkValue_DefaultNumericFormattingAvoidsPrintfFallback()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters);
         var defaultFormat = new AwkFormatString(AwkText.FromSourceLiteralString("%.6g"));
         var formatter = new AwkFormattingRuntime(
             _ => defaultFormat,

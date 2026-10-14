@@ -25,7 +25,7 @@ internal sealed class AwkRecordFieldRuntime
         Func<AwkText> resolveOutputFieldSeparator,
         Func<AwkRecordFieldSplittingMode> resolveAssignedRecordMode,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         int maxFields,
         Action<long> throwIfValueBytesExceeded,
         Action<int> recordByteWork,

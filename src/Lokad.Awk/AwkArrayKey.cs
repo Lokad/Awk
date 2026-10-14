@@ -66,7 +66,7 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     public bool IsOrdinal => _kind == AwkArrayKeyKind.Ordinal;
 
-    public AwkText ToByteText(AwkRuntimeCounters counters, AwkMemoryGovernor governor)
+    public AwkText ToByteText(AwkRuntimeCounters counters, AwkMemoryAccounting governor)
     {
         if (!IsOrdinal)
             return Text;

@@ -2,7 +2,7 @@ using System;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkRuntimeOptions
+internal sealed record AwkRuntimeOptions
 {
     private readonly Func<AwkRandomGenerator> _createRandomGenerator;
 
@@ -25,7 +25,8 @@ internal sealed class AwkRuntimeOptions
         TimeSpan? hostOperationTimeout = null,
         bool exposeEnvironment = true,
         bool exposeHostErrorDetails = true,
-        int maxHostErrorBytes = 4 << 10)
+        int maxHostErrorBytes = 4 << 10,
+        IMemoryBudget? memoryBudget = null)
     {
         var randomGeneratorSnapshot = randomGenerator.Clone();
         CurrentUnixTimeSeconds = currentUnixTimeSeconds;
@@ -47,7 +48,12 @@ internal sealed class AwkRuntimeOptions
         ExposeEnvironment = exposeEnvironment;
         ExposeHostErrorDetails = exposeHostErrorDetails;
         MaxHostErrorBytes = maxHostErrorBytes;
+        MemoryBudget = memoryBudget;
     }
+
+    public IMemoryBudget? MemoryBudget { get; }
+
+    public AwkExecutionMemoryOwner MemoryOwner { get; init; } = AwkExecutionMemoryOwner.Disabled;
 
     public Func<AwkUnixTimestampSeconds> CurrentUnixTimeSeconds { get; }
 
@@ -89,7 +95,7 @@ internal sealed class AwkRuntimeOptions
 
     public static AwkRuntimeOptions CreateSystemDefault() => Create(AwkExecutionPolicy.CreateDefault());
 
-    public static AwkRuntimeOptions Create(AwkExecutionPolicy policy) =>
+    public static AwkRuntimeOptions Create(AwkExecutionPolicy policy, IMemoryBudget? invocationBudget = null) =>
         new(
             () => new AwkUnixTimestampSeconds(policy.TimeProvider.GetUtcNow().ToUnixTimeSeconds()),
             policy.TimeZone,
@@ -109,5 +115,6 @@ internal sealed class AwkRuntimeOptions
             policy.HostOperationTimeout,
             policy.ExposeEnvironment,
             policy.ExposeHostErrorDetails,
-            policy.MaxHostErrorBytes);
+            policy.MaxHostErrorBytes,
+            invocationBudget ?? policy.MemoryBudget);
 }

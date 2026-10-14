@@ -716,7 +716,7 @@ internal sealed class AwkArrayRuntime
         {
             var runtime = projection.Runtime;
             // The enclosing snapshot lease has already admitted every new key payload.
-            var keyText = key.ToByteText(runtime._state.Counters, AwkMemoryGovernor.Disabled);
+            var keyText = key.ToByteText(runtime._state.Counters, AwkMemoryAccounting.Disabled);
             var stringValueOrder = projection.Mode is AwkArraySortMode.ValueStringAscending or AwkArraySortMode.ValueStringDescending;
             var typeValueOrder = projection.Mode is AwkArraySortMode.ValueTypeAscending or AwkArraySortMode.ValueTypeDescending;
             var valueText = stringValueOrder || typeValueOrder && !value.IsNumberValue

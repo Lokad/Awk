@@ -65,7 +65,7 @@ internal sealed class AwkRuntimeState
         Counters = runtimeOptions.Counters;
         Limits = runtimeOptions.Limits;
         Resources = resources;
-        MemoryGovernor = AwkMemoryGovernor.Create(Limits, Counters);
+        MemoryGovernor = AwkMemoryAccounting.Create(Limits, Counters, runtimeOptions.MemoryOwner);
         CompatibilityMode = compatibilityProfile.Mode;
         _stringEscapeWarnings = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
         LintMode = compatibilityProfile.LintMode;
@@ -235,7 +235,7 @@ internal sealed class AwkRuntimeState
 
     public AwkRuntimeResourceMonitor Resources { get; }
 
-    public AwkMemoryGovernor MemoryGovernor { get; }
+    public AwkMemoryAccounting MemoryGovernor { get; }
 
     public TimeZoneInfo TimeZone => _timeRuntime.TimeZone;
 

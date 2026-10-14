@@ -107,7 +107,7 @@ public sealed class AwkUnicodeRegexTests
     [Fact]
     public void WarningHistoryMemoryPreflightPreservesPreviousEntry()
     {
-        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096));
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096));
         var messages = new List<string>();
         var history = new AwkRegexUnicodeWarnings(governor, AwkCompatibilityMode.GnuDefault,
             messages.Add, static () => { });
@@ -137,7 +137,7 @@ public sealed class AwkUnicodeRegexTests
         const string pattern = @"\u0041";
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(
             AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1);
-        var governor = AwkMemoryGovernor.Create(limits);
+        var governor = AwkMemoryAccounting.Create(limits);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
@@ -159,7 +159,7 @@ public sealed class AwkUnicodeRegexTests
     [InlineData(true)]
     public void WarningCallbackFailureReleasesReservationAndAllowsRetry(bool grow)
     {
-        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(16384));
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(16384));
         var calls = 0;
         var fail = false;
         var history = new AwkRegexUnicodeWarnings(governor, AwkCompatibilityMode.GnuDefault,

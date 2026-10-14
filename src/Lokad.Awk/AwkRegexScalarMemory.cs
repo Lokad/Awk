@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 internal static partial class AwkRegexScalarPattern
 {
     public static string Translate(string pattern, Action? checkpoint = null,
-        AwkMemoryGovernor? governor = null, AwkMemoryLease? resultLease = null)
+        AwkMemoryAccounting? governor = null, AwkMemoryLease? resultLease = null)
     {
         if (governor is null || !governor.IsEnabled)
             return TranslateCore(pattern, checkpoint);

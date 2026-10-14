@@ -55,7 +55,7 @@ internal readonly record struct AwkRegexMatch
         AwkRegexCapturePlan capturePlan,
         long maxCaptureBytes,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         int[]? groupMap = null,
         Action? checkpoint = null) =>
         FromCaptures(new AwkRegexCaptureView(match, input, groupMap), input, byteIndex, byteLength,
@@ -64,7 +64,7 @@ internal readonly record struct AwkRegexMatch
     internal static AwkLeasedRegexMatch FromCaptures(
         AwkRegexCaptureView selected, string input, int byteIndex, int byteLength,
         AwkRegexCoordinatePolicy coordinatePolicy, AwkRegexCapturePlan capturePlan,
-        long maxCaptureBytes, AwkRuntimeCounters counters, AwkMemoryGovernor governor,
+        long maxCaptureBytes, AwkRuntimeCounters counters, AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
         const int MaxStackBoundaryCount = 128;
@@ -219,7 +219,7 @@ internal readonly record struct AwkRegexMatch
                         group.Success,
                         groupIndex,
                         groupLength,
-                        AwkText.FromUtf16(group.ValueSpan, counters, AwkMemoryGovernor.Disabled, checkpoint));
+                        AwkText.FromUtf16(group.ValueSpan, counters, AwkMemoryAccounting.Disabled, checkpoint));
                 }
 
                 checkpoint?.Invoke();
@@ -261,7 +261,7 @@ internal readonly record struct AwkRegexMatch
         AwkRegexCapturePlan capturePlan,
         long maxCaptureBytes,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
         static long MeasureRetainedTextMemory(
@@ -324,13 +324,13 @@ internal readonly record struct AwkRegexMatch
                 var group = match.GetGroup(index);
                 AwkText groupValue;
                 if (group.TryGetValueBytes(out var groupBytes))
-                    groupValue = AwkText.CopyTrustedBytes(groupBytes, counters, AwkMemoryGovernor.Disabled, checkpoint);
+                    groupValue = AwkText.CopyTrustedBytes(groupBytes, counters, AwkMemoryAccounting.Disabled, checkpoint);
                 else
                 {
                     checkpoint?.Invoke();
                     var text = group.GetValueString();
                     checkpoint?.Invoke();
-                    groupValue = AwkText.FromString(text, counters, AwkMemoryGovernor.Disabled, checkpoint);
+                    groupValue = AwkText.FromString(text, counters, AwkMemoryAccounting.Disabled, checkpoint);
                 }
                 groups[index] = new AwkRegexGroup(
                     group.Success,

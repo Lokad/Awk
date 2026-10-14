@@ -6,7 +6,7 @@ internal sealed class AwkFormattingRuntime(
     Func<AwkFormattingVariable, AwkFormatString> resolveVariable,
     AwkRuntimeLimits limits,
     AwkRuntimeCounters counters,
-    AwkMemoryGovernor governor,
+    AwkMemoryAccounting governor,
     AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
     Action? checkpoint = null)
 {
@@ -75,7 +75,7 @@ internal sealed class AwkFormattingRuntime(
         TArguments arguments,
         AwkRuntimeLimits limits,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null,
         AwkMemoryLease? retainedTextLease = null)

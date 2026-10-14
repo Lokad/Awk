@@ -43,7 +43,7 @@ public sealed class AwkArrayKeyTests
         Assert.Equal(text, fromOrdinal.AsString(AwkRuntimeCounters.Disabled));
         Assert.Equal(
             text,
-            fromOrdinal.ToByteText(AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled).AsString());
+            fromOrdinal.ToByteText(AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled).AsString());
         Assert.Equal(text.Length, fromOrdinal.ByteLength);
         Assert.Equal(0, fromOrdinal.RetainedTextMemoryBytes);
         Assert.Equal(
@@ -65,7 +65,7 @@ public sealed class AwkArrayKeyTests
     public void AwkArrayKey_OrdinalMaterializationUsesRuntimeAccounting()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024),
             counters);
         var baselineAllocations = counters.AwkTextAllocations;

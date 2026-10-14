@@ -135,7 +135,7 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         }).CreateLiteral(new AwkRegexLiteralText("."));
         Assert.True(heldChecks > 0);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters);
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters);
         using var cancellation = new CancellationTokenSource();
         var armed = true;
         var checks = 0;
@@ -253,10 +253,10 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         Assert.Equal(0, governor.CurrentReservedBytes);
     }
 
-    private static AwkMemoryGovernor Governor(long bytes) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
+    private static AwkMemoryAccounting Governor(long bytes) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
 
-    private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryGovernor governor, AwkRuntimeCounters counters,
+    private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryAccounting governor, AwkRuntimeCounters counters,
         Action? checkpoint = null) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             checkpoint ?? (() => { }), counters,

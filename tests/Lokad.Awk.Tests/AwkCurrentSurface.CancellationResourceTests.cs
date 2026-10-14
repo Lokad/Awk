@@ -259,7 +259,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         using var matches = runtime.EnumerateMatchValues(
             regex,
             input,
-            AwkMemoryGovernor.Disabled,
+            AwkMemoryAccounting.Disabled,
             AwkRegexCapturePlan.All);
         Assert.Throws<OperationCanceledException>(() =>
         {
@@ -1309,7 +1309,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public async Task Awk_StandardOutputFlushAvoidsCopyingBuffer()
     {
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(300);
-        var governor = AwkMemoryGovernor.Create(limits);
+        var governor = AwkMemoryAccounting.Create(limits);
         using var output = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
         output.Append(AwkText.FromString(new string('x', 80)));
         var fileSystem = new MockFileSystem();
@@ -1719,7 +1719,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_MemoryGovernorFailsBeforeMutatingState()
     {
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(10));
 
         governor.Reserve(6);
@@ -1742,7 +1742,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_MemoryGovernorTracksReleaseCounters()
     {
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(16));
 
         governor.Reserve(10);
@@ -1766,7 +1766,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_DisabledMemoryGovernorKeepsDiagnosticsAtZero()
     {
-        var governor = AwkMemoryGovernor.Disabled;
+        var governor = AwkMemoryAccounting.Disabled;
 
         governor.Reserve(long.MaxValue);
         governor.CommitReserved(long.MaxValue);

@@ -48,7 +48,8 @@ public sealed class Awk
         return AwkExecutor.ExecuteAsync(
             host,
             AwkCommandParser.Parse(_command),
-            cancellationToken);
+            cancellationToken,
+            AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault(), _command.MemoryBudget));
     }
 
     /// <summary>Executes the parsed command under an explicit capability and resource policy.</summary>
@@ -65,7 +66,7 @@ public sealed class Awk
                 host,
                 AwkCommandParser.Parse(_command, policy),
                 cancellationToken,
-                AwkRuntimeOptions.Create(policy));
+                AwkRuntimeOptions.Create(policy, _command.MemoryBudget));
     }
 
     private async Task<AwkExitCode> ExecuteWithTimeoutAsync(
@@ -85,7 +86,7 @@ public sealed class Awk
                     host,
                     invocation,
                     executionSource.Token,
-                    AwkRuntimeOptions.Create(policy))
+                    AwkRuntimeOptions.Create(policy, _command.MemoryBudget))
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException)

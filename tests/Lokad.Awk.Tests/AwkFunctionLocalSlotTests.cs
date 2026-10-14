@@ -187,7 +187,7 @@ public sealed class AwkFunctionLocalSlotTests
     private static AwkFunctionCallStack CreateCallStack(AwkRuntimeCounters counters) =>
         new(
             maxFunctionCallDepth: 8,
-            AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters),
+            AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters),
             static text => AwkValue.FromText(text),
             static text => AwkValue.FromNumericString(text),
             static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal));

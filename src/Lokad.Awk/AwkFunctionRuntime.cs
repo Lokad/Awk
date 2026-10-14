@@ -13,7 +13,7 @@ internal sealed class AwkFunctionRuntime
 
     public AwkFunctionRuntime(
         int maxFunctionCallDepth,
-        AwkMemoryGovernor memoryGovernor,
+        AwkMemoryAccounting memoryGovernor,
         Func<AwkText, AwkValue> createByteTextValue,
         Func<AwkText, AwkValue> createNumericStringValue,
         Func<AwkText, AwkValue> createDeferredTextValue,

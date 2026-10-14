@@ -7,7 +7,7 @@ internal sealed class AwkSpecialVariableDispatcher(
     AwkFieldSplitter fieldSplitter,
     Func<AwkValue, AwkText> formatString,
     Action<AwkSpecialVariableId> recordAssignment,
-    AwkMemoryGovernor memoryGovernor,
+    AwkMemoryAccounting memoryGovernor,
     AwkCompatibilityMode mode = AwkCompatibilityMode.GnuDefault,
     Action? checkpoint = null,
     Action<AwkText>? validateRecordSeparator = null)
@@ -113,7 +113,7 @@ internal sealed class AwkSpecialVariableDispatcher(
         if (publish)
             growth = AwkRuntimeMemory.CheckedAdd(growth,
                 variables.EstimateArrayValueMemoryGrowth(ProcInfo, FieldModeKey, fieldMode));
-        memoryGovernor.PreflightAllocation(AwkRuntimeMemory.CheckedAdd(growth, widthBytes));
+        using var allocationPeak = memoryGovernor.ReserveAllocationPeak(AwkRuntimeMemory.CheckedAdd(growth, widthBytes));
         if (id == AwkSpecialVariableId.FieldWidths)
             widths = fieldSplitter.PrepareFieldWidths(text);
 

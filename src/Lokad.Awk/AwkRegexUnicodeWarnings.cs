@@ -1,6 +1,6 @@
 namespace Lokad.Awk;
 
-internal sealed class AwkRegexUnicodeWarnings(AwkMemoryGovernor governor, AwkCompatibilityMode mode,
+internal sealed class AwkRegexUnicodeWarnings(AwkMemoryAccounting governor, AwkCompatibilityMode mode,
     Action<string>? report, Action checkpoint, AwkRegexEscapeWarnings? regexEscapeWarnings = null)
 {
     private readonly AwkRegexEscapeWarnings _operatorWarnings = regexEscapeWarnings ?? new AwkRegexEscapeWarnings();

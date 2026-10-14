@@ -40,7 +40,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkText right,
         int byteLength,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryAccounting governor)
     {
         _bytes = [];
         _byteLength = byteLength;
@@ -134,7 +134,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     public static AwkText FromString(
         string text,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
         if (text.Length == 0)
@@ -146,7 +146,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     internal static AwkText FromUtf16(
         ReadOnlySpan<char> text,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
         if (text.IsEmpty)
@@ -172,7 +172,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             return Empty;
 
         ThrowIfInvalidUtf8(bytes.Span, checkpoint);
-        return CopyTrustedBytes(bytes.Span, counters, AwkMemoryGovernor.Disabled, checkpoint);
+        return CopyTrustedBytes(bytes.Span, counters, AwkMemoryAccounting.Disabled, checkpoint);
     }
 
     public static AwkText FromOwnedBytes(byte[] bytes, AwkRuntimeCounters counters, Action? checkpoint = null)
@@ -198,7 +198,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     internal static AwkText FromTrustedOwnedBytes(
         byte[] bytes,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryAccounting governor)
     {
         if (bytes.Length == 0)
             return Empty;
@@ -206,7 +206,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         RecordOwnedBytesAllocation(bytes.Length, governor);
         return CreateTrustedOwnedBytes(bytes, counters);
 
-        static void RecordOwnedBytesAllocation(int length, AwkMemoryGovernor governor)
+        static void RecordOwnedBytesAllocation(int length, AwkMemoryAccounting governor)
         {
             if (length <= 0)
                 return;
@@ -229,7 +229,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     internal static AwkText CopyTrustedBytes(
         ReadOnlySpan<byte> bytes,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
         if (bytes.IsEmpty)
@@ -244,7 +244,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     internal static AwkText CopyHostBytes(
         ReadOnlySpan<byte> bytes,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
         ThrowIfInvalidUtf8(bytes, checkpoint);
@@ -331,7 +331,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     public AwkText Concat(
         AwkText other,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
         if (ByteLength == 0)
@@ -354,21 +354,21 @@ internal sealed class AwkText : IEquatable<AwkText>
     public static AwkText Concat(
         ReadOnlySpan<AwkText> parts,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null) =>
         Concat<AwkText, AwkTextPartSelector>(parts, counters, governor, checkpoint);
 
     public static AwkText Concat(
         ReadOnlySpan<AwkValue> parts,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null) =>
         Concat<AwkValue, AwkValueTextPartSelector>(parts, counters, governor, checkpoint);
 
     private static AwkText Concat<TPart, TSelector>(
         ReadOnlySpan<TPart> parts,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null)
         where TSelector : struct, IAwkTextPartSelector<TPart>
     {
@@ -457,7 +457,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         int start,
         int length,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
         if (start < 0 || start > ByteLength)
@@ -481,7 +481,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         int start,
         int length,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
         ResolveRuneByteRange(out var byteStart, out var byteEnd);
@@ -841,7 +841,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     private static AwkText SnapshotBorrowedText(
         AwkText text,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         Action? checkpoint = null) =>
         text._isBorrowed
             ? CopyTrustedBytes(text.AsSpan(checkpoint), counters, governor, checkpoint)
@@ -853,7 +853,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             AwkText left,
             AwkText right,
             AwkRuntimeCounters counters,
-            AwkMemoryGovernor governor)
+            AwkMemoryAccounting governor)
         {
             LeftPart = left;
             RightPart = right;
@@ -863,7 +863,7 @@ internal sealed class AwkText : IEquatable<AwkText>
 
         public AwkRuntimeCounters Counters { get; }
 
-        public AwkMemoryGovernor Governor { get; }
+        public AwkMemoryAccounting Governor { get; }
 
         public AwkText? LeftPart { get; set; }
 
@@ -879,7 +879,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         return new AwkText(bytes);
     }
 
-    internal static byte[] AllocateOwnedBytes(int length, AwkMemoryGovernor governor)
+    internal static byte[] AllocateOwnedBytes(int length, AwkMemoryAccounting governor)
     {
         if (length < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);

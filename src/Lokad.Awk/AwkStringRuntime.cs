@@ -54,7 +54,7 @@ internal sealed class AwkStringRuntime
         int start,
         int length,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor)
+        AwkMemoryAccounting governor)
     {
         _recordByteWork?.Invoke(source.ByteLength);
         return _unitMode is AwkStringUnitMode.Byte

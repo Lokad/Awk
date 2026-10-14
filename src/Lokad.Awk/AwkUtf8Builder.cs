@@ -10,7 +10,7 @@ internal enum AwkUtf8BorrowRange
 
 internal sealed class AwkUtf8Builder : IDisposable
 {
-    private readonly AwkMemoryGovernor _governor;
+    private readonly AwkMemoryAccounting _governor;
     private readonly int _maxBuilderBytes;
     private readonly int _contentOffset;
     private byte[] _buffer;
@@ -19,14 +19,14 @@ internal sealed class AwkUtf8Builder : IDisposable
 
     public AwkUtf8Builder(
         AwkRuntimeLimits limits,
-        AwkMemoryGovernor governor)
+        AwkMemoryAccounting governor)
         : this(limits, governor, AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity)
     {
     }
 
     public AwkUtf8Builder(
         AwkRuntimeLimits limits,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         int capacity)
         : this(limits, governor, capacity, reservedPrefix: null)
     {
@@ -34,7 +34,7 @@ internal sealed class AwkUtf8Builder : IDisposable
 
     private AwkUtf8Builder(
         AwkRuntimeLimits limits,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         int capacity,
         byte? reservedPrefix)
     {
@@ -71,7 +71,7 @@ internal sealed class AwkUtf8Builder : IDisposable
 
     public static AwkUtf8Builder CreateWithReservedPrefix(
         AwkRuntimeLimits limits,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         int capacity,
         byte prefix) =>
         new(limits, governor, capacity, prefix);

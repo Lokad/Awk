@@ -155,7 +155,7 @@ public sealed class AwkSnapshotKeyResourceTests
     public void SnapshotMeasurementCancelsBeforeEncodingKeysAndAllowsRetry(bool observed, string source)
     {
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(MemoryLimit), counters);
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(MemoryLimit), counters);
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var checks = 0;

@@ -9,7 +9,7 @@ public sealed class AwkUtf8BuilderTests
     {
         using var builder = new AwkUtf8Builder(
             AwkRuntimeLimits.CreateDefault(),
-            AwkMemoryGovernor.Disabled,
+            AwkMemoryAccounting.Disabled,
             capacity: 2);
 
         builder.Append("caf"u8);
@@ -27,7 +27,7 @@ public sealed class AwkUtf8BuilderTests
     {
         using var builder = new AwkUtf8Builder(
             AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4),
-            AwkMemoryGovernor.Disabled,
+            AwkMemoryAccounting.Disabled,
             capacity: 4);
 
         builder.Append("abcd"u8);
@@ -43,7 +43,7 @@ public sealed class AwkUtf8BuilderTests
     {
         using var builder = new AwkUtf8Builder(
             AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4),
-            AwkMemoryGovernor.Disabled,
+            AwkMemoryAccounting.Disabled,
             capacity: 4);
         builder.Append("a"u8);
         AwkText[] values = [AwkText.FromString("bc"), AwkText.FromString("de")];
@@ -60,7 +60,7 @@ public sealed class AwkUtf8BuilderTests
     {
         using var builder = AwkUtf8Builder.CreateWithReservedPrefix(
             AwkRuntimeLimits.CreateDefault(),
-            AwkMemoryGovernor.Disabled,
+            AwkMemoryAccounting.Disabled,
             capacity: 2,
             prefix: 0x01);
         builder.Append("abc"u8);
@@ -71,7 +71,7 @@ public sealed class AwkUtf8BuilderTests
             0,
             continuedInput.ByteLength,
             AwkRuntimeCounters.Disabled,
-            AwkMemoryGovernor.Disabled);
+            AwkMemoryAccounting.Disabled);
 
         Assert.Equal("abc"u8.ToArray(), inputStart.AsSpan().ToArray());
         Assert.Equal([0x01, (byte)'a', (byte)'b', (byte)'c'], continuedInput.AsSpan().ToArray());
@@ -87,7 +87,7 @@ public sealed class AwkUtf8BuilderTests
             .WithMaxBuilderBytes(64)
             .WithMaxExecutionMemoryBytes(64);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(limits, counters);
+        var governor = AwkMemoryAccounting.Create(limits, counters);
 
         using (var builder = new AwkUtf8Builder(limits, governor, capacity: 4))
         {
@@ -116,7 +116,7 @@ public sealed class AwkUtf8BuilderTests
         var limits = AwkRuntimeLimits.CreateDefault()
             .WithMaxBuilderBytes(64)
             .WithMaxExecutionMemoryBytes(10);
-        var governor = AwkMemoryGovernor.Create(limits);
+        var governor = AwkMemoryAccounting.Create(limits);
         using var builder = new AwkUtf8Builder(limits, governor, capacity: 4);
         builder.Append("abcd"u8);
 
@@ -136,7 +136,7 @@ public sealed class AwkUtf8BuilderTests
             .WithMaxBuilderBytes(64)
             .WithMaxExecutionMemoryBytes(7);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(limits, counters);
+        var governor = AwkMemoryAccounting.Create(limits, counters);
         using var builder = new AwkUtf8Builder(limits, governor, capacity: 4);
         builder.Append("abcd"u8);
         var baselineTextAllocations = counters.AwkTextAllocations;

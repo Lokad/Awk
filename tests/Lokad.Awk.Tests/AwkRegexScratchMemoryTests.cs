@@ -222,14 +222,14 @@ public sealed class AwkRegexScratchMemoryTests
         var checks = 0;
         Assert.Throws<OperationCanceledException>(() =>
         {
-            using var result = Capture(1538, AwkMemoryGovernor.Disabled, counters, () =>
+            using var result = Capture(1538, AwkMemoryAccounting.Disabled, counters, () =>
             {
                 if (++checks == 5) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
             });
         });
         using var retry = new CancellationTokenSource();
-        using var result = Capture(1538, AwkMemoryGovernor.Disabled, counters, retry.Token.ThrowIfCancellationRequested);
+        using var result = Capture(1538, AwkMemoryAccounting.Disabled, counters, retry.Token.ThrowIfCancellationRequested);
         Assert.Equal(1538, result.Match.Groups.Count);
     }
 
@@ -261,7 +261,7 @@ public sealed class AwkRegexScratchMemoryTests
             AwkRuntimeMemory.CheckedMultiply(AwkRuntimeMemory.EstimateTextBytes(4), groups)),
          groups > 64 ? AwkRuntimeMemory.EstimateRegexCoordinateArrayBytes(groups * 2) : 0);
 
-    private static AwkLeasedRegexMatch Capture(int groups, AwkMemoryGovernor governor,
+    private static AwkLeasedRegexMatch Capture(int groups, AwkMemoryAccounting governor,
         AwkRuntimeCounters counters, Action? checkpoint = null)
     {
         const string input = "\U0001f600";
@@ -274,7 +274,7 @@ public sealed class AwkRegexScratchMemoryTests
     private static AwkRegexMatch Match() => new(true, 0, 1, 0, 1, AwkText.FromString("H"),
         [new(true, 0, 1, AwkText.FromString("H")), new(true, 0, 1, AwkText.FromString("G"))]);
 
-    private static AwkMemoryGovernor Governor(long budget, AwkRuntimeCounters? counters = null) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(budget),
+    private static AwkMemoryAccounting Governor(long budget, AwkRuntimeCounters? counters = null) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(budget),
             counters ?? AwkRuntimeCounters.Disabled);
 }

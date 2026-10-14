@@ -283,10 +283,10 @@ public sealed class AwkRegexOwnedMemoryTests
         _ => throw new ArgumentException("Unknown pattern shape.")
     };
 
-    private static AwkMemoryGovernor Governor(long bytes) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
+    private static AwkMemoryAccounting Governor(long bytes) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
 
-    private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryGovernor governor, Action? checkpoint = null,
+    private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryAccounting governor, Action? checkpoint = null,
         AwkRuntimeCounters? counters = null) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             checkpoint ?? (() => { }), counters ?? AwkRuntimeCounters.Disabled,

@@ -65,7 +65,8 @@ public sealed class AwkCommandInvocation
         AwkPath currentDirectory,
         AwkFileDescriptor stdIn,
         AwkFileDescriptor stdOut,
-        AwkFileDescriptor stdErr)
+        AwkFileDescriptor stdErr,
+        IMemoryBudget? memoryBudget = null)
     {
         static ReadOnlyCollection<string> CopyArguments(IReadOnlyList<string> arguments)
         {
@@ -105,10 +106,14 @@ public sealed class AwkCommandInvocation
         StdIn = stdIn;
         StdOut = stdOut;
         StdErr = stdErr;
+        MemoryBudget = memoryBudget;
     }
 
     /// <summary>Gets the executable name supplied by the caller.</summary>
     public string CommandName { get; }
+
+    /// <summary>Gets the borrowed budget associated with this command by its caller.</summary>
+    public IMemoryBudget? MemoryBudget { get; }
 
     /// <summary>Gets an immutable snapshot of command arguments, excluding the executable name.</summary>
     public IReadOnlyList<string> Arguments { get; }

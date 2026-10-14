@@ -13,7 +13,7 @@ internal static partial class AwkBuiltins
             AwkText source,
             AwkCaseConversion conversion,
             AwkRuntimeCounters counters,
-            AwkMemoryGovernor governor,
+            AwkMemoryAccounting governor,
             Action checkpoint,
             out AwkText result)
         {

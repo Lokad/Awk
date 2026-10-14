@@ -35,12 +35,12 @@ internal readonly struct AwkGensubReplacementPlan : IDisposable
     public static AwkGensubReplacementPlan Rent(
         AwkText replacement,
         Action? checkpoint = null,
-        AwkMemoryGovernor? governor = null)
+        AwkMemoryAccounting? governor = null)
     {
         if (replacement.ByteLength == 0)
             return default;
 
-        governor ??= AwkMemoryGovernor.Disabled;
+        governor ??= AwkMemoryAccounting.Disabled;
         var bytes = replacement.AsSpan(checkpoint);
         var pooled = !governor.IsEnabled;
         // Finite budgets count the actual parts and allocate their exact capacity.

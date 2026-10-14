@@ -106,8 +106,8 @@ public sealed class AwkRegexScalarMemoryTests
         Assert.Same(pattern, AwkRegexScalarPattern.Translate(pattern, () => { }, governor));
         Assert.Equal(0, governor.ReserveCount);
         Assert.Equal(AwkRegexScalarPattern.Translate(@"\p{L}."),
-            AwkRegexScalarPattern.Translate(@"\p{L}.", () => { }, AwkMemoryGovernor.Disabled));
-        Assert.Equal(0, AwkMemoryGovernor.Disabled.TotalReservedBytes);
+            AwkRegexScalarPattern.Translate(@"\p{L}.", () => { }, AwkMemoryAccounting.Disabled));
+        Assert.Equal(0, AwkMemoryAccounting.Disabled.TotalReservedBytes);
     }
 
     [Theory]
@@ -150,10 +150,10 @@ public sealed class AwkRegexScalarMemoryTests
         Assert.True(ranges.Zip(ranges.Skip(1), (left, right) => left.First <= right.First).All(value => value));
     }
 
-    private static AwkMemoryGovernor Governor(long bytes) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
+    private static AwkMemoryAccounting Governor(long bytes) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
 
-    private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryGovernor governor)
+    private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryAccounting governor)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         return new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,

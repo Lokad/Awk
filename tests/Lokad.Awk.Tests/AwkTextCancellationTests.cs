@@ -60,7 +60,7 @@ public sealed class AwkTextCancellationTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var text = AwkText.FromString(new string('0', LongText))
-            .Concat(AwkText.FromString("1"), counters, AwkMemoryGovernor.Disabled);
+            .Concat(AwkText.FromString("1"), counters, AwkMemoryAccounting.Disabled);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         Action checkpoint = cancellation.Token.ThrowIfCancellationRequested;
@@ -174,7 +174,7 @@ public sealed class AwkTextCancellationTests
             if (armed && counters.StringDecodes == 2) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
         };
-        var formatter = new AwkFormattingRuntime(_ => current, limits, counters, AwkMemoryGovernor.Disabled, checkpoint: checkpoint);
+        var formatter = new AwkFormattingRuntime(_ => current, limits, counters, AwkMemoryAccounting.Disabled, checkpoint: checkpoint);
         AwkText Format() => output ? formatter.FormatPrintByteText(AwkValue.FromNumber(1.25)) : formatter.FormatStringByteText(AwkValue.FromNumber(1.25));
         Assert.Equal("1.2", Format().AsString());
         current = new AwkFormatString(AwkText.FromString("%.3f"));
@@ -194,7 +194,7 @@ public sealed class AwkTextCancellationTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var governor = AwkMemoryGovernor.Create(limits, counters);
+        var governor = AwkMemoryAccounting.Create(limits, counters);
         using (var builder = new AwkUtf8Builder(limits, governor))
         {
             builder.Append("kept"u8);
@@ -332,7 +332,7 @@ public sealed class AwkTextCancellationTests
     public void MaterializationMemoryFailureLeavesTheCacheRetryable()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(LongText + 1), counters);
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(LongText + 1), counters);
         var text = AwkText.FromString(new string('a', LongText)).Concat(AwkText.FromString("z"), counters, governor);
         using (var existing = governor.ReserveTransient(1))
         {
@@ -370,7 +370,7 @@ public sealed class AwkTextCancellationTests
     public void TextCheckpointsDoNotDuplicateExplicitFuelOrStringInterop(bool observed)
     {
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var text = AwkText.FromString(new string('a', LongText)).Concat(AwkText.FromString("z"), counters, AwkMemoryGovernor.Disabled);
+        var text = AwkText.FromString(new string('a', LongText)).Concat(AwkText.FromString("z"), counters, AwkMemoryAccounting.Disabled);
         var chunks = AwkExecutionGovernor.ByteWorkSteps(text.ByteLength);
         var resources = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(chunks), counters);
         resources.RecordByteWork(text.ByteLength);
@@ -385,10 +385,10 @@ public sealed class AwkTextCancellationTests
         if (observed) Assert.True(counters.CancellationChecks > 4);
     }
 
-    private static AwkMemoryGovernor Governor(AwkRuntimeCounters counters) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters);
+    private static AwkMemoryAccounting Governor(AwkRuntimeCounters counters) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters);
 
-    private static AwkText DeepText(int count, AwkRuntimeCounters counters, AwkMemoryGovernor governor)
+    private static AwkText DeepText(int count, AwkRuntimeCounters counters, AwkMemoryAccounting governor)
     {
         var leaf = AwkText.FromString("a");
         var text = leaf;

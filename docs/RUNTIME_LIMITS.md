@@ -1,5 +1,17 @@
 # Runtime limits
 
+`WithMemoryBudget(IMemoryBudget)` opts runtime storage into a borrowed shared host allowance.
+The library declares the interfaces; hosts implement adapters over their own governor.
+Each execution owns a child scope and a coarse charge. Command descriptors carry that active
+budget into nested execution. Refusal uses the existing awk memory-limit diagnostic.
+`MaxExecutionMemoryBytes` remains an optional execution quota, not a copied root allowance.
+
+Governed cleanup waits for actual host-task completion before refunding borrowed storage;
+cancellation or a timeout only ends the operation's wait. Hosts must cooperate with cancellation.
+Without a supplied budget, existing deadline/default behavior is unchanged. Runtime buffers,
+retained state and major construction peaks are covered; frontend and persistent compiled
+artifact ownership are still being integrated. This is not complete allocation coverage.
+
 Pass an immutable `AwkExecutionPolicy` to `Awk.ExecuteAsync`. `CreateDefault()` favors
 ordinary compatibility; `CreateRestricted()` reduces capabilities and supplies finite
 budgets for untrusted scripts. Refine either with its public `With...` methods.

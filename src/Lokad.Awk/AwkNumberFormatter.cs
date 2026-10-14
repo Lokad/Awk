@@ -43,7 +43,7 @@ internal static class AwkNumberFormatter
     public static AwkText ToAwkText(
         double value,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         AwkMemoryLease? retainedTextLease = null)
     {
         Span<byte> buffer = stackalloc byte[FormattedByteCapacity(value)];
@@ -54,7 +54,7 @@ internal static class AwkNumberFormatter
     public static AwkText ToDefaultFormatAwkText(
         double value,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         AwkMemoryLease? retainedTextLease = null)
     {
         static ReadOnlySpan<byte> NormalizeLowercaseExponent(
@@ -109,13 +109,13 @@ internal static class AwkNumberFormatter
     private static AwkText CopyAscii(
         ReadOnlySpan<byte> bytes,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         AwkMemoryLease? retainedTextLease)
     {
         retainedTextLease?.ReserveAdditional(AwkRuntimeMemory.EstimateTextBytes(bytes.Length));
         // A supplied lease already admits the complete owned text, including its bytes.
         var owned = AwkText.AllocateOwnedBytes(bytes.Length,
-            retainedTextLease is null ? governor : AwkMemoryGovernor.Disabled);
+            retainedTextLease is null ? governor : AwkMemoryAccounting.Disabled);
         bytes.CopyTo(owned);
         return AwkText.FromTrustedOwnedBytes(owned, counters);
     }

@@ -205,10 +205,10 @@ public sealed class AwkRegexDialectMemoryTests
         Assert.Equal(governor.TotalCommittedBytes, governor.TotalReleasedCommittedBytes);
     }
 
-    private static AwkMemoryGovernor Governor(long bytes) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
+    private static AwkMemoryAccounting Governor(long bytes) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
 
-    private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryGovernor governor, Action checkpoint) =>
+    private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryAccounting governor, Action checkpoint) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint,
             AwkRuntimeCounters.Disabled,
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,

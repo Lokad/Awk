@@ -125,7 +125,7 @@ internal static class AwkRegexConstruction
     }
 
     public static string EscapeLiteral(string text, Action? checkpoint,
-        AwkMemoryGovernor governor, AwkMemoryLease resultLease)
+        AwkMemoryAccounting governor, AwkMemoryLease resultLease)
     {
         checkpoint?.Invoke();
         if (!governor.IsEnabled)

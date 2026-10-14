@@ -6,7 +6,7 @@ public sealed class AwkMemoryChargeTests
     public void RejectedImmediateChargePreservesExistingAdmissionAndCounters()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(128), counters);
         using var existing = governor.ReserveTransient(40);
         var reserves = governor.ReserveCount;
@@ -31,7 +31,7 @@ public sealed class AwkMemoryChargeTests
     [Fact]
     public void LeaseGrowthFailureKeepsPriorChargeAndReleasesItExactlyOnce()
     {
-        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(100));
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(100));
         using var lease = governor.CreateTransientLease();
         lease.ReserveAdditional(40);
         Assert.Throws<AwkRuntimeException>(() => lease.ReserveAdditional(61));

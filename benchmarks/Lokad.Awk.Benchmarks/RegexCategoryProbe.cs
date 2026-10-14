@@ -73,8 +73,8 @@ internal static class RegexCategoryProbe
             governor.ReserveCount, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(translated))));
     }
 
-    private static AwkMemoryGovernor CreateGovernor(long bytes) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
+    private static AwkMemoryAccounting CreateGovernor(long bytes) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
 
     private static bool IsPublished()
     {

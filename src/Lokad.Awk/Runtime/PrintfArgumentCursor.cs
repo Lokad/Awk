@@ -2,7 +2,7 @@ namespace Lokad.Awk;
 
 internal struct PrintfArgumentCursor<TArguments>(
     TArguments arguments, PrintfMissingArgumentPolicy policy, string format,
-    AwkRuntimeCounters counters, AwkMemoryGovernor governor, Action? checkpoint = null)
+    AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action? checkpoint = null)
     where TArguments : IPrintfArguments
 {
     private int _next;

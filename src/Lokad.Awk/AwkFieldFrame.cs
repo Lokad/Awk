@@ -5,7 +5,7 @@ namespace Lokad.Awk;
 
 internal sealed class AwkFieldFrame(
     AwkRuntimeCounters counters,
-    AwkMemoryGovernor governor,
+    AwkMemoryAccounting governor,
     int maxFields,
     Action<long> throwIfValueBytesExceeded,
     Func<AwkValue, AwkText> formatStringByteText,
@@ -193,7 +193,7 @@ internal sealed class AwkFieldFrame(
             newPayloadByteLength);
         if (newFieldCount > oldFieldCount)
             newRetainedBytes = AdjustEstimate(newRetainedBytes, _fieldCountValue.RetainedTextMemoryBytes, 0);
-        PreflightRecomposition(newRetainedBytes, composedRecordByteLength);
+        using var recompositionPeak = PreflightRecomposition(newRetainedBytes, composedRecordByteLength);
         var addedFields = newFieldCount - oldFieldCount;
         if (addedFields >= MutationCheckpointFields)
         {
@@ -348,7 +348,7 @@ internal sealed class AwkFieldFrame(
             outputFieldSeparator.ByteLength,
             newFieldCount,
             newPayloadByteLength);
-        PreflightRecomposition(newRetainedBytes, composedRecordByteLength);
+        using var recompositionPeak = PreflightRecomposition(newRetainedBytes, composedRecordByteLength);
         if (Math.Abs(newFieldCount - oldFieldCount) >= MutationCheckpointFields)
         {
             var stagedBytes = AwkRuntimeMemory.EstimateFieldTextListBytes(newFieldCount);
@@ -534,7 +534,7 @@ internal sealed class AwkFieldFrame(
             var fieldTexts = CreateRecordSlices(_recompositionSeparator.ByteLength, fields);
             var newRetainedBytes = EstimateRetainedBytes(
                 AwkRuntimeMemory.EstimateTextBytes(byteLength), fieldTexts, _fieldValueCache, _fieldCountValue);
-            PreflightRecomposition(newRetainedBytes, byteLength);
+            using var recompositionPeak = PreflightRecomposition(newRetainedBytes, byteLength);
             var recordText = ComposeRecordText(_recompositionSeparator, fields, payloadByteLength);
             checkpoint?.Invoke();
             ReplaceRetainedMemory(newRetainedBytes);
@@ -612,12 +612,12 @@ internal sealed class AwkFieldFrame(
         _numericFieldCount = 0;
     }
 
-    private void PreflightRecomposition(long newRetainedBytes, int recordByteLength)
+    private AwkMemoryPeakAdmission PreflightRecomposition(long newRetainedBytes, int recordByteLength)
     {
         throwIfValueBytesExceeded(recordByteLength);
         var retainedIncrease = Math.Max(0, newRetainedBytes - _retainedMemoryBytes);
         // Recomposition allocates its destination while the previous record and dirty fields are live.
-        governor.PreflightAllocation(AwkRuntimeMemory.CheckedAdd(
+        return governor.ReserveAllocationPeak(AwkRuntimeMemory.CheckedAdd(
             retainedIncrease,
             AwkRuntimeMemory.EstimateTextBytes(recordByteLength)));
     }

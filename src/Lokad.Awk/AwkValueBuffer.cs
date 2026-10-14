@@ -10,7 +10,7 @@ internal readonly struct AwkValueBuffer(
     public AwkValue[] Values => values ??
         throw new InvalidOperationException("The default value buffer has no array.");
 
-    public static AwkValueBuffer Rent(int count, AwkMemoryGovernor governor)
+    public static AwkValueBuffer Rent(int count, AwkMemoryAccounting governor)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         ArgumentNullException.ThrowIfNull(governor);

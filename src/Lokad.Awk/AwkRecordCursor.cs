@@ -594,7 +594,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     var trailingNewlines = content[recordLength..];
                     // An LF uses the shared terminator. Preflight both owned byte copies
                     // for CRLF before allocating either record or terminator text.
-                    _state.MemoryGovernor.PreflightAllocation(
+                    using var allocationPeak = _state.MemoryGovernor.ReserveAllocationPeak(
                         recordLength + (trailingNewlines.Length == 1 ? 0 : trailingNewlines.Length));
                     var finalTerminator = trailingNewlines.Length == 1
                         ? AwkRecordTerminator.NewLine

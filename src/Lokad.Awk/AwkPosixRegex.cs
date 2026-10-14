@@ -197,10 +197,10 @@ internal sealed class AwkPosixRegex
     internal int GroupCount => _groups;
     internal long CacheBytes { get; }
 
-    private sealed class CompilationContext(AwkMemoryGovernor governor,
+    private sealed class CompilationContext(AwkMemoryAccounting governor,
         AwkMemoryLease results, Action work, Action prepare)
     {
-        public AwkMemoryGovernor Governor { get; } = governor;
+        public AwkMemoryAccounting Governor { get; } = governor;
         public AwkMemoryLease Results { get; } = results;
         public Action Work { get; } = work;
         public Action Prepare { get; } = prepare;
@@ -228,7 +228,7 @@ internal sealed class AwkPosixRegex
     }
 
     internal static bool TryCreate(string pattern, AwkRegexCaseSensitivity sensitivity,
-        AwkMemoryGovernor governor, Action recordCompilation, Action checkCancellation,
+        AwkMemoryAccounting governor, Action recordCompilation, Action checkCancellation,
         [NotNullWhen(true)] out AwkPosixRegex? result, AwkMemoryLease? resultLease = null)
     {
         result = null;
@@ -468,7 +468,7 @@ internal sealed class AwkPosixRegex
     }
 
     internal AwkPosixMatch Match(string text, int startAt, int groupCount,
-        AwkMemoryGovernor governor, Action checkCancellation)
+        AwkMemoryAccounting governor, Action checkCancellation)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(governor);

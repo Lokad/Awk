@@ -20,7 +20,7 @@ public sealed class AwkInventoryOutputBoundaryTests
     {
         var counters = Counters(observed);
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20);
-        var governor = AwkMemoryGovernor.Create(limits, counters);
+        var governor = AwkMemoryAccounting.Create(limits, counters);
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var checks = 0;
@@ -34,7 +34,7 @@ public sealed class AwkInventoryOutputBoundaryTests
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var text = rope
             ? AwkText.FromString(new string('a', Large / 2)).Concat(AwkText.FromString(new string('b', Large / 2)),
-                AwkRuntimeCounters.Disabled, AwkMemoryGovernor.Disabled)
+                AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled)
             : AwkText.FromString(new string('a', Large));
         var expected = rope ? new string('a', Large / 2) + new string('b', Large / 2) : new string('a', Large);
         var bytes = Encoding.UTF8.GetBytes(expected);
@@ -67,7 +67,7 @@ public sealed class AwkInventoryOutputBoundaryTests
     {
         var counters = Counters(observed);
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1_024);
-        var governor = AwkMemoryGovernor.Create(limits, counters);
+        var governor = AwkMemoryAccounting.Create(limits, counters);
         using var output = new AwkOutputSink(limits, governor, counters, static () => { });
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var committed = governor.CurrentCommittedBytes;
@@ -192,7 +192,7 @@ public sealed class AwkInventoryOutputBoundaryTests
     public void VariableSnapshotsPassTheirCheckpointAndPreserveStorage(bool symbolTable, string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), counters);
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), counters);
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var checks = 0;

@@ -14,7 +14,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var limits = AwkRuntimeLimits.CreateDefault();
         if (finiteMemory)
             limits = limits.WithMaxExecutionMemoryBytes(4_096);
-        var governor = AwkMemoryGovernor.Create(limits, counters);
+        var governor = AwkMemoryAccounting.Create(limits, counters);
         var frame = new AwkFieldFrame(counters, governor, 1_000, _ => { },
             value => value.ByteText, _ => { });
         var record = AwkText.FromString("alpha beta");

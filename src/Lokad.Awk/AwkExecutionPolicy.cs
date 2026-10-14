@@ -8,6 +8,16 @@ public sealed record AwkExecutionPolicy
     /// <summary>Represents an effectively unlimited numeric budget.</summary>
     public const long Unlimited = long.MaxValue;
 
+    /// <summary>Gets the borrowed cooperative host budget, if supplied.</summary>
+    public IMemoryBudget? MemoryBudget { get; private init; }
+
+    /// <summary>Uses a borrowed shared allowance; the library owns only its child scopes.</summary>
+    public AwkExecutionPolicy WithMemoryBudget(IMemoryBudget budget)
+    {
+        ArgumentNullException.ThrowIfNull(budget);
+        return this with { MemoryBudget = budget };
+    }
+
     internal AwkRuntimeLimits Limits { get; private init; }
 
     private AwkExecutionPolicy(AwkRuntimeLimits limits)

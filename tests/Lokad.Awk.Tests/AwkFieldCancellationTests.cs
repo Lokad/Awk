@@ -260,7 +260,7 @@ public sealed class AwkFieldCancellationTests
         var chunks = AwkExecutionGovernor.ByteWorkSteps(text.ByteLength);
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(chunks);
         var resources = new AwkRuntimeResourceMonitor(limits, counters);
-        var splitter = Splitter(() => resources.ThrowIfCancellationRequested(CancellationToken.None), counters, AwkMemoryGovernor.Disabled, resources);
+        var splitter = Splitter(() => resources.ThrowIfCancellationRequested(CancellationToken.None), counters, AwkMemoryAccounting.Disabled, resources);
         var fields = splitter.SplitFieldTextsBySeparator(text, AwkFieldSeparatorSpec.FromText(","), AwkSeparatorCaptureMode.Capture, counters);
         Assert.Equal(2, fields.Fields.Count);
         Assert.Equal(observed ? chunks : 0, counters.ExecutionSteps);
@@ -269,13 +269,13 @@ public sealed class AwkFieldCancellationTests
         if (observed) Assert.True(counters.CancellationChecks > 4);
     }
 
-    private static AwkFieldFrame Frame(AwkRuntimeCounters counters, AwkMemoryGovernor governor, Action checkpoint) =>
+    private static AwkFieldFrame Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
         new(counters, governor, LongScan, _ => { }, value => value.ByteText, _ => { }, checkpoint);
 
-    private static AwkMemoryGovernor Governor(AwkRuntimeCounters counters) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), counters);
+    private static AwkMemoryAccounting Governor(AwkRuntimeCounters counters) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), counters);
 
-    private static AwkFieldSplitter Splitter(Action checkpoint, AwkRuntimeCounters counters, AwkMemoryGovernor governor, AwkRuntimeResourceMonitor? resources = null)
+    private static AwkFieldSplitter Splitter(Action checkpoint, AwkRuntimeCounters counters, AwkMemoryAccounting governor, AwkRuntimeResourceMonitor? resources = null)
     {
         var monitor = resources ?? new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
         var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint, counters, AwkRegexEngineKind.DotNetCompatibility, monitor, governor);

@@ -18,7 +18,7 @@ internal static class PrintfEvaluation
         PrintfMissingArgumentPolicy missingArgumentPolicy,
         AwkRuntimeLimits limits,
         AwkRuntimeCounters counters,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null,
         AwkMemoryLease? retainedTextLease = null)
@@ -580,7 +580,7 @@ internal static class PrintfEvaluation
     {
         private readonly AwkRuntimeLimits _limits;
         private readonly AwkRuntimeCounters _counters;
-        private readonly AwkMemoryGovernor _governor;
+        private readonly AwkMemoryAccounting _governor;
         private readonly AwkUtf8Builder _builder;
         private readonly Action? _checkpoint;
         private readonly AwkMemoryLease? _retainedTextLease;
@@ -588,7 +588,7 @@ internal static class PrintfEvaluation
         public PrintfByteOutput(
             AwkRuntimeLimits limits,
             AwkRuntimeCounters counters,
-            AwkMemoryGovernor governor, Action? checkpoint, AwkMemoryLease? retainedTextLease)
+            AwkMemoryAccounting governor, Action? checkpoint, AwkMemoryLease? retainedTextLease)
         {
             _checkpoint = checkpoint;
             _retainedTextLease = retainedTextLease;
@@ -667,7 +667,7 @@ internal static class PrintfEvaluation
 
             _retainedTextLease.ReserveAdditional(AwkRuntimeMemory.EstimateTextBytes(_builder.Length));
             return AwkText.CopyTrustedBytes(_builder.AsSpan(), _counters,
-                AwkMemoryGovernor.Disabled, _checkpoint);
+                AwkMemoryAccounting.Disabled, _checkpoint);
         }
 
         public void Dispose() => _builder.Dispose();

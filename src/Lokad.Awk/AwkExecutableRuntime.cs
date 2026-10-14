@@ -634,10 +634,10 @@ internal static class AwkExecutableDispatcher
         }
 
         // The frame lease already admits this exact array, including its header.
-        static AwkValue[] RentStack(int stackSlotCount, AwkMemoryGovernor governor) =>
+        static AwkValue[] RentStack(int stackSlotCount, AwkMemoryAccounting governor) =>
             governor.IsEnabled ? new AwkValue[stackSlotCount] : ArrayPool<AwkValue>.Shared.Rent(stackSlotCount);
 
-        static void ReturnStack(AwkValue[] stack, AwkMemoryGovernor governor)
+        static void ReturnStack(AwkValue[] stack, AwkMemoryAccounting governor)
         {
             if (governor.IsEnabled)
                 Array.Clear(stack);
@@ -673,11 +673,11 @@ internal static class AwkExecutableDispatcher
 
 internal readonly struct AwkVmFrameScope : IDisposable
 {
-    private readonly AwkMemoryGovernor _governor;
+    private readonly AwkMemoryAccounting _governor;
     private readonly long _byteCount;
     private readonly bool _entered;
 
-    private AwkVmFrameScope(AwkMemoryGovernor governor, long byteCount)
+    private AwkVmFrameScope(AwkMemoryAccounting governor, long byteCount)
     {
         _governor = governor;
         _byteCount = byteCount;

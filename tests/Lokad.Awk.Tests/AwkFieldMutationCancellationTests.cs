@@ -212,10 +212,10 @@ public sealed class AwkFieldMutationCancellationTests
 
     private static List<AwkFieldText> AlreadySplit(AwkText _) => throw new InvalidOperationException("Already split.");
 
-    private static AwkFieldFrame Frame(AwkRuntimeCounters counters, AwkMemoryGovernor governor, Action checkpoint) =>
+    private static AwkFieldFrame Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
         new(counters, governor, ManyFields * 2, _ => { }, value => value.ByteText, _ => { }, checkpoint);
 
-    private static AwkMemoryGovernor Governor(AwkRuntimeCounters counters, long budget = 8 << 20) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(budget), counters);
+    private static AwkMemoryAccounting Governor(AwkRuntimeCounters counters, long budget = 8 << 20) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(budget), counters);
 
 }

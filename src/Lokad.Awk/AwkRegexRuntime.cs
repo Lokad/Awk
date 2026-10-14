@@ -21,7 +21,7 @@ internal sealed class AwkRegexRuntime
     private readonly AwkBoundedCache<AwkRegexCacheKey, Utf8RegexEngine> _utf8RegexCache;
     private readonly AwkBoundedCache<AwkRegexCacheKey, AwkLongestRegex> _longestRegexCache;
     private readonly AwkBoundedCache<AwkRegexCacheKey, PosixCompilation> _posixRegexCache;
-    private readonly AwkMemoryGovernor _memoryGovernor;
+    private readonly AwkMemoryAccounting _memoryGovernor;
     private readonly AwkCompatibilityMode _compatibilityMode;
     private readonly AwkRegexUnicodeWarnings _unicodeWarnings;
 
@@ -48,7 +48,7 @@ internal sealed class AwkRegexRuntime
         AwkRuntimeCounters counters,
         AwkRegexEngineKind engineKind,
         AwkRuntimeResourceMonitor resources,
-        AwkMemoryGovernor? memoryGovernor = null,
+        AwkMemoryAccounting? memoryGovernor = null,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
         Action<string>? reportUnicodeWarning = null,
         AwkRegexEscapeWarnings? regexEscapeWarnings = null)
@@ -59,7 +59,7 @@ internal sealed class AwkRegexRuntime
         _counters = counters;
         _engineKind = engineKind;
         _resources = resources;
-        _memoryGovernor = memoryGovernor ?? AwkMemoryGovernor.Create(resources.Limits, counters);
+        _memoryGovernor = memoryGovernor ?? AwkMemoryAccounting.Create(resources.Limits, counters);
         _compatibilityMode = compatibilityMode;
         _unicodeWarnings = new AwkRegexUnicodeWarnings(_memoryGovernor, compatibilityMode,
             reportUnicodeWarning, throwIfCancellationRequested, regexEscapeWarnings);
@@ -199,7 +199,7 @@ internal sealed class AwkRegexRuntime
     public AwkLeasedRegexMatch MatchValue(
         AwkRegex regex,
         AwkText input,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         AwkRegexCapturePlan capturePlan)
     {
         return MatchValue(
@@ -215,7 +215,7 @@ internal sealed class AwkRegexRuntime
     public AwkLeasedRegexMatch MatchCaptureValue(
         AwkRegex regex,
         AwkText input,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         long maxCaptureBytes) =>
         MatchValue(
             regex,
@@ -229,7 +229,7 @@ internal sealed class AwkRegexRuntime
     internal AwkLeasedRegexMatch MatchValue(
         AwkRegex regex,
         AwkText input,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         AwkRegexCapturePlan capturePlan,
         long maxCaptureBytes,
         AwkRegexSearchOffset searchOffset,
@@ -250,7 +250,7 @@ internal sealed class AwkRegexRuntime
     internal AwkLeasedRegexMatch MatchValue(
         AwkRegex regex,
         AwkText input,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         AwkRegexCapturePlan capturePlan,
         long maxCaptureBytes,
         AwkRegexSearchOffset searchOffset,
@@ -398,7 +398,7 @@ internal sealed class AwkRegexRuntime
     public AwkRegexMatchEnumerator EnumerateMatchValues(
         AwkRegex regex,
         AwkText input,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         AwkRegexCapturePlan capturePlan)
     {
         _throwIfCancellationRequested();
@@ -524,7 +524,7 @@ internal sealed class AwkRegexRuntime
 
     private readonly record struct PosixCompilation(AwkPosixRegex? Program);
 
-    private bool TryResolvePosixRegex(AwkRegex regex, AwkMemoryGovernor governor,
+    private bool TryResolvePosixRegex(AwkRegex regex, AwkMemoryAccounting governor,
         [NotNullWhen(true)] out AwkPosixRegex? program)
     {
         var sensitivity = regex.ResolveCaseSensitivity(_resolveCaseSensitivity);
@@ -545,7 +545,7 @@ internal sealed class AwkRegexRuntime
     }
 
     private AwkPosixMatch MatchPosix(AwkPosixRegex program, string input, int startAt,
-        int inputBytes, int groupCount, AwkMemoryGovernor governor)
+        int inputBytes, int groupCount, AwkMemoryAccounting governor)
     {
         _throwIfCancellationRequested();
         _counters.RecordRegexStringAdapterMatch();
@@ -758,7 +758,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
     private readonly AwkRegexRuntime _runtime;
     private readonly AwkRegex _regex;
     private readonly AwkText _input;
-    private readonly AwkMemoryGovernor _governor;
+    private readonly AwkMemoryAccounting _governor;
     private readonly AwkRegexCapturePlan _capturePlan;
     private readonly AwkRegexRuntime.AwkRegexInputContext _inputContext;
     private AwkLeasedRegexMatch _currentMatch = AwkLeasedRegexMatch.NoMatch;
@@ -770,7 +770,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
         AwkRegexRuntime runtime,
         AwkRegex regex,
         AwkText input,
-        AwkMemoryGovernor governor,
+        AwkMemoryAccounting governor,
         AwkRegexCapturePlan capturePlan)
     {
         _runtime = runtime;

@@ -53,7 +53,7 @@ public sealed class AwkFieldFrameTests
     [InlineData(2, true)]
     public void AwkFieldFrame_RecordPlanMemoryFailurePreservesRecordAndPriorPlan(int mode, bool assignValue)
     {
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(500));
         var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { }, value => value.ByteText, _ => { });
         var priorPlan = CreatePlan(0, ",");
@@ -83,7 +83,7 @@ public sealed class AwkFieldFrameTests
     [InlineData(2)]
     public void AwkFieldFrame_MaterializationReleasesRetainedPlan(int mode)
     {
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4_096));
         var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { }, value => value.ByteText, _ => { });
         var plan = CreatePlan(mode, new string('x', 200));
@@ -105,7 +105,7 @@ public sealed class AwkFieldFrameTests
     [Fact]
     public void AwkFieldFrame_FieldLimitFailurePreservesLazyPlanForRetry()
     {
-        var governor = AwkMemoryGovernor.Create(
+        var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4_096));
         var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1, _ => { }, value => value.ByteText, _ => { });
         var plan = CreatePlan(0, ",");
@@ -144,7 +144,7 @@ public sealed class AwkFieldFrameTests
             value => value.ByteText,
             _ => { });
 
-    private static AwkMemoryGovernor CreateGovernor(AwkRuntimeCounters counters) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
+    private static AwkMemoryAccounting CreateGovernor(AwkRuntimeCounters counters) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters);
 
 }

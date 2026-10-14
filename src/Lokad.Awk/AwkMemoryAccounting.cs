@@ -2,21 +2,25 @@ using System;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkMemoryGovernor
+// Own-storage estimates and an optional execution quota; the host owns the shared allowance.
+internal sealed class AwkMemoryAccounting
 {
     private readonly bool _enabled;
-    private readonly long _maxLiveBytes;
+    private readonly long _maxOwnedBytes;
     private readonly AwkRuntimeCounters _counters;
+    private readonly AwkExecutionMemoryOwner _owner;
 
-    private AwkMemoryGovernor(bool enabled, long maxLiveBytes, AwkRuntimeCounters counters)
+    private AwkMemoryAccounting(bool enabled, long maxOwnedBytes, AwkRuntimeCounters counters,
+        AwkExecutionMemoryOwner owner)
     {
         _enabled = enabled;
-        _maxLiveBytes = maxLiveBytes;
+        _maxOwnedBytes = maxOwnedBytes;
         _counters = counters;
+        _owner = owner;
     }
 
-    public static AwkMemoryGovernor Disabled { get; } =
-        new(enabled: false, AwkRuntimeLimits.Unlimited, AwkRuntimeCounters.Disabled);
+    public static AwkMemoryAccounting Disabled { get; } =
+        new(enabled: false, AwkRuntimeLimits.Unlimited, AwkRuntimeCounters.Disabled, AwkExecutionMemoryOwner.Disabled);
 
     public bool IsEnabled => _enabled;
 
@@ -46,16 +50,20 @@ internal sealed class AwkMemoryGovernor
 
     public long TotalReleasedCommittedBytes { get; private set; }
 
-    public static AwkMemoryGovernor Create(AwkRuntimeLimits limits)
+    public static AwkMemoryAccounting Create(AwkRuntimeLimits limits)
     {
         return Create(limits, AwkRuntimeCounters.Disabled);
     }
 
-    public static AwkMemoryGovernor Create(AwkRuntimeLimits limits, AwkRuntimeCounters counters)
+    public static AwkMemoryAccounting Create(AwkRuntimeLimits limits, AwkRuntimeCounters counters) =>
+        Create(limits, counters, AwkExecutionMemoryOwner.Disabled);
+
+    public static AwkMemoryAccounting Create(AwkRuntimeLimits limits, AwkRuntimeCounters counters,
+        AwkExecutionMemoryOwner owner)
     {
-        return limits.MaxExecutionMemoryBytes == AwkRuntimeLimits.Unlimited
+        return limits.MaxExecutionMemoryBytes == AwkRuntimeLimits.Unlimited && !owner.IsEnabled
             ? Disabled
-            : new AwkMemoryGovernor(enabled: true, limits.MaxExecutionMemoryBytes, counters);
+            : new AwkMemoryAccounting(enabled: true, limits.MaxExecutionMemoryBytes, counters, owner);
     }
 
     public void Reserve(long byteCount)
@@ -66,6 +74,7 @@ internal sealed class AwkMemoryGovernor
         var reserved = AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, byteCount);
         ThrowIfLiveWouldExceedLimit(reserved, CurrentCommittedBytes);
         var totalReserved = AwkRuntimeMemory.CheckedAdd(TotalReservedBytes, byteCount);
+        ResizeOwner(reserved, CurrentCommittedBytes);
         CurrentReservedBytes = reserved;
         TotalReservedBytes = totalReserved;
         ReserveCount++;
@@ -82,6 +91,12 @@ internal sealed class AwkMemoryGovernor
         ThrowIfLiveWouldExceedLimit(
             AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, byteCount),
             CurrentCommittedBytes);
+    }
+
+    public AwkMemoryPeakAdmission ReserveAllocationPeak(long byteCount)
+    {
+        PreflightAllocation(byteCount);
+        return _owner.ReservePeak(byteCount);
     }
 
     public void CommitReserved(long byteCount)
@@ -114,6 +129,7 @@ internal sealed class AwkMemoryGovernor
             throw new InvalidOperationException("Cannot release more reserved bytes than are currently reserved.");
 
         TotalReleasedReservedBytes = AwkRuntimeMemory.CheckedAdd(TotalReleasedReservedBytes, byteCount);
+        ResizeOwner(CurrentReservedBytes - byteCount, CurrentCommittedBytes);
         ReleaseReservedCount++;
         CurrentReservedBytes -= byteCount;
         _counters.RecordMemoryReleaseReserved(byteCount);
@@ -128,6 +144,7 @@ internal sealed class AwkMemoryGovernor
             throw new InvalidOperationException("Cannot release more committed bytes than are currently committed.");
 
         TotalReleasedCommittedBytes = AwkRuntimeMemory.CheckedAdd(TotalReleasedCommittedBytes, byteCount);
+        ResizeOwner(CurrentReservedBytes, CurrentCommittedBytes - byteCount);
         ReleaseCommittedCount++;
         CurrentCommittedBytes -= byteCount;
         _counters.RecordMemoryReleaseCommitted(byteCount);
@@ -163,6 +180,12 @@ internal sealed class AwkMemoryGovernor
 
     private long LiveBytes => AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, CurrentCommittedBytes);
 
+    private void ResizeOwner(long reserved, long committed)
+    {
+        if (!_owner.TryResizeTracked(AwkRuntimeMemory.CheckedAdd(reserved, committed)))
+            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+    }
+
     private void UpdatePeakLiveBytes()
     {
         PeakLiveBytes = Math.Max(PeakLiveBytes, LiveBytes);
@@ -170,7 +193,7 @@ internal sealed class AwkMemoryGovernor
 
     private void ThrowIfLiveWouldExceedLimit(long reservedBytes, long committedBytes)
     {
-        if (AwkRuntimeMemory.CheckedAdd(reservedBytes, committedBytes) > _maxLiveBytes)
+        if (AwkRuntimeMemory.CheckedAdd(reservedBytes, committedBytes) > _maxOwnedBytes)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
     }
 
@@ -178,14 +201,14 @@ internal sealed class AwkMemoryGovernor
 
 internal sealed class AwkMemoryLease : IDisposable
 {
-    private AwkMemoryGovernor? _governor;
+    private AwkMemoryAccounting? _governor;
     private long _byteCount;
 
     private AwkMemoryLease()
     {
     }
 
-    public AwkMemoryLease(AwkMemoryGovernor governor, long byteCount)
+    public AwkMemoryLease(AwkMemoryAccounting governor, long byteCount)
     {
         _governor = governor;
         _byteCount = byteCount;

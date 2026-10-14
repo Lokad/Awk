@@ -353,6 +353,6 @@ public sealed class AwkReplacementCaptureCancellationTests
     private static AwkRegexMatch Match() => new(true, 0, 1, 0, 1, AwkText.FromString("H"),
         [new(true, 0, 1, AwkText.FromString("H")), new(true, 0, 1, AwkText.FromString("G"))]);
 
-    private static AwkMemoryGovernor Governor(AwkRuntimeCounters counters) =>
-        AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), counters);
+    private static AwkMemoryAccounting Governor(AwkRuntimeCounters counters) =>
+        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), counters);
 }

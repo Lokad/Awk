@@ -37,6 +37,21 @@ internal static class AwkExecutor
             executableProgram);
 
     private static async Task<AwkExitCode> ExecuteCoreAsync(
+        IAwkHost host, AwkInvocation invocation, CancellationToken cancellationToken,
+        AwkRuntimeOptions runtimeOptions, AwkProgramResolution? compiledResolution,
+        AwkExecutableProgram? executableProgram)
+    {
+        if (runtimeOptions.MemoryBudget is null)
+            return await ExecuteBodyAsync(host, invocation, cancellationToken, runtimeOptions,
+                compiledResolution, executableProgram).ConfigureAwait(false);
+
+        await using var owner = AwkExecutionMemoryOwner.Create(runtimeOptions.MemoryBudget, cancellationToken);
+        return await ExecuteBodyAsync(new AwkBudgetHost(host, owner), invocation,
+            owner.Token(cancellationToken), runtimeOptions with { MemoryOwner = owner },
+            compiledResolution, executableProgram).ConfigureAwait(false);
+    }
+
+    private static async Task<AwkExitCode> ExecuteBodyAsync(
         IAwkHost host,
         AwkInvocation invocation,
         CancellationToken cancellationToken,

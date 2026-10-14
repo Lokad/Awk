@@ -68,7 +68,7 @@ public sealed class AwkNumericByteEscapeTests
         const string pattern = @"\360\237\230\200";
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(
             AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1);
-        var governor = AwkMemoryGovernor.Create(limits);
+        var governor = AwkMemoryAccounting.Create(limits);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = Runtime(profile, utf8, counters, limits, governor);
         for (var attempt = 0; attempt < 2; attempt++)
@@ -179,7 +179,7 @@ public sealed class AwkNumericByteEscapeTests
     }
 
     private static AwkRegexRuntime Runtime(int profile, bool utf8, AwkRuntimeCounters counters,
-        AwkRuntimeLimits limits, AwkMemoryGovernor? governor = null) =>
+        AwkRuntimeLimits limits, AwkMemoryAccounting? governor = null) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             static () => { }, counters, utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
             new AwkRuntimeResourceMonitor(limits, counters), governor, (AwkCompatibilityMode)profile);

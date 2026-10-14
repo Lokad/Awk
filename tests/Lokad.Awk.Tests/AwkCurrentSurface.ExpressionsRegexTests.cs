@@ -72,7 +72,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     public void Awk_RegexRuntimeEnumeratesMatchSpansWithoutValueText()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters);
         var runtime = new AwkRegexRuntime(
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
@@ -115,7 +115,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             useUtf8Adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility);
         var regex = runtime.Create(new AwkRegexPattern("(.)"));
         var input = AwkText.FromString("😀🦊", counters);
-        using var match = runtime.MatchValue(regex, input, AwkMemoryGovernor.Disabled, AwkRegexCapturePlan.All);
+        using var match = runtime.MatchValue(regex, input, AwkMemoryAccounting.Disabled, AwkRegexCapturePlan.All);
 
         Assert.Equal(4, match.Match.ByteLength);
         Assert.Equal(charactersAsBytes ? 4 : 2, match.Match.Length);
@@ -139,7 +139,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         bool splitCaptureOnly)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryGovernor.Create(AwkRuntimeLimits.CreateDefault(), counters);
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters);
         var runtime = new AwkRegexRuntime(
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
@@ -233,7 +233,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         using var leasedMatch = runtime.MatchValue(
             regex,
             input,
-            AwkMemoryGovernor.Disabled,
+            AwkMemoryAccounting.Disabled,
             AwkRegexCapturePlan.All);
         var match = leasedMatch.Match;
 
@@ -264,7 +264,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         using var leasedMatch = runtime.MatchValue(
             regex,
             input,
-            AwkMemoryGovernor.Disabled,
+            AwkMemoryAccounting.Disabled,
             AwkRegexCapturePlan.ThroughGroup(2));
         var match = leasedMatch.Match;
 
@@ -295,7 +295,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             AwkRegexCapturePlan.All,
             AwkRuntimeLimits.Unlimited,
             counters,
-            AwkMemoryGovernor.Disabled);
+            AwkMemoryAccounting.Disabled);
         var match = leasedMatch.Match;
 
         Assert.True(match.Success);

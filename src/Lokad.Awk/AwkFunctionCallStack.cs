@@ -6,7 +6,7 @@ namespace Lokad.Awk;
 
 internal sealed class AwkFunctionCallStack(
     int maxFunctionCallDepth,
-    AwkMemoryGovernor memoryGovernor,
+    AwkMemoryAccounting memoryGovernor,
     Func<AwkText, AwkValue> createByteTextValue,
     Func<AwkText, AwkValue> createNumericStringValue,
     Func<AwkText, AwkValue> createDeferredTextValue,
@@ -278,7 +278,7 @@ internal sealed class AwkFunctionCallStack(
         if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
         {
             var localArrayName = AwkArrayName.FunctionLocal(name.Identifier, frame.Id);
-            memoryGovernor.PreflightAllocation(AwkRuntimeMemory.EstimateUntypedScalarBytes());
+            using var allocationPeak = memoryGovernor.ReserveAllocationPeak(AwkRuntimeMemory.EstimateUntypedScalarBytes());
             var value = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
             ReplaceLocalSlot(
                 frame,
