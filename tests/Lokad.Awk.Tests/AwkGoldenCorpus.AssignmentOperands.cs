@@ -4,6 +4,24 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> AssignmentOperandCompatibilityRepairs()
     {
+        yield return AwkGoldenCaseBuilder.Create(
+            "array-compound-captures-key-and-left-before-right-effects",
+            ["BEGIN{i=1;a[1]=7;print (a[i++] += (a[1]=100)),i,a[1];SUBSEP=\":\";a[1,2]=5;print (a[1,2] += ((SUBSEP=\"/\")?3:0)),a[\"1:2\"],a[1,2]+0}"],
+            [])
+            .WithStdOut("107 2 107\n8 8 0\n")
+            .WithTags([AwkGoldenTag.Posix])
+            .WithNondeterminismNote("Assignment operand order is left to the implementation. Lokad captures the target/key and left value before the RHS; GNU awk 5.2.1 returns 200 2 200 and 3 5 3 for these interfering effects.")
+            .Build();
+
+        yield return AwkGoldenCaseBuilder.Create(
+            "array-compound-preserves-forwarded-alias",
+            ["function rhs(a){a[\"k\"]=100;return 3} function bump(a){return a[\"k\"]+=rhs(a)} BEGIN{a[\"k\"]=7;print bump(a),a[\"k\"]}"],
+            [])
+            .WithStdOut("10 10\n")
+            .WithTags([AwkGoldenTag.Posix])
+            .WithNondeterminismNote("Lokad captures the compound left value before the RHS mutates the aliased array. Assignment operand order may differ between implementations; GNU awk 5.2.1 returns 103 103.")
+            .Build();
+
         yield return Posix(Passing(
             "assignment-logical-and-conditional-original-repros",
             ["BEGIN{x=0;print (1?x=2:x=3),x;x=0;print (0?x=2:x=3),x;x=0;print (1&&x=2),x;x=0;print (0||x=2),x;x=0;y=0?1:x=2;print x,y}"],

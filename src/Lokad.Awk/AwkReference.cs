@@ -235,6 +235,43 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
         return AwkResolvedReference.ArrayElement(Variable, index);
     }
 
+    public override ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
+        AwkEvaluationContext context, AwkExpression value, AwkCompoundAssignmentOperation operation)
+    {
+        var key = IndexExpression.ResolveKeyAsync(context);
+        return key.IsCompletedSuccessfully
+            ? ApplyCompoundForKey(context, key.Result, value, operation)
+            : AwaitCompoundKeyAsync(context, key, value, operation);
+    }
+
+    private async ValueTask<AwkValue> AwaitCompoundKeyAsync(AwkEvaluationContext context,
+        ValueTask<AwkArrayKey> pending, AwkExpression value, AwkCompoundAssignmentOperation operation) =>
+        await ApplyCompoundForKey(context, await pending.ConfigureAwait(false), value, operation).ConfigureAwait(false);
+
+    private ValueTask<AwkValue> ApplyCompoundForKey(AwkEvaluationContext context, AwkArrayKey key,
+        AwkExpression value, AwkCompoundAssignmentOperation operation)
+    {
+        var state = context.State;
+        var current = state.GetArrayAwkValue(Variable, key).AsNumber(state.CancellationCheckpoint);
+        var right = value.EvaluateAsync(context);
+        return right.IsCompletedSuccessfully
+            ? ValueTask.FromResult(AssignCompound(state, key, current, right.Result, operation))
+            : AwaitCompoundValueAsync(state, key, current, right, operation);
+    }
+
+    private async ValueTask<AwkValue> AwaitCompoundValueAsync(AwkRuntimeState state, AwkArrayKey key,
+        double current, ValueTask<AwkValue> pending, AwkCompoundAssignmentOperation operation) =>
+        AssignCompound(state, key, current, await pending.ConfigureAwait(false), operation);
+
+    private AwkValue AssignCompound(AwkRuntimeState state, AwkArrayKey key, double current,
+        AwkValue right, AwkCompoundAssignmentOperation operation)
+    {
+        var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(
+            current, right.AsNumber(state.CancellationCheckpoint), operation));
+        state.SetArrayAwkValue(Variable, key, result);
+        return result;
+    }
+
     internal override bool TryGetArrayElement(out AwkArrayName array, out AwkArrayIndex index)
     {
         array = Variable;
