@@ -12,8 +12,14 @@ internal abstract partial class AwkExpression
 
     public static AwkExpression FieldIndex(AwkExpression indexExpression) => new DynamicFieldIndexExpression(indexExpression);
 
-    internal virtual bool TryGetFieldIndexExpression([NotNullWhen(true)] out AwkExpression? indexExpression)
+    internal static bool TryGetFieldIndexExpression(
+        AwkExpression expression, [NotNullWhen(true)] out AwkExpression? indexExpression)
     {
+        if (expression is DynamicFieldIndexExpression field)
+        {
+            indexExpression = field.IndexExpression;
+            return true;
+        }
         indexExpression = null;
         return false;
     }
