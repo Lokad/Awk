@@ -256,6 +256,8 @@ internal sealed class AwkInputScheduler(
 
     public async Task ProcessRemainingInputAsync()
     {
+        Func<AwkText, ValueTask<AwkStatementFlow>> processRecordAsync =
+            record => actionExecutor.ProcessRecordAsync(state, io, record);
         while (!state.ExitRequested)
         {
             var input = await ReadAsync().ConfigureAwait(false);
@@ -266,12 +268,12 @@ internal sealed class AwkInputScheduler(
                 ? await _recordProcessor.ProcessParagraphAsync(
                         input.RecordText,
                         input.Terminator,
-                        record => actionExecutor.ProcessRecordAsync(state, io, record))
+                        processRecordAsync)
                     .ConfigureAwait(false)
                 : await _recordProcessor.ProcessAsync(
                         input.RecordText,
                         input.Terminator,
-                        record => actionExecutor.ProcessRecordAsync(state, io, record))
+                        processRecordAsync)
                     .ConfigureAwait(false);
             if (flow == AwkStatementFlow.ExitProgram)
             {
