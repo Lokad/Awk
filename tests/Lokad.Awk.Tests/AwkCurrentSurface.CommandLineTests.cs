@@ -529,7 +529,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     }
 
     [Fact]
-    public async Task Awk_RuntimeCountersTrackMemoryGovernorOperations()
+    public async Task Awk_RuntimeCountersTrackMemoryAccountingOperations()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(
