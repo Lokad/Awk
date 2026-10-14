@@ -38,6 +38,52 @@ public sealed class AwkFieldCacheReuseTests
         Assert.Equal("next", state.GetFieldValue(1).ByteText.AsString());
     }
 
+    [Theory]
+    [InlineData(false, 1024)]
+    [InlineData(true, 850000)]
+    public void UnsplitRecordsAvoidRepeatedEmptyListAllocations(bool finite, long ceiling)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var limits = AwkRuntimeLimits.CreateDefault();
+        if (finite) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var record = AwkText.FromString("text\ttext\ttext");
+        for (var row = 0; row < 100; row++) state.SetCurrentRecord(record);
+        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var row = 0; row < 10000; row++) state.SetCurrentRecord(record);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated < ceiling, "Allocated bytes: " + allocated);
+        Assert.Equal(0, counters.FieldSplits);
+        Assert.Equal(0, counters.FieldsMaterialized);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(committed, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+    }
+
+    [Fact]
+    public void LazyFieldCountsAvoidTemporaryEstimateLists()
+    {
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var record = AwkText.FromString("text\ttext\ttext");
+        for (var row = 0; row < 100; row++) { state.SetCurrentRecord(record); _ = state.FieldCount; }
+        var total = 0;
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var row = 0; row < 10000; row++)
+        {
+            state.SetCurrentRecord(record);
+            total += state.FieldCount;
+        }
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal(30000, total);
+        Assert.True(allocated < 2000000, "Allocated bytes: " + allocated);
+        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static WeakReference<AwkText> ReadPreviousField(AwkRuntimeState state)
     {

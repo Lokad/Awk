@@ -15,6 +15,8 @@ internal sealed class AwkFieldFrame(
     private const int MutationCheckpointFields = 1024;
     private const int MaxReusableFieldCacheCapacity = 128;
     private static readonly Dictionary<int, AwkValue> EmptyFieldValueCache = [];
+    // Used only by estimates; never published as a mutable field list.
+    private static readonly List<AwkFieldText> EmptyFieldTexts = [];
 
     private AwkText _recordText = AwkText.Empty;
     private AwkValue _recordValue = AwkValue.FromText(string.Empty);
@@ -120,7 +122,7 @@ internal sealed class AwkFieldFrame(
     public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan = default)
     {
         ReplaceRetainedMemory(AwkRuntimeMemory.CheckedAdd(
-            EstimateRetainedBytes(text, [], EmptyFieldValueCache),
+            EstimateRetainedBytes(text, EmptyFieldTexts, EmptyFieldValueCache),
             splitPlan.RetainedMemoryBytes));
         SplitPlan = splitPlan;
         _recordText = text;
@@ -133,7 +135,7 @@ internal sealed class AwkFieldFrame(
 
     public long EstimateRecordMemoryGrowth(AwkText text, AwkRecordSplitPlan splitPlan) =>
         Math.Max(0, AwkRuntimeMemory.CheckedAdd(
-            EstimateRetainedBytes(text, [], EmptyFieldValueCache),
+            EstimateRetainedBytes(text, EmptyFieldTexts, EmptyFieldValueCache),
             splitPlan.RetainedMemoryBytes) - _retainedMemoryBytes);
 
     public void SetRecordValue(
@@ -143,7 +145,7 @@ internal sealed class AwkFieldFrame(
     {
         var text = formatStringByteText(value);
         ReplaceRetainedMemory(AwkRuntimeMemory.CheckedAdd(
-            EstimateRetainedBytes(text, [], EmptyFieldValueCache),
+            EstimateRetainedBytes(text, EmptyFieldTexts, EmptyFieldValueCache),
             splitPlan.RetainedMemoryBytes));
         SplitPlan = splitPlan;
         _recordText = text;
@@ -598,7 +600,8 @@ internal sealed class AwkFieldFrame(
     private void ClearSplitFields()
     {
         _fieldCountValue = AwkValue.FromNumber(0);
-        _fieldTexts = [];
+        if (_fieldTexts.Capacity != 0)
+            _fieldTexts = [];
         if (!governor.IsEnabled && _fieldValueCache.EnsureCapacity(0) <= MaxReusableFieldCacheCapacity)
             _fieldValueCache.Clear();
         else
