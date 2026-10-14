@@ -27,7 +27,7 @@ public sealed class AwkGetlineDestinationTests
         using var output = AwkTestHarness.CreateOutputSink();
         var io = CreateIo(host, state, limits, CancellationToken.None);
         var context = new AwkEvaluationContext(state, output, io);
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
 
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => AwkGetlineRuntime.ExecuteAsync(
             AwkGetlineTarget.ReferenceTarget(reference),
@@ -48,8 +48,8 @@ public sealed class AwkGetlineDestinationTests
             Assert.Equal(1, count);
             Assert.Equal(7, state.GetArrayAwkValue(array, new AwkArrayKey("kept")).AsNumber());
         }
-        Assert.Equal(committed, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]

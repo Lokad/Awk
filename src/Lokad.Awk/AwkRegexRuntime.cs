@@ -21,7 +21,7 @@ internal sealed class AwkRegexRuntime
     private readonly AwkBoundedCache<AwkRegexCacheKey, Utf8RegexEngine> _utf8RegexCache;
     private readonly AwkBoundedCache<AwkRegexCacheKey, AwkLongestRegex> _longestRegexCache;
     private readonly AwkBoundedCache<AwkRegexCacheKey, PosixCompilation> _posixRegexCache;
-    private readonly AwkMemoryAccounting _memoryGovernor;
+    private readonly AwkMemoryAccounting _memoryAccounting;
     private readonly AwkCompatibilityMode _compatibilityMode;
     private readonly AwkRegexUnicodeWarnings _unicodeWarnings;
 
@@ -48,7 +48,7 @@ internal sealed class AwkRegexRuntime
         AwkRuntimeCounters counters,
         AwkRegexEngineKind engineKind,
         AwkRuntimeResourceMonitor resources,
-        AwkMemoryAccounting? memoryGovernor = null,
+        AwkMemoryAccounting? memoryAccounting = null,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
         Action<string>? reportUnicodeWarning = null,
         AwkRegexEscapeWarnings? regexEscapeWarnings = null)
@@ -59,9 +59,9 @@ internal sealed class AwkRegexRuntime
         _counters = counters;
         _engineKind = engineKind;
         _resources = resources;
-        _memoryGovernor = memoryGovernor ?? AwkMemoryAccounting.Create(resources.Limits, counters);
+        _memoryAccounting = memoryAccounting ?? AwkMemoryAccounting.Create(resources.Limits, counters);
         _compatibilityMode = compatibilityMode;
-        _unicodeWarnings = new AwkRegexUnicodeWarnings(_memoryGovernor, compatibilityMode,
+        _unicodeWarnings = new AwkRegexUnicodeWarnings(_memoryAccounting, compatibilityMode,
             reportUnicodeWarning, throwIfCancellationRequested, regexEscapeWarnings);
         var cachePartitionBytes = Math.Max(1, resources.Limits.MaxRegexCacheBytes / 5);
         _regexCache = new AwkBoundedCache<AwkRegexCacheKey, AwkRegex>(
@@ -104,7 +104,7 @@ internal sealed class AwkRegexRuntime
         try
         {
             _resources.RecordRegexCompilation();
-            using var translatedText = _memoryGovernor.CreateTransientLease();
+            using var translatedText = _memoryAccounting.CreateTransientLease();
             return Cache(key, CreatePatternRegex(pattern, caseSensitivity, translatedText));
         }
         catch (ArgumentException)
@@ -118,10 +118,10 @@ internal sealed class AwkRegexRuntime
         {
             ThrowIfPatternExceedsLimits(pattern.Text);
             var ere = AwkRegex.TranslatePattern(pattern, _compatibilityMode, _throwIfCancellationRequested,
-                translatedText, _memoryGovernor);
-            var selection = AwkRegexSelection.Analyze(ere, _throwIfCancellationRequested, _memoryGovernor);
+                translatedText, _memoryAccounting);
+            var selection = AwkRegexSelection.Analyze(ere, _throwIfCancellationRequested, _memoryAccounting);
             var translated = AwkRegexScalarPattern.Translate(ere, _throwIfCancellationRequested,
-                _memoryGovernor, translatedText);
+                _memoryAccounting, translatedText);
             ThrowIfPatternExceedsLimits(translated);
             return CreateRegex(translated, caseSensitivity, hasFixedCaseSensitivity, selection, ere);
         }
@@ -147,9 +147,9 @@ internal sealed class AwkRegexRuntime
         try
         {
             ThrowIfPatternExceedsLimits(literal.Text);
-            using var translatedText = _memoryGovernor.CreateTransientLease();
+            using var translatedText = _memoryAccounting.CreateTransientLease();
             var escaped = AwkRegexConstruction.EscapeLiteral(literal.Text,
-                _throwIfCancellationRequested, _memoryGovernor, translatedText);
+                _throwIfCancellationRequested, _memoryAccounting, translatedText);
             ThrowIfPatternExceedsLimits(escaped);
             _resources.RecordRegexCompilation();
             return Cache(key, CreateRegex(escaped, caseSensitivity, hasFixedCaseSensitivity));
@@ -361,10 +361,10 @@ internal sealed class AwkRegexRuntime
         {
             RecordDotNetTextRoute(inputContext.ExecutionPolicy);
             var text = inputContext.DotNetText;
-            if (regex.Selection.RequiresLongest && TryResolvePosixRegex(regex, _memoryGovernor, out var program))
+            if (regex.Selection.RequiresLongest && TryResolvePosixRegex(regex, _memoryAccounting, out var program))
             {
                 using var selected = MatchPosix(program, text, searchOffset.Utf16Index,
-                    input.ByteLength - searchOffset.ByteIndex, 0, _memoryGovernor);
+                    input.ByteLength - searchOffset.ByteIndex, 0, _memoryAccounting);
                 return selected.Success ? CreateMatchSpan(text, selected.Index, selected.Length, searchOffset)
                     : AwkRegexMatchSpan.NoMatch;
             }

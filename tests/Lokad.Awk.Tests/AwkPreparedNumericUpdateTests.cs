@@ -33,8 +33,8 @@ public sealed class AwkPreparedNumericUpdateTests
         Assert.Equal(legacy.Counters.ExecutionSteps, prepared.Counters.ExecutionSteps);
         Assert.Equal(legacy.Counters.StringDecodes, prepared.Counters.StringDecodes);
         Assert.Equal(legacy.Counters.Utf8Encodes, prepared.Counters.Utf8Encodes);
-        Assert.Equal(legacy.MemoryGovernor.CurrentCommittedBytes, prepared.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, prepared.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(legacy.MemoryAccounting.CurrentCommittedBytes, prepared.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, prepared.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -44,14 +44,14 @@ public sealed class AwkPreparedNumericUpdateTests
         state.InitializeGlobalReadSlots(1);
         var name = AwkVariableName.FromText("missing");
         var target = AwkReference.PreparedGlobalScalar(name, 0);
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
-        using (var pressure = state.MemoryGovernor.ReserveTransient((1 << 20) - before))
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        using (var pressure = state.MemoryAccounting.ReserveTransient((1 << 20) - before))
         {
-            var pressured = state.MemoryGovernor.CurrentCommittedBytes;
+            var pressured = state.MemoryAccounting.CurrentCommittedBytes;
             Assert.Throws<AwkRuntimeException>(() => target.ApplyIncrementAsync(new AwkEvaluationContext(state)));
             Assert.False(state.HasScalar(name));
-            Assert.Equal(pressured, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(pressured, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         Assert.Equal(1, (await target.ApplyIncrementAsync(new AwkEvaluationContext(state))).AsNumber());
         Assert.Equal(1, state.ResolvePreparedGlobalValue(name, 0).AsNumber());
@@ -66,11 +66,11 @@ public sealed class AwkPreparedNumericUpdateTests
         var array = new AwkArrayName(name.Identifier);
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayString(array, key, "kept");
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var target = AwkReference.PreparedGlobalScalar(name, 0);
         Assert.Throws<AwkRuntimeException>(() => target.ApplyPostIncrementAsync(new AwkEvaluationContext(state)));
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.False(state.HasScalar(name));
         Assert.Equal("kept", state.GetArrayAwkValue(array, key).AsString());
     }
@@ -83,13 +83,13 @@ public sealed class AwkPreparedNumericUpdateTests
         state.InitializeGlobalReadSlots(1);
         var name = AwkVariableName.FromText("value");
         state.AssignVariable(name, "1" + new string('0', 8000));
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
         var target = AwkReference.PreparedGlobalScalar(name, 0);
         var error = Assert.Throws<OperationCanceledException>(() => target.ApplyIncrementAsync(new AwkEvaluationContext(state)));
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static ValueTask<AwkValue> Update(AwkReference target, AwkRuntimeState state, bool decrement, bool post) =>

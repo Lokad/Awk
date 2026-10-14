@@ -15,7 +15,7 @@ public sealed class AwkFieldCacheReuseTests
         for (var row = 0; row < 10000; row++) ReadRecord();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated < 6_500_000, "Allocated bytes: " + allocated);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
 
         void ReadRecord()
         {
@@ -52,7 +52,7 @@ public sealed class AwkFieldCacheReuseTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var record = AwkText.FromString("text\ttext\ttext");
         for (var row = 0; row < 100; row++) state.SetCurrentRecord(record);
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var row = 0; row < 10000; row++) state.SetCurrentRecord(record);
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -61,8 +61,8 @@ public sealed class AwkFieldCacheReuseTests
         Assert.Equal(0, counters.FieldsMaterialized);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(committed, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class AwkFieldCacheReuseTests
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Equal(30000, total);
         Assert.True(allocated < 2000000, "Allocated bytes: " + allocated);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

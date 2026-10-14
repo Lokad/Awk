@@ -94,13 +94,13 @@ public sealed class AwkNumericByteEscapeTests
             Options(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(limit), counters));
         var name = AwkIdentifier.FromTrustedName("v");
         state.AssignVariableFromExternalText(name, "old");
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var assignment = AwkVariableAssignment.InputArgument(name, @"\360\237\230\200");
         if (limit == 3)
         {
             var failure = Assert.Throws<AwkRuntimeException>(() => state.AssignVariableFromExternalText(assignment));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-            Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
+            Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal("old", state.FormatStringByteText(state.ResolveVariableValue(new AwkVariableName(name))).AsString(state.Counters));
         }
         else
@@ -108,7 +108,7 @@ public sealed class AwkNumericByteEscapeTests
             state.AssignVariableFromExternalText(assignment);
             Assert.Equal("😀", state.FormatStringByteText(state.ResolveVariableValue(new AwkVariableName(name))).AsString(state.Counters));
         }
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -120,13 +120,13 @@ public sealed class AwkNumericByteEscapeTests
             Options(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters));
         var name = AwkIdentifier.FromTrustedName("v");
         state.AssignVariableFromExternalText(name, "keep");
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var assignment = AwkVariableAssignment.InputArgument(name,
             @"\303\251" + new string('a', 1 << 18));
         Assert.Throws<AwkRuntimeException>(() => state.AssignVariableFromExternalText(assignment));
         Assert.Equal("keep", state.FormatStringByteText(state.ResolveVariableValue(new AwkVariableName(name))).AsString(state.Counters));
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]

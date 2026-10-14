@@ -6,7 +6,7 @@ namespace Lokad.Awk;
 
 internal sealed class AwkFunctionCallStack(
     int maxFunctionCallDepth,
-    AwkMemoryAccounting memoryGovernor,
+    AwkMemoryAccounting memoryAccounting,
     Func<AwkText, AwkValue> createByteTextValue,
     Func<AwkText, AwkValue> createNumericStringValue,
     Func<AwkText, AwkValue> createDeferredTextValue,
@@ -81,25 +81,25 @@ internal sealed class AwkFunctionCallStack(
             RegisterPotentialArrayAliases(frame);
             potentialAliasesRegistered = true;
             frame.RetainedMemoryBytes = EstimateFrameBytes(frame);
-            memoryGovernor.Reserve(frame.RetainedMemoryBytes);
+            memoryAccounting.Reserve(frame.RetainedMemoryBytes);
             try
             {
                 _frames.Push(frame);
             }
             catch
             {
-                memoryGovernor.ReleaseReserved(frame.RetainedMemoryBytes);
+                memoryAccounting.ReleaseReserved(frame.RetainedMemoryBytes);
                 throw;
             }
 
             try
             {
-                memoryGovernor.CommitReserved(frame.RetainedMemoryBytes);
+                memoryAccounting.CommitReserved(frame.RetainedMemoryBytes);
             }
             catch
             {
                 _frames.Pop();
-                memoryGovernor.ReleaseReserved(frame.RetainedMemoryBytes);
+                memoryAccounting.ReleaseReserved(frame.RetainedMemoryBytes);
                 throw;
             }
         }
@@ -162,7 +162,7 @@ internal sealed class AwkFunctionCallStack(
             }
         }
 
-        memoryGovernor.ReleaseCommitted(frame.RetainedMemoryBytes);
+        memoryAccounting.ReleaseCommitted(frame.RetainedMemoryBytes);
         RecycleFrame(frame);
     }
 
@@ -278,7 +278,7 @@ internal sealed class AwkFunctionCallStack(
         if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
         {
             var localArrayName = AwkArrayName.FunctionLocal(name.Identifier, frame.Id);
-            using var allocationPeak = memoryGovernor.ReserveAllocationPeak(AwkRuntimeMemory.EstimateUntypedScalarBytes());
+            using var allocationPeak = memoryAccounting.ReserveAllocationPeak(AwkRuntimeMemory.EstimateUntypedScalarBytes());
             var value = AwkValue.FromUntypedScalar(new AwkUntypedScalar());
             ReplaceLocalSlot(
                 frame,
@@ -471,7 +471,7 @@ internal sealed class AwkFunctionCallStack(
         try
         {
             if (growth > 0)
-                memoryGovernor.Reserve(growth);
+                memoryAccounting.Reserve(growth);
 
             try
             {
@@ -480,15 +480,15 @@ internal sealed class AwkFunctionCallStack(
             catch
             {
                 if (growth > 0)
-                    memoryGovernor.ReleaseReserved(growth);
+                    memoryAccounting.ReleaseReserved(growth);
 
                 throw;
             }
 
             if (growth > 0)
-                memoryGovernor.CommitReserved(growth);
+                memoryAccounting.CommitReserved(growth);
             else if (growth < 0)
-                memoryGovernor.ReleaseCommitted(-growth);
+                memoryAccounting.ReleaseCommitted(-growth);
 
             frame.RetainedMemoryBytes = AwkRuntimeMemory.CheckedAdd(
                 frame.RetainedMemoryBytes,

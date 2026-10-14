@@ -22,20 +22,20 @@ public sealed class AwkPreparedGlobalReadTests
     {
         var (state, counters) = State(CancellationToken.None);
         var name = AwkVariableName.FromText("missing");
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.Equal(4, Unsafe.SizeOf<int>());
         state.InitializeGlobalReadSlots(3);
-        Assert.Equal(24 + 3 * 4, state.MemoryGovernor.CurrentCommittedBytes - before);
+        Assert.Equal(24 + 3 * 4, state.MemoryAccounting.CurrentCommittedBytes - before);
         Assert.False(state.HasScalar(name));
-        var admitted = state.MemoryGovernor.CurrentCommittedBytes;
+        var admitted = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.True(state.ResolvePreparedGlobalValue(name, 1).IsUnassignedValue);
         Assert.True(state.HasScalar(name));
         Assert.Equal(AwkRuntimeMemory.EstimateSymbolMetadataBytes(name.Text.Length) + 24,
-            state.MemoryGovernor.CurrentCommittedBytes - admitted);
-        var typed = state.MemoryGovernor.CurrentCommittedBytes;
+            state.MemoryAccounting.CurrentCommittedBytes - admitted);
+        var typed = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.True(state.ResolvePreparedGlobalValue(name, 1).IsUnassignedValue);
-        Assert.Equal(typed, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(typed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, counters.StringDecodes);
     }
 
@@ -44,13 +44,13 @@ public sealed class AwkPreparedGlobalReadTests
     {
         const int limit = 1 << 20;
         var (state, _) = State(CancellationToken.None);
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
-        using (var pressure = state.MemoryGovernor.ReserveTransient(limit - before))
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        using (var pressure = state.MemoryAccounting.ReserveTransient(limit - before))
         {
-            var pressured = state.MemoryGovernor.CurrentCommittedBytes;
+            var pressured = state.MemoryAccounting.CurrentCommittedBytes;
             Assert.Throws<AwkRuntimeException>(() => state.InitializeGlobalReadSlots(3));
-            Assert.Equal(pressured, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(pressured, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         // With no vector published, legacy evaluation ignores an ordinal.
         Assert.True(state.ResolvePreparedGlobalValue(AwkVariableName.FromText("missing"), 99).IsUnassignedValue);
@@ -61,11 +61,11 @@ public sealed class AwkPreparedGlobalReadTests
     {
         using var cancellation = new CancellationTokenSource();
         var (state, _) = State(cancellation.Token);
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() => state.InitializeGlobalReadSlots(3));
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -76,10 +76,10 @@ public sealed class AwkPreparedGlobalReadTests
         var array = new AwkArrayName(name.Identifier);
         state.SetArrayString(array, AwkArrayKey.FromOrdinal(1), "kept");
         state.InitializeGlobalReadSlots(1);
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.Throws<AwkRuntimeException>(() => state.ResolvePreparedGlobalValue(name, 0));
         Assert.Throws<AwkRuntimeException>(() => state.ResolvePreparedGlobalValue(name, 0));
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal("kept", state.GetArrayAwkValue(array, AwkArrayKey.FromOrdinal(1)).AsString());
         Assert.False(state.HasScalar(name));
     }

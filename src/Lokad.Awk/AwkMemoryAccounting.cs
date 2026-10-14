@@ -207,16 +207,16 @@ internal sealed class AwkMemoryAccounting
 
 internal sealed class AwkMemoryLease : IDisposable
 {
-    private AwkMemoryAccounting? _governor;
+    private AwkMemoryAccounting? _accounting;
     private long _byteCount;
 
     private AwkMemoryLease()
     {
     }
 
-    public AwkMemoryLease(AwkMemoryAccounting governor, long byteCount)
+    public AwkMemoryLease(AwkMemoryAccounting accounting, long byteCount)
     {
-        _governor = governor;
+        _accounting = accounting;
         _byteCount = byteCount;
     }
 
@@ -224,29 +224,29 @@ internal sealed class AwkMemoryLease : IDisposable
 
     public void ReserveAdditional(long byteCount)
     {
-        var governor = _governor;
-        if (governor is null || byteCount <= 0)
+        var accounting = _accounting;
+        if (accounting is null || byteCount <= 0)
             return;
 
         var nextByteCount = AwkRuntimeMemory.CheckedAdd(_byteCount, byteCount);
-        governor.ReserveAndCommit(byteCount);
+        accounting.ReserveAndCommit(byteCount);
         _byteCount = nextByteCount;
     }
 
     public void Release(long byteCount)
     {
-        var governor = _governor;
-        if (governor is null)
+        var accounting = _accounting;
+        if (accounting is null)
             return;
         if (byteCount < 0 || byteCount > _byteCount)
             throw new InvalidOperationException("Cannot release more bytes than remain in the memory lease.");
-        governor.ReleaseCommitted(byteCount);
+        accounting.ReleaseCommitted(byteCount);
         _byteCount -= byteCount;
     }
 
     public void Transfer(long byteCount)
     {
-        if (_governor is null)
+        if (_accounting is null)
             return;
 
         if (byteCount < 0 || byteCount > _byteCount)
@@ -258,10 +258,10 @@ internal sealed class AwkMemoryLease : IDisposable
     public void MoveTo(AwkMemoryLease destination, long byteCount)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        if (_governor is null || ReferenceEquals(this, destination))
+        if (_accounting is null || ReferenceEquals(this, destination))
             return;
-        if (!ReferenceEquals(_governor, destination._governor) || byteCount < 0 || byteCount > _byteCount)
-            throw new InvalidOperationException("Memory can only move between live leases of the same governor.");
+        if (!ReferenceEquals(_accounting, destination._accounting) || byteCount < 0 || byteCount > _byteCount)
+            throw new InvalidOperationException("Memory can only move between live leases of the same accounting owner.");
         var nextDestinationBytes = AwkRuntimeMemory.CheckedAdd(destination._byteCount, byteCount);
         _byteCount -= byteCount;
         destination._byteCount = nextDestinationBytes;
@@ -269,13 +269,13 @@ internal sealed class AwkMemoryLease : IDisposable
 
     public void Dispose()
     {
-        var governor = _governor;
-        if (governor is null)
+        var accounting = _accounting;
+        if (accounting is null)
             return;
 
-        _governor = null;
+        _accounting = null;
         if (_byteCount > 0)
-            governor.ReleaseCommitted(_byteCount);
+            accounting.ReleaseCommitted(_byteCount);
         _byteCount = 0;
     }
 }

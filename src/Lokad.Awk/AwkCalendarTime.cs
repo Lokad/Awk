@@ -13,7 +13,7 @@ internal static class AwkCalendarTime
         TimeZoneInfo timeZone,
         TimeZoneInfo.AdjustmentRule[] rules,
         AwkRuntimeResourceMonitor resources,
-        AwkMemoryAccounting memoryGovernor)
+        AwkMemoryAccounting memoryAccounting)
     {
         var reader = new DateReader(specification, resources);
         Span<long> values = stackalloc long[7];
@@ -52,7 +52,7 @@ internal static class AwkCalendarTime
         var offset = timeZone.GetUtcOffset(local);
         if (values[6] < 0 && timeZone.IsAmbiguousTime(local))
         {
-            using var lease = memoryGovernor.ReserveTransient(AwkRuntimeMemory.EstimateTimeZoneOffsetsBytes());
+            using var lease = memoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateTimeZoneOffsetsBytes());
             var offsets = timeZone.GetAmbiguousTimeOffsets(local);
             // Select the later occurrence consistently, including negative DST
             // and transitions that change the standard base offset.

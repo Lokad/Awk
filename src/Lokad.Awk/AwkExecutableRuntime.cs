@@ -274,7 +274,7 @@ internal static class AwkExecutableDispatcher
         using var frame = EnterFrame(state, stackSlotCount);
         state.Counters.RecordVmBasicBlockEntry();
         var block = action.Block;
-        var stack = RentStack(stackSlotCount, state.MemoryGovernor);
+        var stack = RentStack(stackSlotCount, state.MemoryAccounting);
         try
         {
             var stackCount = 0;
@@ -457,7 +457,7 @@ internal static class AwkExecutableDispatcher
                                 var concatenated = AwkText.Concat(
                                     stack.AsSpan(partStart, partCount),
                                     state.Counters,
-                                    state.MemoryGovernor,
+                                    state.MemoryAccounting,
                                     state.CancellationCheckpoint);
                                 stackCount = partStart;
                                 stack[stackCount++] = state.CreateDeferredTextValue(concatenated);
@@ -592,7 +592,7 @@ internal static class AwkExecutableDispatcher
         }
         finally
         {
-            ReturnStack(stack, state.MemoryGovernor);
+            ReturnStack(stack, state.MemoryAccounting);
         }
 
         static async ValueTask<AwkStatementFlow> ExecuteFallbackActionAsync(
@@ -688,15 +688,15 @@ internal readonly struct AwkVmFrameScope : IDisposable
     {
         state.ThrowIfVmStackBytesExceeded(byteCount);
         state.Counters.RecordVmStackDepth(depth);
-        state.MemoryGovernor.Reserve(byteCount);
+        state.MemoryAccounting.Reserve(byteCount);
         try
         {
-            state.MemoryGovernor.CommitReserved(byteCount);
-            return new AwkVmFrameScope(state.MemoryGovernor, byteCount);
+            state.MemoryAccounting.CommitReserved(byteCount);
+            return new AwkVmFrameScope(state.MemoryAccounting, byteCount);
         }
         catch
         {
-            state.MemoryGovernor.ReleaseReserved(byteCount);
+            state.MemoryAccounting.ReleaseReserved(byteCount);
             throw;
         }
     }

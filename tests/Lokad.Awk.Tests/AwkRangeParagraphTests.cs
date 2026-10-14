@@ -74,17 +74,17 @@ public sealed class AwkRangeParagraphTests
         state.SetRecordFieldSplittingMode(AwkRecordFieldSplittingMode.Paragraph);
         var record = AwkText.FromSourceLiteralString("a\nbéx");
         state.SetCurrentRecord(record);
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var pressure = state.Limits.MaxExecutionMemoryBytes - before;
-        state.MemoryGovernor.Reserve(pressure);
+        state.MemoryAccounting.Reserve(pressure);
 
         var error = Assert.Throws<AwkRuntimeException>(() => state.FieldCount);
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(pressure, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(pressure, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(record, state.CurrentRecordByteText);
-        state.MemoryGovernor.ReleaseReserved(pressure);
+        state.MemoryAccounting.ReleaseReserved(pressure);
         Assign(state, "RS", "\n");
         Assign(state, "FS", ":");
         Assert.Equal(2, state.FieldCount);
@@ -109,18 +109,18 @@ public sealed class AwkRangeParagraphTests
         using var cursor = new AwkRecordCursor(state, descriptorReader,
             descriptorReader.CreateLineReader(AwkFileDescriptor.StdIn));
         _ = await cursor.ReadAsync();
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var pressure = state.Limits.MaxExecutionMemoryBytes - before - 2;
-        state.MemoryGovernor.Reserve(pressure);
+        state.MemoryAccounting.Reserve(pressure);
 
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await cursor.ReadAsync());
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(pressure, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(pressure, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, state.RecordNumber);
         Assert.Equal(0, state.FileRecordNumber);
-        state.MemoryGovernor.ReleaseReserved(pressure);
+        state.MemoryAccounting.ReleaseReserved(pressure);
         var record = await cursor.ReadAsync();
         Assert.True(record.RecordText.EqualsAscii("x"));
         Assert.True(record.Terminator.ByteText.AsSpan().SequenceEqual("\r\n"u8));

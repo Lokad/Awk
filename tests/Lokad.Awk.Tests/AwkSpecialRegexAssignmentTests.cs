@@ -33,7 +33,7 @@ public sealed class AwkSpecialRegexAssignmentTests
             Assert.True(state.GetArrayAwkValue(AwkArrayName.FromText("PROCINFO"),
                 new AwkArrayKey(AwkText.FromSourceLiteralString("FS"))).ByteText.EqualsAscii("FS"));
             Assert.Equal(1, counters.RegexCompiles);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
     }
 
@@ -53,7 +53,7 @@ public sealed class AwkSpecialRegexAssignmentTests
         Assign(state, variable, value, throughSymbolTable);
         Assert.Equal(value.ByteText, state.ResolveVariableValue(AwkVariableName.FromText(variable)).ByteText);
         Assert.Equal(2, counters.RegexCompiles);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static void Assign(AwkRuntimeState state, string variable, AwkValue value, bool throughSymbolTable)

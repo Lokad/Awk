@@ -86,7 +86,7 @@ public sealed class AwkCalendarTimeTests
         Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         if (enabled)
             Assert.Equal(2, counters.ExecutionSteps);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -95,14 +95,14 @@ public sealed class AwkCalendarTimeTests
         const int limit = 1 << 20;
         var state = State(Zone(false), limits: AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(limit));
         var text = AwkText.FromString("2020 10 1 1 30 0");
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.Equal(1601512200, state.MakeCalendarTime(text, false));
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        using var pressure = state.MemoryGovernor.ReserveTransient(limit - before - AwkRuntimeMemory.EstimateTimeZoneOffsetsBytes() + 1);
-        var pressured = state.MemoryGovernor.CurrentCommittedBytes;
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        using var pressure = state.MemoryAccounting.ReserveTransient(limit - before - AwkRuntimeMemory.EstimateTimeZoneOffsetsBytes() + 1);
+        var pressured = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.Throws<AwkRuntimeException>(() => state.MakeCalendarTime(text, false));
-        Assert.Equal(pressured, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(pressured, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]

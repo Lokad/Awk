@@ -12,7 +12,7 @@ internal sealed class AwkByteFieldSplitter(
     Func<AwkRegexCaseSensitivity> resolveRegexCaseSensitivity,
     AwkStringUnitMode stringUnitMode,
     Action throwIfCancellationRequested,
-    AwkMemoryAccounting memoryGovernor,
+    AwkMemoryAccounting memoryAccounting,
     AwkRuntimeCounters runtimeCounters,
     Action<object>? resetRegexWarningSite = null)
 {
@@ -67,7 +67,7 @@ internal sealed class AwkByteFieldSplitter(
             {
                 var uncapturedFields = ScanWhitespaceFields<OwnedListFieldSink, IReadOnlyList<AwkText>>(
                     line,
-                    new OwnedListFieldSink(line, counters, memoryGovernor, throwIfCancellationRequested));
+                    new OwnedListFieldSink(line, counters, memoryAccounting, throwIfCancellationRequested));
                 return new AwkTextSplitResult(uncapturedFields, []);
             }
 
@@ -111,7 +111,7 @@ internal sealed class AwkByteFieldSplitter(
                 new OwnedListFieldSink(
                     line,
                     counters,
-                    memoryGovernor,
+                    memoryAccounting,
                     unitMode is AwkStringUnitMode.Byte ? line.ByteLength : 0,
                     throwIfCancellationRequested));
 
@@ -142,7 +142,7 @@ internal sealed class AwkByteFieldSplitter(
                 ScanSingleByteFields<OwnedArrayFieldSink, AwkText[]>(
                     line,
                     separator,
-                    new OwnedArrayFieldSink(line, counters, memoryGovernor, fieldArray, throwIfCancellationRequested));
+                    new OwnedArrayFieldSink(line, counters, memoryAccounting, fieldArray, throwIfCancellationRequested));
 
                 return new AwkTextSplitResult(fieldArray, []);
             }
@@ -175,7 +175,7 @@ internal sealed class AwkByteFieldSplitter(
                 var spanFields = ScanRegexFields<OwnedListFieldSink, IReadOnlyList<AwkText>>(
                     line,
                     separator,
-                    new OwnedListFieldSink(line, counters, memoryGovernor, throwIfCancellationRequested));
+                    new OwnedListFieldSink(line, counters, memoryAccounting, throwIfCancellationRequested));
                 return new AwkTextSplitResult(spanFields, []);
             }
 
@@ -506,34 +506,34 @@ internal sealed class AwkByteFieldSplitter(
     {
         private readonly AwkText _line;
         private readonly AwkRuntimeCounters _counters;
-        private readonly AwkMemoryAccounting _memoryGovernor;
+        private readonly AwkMemoryAccounting _memoryAccounting;
         private readonly Action _checkpoint;
         private readonly List<AwkText> _fields;
 
         public OwnedListFieldSink(
             AwkText line,
             AwkRuntimeCounters counters,
-            AwkMemoryAccounting memoryGovernor,
+            AwkMemoryAccounting memoryAccounting,
             Action checkpoint)
         {
             _checkpoint = checkpoint;
             _line = line;
             _counters = counters;
-            _memoryGovernor = memoryGovernor;
+            _memoryAccounting = memoryAccounting;
             _fields = [];
         }
 
         public OwnedListFieldSink(
             AwkText line,
             AwkRuntimeCounters counters,
-            AwkMemoryAccounting memoryGovernor,
+            AwkMemoryAccounting memoryAccounting,
             int capacity,
             Action checkpoint)
         {
             _checkpoint = checkpoint;
             _line = line;
             _counters = counters;
-            _memoryGovernor = memoryGovernor;
+            _memoryAccounting = memoryAccounting;
             _fields = new List<AwkText>(capacity);
         }
 
@@ -542,7 +542,7 @@ internal sealed class AwkByteFieldSplitter(
                 field.Start,
                 field.Length,
                 _counters,
-                _memoryGovernor,
+                _memoryAccounting,
                 _checkpoint));
 
         public IReadOnlyList<AwkText> Complete() => _fields;
@@ -551,7 +551,7 @@ internal sealed class AwkByteFieldSplitter(
     private struct OwnedArrayFieldSink(
         AwkText line,
         AwkRuntimeCounters counters,
-        AwkMemoryAccounting memoryGovernor,
+        AwkMemoryAccounting memoryAccounting,
         AwkText[] fields,
         Action checkpoint) : IFieldSink<AwkText[]>
     {
@@ -562,7 +562,7 @@ internal sealed class AwkByteFieldSplitter(
                 field.Start,
                 field.Length,
                 counters,
-                memoryGovernor,
+                memoryAccounting,
                 checkpoint);
 
         public readonly AwkText[] Complete() => fields;
@@ -816,6 +816,6 @@ internal sealed class AwkByteFieldSplitter(
         if (length == 0)
             return AwkText.Empty;
 
-        return AwkText.CopyTrustedBytes(content.Slice(start, length), counters, memoryGovernor, throwIfCancellationRequested);
+        return AwkText.CopyTrustedBytes(content.Slice(start, length), counters, memoryAccounting, throwIfCancellationRequested);
     }
 }

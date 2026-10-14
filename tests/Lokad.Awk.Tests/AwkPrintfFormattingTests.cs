@@ -22,13 +22,13 @@ public sealed class AwkPrintfFormattingTests
         AwkValue[] values = [AwkValue.FromNumber(number)];
         var text = AwkFormattingRuntime.FormatPrintfStrictByteText(format,
             new AwkValueArrayPrintfArguments(values, 1, state),
-            AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(Math.Max(1, expected.Length)), counters, state.MemoryGovernor);
+            AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(Math.Max(1, expected.Length)), counters, state.MemoryAccounting);
         Assert.Equal(expected, text.AsString());
         Assert.Equal(1, counters.FormattingFallbacks);
         Assert.Equal(1, counters.FormattingStringInteropInputs);
         Assert.Equal(expected.Length == 0 ? 0 : 1, counters.Utf8Encodes);
         Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -42,9 +42,9 @@ public sealed class AwkPrintfFormattingTests
         AwkValue[] values = [AwkValue.FromNumber(number)];
         var text = AwkFormattingRuntime.FormatPrintfStrictByteText(format,
             new AwkValueArrayPrintfArguments(values, 1, state),
-            AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(byteCount), state.Counters, state.MemoryGovernor);
+            AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(byteCount), state.Counters, state.MemoryAccounting);
         Assert.Equal(byteCount, text.ByteLength);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -65,10 +65,10 @@ public sealed class AwkPrintfFormattingTests
         var limits = builderLimit ? AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(maximum)
             : AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(maximum);
         var error = Assert.Throws<AwkRuntimeException>(() => AwkFormattingRuntime.FormatPrintfStrictByteText(format,
-            new AwkValueArrayPrintfArguments(values, 2, state), limits, counters, state.MemoryGovernor));
+            new AwkValueArrayPrintfArguments(values, 2, state), limits, counters, state.MemoryAccounting));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -114,7 +114,7 @@ public sealed class AwkPrintfFormattingTests
         {
             const string format = "%2$*1$a";
             var cursor = new PrintfArgumentCursor<AwkValueArrayPrintfArguments>(arguments,
-                PrintfMissingArgumentPolicy.Throw, format, state.Counters, state.MemoryGovernor);
+                PrintfMissingArgumentPolicy.Throw, format, state.Counters, state.MemoryAccounting);
             var directive = PrintfDirectiveParser.Read(format, 0, AwkCompatibilityMode.GnuDefault, ref cursor);
             if (!cursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
                 throw new InvalidOperationException("Missing format value.");
@@ -130,13 +130,13 @@ public sealed class AwkPrintfFormattingTests
         AwkValue[] values = [AwkValue.FromNumber(1)];
         var text = AwkFormattingRuntime.FormatPrintfStrictByteText("%a",
             new AwkValueArrayPrintfArguments(values, 1, state),
-            AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(6), counters, state.MemoryGovernor);
+            AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(6), counters, state.MemoryAccounting);
         Assert.Equal("0x1p+0", text.AsString());
         Assert.Equal(1, counters.FormattingFallbacks);
         Assert.Equal(1, counters.FormattingStringInteropInputs);
         Assert.Equal(1, counters.Utf8Encodes);
         Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -150,9 +150,9 @@ public sealed class AwkPrintfFormattingTests
         AwkValue[] values = [AwkValue.FromNumber(1), AwkValue.FromNumber(10000)];
         var error = Assert.Throws<AwkRuntimeException>(() => AwkFormattingRuntime.FormatPrintfStrictByteText(format,
             new AwkValueArrayPrintfArguments(values, 2, state),
-            AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(maximum), counters, state.MemoryGovernor));
+            AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(maximum), counters, state.MemoryAccounting));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 }

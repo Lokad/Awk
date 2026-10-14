@@ -32,7 +32,7 @@ public sealed class AwkSplitCaptureResourceTests
         Assert.Equal(0, counters.AwkTextAsStringCalls);
         Assert.Equal(0, counters.RegexMatches);
         Assert.Equal(1, counters.SeparatorCaptureFallbacks);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -54,7 +54,7 @@ public sealed class AwkSplitCaptureResourceTests
         Assert.Equal(captures, captureCount);
         Assert.False(state.ContainsArrayValue(Fields, Old));
         Assert.False(state.ContainsArrayValue(Separators, Old));
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -63,7 +63,7 @@ public sealed class AwkSplitCaptureResourceTests
     public void EitherReplacementElementLimitFailurePreservesBothArrays(bool patsplit)
     {
         var state = Seed(State(AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1)));
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
 
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
@@ -83,7 +83,7 @@ public sealed class AwkSplitCaptureResourceTests
     {
         using var cancellation = new CancellationTokenSource();
         var state = Seed(State(AwkRuntimeLimits.CreateDefault(), cancellationToken: cancellation.Token));
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
 
         Assert.Throws<OperationCanceledException>(() => Split(state, "a,b", ","));
@@ -95,7 +95,7 @@ public sealed class AwkSplitCaptureResourceTests
     public void ByteWorkFailureLeavesBothCaptureDestinationsUntouched()
     {
         var state = Seed(State(AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(1)));
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
 
         var error = Assert.Throws<AwkRuntimeException>(() => Split(state, new string('a', 5000), ","));
 
@@ -131,8 +131,8 @@ public sealed class AwkSplitCaptureResourceTests
         Assert.Equal(1, separators);
         Assert.Equal("field", state.GetArrayByteText(Fields, Old).AsString());
         Assert.Equal("separator", state.GetArrayByteText(Separators, Old).AsString());
-        Assert.Equal(committed, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static AwkRuntimeState State(AwkRuntimeLimits limits, AwkRuntimeCounters? counters = null,

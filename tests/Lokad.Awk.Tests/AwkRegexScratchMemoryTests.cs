@@ -134,14 +134,14 @@ public sealed class AwkRegexScratchMemoryTests
                 AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter));
         var input = AwkText.FromString("x");
         var regex = state.CreateRegex(new AwkRegexPattern(missingOccurrence ? "(x)" : "z"));
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var result = AwkRegexSubstitution.ReplaceOccurrence(state, regex, input, AwkText.FromString("<\\1>"),
             AwkReplacementMode.Gensub, missingOccurrence ? 2 : 1, out var count);
         Assert.Same(input, result);
         Assert.Equal(0, count);
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
-        Assert.True(state.MemoryGovernor.TotalReservedBytes >= AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(3));
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.True(state.MemoryAccounting.TotalReservedBytes >= AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(3));
     }
 
     [Theory]

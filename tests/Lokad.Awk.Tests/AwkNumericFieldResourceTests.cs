@@ -40,7 +40,7 @@ public sealed class AwkNumericFieldResourceTests
     {
         var state = State(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(16));
         Prepare(state, "%.20f");
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
 
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
@@ -56,7 +56,7 @@ public sealed class AwkNumericFieldResourceTests
         Assert.Equal(2, state.FieldCount);
         SetFormat(state, "%.2f");
         Assert.True(state.CurrentRecordByteText.AsSpan().SequenceEqual("1.25 b"u8));
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -67,7 +67,7 @@ public sealed class AwkNumericFieldResourceTests
         var state = State(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(16));
         Prepare(state, "%.8f");
         state.AssignFieldValue(2, AwkValue.FromNumber(2.75));
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
 
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
@@ -92,7 +92,7 @@ public sealed class AwkNumericFieldResourceTests
     {
         var state = State(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(2_000));
         Prepare(state, "%.200f");
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
 
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
@@ -114,7 +114,7 @@ public sealed class AwkNumericFieldResourceTests
     {
         var state = State(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(2_000));
         Prepare(state, "%.80f");
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var separator = AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 120)));
 
         var error = Assert.Throws<AwkRuntimeException>(() => state.AssignSpecialVariableValue(
@@ -133,13 +133,13 @@ public sealed class AwkNumericFieldResourceTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = State(AwkRuntimeLimits.CreateDefault(), counters, cancellation.Token);
         Prepare(state, "%.4f");
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
 
         Assert.Throws<OperationCanceledException>(() => _ = state.CurrentRecordByteText);
 
-        Assert.Equal(committed, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, counters.FormattingFallbacks);
         Assert.Equal(1.25, state.GetFieldValue(1).AsNumber());
     }
@@ -150,7 +150,7 @@ public sealed class AwkNumericFieldResourceTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = State(AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(1), counters);
         Prepare(state, "%.6g");
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.Equal(1, counters.ExecutionSteps);
 
         var error = Assert.Throws<AwkRuntimeException>(() => _ = state.CurrentRecordByteText);
@@ -158,8 +158,8 @@ public sealed class AwkNumericFieldResourceTests
         Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(1, counters.ExecutionSteps);
         Assert.Equal(1.25, state.GetFieldValue(1).AsNumber());
-        Assert.Equal(committed, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -173,8 +173,8 @@ public sealed class AwkNumericFieldResourceTests
     private static void AssertMemoryFailure(AwkRuntimeException error, AwkRuntimeState state, long committed)
     {
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(committed, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static void Prepare(AwkRuntimeState state, string format)

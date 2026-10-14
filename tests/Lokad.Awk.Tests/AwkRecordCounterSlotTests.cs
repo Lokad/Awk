@@ -51,7 +51,7 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(7, state.ResolveSpecialVariableValue(special).AsNumber());
         Assert.Equal(7, state.GetGlobalScalarValue(global).AsNumber());
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]

@@ -15,20 +15,20 @@ public sealed class AwkBuiltinArgumentMemoryTests
         Assert.True(AwkBuiltins.TryGetCallable("sqrt", out var builtin));
         AwkExpression[] arguments = [AwkExpression.PreIncrement(AwkReference.Scalar(name))];
         var context = new AwkBuiltinContext(arguments, new AwkEvaluationContext(state));
-        var baseline = state.MemoryGovernor.CurrentCommittedBytes;
-        using (var pressure = state.MemoryGovernor.ReserveTransient(Limit - baseline - AwkRuntimeMemory.EstimateAwkValueArrayBytes(1) + 1))
+        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - AwkRuntimeMemory.EstimateAwkValueArrayBytes(1) + 1))
         {
-            var before = state.MemoryGovernor.CurrentCommittedBytes;
+            var before = state.MemoryAccounting.CurrentCommittedBytes;
             var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await builtin.EvaluateAsync(context));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.Equal(0, state.ResolveVariableValue(name).AsNumber());
-            Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         var retry = await builtin.EvaluateAsync(context);
         Assert.Equal(1, retry.AsNumber());
         Assert.Equal(1, state.ResolveVariableValue(name).AsNumber());
-        Assert.Equal(baseline, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
     }
 
     [Theory]
@@ -42,13 +42,13 @@ public sealed class AwkBuiltinArgumentMemoryTests
         var state = State(observed, cancellation.Token);
         var operand = new PendingOperand(cancellation.Token);
         Assert.True(AwkBuiltins.TryGetCallable("sqrt", out var builtin));
-        var baseline = state.MemoryGovernor.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         var pending = builtin.EvaluateAsync(new AwkBuiltinContext([operand], new AwkEvaluationContext(state))).AsTask();
         try
         {
             await operand.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(pending.IsCompleted);
-            Assert.Equal(baseline + AwkRuntimeMemory.EstimateAwkValueArrayBytes(1), state.MemoryGovernor.CurrentCommittedBytes);
+            Assert.Equal(baseline + AwkRuntimeMemory.EstimateAwkValueArrayBytes(1), state.MemoryAccounting.CurrentCommittedBytes);
             if (cancel)
             {
                 cancellation.Cancel();
@@ -60,8 +60,8 @@ public sealed class AwkBuiltinArgumentMemoryTests
                 operand.Allow.TrySetResult();
                 Assert.Equal(2, (await pending.WaitAsync(TimeSpan.FromSeconds(10))).AsNumber());
             }
-            Assert.Equal(baseline, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {

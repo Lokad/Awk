@@ -17,7 +17,7 @@ public sealed class AwkSpecialArrayReadTests
         state.InitializeFunctions(new Dictionary<AwkFunctionName, AwkUserFunction>());
         var name = AwkArrayName.FromText(table);
         var key = new AwkArrayKey("absent");
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.True(state.TryGetExistingArrayCount(name, out var count));
 
         var error = Assert.Throws<AwkRuntimeException>(() =>
@@ -33,8 +33,8 @@ public sealed class AwkSpecialArrayReadTests
         Assert.False(state.ContainsArrayValue(name, key));
         Assert.True(state.TryGetExistingArrayCount(name, out var afterCount));
         Assert.Equal(count, afterCount);
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -45,13 +45,13 @@ public sealed class AwkSpecialArrayReadTests
         state.InitializeGlobalNames(new[] { global }.ToFrozenSet());
         var table = AwkArrayName.FromText("SYMTAB");
         var key = new AwkArrayKey("untouched");
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
 
         Assert.True(state.ContainsArrayValue(table, key));
         Assert.True(state.GetArrayAwkValue(table, key).IsUnassignedValue);
         Assert.False(state.HasScalar(global));
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]

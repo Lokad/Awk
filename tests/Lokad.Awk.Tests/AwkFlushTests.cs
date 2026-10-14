@@ -137,28 +137,28 @@ public sealed class AwkFlushTests
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(maximum);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = State(limits, counters);
-        using var sink = new AwkOutputSink(limits, state.MemoryGovernor, counters);
+        using var sink = new AwkOutputSink(limits, state.MemoryAccounting, counters);
         var host = new MockFileSystem();
         var io = Io(host, limits, state);
         var execution = new AwkExecutionContext(sink, io);
         state.SetErrno(AwkErrno.FromHostMessage("keep"));
         var path = new string('x', 1024);
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var pressure = maximum - committed - 1;
-        state.MemoryGovernor.Reserve(pressure);
+        state.MemoryAccounting.Reserve(pressure);
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
             AwkFflushRuntime.FlushAsync(AwkValue.FromText(path), state, execution).AsTask());
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(committed, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(pressure, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(pressure, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal("keep", state.ResolveSpecialVariableValue(AwkSpecialVariableId.Errno).AsString());
-        state.MemoryGovernor.ReleaseReserved(pressure);
+        state.MemoryAccounting.ReleaseReserved(pressure);
         Assert.Equal(-1, await AwkFflushRuntime.FlushAsync(AwkValue.FromText(path), state, execution));
         Assert.Equal("keep", state.ResolveSpecialVariableValue(AwkSpecialVariableId.Errno).AsString());
         sink.Dispose();
-        Assert.Equal(committed - AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(committed - AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]

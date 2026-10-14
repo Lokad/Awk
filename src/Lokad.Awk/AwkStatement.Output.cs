@@ -18,7 +18,7 @@ internal abstract partial class AwkStatement
             var state = context.State;
             var execution = RequireExecutionContext(context);
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
-            using var buffer = AwkValueBuffer.Rent(expressions.Length, state.MemoryGovernor);
+            using var buffer = AwkValueBuffer.Rent(expressions.Length, state.MemoryAccounting);
             var values = buffer.Values;
             for (var index = 0; index < expressions.Length; index++)
                 values[index] = await expressions[index].EvaluateAsync(context).ConfigureAwait(false);
@@ -56,7 +56,7 @@ internal abstract partial class AwkStatement
                     return;
                 }
 
-                using var builder = new AwkUtf8Builder(state.Limits, state.MemoryGovernor);
+                using var builder = new AwkUtf8Builder(state.Limits, state.MemoryAccounting);
                 builder.Append(segments.Segments, state.CancellationCheckpoint);
                 await EmitOutputAsync(output, io, target, builder.AsMemory()).ConfigureAwait(false);
             }
@@ -88,9 +88,9 @@ internal abstract partial class AwkStatement
             var execution = RequireExecutionContext(context);
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
             var formatText = await format.ResolveStringAsync(context).ConfigureAwait(false);
-            using var formattedTextLease = state.MemoryGovernor.CreateTransientLease();
+            using var formattedTextLease = state.MemoryAccounting.CreateTransientLease();
             AwkText formatted;
-            using (var buffer = AwkValueBuffer.Rent(arguments.Length, state.MemoryGovernor))
+            using (var buffer = AwkValueBuffer.Rent(arguments.Length, state.MemoryAccounting))
             {
                 var resolvedArguments = buffer.Values;
                 for (var i = 0; i < arguments.Length; i++)
@@ -101,7 +101,7 @@ internal abstract partial class AwkStatement
                     new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state),
                     state.Limits,
                     state.Counters,
-                    state.MemoryGovernor,
+                    state.MemoryAccounting,
                     state.CompatibilityMode,
                     state.CancellationCheckpoint,
                     formattedTextLease);

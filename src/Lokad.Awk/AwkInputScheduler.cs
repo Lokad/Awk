@@ -124,7 +124,7 @@ internal sealed class AwkInputScheduler(
                 AwkHostPathPolicy.ThrowIfDenied(path.Absolute, accessiblePathRoot);
                 var fileName = argumentText.AsSpan(state.CancellationCheckpoint).SequenceEqual(path.Display.Span)
                     ? argumentText
-                    : AwkText.CopyTrustedBytes(path.Display.Span, state.Counters, state.MemoryGovernor, state.CancellationCheckpoint);
+                    : AwkText.CopyTrustedBytes(path.Display.Span, state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
                 state.BeginInputFile(fileName, argumentIndex, actionExecutor.HasBeginFileActions);
                 state.Resources.RecordHostCall();
                 var opened = await AwkHostBoundaryPolicy.AwaitAsync(

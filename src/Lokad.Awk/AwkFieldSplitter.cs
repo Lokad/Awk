@@ -14,7 +14,7 @@ internal sealed class AwkFieldSplitter(
     Func<AwkRegexCaseSensitivity> resolveRegexCaseSensitivity,
     AwkStringUnitMode stringUnitMode,
     Action throwIfCancellationRequested,
-    AwkMemoryAccounting memoryGovernor,
+    AwkMemoryAccounting memoryAccounting,
     AwkRuntimeCounters counters,
     Action<int>? recordByteWork = null,
     AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
@@ -28,7 +28,7 @@ internal sealed class AwkFieldSplitter(
         resolveRegexCaseSensitivity,
         stringUnitMode,
         throwIfCancellationRequested,
-        memoryGovernor,
+        memoryAccounting,
         counters,
         resetRegexWarningSite);
 
@@ -81,7 +81,7 @@ internal sealed class AwkFieldSplitter(
     public List<AwkFieldWidth> PrepareFieldWidths(AwkText value)
     {
         var count = AwkFieldWidthsParser.Parse(value.AsSpan(throwIfCancellationRequested), null, throwIfCancellationRequested);
-        memoryGovernor.PreflightAllocation(AwkRuntimeMemory.EstimateFieldWidthListBytes(count));
+        memoryAccounting.PreflightAllocation(AwkRuntimeMemory.EstimateFieldWidthListBytes(count));
         var widths = new List<AwkFieldWidth>(count);
         AwkFieldWidthsParser.Parse(value.AsSpan(throwIfCancellationRequested), widths, throwIfCancellationRequested);
         return widths;
@@ -92,11 +92,11 @@ internal sealed class AwkFieldSplitter(
         var bytes = AwkRuntimeMemory.EstimateFieldWidthListBytes(widths.Capacity);
         if (bytes > _fieldWidthsBytes)
         {
-            memoryGovernor.Reserve(bytes - _fieldWidthsBytes);
-            memoryGovernor.CommitReserved(bytes - _fieldWidthsBytes);
+            memoryAccounting.Reserve(bytes - _fieldWidthsBytes);
+            memoryAccounting.CommitReserved(bytes - _fieldWidthsBytes);
         }
         else
-            memoryGovernor.ReleaseCommitted(_fieldWidthsBytes - bytes);
+            memoryAccounting.ReleaseCommitted(_fieldWidthsBytes - bytes);
         _fieldWidthsBytes = bytes;
         _fieldWidths = widths;
         _fieldSplittingMode = AwkFieldSplittingMode.FieldWidths;
@@ -104,7 +104,7 @@ internal sealed class AwkFieldSplitter(
 
     private void ClearUnusedFieldWidths()
     {
-        memoryGovernor.ReleaseCommitted(_fieldWidthsBytes);
+        memoryAccounting.ReleaseCommitted(_fieldWidthsBytes);
         _fieldWidthsBytes = 0;
         _fieldWidths = [];
     }

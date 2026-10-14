@@ -40,7 +40,7 @@ public sealed class AwkPreparedCompoundUpdateTests
         Assert.Equal(expected, state.ResolvePreparedGlobalValue(name, 0).AsNumber());
         Assert.Equal(1, source.Consumptions);
         Assert.Equal(2, state.Counters.ExecutionSteps - steps);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, state.Counters.StringDecodes);
     }
 
@@ -54,7 +54,7 @@ public sealed class AwkPreparedCompoundUpdateTests
         var state = State();
         var name = AwkVariableName.FromText("value");
         state.AssignVariable(name, "007");
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var source = new ValueSource(3, pending: true);
         Exception error = canceled ? new OperationCanceledException() : new AwkRuntimeException("test RHS failure"u8.ToArray());
         if (!pending) source.Fail(error);
@@ -70,8 +70,8 @@ public sealed class AwkPreparedCompoundUpdateTests
         else Assert.Same(error, observed);
         Assert.Equal("007", state.ResolveVariableValue(name).AsString());
         Assert.Equal(1, source.Consumptions);
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -82,7 +82,7 @@ public sealed class AwkPreparedCompoundUpdateTests
         var state = State();
         var name = AwkVariableName.FromText("value");
         state.AssignVariable(name, "007");
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var source = new ValueSource(0, pending);
         var result = ApplyAsync();
         async Task<AwkValue> ApplyAsync() => await AwkReference.PreparedGlobalScalar(name, 0).ApplyCompoundAssignmentAsync(
@@ -91,8 +91,8 @@ public sealed class AwkPreparedCompoundUpdateTests
         await Assert.ThrowsAsync<AwkRuntimeException>(() => result);
         Assert.Equal("007", state.ResolveVariableValue(name).AsString());
         Assert.Equal(1, source.Consumptions);
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -103,15 +103,15 @@ public sealed class AwkPreparedCompoundUpdateTests
         var target = AwkReference.PreparedGlobalScalar(name, 0);
         var source = new ValueSource(3, pending: false);
         var right = new EffectExpression(source, () => { });
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
-        using (var pressure = state.MemoryGovernor.ReserveTransient((1 << 20) - before))
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        using (var pressure = state.MemoryAccounting.ReserveTransient((1 << 20) - before))
         {
-            var pressured = state.MemoryGovernor.CurrentCommittedBytes;
+            var pressured = state.MemoryAccounting.CurrentCommittedBytes;
             Assert.Throws<AwkRuntimeException>(() => target.ApplyCompoundAssignmentAsync(new AwkEvaluationContext(state), right, AwkCompoundAssignmentOperation.Add));
             Assert.False(source.Started);
             Assert.False(state.HasScalar(name));
-            Assert.Equal(pressured, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(pressured, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         Assert.Equal(3, (await target.ApplyCompoundAssignmentAsync(new AwkEvaluationContext(state), right, AwkCompoundAssignmentOperation.Add)).AsNumber());
         Assert.Equal(1, source.Consumptions);
@@ -125,7 +125,7 @@ public sealed class AwkPreparedCompoundUpdateTests
         var array = new AwkArrayName(name.Identifier);
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayString(array, key, "kept");
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var source = new ValueSource(3, pending: false);
         var target = AwkReference.PreparedGlobalScalar(name, 0);
         Assert.Throws<AwkRuntimeException>(() => target.ApplyCompoundAssignmentAsync(new AwkEvaluationContext(state),
@@ -133,8 +133,8 @@ public sealed class AwkPreparedCompoundUpdateTests
         Assert.False(source.Started);
         Assert.False(state.HasScalar(name));
         Assert.Equal("kept", state.GetArrayAwkValue(array, key).AsString());
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private sealed class EffectExpression(ValueSource source, Action effect) : AwkExpression

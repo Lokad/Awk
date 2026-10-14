@@ -175,7 +175,7 @@ public sealed class AwkScanCancellationTests
             await builtin.EvaluateAsync(new AwkBuiltinContext(arguments, new AwkEvaluationContext(state))));
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -194,7 +194,7 @@ public sealed class AwkScanCancellationTests
             input ? state.CreateNumericStringValue(source) : state.CreateByteTextValue(source)));
 
         Assert.Equal(7, state.ResolveVariableValue(name).AsNumber());
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static Action CancelDuringScan(CancellationTokenSource cancellation, int checkpointNumber = 2)

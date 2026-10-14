@@ -30,16 +30,16 @@ public sealed class AwkUntypedStateTests
         var state = State(counters);
         var name = AwkArrayName.FromText("values");
         var key = AwkArrayKey.FromOrdinal(1);
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var first = state.GetArrayAwkValue(name, key);
 
         Assert.Equal(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(key),
-            state.MemoryGovernor.CurrentCommittedBytes - before);
+            state.MemoryAccounting.CurrentCommittedBytes - before);
         Assert.Equal(AwkRuntimeValueKind.Untyped, state.GetArrayElementRuntimeKind(name, key));
         Assert.True(state.GetArrayAwkValue(name, key).IsUntypedValue);
         Assert.True(first.ByteText.AsSpan().IsEmpty);
         Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -60,9 +60,9 @@ public sealed class AwkUntypedStateTests
         var key = AwkArrayKey.FromOrdinal(1);
         try
         {
-            using var pressure = state.MemoryGovernor.ReserveTransient(limit - state.MemoryGovernor.CurrentCommittedBytes -
+            using var pressure = state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.CurrentCommittedBytes -
                 AwkRuntimeMemory.EstimateUntypedArrayElementBytes(key) + 1);
-            var before = state.MemoryGovernor.CurrentCommittedBytes;
+            var before = state.MemoryAccounting.CurrentCommittedBytes;
             var error = Assert.Throws<AwkRuntimeException>(() => state.GetArrayElementRuntimeKind(name, key));
 
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
@@ -71,8 +71,8 @@ public sealed class AwkUntypedStateTests
             Assert.False(state.HasScalar(source));
             Assert.False(state.HasScalar(parameter));
             Assert.False(state.TryGetExistingArrayCount(name, out _));
-            Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -89,7 +89,7 @@ public sealed class AwkUntypedStateTests
         var first = AwkArrayKey.FromOrdinal(1);
         var second = AwkArrayKey.FromOrdinal(2);
         Assert.Equal(AwkRuntimeValueKind.Untyped, state.GetArrayElementRuntimeKind(name, first));
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
 
         var error = Assert.Throws<AwkRuntimeException>(() => state.GetArrayElementRuntimeKind(name, second));
 
@@ -98,8 +98,8 @@ public sealed class AwkUntypedStateTests
         Assert.False(state.ContainsArrayValue(name, second));
         Assert.True(state.TryGetExistingArrayCount(name, out var count));
         Assert.Equal(1, count);
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -114,16 +114,16 @@ public sealed class AwkUntypedStateTests
         state.PushFunctionFrame(new AwkFunctionLocalLayout([parameter]), [AwkFunctionArgument.FromValue(origin)]);
         try
         {
-            using var pressure = state.MemoryGovernor.ReserveTransient(limit - state.MemoryGovernor.CurrentCommittedBytes);
-            var before = state.MemoryGovernor.CurrentCommittedBytes;
+            using var pressure = state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.CurrentCommittedBytes);
+            var before = state.MemoryAccounting.CurrentCommittedBytes;
             var error = Assert.Throws<AwkRuntimeException>(() => state.AssignVariable(parameter, new string('x', 256)));
 
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.True(origin.IsUntypedValue);
             Assert.False(state.HasScalar(parameter));
             Assert.Equal(AwkRuntimeValueKind.Untyped, state.GetArrayElementRuntimeKind(name, key));
-            Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         finally
         {
@@ -137,16 +137,16 @@ public sealed class AwkUntypedStateTests
         const int limit = 1 << 20;
         var state = State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(limit));
         var name = AwkVariableName.FromText("fresh");
-        using var pressure = state.MemoryGovernor.ReserveTransient(limit - state.MemoryGovernor.CurrentCommittedBytes);
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        using var pressure = state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.CurrentCommittedBytes);
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
 
         Assert.Throws<AwkRuntimeException>(() => state.TryResolveArrayArgument(name, out _));
 
         Assert.False(state.HasScalar(name));
         Assert.False(state.IsArray(new AwkArrayName(name.Identifier)));
         Assert.False(state.ContainsArrayValue(AwkArrayName.FromText("SYMTAB"), new AwkArrayKey("fresh")));
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static AwkRuntimeState State(AwkRuntimeCounters counters, AwkRuntimeLimits? limits = null) =>

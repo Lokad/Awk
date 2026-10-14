@@ -49,7 +49,7 @@ internal static class AwkFflushRuntime
         var characters = AwkRuntimeMemory.CheckedAdd(path.Length, prefix.Length + suffix.Length);
         if (characters > int.MaxValue)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-        using var allocationPeak = state.MemoryGovernor.ReserveAllocationPeak(AwkRuntimeMemory.EstimateDiagnosticMessageBytes((int)characters));
+        using var allocationPeak = state.MemoryAccounting.ReserveAllocationPeak(AwkRuntimeMemory.EstimateDiagnosticMessageBytes((int)characters));
         execution.Output.ReportDiagnostic(new AwkDiagnostic(
             default, string.Concat(prefix, path, suffix), AwkDiagnosticId.WarningRuntime));
         await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);

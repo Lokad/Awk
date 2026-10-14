@@ -16,15 +16,15 @@ public sealed class AwkPreparedNumericInputTests
         var input = state.CreateNumericStringValue(text);
         Store(state, input, array);
         var before = state.Counters.ValuesCreated;
-        var retained = state.MemoryGovernor.CurrentCommittedBytes;
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
         var result = Read(state, array);
         Assert.Same(text, result.ByteText);
         Assert.Equal(AwkRuntimeValueKind.NumericString, result.RuntimeKind);
         Assert.Equal(number, result.AsNumber());
         Assert.Equal(0, AwkValue.Compare(result, AwkValue.FromNumber(number)));
         Assert.Equal(before + 1, state.Counters.ValuesCreated);
-        Assert.Equal(retained, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, state.Counters.StringDecodes);
         Assert.Equal(0, state.Counters.Utf8Encodes);
     }
@@ -63,12 +63,12 @@ public sealed class AwkPreparedNumericInputTests
         var state = CreateState(cancellationToken: cancellation.Token);
         var input = state.CreateNumericStringValue("1" + new string('0', 8000));
         Store(state, input, array: true);
-        var retained = state.MemoryGovernor.CurrentCommittedBytes;
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
         var error = Assert.Throws<OperationCanceledException>(() => Read(state, array: true));
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(retained, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -76,12 +76,12 @@ public sealed class AwkPreparedNumericInputTests
     {
         var state = CreateState(maxMemoryBytes: 512);
         Store(state, state.CreateNumericStringValue("123"), array: true);
-        var retained = state.MemoryGovernor.CurrentCommittedBytes;
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
         var oversized = AwkValue.FromNumericString("1" + new string('0', 2000));
         Assert.Throws<AwkRuntimeException>(() => Store(state, oversized, array: true));
         Assert.Equal(123, Read(state, array: true).AsNumber());
-        Assert.Equal(retained, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -89,12 +89,12 @@ public sealed class AwkPreparedNumericInputTests
     {
         var state = CreateState(maxValueBytes: 3);
         Store(state, AwkValue.FromNumericString("12345"), array: true);
-        var retained = state.MemoryGovernor.CurrentCommittedBytes;
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
         var created = state.Counters.ValuesCreated;
         Assert.Throws<AwkRuntimeException>(() => Read(state, array: true));
         Assert.Equal(created, state.Counters.ValuesCreated);
-        Assert.Equal(retained, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static void Store(AwkRuntimeState state, AwkValue value, bool array)

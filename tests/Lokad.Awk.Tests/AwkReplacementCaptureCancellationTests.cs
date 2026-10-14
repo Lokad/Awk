@@ -339,15 +339,15 @@ public sealed class AwkReplacementCaptureCancellationTests
                 new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter));
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var replacement = AwkText.FromString(new string('x', LongText))
-            .Concat(AwkText.FromString("&"), counters, state.MemoryGovernor);
+            .Concat(AwkText.FromString("&"), counters, state.MemoryAccounting);
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() => AwkRegexSubstitution.ReplaceAll(state, regex,
             AwkText.FromString("a"), replacement, gensub ? AwkReplacementMode.Gensub : AwkReplacementMode.Substitution,
             0, out _));
         Assert.Equal(0, counters.ConcatenationBytesCopied);
         Assert.Equal(0, counters.RegexMatches);
-        Assert.Equal(0, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     private static AwkRegexMatch Match() => new(true, 0, 1, 0, 1, AwkText.FromString("H"),

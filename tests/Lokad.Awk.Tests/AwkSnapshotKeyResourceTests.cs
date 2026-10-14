@@ -33,19 +33,19 @@ public sealed class AwkSnapshotKeyResourceTests
         var (state, name) = CreateState(observed, source, selector);
         var (keys, containers, payload) = await MeasureExpected(state, name, source, selector);
         var required = AwkRuntimeMemory.CheckedAdd(containers, payload);
-        var baseline = state.MemoryGovernor.CurrentCommittedBytes;
-        using var pressure = state.MemoryGovernor.ReserveTransient(MemoryLimit - baseline - required);
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        using var pressure = state.MemoryAccounting.ReserveTransient(MemoryLimit - baseline - required);
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         using (var snapshot = await state.SnapshotArrayKeyValuesAsync(name, new AwkEvaluationContext(state)))
         {
             Assert.Equal(keys, snapshot.ToArray());
-            Assert.Equal(before + required, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(before + required, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             if (source != "symbols" && selector != "@ind_str_asc")
                 Assert.All(snapshot, key => Assert.Equal(source == "ordinals", key.IsOrdinal));
         }
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -56,27 +56,27 @@ public sealed class AwkSnapshotKeyResourceTests
         var (keys, containers, payload) = await MeasureExpected(state, name, source, selector);
         Assert.True(payload > 0);
         var required = containers + payload;
-        var baseline = state.MemoryGovernor.CurrentCommittedBytes;
-        using (var pressure = state.MemoryGovernor.ReserveTransient(MemoryLimit - baseline - required + 1))
+        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        using (var pressure = state.MemoryAccounting.ReserveTransient(MemoryLimit - baseline - required + 1))
         {
-            var before = state.MemoryGovernor.CurrentCommittedBytes;
+            var before = state.MemoryAccounting.CurrentCommittedBytes;
             var steps = state.Counters.ExecutionSteps;
 
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
                 state.SnapshotArrayKeyValuesAsync(name, new AwkEvaluationContext(state)).AsTask());
 
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.Equal(steps, state.Counters.ExecutionSteps);
         }
         using (var retry = await state.SnapshotArrayKeyValuesAsync(name, new AwkEvaluationContext(state)))
         {
             Assert.Equal(keys, retry.ToArray());
-            Assert.Equal(baseline + required, state.MemoryGovernor.CurrentCommittedBytes);
+            Assert.Equal(baseline + required, state.MemoryAccounting.CurrentCommittedBytes);
         }
-        Assert.Equal(baseline, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
@@ -93,9 +93,9 @@ public sealed class AwkSnapshotKeyResourceTests
         var destinationBytes = keys.Sum(static key => AwkRuntimeMemory.EstimateExternalArrayElementBytes(0, key.ByteLength));
         var oldBytes = AwkRuntimeMemory.EstimateExternalArrayElementBytes(0, 4);
         var required = entries + payload + Math.Max(0, destinationBytes - oldBytes - payload);
-        var baseline = state.MemoryGovernor.CurrentCommittedBytes;
-        using var pressure = state.MemoryGovernor.ReserveTransient(MemoryLimit - baseline - required);
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        using var pressure = state.MemoryAccounting.ReserveTransient(MemoryLimit - baseline - required);
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
 
         var count = await state.SortArrayKeysAsync(name, Destination, AwkArraySortOrder.Parse("@ind_str_asc"),
             new AwkEvaluationContext(state));
@@ -103,10 +103,10 @@ public sealed class AwkSnapshotKeyResourceTests
         Assert.Equal(keys.Length, count);
         for (var index = 0; index < keys.Length; index++)
             Assert.Equal(keys[index].ToString(), state.GetArrayByteText(Destination, AwkArrayKey.FromOrdinal(index + 1)).AsString());
-        Assert.Equal(before - oldBytes + destinationBytes, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(before - oldBytes + destinationBytes, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         state.ClearArray(Destination);
-        Assert.Equal(before - oldBytes, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal(before - oldBytes, state.MemoryAccounting.CurrentCommittedBytes);
     }
 
     public static IEnumerable<object[]> SortFailures()
@@ -125,10 +125,10 @@ public sealed class AwkSnapshotKeyResourceTests
         state.SetArrayString(Destination, First, "keep");
         var (original, _, payload) = await MeasureExpected(state, name, source, "@ind_str_asc");
         var required = AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(original.Length) + payload;
-        var baseline = state.MemoryGovernor.CurrentCommittedBytes;
-        using (var pressure = state.MemoryGovernor.ReserveTransient(MemoryLimit - baseline - required + 1))
+        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
+        using (var pressure = state.MemoryAccounting.ReserveTransient(MemoryLimit - baseline - required + 1))
         {
-            var before = state.MemoryGovernor.CurrentCommittedBytes;
+            var before = state.MemoryAccounting.CurrentCommittedBytes;
             var steps = state.Counters.ExecutionSteps;
 
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => (keys
@@ -137,8 +137,8 @@ public sealed class AwkSnapshotKeyResourceTests
 
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal("keep", state.GetArrayByteText(Destination, First).AsString());
-            Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.Equal(steps, state.Counters.ExecutionSteps);
         }
         using var retry = await state.SnapshotArrayKeyValuesAsync(name, new AwkEvaluationContext(state));

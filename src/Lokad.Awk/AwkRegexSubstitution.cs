@@ -64,7 +64,7 @@ internal static class AwkRegexSubstitution
                 out replacementCount);
         }
 
-        using var replacementPlan = AwkGensubReplacementPlan.Rent(replacement, state.CancellationCheckpoint, state.MemoryGovernor);
+        using var replacementPlan = AwkGensubReplacementPlan.Rent(replacement, state.CancellationCheckpoint, state.MemoryAccounting);
         var capturePlan = replacementPlan.CapturePlan;
         if (targetOccurrence == 0 && maxReplacements == 1)
         {
@@ -172,7 +172,7 @@ internal static class AwkRegexSubstitution
             state.ThrowIfCancellationRequested();
             using var occurrenceBuilder = new AwkUtf8Builder(
                 state.Limits,
-                state.MemoryGovernor,
+                state.MemoryAccounting,
                 initialCapacity);
             var matchIndex = matchReplacement.GetByteIndex(in match);
             var matchLength = matchReplacement.GetByteLength(in match);
@@ -185,7 +185,7 @@ internal static class AwkRegexSubstitution
 
         using var builder = new AwkUtf8Builder(
             state.Limits,
-            state.MemoryGovernor,
+            state.MemoryAccounting,
             initialCapacity);
         var position = 0;
         replacementCount = 0;

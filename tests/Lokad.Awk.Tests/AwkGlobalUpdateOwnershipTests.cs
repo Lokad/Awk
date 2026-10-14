@@ -17,19 +17,19 @@ public sealed class AwkGlobalUpdateOwnershipTests
         var name = AwkVariableName.FromText("value");
         var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var expression = AwkExpression.Assignment(Reference(name), new PendingExpression(source.Task));
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var result = expression.EvaluateAsync(new AwkEvaluationContext(state)).AsTask();
         Assert.False(result.IsCompleted);
         Assert.False(state.HasScalar(name));
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
-        using (var pressure = state.MemoryGovernor.ReserveTransient(Limit - before))
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - before))
         {
             source.SetResult(AwkValue.FromNumber(7));
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => result);
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.False(state.HasScalar(name));
-            Assert.Equal(Limit, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         await Reference(name).AssignValueAsync(new AwkEvaluationContext(state), AwkValue.FromNumber(9));
         Assert.Equal(9, state.ResolveVariableValue(name).AsNumber());
@@ -68,19 +68,19 @@ public sealed class AwkGlobalUpdateOwnershipTests
         await reference.AssignValueAsync(context, AwkValue.FromNumber(7));
         Assert.Equal(7, (await reference.EvaluateAsync(context)).AsNumber());
         var slot = state.GetOrCreateGlobalScalarSlot(name);
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
-        using (var pressure = state.MemoryGovernor.ReserveTransient(Limit - before))
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - before))
         {
             var text = AwkValue.FromText(new string('x', 1024));
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => reference.AssignValueAsync(context, text).AsTask());
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(7, state.GetGlobalScalarValue(slot).AsNumber());
-            Assert.Equal(Limit, state.MemoryGovernor.CurrentCommittedBytes);
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+            Assert.Equal(Limit, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.Throws<AwkRuntimeException>(() => state.AssignVariableValue(slot, text));
             Assert.Equal(7, state.GetGlobalScalarValue(slot).AsNumber());
         }
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         await reference.AssignValueAsync(context, AwkValue.FromNumber(9));
         Assert.Equal(9, state.GetGlobalScalarValue(slot).AsNumber());
     }
@@ -96,7 +96,7 @@ public sealed class AwkGlobalUpdateOwnershipTests
         var array = new AwkArrayName(name.Identifier);
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayString(array, key, "kept");
-        var before = state.MemoryGovernor.CurrentCommittedBytes;
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
         var context = new AwkEvaluationContext(state);
         var read = await Assert.ThrowsAsync<AwkRuntimeException>(() => reference.EvaluateAsync(context).AsTask());
         var write = await Assert.ThrowsAsync<AwkRuntimeException>(() => reference.AssignValueAsync(context, AwkValue.FromNumber(7)).AsTask());
@@ -104,7 +104,7 @@ public sealed class AwkGlobalUpdateOwnershipTests
         Assert.Equal(AwkUtf8Codec.Decode(read.MessageBytes), AwkUtf8Codec.Decode(write.MessageBytes));
         Assert.Equal("kept", state.GetArrayByteText(array, key).AsString());
         Assert.False(state.HasScalar(name));
-        Assert.Equal(before, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class AwkGlobalUpdateOwnershipTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => result);
         Assert.True(state.HasScalar(name));
         Assert.False(state.IsArray(new AwkArrayName(name.Identifier)));
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]

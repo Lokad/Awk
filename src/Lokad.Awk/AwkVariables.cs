@@ -22,7 +22,7 @@ internal sealed class AwkVariables
     private readonly int _maxIdentifierBytes;
     private readonly Action<long> _throwIfValueBytesExceeded;
     private readonly AwkRuntimeCounters _counters;
-    private readonly AwkMemoryAccounting _memoryGovernor;
+    private readonly AwkMemoryAccounting _memoryAccounting;
     private readonly Dictionary<AwkVariableName, AwkGlobalSlotId> _scalarSlotsByName = new();
     private readonly List<AwkScalarSlot> _scalarSlots = [];
     private readonly AwkArrayKeyComparer _arrayKeyComparer;
@@ -71,7 +71,7 @@ internal sealed class AwkVariables
         int maxArrayElements,
         int maxSymbols,
         int maxIdentifierBytes,
-        AwkMemoryAccounting memoryGovernor,
+        AwkMemoryAccounting memoryAccounting,
         AwkRuntimeCounters counters,
         Func<AwkText, AwkValue> createByteTextValue,
         Func<AwkText, AwkValue> createNumericStringValue,
@@ -92,7 +92,7 @@ internal sealed class AwkVariables
         _maxArrayElements = maxArrayElements;
         _maxSymbols = maxSymbols;
         _maxIdentifierBytes = maxIdentifierBytes;
-        _memoryGovernor = memoryGovernor;
+        _memoryAccounting = memoryAccounting;
         _counters = counters;
         _createByteTextValue = createByteTextValue;
         _createNumericStringValue = createNumericStringValue;
@@ -250,7 +250,7 @@ internal sealed class AwkVariables
 
         ThrowIfNewScalarSlotExceeded(name);
         if (_governScalarMemory)
-            _memoryGovernor.PreflightAllocation(AwkRuntimeMemory.CheckedAdd(
+            _memoryAccounting.PreflightAllocation(AwkRuntimeMemory.CheckedAdd(
                 AwkRuntimeMemory.EstimateSymbolMetadataBytes(name.Text.Length),
                 AwkRuntimeMemory.CheckedAdd(24, AwkRuntimeMemory.EstimateUntypedScalarBytes())));
         var slot = AwkVariableSlot.FromUntypedScalar(new AwkUntypedScalar());
@@ -318,7 +318,7 @@ internal sealed class AwkVariables
             bytes = AwkRuntimeMemory.CheckedAdd(bytes,
                 EstimateElementBytes(pair.Key, AwkVariableSlot.FromValue(pair.Value)));
         }
-        using var allocationPeak = _memoryGovernor.ReserveAllocationPeak(bytes);
+        using var allocationPeak = _memoryAccounting.ReserveAllocationPeak(bytes);
         var slots = CreateArraySlots(values.Count);
         foreach (var pair in values)
             slots[pair.Key] = AwkVariableSlot.FromValue(pair.Value);
@@ -339,10 +339,10 @@ internal sealed class AwkVariables
             prospectiveBytes = AwkRuntimeMemory.CheckedAdd(
                 prospectiveBytes,
                 AwkRuntimeMemory.EstimateExternalArrayElementBytes(0, valueBytes));
-            _memoryGovernor.PreflightAllocation(prospectiveBytes);
+            _memoryAccounting.PreflightAllocation(prospectiveBytes);
         }
 
-        using var allocationPeak = _memoryGovernor.ReserveAllocationPeak(prospectiveBytes);
+        using var allocationPeak = _memoryAccounting.ReserveAllocationPeak(prospectiveBytes);
         ReplaceArraySlots(
             name,
             CreateIndexedArraySlots(values, firstIndex, AwkVariableSlot.FromExternalText));
@@ -356,7 +356,7 @@ internal sealed class AwkVariables
     {
         PreflightExternalArray(values.Count);
         var prospectiveBytes = AwkRuntimeMemory.EstimateDictionaryBufferBytes(values.Count);
-        using var allocationPeak = _memoryGovernor.ReserveAllocationPeak(prospectiveBytes);
+        using var allocationPeak = _memoryAccounting.ReserveAllocationPeak(prospectiveBytes);
         var slots = CreateArraySlots(values.Count);
         for (var index = 0; index < values.Count; index++)
         {
@@ -370,7 +370,7 @@ internal sealed class AwkVariables
             prospectiveBytes = AwkRuntimeMemory.CheckedAdd(
                 prospectiveBytes,
                 AwkRuntimeMemory.EstimateExternalArrayElementBytes(keyBytes, valueBytes));
-            _memoryGovernor.PreflightAllocation(prospectiveBytes);
+            _memoryAccounting.PreflightAllocation(prospectiveBytes);
             allocationPeak.Resize(prospectiveBytes);
             slots[new AwkArrayKey(keyText, _checkpoint)] = AwkVariableSlot.FromExternalText(valueText);
         }
@@ -403,7 +403,7 @@ internal sealed class AwkVariables
             throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, index.AsString(_counters, _checkpoint)));
 
         ThrowIfArrayWouldGrowPastLimit(values, index);
-        using var admission = _memoryGovernor.AdmitMutation(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index));
+        using var admission = _memoryAccounting.AdmitMutation(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index));
         var untypedSlot = AwkVariableSlot.FromUntypedScalar(new AwkUntypedScalar());
         SetArraySlot(values, index, untypedSlot);
         return CreateValue(untypedSlot);
@@ -444,7 +444,7 @@ internal sealed class AwkVariables
         {
             _symbolTable.AssignValue(
                 index.AsString(_counters, _checkpoint),
-                _createByteTextValue(AwkText.FromString(value, _counters, _memoryGovernor)));
+                _createByteTextValue(AwkText.FromString(value, _counters, _memoryAccounting)));
             return;
         }
 
@@ -493,7 +493,7 @@ internal sealed class AwkVariables
             AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _mode);
         var values = GetOrCreateArraySlots(name);
         if (values.TryGetValue(index, out var slot) && values.Remove(index))
-            _memoryGovernor.ReleaseCommitted(EstimateElementBytes(index, slot));
+            _memoryAccounting.ReleaseCommitted(EstimateElementBytes(index, slot));
     }
 
     public void SetArrayValues<TValue>(
@@ -550,7 +550,7 @@ internal sealed class AwkVariables
                 return default;
             ThrowIfArrayWouldGrowPastLimit(slots, index);
         }
-        return _memoryGovernor.AdmitMutation(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index));
+        return _memoryAccounting.AdmitMutation(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index));
     }
 
     public void SetArrayValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)
@@ -684,12 +684,12 @@ internal sealed class AwkVariables
     public AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayName name, bool materializeOrdinalKeys)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
-            return _memoryGovernor.IsEnabled
+            return _memoryAccounting.IsEnabled
                 ? _symbolTable.MeasureSnapshot()
                 : new AwkArraySnapshotSize(_symbolTable.Count, 0);
 
         var count = GetArraySnapshotCount(name);
-        if (!_memoryGovernor.IsEnabled || !materializeOrdinalKeys)
+        if (!_memoryAccounting.IsEnabled || !materializeOrdinalKeys)
             return new AwkArraySnapshotSize(count, 0);
 
         var keyTextBytes = 0L;
@@ -759,7 +759,7 @@ internal sealed class AwkVariables
         if (!name.IsFunctionLocal || !_arrays.Remove(name, out var slots))
             return;
 
-        _memoryGovernor.ReleaseCommitted(EstimateArrayBytes(slots));
+        _memoryAccounting.ReleaseCommitted(EstimateArrayBytes(slots));
     }
 
     private AwkValue CreateValue(AwkVariableSlot slot) =>
@@ -888,7 +888,7 @@ internal sealed class AwkVariables
     }
 
     private AwkMemoryMutationLease ReserveMemoryMutation(long newBytes, long oldBytes) =>
-        new(_memoryGovernor, newBytes, oldBytes);
+        new(_memoryAccounting, newBytes, oldBytes);
 
     private struct AwkMemoryMutationLease : IDisposable
     {
@@ -968,7 +968,7 @@ internal sealed class AwkVariables
     public void PreflightMutableArrayReplacement(int count)
     {
         ThrowIfArrayReplacementWouldExceedLimit(count);
-        _memoryGovernor.PreflightAllocation(AwkRuntimeMemory.EstimateDictionaryBufferBytes(count));
+        _memoryAccounting.PreflightAllocation(AwkRuntimeMemory.EstimateDictionaryBufferBytes(count));
     }
 
     private void PreflightExternalArray(int count) =>

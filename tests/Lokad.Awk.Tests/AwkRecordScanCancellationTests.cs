@@ -62,7 +62,7 @@ public sealed class AwkRecordScanCancellationTests
         Assign(state, "RT", "kept");
         var scanned = state.Counters.RecordSeparatorBytesScanned;
         var charged = state.Counters.ExecutionSteps;
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
         armed = true;
 
         var error = await Assert.ThrowsAsync<OperationCanceledException>(async () =>
@@ -73,8 +73,8 @@ public sealed class AwkRecordScanCancellationTests
         Assert.Equal(8, checks);
         Assert.Equal(scanned, state.Counters.RecordSeparatorBytesScanned);
         Assert.Equal(charged, state.Counters.ExecutionSteps);
-        Assert.Equal(committed, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal("seed fields", state.CurrentRecordByteText.AsString());
         Assert.Equal("kept", state.ResolveVariableValue(AwkVariableName.FromText("RT")).ByteText.AsString());
         var retry = await cursor.ReadAsync();
@@ -87,7 +87,7 @@ public sealed class AwkRecordScanCancellationTests
         Assert.Equal(0, state.Counters.StringDecodes);
         Assert.Equal(0, state.Counters.RegexMatches);
         cursor.Dispose();
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     public static IEnumerable<object[]> Continuations()
@@ -135,7 +135,7 @@ public sealed class AwkRecordScanCancellationTests
         Assert.Equal(8, checks);
         Assert.Equal("seed fields", state.CurrentRecordByteText.AsString());
         Assert.Equal("kept", state.ResolveVariableValue(AwkVariableName.FromText("RT")).ByteText.AsString());
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         var retry = await cursor.ReadAsync();
         Assert.Equal("value", retry.RecordText.AsString());
         Assert.Equal(delimiter + large, retry.Terminator.ByteText.AsString());
@@ -193,7 +193,7 @@ public sealed class AwkRecordScanCancellationTests
         armed = false;
         Assert.Equal(8, checks);
         Assert.Empty(host.ReadLineBatchLineCounts);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal("left", (await cursor.ReadAsync()).RecordText.AsString());
         Assert.Equal("right", (await cursor.ReadAsync()).RecordText.AsString());
         Assert.False((await cursor.ReadAsync()).HasRecord);
@@ -229,7 +229,7 @@ public sealed class AwkRecordScanCancellationTests
         Assert.Equal(prefix, (await cursor.ReadAsync()).RecordText.AsString());
         Assign(state, "RS", "z+");
         var regexMatches = state.Counters.RegexMatches;
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
         armed = true;
 
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await cursor.ReadAsync());
@@ -237,8 +237,8 @@ public sealed class AwkRecordScanCancellationTests
         armed = false;
         Assert.Equal(12, checks);
         Assert.Equal(regexMatches, state.Counters.RegexMatches);
-        Assert.Equal(committed, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         var retry = await cursor.ReadAsync();
         Assert.Equal("value", retry.RecordText.AsString());
         Assert.Equal("z", retry.Terminator.ByteText.AsString());

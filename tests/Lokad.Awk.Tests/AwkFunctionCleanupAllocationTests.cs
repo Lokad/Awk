@@ -26,6 +26,6 @@ public sealed class AwkFunctionCleanupAllocationTests
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.True(allocated < 1024, "Allocated bytes: " + allocated);
         Assert.False(state.IsInsideFunction);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 }

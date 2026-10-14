@@ -94,7 +94,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             var record = AwkText.CopyHostBytes(
                 line.RecordBytes.Span,
                 _state.Counters,
-                _state.MemoryGovernor,
+                _state.MemoryAccounting,
                 _state.CancellationCheckpoint);
             _state.ThrowIfCancellationRequested();
             reader.ReadLine();
@@ -116,7 +116,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             // compaction keeps ^ anchored to the descriptor start rather than the compacted tail.
             var buffer = AwkUtf8Builder.CreateWithReservedPrefix(
                 _state.Limits,
-                _state.MemoryGovernor,
+                _state.MemoryAccounting,
                 Math.Max(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, tail.Content.Length),
                 0x01);
             try
@@ -425,7 +425,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                                 recordStart.ByteIndex,
                                 remainingLength,
                                 _state.Counters,
-                                _state.MemoryGovernor,
+                                _state.MemoryAccounting,
                                 _state.CancellationCheckpoint),
                             remainingLength,
                             AwkRecordTerminator.Empty)
@@ -440,13 +440,13 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     recordStart.ByteIndex,
                     recordLength,
                     _state.Counters,
-                    _state.MemoryGovernor,
+                    _state.MemoryAccounting,
                     _state.CancellationCheckpoint);
                 var terminator = AwkRecordTerminator.FromText(input.CopyByteSlice(
                     match.ByteIndex,
                     match.ByteLength,
                     _state.Counters,
-                    _state.MemoryGovernor,
+                    _state.MemoryAccounting,
                     _state.CancellationCheckpoint));
                 var next = AwkRegexSearchOffset.AfterMatch(input, match, _state.CancellationCheckpoint);
                 var consumedLength = next.ByteIndex - recordStart.ByteIndex;
@@ -594,7 +594,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     var trailingNewlines = content[recordLength..];
                     // An LF uses the shared terminator. Preflight both owned byte copies
                     // for CRLF before allocating either record or terminator text.
-                    using var allocationPeak = _state.MemoryGovernor.ReserveAllocationPeak(
+                    using var allocationPeak = _state.MemoryAccounting.ReserveAllocationPeak(
                         recordLength + (trailingNewlines.Length == 1 ? 0 : trailingNewlines.Length));
                     var finalTerminator = trailingNewlines.Length == 1
                         ? AwkRecordTerminator.NewLine
@@ -870,7 +870,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private AwkText CreateText(ReadOnlySpan<byte> content) =>
         content.IsEmpty
             ? AwkText.Empty
-            : AwkText.CopyHostBytes(content, _state.Counters, _state.MemoryGovernor, _state.CancellationCheckpoint);
+            : AwkText.CopyHostBytes(content, _state.Counters, _state.MemoryAccounting, _state.CancellationCheckpoint);
 
     internal static void ValidateSeparator(AwkRuntimeState state, AwkText value)
     {

@@ -87,7 +87,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         Assert.Equal(textAllocations, counters.AwkTextAllocations);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]

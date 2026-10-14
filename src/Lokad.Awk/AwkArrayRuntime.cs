@@ -138,7 +138,7 @@ internal sealed class AwkArrayRuntime
         var captureMode = separatorArrayName.HasValue
             ? AwkSeparatorCaptureMode.Capture
             : AwkSeparatorCaptureMode.Omit;
-        using var splitLease = _state.MemoryGovernor.ReserveTransient(
+        using var splitLease = _state.MemoryAccounting.ReserveTransient(
             EstimateSplitBuffers(input.ByteLength, captureMode));
         var result = _fieldSplitter.SplitFieldTextsBySeparator(
             input,
@@ -172,7 +172,7 @@ internal sealed class AwkArrayRuntime
         var captureMode = separatorArrayName.HasValue
             ? AwkSeparatorCaptureMode.Capture
             : AwkSeparatorCaptureMode.Omit;
-        using var splitLease = _state.MemoryGovernor.ReserveTransient(
+        using var splitLease = _state.MemoryAccounting.ReserveTransient(
             EstimateSplitBuffers(input.ByteLength, captureMode));
         var result = _fieldSplitter.Patsplit(input, pattern, captureMode, _state.Counters);
         if (separatorArrayName.HasValue)
@@ -259,7 +259,7 @@ internal sealed class AwkArrayRuntime
             var capacity = AwkRuntimeMemory.CheckedAdd(
                 AwkRuntimeMemory.CheckedAdd(AwkArrayKey.FromOrdinal(groups.Count - 1).ByteLength, separator.ByteLength),
                 MatchLengthCaptureKeyPart.ByteLength);
-            using var builder = new AwkUtf8Builder(_state.Limits, _state.MemoryGovernor, capacity);
+            using var builder = new AwkUtf8Builder(_state.Limits, _state.MemoryAccounting, capacity);
 
             AwkArrayKey MetadataKey(AwkArrayKey ordinal, AwkText part)
             {
@@ -365,7 +365,7 @@ internal sealed class AwkArrayRuntime
     {
         var size = _variables.MeasureArraySnapshot(arrayName, materializeOrdinalKeys: false);
         var count = size.Count;
-        var lease = _state.MemoryGovernor.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
+        var lease = _state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
             AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count), size.NewKeyTextBytes));
         try
         {
@@ -387,7 +387,7 @@ internal sealed class AwkArrayRuntime
         AwkArraySortOutput output)
     {
         var size = _variables.MeasureArraySnapshot(sourceArrayName, materializeOrdinalKeys: true);
-        var lease = _state.MemoryGovernor.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
+        var lease = _state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
             EstimateSortOperationBytes(size.Count, order, output), size.NewKeyTextBytes));
         return new AwkArrayReservation(size.Count, lease, size.NewKeyTextBytes);
     }
@@ -397,7 +397,7 @@ internal sealed class AwkArrayRuntime
         AwkArraySortOrder order)
     {
         var size = _variables.MeasureArraySnapshot(arrayName, materializeOrdinalKeys: true);
-        var lease = _state.MemoryGovernor.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
+        var lease = _state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
             EstimateSortOperationBytes(size.Count, order, AwkArraySortOutput.KeySnapshot), size.NewKeyTextBytes));
         return new AwkArrayReservation(size.Count, lease, size.NewKeyTextBytes);
     }
@@ -893,7 +893,7 @@ internal sealed class AwkArrayRuntime
                 if (comparison != 0)
                     return comparison;
                 counters.RecordByteTextComparison();
-                using var textLease = state.MemoryGovernor.CreateTransientLease();
+                using var textLease = state.MemoryAccounting.CreateTransientLease();
                 return state.CompareByteText(state.FormatStringByteText(left.Value, textLease),
                     state.FormatStringByteText(right.Value, textLease), sorting: true);
             }

@@ -68,7 +68,7 @@ internal static partial class AwkBuiltins
             source,
             conversion,
             context.State.Counters,
-            context.State.MemoryGovernor,
+            context.State.MemoryAccounting,
             context.State.CancellationCheckpoint,
             out var asciiResult))
         {

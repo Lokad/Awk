@@ -208,7 +208,7 @@ internal static partial class AwkBuiltins
                 new AwkBuiltinContextPrintfArguments(context, startIndex: 1),
                 context.State.Limits,
                 context.State.Counters,
-                context.State.MemoryGovernor,
+                context.State.MemoryAccounting,
                 context.State.CompatibilityMode,
                 context.State.CancellationCheckpoint));
         }

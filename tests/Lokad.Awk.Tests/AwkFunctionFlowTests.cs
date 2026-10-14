@@ -38,7 +38,7 @@ public sealed class AwkFunctionFlowTests
         var expectedFlow = skipFile ? AwkStatementFlow.NextFile : AwkStatementFlow.Continue;
 
         Assert.Equal(expectedFlow, await executor.ProcessRecordAsync(state, io, record));
-        var committed = state.MemoryGovernor.CurrentCommittedBytes;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var stepsPerRecord = counters.ExecutionSteps;
         Assert.True(stepsPerRecord > 0);
         for (var index = 1; index < 256; index++)
@@ -46,8 +46,8 @@ public sealed class AwkFunctionFlowTests
             Assert.Equal(expectedFlow, await executor.ProcessRecordAsync(state, io, record));
             Assert.False(state.IsInsideFunction);
             Assert.False(state.TryGetExecutionContext(out _));
-            Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
-            Assert.Equal(committed, state.MemoryGovernor.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+            Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal((index + 1) * stepsPerRecord, counters.ExecutionSteps);
         }
         var error = Assert.Throws<AwkRuntimeException>(() => state.ValidateFunctionFlow(AwkStatementFlow.NextRecord));

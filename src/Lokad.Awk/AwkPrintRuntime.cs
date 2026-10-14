@@ -15,8 +15,8 @@ internal static class AwkPrintRuntime
         var capacity = AwkRuntimeMemory.CheckedToInt32(
             AwkRuntimeMemory.CheckedMultiply(values.Length, 2));
         state.CancellationCheckpoint();
-        var lease = state.MemoryGovernor.ReserveTransient(AwkRuntimeMemory.EstimateAwkTextArrayBytes(capacity));
-        var pooled = !state.MemoryGovernor.IsEnabled;
+        var lease = state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateAwkTextArrayBytes(capacity));
+        var pooled = !state.MemoryAccounting.IsEnabled;
         AwkText[] segments;
         try
         {

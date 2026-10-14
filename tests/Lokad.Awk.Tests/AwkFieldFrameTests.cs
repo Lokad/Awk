@@ -9,7 +9,7 @@ public sealed class AwkFieldFrameTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var frame = CreateFrame(counters);
-        frame.SetRecordText(AwkText.FromString("alpha beta", counters, CreateGovernor(counters)));
+        frame.SetRecordText(AwkText.FromString("alpha beta", counters, CreateAccounting(counters)));
         List<AwkFieldText> fieldList =
         [
             AwkFieldText.FromRecordSlice(0, 5),
@@ -25,7 +25,7 @@ public sealed class AwkFieldFrameTests
     public void AwkFieldFrame_CachesRecordSliceFieldValues()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = CreateGovernor(counters);
+        var governor = CreateAccounting(counters);
         var frame = CreateFrame(counters);
         frame.SetRecordText(AwkText.FromString("alpha beta", counters, governor));
 
@@ -138,13 +138,13 @@ public sealed class AwkFieldFrameTests
     private static AwkFieldFrame CreateFrame(AwkRuntimeCounters counters) =>
         new(
             counters,
-            CreateGovernor(counters),
+            CreateAccounting(counters),
             maxFields: 1_000,
             _ => { },
             value => value.ByteText,
             _ => { });
 
-    private static AwkMemoryAccounting CreateGovernor(AwkRuntimeCounters counters) =>
+    private static AwkMemoryAccounting CreateAccounting(AwkRuntimeCounters counters) =>
         AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters);
 
 }

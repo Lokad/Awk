@@ -204,7 +204,7 @@ internal abstract class AwkBuiltinImplementation
                     context.WithEvaluatedArguments(Array.Empty<AwkValue>(), argumentCount)));
             }
 
-            var buffer = AwkValueBuffer.Rent(argumentCount, context.Evaluation.State.MemoryGovernor);
+            var buffer = AwkValueBuffer.Rent(argumentCount, context.Evaluation.State.MemoryAccounting);
             var values = buffer.Values;
             try
             {

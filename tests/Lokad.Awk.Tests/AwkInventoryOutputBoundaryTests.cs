@@ -104,7 +104,7 @@ public sealed class AwkInventoryOutputBoundaryTests
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal("kept:", executor.Output.ToString());
         Assert.Equal(0, counters.ExecutionSteps);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     public static IEnumerable<object[]> Inventories()

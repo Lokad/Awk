@@ -16,8 +16,8 @@ public sealed class AwkIgnoreCaseResourceTests
         var source = AwkText.FromString("xÄ𐐀K");
         var a = state.CreateByteTextValue(left);
         var b = state.CreateByteTextValue(right);
-        var committedBefore = state.MemoryGovernor.CurrentCommittedBytes;
-        var reservedBefore = state.MemoryGovernor.TotalReservedBytes;
+        var committedBefore = state.MemoryAccounting.CurrentCommittedBytes;
+        var reservedBefore = state.MemoryAccounting.TotalReservedBytes;
         var allocatedBefore = counters.AwkTextAllocations;
         for (var index = 0; index < 16; index++)
         {
@@ -31,8 +31,8 @@ public sealed class AwkIgnoreCaseResourceTests
         Assert.Equal(0, counters.AwkTextAsStringCalls);
         Assert.Equal(0, counters.StringInteropFallbacks);
         Assert.Equal(allocatedBefore, counters.AwkTextAllocations);
-        Assert.Equal(reservedBefore, state.MemoryGovernor.TotalReservedBytes);
-        Assert.Equal(committedBefore, state.MemoryGovernor.CurrentCommittedBytes);
+        Assert.Equal(reservedBefore, state.MemoryAccounting.TotalReservedBytes);
+        Assert.Equal(committedBefore, state.MemoryAccounting.CurrentCommittedBytes);
     }
 
     [Theory]
@@ -50,15 +50,15 @@ public sealed class AwkIgnoreCaseResourceTests
         state.SetArrayString(source, new AwkArrayKey("b"), "b");
         state.SetArrayString(source, new AwkArrayKey("A"), "A");
         state.SetArrayString(destination, first, "keep");
-        var committedBefore = state.MemoryGovernor.CurrentCommittedBytes;
+        var committedBefore = state.MemoryAccounting.CurrentCommittedBytes;
         var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() => state.SortArrayValuesAsync(
             source, destination, AwkArraySortOrder.Parse(selector), new AwkEvaluationContext(state)).AsTask());
         Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         Assert.Equal("keep", state.GetArrayByteText(destination, first).AsString());
         Assert.Equal("b", state.GetArrayByteText(source, new AwkArrayKey("b")).AsString());
         Assert.Equal("A", state.GetArrayByteText(source, new AwkArrayKey("A")).AsString());
-        Assert.Equal(committedBefore, state.MemoryGovernor.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
+        Assert.Equal(committedBefore, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Theory]
