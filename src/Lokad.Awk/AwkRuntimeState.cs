@@ -34,6 +34,7 @@ internal sealed class AwkRuntimeState
     private readonly AwkVariables _variables;
     private readonly AwkGlobalSlotId _recordNumberSlot;
     private readonly AwkGlobalSlotId _fileRecordNumberSlot;
+    private readonly AwkGlobalSlotId _ignoreCaseSlot;
     private readonly AwkRegexRuntime _regexRuntime;
     private readonly AwkStringEscapeWarnings _stringEscapeWarnings;
     private readonly AwkStringRuntime _stringRuntime;
@@ -160,6 +161,9 @@ internal sealed class AwkRuntimeState
         _specialVariables.InitializeScalars(fieldSeparator);
         _recordNumberSlot = _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordNumber));
         _fileRecordNumberSlot = _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.FileRecordNumber));
+        _ignoreCaseSlot = CompatibilityMode == AwkCompatibilityMode.GnuDefault
+            ? _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.IgnoreCase))
+            : default;
         _recordSeparatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
         _recordSeparatorCaseSensitivity = ResolveRegexCaseSensitivity();
         _variables.CaptureScalarMemoryBaseline();
@@ -682,6 +686,9 @@ internal sealed class AwkRuntimeState
     {
         if (id == AwkSpecialVariableId.FieldCount)
             return _recordFields.FieldCountValue;
+        // The initialized GNU scalar has a stable slot; functions retain name-based local resolution.
+        if (id == AwkSpecialVariableId.IgnoreCase && CompatibilityMode == AwkCompatibilityMode.GnuDefault && !_functions.IsInsideFunction)
+            return _variables.GetScalarValue(_ignoreCaseSlot);
         return TryGetRecordCounterSlot(id, out var slot)
             ? _variables.GetScalarValue(slot)
             : _variableRuntime.ResolveVariableValue(AwkSpecialVariables.VariableName(id));
