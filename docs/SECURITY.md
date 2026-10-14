@@ -25,6 +25,10 @@ exceptions become generic awk diagnostics without CLR exception text. Caller can
 propagates to the application as cancellation. Follow the read-buffer lifetime and outcome
 contract in the [embedding guide](../README.md#embedding).
 
+With a shared memory budget, cleanup awaits actual host users before refunding their
+storage. Hosts must cooperate with cancellation; a deadline ends a wait but does not
+prove that the underlying task has stopped using buffers.
+
 One-way pipes require both policy and host permission. Their complete command text is
 passed as an opaque command identity; the runtime does not tokenize or invoke a shell.
 A host should resolve allowed commands, build arguments without shell parsing, control

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A borrowed `IMemoryBudget` can govern major runtime storage across overlapping
+  invocations and nested host commands. Shared admission precedes mutation; owned
+  scopes refund only after actual host users finish, including canceled/timed-out
+  work. Existing numeric memory quotas remain optional. Frontend and persistent
+  compiled-artifact ownership are still being integrated.
+
 - Global scalar reads avoid repeated local/scalar classification while preserving
   function-local promotion, array diagnostics and lazy scalar memory admission.
 

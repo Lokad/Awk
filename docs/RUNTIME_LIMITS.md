@@ -103,8 +103,8 @@ indivisible; matching deadlines do not bound constructor time. Data/depth admiss
 bounded regex caches and backend safeguards remain independent protections. No universal
 cancellation latency or hard CPU preemption is promised.
 
-Host-operation and command deadlines stop awaiting an uncooperative host; they cannot force
-its task to terminate. Normal close uses the earlier applicable host/cleanup deadline.
+Host-operation and command waits observe deadlines; they cannot force host tasks to terminate.
+Governed cleanup still awaits actual storage users. Normal close uses the earlier applicable host/cleanup deadline.
 Hosts must supply their own cancellation, backpressure and effect containment.
 
 Function entry and unwind check CLR stack pressure, including before argument evaluation,
@@ -114,6 +114,6 @@ are observational. The interpreter remains the default, with the executable engi
 and sharing the same cancellation, resource and mutation contracts.
 
 Use the existing `--counter-report` benchmark command to qualify changed accounting or
-byte/string boundaries; see [benchmarks](BENCHMARKS.md). Policy numeric defaults, validation
-and presets have one immutable owner; the memory governor and scoped leases retain their
-existing ownership model.
+byte/string boundaries; see [benchmarks](BENCHMARKS.md). Numeric defaults, validation and
+presets have one immutable owner. Execution accounting and scoped leases report owned storage
+to the borrowed host allowance; the numeric memory ceiling remains an optional execution quota.
