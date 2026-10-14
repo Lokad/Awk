@@ -175,6 +175,8 @@ internal abstract partial class AwkExpression
     {
         private readonly AwkText _literalText = AwkText.FromSourceLiteralString(literal);
 
+        public AwkText LiteralText => _literalText;
+
         internal override AwkRegexPatternOrigin RegexPatternOrigin => patternOrigin;
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>

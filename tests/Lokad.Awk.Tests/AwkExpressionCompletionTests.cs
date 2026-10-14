@@ -375,6 +375,71 @@ public sealed class AwkExpressionCompletionTests
         Assert.Equal(failRight, other.Started.Task.IsCompleted);
     }
 
+    [Theory]
+    [InlineData(1, false, false)]
+    [InlineData(1, false, true)]
+    [InlineData(1, true, false)]
+    [InlineData(1, true, true)]
+    [InlineData(3, false, false)]
+    [InlineData(3, false, true)]
+    [InlineData(3, true, false)]
+    [InlineData(3, true, true)]
+    public async Task FieldLiteralComparisonsWaitForIndexAndConsumeItOnce(int field, bool pendingIndex, bool condition)
+    {
+        var (state, counters) = CreateState();
+        state.SetCurrentRecord(AwkText.FromString("one two"));
+        var index = new ValueSource(field, pendingIndex);
+        var expression = AwkExpression.Compare(AwkExpression.FieldIndex(new SourceExpression(index)),
+            AwkExpression.Literal("one"), AwkComparison.Equal);
+        var before = counters.ExecutionSteps;
+        var result = condition
+            ? expression.EvaluateConditionAsync(new AwkEvaluationContext(state))
+            : ReadNumericBooleanAsync(expression.EvaluateAsync(new AwkEvaluationContext(state)));
+        if (pendingIndex)
+        {
+            Assert.False(result.IsCompleted);
+            Assert.Equal(0, counters.FieldSplits);
+            index.Complete();
+        }
+        Assert.Equal(field == 1, await result);
+        Assert.Equal(1, index.Consumptions);
+        Assert.Equal(5, counters.ExecutionSteps - before);
+        Assert.Equal(1, counters.ByteTextComparisons);
+
+        static async ValueTask<bool> ReadNumericBooleanAsync(ValueTask<AwkValue> pending)
+        {
+            var value = await pending;
+            Assert.True(value.IsNumberValue);
+            return value.AsNumber() != 0;
+        }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task FieldLiteralComparisonIndexFailureDoesNotSplitOrEvaluateLiteral(bool pendingIndex, bool canceled)
+    {
+        var (state, counters) = CreateState();
+        state.SetCurrentRecord(AwkText.FromString("one two"));
+        var index = new ValueSource(1, pending: true);
+        Exception error = canceled ? new OperationCanceledException() : new AwkRuntimeException("test index failure"u8.ToArray());
+        if (!pendingIndex)
+            index.Fail(error);
+        var expression = AwkExpression.Compare(AwkExpression.FieldIndex(new SourceExpression(index)),
+            AwkExpression.Literal("one"), AwkComparison.Equal);
+        var before = counters.ExecutionSteps;
+        var result = expression.EvaluateConditionAsync(new AwkEvaluationContext(state)).AsTask();
+        if (pendingIndex)
+            index.Fail(error);
+        Assert.Same(error, await Record.ExceptionAsync(() => result));
+        Assert.Equal(1, index.Consumptions);
+        Assert.Equal(0, counters.FieldSplits);
+        Assert.Equal(0, counters.ByteTextComparisons);
+        Assert.Equal(3, counters.ExecutionSteps - before);
+    }
+
     private sealed class EffectSourceExpression(ValueSource source, Action effect) : AwkExpression
     {
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)

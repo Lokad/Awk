@@ -8,6 +8,24 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Fact]
+    public async Task Awk_FieldLiteralComparisonsKeepByteComparisonsAndAvoidFieldMaterialization()
+    {
+        const string input = "alpha tail\nalpha tail\nalpha tail\n";
+        var borrowed = await RunAsync(["$1==\"alpha\"{n++} END{print n}"], input);
+        var materialized = await RunAsync(["{v=$1;if(v==\"alpha\")n++} END{print n}"], input);
+        Assert.Equal(0, borrowed.ExitCode);
+        Assert.Equal(0, materialized.ExitCode);
+        Assert.Equal("3\n", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("3\n", materialized.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(3, borrowed.Counters.ByteTextComparisons);
+        Assert.Equal(3, materialized.Counters.ByteTextComparisons);
+        Assert.Equal(3, borrowed.Counters.FieldSplits);
+        Assert.Equal(3, materialized.Counters.AwkTextAllocations - borrowed.Counters.AwkTextAllocations);
+        Assert.Equal(0, borrowed.Counters.StringInteropFallbacks);
+        Assert.Equal(0, borrowed.Counters.StringDecodes);
+    }
+
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.DotNetCompatibility)]
     [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.Utf8Adapter)]

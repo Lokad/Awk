@@ -22,8 +22,11 @@ internal static class AwkComparisonOperations
             };
         }
 
-        var result = Compare(left, right, state);
-        return comparison switch
+        return EvaluateTextComparison(Compare(left, right, state), comparison);
+    }
+
+    internal static bool EvaluateTextComparison(int result, AwkComparison comparison) =>
+        comparison switch
         {
             AwkComparison.GreaterOrEqual => result >= 0,
             AwkComparison.GreaterThan => result > 0,
@@ -33,7 +36,6 @@ internal static class AwkComparisonOperations
             AwkComparison.NotEqual => result != 0,
             _ => throw new ArgumentOutOfRangeException(nameof(comparison))
         };
-    }
 
     public static int Compare(AwkValue left, AwkValue right, AwkRuntimeState state)
     {

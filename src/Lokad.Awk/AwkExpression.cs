@@ -80,7 +80,10 @@ internal abstract partial class AwkExpression
     public static AwkExpression Not(AwkExpression expression) => new NotExpression(expression);
 
     public static AwkExpression Compare(AwkExpression left, AwkExpression right, AwkComparison comparison) =>
-        new ComparisonExpression(left, right, comparison);
+        left is DynamicFieldIndexExpression field && right is LiteralExpression literal &&
+        literal.RegexPatternOrigin == AwkRegexPatternOrigin.Runtime
+            ? new FieldLiteralComparisonExpression(left, field.IndexExpression, literal, comparison)
+            : new ComparisonExpression(left, right, comparison);
 
     public static AwkExpression RegexMatch(
         AwkExpression left,

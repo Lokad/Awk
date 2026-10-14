@@ -291,7 +291,7 @@ internal sealed class AwkText : IEquatable<AwkText>
     public int CompareBytes(AwkText other, Action? checkpoint = null) =>
         CompareBytes(AsSpan(checkpoint), other.AsSpan(checkpoint), checkpoint);
 
-    private static int CompareBytes(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, Action? checkpoint)
+    internal static int CompareBytes(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, Action? checkpoint)
     {
         if (checkpoint is null)
             return left.SequenceCompareTo(right);

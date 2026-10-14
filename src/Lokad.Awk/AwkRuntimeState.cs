@@ -496,6 +496,27 @@ internal sealed class AwkRuntimeState
         return length;
     }
 
+    internal bool CompareFieldLiteral(int index, AwkText literal, AwkComparison comparison)
+    {
+        if (index < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+
+        ReadOnlySpan<byte> bytes = default;
+        var borrowed = index > 0 && NumberParsingMode == AwkNumberParsingMode.Decimal &&
+            !IsCaseInsensitive && _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
+        var value = borrowed ? default : index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
+        // Literal evaluation follows the field read, including its value limit and checkpoint.
+        RecordExecutionStep();
+        var right = CreateByteTextValue(literal);
+        if (!borrowed)
+            return AwkComparisonOperations.Evaluate(value, right, comparison, this);
+
+        Counters.RecordByteTextComparison();
+        // Consume the borrow synchronously before another expression can mutate the record.
+        return AwkComparisonOperations.EvaluateTextComparison(
+            AwkText.CompareBytes(bytes, literal.AsSpan(CancellationCheckpoint), CancellationCheckpoint), comparison);
+    }
+
     public int IndexOfStringUnits(AwkText source, AwkText value) =>
         _stringRuntime.IndexOfUnits(source, value, IsCaseInsensitive);
 

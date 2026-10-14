@@ -267,6 +267,48 @@ internal abstract partial class AwkExpression
 
     }
 
+    private sealed class FieldLiteralComparisonExpression(
+        AwkExpression fieldExpression,
+        AwkExpression indexExpression,
+        LiteralExpression literal,
+        AwkComparison comparison) : AwkExpression
+    {
+        internal override ValueTask<bool> EvaluateConditionAsync(AwkEvaluationContext context)
+        {
+            context.State.RecordExecutionStep();
+            return EvaluateFieldConditionAsync(context);
+        }
+
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        {
+            var pending = EvaluateFieldConditionAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? ValueTask.FromResult(AwkValue.FromNumber(pending.Result ? 1 : 0))
+                : AwaitConditionAsync(pending);
+        }
+
+        private async ValueTask<bool> EvaluateFieldConditionAsync(AwkEvaluationContext context)
+        {
+            // Retain field-expression admission before evaluating its index once.
+            context.State.RecordExecutionStep();
+            var index = (int)await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
+            return context.State.CompareFieldLiteral(index, literal.LiteralText, comparison);
+        }
+
+        private static async ValueTask<AwkValue> AwaitConditionAsync(ValueTask<bool> pending) =>
+            AwkValue.FromNumber(await pending.ConfigureAwait(false) ? 1 : 0);
+
+        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
+        {
+            // The opt-in engine keeps ordinary field evaluation and comparison.
+            if (!compiler.TryEmitExpression(fieldExpression) || !compiler.TryEmitExpression(literal))
+                return false;
+            compiler.EmitComparison(comparison);
+            compiler.Replace(popped: 2, pushed: 1);
+            return true;
+        }
+    }
+
     private sealed class LogicalExpression(
         AwkExpression left,
         AwkExpression right,
