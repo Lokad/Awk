@@ -13,7 +13,7 @@ and two-file (4,096 in each file). Narrow/wide and literal/ERE pairs deliberatel
 field density and separator cost; compare implementations within a row, not across scripts.
 Times are medians. Lokad.Awk/awk is Lokad median time divided by GNU median time:
 1.00× is parity; higher is slower. Rows run from worst to best ratio, rounded to two decimals.
-Each result covers a complete invocation and verified output. GNU is faster in all 20 cases.
+Each result covers a complete invocation and verified output. At this revision At this revision GNU is faster in all 20 cases.
 Matched controls show substantial process-to-process variation; this single-launch table
 establishes a baseline rather than proving individual speedups.
 
@@ -52,10 +52,11 @@ were recorded; idle CPU gates passed before/after. No concurrent builds or trans
 
 ## Focused current-source comparison
 
-Measured 2026-10-13: `38c2dba8a7bf5de1dfd2630c2e22118a1723f55d` before,
-`b0879a65cf54fbd3be77eda443850b2f11cb673e` after, on the same toolchain above. Prepared decimal input reuses
-the slot's existing number field and retains original text/classification. The fast path
-covers valid numeric input beginning with `1`–`9`; other values retain factory conversion.
+Measured 2026-10-14: `b0879a65cf54fbd3be77eda443850b2f11cb673e` before,
+`599a1f8871327dc6e670ea9d98ef2eb5f05e2ce4` after, on the same toolchain above. Prepared global
+increments/decrements call the existing admitted state reads/writes directly, avoiding
+resolved-location transport and kind switches. The change adds 11 runtime lines;
+numeric results, lazy admission, cancellation and mutation preflights remain unchanged.
 No extra retained storage, public API or default-engine change.
 
 Each order uses two launches/source, three warmups and five iterations. Times below are
@@ -65,15 +66,15 @@ the complete table above retains its original source/date and GNU timings.
 
 | Case | Before ms | After ms | Time reduction, both orders | Allocated bytes, both sources |
 | --- | ---: | ---: | ---: | ---: |
-| Numeric array sort | 8.943 | 8.675 | +3.0% / +3.3% | 3,831,268 |
-| Arithmetic control | 12.722 | 12.633 | +0.7% / +0.6% | 1,774,736 |
-| Narrow-field control | 10.740 | 10.627 | +1.0% / +0.9% | 3,136,810 |
+| Loop and numeric arithmetic | 12.601 | 11.281 | +10.5% / +11.5% | 1,774,736 |
+| Field loop, 64 fields | 9.913 | 9.333 | +5.8% / +4.8% | 2,868,798 |
 
-Sorting improves about 3% in both orders. Control variation reaches 14.44%; no general
-arithmetic/field speed claim follows. The pilot's field slowdown did not repeat.
+Arithmetic improves 10.5–11.5% in both orders; every candidate launch median is faster
+than every baseline launch median. Wide-field reductions are 4.8–5.8%, with higher
+launch variation (up to 10.10% before and 8.87% after); no general field-speed claim follows.
 All allocations and 31 finite counter rows are unchanged. All 62 GNU comparisons,
-18 stack scenarios and 71,666 Windows/Linux correctness tests pass at this source.
-Windows/Linux build/test/pack [CI is green](https://github.com/Lokad/Awk/actions/runs/38424878126).
+18 stack scenarios and 71,677 Windows/Linux correctness tests pass at the optimized source.
+Windows/Linux build/test/pack [CI is green](https://github.com/Lokad/Awk/actions/runs/38540073069).
 
 ## What is measured
 
