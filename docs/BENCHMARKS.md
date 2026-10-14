@@ -78,6 +78,29 @@ counter rows are unchanged outside memory peaks. Those peaks include the retaine
 cache allowance; tight numeric quotas can reject slightly earlier. This is a bounded
 allocation improvement, not a new full baseline or a new Lokad.Awk/awk ratio.
 
+## Focused prepared-assignment comparison
+
+Measured 2026-10-14: source `c17deed949770c246fb01c8ded679476e1c71ac9` before and
+`8c76ebf1d727e779bfaeb3aa5fdff08928964f6a` after, using the default interpreter/policy and the toolchain above.
+Prepared global writes use existing scalar admission/publication directly, removing generic
+target resolution and its async wrapper from that path. Other lvalues are unchanged.
+
+Two source orders, two launches/source/order, three warmups and five measured iterations;
+times are medians of launch medians. The table shows candidate-first times, with reductions
+in candidate-first / baseline-first order. GNU was not retimed; the complete table retains
+its own source/date. These are focused results, not a refreshed GNU ratio.
+
+| Default case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Loop and numeric arithmetic | 11.198 | 10.588 | +5.4% / +9.2% | 1,643,688 | 1,643,688 |
+| Field loop, 3 fields | 9.952 | 9.332 | +6.2% / +0.3% | 3,005,762 | 3,005,762 |
+
+Arithmetic improves 5.4% / 9.2% in both orders;
+allocations are unchanged. The narrow-field control has no repeatable regression.
+71,772 tests per OS, 62 exact GNU cases, 31 identical finite-counter rows including memory
+and 18 stack scenarios pass. RHS order, single consumption, mutation preflights and
+failure diagnostics remain qualified. No new buffer, memory owner or execution engine.
+
 ## What is measured
 
 Lokad uses `Awk.TryParse`/`Awk.ExecuteAsync` with an in-memory application-owned host;

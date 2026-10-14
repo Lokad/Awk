@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Prepared global scalar assignments use the existing write path directly, avoiding
+  generic target resolution. Focused arithmetic measurements improve in both source
+  orders with unchanged allocations, counters and admission behavior.
+
 - Temporary construction peaks share execution admission and defer refunds while host
   tasks remain active. This closes an early-refund gap and removes separate host peak
   reservations. Internal accounting names now distinguish runtime estimates from the host governor.
