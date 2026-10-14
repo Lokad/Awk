@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Formatting uses a local value wrapper around its existing UTF-8 builder, removing
+  one heap allocation per call with unchanged directives, lifetime and admission behavior.
+
 - Scalar storage resolves the centrally defined NF/OFS names once, removing repeated
   dictionary lookups while retaining computed NF and OFS assignment preparation.
 

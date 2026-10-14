@@ -47,27 +47,19 @@ launch; clean-source/GNU identities and all four quiet gates pass. No concurrent
 
 ## Focused current changes
 
-Measured 2026-10-14: `a5bbdbfa5f285b361c378baf1987282bc8ab477c` before, `3b800e8656dc13315f137a082dd6131e9b098482` after.
-One callback per input-processing pass replaces repeated per-record lambdas; record/state/io,
-admission and action order remain unchanged. Existing BDN tools used both source orders,
-two launches/source/order, three warmups/five iterations. The first-order medians appear below;
-time reductions give first/reverse order. Arithmetic is a separate bounded concern control.
+These bounded comparisons follow the complete baseline above. Each change has explicit
+before/after sources below. Existing BDN tools use both source orders, two launches/source/order,
+three warmups/five iterations. Medians shown are from the first order; time reduction gives
+first/reverse order. No GNU retiming or cumulative gain is claimed.
 
 | Case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Field loop, 3 fields | 9.148 | 9.468 | -3.5% / +2.1% | 3,005,746 | 2,743,662 |
-| Project a column / output | 3.271 | 3.257 | +0.4% / -0.4% | 1,667,903 | 1,405,819 |
-| Arithmetic concern control | 11.060 | 10.247 | +7.3% / -0.3% | 1,643,688 | 1,381,605 |
 | IGNORECASE read: 3 fields | 8.997 | 8.663 | +3.7% / +2.4% | 2,743,662 | 2,743,670 |
 | IGNORECASE read: projection | 3.294 | 3.149 | +4.4% / +3.7% | 1,405,819 | 1,405,827 |
 | NF/OFS names: 3 fields | 8.676 | 8.167 | +5.9% / +4.0% | 2,743,670 | 2,743,670 |
 | NF/OFS names: arithmetic | 10.222 | 10.215 | +0.1% / +11.6% | 1,381,613 | 1,381,613 |
-
-Allocations fall 15.71% projection, 8.72% narrow and 15.94% arithmetic in both orders.
-No throughput claim: projection is flat; narrow changes direction; arithmetic before-launch
-spread reaches 17%/7.5%. No repeatable material regression is confirmed. Empty processing
-may allocate one extra small callback. All 71,819 tests/OS, 62 exact GNU cases, 31 identical
-finite-counter rows including memory and 18 stack scenarios pass; exact source CI is green.
+| Printf wrapper: strings/integers | 5.796 | 5.808 | -0.2% / +2.0% | 3,443,215 | 3,181,068 |
+| Printf wrapper: projection control | 3.032 | 3.040 | -0.3% / -2.4% | 1,405,827 | 1,405,827 |
 
 Initialized IGNORECASE read, measured 2026-10-14: `30df7b3b390817673cf0c06ab218ec8278eb393d` before and
 `ca0f79e70a9401d7a0f3a245a2f99f0fa2a6c3de` after. GNU scalar reads outside functions use the existing
@@ -88,6 +80,17 @@ with launch spread up to 10.6%; no arithmetic gain is claimed. Projection's sing
 pilot is not a confirmed gain.
 All 71,824 tests/OS, 62 exact GNU cases, 31 identical finite-counter rows including memory
 and 18 stack scenarios pass. The complete GNU comparison remains at its recorded source.
+
+Printf wrapper, measured 2026-10-14 UTC: `1b4fec7e2dff0ab7d92b06923281627bf29181db` before and
+`de82709542300115da208eb501b500447bbb1ea2` after. A private readonly value replaces the heap wrapper around the
+existing UTF-8 builder; helpers copy references, and the outer using keeps sole disposal
+ownership. Formatting allocation falls 7.61% in both orders,
+about 256 KiB per 4,096-record invocation. Elapsed reductions are
+-0.2% / +2.0% across source orders; no throughput gain is claimed.
+Projection is a contrasting control; its allocations are unchanged and no control gain
+is claimed. Format behavior, UTF-8, resource admission/peaks and cancellation remain intact.
+All 71,824 tests/OS, 62 exact GNU cases, 31 identical finite-counter rows including memory
+and 18 stack scenarios pass. The complete comparison retains its recorded source/date.
 
 ## Retained length-only evidence
 
