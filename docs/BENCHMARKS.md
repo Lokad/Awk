@@ -13,7 +13,7 @@ and two-file (4,096 in each file). Narrow/wide and literal/ERE pairs deliberatel
 field density and separator cost; compare implementations within a row, not across scripts.
 Times are medians. Lokad.Awk/awk is Lokad median time divided by GNU median time:
 1.00× is parity; higher is slower. Rows run from worst to best ratio, rounded to two decimals.
-Each result covers a complete invocation and verified output. At this revision At this revision GNU is faster in all 20 cases.
+Each result covers a complete invocation and verified output. GNU is faster in all 20 cases at this revision.
 Matched controls show substantial process-to-process variation; this single-launch table
 establishes a baseline rather than proving individual speedups.
 
