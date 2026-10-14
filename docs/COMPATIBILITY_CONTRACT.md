@@ -60,7 +60,7 @@ create untyped entries; membership does not. Untouched arguments can be forwarde
 aliases; scalar assignment/return copies values without sharing type cells. Bare arrays pass
 by alias; grouped variable arguments impose scalar context and reject arrays.
 
-Assignment targets/keys and compound left values are evaluated before the RHS. Interfering
+Compound assignment targets/keys and left values are evaluated before the RHS. Interfering
 RHS effects, including SUBSEP changes, can differ from GNU awk; [assignment operand order](https://www.gnu.org/s/gawk/manual/html_node/Assignment-Ops.html)
 is left to the implementation. The golden corpus preserves Lokad's chosen order.
 
