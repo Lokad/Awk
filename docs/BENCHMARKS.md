@@ -100,11 +100,21 @@ digest is verified; quiet gates pass and shared-budget charges refund after ever
 Short timing varies, especially wide; repeatable allocation savings are the acceptance
 evidence. This is not BenchmarkDotNet launch confirmation or a new GNU ratio.
 
+Single-field stdout projection compares `e7732cd2cb92dcdd8258764a7934b527b09e53b3` with
+`0d7cb9bcf438fc2f0371c52effd59f4ad2bdb974`, measured 2026-10-14. BenchmarkDotNet uses two source
+orders, two launches/source/order, three warmups and five iterations. Projection takes
+22.8% / 24.3% less time and allocates20.35% less in both orders.
+The field span is copied synchronously into owned output; intermediate field text/value/cache
+and single-value staging arrays are avoided. Numeric/cached formatting and executable emission
+remain unchanged. Wide-field control is -1.7% / +2.7%, allocations unchanged; no repeatable
+regression. No GNU/full-baseline retiming or universal gain is claimed.
+
 Times/allocations below use the first measured order; reductions give first / reverse order.
 
 | Case / method | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Arithmetic / BDN | 11.198 | 10.588 | +5.4% / +9.2% | 1,643,688 | 1,643,688 |
+| Single-field projection / BDN | 4.225 | 3.261 | +22.8% / +24.3% | 2,094,108 | 1,667,903 |
 | Length only, 3 fields / short | 7.660 | 6.242 | +18.5% / +18.6% | 2,985,064 | 1,706,772 |
 | Length only, 64 fields / short | 4.939 | 3.537 | +28.4% / +16.3% | 2,839,256 | 1,128,158 |
 | Governed length only, 3 fields / short | 9.565 | 7.929 | +17.1% / +28.4% | 3,116,672 | 1,838,430 |
@@ -113,10 +123,16 @@ Times/allocations below use the first measured order; reductions give first / re
 Default length-only allocations fall about43–60%; governed allocations fall41–76% in
 both orders. The standard cached field loops save only16 startup bytes; their apparent
 pilot timing gains follow the projection control, so no speed gain is claimed for them.
-71,800 tests/OS,62 exact GNU cases and18 stack scenarios pass. Of31 finite-counter rows,
+The length change passes71,800 tests/OS,62 exact GNU cases and18 stack scenarios. Of31 finite-counter rows,
 27 are identical; four change only field allocation/bytes/peaks and execution steps from
 initial ASCII classification. That scan is cancellable and charged; explicit fuel quotas
 can reject slightly earlier. No new owner/buffer or change to mutation admission/defaults.
+
+Projection passes71,819 tests/OS,62 exact GNU cases and18 stack scenarios. Of31 finite
+counter rows,29 are identical; the two projection rows change only allocated text/bytes
+and memory peaks. Earlier output survives append failure/cancellation, and borrowed fields
+finish copying before their owner can change/refund. Finite memory can admit more work
+when intermediate buffers are avoided. Host mediation, strict UTF-8 and defaults stay intact.
 
 ## What is measured
 

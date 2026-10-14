@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Single-field stdout projections copy directly into owned output, avoiding intermediate
+  field values and staging arrays. Focused throughput improves in both source orders,
+  with20% fewer allocated bytes and preserved formatting, cancellation and append preflights.
+
 - Length-only reads of untouched ASCII/byte fields avoid copied text and cached scalar
   values. Numeric, modified, cached and Unicode fields retain existing formatting;
   initial ASCII classification remains cancellable and counts against optional fuel.
