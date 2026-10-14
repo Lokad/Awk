@@ -1,6 +1,6 @@
 # Runtime limits
 
-`WithMemoryBudget(IMemoryBudget)` opts runtime storage into a borrowed shared host allowance.
+`WithMemoryBudget(IMemoryBudget)` admits frontend/runtime storage against a borrowed shared host allowance.
 The library declares the interfaces; hosts implement adapters over their own governor.
 Each execution owns a child scope and a coarse charge. Command descriptors carry that active
 budget into nested execution. Refusal uses the existing awk memory-limit diagnostic.
@@ -10,8 +10,11 @@ An invocation's budget takes precedence over the policy budget to preserve trans
 Governed cleanup waits for actual host-task completion before refunding borrowed storage;
 cancellation or a timeout only ends the operation's wait. Hosts must cooperate with cancellation.
 Without a supplied budget, existing deadline/default behavior is unchanged. Runtime buffers,
-retained state and major construction peaks are covered; frontend and persistent compiled
-artifact ownership are still being integrated. This is not complete allocation coverage.
+retained state and major construction peaks are covered. Source copies and lexer/parser/binder
+storage use one coarse frontend charge, retained through execution. Governed internal compiled reuse
+owns a surviving scope: disposal stops new executions, waits for active users and refunds it.
+Source/token envelopes can refuse conservatively; minor metadata, process caches and backend
+internals remain approximate. This is not complete allocation coverage.
 
 Pass an immutable `AwkExecutionPolicy` to `Awk.ExecuteAsync`. `CreateDefault()` favors
 ordinary compatibility; `CreateRestricted()` reduces capabilities and supplies finite
@@ -75,8 +78,9 @@ within one aggregate cleanup deadline per phase; it does not receive a new deadl
 values/arrays, record/field caches, prepared global scalar slots, builders, staged output, VM frames and admitted regex
 preparation/scratch. Estimates include retained capacity and cache headroom. It is not a
 measurement of managed allocations or process heap use. Frontend/compiled artifacts,
-immutable process metadata, host storage and parser/backend internals have separate limits
-or ownership. Streaming reads remain bounded; general regex RS can rescan buffered data.
+immutable process metadata and host storage have separate ownership. The shared host allowance
+also admits major frontend/compiled storage; the numeric execution quota remains runtime-only.
+Streaming reads remain bounded; general regex RS can rescan buffered data.
 
 Prepared slots belong to each execution; their vector is admitted before allocation.
 Ordinary global reads and updates reuse those slots. Scalar creation stays lazy; a first

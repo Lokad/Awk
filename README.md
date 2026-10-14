@@ -68,12 +68,13 @@ cancellation boundaries; see the runtime-limit contract for their current limits
 
 See [docs/SECURITY.md](docs/SECURITY.md) before executing awk supplied by an untrusted party.
 
-`WithMemoryBudget(IMemoryBudget)` admits major runtime storage against an application-owned
+`WithMemoryBudget(IMemoryBudget)` admits major frontend/runtime storage against an application-owned
 shared allowance. Implement the local budget interfaces as an adapter over your host's governor;
 Awk disposes only its own child scope. Nested command descriptors carry the active budget,
 which takes precedence over the policy budget. Governed cleanup waits for actual host users
-before refunding storage, including after timeout or cancellation. Frontend and persistent
-compiled-artifact ownership are not yet integrated; see [runtime limits](docs/RUNTIME_LIMITS.md).
+before refunding storage, including after timeout or cancellation. Source copies and parser
+buffers use coarse estimates; admission can conservatively refuse before execution.
+See [runtime limits](docs/RUNTIME_LIMITS.md) for ownership and accounting scope.
 
 Release notes are tracked in [CHANGELOG.md](CHANGELOG.md).
 
