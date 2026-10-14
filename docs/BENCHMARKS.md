@@ -82,6 +82,8 @@ allocation improvement, not a new full baseline or a new Lokad.Awk/awk ratio.
 
 Measured 2026-10-14: source `c17deed949770c246fb01c8ded679476e1c71ac9` before and
 `8c76ebf1d727e779bfaeb3aa5fdff08928964f6a` after, using the default interpreter/policy and the toolchain above.
+The measured candidate's source tree is identical to published commit
+`11f36e6` (only commit metadata changed during promotion).
 Prepared global writes use existing scalar admission/publication directly, removing generic
 target resolution and its async wrapper from that path. Other lvalues are unchanged.
 
