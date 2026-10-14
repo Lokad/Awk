@@ -462,6 +462,22 @@ internal sealed class AwkRuntimeState
     public int CountStringUnits(AwkText value) =>
         _stringRuntime.CountUnits(value);
 
+    public int CountFieldStringUnits(int index)
+    {
+        if (index == 0)
+            return CountStringUnits(FormatStringByteText(GetCurrentRecordValue()));
+        if (index < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+
+        var field = new AwkFieldIndex(index);
+        if (!_recordFields.TryGetUnmaterializedFieldByteLength(field, _stringRuntime.IsByteMode, out var length))
+            return CountStringUnits(FormatStringByteText(GetFieldValue(field)));
+
+        if (!_stringRuntime.IsByteMode)
+            Resources.RecordByteWork(length);
+        return length;
+    }
+
     public int IndexOfStringUnits(AwkText source, AwkText value) =>
         _stringRuntime.IndexOfUnits(source, value, IsCaseInsensitive);
 

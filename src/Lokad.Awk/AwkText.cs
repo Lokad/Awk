@@ -662,7 +662,7 @@ internal sealed class AwkText : IEquatable<AwkText>
 
     public override string ToString() => AsString();
 
-    private bool IsAscii(out int inspectedByteCount, Action? checkpoint = null)
+    internal bool IsAscii(out int inspectedByteCount, Action? checkpoint = null)
     {
         var cached = Volatile.Read(ref _textFacts);
         if (cached > UnknownTextFacts)

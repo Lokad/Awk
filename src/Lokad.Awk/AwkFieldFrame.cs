@@ -122,6 +122,33 @@ internal sealed class AwkFieldFrame(
         }
     }
 
+    public bool TryGetUnmaterializedFieldByteLength(
+        AwkFieldIndex index, Func<AwkText, List<AwkFieldText>> splitFields, bool byteMode, out int length)
+    {
+        EnsureFields(splitFields);
+        length = 0;
+        if (!index.IsNamedField || index.Value > _fieldTexts.Count)
+            return true;
+
+        var fieldIndex = index.Value - 1;
+        var field = _fieldTexts[fieldIndex];
+        if (_fieldValueCache.ContainsKey(fieldIndex) || field.Kind == AwkFieldTextKind.Owned)
+            return false;
+
+        if (!byteMode && field.Kind == AwkFieldTextKind.RecordSlice)
+        {
+            // The text caches this fact: repeated length reads cannot rescan the record.
+            var ascii = _recordText.IsAscii(out var inspectedBytes, checkpoint);
+            recordByteWork(inspectedBytes);
+            if (!ascii)
+                return false;
+        }
+
+        length = field.ByteLength();
+        throwIfValueBytesExceeded(length);
+        return true;
+    }
+
     public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan = default)
     {
         ReplaceRetainedMemory(AwkRuntimeMemory.CheckedAdd(

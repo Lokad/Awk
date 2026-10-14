@@ -14,6 +14,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(VariableCases(), AwkGoldenTag.Variable),
 
         .. Tagged(FieldCases(), AwkGoldenTag.Field),
+        .. Tagged(FieldLengthCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression),
 
         .. Tagged(FieldCompatibilityRepairs(), AwkGoldenTag.Field),
 

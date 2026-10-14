@@ -114,7 +114,9 @@ internal abstract partial class AwkExpression
         new GetlineExpression(target, source);
 
     public static AwkExpression Length(AwkExpression value, AwkOptionalIdentifier arrayName) =>
-        new LengthExpression(value, arrayName);
+        !arrayName.HasValue && value is DynamicFieldIndexExpression field
+            ? new FieldLengthExpression(field.IndexExpression)
+            : new LengthExpression(value, arrayName);
 
     public static AwkExpression IsArray(AwkArrayName variableName) => new IsArrayExpression(variableName);
 

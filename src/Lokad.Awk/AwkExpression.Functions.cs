@@ -33,6 +33,23 @@ internal abstract partial class AwkExpression
         }
     }
 
+    private sealed class FieldLengthExpression(AwkExpression indexExpression) : AwkExpression
+    {
+        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        {
+            // Retain the field-expression checkpoint before evaluating its index.
+            context.State.RecordExecutionStep();
+            var pending = indexExpression.ResolveNumberAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? ValueTask.FromResult(AwkValue.FromNumber(context.State.CountFieldStringUnits((int)pending.Result)))
+                : AwaitIndexAsync(context, pending);
+        }
+
+        private static async ValueTask<AwkValue> AwaitIndexAsync(
+            AwkEvaluationContext context, ValueTask<double> pending) =>
+            AwkValue.FromNumber(context.State.CountFieldStringUnits((int)await pending.ConfigureAwait(false)));
+    }
+
     private sealed class LengthExpression(AwkExpression valueExpression, AwkOptionalIdentifier arrayName) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)

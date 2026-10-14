@@ -18,6 +18,8 @@ internal sealed class AwkStringRuntime
         _checkpoint = checkpoint;
     }
 
+    public bool IsByteMode => _unitMode == AwkStringUnitMode.Byte;
+
     public int CountUnits(AwkText value)
     {
         if (_unitMode is not AwkStringUnitMode.Byte)
