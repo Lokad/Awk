@@ -65,7 +65,7 @@ internal static class FunctionStackProbe
             if (!binding.Success) throw new InvalidOperationException("Raised-syntax probe did not compile.");
             var program = binding.Program.Program;
             compiled = new(AwkCommandParser.Parse(invocation), program,
-                AwkExecutableProgram.Compile(program), []);
+                AwkExecutableProgram.Compile(program), [], AwkExecutionMemoryOwner.Disabled);
         }
         else
             compiled = await AwkExecutor.CompileAsync(host, invocation, cancellation.Token).ConfigureAwait(false);
