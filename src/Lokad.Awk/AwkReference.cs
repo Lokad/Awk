@@ -26,7 +26,7 @@ internal abstract record AwkReference
         return target.Evaluate(context.State);
     }
 
-    public async ValueTask AssignValueAsync(AwkEvaluationContext context, AwkValue value)
+    public virtual async ValueTask AssignValueAsync(AwkEvaluationContext context, AwkValue value)
     {
         var target = await ResolveTargetAsync(context).ConfigureAwait(false);
         target.AssignValue(context.State, value);
@@ -170,6 +170,12 @@ internal sealed record AwkPreparedGlobalScalarReference(AwkVariableName Variable
 {
     protected override ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context) =>
         ValueTask.FromResult(AwkResolvedReference.PreparedGlobalScalar(Variable, Index));
+
+    public override ValueTask AssignValueAsync(AwkEvaluationContext context, AwkValue value)
+    {
+        context.State.AssignPreparedGlobalValue(Variable, Index, value);
+        return ValueTask.CompletedTask;
+    }
 
     public override ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
         AwkEvaluationContext context, AwkExpression value, AwkCompoundAssignmentOperation operation)

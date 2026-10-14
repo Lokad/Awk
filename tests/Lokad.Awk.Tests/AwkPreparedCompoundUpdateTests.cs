@@ -5,6 +5,88 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPreparedCompoundUpdateTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlainAssignmentWaitsForRightAndConsumesOnce(bool pending)
+    {
+        var state = State();
+        var name = AwkVariableName.FromText("value");
+        state.AssignVariable(name, "007");
+        var source = new ValueSource(3, pending);
+        var right = new EffectExpression(source, () => state.AssignVariableValue(name, AwkValue.FromNumber(100)));
+        var expression = AwkExpression.Assignment(AwkReference.PreparedGlobalScalar(name, 0), right);
+        var steps = state.Counters.ExecutionSteps;
+        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
+        if (pending)
+        {
+            Assert.False(result.IsCompleted);
+            Assert.Equal(100, state.ResolveVariableValue(name).AsNumber());
+            source.Complete();
+        }
+        Assert.Equal(3, (await result).AsNumber());
+        Assert.Equal(3, state.ResolvePreparedGlobalValue(name, 0).AsNumber());
+        Assert.Equal(1, source.Consumptions);
+        Assert.Equal(2, state.Counters.ExecutionSteps - steps);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(0, state.Counters.StringDecodes);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task PlainRightFailurePreservesTheTarget(bool pending, bool canceled)
+    {
+        var state = State();
+        var name = AwkVariableName.FromText("value");
+        state.AssignVariable(name, "007");
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var source = new ValueSource(3, pending: true);
+        Exception error = canceled ? new OperationCanceledException() : new AwkRuntimeException("test RHS failure"u8.ToArray());
+        if (!pending) source.Fail(error);
+        var expression = AwkExpression.Assignment(AwkReference.PreparedGlobalScalar(name, 0),
+            new EffectExpression(source, () => { }));
+        async Task<AwkValue> EvaluateAsync() => await expression.EvaluateAsync(new AwkEvaluationContext(state));
+        var result = EvaluateAsync();
+        if (pending)
+        {
+            Assert.False(result.IsCompleted);
+            source.Fail(error);
+        }
+        var observed = await Record.ExceptionAsync(() => result);
+        if (canceled) Assert.IsAssignableFrom<OperationCanceledException>(observed);
+        else Assert.Same(error, observed);
+        Assert.Equal("007", state.ResolveVariableValue(name).AsString());
+        Assert.Equal(1, source.Consumptions);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Fact]
+    public async Task PlainFirstAdmissionFailureDoesNotBindTheTarget()
+    {
+        var state = State();
+        var name = AwkVariableName.FromText("missing");
+        var reference = AwkReference.PreparedGlobalScalar(name, 0);
+        var source = new ValueSource(3, pending: false);
+        var expression = AwkExpression.Assignment(reference, new EffectExpression(source, () => { }));
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        using (var pressure = state.MemoryAccounting.ReserveTransient((1 << 20) - before))
+        {
+            var pressured = state.MemoryAccounting.CurrentCommittedBytes;
+            async Task<AwkValue> EvaluateAsync() => await expression.EvaluateAsync(new AwkEvaluationContext(state));
+            await Assert.ThrowsAsync<AwkRuntimeException>(EvaluateAsync);
+            Assert.Equal(1, source.Consumptions);
+            Assert.False(state.HasScalar(name));
+            Assert.Equal(pressured, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        await reference.AssignValueAsync(new AwkEvaluationContext(state), AwkValue.FromNumber(5));
+        Assert.Equal(5, state.ResolvePreparedGlobalValue(name, 0).AsNumber());
+    }
+
+    [Theory]
     [InlineData(0, 10, false)]
     [InlineData(0, 10, true)]
     [InlineData(1, 4, false)]
