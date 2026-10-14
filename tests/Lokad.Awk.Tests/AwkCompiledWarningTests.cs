@@ -120,17 +120,19 @@ public sealed class AwkCompiledWarningTests
             3 => compiled.ExecuteAsync(host, cancellation.Token, options, compiled.ExecutableProgram),
             _ => compiled.ExecuteAsync(host, cancellation.Token, options)
         };
+        // Allow a busy CI runner to schedule continuations; the host timeout above stays short.
+        var observationTimeout = TimeSpan.FromSeconds(30);
         try
         {
-            await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await host.Entered.Task.WaitAsync(observationTimeout);
             if (failure == "cancel")
             {
                 cancellation.Cancel();
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(5)));
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(observationTimeout));
             }
             else
             {
-                Assert.Equal(AwkExitCode.FatalError, await run.WaitAsync(TimeSpan.FromSeconds(5)));
+                Assert.Equal(AwkExitCode.FatalError, await run.WaitAsync(observationTimeout));
             }
             Assert.Equal(string.Empty, host.Files.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(failure switch
