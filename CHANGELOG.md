@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Scalar storage resolves the centrally defined NF/OFS names once, removing repeated
+  dictionary lookups while retaining computed NF and OFS assignment preparation.
+
 - Reads of initialized global IGNORECASE use its existing scalar slot in GNU mode,
   avoiding repeated name/array lookup. Setters and in-function/non-GNU behavior remain
   unchanged. Focused projection and field-loop measurements improve in both source orders.

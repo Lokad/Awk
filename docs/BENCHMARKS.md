@@ -60,6 +60,8 @@ time reductions give first/reverse order. Arithmetic is a separate bounded conce
 | Arithmetic concern control | 11.060 | 10.247 | +7.3% / -0.3% | 1,643,688 | 1,381,605 |
 | IGNORECASE read: 3 fields | 8.997 | 8.663 | +3.7% / +2.4% | 2,743,662 | 2,743,670 |
 | IGNORECASE read: projection | 3.294 | 3.149 | +4.4% / +3.7% | 1,405,819 | 1,405,827 |
+| NF/OFS names: 3 fields | 8.676 | 8.167 | +5.9% / +4.0% | 2,743,670 | 2,743,670 |
+| NF/OFS names: arithmetic | 10.222 | 10.215 | +0.1% / +11.6% | 1,381,613 | 1,381,613 |
 
 Allocations fall 15.71% projection, 8.72% narrow and 15.94% arithmetic in both orders.
 No throughput claim: projection is flat; narrow changes direction; arithmetic before-launch
@@ -75,6 +77,17 @@ settings (two source orders, two launches/source/order, three warmups/five itera
 confirm projection/narrow improvements; this is separate from the retained complete baseline.
 No GNU retiming or broad gain is claimed.71,824 tests/OS,62 exact GNU cases,31 identical
 finite-counter rows including memory and18 stack scenarios pass.
+
+NF/OFS name lookup, measured 2026-10-14: `568c6220e885f0dab3163cb3ca6ab38dac39f747` before and
+`a2c7b0222cb2fe1867f001b55082e7b8e5a3e353` after. Six scalar read/write/inventory guards reuse two immutable names
+from the existing central definitions, removing repeated ID-to-definition dictionary lookups.
+Ordinal comparisons, computed NF, OFS preparation and admission remain unchanged; no
+per-invocation metadata is added. The same two-order/two-launch settings confirm the narrow
+gain; allocations are unchanged. Arithmetic is flat in one order and faster in the other,
+with launch spread up to 10.6%; no arithmetic gain is claimed. Projection's single-launch
+pilot is not a confirmed gain.
+All 71,824 tests/OS, 62 exact GNU cases, 31 identical finite-counter rows including memory
+and 18 stack scenarios pass. The complete GNU comparison remains at its recorded source.
 
 ## Retained length-only evidence
 
