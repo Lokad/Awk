@@ -89,4 +89,63 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, state.MemoryGovernor.CurrentReservedBytes);
     }
+
+    [Fact]
+    public void GovernedSmallFieldCacheRemainsChargedAndAvoidsPerRecordDictionaryAllocation()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4_096), counters);
+        var frame = new AwkFieldFrame(counters, accounting, 1_000, _ => { }, value => value.ByteText, _ => { });
+        var record = AwkText.FromSourceLiteralString("row");
+        List<AwkFieldText> fields = [AwkFieldText.Empty];
+        Func<AwkText,List<AwkFieldText>> split = _ => fields;
+        for (var index = 0; index < 100; index++)
+        {
+            frame.SetRecordText(record);
+            _ = frame.GetFieldValue(new AwkFieldIndex(1), split, AwkValue.FromText);
+        }
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < 10_000; index++)
+        {
+            frame.SetRecordText(record);
+            _ = frame.GetFieldValue(new AwkFieldIndex(1), split, AwkValue.FromText);
+        }
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        output.WriteLine("10,000 governed empty-field cache reads: {0} allocated bytes.", allocated);
+        Assert.InRange(allocated, 0, 800_000);
+        Assert.Equal(10_100, counters.FieldSplits);
+        Assert.Equal(10_100, counters.FieldsMaterialized);
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, accounting.CurrentReservedBytes);
+        frame.SetRecordText(AwkText.Empty);
+        Assert.True(accounting.CurrentCommittedBytes > 0);
+        frame.ResetRecord();
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+    }
+
+    [Fact]
+    public async Task SharedSmallCacheKeepsCapacityChargedAndClearsCachedValues()
+    {
+        var budget = new CooperativeTestBudget(4_096);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled, owner);
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, accounting, 1_000, _ => { }, value => value.ByteText, _ => { });
+        List<AwkFieldText> fields = [AwkFieldText.FromRecordSlice(0, 3)];
+        Func<AwkText,List<AwkFieldText>> split = _ => fields;
+        frame.SetRecordText(AwkText.FromSourceLiteralString("one"));
+        Assert.Equal("one", frame.GetFieldValue(new AwkFieldIndex(1), split, AwkValue.FromText).AsString());
+        frame.SetRecordText(AwkText.FromSourceLiteralString("two"));
+        Assert.Equal("two", frame.GetFieldValue(new AwkFieldIndex(1), split, AwkValue.FromText).AsString());
+        frame.SetRecordText(AwkText.Empty);
+        var retained = budget.Reserved;
+        Assert.True(retained > 0);
+        Assert.False(budget.TryReserve(4_096, out _));
+        Assert.True(budget.TryReserve(4_096 - retained, out var remainder));
+        remainder.Dispose();
+        frame.ResetRecord();
+        Assert.Equal(0, budget.Reserved);
+        Assert.True(budget.TryReserve(4_096, out var reusable));
+        reusable.Dispose();
+    }
 }

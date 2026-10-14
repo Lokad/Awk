@@ -184,13 +184,20 @@ public sealed class AwkFieldMutationCancellationTests
 
         var expected = committed - AwkRuntimeMemory.EstimateFieldTextListBytes(2) + AwkRuntimeMemory.EstimateFieldTextListBytes(ManyFields);
         if (operation == "field")
-            expected += AwkRuntimeMemory.EstimateTextBytes(AwkText.FromSourceLiteralString("tail")) + AwkRuntimeMemory.EstimateDictionaryBufferBytes(1);
-        Assert.Equal(expected, governor.CurrentCommittedBytes);
+        {
+            expected += AwkRuntimeMemory.EstimateTextBytes(AwkText.FromSourceLiteralString("tail"));
+            // Cache backing storage uses a coarse capacity estimate. A duplicated staging
+            // charge is hundreds of KiB and cannot hide within this small cache allowance.
+            Assert.InRange(governor.CurrentCommittedBytes, expected, expected + 1_024);
+        }
+        else
+            Assert.Equal(expected, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(ManyFields, frame.GetFieldCount(AlreadySplit));
         Assert.Equal(operation == "reference" ? "aa" : operation == "field" ? "aatail" : "aa", frame.RecordAwkText.AsString());
         frame.ResetRecord();
         Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(counters.MemoryCommittedBytes, counters.MemoryReleasedCommittedBytes);
     }
 
     private static void Grow(AwkFieldFrame frame, string operation, int target, AwkText? separator = null, bool preserveNumericCount = false)

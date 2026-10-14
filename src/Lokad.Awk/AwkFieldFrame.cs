@@ -14,6 +14,9 @@ internal sealed class AwkFieldFrame(
 {
     private const int MutationCheckpointFields = 1024;
     private const int MaxReusableFieldCacheCapacity = 128;
+    // A rough backing-capacity charge covers this dictionary and its two small arrays.
+    private const int MaxGovernedReusableFieldCacheCapacity = 3;
+    private const int SmallFieldCacheBufferBytes = 320;
     private static readonly Dictionary<int, AwkValue> EmptyFieldValueCache = [];
     // Used only by estimates; never published as a mutable field list.
     private static readonly List<AwkFieldText> EmptyFieldTexts = [];
@@ -44,7 +47,7 @@ internal sealed class AwkFieldFrame(
         _recordValue = AwkValue.FromText(string.Empty);
         _recordValueIsCurrent = true;
         _recordTextIsCurrent = true;
-        ClearSplitFields();
+        ClearSplitFields(releaseCache: governor.IsEnabled);
         _fieldsAreSplit = true;
         SplitPlan = default;
     }
@@ -106,8 +109,8 @@ internal sealed class AwkFieldFrame(
             var oldCacheCount = _fieldValueCache.Count;
             var newRetainedBytes = AdjustEstimate(
                 _retainedMemoryBytes,
-                AwkRuntimeMemory.EstimateDictionaryBufferBytes(oldCacheCount),
-                AwkRuntimeMemory.EstimateDictionaryBufferBytes(oldCacheCount + 1));
+                EstimateFieldCacheBufferBytes(oldCacheCount),
+                EstimateFieldCacheBufferBytes(oldCacheCount + 1));
             newRetainedBytes = AwkRuntimeMemory.CheckedAdd(
                 newRetainedBytes,
                 EstimateCachedFieldPayloadBytes(fieldText, value));
@@ -245,8 +248,8 @@ internal sealed class AwkFieldFrame(
 
             return AdjustEstimate(
                 bytes,
-                AwkRuntimeMemory.EstimateDictionaryBufferBytes(_fieldValueCache.Count),
-                AwkRuntimeMemory.EstimateDictionaryBufferBytes(_fieldValueCache.Count + 1));
+                EstimateFieldCacheBufferBytes(_fieldValueCache.Count),
+                EstimateFieldCacheBufferBytes(_fieldValueCache.Count + 1));
         }
     }
 
@@ -340,8 +343,8 @@ internal sealed class AwkFieldFrame(
 
             newRetainedBytes = AdjustEstimate(
                 newRetainedBytes,
-                AwkRuntimeMemory.EstimateDictionaryBufferBytes(_fieldValueCache.Count),
-                AwkRuntimeMemory.EstimateDictionaryBufferBytes(newCacheCount));
+                EstimateFieldCacheBufferBytes(_fieldValueCache.Count),
+                EstimateFieldCacheBufferBytes(newCacheCount));
         }
 
         var composedRecordByteLength = EstimateComposedRecordByteLength(
@@ -597,12 +600,13 @@ internal sealed class AwkFieldFrame(
         SplitPlan = default;
     }
 
-    private void ClearSplitFields()
+    private void ClearSplitFields(bool releaseCache = false)
     {
         _fieldCountValue = AwkValue.FromNumber(0);
         if (_fieldTexts.Capacity != 0)
             _fieldTexts = [];
-        if (!governor.IsEnabled && _fieldValueCache.EnsureCapacity(0) <= MaxReusableFieldCacheCapacity)
+        if (!releaseCache && _fieldValueCache.EnsureCapacity(0) <=
+            (governor.IsEnabled ? MaxGovernedReusableFieldCacheCapacity : MaxReusableFieldCacheCapacity))
             _fieldValueCache.Clear();
         else
             _fieldValueCache = [];
@@ -670,7 +674,7 @@ internal sealed class AwkFieldFrame(
             List<AwkFieldText> fieldTexts,
             Dictionary<int, AwkValue> fieldValueCache)
         {
-            var bytes = AwkRuntimeMemory.EstimateDictionaryBufferBytes(fieldValueCache.Count);
+            var bytes = EstimateFieldCacheBufferBytes(fieldValueCache.Count);
             var visited = 0;
             foreach (var pair in fieldValueCache)
             {
@@ -708,6 +712,14 @@ internal sealed class AwkFieldFrame(
         fieldText.Kind == AwkFieldTextKind.RecordSlice
             ? value.RetainedTextMemoryBytes
             : 0;
+
+    private long EstimateFieldCacheBufferBytes(int count)
+    {
+        if (!governor.IsEnabled) return AwkRuntimeMemory.EstimateDictionaryBufferBytes(count);
+        if (count > 0) return Math.Max(SmallFieldCacheBufferBytes, AwkRuntimeMemory.EstimateDictionaryBufferBytes(count));
+        return _fieldValueCache.EnsureCapacity(0) is > 0 and <= MaxGovernedReusableFieldCacheCapacity
+            ? SmallFieldCacheBufferBytes : 0;
+    }
 
     private static long AdjustEstimate(long currentBytes, long removedBytes, long addedBytes)
     {
