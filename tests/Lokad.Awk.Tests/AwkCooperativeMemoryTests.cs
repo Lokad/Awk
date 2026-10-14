@@ -40,6 +40,66 @@ public sealed class AwkCooperativeMemoryTests
     }
 
     [Fact]
+    public async Task TemporaryPeakRemainsAdmittedUntilPendingHostWorkCompletes()
+    {
+        var budget = new CooperativeTestBudget(100);
+        var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var peak = owner.ReservePeak(70);
+        _ = owner.Track(completion.Task);
+        try
+        {
+            peak.Dispose();
+            Assert.Equal(70, budget.Reserved);
+            Assert.False(budget.TryReserve(31, out _));
+        }
+        finally
+        {
+            completion.TrySetResult(0);
+            await owner.DisposeAsync();
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Fact]
+    public async Task ConstructionPeaksShareAdmissionAndHandleCopiesRefundOnlyOnce()
+    {
+        var budget = new CooperativeTestBudget(100);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var first = owner.ReservePeak(30);
+        var copy = first;
+        var second = owner.ReservePeak(40);
+        Assert.Equal(70, budget.Reserved);
+        copy.Resize(50);
+        Assert.Equal(90, budget.Reserved);
+        Assert.Throws<AwkRuntimeException>(() => second.Resize(51));
+        Assert.Equal(90, budget.Reserved);
+        copy.Dispose();
+        first.Dispose();
+        Assert.Equal(40, budget.Reserved);
+        Assert.Throws<ObjectDisposedException>(() => first.Resize(1));
+        second.Dispose();
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Fact]
+    public async Task PeakRefundBecomesReusableAfterTheActualBorrowEnds()
+    {
+        var budget = new CooperativeTestBudget(100);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var peak = owner.ReservePeak(70);
+        _ = owner.Track(completion.Task);
+        peak.Resize(40);
+        Assert.Equal(70, budget.Reserved);
+        peak.Dispose();
+        Assert.Equal(70, budget.Reserved);
+        completion.SetResult(0);
+        Assert.True(owner.TryResizeTracked(100));
+        Assert.Equal(100, budget.Reserved);
+    }
+
+    [Fact]
     public async Task FailedAdmissionPreservesAccountingAndTemporaryPeaksRefundImmediately()
     {
         var budget = new CooperativeTestBudget(100);

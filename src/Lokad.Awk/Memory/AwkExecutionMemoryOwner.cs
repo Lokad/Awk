@@ -9,6 +9,7 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
     private readonly CancellationTokenSource? _cancellation;
     private readonly List<Task> _hostTasks = [];
     private long _trackedBytes;
+    private long _temporaryBytes;
     private long _deferredRefundBytes;
     private long _mutationFloor;
     private bool _disposed;
@@ -67,15 +68,20 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         return task;
     }
 
-    public bool TryResizeTracked(long bytes)
+    public bool TryResizeTracked(long bytes) => TryResizeCharge(bytes, _temporaryBytes);
+
+    private bool TryResizeCharge(long trackedBytes, long temporaryBytes)
     {
         var reservation = _reservation;
         if (reservation is null) return true;
+        var previous = AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes);
+        var current = AwkRuntimeMemory.CheckedAdd(trackedBytes, temporaryBytes);
         var deferred = _hostTasks.Any(static task => !task.IsCompleted)
-            ? AwkRuntimeMemory.CheckedAdd(_deferredRefundBytes, Math.Max(0, _trackedBytes - bytes))
+            ? AwkRuntimeMemory.CheckedAdd(_deferredRefundBytes, Math.Max(0, previous - current))
             : 0;
-        if (!reservation.TryResize(Math.Max(_mutationFloor, AwkRuntimeMemory.CheckedAdd(bytes, deferred)))) return false;
-        _trackedBytes = bytes;
+        if (!reservation.TryResize(Math.Max(_mutationFloor, AwkRuntimeMemory.CheckedAdd(current, deferred)))) return false;
+        _trackedBytes = trackedBytes;
+        _temporaryBytes = temporaryBytes;
         _deferredRefundBytes = deferred;
         return true;
     }
@@ -87,7 +93,7 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         if (_reservation is not { } reservation || growth <= 0) return default;
         var previous = _mutationFloor;
         var floor = Math.Max(previous, AwkRuntimeMemory.CheckedAdd(
-            AwkRuntimeMemory.CheckedAdd(_trackedBytes, _deferredRefundBytes), growth));
+            AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes), _deferredRefundBytes), growth));
         if (!reservation.TryResize(Math.Max(reservation.Bytes, floor)))
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
         _mutationFloor = floor;
@@ -103,10 +109,20 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
 
     public AwkMemoryPeakAdmission ReservePeak(long bytes)
     {
-        if (_scope is not { } scope || bytes <= 0) return default;
-        if (!scope.TryReserve(bytes, out var reservation))
+        if (_scope is null || bytes <= 0) return default;
+        var lease = new AwkMemoryPeakLease(this, bytes);
+        if (!TryResizeCharge(_trackedBytes, AwkRuntimeMemory.CheckedAdd(_temporaryBytes, bytes)))
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-        return new(reservation);
+        return new(lease);
+    }
+
+    internal bool TryResizePeak(long previousBytes, long bytes) =>
+        TryResizeCharge(_trackedBytes, AwkRuntimeMemory.CheckedAdd(_temporaryBytes - previousBytes, bytes));
+
+    internal void ReleasePeak(long bytes)
+    {
+        if (!TryResizePeak(bytes, 0))
+            throw new InvalidOperationException("Releasing peak admission cannot require more memory.");
     }
 
     public async ValueTask DisposeAsync()
@@ -141,12 +157,33 @@ internal readonly struct AwkMemoryMutationAdmission(AwkExecutionMemoryOwner? own
 }
 
 // A coarse temporary construction peak, distinct from the retained execution estimate.
-internal readonly struct AwkMemoryPeakAdmission(IMemoryReservation? reservation) : IDisposable
+internal readonly struct AwkMemoryPeakAdmission(AwkMemoryPeakLease? lease) : IDisposable
 {
+    public void Resize(long bytes) => lease?.Resize(bytes);
+    public void Dispose() => lease?.Dispose();
+}
+
+// Copies of the scoped handle share its resize/dispose state; host admission remains
+// one execution reservation, including simultaneous construction peaks and pending I/O.
+internal sealed class AwkMemoryPeakLease(AwkExecutionMemoryOwner owner, long bytes) : IDisposable
+{
+    private AwkExecutionMemoryOwner? _owner = owner;
+    private long _bytes = bytes;
+
     public void Resize(long bytes)
     {
-        if (reservation is not null && !reservation.TryResize(bytes))
+        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+        var owner = _owner ?? throw new ObjectDisposedException(nameof(AwkMemoryPeakLease));
+        if (!owner.TryResizePeak(_bytes, bytes))
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+        _bytes = bytes;
     }
-    public void Dispose() => reservation?.Dispose();
+
+    public void Dispose()
+    {
+        if (_owner is not { } owner) return;
+        owner.ReleasePeak(_bytes);
+        _bytes = 0;
+        _owner = null;
+    }
 }
