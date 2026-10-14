@@ -121,7 +121,7 @@ internal abstract record AwkReference
         return false;
     }
 
-    private ValueTask<AwkValue> ApplyNumericUpdateAsync(
+    protected virtual ValueTask<AwkValue> ApplyNumericUpdateAsync(
         AwkEvaluationContext context,
         Func<double, double> update,
         AwkNumericUpdateResult resultSelection)
@@ -170,6 +170,17 @@ internal sealed record AwkPreparedGlobalScalarReference(AwkVariableName Variable
 {
     protected override ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context) =>
         ValueTask.FromResult(AwkResolvedReference.PreparedGlobalScalar(Variable, Index));
+
+    protected override ValueTask<AwkValue> ApplyNumericUpdateAsync(
+        AwkEvaluationContext context, Func<double, double> update, AwkNumericUpdateResult resultSelection)
+    {
+        var state = context.State;
+        var previous = AwkValue.FromNumber(
+            state.ResolvePreparedGlobalValue(Variable, Index).AsNumber(state.CancellationCheckpoint));
+        var result = AwkValue.FromNumber(update(previous.AsNumber(state.CancellationCheckpoint)));
+        state.AssignPreparedGlobalValue(Variable, Index, result);
+        return ValueTask.FromResult(resultSelection is AwkNumericUpdateResult.Previous ? previous : result);
+    }
 
     internal override bool TryGetScalarName(out AwkVariableName variable)
     {
