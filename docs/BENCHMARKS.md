@@ -50,32 +50,33 @@ Environment: Ubuntu 24.04.4, four AMD EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.
 nine measured iterations and one launch. Clean-source identities and GNU binary hash
 were recorded; idle CPU gates passed before/after. No concurrent builds or transfers.
 
-## Focused current-source comparison
+## Focused governed-memory comparison
 
-Measured 2026-10-14: `7fd1f9d36812b5e8c072a55b61f0e99e9d180ded` before and
-`7aeea3d82f4043a4e4ce9d64b5d3aa32bde0da11` after, on the toolchain above.
-Array compound updates carry the evaluated key directly; 37 runtime lines specialize the
-existing operator path. Key/left-value capture, aliases, pending/fault/cancellation handling
-and mutation admission are unchanged. No new storage, public API or default-engine change.
+Measured 2026-10-14: `06e73ddd60e184c3f7cfbd91e63076ecc36b1fa6` before and
+`c544e7ec69322cfcd9f9549813b9cf57fbcc1da3` after, on the toolchain above. These
+public full invocations supply a shared memory budget through a test host adapter.
+The smallest field cache is reused across records and keeps a coarse 320-byte capacity
+charge until reset. Values are cleared, larger caches discarded and mutation admission preserved.
 
-Each order uses two launches/source, three warmups and five iterations on medium fixtures.
-Times below are medians of launch medians in candidate-first order; reductions show
-candidate-first / baseline-first orders. Allocations remain identical. These focused
-controls support the change; the complete table above is a separate current baseline.
+Existing BenchmarkDotNet/MemoryDiagnoser tools: two source orders, one launch/source/order,
+three warmups and five measured iterations. The table shows baseline-first medians; timing
+reductions give baseline-first / candidate-first. Native GNU was not timed for this change;
+the complete comparison above retains its own measured source/date and policy.
 
-| Case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
+| Governed case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Keyed sum / sorted output (GNU) | 5.047 | 4.930 | +2.3% / +6.2% | 2,536,371 | 2,536,371 |
-| Loop and numeric arithmetic | 11.926 | 11.394 | +4.5% / +0.3% | 1,643,632 | 1,643,632 |
+| Project a column / output | 5.814 | 5.812 | +0.0% / -0.6% | 3,798,523 | 2,717,349 |
+| Field loop, 64 fields | 10.104 | 10.437 | -3.3% / +5.8% | 4,673,119 | 4,673,039 |
 
-Aggregation improves 2.32%/6.24%; one launch varies by 8.20%, so the magnitude remains
-uncertain. Arithmetic is a contrasting control: its larger first-order reduction reflects
-process variation, not a claimed benefit of this array change. No broad speedup is inferred.
-All 31 finite counter rows, including logical memory accounting, are unchanged.
-All 62 representative GNU comparisons, 18 stack scenarios and 71,735 Windows/Linux tests
-pass. Golden notes and the compatibility contract qualify two permitted assignment-order
-differences for interfering RHS effects; those cases are not claimed GNU-equivalent.
-Windows/Linux build/test/pack [CI is green](https://github.com/Lokad/Awk/actions/runs/38569449183).
+Projection allocates 28.46% less in both orders; throughput is essentially flat. Default
+projection/wide allocations are unchanged, and their timing controls show no repeatable
+regression. Wide governed timings vary; no speed improvement is claimed. A short aggregation
+pilot also saves about 1.08 MiB/invocation; it is not a confirmed throughput result.
+
+71,762 tests per OS, 62 exact GNU comparisons and 18 stack scenarios pass. All 31 finite
+counter rows are unchanged outside memory peaks. Those peaks include the retained small
+cache allowance; tight numeric quotas can reject slightly earlier. This is a bounded
+allocation improvement, not a new full baseline or a new Lokad.Awk/awk ratio.
 
 ## What is measured
 
