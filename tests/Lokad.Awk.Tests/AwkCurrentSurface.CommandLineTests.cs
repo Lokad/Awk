@@ -272,13 +272,16 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         Assert.Equal("three\n", secondRun.GetOutput(AwkFileDescriptor.StdOut));
     }
 
-    [Fact]
-    public async Task Awk_CompiledProgramSupportsConcurrentExecutions()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Awk_CompiledProgramSupportsConcurrentExecutions(bool governed)
     {
-        var compiled = await AwkExecutor.CompileAsync(
+        var budget = new CooperativeTestBudget(1 << 20);
+        await using var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
-            BuildInvocation("awk", "BEGIN{RS=\"|\"} {sum += $1} END{print sum, NR}", "/file.txt"),
-            CancellationToken.None);
+            AwkCommandParser.Parse(BuildInvocation("awk", "BEGIN{RS=\"|\"} {sum += $1} END{print sum, NR}", "/file.txt")),
+            CancellationToken.None, governed ? budget : null);
         using var readBarrier = new Barrier(participantCount: 2);
         var firstRun = new MockFileSystem
         {

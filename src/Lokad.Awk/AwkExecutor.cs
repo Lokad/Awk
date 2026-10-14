@@ -137,7 +137,8 @@ internal static class AwkExecutor
                     runtimeOptions.HostOperationTimeout,
                     runtimeOptions.ExposeHostErrorDetails,
                     runtimeOptions.MaxHostErrorBytes,
-                    cancellationToken)
+                    cancellationToken,
+                    runtimeOptions.MemoryOwner.FrontendMemory)
                 .ConfigureAwait(false);
             for (var index = 0; index < resolved.Warnings.Count; index++)
             {
@@ -226,12 +227,30 @@ internal static class AwkExecutor
         IAwkHost host,
         AwkCommandInvocation command,
         CancellationToken cancellationToken) =>
-        CompileAsync(host, AwkCommandParser.Parse(command), cancellationToken);
+        CompileAsync(host, AwkCommandParser.Parse(command), cancellationToken, command.MemoryBudget);
 
     internal static async Task<AwkCompiledProgram> CompileAsync(
         IAwkHost host,
         AwkInvocation invocation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IMemoryBudget? memoryBudget = null)
+    {
+        var owner = AwkExecutionMemoryOwner.Create(memoryBudget, cancellationToken);
+        try
+        {
+            return await CompileBodyAsync(owner.IsEnabled ? new AwkBudgetHost(host, owner) : host,
+                invocation, owner.Token(cancellationToken), owner).ConfigureAwait(false);
+        }
+        catch
+        {
+            await owner.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private static async Task<AwkCompiledProgram> CompileBodyAsync(
+        IAwkHost host, AwkInvocation invocation, CancellationToken cancellationToken,
+        AwkExecutionMemoryOwner owner)
     {
         if (invocation.TerminalResult.IsTerminal)
         {
@@ -264,7 +283,8 @@ internal static class AwkExecutor
                 runtimeOptions.HostOperationTimeout,
                 runtimeOptions.ExposeHostErrorDetails,
                 runtimeOptions.MaxHostErrorBytes,
-                cancellationToken)
+                cancellationToken,
+                owner.FrontendMemory)
             .ConfigureAwait(false);
         if (resolved is AwkProgramResolution.Failed failed)
             throw new System.InvalidOperationException(AwkUtf8Codec.Decode(failed.Diagnostic.Message));
@@ -276,7 +296,7 @@ internal static class AwkExecutor
             invocation,
             resolvedProgram.Program,
             AwkExecutableProgram.Compile(resolvedProgram.Program, cancellationToken.ThrowIfCancellationRequested),
-            [.. optionWarnings, .. resolved.Warnings]);
+            [.. optionWarnings, .. resolved.Warnings], owner);
     }
 
     private static async Task<AwkProgramResolution> ResolveProgramAsync(
@@ -293,7 +313,8 @@ internal static class AwkExecutor
         TimeSpan hostOperationTimeout,
         bool exposeHostErrorDetails,
         int maxHostErrorBytes,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AwkFrontendMemory? memory = null)
     {
         var sourceLoad = await AwkSourceLoader.LoadAsync(
                 host,
@@ -306,7 +327,8 @@ internal static class AwkExecutor
                 exposeEnvironment,
                 hostOperationTimeout,
                 exposeHostErrorDetails,
-                maxHostErrorBytes)
+                maxHostErrorBytes,
+                memory)
             .ConfigureAwait(false);
         if (sourceLoad is AwkSourceLoadResult.Failed failed)
         {
@@ -321,7 +343,7 @@ internal static class AwkExecutor
         cancellationToken.ThrowIfCancellationRequested();
         var parsed = AwkParser.Parse(
             source.Text,
-            AwkFrontendBudget.FromResources(resources, previousDiagnostics, stringEscapeWarnings, regexEscapeWarnings),
+            AwkFrontendBudget.FromResources(resources, previousDiagnostics, stringEscapeWarnings, regexEscapeWarnings, memory),
             cancellationToken,
             invocation.ExecutionOptions.CompatibilityProfile.Mode);
         var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings, cancellationToken.ThrowIfCancellationRequested);

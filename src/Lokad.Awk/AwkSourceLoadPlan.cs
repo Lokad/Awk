@@ -31,7 +31,8 @@ internal sealed class AwkSourceLoadPlan
         TimeSpan? hostOperationTimeout,
         bool exposeHostErrorDetails,
         int maxHostErrorBytes,
-        AwkCompatibilityMode compatibilityMode)
+        AwkCompatibilityMode compatibilityMode,
+        AwkFrontendMemory? memory)
     {
         static IReadOnlyList<string> ParseAwkPathEntries(
             IReadOnlyList<AwkEnvironmentVariable> environment)
@@ -60,6 +61,7 @@ internal sealed class AwkSourceLoadPlan
         }
 
         _sources = sources;
+        Memory = memory ?? AwkFrontendMemory.Disabled;
         _awkPathEntries = exposeEnvironment ? ParseAwkPathEntries(environment) : [];
         _currentDirectory = currentDirectory;
         _accessiblePathRoot = accessiblePathRoot;
@@ -73,6 +75,7 @@ internal sealed class AwkSourceLoadPlan
     }
 
     public int SourceCount => _sources.Count;
+    public AwkFrontendMemory Memory { get; }
 
     public IReadOnlyList<string> AwkPathEntries => _awkPathEntries;
 
@@ -103,7 +106,8 @@ internal sealed class AwkSourceLoadPlan
         bool exposeEnvironment = true,
         TimeSpan? hostOperationTimeout = null,
         bool exposeHostErrorDetails = true,
-        int maxHostErrorBytes = 4 << 10) =>
+        int maxHostErrorBytes = 4 << 10,
+        AwkFrontendMemory? memory = null) =>
         new(
             invocation.SourcePlan.Sources,
             invocation.RuntimeArgumentsPlan.Environment,
@@ -115,7 +119,8 @@ internal sealed class AwkSourceLoadPlan
             hostOperationTimeout,
             exposeHostErrorDetails,
             maxHostErrorBytes,
-            invocation.ExecutionOptions.CompatibilityProfile.Mode);
+            invocation.ExecutionOptions.CompatibilityProfile.Mode,
+            memory);
 
     public AwkSourceReference GetSource(int index) => _sources[index];
 

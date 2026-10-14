@@ -21,9 +21,11 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         _scope = scope;
         _reservation = reservation;
         _cancellation = cancellation;
+        FrontendMemory = new AwkFrontendMemory(scope);
     }
 
     public static AwkExecutionMemoryOwner Disabled { get; } = new();
+    public AwkFrontendMemory FrontendMemory { get; } = AwkFrontendMemory.Disabled;
     public bool IsEnabled => _scope is not null;
     public IMemoryScope Scope => _scope ?? throw new InvalidOperationException("No cooperative memory scope is active.");
     public CancellationToken Token(CancellationToken original) => _cancellation?.Token ?? original;
@@ -124,6 +126,7 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         }
         finally
         {
+            FrontendMemory.Dispose();
             _reservation?.Dispose();
             _scope.Dispose();
             _cancellation?.Dispose();

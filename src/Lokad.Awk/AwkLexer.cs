@@ -22,12 +22,15 @@ internal static class AwkLexer
         string source,
         int maxTokens,
         Action? checkpoint,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        AwkFrontendMemory? memory = null)
     {
         checkpoint?.Invoke();
-        var lexer = new Lexer(source, maxTokens, checkpoint, compatibilityMode);
+        var frontend = memory ?? AwkFrontendMemory.Disabled;
+        var lexer = new Lexer(source, maxTokens, checkpoint, compatibilityMode, frontend);
         var tokens = lexer.Tokenize();
         checkpoint?.Invoke();
+        frontend.AdmitTokens(source.Length, tokens.Count);
         return tokens;
     }
 
@@ -43,22 +46,26 @@ internal static class AwkLexer
         private bool _canStartRegex = true;
         private readonly AwkLexicalNames _names;
 
-        public Lexer(string source, int maxTokens, Action? checkpoint, AwkCompatibilityMode compatibilityMode)
+        public Lexer(string source, int maxTokens, Action? checkpoint, AwkCompatibilityMode compatibilityMode,
+            AwkFrontendMemory memory)
         {
             _source = source;
             _names = new AwkLexicalNames(compatibilityMode);
             _maxTokens = maxTokens;
             _checkpoint = checkpoint;
-            _lexemes = ReadContextFreeLexemes(source, checkpoint);
+            _lexemes = ReadContextFreeLexemes(source, checkpoint, memory);
 
             static List<AwkToken> ReadContextFreeLexemes(
                 string source,
-                Action? checkpoint)
+                Action? checkpoint,
+                AwkFrontendMemory memory)
             {
                 checkpoint?.Invoke();
                 var reader = new ReflectionTokenReader<AwkTokenKind>();
+                memory.AdmitLexing(source.Length);
                 var result = reader.ReadAllTokens(source);
                 checkpoint?.Invoke();
+                memory.AdmitLexemes(source.Length, result.Tokens.Count);
                 var lexemes = new List<AwkToken>(result.Tokens.Count);
                 var index = 0;
                 foreach (var token in result.Tokens)

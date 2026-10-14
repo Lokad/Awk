@@ -17,7 +17,8 @@ internal static partial class AwkSourceLoader
         bool exposeEnvironment = true,
         TimeSpan? hostOperationTimeout = null,
         bool exposeHostErrorDetails = true,
-        int maxHostErrorBytes = 4 << 10)
+        int maxHostErrorBytes = 4 << 10,
+        AwkFrontendMemory? memory = null)
     {
         var plan = AwkSourceLoadPlan.FromInvocation(
             invocation,
@@ -27,8 +28,10 @@ internal static partial class AwkSourceLoader
             exposeEnvironment,
             hostOperationTimeout,
             exposeHostErrorDetails,
-            maxHostErrorBytes);
+            maxHostErrorBytes,
+            memory);
         resources.ThrowIfSourceUnitCountExceeded(plan.SourceCount);
+        plan.Memory.AdmitSourceUnits(plan.SourceCount);
         var sources = new List<AwkSourceUnit>(plan.SourceCount);
         var inlineSourceIndex = 0;
         for (var index = 0; index < plan.SourceCount; index++)
@@ -129,7 +132,7 @@ internal static partial class AwkSourceLoader
                 expandedFile.Source.Segments));
         }
 
-        return AwkSourceLoadResult.FromSources(sources, cancellationToken.ThrowIfCancellationRequested);
+        return AwkSourceLoadResult.FromSources(sources, cancellationToken.ThrowIfCancellationRequested, plan.Memory);
 
         void RecordExpandedSource(string text)
         {

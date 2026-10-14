@@ -51,7 +51,7 @@ internal sealed record AwkRuntimeOptions
         MemoryBudget = memoryBudget;
     }
 
-    public IMemoryBudget? MemoryBudget { get; }
+    public IMemoryBudget? MemoryBudget { get; init; }
 
     public AwkExecutionMemoryOwner MemoryOwner { get; init; } = AwkExecutionMemoryOwner.Disabled;
 

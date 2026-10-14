@@ -20,7 +20,7 @@ internal static partial class AwkSourceLoader
     {
         Action checkpoint = cancellationToken.ThrowIfCancellationRequested;
         checkpoint();
-        var normalization = AwkLineContinuations.Normalize(source, resources.Limits.MaxFrontendTokens, cancellationToken);
+        var normalization = AwkLineContinuations.Normalize(source, resources.Limits.MaxFrontendTokens, cancellationToken, plan.Memory);
         var normalizedSource = normalization.Text;
         if (plan.CompatibilityMode != AwkCompatibilityMode.GnuDefault ||
             normalizedSource.IndexOf('@', StringComparison.Ordinal) < 0)
@@ -41,6 +41,7 @@ internal static partial class AwkSourceLoader
         }
 
         checkpoint();
+        plan.Memory.AdmitTextCopy(normalizedSource.Length);
         var builder = new StringBuilder(normalizedSource.Length);
         var segments = new List<AwkSourceSegment>();
         var index = 0;
@@ -165,6 +166,7 @@ internal static partial class AwkSourceLoader
                 return;
 
             var span = new AwkTextSpan(builder.Length, sourceLength);
+            plan.Memory.AdmitTextCopy(sourceLength);
             AwkParsingSupport.AppendText(builder, sourceText.AsSpan(sourceStart, sourceLength), checkpoint);
             AddSegment(segments, new AwkSourceSegment(
                 sourceName,
@@ -184,6 +186,7 @@ internal static partial class AwkSourceLoader
                 return;
 
             var offset = builder.Length;
+            plan.Memory.AdmitTextCopy(source.Text.Length);
             AwkParsingSupport.AppendText(builder, source.Text, checkpoint);
             for (var index = 0; index < source.Segments.Count; index++)
             {
@@ -207,6 +210,7 @@ internal static partial class AwkSourceLoader
             AwkSourceSegment? sourceSegment)
         {
             var start = builder.Length;
+            plan.Memory.AdmitTextCopy(1);
             builder.Append('\n');
             if (sourceSegment is { } segment)
             {

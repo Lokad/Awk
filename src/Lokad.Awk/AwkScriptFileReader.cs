@@ -208,6 +208,7 @@ internal static class AwkScriptFileReader
 
                         try
                         {
+                            plan.Memory.AdmitTextCopy(line.Length);
                             builder.Append(AwkUtf8Codec.Decode(line));
                         }
                         catch (DecoderFallbackException)

@@ -159,10 +159,12 @@ internal readonly record struct AwkSourceIdentity
 
 internal abstract record AwkSourceLoadResult
 {
-    public static AwkSourceLoadResult FromSources(IReadOnlyList<AwkSourceUnit> sources, Action? checkpoint = null)
+    public static AwkSourceLoadResult FromSources(IReadOnlyList<AwkSourceUnit> sources, Action? checkpoint = null,
+        AwkFrontendMemory? memory = null)
     {
         checkpoint?.Invoke();
-        static AwkSourceUnit AssembleCompilationSource(IReadOnlyList<AwkSourceUnit> sources, Action? checkpoint)
+        static AwkSourceUnit AssembleCompilationSource(IReadOnlyList<AwkSourceUnit> sources, Action? checkpoint,
+            AwkFrontendMemory memory)
         {
             if (sources.Count == 0)
                 return new AwkSourceUnit(new AwkSourceName("<program>"), string.Empty, []);
@@ -179,6 +181,8 @@ internal abstract record AwkSourceLoadResult
                 segmentCount = checked(segmentCount + sources[index].Segments.Count);
             }
 
+            memory.AdmitTextCopy(textLength);
+            memory.AdmitSourceUnits(segmentCount);
             var text = new StringBuilder(textLength);
             var segments = new List<AwkSourceSegment>(segmentCount);
             for (var sourceIndex = 0; sourceIndex < sources.Count; sourceIndex++)
@@ -212,7 +216,7 @@ internal abstract record AwkSourceLoadResult
             return new AwkSourceUnit(new AwkSourceName("<program>"), joined, segments);
         }
 
-        var compilationSource = AssembleCompilationSource(sources, checkpoint);
+        var compilationSource = AssembleCompilationSource(sources, checkpoint, memory ?? AwkFrontendMemory.Disabled);
         checkpoint?.Invoke();
         return new Loaded(sources, compilationSource);
     }

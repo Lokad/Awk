@@ -323,7 +323,7 @@ public sealed class AwkFrontendCancellationTests
         var program = binding.Program.Program;
         var bytecode = AwkExecutableProgram.Compile(program, Checkpoint);
         var compiled = new AwkCompiledProgram(AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
-            program, bytecode, parsed.Warnings);
+            program, bytecode, parsed.Warnings, AwkExecutionMemoryOwner.Disabled);
         var frontendCalls = calls;
         Assert.True(frontendCalls > 0);
         cancellation.Cancel();

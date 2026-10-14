@@ -7,11 +7,13 @@ namespace Lokad.Awk;
 
 internal static class AwkLineContinuations
 {
-    public static AwkLineContinuationNormalization Normalize(string text, int maxTokens, CancellationToken cancellationToken)
+    public static AwkLineContinuationNormalization Normalize(string text, int maxTokens, CancellationToken cancellationToken,
+        AwkFrontendMemory? memory = null)
         => NormalizeWithCheckpoint(text, maxTokens,
-            cancellationToken.CanBeCanceled ? cancellationToken.ThrowIfCancellationRequested : null);
+            cancellationToken.CanBeCanceled ? cancellationToken.ThrowIfCancellationRequested : null, memory);
 
-    public static AwkLineContinuationNormalization NormalizeWithCheckpoint(string text, int maxTokens, Action? checkpoint)
+    public static AwkLineContinuationNormalization NormalizeWithCheckpoint(string text, int maxTokens, Action? checkpoint,
+        AwkFrontendMemory? memory = null)
     {
         checkpoint?.Invoke();
         var firstContinuation = 0;
@@ -26,9 +28,11 @@ internal static class AwkLineContinuations
         if (firstContinuation == text.Length)
             return new AwkLineContinuationNormalization(text, AwkLineContinuationMap.Empty);
 
+        var frontend = memory ?? AwkFrontendMemory.Disabled;
+        frontend.AdmitTextCopy(text.Length);
         var builder = new StringBuilder(text.Length);
         var continuations = new List<AwkLineContinuationPoint>();
-        var tokens = AwkLexer.Tokenize(text, maxTokens, checkpoint);
+        var tokens = AwkLexer.Tokenize(text, maxTokens, checkpoint, memory: frontend);
         var tokenIndex = 0;
         var segmentStart = 0;
         var index = firstContinuation;

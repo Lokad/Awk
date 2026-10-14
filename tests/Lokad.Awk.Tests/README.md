@@ -11,6 +11,10 @@ Compiled executions emit their own frontend warnings. The golden harness must no
 resource and host-boundary checks. `AwkCompiledWarningTests` covers artifact reuse, mapped
 source locations, warning admission and pending/failed host appends.
 
+`AwkFrontendMemoryTests` covers shared source/parser admission and owned compiled-artifact
+lifetimes. Governed internal compilation needs a caller budget that survives artifact reuse;
+dispose the artifact after its users finish. Warning/executable views borrow that lifetime.
+
 Failing golden cases must assert the awk exit code, exact stderr, expected stdout preservation, and no CLR exception leakage through `AwkTestHarness.AssertFriendlyAwkFailure`.
 
 ## End-to-End Host Tests
