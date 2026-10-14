@@ -52,12 +52,13 @@ were recorded; idle CPU gates passed before/after. No concurrent builds or trans
 
 ## Focused current-source comparison
 
-Measured 2026-10-14: `b0879a65cf54fbd3be77eda443850b2f11cb673e` before,
-`599a1f8871327dc6e670ea9d98ef2eb5f05e2ce4` after, on the same toolchain above. Prepared global
-increments/decrements call the existing admitted state reads/writes directly, avoiding
-resolved-location transport and kind switches. The change adds 11 runtime lines;
-numeric results, lazy admission, cancellation and mutation preflights remain unchanged.
-No extra retained storage, public API or default-engine change.
+Measured 2026-10-14: `599a1f8871327dc6e670ea9d98ef2eb5f05e2ce4` before,
+`9a6a2b65c8974246992d7e08e8e089bed3e6ccc2` after, on the same toolchain above. Prepared global
+compound assignments call the existing admitted state reads/writes directly, avoiding
+resolved-location transport and kind switches. The change adds 24 runtime lines;
+left-value capture before RHS effects/suspension, consume-once evaluation, numeric
+semantics, cancellation and mutation preflights remain unchanged. Other references
+retain their completed/pending paths. No extra storage, public API or default-engine change.
 
 Each order uses two launches/source, three warmups and five iterations. Times below are
 the medians of launch medians in candidate-first order; reductions show candidate-first /
@@ -66,15 +67,17 @@ the complete table above retains its original source/date and GNU timings.
 
 | Case | Before ms | After ms | Time reduction, both orders | Allocated bytes, both sources |
 | --- | ---: | ---: | ---: | ---: |
-| Loop and numeric arithmetic | 12.601 | 11.281 | +10.5% / +11.5% | 1,774,736 |
-| Field loop, 64 fields | 9.913 | 9.333 | +5.8% / +4.8% | 2,868,798 |
+| Field loop, 3 fields | 10.115 | 9.657 | +4.5% / +2.3% | 3,136,810 |
+| Arithmetic control | 11.419 | 11.235 | +1.6% / +2.2% | 1,774,736 |
 
-Arithmetic improves 10.5–11.5% in both orders; every candidate launch median is faster
-than every baseline launch median. Wide-field reductions are 4.8–5.8%, with higher
-launch variation (up to 10.10% before and 8.87% after); no general field-speed claim follows.
-All allocations and 31 finite counter rows are unchanged. All 62 GNU comparisons,
-18 stack scenarios and 71,677 Windows/Linux correctness tests pass at the optimized source.
-Windows/Linux build/test/pack [CI is green](https://github.com/Lokad/Awk/actions/runs/38540073069).
+Narrow fields improve 2.3–4.5% in both orders; every candidate launch median is faster
+than every baseline launch median. Within each order, field launch variation is at most
+1.82% before and 0.31% after. Arithmetic-control reductions are 1.6–2.2%, with overlapping
+launch medians; no broad arithmetic-speed claim follows. The wide-field pilot's 3.3%
+reduction is unconfirmed. All allocations and 31 finite counter rows are unchanged.
+All 62 GNU comparisons, 18 stack scenarios and 71,697 Windows/Linux correctness tests
+pass at the optimized source.
+Windows/Linux build/test/pack [CI is green](https://github.com/Lokad/Awk/actions/runs/38542602594).
 
 ## What is measured
 
