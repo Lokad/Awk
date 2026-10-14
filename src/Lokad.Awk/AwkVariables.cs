@@ -11,6 +11,9 @@ internal sealed class AwkVariables
     public const string FunctionTableName = "FUNCTAB";
     public const string SymbolTableName = "SYMTAB";
 
+    private static readonly string FieldCountName = AwkSpecialVariables.Name(AwkSpecialVariableId.FieldCount);
+    private static readonly string OutputFieldSeparatorName = AwkSpecialVariables.Name(AwkSpecialVariableId.OutputFieldSeparator);
+
     private readonly Func<AwkText, AwkValue> _createByteTextValue;
     private readonly Func<AwkText, AwkValue> _createNumericStringValue;
     private readonly Func<AwkText, AwkValue> _createDeferredTextValue;
@@ -123,7 +126,7 @@ internal sealed class AwkVariables
             {
                 var scalar = _scalarSlots[slotId.Value];
                 slot = resolveFieldCountValue is not null &&
-                    AwkSpecialVariables.IsName(scalar.Name.Text, AwkSpecialVariableId.FieldCount)
+                    string.Equals(scalar.Name.Text, FieldCountName, StringComparison.Ordinal)
                     ? AwkVariableSlot.FromValue(resolveFieldCountValue())
                     : GetScalarState(slotId).Slot;
                 return true;
@@ -208,7 +211,7 @@ internal sealed class AwkVariables
 
     private bool IsComputedFieldCount(AwkVariableName name) =>
         _governScalarMemory && _resolveFieldCountValue is not null &&
-        AwkSpecialVariables.IsName(name.Text, AwkSpecialVariableId.FieldCount);
+        string.Equals(name.Text, FieldCountName, StringComparison.Ordinal);
 
     public long EstimateScalarValueMemoryGrowth(AwkVariableName name, AwkValue value)
     {
@@ -261,7 +264,7 @@ internal sealed class AwkVariables
     public AwkValue GetOrCreateScalarValue(AwkVariableName name)
     {
         if (_resolveFieldCountValue is not null &&
-            AwkSpecialVariables.IsName(name.Text, AwkSpecialVariableId.FieldCount))
+            string.Equals(name.Text, FieldCountName, StringComparison.Ordinal))
             return _resolveFieldCountValue();
 
         if (TryGetScalarState(name, out var state))
@@ -286,7 +289,7 @@ internal sealed class AwkVariables
     public AwkValue GetScalarValue(AwkGlobalSlotId id)
     {
         if (_resolveFieldCountValue is not null &&
-            AwkSpecialVariables.IsName(_scalarSlots[id.Value].Name.Text, AwkSpecialVariableId.FieldCount))
+            string.Equals(_scalarSlots[id.Value].Name.Text, FieldCountName, StringComparison.Ordinal))
             return _resolveFieldCountValue();
 
         return CreateValue(GetScalarState(id).Slot).ForceScalar();
@@ -296,7 +299,7 @@ internal sealed class AwkVariables
     {
         var name = _scalarSlots[id.Value].Name;
         if (_resolveFieldCountValue is not null &&
-            AwkSpecialVariables.IsName(name.Text, AwkSpecialVariableId.FieldCount))
+            string.Equals(name.Text, FieldCountName, StringComparison.Ordinal))
         {
             _applyScalarAssignment(name.Text, value);
             return;
@@ -845,7 +848,7 @@ internal sealed class AwkVariables
             : 0;
         var newCharge = Math.Max(0, EstimateScalarBytes(slot) - baseline);
         using var mutation = ReserveMemoryMutation(newCharge, oldCharge);
-        if (AwkSpecialVariables.IsName(_scalarSlots[id.Value].Name.Text, AwkSpecialVariableId.OutputFieldSeparator))
+        if (string.Equals(_scalarSlots[id.Value].Name.Text, OutputFieldSeparatorName, StringComparison.Ordinal))
             _prepareOutputFieldSeparatorAssignment();
         _scalarSlots[id.Value] = _scalarSlots[id.Value].WithState(oldState.WithSlot(slot, newCharge));
         mutation.Commit();
