@@ -1,6 +1,6 @@
 # Benchmarks
 
-Last complete baseline, measured 2026-10-13: Release source `38c2dba8a7bf5de1dfd2630c2e22118a1723f55d`
+Last complete baseline, measured 2026-10-14: Release source `7aeea3d82f4043a4e4ce9d64b5d3aa32bde0da11`
 versus GNU awk 5.2.1. The interpreter and DotNetCompatibility are the defaults;
 newer Utf8Regex adoption remains postponed. Retain this date and revision until the next
 complete measurement; results do not become fresh when runtime code advances.
@@ -19,26 +19,26 @@ establishes a baseline rather than proving individual speedups.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| ERE capture arrays (GNU) | 28 | 38.258 | 7.727 | 4.95× | 16.90 |
-| Field loop, 3 fields | 60 | 10.812 | 2.221 | 4.87× | 2.99 |
-| Field loop, 64 fields | 80 | 9.937 | 2.204 | 4.51× | 2.74 |
-| Two-file membership / join | 77.83 | 12.486 | 2.874 | 4.34× | 5.91 |
-| Loop and numeric arithmetic | 8 | 12.578 | 2.948 | 4.27× | 1.69 |
-| Nested user calls | 8 | 6.622 | 1.656 | 4.00× | 1.69 |
-| Keyed sum / sorted output (GNU) | 24 | 5.055 | 1.380 | 3.66× | 2.54 |
-| gsub and output | 56 | 7.636 | 2.128 | 3.59× | 4.82 |
-| Numeric array sort (GNU) | 18.92 | 8.848 | 2.506 | 3.53× | 3.65 |
-| Filter three fields | 24 | 5.387 | 1.554 | 3.47× | 2.90 |
-| ASCII substr/index/length/casing | 52 | 5.443 | 1.582 | 3.44× | 1.58 |
-| printf strings and integers | 24 | 5.980 | 1.847 | 3.24× | 3.66 |
-| Project a column / output | 60 | 4.223 | 1.338 | 3.16× | 2.12 |
-| Concatenate record and number | 20 | 4.783 | 1.562 | 3.06× | 1.93 |
-| Unicode length/substr / output | 60 | 6.304 | 2.163 | 2.91× | 3.48 |
-| Literal field separator | 48 | 3.748 | 1.410 | 2.66× | 2.05 |
-| Boolean ERE matching | 32 | 3.372 | 1.288 | 2.62× | 1.25 |
-| ERE field separator | 48 | 5.200 | 2.007 | 2.59× | 4.58 |
-| Byte-run ERE record separator (GNU) | 36 | 2.225 | 1.507 | 1.48× | 1.50 |
-| Multicharacter record separator (GNU) | 52 | 1.982 | 1.490 | 1.33× | 1.11 |
+| ERE capture arrays (GNU) | 28 | 38.146 | 7.711 | 4.95× | 16.65 |
+| Two-file membership / join | 77.83 | 12.067 | 2.812 | 4.29× | 5.66 |
+| Field loop, 3 fields | 60 | 9.385 | 2.213 | 4.24× | 2.87 |
+| Nested user calls | 8 | 6.611 | 1.631 | 4.05× | 1.56 |
+| Field loop, 64 fields | 80 | 8.396 | 2.189 | 3.84× | 2.73 |
+| Loop and numeric arithmetic | 8 | 11.248 | 2.934 | 3.83× | 1.57 |
+| Keyed sum / sorted output (GNU) | 24 | 4.805 | 1.371 | 3.50× | 2.42 |
+| gsub and output | 56 | 7.410 | 2.123 | 3.49× | 4.32 |
+| Filter three fields | 24 | 5.338 | 1.542 | 3.46× | 2.77 |
+| ASCII substr/index/length/casing | 52 | 5.302 | 1.572 | 3.37× | 1.33 |
+| Numeric array sort (GNU) | 18.92 | 8.414 | 2.503 | 3.36× | 3.53 |
+| printf strings and integers | 24 | 6.084 | 1.831 | 3.32× | 3.53 |
+| Project a column / output | 60 | 4.185 | 1.337 | 3.13× | 2.00 |
+| Unicode length/substr / output | 60 | 6.210 | 2.098 | 2.96× | 3.36 |
+| Concatenate record and number | 20 | 4.242 | 1.551 | 2.74× | 1.68 |
+| Literal field separator | 48 | 3.624 | 1.403 | 2.58× | 1.92 |
+| Boolean ERE matching | 32 | 3.284 | 1.292 | 2.54× | 1.00 |
+| ERE field separator | 48 | 5.055 | 2.003 | 2.52× | 4.46 |
+| Byte-run ERE record separator (GNU) | 36 | 2.153 | 1.452 | 1.48× | 1.25 |
+| Multicharacter record separator (GNU) | 52 | 1.946 | 1.491 | 1.31× | 0.86 |
 
 Allocations are managed GC bytes per Lokad invocation, measured separately with
 MemoryDiagnoser at the same source and settings. They are not native GNU allocations,
@@ -52,31 +52,30 @@ were recorded; idle CPU gates passed before/after. No concurrent builds or trans
 
 ## Focused current-source comparison
 
-Measured 2026-10-14: `9a6a2b65c8974246992d7e08e8e089bed3e6ccc2` before,
-`7fd1f9d36812b5e8c072a55b61f0e99e9d180ded` after, on the same toolchain above. Empty field-list
-bookkeeping reuses a private estimate-only sentinel and each frame's zero-capacity
-placeholder. Three net runtime lines remove repeated allocations; published field lists,
-logical charges, finite admission/staging, cancellation and mutation preflights are unchanged.
-No public API, per-execution storage growth or default-engine change.
+Measured 2026-10-14: `7fd1f9d36812b5e8c072a55b61f0e99e9d180ded` before and
+`7aeea3d82f4043a4e4ce9d64b5d3aa32bde0da11` after, on the toolchain above.
+Array compound updates carry the evaluated key directly; 37 runtime lines specialize the
+existing operator path. Key/left-value capture, aliases, pending/fault/cancellation handling
+and mutation admission are unchanged. No new storage, public API or default-engine change.
 
-Each order uses two launches/source, three warmups and five iterations. Times below are
-the medians of launch medians in candidate-first order; reductions show candidate-first /
-baseline-first orders. Both run the medium fixtures. This is a focused comparison;
-the complete table above retains its original source/date and GNU timings.
+Each order uses two launches/source, three warmups and five iterations on medium fixtures.
+Times below are medians of launch medians in candidate-first order; reductions show
+candidate-first / baseline-first orders. Allocations remain identical. These focused
+controls support the change; the complete table above is a separate current baseline.
 
 | Case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| ASCII string processing | 5.413 | 5.596 | -3.4% / +0.1% | 1,652,407 | 1,390,259 |
-| Field loop, 3 fields | 9.336 | 9.167 | +1.8% / -3.6% | 3,136,810 | 3,005,706 |
+| Keyed sum / sorted output (GNU) | 5.047 | 4.930 | +2.3% / +6.2% | 2,536,371 | 2,536,371 |
+| Loop and numeric arithmetic | 11.926 | 11.394 | +4.5% / +0.3% | 1,643,632 | 1,643,632 |
 
-Allocations decrease 15.86% for ASCII strings and 4.18% for narrow fields in both orders.
-Timing varies by launch/order (up to 4.53% launch variation); no throughput improvement
-is claimed. The pilot's narrow-field slowdown does not repeat in both orders. The three
-new allocation checks fail on the old source and pass on the optimized source.
+Aggregation improves 2.32%/6.24%; one launch varies by 8.20%, so the magnitude remains
+uncertain. Arithmetic is a contrasting control: its larger first-order reduction reflects
+process variation, not a claimed benefit of this array change. No broad speedup is inferred.
 All 31 finite counter rows, including logical memory accounting, are unchanged.
-All 62 GNU comparisons, 18 stack scenarios and 71,700 Windows/Linux correctness tests
-pass at the optimized source.
-Windows/Linux build/test/pack [CI is green](https://github.com/Lokad/Awk/actions/runs/38552851978).
+All 62 representative GNU comparisons, 18 stack scenarios and 71,735 Windows/Linux tests
+pass. Golden notes and the compatibility contract qualify two permitted assignment-order
+differences for interfering RHS effects; those cases are not claimed GNU-equivalent.
+Windows/Linux build/test/pack [CI is green](https://github.com/Lokad/Awk/actions/runs/38569449183).
 
 ## What is measured
 
