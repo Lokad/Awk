@@ -403,7 +403,7 @@ internal sealed class AwkVariables
             throw new AwkRuntimeException(AwkMessages.FormatUninitializedSpecialArrayElement(name.Text, index.AsString(_counters, _checkpoint)));
 
         ThrowIfArrayWouldGrowPastLimit(values, index);
-        using var allocationPeak = _memoryGovernor.ReserveAllocationPeak(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index));
+        using var admission = _memoryGovernor.AdmitMutation(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index));
         var untypedSlot = AwkVariableSlot.FromUntypedScalar(new AwkUntypedScalar());
         SetArraySlot(values, index, untypedSlot);
         return CreateValue(untypedSlot);
@@ -538,19 +538,19 @@ internal sealed class AwkVariables
             ? _symbolTable.GetElementRuntimeKind(index.AsString(_counters, _checkpoint))
             : GetArrayValue(name, index).RuntimeKind;
 
-    public void PreflightArrayElementRead(AwkArrayName name, AwkArrayKey index)
+    public AwkMemoryMutationAdmission PreflightArrayElementRead(AwkArrayName name, AwkArrayKey index)
     {
         if (!name.IsFunctionLocal &&
             (IsSymbolTable(name.Text) || AwkSpecialArrayPolicy.IsElementReadOnly(name.Text, _mode)))
-            return;
+            return default;
 
         if (_arrays.TryGetSlots(name, out var slots))
         {
             if (slots.ContainsKey(index))
-                return;
+                return default;
             ThrowIfArrayWouldGrowPastLimit(slots, index);
         }
-        _memoryGovernor.PreflightAllocation(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index));
+        return _memoryGovernor.AdmitMutation(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(index));
     }
 
     public void SetArrayValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)

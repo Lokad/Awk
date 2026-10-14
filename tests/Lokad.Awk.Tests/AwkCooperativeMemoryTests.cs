@@ -60,6 +60,104 @@ public sealed class AwkCooperativeMemoryTests
     }
 
     [Fact]
+    public async Task MutationComponentsConsumeOneAdmissionAndFailedNestedGrowthPreservesIt()
+    {
+        var budget = new CooperativeTestBudget(100);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(),
+            AwkRuntimeCounters.CreateEnabled(), owner);
+        accounting.Reserve(50);
+        using (accounting.AdmitMutation(50))
+        {
+            Assert.Equal(100, budget.Reserved);
+            accounting.Reserve(30);
+            Assert.Equal(100, budget.Reserved);
+            Assert.Throws<AwkRuntimeException>(() => accounting.AdmitMutation(30));
+            Assert.Equal(100, budget.Reserved);
+            Assert.False(budget.TryReserve(1, out _));
+        }
+        Assert.Equal(80, budget.Reserved);
+        accounting.ReleaseReserved(80);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Fact]
+    public async Task SharedRefusalPrecedesRecordCountersTerminatorAndRecordPublication()
+    {
+        const long limit = 1 << 20;
+        var budget = new CooperativeTestBudget(limit);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget))
+            with { MemoryOwner = owner };
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("keep"));
+        state.RecordNumber = 4;
+        state.FileRecordNumber = 3;
+        state.SetRecordTerminator(AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(",")));
+        var previousCharge = budget.Reserved;
+        Assert.True(budget.TryReserve(limit - previousCharge, out var otherConsumer));
+        using (otherConsumer)
+        {
+            var entered = false;
+            var processor = new AwkRecordProcessor(state);
+            var error = Assert.Throws<AwkRuntimeException>(() => processor.ProcessAsync(
+                AwkText.FromSourceLiteralString(new string('x', 8_192)), AwkRecordTerminator.NewLine,
+                record => { entered = true; state.SetCurrentRecord(record); return ValueTask.FromResult(AwkStatementFlow.Continue); }));
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            Assert.False(entered);
+            Assert.Equal("keep", state.CurrentRecordByteText.AsString());
+            Assert.Equal(4, state.RecordNumber);
+            Assert.Equal(3, state.FileRecordNumber);
+            Assert.Equal(",", state.ResolveSpecialVariableText(AwkSpecialVariableId.RecordTerminator).AsString());
+            Assert.Equal(limit, budget.Reserved);
+        }
+        Assert.Equal(previousCharge, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SharedRefusalPreservesMissingArrayAndAliasTyping(bool alias)
+    {
+        const long limit = 1 << 20;
+        var budget = new CooperativeTestBudget(limit);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget))
+            with { MemoryOwner = owner };
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var source = AwkVariableName.FromText("source");
+        var parameter = AwkVariableName.FromText("parameter");
+        if (alias)
+        {
+            Assert.True(state.TryResolveArrayArgument(source, out var argument));
+            state.PushFunctionFrame(new AwkFunctionLocalLayout([parameter]), [argument]);
+        }
+        try
+        {
+            var name = AwkArrayName.FromText(alias ? "parameter" : "source");
+            var key = AwkArrayKey.FromOrdinal(1);
+            var previous = budget.Reserved;
+            Assert.True(budget.TryReserve(limit - previous - AwkRuntimeMemory.EstimateUntypedArrayElementBytes(key) + 1,
+                out var otherConsumer));
+            using (otherConsumer)
+            {
+                var error = Assert.Throws<AwkRuntimeException>(() => state.GetArrayElementRuntimeKind(name, key));
+                Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+                Assert.False(state.IsArray(name));
+                Assert.False(state.IsArray(new AwkArrayName(source.Identifier)));
+                Assert.False(state.HasScalar(source));
+                Assert.False(state.HasScalar(parameter));
+                Assert.False(state.TryGetExistingArrayCount(name, out _));
+            }
+            Assert.Equal(previous, budget.Reserved);
+        }
+        finally
+        {
+            if (alias) state.PopFunctionFrame();
+        }
+    }
+
+    [Fact]
     public async Task ExecutionBorrowsParentAndReturnsItsAllowanceImmediately()
     {
         var budget = new CooperativeTestBudget(1 << 20);

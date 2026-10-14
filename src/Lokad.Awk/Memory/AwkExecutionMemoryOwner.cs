@@ -10,6 +10,7 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
     private readonly List<Task> _hostTasks = [];
     private long _trackedBytes;
     private long _deferredRefundBytes;
+    private long _mutationFloor;
     private bool _disposed;
 
     private AwkExecutionMemoryOwner() { }
@@ -71,10 +72,31 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         var deferred = _hostTasks.Any(static task => !task.IsCompleted)
             ? AwkRuntimeMemory.CheckedAdd(_deferredRefundBytes, Math.Max(0, _trackedBytes - bytes))
             : 0;
-        if (!reservation.TryResize(AwkRuntimeMemory.CheckedAdd(bytes, deferred))) return false;
+        if (!reservation.TryResize(Math.Max(_mutationFloor, AwkRuntimeMemory.CheckedAdd(bytes, deferred)))) return false;
         _trackedBytes = bytes;
         _deferredRefundBytes = deferred;
         return true;
+    }
+
+    // Admit a compound mutation once, before its first observable change. Its component
+    // charges consume this same reservation, rather than competing with a second charge.
+    public AwkMemoryMutationAdmission AdmitMutation(long growth)
+    {
+        if (_reservation is not { } reservation || growth <= 0) return default;
+        var previous = _mutationFloor;
+        var floor = Math.Max(previous, AwkRuntimeMemory.CheckedAdd(
+            AwkRuntimeMemory.CheckedAdd(_trackedBytes, _deferredRefundBytes), growth));
+        if (!reservation.TryResize(Math.Max(reservation.Bytes, floor)))
+            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+        _mutationFloor = floor;
+        return new(this, previous);
+    }
+
+    internal void EndMutation(long previousFloor)
+    {
+        _mutationFloor = previousFloor;
+        if (!TryResizeTracked(_trackedBytes))
+            throw new InvalidOperationException("Releasing mutation admission cannot require more memory.");
     }
 
     public AwkMemoryPeakAdmission ReservePeak(long bytes)
@@ -107,6 +129,12 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
             _cancellation?.Dispose();
         }
     }
+}
+
+internal readonly struct AwkMemoryMutationAdmission(AwkExecutionMemoryOwner? owner, long previousFloor) : IDisposable
+{
+    public bool IsActive => owner is not null;
+    public void Dispose() => owner?.EndMutation(previousFloor);
 }
 
 // A coarse temporary construction peak, distinct from the retained execution estimate.

@@ -88,7 +88,7 @@ internal sealed class AwkArrayRuntime
         var resolved = _variableRuntime.ResolveArrayReadName(name);
         if (_variables.TryGetExistingArrayValue(resolved, index, out var value))
             return value;
-        _variables.PreflightArrayElementRead(resolved, index);
+        using var admission = _variables.PreflightArrayElementRead(resolved, index);
         return _variables.GetArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
     }
 

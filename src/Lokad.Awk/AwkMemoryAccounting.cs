@@ -99,6 +99,12 @@ internal sealed class AwkMemoryAccounting
         return _owner.ReservePeak(byteCount);
     }
 
+    public AwkMemoryMutationAdmission AdmitMutation(long byteCount)
+    {
+        PreflightAllocation(byteCount);
+        return _owner.AdmitMutation(byteCount);
+    }
+
     public void CommitReserved(long byteCount)
     {
         if (!_enabled || byteCount <= 0)

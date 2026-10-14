@@ -723,22 +723,23 @@ internal sealed class AwkRuntimeState
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
     {
-        MemoryGovernor.PreflightAllocation(EstimateRecordTerminatorMemoryGrowth(terminator));
+        using var admission = MemoryGovernor.AdmitMutation(EstimateRecordTerminatorMemoryGrowth(terminator));
         RecordNumber = Math.Truncate(RecordNumber) + 1;
         FileRecordNumber = Math.Truncate(FileRecordNumber) + 1;
         SetRecordTerminator(terminator);
     }
 
-    public void PreflightCurrentRecordAdmission(
+    public AwkMemoryMutationAdmission PreflightCurrentRecordAdmission(
         AwkText record, AwkRecordTerminator terminator, AwkRecordFieldSplittingMode mode)
     {
         Resources.ThrowIfValueBytesExceeded(record.ByteLength);
         var terminatorGrowth = EstimateRecordTerminatorMemoryGrowth(terminator);
         if (MemoryGovernor.IsEnabled)
         {
-            MemoryGovernor.PreflightAllocation(AwkRuntimeMemory.CheckedAdd(
+            return MemoryGovernor.AdmitMutation(AwkRuntimeMemory.CheckedAdd(
                 _recordFields.EstimateRecordMemoryGrowth(record, mode), terminatorGrowth));
         }
+        return default;
     }
 
     private long EstimateRecordTerminatorMemoryGrowth(AwkRecordTerminator terminator)
