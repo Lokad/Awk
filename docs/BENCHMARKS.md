@@ -78,30 +78,45 @@ counter rows are unchanged outside memory peaks. Those peaks include the retaine
 cache allowance; tight numeric quotas can reject slightly earlier. This is a bounded
 allocation improvement, not a new full baseline or a new Lokad.Awk/awk ratio.
 
-## Focused prepared-assignment comparison
+## Focused interpreter changes
 
-Measured 2026-10-14: source `c17deed949770c246fb01c8ded679476e1c71ac9` before and
-`8c76ebf1d727e779bfaeb3aa5fdff08928964f6a` after, using the default interpreter/policy and the toolchain above.
-The measured candidate's source tree is identical to published commit
-`11f36e6` (only commit metadata changed during promotion).
-Prepared global writes use existing scalar admission/publication directly, removing generic
-target resolution and its async wrapper from that path. Other lvalues are unchanged.
+These focused results retain their measured sources; GNU was not retimed and the complete
+table above is unchanged. Prepared assignments compare `c17deed` with measured
+`8c76ebf1d727e779bfaeb3aa5fdff08928964f6a`, whose tree is published unchanged as `11f36e6`.
+BenchmarkDotNet used both source orders, two launches/source/order, three warmups and
+five iterations. Arithmetic improves 5.4% / 9.2%, allocations unchanged; the field control
+has no repeatable regression.
 
-Two source orders, two launches/source/order, three warmups and five measured iterations;
-times are medians of launch medians. The table shows candidate-first times, with reductions
-in candidate-first / baseline-first order. GNU was not retimed; the complete table retains
-its own source/date. These are focused results, not a refreshed GNU ratio.
+Length-only measurements compare `aef9b1b43a9dbc0971463d7a7590c631cd35f18a` with
+`cffe788d6364e542aa30d9d08009c97161336c2c`, measured 2026-10-14 on the toolchain above. The script is
+`{for(i=1;i<=NF;i++)chars+=length($i)} END{print chars}` on existing medium narrow/wide
+inputs. Unlike the complete baseline's field loops, it does not read/cache each field
+before measuring length. Untouched ASCII/byte slices avoid field copies and value/cache
+creation; cached, modified, numeric and Unicode values retain existing formatting.
 
-| Default case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
+The existing short Stopwatch/GC probe used 32 warm invocations and nine samples of
+16 complete invocations, one process/source/order, in both source orders. Every result
+digest is verified; quiet gates pass and shared-budget charges refund after every invocation.
+Short timing varies, especially wide; repeatable allocation savings are the acceptance
+evidence. This is not BenchmarkDotNet launch confirmation or a new GNU ratio.
+
+Times/allocations below use the first measured order; reductions give first / reverse order.
+
+| Case / method | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Loop and numeric arithmetic | 11.198 | 10.588 | +5.4% / +9.2% | 1,643,688 | 1,643,688 |
-| Field loop, 3 fields | 9.952 | 9.332 | +6.2% / +0.3% | 3,005,762 | 3,005,762 |
+| Arithmetic / BDN | 11.198 | 10.588 | +5.4% / +9.2% | 1,643,688 | 1,643,688 |
+| Length only, 3 fields / short | 7.660 | 6.242 | +18.5% / +18.6% | 2,985,064 | 1,706,772 |
+| Length only, 64 fields / short | 4.939 | 3.537 | +28.4% / +16.3% | 2,839,256 | 1,128,158 |
+| Governed length only, 3 fields / short | 9.565 | 7.929 | +17.1% / +28.4% | 3,116,672 | 1,838,430 |
+| Governed length only, 64 fields / short | 7.055 | 3.625 | +48.6% / +55.4% | 4,652,094 | 1,137,566 |
 
-Arithmetic improves 5.4% / 9.2% in both orders;
-allocations are unchanged. The narrow-field control has no repeatable regression.
-71,772 tests per OS, 62 exact GNU cases, 31 identical finite-counter rows including memory
-and 18 stack scenarios pass. RHS order, single consumption, mutation preflights and
-failure diagnostics remain qualified. No new buffer, memory owner or execution engine.
+Default length-only allocations fall about43–60%; governed allocations fall41–76% in
+both orders. The standard cached field loops save only16 startup bytes; their apparent
+pilot timing gains follow the projection control, so no speed gain is claimed for them.
+71,800 tests/OS,62 exact GNU cases and18 stack scenarios pass. Of31 finite-counter rows,
+27 are identical; four change only field allocation/bytes/peaks and execution steps from
+initial ASCII classification. That scan is cancellable and charged; explicit fuel quotas
+can reject slightly earlier. No new owner/buffer or change to mutation admission/defaults.
 
 ## What is measured
 

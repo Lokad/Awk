@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Length-only reads of untouched ASCII/byte fields avoid copied text and cached scalar
+  values. Numeric, modified, cached and Unicode fields retain existing formatting;
+  initial ASCII classification remains cancellable and counts against optional fuel.
+
 - Prepared global scalar assignments use the existing write path directly, avoiding
   generic target resolution. Focused arithmetic measurements improve in both source
   orders with unchanged allocations, counters and admission behavior.
