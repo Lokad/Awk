@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Main input processing reuses one record callback per pass, removing repeated delegate
+  allocation with unchanged counters, resource admission and record/file ordering.
+
 - Single-field stdout projections copy directly into owned output, avoiding intermediate
   field values and staging arrays. Focused throughput improves in both source orders,
   with20% fewer allocated bytes and preserved formatting, cancellation and append preflights.
@@ -84,7 +87,7 @@
   profile rules and byte-native class predicates retain their existing contracts.
 
 - Numeric byte escapes now combine complete UTF-8 scalars in strings, options,
-  consumed assignment operands and literal/dynamic regexes: `\303\251` denotes é.
+  consumed assignment operands and literal/dynamic regexes: `\303\251` denotes Ã©.
   Octal values wrap to eight bits. Profile-specific hex/metacharacter rules and
   malformed-byte text fallback are preserved. Scalar lookahead adds no heap buffer;
   existing memory admission and cancellation boundaries remain in place.
