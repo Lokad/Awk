@@ -4,6 +4,8 @@
 The library declares the interfaces; hosts implement adapters over their own governor.
 Each execution owns a child scope and a coarse charge. Command descriptors carry that active
 budget into nested execution. Refusal uses the existing awk memory-limit diagnostic.
+Retained runtime storage and simultaneous construction peaks share that charge; their
+refunds wait for actual pending host users, without a host reservation for each peak.
 An invocation's budget takes precedence over the policy budget to preserve transitive ownership.
 `MaxExecutionMemoryBytes` remains an optional execution quota, not a copied root allowance.
 

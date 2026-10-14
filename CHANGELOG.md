@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Temporary construction peaks share execution admission and defer refunds while host
+  tasks remain active. This closes an early-refund gap and removes separate host peak
+  reservations. Internal accounting names now distinguish runtime estimates from the host governor.
+
 - Governed record processing reuses its smallest field-value cache while retaining a
   coarse capacity charge. Values clear between records, reset refunds the buffer and
   larger caches are discarded. Finite admission can conservatively reject earlier.
