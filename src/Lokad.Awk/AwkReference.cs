@@ -41,7 +41,7 @@ internal abstract record AwkReference
         return AwkResolvedSubstitutionTarget.ReferenceTarget(input, target);
     }
 
-    public ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
+    public virtual ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
         AwkEvaluationContext context,
         AwkExpression value,
         AwkCompoundAssignmentOperation operation)
@@ -170,6 +170,30 @@ internal sealed record AwkPreparedGlobalScalarReference(AwkVariableName Variable
 {
     protected override ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context) =>
         ValueTask.FromResult(AwkResolvedReference.PreparedGlobalScalar(Variable, Index));
+
+    public override ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
+        AwkEvaluationContext context, AwkExpression value, AwkCompoundAssignmentOperation operation)
+    {
+        var state = context.State;
+        var current = state.ResolvePreparedGlobalValue(Variable, Index).AsNumber(state.CancellationCheckpoint);
+        var right = value.EvaluateAsync(context);
+        return right.IsCompletedSuccessfully
+            ? ValueTask.FromResult(AssignCompound(state, current, right.Result, operation))
+            : AwaitCompoundValueAsync(state, current, right, operation);
+    }
+
+    private async ValueTask<AwkValue> AwaitCompoundValueAsync(
+        AwkRuntimeState state, double current, ValueTask<AwkValue> pending, AwkCompoundAssignmentOperation operation) =>
+        AssignCompound(state, current, await pending.ConfigureAwait(false), operation);
+
+    private AwkValue AssignCompound(
+        AwkRuntimeState state, double current, AwkValue right, AwkCompoundAssignmentOperation operation)
+    {
+        var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(
+            current, right.AsNumber(state.CancellationCheckpoint), operation));
+        state.AssignPreparedGlobalValue(Variable, Index, result);
+        return result;
+    }
 
     protected override ValueTask<AwkValue> ApplyNumericUpdateAsync(
         AwkEvaluationContext context, Func<double, double> update, AwkNumericUpdateResult resultSelection)
