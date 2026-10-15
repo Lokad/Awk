@@ -73,6 +73,9 @@ managed bytes per complete invocation, not live-memory allowances.
 | Array writes: join | [5f8ae78](https://github.com/Lokad/Awk/commit/5f8ae78c55c9e3c58e8e22a98b6584cba9269475) -> [dd28595](https://github.com/Lokad/Awk/commit/dd28595aed1c44e73e9cfe46cf4d2d451379e39c) | 10.438 | 10.138 | +2.87% / -0.68% | 4,856,296 -> 4,856,296 |
 | Scalar writes: arithmetic | [3c7f0a1](https://github.com/Lokad/Awk/commit/3c7f0a113f5e67446cc2d3db8f77549736a4be2f) -> [91244f6](https://github.com/Lokad/Awk/commit/91244f687f33f3a98b291be8a9b5fc1541e5b2e1) | 9.105 | 8.829 | +3.03% / +2.89% | 1,381,245 -> 1,381,245 |
 | Scalar writes: calls | [3c7f0a1](https://github.com/Lokad/Awk/commit/3c7f0a113f5e67446cc2d3db8f77549736a4be2f) -> [91244f6](https://github.com/Lokad/Awk/commit/91244f687f33f3a98b291be8a9b5fc1541e5b2e1) | 6.005 | 5.951 | +0.90% / +1.88% | 1,378,291 -> 1,378,291 |
+| Field estimates: wide records | [a734c0f](https://github.com/Lokad/Awk/commit/a734c0f3ba86536f8bada0f7eb404e4b68f5d266) -> [7eebcd2](https://github.com/Lokad/Awk/commit/7eebcd22f7e955d08c5c4e8f8728525a25bbc627) | 4.761 | 4.729 | +0.66% / +2.33% | 1,132,992 -> 1,132,992 |
+| Field estimates: projection | [a734c0f](https://github.com/Lokad/Awk/commit/a734c0f3ba86536f8bada0f7eb404e4b68f5d266) -> [7eebcd2](https://github.com/Lokad/Awk/commit/7eebcd22f7e955d08c5c4e8f8728525a25bbc627) | 2.761 | 2.585 | +6.37% / +8.48% | 1,405,459 -> 1,405,459 |
+| Field estimates: join | [a734c0f](https://github.com/Lokad/Awk/commit/a734c0f3ba86536f8bada0f7eb404e4b68f5d266) -> [7eebcd2](https://github.com/Lokad/Awk/commit/7eebcd22f7e955d08c5c4e8f8728525a25bbc627) | 10.375 | 9.874 | +4.82% / +2.62% | 4,856,296 -> 4,856,296 |
 
 Compact keys reduce dictionary/snapshot/reference storage; their join allocation gain
 comes with the explicit measured slowdown above. Array writes omit an old-value lookup
@@ -81,11 +84,18 @@ Scalar writes omit disabled accounting while preserving initialization, computed
 OFS preparation before publication. Arithmetic wins in every within-order launch pair
 (minimum 1.65%); the smaller calls gains have overlapping launch ranges.
 
-The latest change adds three runtime lines in one file. Governed admission/refunds,
-value limits, host effects and work/cancellation semantics remain unchanged. All 72,118
-tests/OS, GNU62/native42/stack18 and 31 identical finite-counter rows pass. Eight focused
-scalar-mode checks cover startup/NF/OFS/refusal/refunds; dropping disabled-path OFS
-preparation fails two, exact restoration passes all eight. No new owner/cache/backend.
+Field frames keep memory-only metadata at zero when accounting is disabled, avoiding
+estimates/traversals while retaining actual payload lengths, field/value bounds and
+publication checks. Projection improves 6.37%/8.48%, join 4.82%/2.62%; all launch pairs
+favor the candidate (projection minimum 4.51%, join minimum 0.03%). Wide-record gains
+are smaller, 0.66%/2.33%; the pilot slowdown did not repeat. Allocations are unchanged.
+
+The latest change adds 17 runtime lines in one file. Governed admission/refunds,
+value limits, host effects and bounded cancellation remain qualified. All 72,133
+tests/OS, GNU62/native42/stack18 and 31 identical finite-counter rows pass. Fifteen
+field-mode checks cover reads followed by mutation/reset, staged growth/shrink,
+refusal and canceled cache publication. Partial zeroing fails four; skipped value
+preflight fails two; exact restoration passes all fifteen. No new owner/cache/backend.
 Raw comparisons and detailed history stay local.
 
 ## What is measured

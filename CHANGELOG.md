@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Field frames omit disabled memory estimates while preserving payload lengths,
+  field/value limits, governed preflights and cancellation before publication.
+
 - Scalar writes skip disabled memory estimates while preserving computed NF, OFS
   preparation before publication and finite/shared-budget admission.
 
