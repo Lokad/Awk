@@ -79,6 +79,44 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal(0, state.FileRecordNumber);
     }
 
+    [Theory]
+    [InlineData(AwkCompatibilityMode.GnuDefault)]
+    [InlineData(AwkCompatibilityMode.Posix)]
+    [InlineData(AwkCompatibilityMode.Traditional)]
+    internal void TerminatorUpdatesPreserveProfileAndLocalNameBehavior(AwkCompatibilityMode mode)
+    {
+        var state = CreateState(mode, 1 << 20);
+        var name = AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordTerminator);
+        state.AssignVariableValue(name, AwkValue.FromText("seed"));
+        var decodes = state.Counters.StringDecodes;
+        var encodes = state.Counters.Utf8Encodes;
+        var fallback = state.Counters.StringInteropFallbacks;
+        var enabled = mode == AwkCompatibilityMode.GnuDefault;
+        state.SetRecordTerminator(AwkRecordTerminator.NewLine);
+        var global = state.GetOrCreateGlobalScalarSlot(name);
+        Assert.Equal(enabled ? "\n" : "seed", state.GetGlobalScalarValue(global).AsString());
+
+        state.PushFunctionFrame(new AwkFunctionLocalLayout([name]),
+            [AwkFunctionArgument.Scalar(AwkValue.FromText("local"))]);
+        try
+        {
+            state.SetRecordTerminator(AwkRecordTerminator.FromAsciiByte((byte)','));
+            Assert.Equal(enabled ? "," : "local", state.ResolveVariableValue(name).AsString());
+            Assert.Equal(enabled ? "\n" : "seed", state.GetGlobalScalarValue(global).AsString());
+        }
+        finally
+        {
+            state.PopFunctionFrame();
+        }
+
+        state.SetRecordTerminator(AwkRecordTerminator.Empty);
+        Assert.Equal(enabled ? "" : "seed", state.GetGlobalScalarValue(global).AsString());
+        Assert.Equal(decodes, state.Counters.StringDecodes);
+        Assert.Equal(encodes, state.Counters.Utf8Encodes);
+        Assert.Equal(fallback, state.Counters.StringInteropFallbacks);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
     private static AwkRuntimeState CreateState(AwkCompatibilityMode mode, long memory)
     {
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(memory);

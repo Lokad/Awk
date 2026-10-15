@@ -813,8 +813,16 @@ internal sealed class AwkRuntimeState
 
     public void SetRecordTerminator(AwkRecordTerminator terminator)
     {
-        if (AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
-            AssignVariableValue(RecordTerminatorVariableName, CreateByteTextValue(terminator.ByteText));
+        if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
+            return;
+
+        var value = CreateByteTextValue(terminator.ByteText);
+        // RT is a known scalar with no assignment callback effects. Function-local
+        // names retain their ordinary resolution; storage still owns admission.
+        if (_functions.IsInsideFunction)
+            AssignVariableValue(RecordTerminatorVariableName, value);
+        else
+            _variables.SetScalarValue(RecordTerminatorVariableName, value);
     }
 
     public void AdvanceMainInputRecord(AwkRecordTerminator terminator)
