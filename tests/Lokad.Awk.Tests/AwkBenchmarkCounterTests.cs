@@ -9,6 +9,30 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData("a[$1]++", false)]
+    [InlineData("a[$1]++", true)]
+    [InlineData("a[$1]+=1", false)]
+    [InlineData("a[$1]+=1", true)]
+    public async Task ExistingUpdateTargetsReuseOwnedKeysWithoutFieldCopies(string mutation, bool miss)
+    {
+        var input = "hit payload\nhit other\n" + (miss ? "missing value\n" : "");
+        var script = "BEGIN{a[\"hit\"]=7}{" + mutation + "}END{print a[\"hit\"],length(a)}";
+        var direct = await RunAsync([script], input, AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        var ownedScript = "BEGIN{a[\"hit\"]=7}{v=$1;" + mutation.Replace("$1", "v", StringComparison.Ordinal) + "}END{print a[\"hit\"],length(a)}";
+        var owned = await RunAsync([ownedScript], input, AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        Assert.Equal(0, direct.ExitCode);
+        Assert.Equal(0, owned.ExitCode);
+        Assert.Equal(miss ? "9 2\n" : "9 1\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut), owned.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", direct.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, owned.Counters.AwkTextAllocations - direct.Counters.AwkTextAllocations);
+        Assert.Equal(0, direct.Counters.StringDecodes);
+        Assert.Equal(0, direct.Counters.Utf8Encodes);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ExistingArrayReadsBorrowFieldKeysButMissesStillCreateElements(bool miss)

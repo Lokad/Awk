@@ -556,6 +556,16 @@ internal sealed class AwkVariables
         return false;
     }
 
+    public bool TryGetExistingArrayKey(AwkArrayName name, ReadOnlySpan<byte> index, out AwkArrayKey key)
+    {
+        if ((name.IsFunctionLocal || !IsSymbolTable(name.Text)) &&
+            _arrays.TryGetSlots(name, out var slots) &&
+            slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out key, out _))
+            return true;
+        key = default;
+        return false;
+    }
+
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index) =>
         !name.IsFunctionLocal && IsSymbolTable(name.Text)
             ? _symbolTable.GetElementRuntimeKind(index.AsString(_counters, _checkpoint))

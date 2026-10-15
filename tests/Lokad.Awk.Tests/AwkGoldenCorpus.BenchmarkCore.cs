@@ -5,6 +5,16 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("field-array-write-spelling-hits-misses-and-empty",
+            ["BEGIN{FS=\"|\";a[7]=1;a[\"007\"]=2;a[\"café\"]=3;a[\"\"]=4;$0=\"7|007|café\";a[$1]++;a[$2]+=5;a[$3]=9;print a[7],a[\"007\"],a[\"café\"];$0=\"missing|\";a[$1]++;a[$2]+=2;print a[\"missing\"],a[\"\"],length(a)}"], [], "2 7 9\n1 6 5\n");
+        yield return Passing("field-array-write-alias-and-index-record-effects",
+            ["function idx(){$0=\"hit data\";return 1} function add(a){a[$(idx())]+=3} BEGIN{a[\"hit\"]=2;$0=\"old rest\";add(a);print a[\"hit\"],$0}"], [], "5 hit data\n");
+        yield return Passing("field-array-write-cached-numeric-and-record-zero",
+            ["BEGIN{a[\"007\"]=1;a[7]=2;$0=\"007 rest\";v=$1;a[$1]++;$1=7;a[$1]+=4;$0=7;a[$0]++;print a[\"007\"],a[7]}"], [], "2 7\n");
+        yield return Passing("field-array-write-symbol-table-boundary",
+            ["BEGIN{v=4;$0=\"v tail\";SYMTAB[$1]+=3;print v}"], [], "7\n");
+        yield return Passing("field-array-write-increment-results-and-insertion",
+            ["BEGIN{a[\"hit\"]=7;$0=\"hit old\";print a[$1]++,++a[$1],a[$1];$0=\"new later\";a[$1]=5;print a[\"hit\"],a[\"new\"]}"], [], "7 9 9\n9 5\n");
         yield return Passing("field-array-read-spelling-misses-and-empty-key",
             ["BEGIN{a[7]=\"plain\";a[\"007\"]=\"padded\";a[\"café\"]=\"unicode\";FS=\"|\";$0=\"7|007|café\";print a[$1],a[$2],a[$3];$0=\"missing|\";print \"[\"a[$1]\"]\",\"[\"a[$2]\"]\",length(a);print (\"missing\" in a),(\"\" in a)}"],
             [], "plain padded unicode\n[] [] 5\n1 1\n");

@@ -95,6 +95,9 @@ internal sealed class AwkArrayRuntime
     public bool TryGetBorrowedAwkValue(AwkArrayName name, ReadOnlySpan<byte> index, out AwkValue value) =>
         _variables.TryGetExistingArrayValue(_variableRuntime.ResolveArrayReadName(name), index, out value);
 
+    public bool TryGetBorrowedKey(AwkArrayName name, ReadOnlySpan<byte> index, out AwkArrayKey key) =>
+        _variables.TryGetExistingArrayKey(_variableRuntime.ResolveArrayReadName(name), index, out key);
+
     public AwkRuntimeValueKind GetElementRuntimeKind(AwkArrayName name, AwkArrayKey index)
     {
         var resolved = _variableRuntime.ResolveArrayReadName(name);

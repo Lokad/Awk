@@ -111,6 +111,68 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal(expected.MaxStackDepth, actual.MaxStackDepth);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task TargetKeysReuseHitsAndCopyMissesBeforeRecordReuse(int mode)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = State(mode, owner, counters);
+        var name = AwkArrayName.FromText("a");
+        var hit = new AwkArrayKey("hit");
+        state.SetArrayAwkValue(name, hit, AwkValue.FromNumber(7));
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
+        _ = state.FieldCount;
+        var allocations = counters.AwkTextAllocations;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        Assert.Equal(hit, state.GetArrayFieldKey(name, 1));
+        Assert.Equal(allocations, counters.AwkTextAllocations);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        var bytes = "new tail"u8.ToArray();
+        state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
+        var missing = state.GetArrayFieldKey(name, 1);
+        Assert.False(state.ContainsArrayValue(name, missing));
+        Array.Fill(bytes, (byte)'x');
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString("other record"));
+        state.SetArrayAwkValue(name, missing, AwkValue.FromNumber(3));
+        Assert.Equal(3, state.GetArrayAwkValue(name, new AwkArrayKey("new")).AsNumber());
+        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("xxx")));
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task TargetHitUpdatesFullArrayAndMissingAdmissionPrecedesRightEffects(int mode)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        var state = State(mode, owner, AwkRuntimeCounters.CreateEnabled(), 1);
+        var name = AwkArrayName.FromText("a");
+        var key = new AwkArrayKey("hit");
+        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        var record = AwkText.FromSourceLiteralString("hit missing");
+        state.SetCurrentRecord(record);
+        var context = new AwkEvaluationContext(state);
+        AwkReference Target(int index) => AwkReference.ArrayElement(name, AwkArrayIndex.Simple(
+            AwkExpression.FieldIndex(AwkExpression.Number(index.ToString(System.Globalization.CultureInfo.InvariantCulture), index))));
+        Assert.Equal(8, (await Target(1).ApplyIncrementAsync(context)).AsNumber());
+        var count = AwkVariableName.FromText("count");
+        state.AssignVariableValue(count, AwkValue.FromNumber(0));
+        var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await Target(2).ApplyCompoundAssignmentAsync(
+            context, AwkExpression.PreIncrement(AwkReference.Scalar(count)), AwkCompoundAssignmentOperation.Add));
+        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal(0, state.ResolveVariableValue(count).AsNumber());
+        Assert.Equal(8, state.GetArrayAwkValue(name, key).AsNumber());
+        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
+        Assert.Same(record, state.CurrentRecordByteText);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
     private static AwkRuntimeState State(int mode, AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters, int maxElements = 100)
     {
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(maxElements);

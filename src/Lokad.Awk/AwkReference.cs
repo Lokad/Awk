@@ -235,16 +235,23 @@ internal sealed record AwkLocalScalarReference(
 
 internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayIndex IndexExpression) : AwkReference
 {
+    public override async ValueTask AssignValueAsync(AwkEvaluationContext context, AwkValue value)
+    {
+        // Plain assignment commonly inserts a new key; keep its owned-key path.
+        var index = await IndexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
+        context.State.SetArrayAwkValue(Variable, index, value);
+    }
+
     protected override async ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context)
     {
-        var index = await IndexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
+        var index = await IndexExpression.ResolveTargetKeyAsync(context, Variable).ConfigureAwait(false);
         return AwkResolvedReference.ArrayElement(Variable, index);
     }
 
     public override ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
         AwkEvaluationContext context, AwkExpression value, AwkCompoundAssignmentOperation operation)
     {
-        var key = IndexExpression.ResolveKeyAsync(context);
+        var key = IndexExpression.ResolveTargetKeyAsync(context, Variable);
         return key.IsCompletedSuccessfully
             ? ApplyCompoundForKey(context, key.Result, value, operation)
             : AwaitCompoundKeyAsync(context, key, value, operation);

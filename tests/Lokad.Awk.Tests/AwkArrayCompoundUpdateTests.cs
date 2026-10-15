@@ -197,6 +197,52 @@ public sealed class AwkArrayCompoundUpdateTests
         Assert.Equal(1, source.Consumptions);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task BorrowedFieldTargetSurvivesPendingIndexRightDeletionAndRecordReuse(bool keyPending, bool rightPending)
+    {
+        var state = State();
+        var name = AwkArrayName.FromText("values");
+        var key = new AwkArrayKey("hit");
+        state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
+        state.SetCurrentRecord(AwkText.FromSourceLiteralString(keyPending ? "miss old" : "hit old"));
+        var keySource = new ValueSource(1, keyPending);
+        var rightSource = new ValueSource(3, rightPending);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var target = AwkReference.ArrayElement(name, AwkArrayIndex.Simple(
+            AwkExpression.FieldIndex(new EffectExpression(keySource, () => { }))));
+        var right = new EffectExpression(rightSource, () =>
+        {
+            state.DeleteArrayValue(name, key);
+            state.SetCurrentRecord(AwkText.FromSourceLiteralString("other record"));
+            state.SetArrayAwkValue(name, key, AwkValue.FromNumber(100));
+            started.SetResult();
+        });
+        var result = target.ApplyCompoundAssignmentAsync(new AwkEvaluationContext(state), right, AwkCompoundAssignmentOperation.Add);
+        if (keyPending)
+        {
+            Assert.False(started.Task.IsCompleted);
+            state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit after"));
+            keySource.Complete();
+        }
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        if (rightPending)
+        {
+            Assert.False(result.IsCompleted);
+            Assert.Equal(100, state.GetArrayAwkValue(name, key).AsNumber());
+            rightSource.Complete();
+        }
+        Assert.Equal(10, (await result).AsNumber());
+        Assert.Equal(10, state.GetArrayAwkValue(name, key).AsNumber());
+        Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("other")));
+        Assert.Equal(1, keySource.Consumptions);
+        Assert.Equal(1, rightSource.Consumptions);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
     private sealed class EffectExpression(ValueSource source, Action effect) : AwkExpression
     {
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
