@@ -3,7 +3,7 @@
 Retained complete baseline: **23 families**, measured 2026-10-15 at Release source
 `ff03a99c17ab32896211cf788bb53cbdc0b98e8d` against GNU awk 5.2.1, at the declared five-change milestone.
 All complete-comparison rows and allocations share this source/settings. They have not
-been retimed after the latest scoped change at `1651bb4`. Scoped experiments below use
+been retimed after the latest scoped change at `eec7fcd`. Scoped experiments below use
 their separately stated revisions and policies; gains are not cumulative.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
@@ -54,9 +54,20 @@ complete comparison above; GNU timings were not collected in the scoped experime
 
 | Workload / policy | Measured sources, before → after | Median ms, two source orders | Managed bytes/invocation |
 | --- | --- | --- | ---: |
+| Field loop, 3 fields / default | 3d48499 → eec7fcd | 5.826→4.709; 5.912→4.699 | 1,465,349→1,465,901 |
+| Field loop, 64 fields / default | 3d48499 → eec7fcd | 4.803→3.373; 4.877→3.295 | 1,133,184→1,133,736 |
 | printf strings and integers / default | b225dc1 → 1651bb4 | 4.658→4.121; 4.657→4.106 | 2,590,899→1,739,192 |
 | Nested user calls / default | bf7a998 → d63f8a8 | 5.574→4.374; 5.494→4.409 | 1,378,323→1,378,803 |
 | String functions / cooperative 512 MiB budget | d17f9b1 → eef8824 | 6.074→5.516; 6.058→5.260 | 2,406,537→1,128,568 |
+
+Prepared complete field loops take **19.2–20.5% less elapsed time** with three fields and
+**29.8–32.4% less** with 64 fields. Every launch pair improves: at least 16.7% and 27.1%,
+respectively, despite 6–7% launch variation in the narrow candidate. Existing interpreter
+regions now include NF, field length/literal comparisons and scalar compound updates;
+field checks, logical fuel and original setters remain. Bounded preparation adds **552
+managed bytes/invocation** (under 0.05%). Arithmetic is 0.3–0.8% faster with unchanged
+allocations; no control gain is claimed. All eight confirmation quiet gates pass. Figures
+use that single both-order confirmation; provisional pilot timings are excluded.
 
 Borrowed field arguments take **11.5–11.8% less elapsed time** and allocate **32.9% fewer
 managed bytes** on the formatting export script. Every launch comparison is over 9.3% faster.
@@ -87,13 +98,15 @@ The governed row retains its measured source, not a current-head retiming. Raw r
 and older optimization histories stay local. See [runtime limits](RUNTIME_LIMITS.md) for
 admission estimates and [record semantics](RECORD_SEMANTICS.md) for field behavior.
 
-At `1651bb4`, all 71 exact reference checks, 72 native core goldens and 22 stack scenarios
-pass. All 71 published work/host/field/encoding snapshots and 31 finite-counter rows match
-the parent. New counters verify absent field-text copies; fuel, eager unused-field refusal,
-modified fields and noncooperative pending/canceled appends are covered. Exact-source
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38813979700)
-passes 72,496 tests/OS; downloaded test reports were verified. Strict UTF-8, mutation
-preflights and host/resource ownership remain.
+At `eec7fcd`, all 71 exact reference checks, 74 native core goldens and 26 stack scenarios
+pass, with 72,531 tests on both Windows and Linux. All 71 published work/host/field/encoding
+snapshots and 31 finite-counter rows match the parent. Focused tests cover complete-loop
+eligibility, exact fuel/partial state, field/memory refusal, Unicode, aliases, bounded
+preparation and pending/canceled indices. Removing a checkpoint or disabling preparation
+fails the intended guards. Exact-source
+[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38818364055)
+passes 72,531 tests/OS; downloaded reports verify all 23 new focused checks. Strict UTF-8,
+mutation preflights and host/resource ownership remain.
 
 ## Environment and measurement boundaries
 

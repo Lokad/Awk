@@ -65,6 +65,9 @@ Ordinary field/string-literal comparisons can consume untouched field bytes sync
 without copied text or a cached scalar. Cached/modified fields, case-insensitive/nondecimal
 comparison and `$0` use ordinary value evaluation; borrowed spans never outlive the comparison.
 
+Bounded interpreter loops and pure return expressions reuse the same NF, field-length and
+field/literal readers, preserving existing admission and field/index checkpoints.
+
 Numeric-only field reads can parse borrowed bytes synchronously; cached/modified fields
 and `$0` retain ordinary values. No borrowed span escapes numeric conversion.
 
