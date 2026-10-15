@@ -1,6 +1,6 @@
 namespace Lokad.Awk.Tests;
 
-[Collection(nameof(AwkAllocationMeasurementCollection))]
+[Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkParagraphEofTests
 {
     [Theory]

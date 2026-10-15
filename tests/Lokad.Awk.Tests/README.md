@@ -59,7 +59,7 @@ unexpected exit/stderr/output. `--reference-contracts` in benchmark tooling perf
 requalification separately; known reference bugs cannot become equivalent performance cases.
 
 Tests that force garbage collection or measure thread-local allocation should use
-`AwkAllocationMeasurementCollection` so unrelated collections cannot interfere with
+`[Collection(AwkAllocationMeasurementCollection.Name)]` so unrelated collections cannot interfere with
 their measured loops. Keep their allocation ceilings unchanged when adding isolation.
 
 ## Review Gates
