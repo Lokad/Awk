@@ -49,18 +49,27 @@ public sealed class AwkPrintfCancellationTests
     }
 
     [Theory]
-    [InlineData("ascii", false)]
-    [InlineData("ascii", true)]
-    [InlineData("bmp", false)]
-    [InlineData("bmp", true)]
-    [InlineData("supplementary", false)]
-    [InlineData("supplementary", true)]
-    public void RuneWidthAndPrecisionScansCancelAndDiscardStagedOutput(string kind, bool precision)
+    [InlineData("ascii", "width")]
+    [InlineData("ascii", "precision")]
+    [InlineData("bmp", "width")]
+    [InlineData("bmp", "precision")]
+    [InlineData("supplementary", "width")]
+    [InlineData("supplementary", "precision")]
+    [InlineData("ascii", "plain")]
+    [InlineData("bmp", "plain")]
+    [InlineData("supplementary", "plain")]
+    public void RuneWidthAndPrecisionScansCancelAndDiscardStagedOutput(string kind, string conversion)
     {
         var scalar = kind switch { "bmp" => "界", "supplementary" => "😀", _ => "x" };
         // The supplementary form crosses the first 4 KiB boundary on a surrogate pair.
         var value = "a" + string.Concat(Enumerable.Repeat(scalar, 12_000));
-        var format = precision ? "prefix%.9000s" : "prefix%20000s";
+        var format = conversion switch
+        {
+            "precision" => "prefix%.9000s",
+            "width" => "prefix%20000s",
+            "plain" => "prefix%s",
+            _ => throw new ArgumentOutOfRangeException(nameof(conversion))
+        };
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
         var governor = AwkMemoryAccounting.Create(limits, counters);
@@ -85,10 +94,14 @@ public sealed class AwkPrintfCancellationTests
 
         var completed = AwkFormattingRuntime.FormatPrintfStrictByteText(format,
             new TestArguments(value, 0), limits, counters, governor);
-        var expected = precision ? "prefixa" + string.Concat(Enumerable.Repeat(scalar, 8999))
-            : "prefix" + new string(' ', 7999) + value;
+        var expected = conversion switch
+        {
+            "precision" => "prefixa" + string.Concat(Enumerable.Repeat(scalar, 8999)),
+            "width" => "prefix" + new string(' ', 7999) + value,
+            _ => "prefix" + value
+        };
         Assert.Equal(expected, completed.AsString());
-        Assert.Equal(precision ? 9006 : 20006, completed.RuneLength);
+        Assert.Equal(conversion == "precision" ? 9006 : conversion == "width" ? 20006 : 12007, completed.RuneLength);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(4, callsDuringValue);
