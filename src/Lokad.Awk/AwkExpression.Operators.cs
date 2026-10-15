@@ -438,6 +438,24 @@ internal abstract partial class AwkExpression
         }
     }
 
+    private sealed class FieldArrayMembershipExpression(DynamicFieldIndexExpression field, AwkArrayName arrayName) : AwkExpression
+    {
+        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        {
+            context.State.RecordExecutionStep(); // The field expression still has its ordinary checkpoint.
+            var index = (int)await field.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
+            return AwkValue.FromNumber(context.State.ContainsArrayField(arrayName, index) ? 1 : 0);
+        }
+
+        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
+        {
+            if (!compiler.TryEmitExpression(field))
+                return false;
+            compiler.EmitArrayContains(arrayName);
+            return true;
+        }
+    }
+
     private sealed class ArrayMembershipExpression(AwkArrayIndex indexExpression, AwkArrayName arrayName) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)

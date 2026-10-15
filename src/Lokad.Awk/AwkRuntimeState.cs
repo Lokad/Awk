@@ -1050,6 +1050,17 @@ internal sealed class AwkRuntimeState
     public bool ContainsArrayValue(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.ContainsValue(name, index);
 
+    public bool ContainsArrayField(AwkArrayName name, int index)
+    {
+        if (index < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        // The dictionary consumes the borrowed bytes before this synchronous call returns.
+        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes))
+            return _arrayRuntime.ContainsValue(name, bytes);
+        var value = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
+        return ContainsArrayValue(name, ToArrayKey(value));
+    }
+
     public AwkText GetArgumentVectorByteText(AwkArgvIndex index) =>
         GetArrayByteText(ArgumentVectorArrayName, AwkArrayKey.FromArgvIndex(index));
 

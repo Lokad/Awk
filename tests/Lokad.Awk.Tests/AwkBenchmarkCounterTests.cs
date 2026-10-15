@@ -8,6 +8,25 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Fact]
+    public async Task FieldMembershipAvoidsCopiedKeysAndScalarCachePublication()
+    {
+        const string input = "hit payload\nmiss payload\nhit other\n";
+        var borrowed = await RunAsync(["BEGIN{lookup[\"hit\"]=1} ($1 in lookup){n++} END{print n+0}"], input,
+            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        var owned = await RunAsync(["BEGIN{lookup[\"hit\"]=1} {v=$1;if(v in lookup)n++} END{print n+0}"], input,
+            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        Assert.Equal(0, borrowed.ExitCode);
+        Assert.Equal(0, owned.ExitCode);
+        Assert.Equal("2\n", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("2\n", owned.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(3, owned.Counters.AwkTextAllocations - borrowed.Counters.AwkTextAllocations);
+        Assert.Equal(0, borrowed.Counters.StringDecodes);
+        Assert.Equal(0, borrowed.Counters.Utf8Encodes);
+        Assert.Equal(3, borrowed.Counters.FieldSplits);
+    }
+
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]

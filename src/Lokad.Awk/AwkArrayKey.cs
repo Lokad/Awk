@@ -90,6 +90,15 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 
     public bool Equals(AwkArrayKey other) => Equals(other, checkpoint: null);
 
+    internal bool Equals(ReadOnlySpan<byte> bytes, Action? checkpoint)
+    {
+        if (!IsOrdinal)
+            return AwkText.CompareBytes(bytes, Text.AsSpan(checkpoint), checkpoint) == 0;
+        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
+        checkpoint?.Invoke();
+        return bytes.SequenceEqual(FormatOrdinalBytes(_ordinal, buffer));
+    }
+
     internal bool Equals(AwkArrayKey other, Action? checkpoint)
     {
         checkpoint?.Invoke();

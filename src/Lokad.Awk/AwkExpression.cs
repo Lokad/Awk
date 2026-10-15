@@ -100,7 +100,9 @@ internal abstract partial class AwkExpression
         new PrecompiledRegexMatchExpression(left, regex, polarity);
 
     public static AwkExpression ArrayMembership(AwkArrayIndex index, AwkArrayName arrayName) =>
-        new ArrayMembershipExpression(index, arrayName);
+        index is AwkSimpleArrayIndex { Expression: DynamicFieldIndexExpression field }
+            ? new FieldArrayMembershipExpression(field, arrayName)
+            : new ArrayMembershipExpression(index, arrayName);
 
     public static AwkExpression LogicalAnd(AwkExpression left, AwkExpression right) =>
         new LogicalExpression(left, right, LogicalOperation.And);

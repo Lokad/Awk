@@ -111,6 +111,9 @@ internal sealed class AwkArrayRuntime
     public bool ContainsValue(AwkArrayName name, AwkArrayKey index) =>
         _variables.ContainsArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
 
+    public bool ContainsValue(AwkArrayName name, ReadOnlySpan<byte> index) =>
+        _variables.ContainsArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
+
     public void SetString(AwkArrayName name, AwkArrayKey index, string value)
     {
         _variables.SetArrayString(_variableRuntime.ResolveOrPromoteArrayName(name), index, value);

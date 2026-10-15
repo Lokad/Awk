@@ -104,7 +104,7 @@ internal sealed class AwkVariables
         _throwIfValueBytesExceeded = throwIfValueBytesExceeded;
         _resolveFieldCountValue = resolveFieldCountValue;
         _prepareOutputFieldSeparatorAssignment = prepareOutputFieldSeparatorAssignment ?? (() => { });
-        _arrayKeyComparer = AwkArrayKeyComparer.ForRuntime(checkpoint);
+        _arrayKeyComparer = AwkArrayKeyComparer.ForRuntime(checkpoint, counters, memoryAccounting);
         _arrays = new AwkArrayStorage(_arrayKeyComparer);
         _symbolTable = new AwkSymbolTableArray(
             () => _globalNames,
@@ -440,6 +440,11 @@ internal sealed class AwkVariables
         !name.IsFunctionLocal && IsSymbolTable(name.Text)
             ? _symbolTable.ContainsValue(index.AsString(_counters, _checkpoint))
             : GetOrCreateArraySlots(name).ContainsKey(index);
+
+    public bool ContainsArrayValue(AwkArrayName name, ReadOnlySpan<byte> index) =>
+        !name.IsFunctionLocal && IsSymbolTable(name.Text)
+            ? _symbolTable.ContainsValue(AwkUtf8Codec.DecodeRuntimeText(index, _counters))
+            : GetOrCreateArraySlots(name).GetAlternateLookup<ReadOnlySpan<byte>>().ContainsKey(index);
 
     public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value)
     {

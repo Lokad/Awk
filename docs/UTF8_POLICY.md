@@ -60,3 +60,7 @@ comparison and `$0` use ordinary value evaluation; borrowed spans never outlive 
 
 Numeric-only field reads can parse borrowed bytes synchronously; cached/modified fields
 and `$0` retain ordinary values. No borrowed span escapes numeric conversion.
+
+Single-field array membership can look up borrowed bytes synchronously, without copying
+field text or retaining the span. Cached/modified fields and `$0` use ordinary keys;
+stored keys own their bytes. SYMTAB names retain their UTF-8-to-.NET-string boundary.
