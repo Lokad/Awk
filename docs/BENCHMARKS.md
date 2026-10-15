@@ -60,6 +60,8 @@ first/reverse order. No GNU retiming or cumulative gain is claimed.
 | NF/OFS names: arithmetic | 10.222 | 10.215 | +0.1% / +11.6% | 1,381,613 | 1,381,613 |
 | Printf wrapper: strings/integers | 5.796 | 5.808 | -0.2% / +2.0% | 3,443,215 | 3,181,068 |
 | Printf wrapper: projection control | 3.032 | 3.040 | -0.3% / -2.4% | 1,405,827 | 1,405,827 |
+| Borrowed comparisons: filter | 4.833 | 3.666 | +24.1% / +23.2% | 2,645,813 | 1,367,683 |
+| Borrowed comparisons: 3 fields | 8.404 | 6.636 | +21.0% / +18.5% | 2,743,670 | 1,465,525 |
 
 Initialized IGNORECASE read, measured 2026-10-14: `30df7b3b390817673cf0c06ab218ec8278eb393d` before and
 `ca0f79e70a9401d7a0f3a245a2f99f0fa2a6c3de` after. GNU scalar reads outside functions use the existing
@@ -91,6 +93,22 @@ Projection is a contrasting control; its allocations are unchanged and no contro
 is claimed. Format behavior, UTF-8, resource admission/peaks and cancellation remain intact.
 All 71,824 tests/OS, 62 exact GNU cases, 31 identical finite-counter rows including memory
 and 18 stack scenarios pass. The complete comparison retains its recorded source/date.
+
+Borrowed field/literal comparisons, measured 2026-10-15 UTC:
+`2b10dc3aa14871ca3b9c00262e37951f0cbd3bf7` before and `19ce6091d9f9eb4d8c37dad98fce0b4da8bb0691` after. Untouched fields compare
+with ordinary string literals through the existing synchronous borrowed read and cancellable
+byte comparison. Cached/modified fields, $0, case-insensitive/nondecimal modes and effectful
+right operands keep ordinary evaluation. The opt-in executable emits its existing instructions.
+Filtering allocations fall 48.31% and three-field-loop
+allocations fall 46.59% in both source orders.
+Both cases use the same two-order/two-launch settings above; projection is a single-launch
+contrasting control, not a confirmed gain. Wide-field throughput remains unmeasured at this source.
+All 71,893 tests/OS, 62 exact benchmark reference cases, 13 additional native golden scripts
+and 18 stack scenarios pass. 30 of 31 finite-counter rows are identical;
+the remaining rows change only avoided text allocations/bytes and memory peaks. Execution
+steps, byte comparisons and all other reported counters remain unchanged. Lower charges
+reflect avoided storage; value limits, mutation preflights, cancellation and host mediation stay.
+The complete GNU comparison retains its recorded source/date; no cumulative gain is claimed.
 
 ## Retained length-only evidence
 

@@ -51,3 +51,7 @@ requests, formatting fallback and regex adapters. A byte-native claim requires c
 evidence; it does not imply zero allocation. Governed buffers/caches publish only after
 successful construction. Cancellation remains subject to the
 [memory and cancellation scope](RUNTIME_LIMITS.md#memory-and-cancellation-scope).
+
+Ordinary field/string-literal comparisons can consume untouched field bytes synchronously,
+without copied text or a cached scalar. Cached/modified fields, case-insensitive/nondecimal
+comparison and `$0` use ordinary value evaluation; borrowed spans never outlive the comparison.

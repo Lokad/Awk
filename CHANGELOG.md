@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Comparisons of untouched fields with string literals use borrowed UTF-8 bytes,
+  avoiding copied field text and scalar-cache publication while preserving ordinary
+  fallbacks, value limits, cancellation and evaluation order.
+
 - Formatting uses a local value wrapper around its existing UTF-8 builder, removing
   one heap allocation per call with unchanged directives, lifetime and admission behavior.
 
