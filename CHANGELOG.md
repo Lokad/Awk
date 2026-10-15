@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Wider whitespace/literal records prepare fields through the requested index, avoiding
+  unused descriptors in early filters. NF/mutations and tighter field quotas retain full
+  splitting; captured separators, admission, cancellation and refund behavior remain.
+
 - Default newline reading uses the existing outer async operation directly, removing
   a nested helper while preserving validation and resource checks before consuming input.
 

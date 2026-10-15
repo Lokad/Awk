@@ -1,11 +1,45 @@
 # Benchmarks
 
-Retained complete baseline, measured 2026-10-15: Release source `8fcd7ebd7246d018aa0d97bc789267dde911279a`
-versus GNU awk 5.2.1. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption
-is postponed. This is the declared five-change milestone. Keep the measured revision/date
-explicit until the next complete qualification; later code does not refresh retained rows.
+Latest focused results, measured 2026-10-15: Release source
+`95564f7280176b42413f735a0d7386c1f56aa392` versus GNU awk 5.2.1.
+Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
+The broader 20-family table below retains source `8fcd7eb` and its original date/settings.
+The catalog has 21 families; this update measures two, not a complete refresh.
 
-## Complete baseline (retained)
+## Representative processing: wide records
+
+Times are medians. Lokad.Awk/awk divides Lokad elapsed time by GNU elapsed time:
+1.00× is parity, higher is slower. Allocations are managed GC bytes/invocation in MiB.
+
+| Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Filter $1 / occasionally print $3, 64 fields | 1291.42 | 2.788 | 2.128 | 1.31× | 3.55 |
+| Field loop, 64 fields (control) | 80.00 | 4.773 | 2.179 | 2.19× | 1.08 |
+
+The early-filter case has 4,096 records, reads `$1` on every record and `$3` on one
+in eight. Incremental splitting reduces descriptors from 262,144 to 5,120, with zero
+string decoding. Matched comparisons against `aac35f7`, confirmed once in both source
+orders with two launches, reduce elapsed time by 48–51% and allocations by 77%
+(15.39 to 3.55 MiB). Narrow projection is 1.4–4.8% slower, with overlapping launch
+ranges and 16 extra bytes/invocation; this is a wide-record gain, not a general speedup.
+
+The all-fields control reads NF and all 64 fields on 256 records. Compare implementations
+within each row; different fixtures are not a before/after pair. Both rows use fresh GNU
+and Lokad timings at `95564f7`, three warmups/five iterations/one launch, with both quiet
+gates passing. Allocations reuse the qualified same-source three-case pilot with the same
+settings. Machine/toolchain are listed below; no full-catalog timing refresh was performed.
+
+All 72,194 tests/OS, 65 exact GNU checks, 45 native core goldens and 18 stack scenarios pass;
+the 31 finite-counter rows are unchanged. Exact-source
+[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38724162745) passes.
+Captured field configuration, cancellation, mutation preflights, shared-memory admission
+and refunds remain qualified. See [record semantics](RECORD_SEMANTICS.md) for fallbacks.
+
+## Broader core coverage (retained)
+
+Measured 2026-10-15 at `8fcd7ebd7246d018aa0d97bc789267dde911279a`, GNU awk 5.2.1.
+These 20 families retain their original measurements and qualification. Later changes
+do not refresh these rows.
 
 Twenty families cover fields/records, scalar/control work, arrays, functions, strings,
 regex and output. Medium cases use 4,096 records, except wide 256×64 fields and two-file
@@ -43,7 +77,7 @@ Both implementations use the same [script/fixture catalog](../benchmarks/Lokad.A
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
 BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Five warmups/nine iterations/
 one launch; clean source/GNU/driver identities and all four quiet gates pass. No concurrent
-VM builds/transfers. This retained baseline is not a controlled cumulative speedup.
+VM builds/transfers. No aggregate causal speedup is inferred between campaigns.
 Ratios below parity apply to their fixtures; qualify larger inputs before a broader claim.
 
 All 72,153 tests/OS and exact-source [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38712634086) pass.
@@ -52,28 +86,6 @@ scenarios; all 31 finite-counter rows remain identical. Memory ownership, strict
 cancellation, mutation preflights and host mediation remain qualified. Controlled
 batch comparisons and detailed history are retained locally rather than mixed into
 this complete baseline.
-
-## Current focused coverage
-
-Measured 2026-10-15 at `aac35f7d135c08c57952c6113c25cface41d45df`:
-new wide-record early filtering, with the existing all-fields workload as a control.
-Runtime source is unchanged from `8fcd7eb`; this adds coverage, not an optimization.
-Same machine/toolchain, three warmups/five iterations/one launch, four quiet gates pass.
-
-| Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Filter $1 / occasionally print $3, 64 fields | 1291.42 | 5.704 | 2.135 | 2.67× | 15.39 |
-| Field loop, 64 fields (control) | 80.00 | 4.767 | 2.175 | 2.19× | 1.08 |
-
-The early-filter case has 4,096 records, reads `$1` on every record and `$3` on one
-in eight. It currently creates 262,144 field descriptors despite those prefix-only reads;
-string decoding remains zero. The control reads NF and all 64 fields on 256 records.
-Compare implementations within each row; different fixtures are not a before/after pair.
-
-The catalog now has 21 families and 65 exact GNU checks, all passing at `aac35f7`.
-All 72,165 tests/OS and [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38721369724) pass;
-the 31 finite-counter rows are unchanged. The complete table above retains its original
-20-family measurements and qualification. No complete timing refresh was performed.
 
 ## What is measured
 
@@ -86,7 +98,7 @@ use native fixture files for GNU and host-mediated in-memory files for Lokad.
 These are embedding-versus-CLI costs, not pure evaluator timings. Small cases can be
 dominated by process startup. All rows use the GNU/default profile, including the marked
 supported GNU conveniences. This is not a conformance test or an aggregate speedup.
-All 62 small/medium/large and startup-control cases pass exact reference checks at this source. Additional script
+All 65 current small/medium/large and startup-control cases pass exact reference checks at `95564f7`. Additional script
 controls are in the [golden corpus](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.BenchmarkCore.cs).
 Ordinary builds/tests/CI require no GNU installation.
 
