@@ -45,8 +45,10 @@ has a separate ERE interpretation pass. Detailed warning/profile behavior remain
 scanning stay byte-native. Invariant scalar folding is used for case-insensitive string
 operations; byte mode folds ASCII only. Numbers use invariant-culture binary64 semantics.
 
-Regex preparation/backends, custom formatting, date formatting and non-ASCII casing have
-explicit string boundaries. Counters distinguish decode/encode work, cached `AsString`
+Regex preparation/backends, format syntax, general width/precision and character formatting,
+date formatting and non-ASCII casing have explicit string boundaries. Plain `%s` arguments
+can stay in UTF-8 through the existing builder; numeric/CONVFMT conversion is unchanged.
+Custom scalar formats preserve their full-precision conversion through a bounded temporary. Counters distinguish decode/encode work, cached `AsString`
 requests, formatting fallback and regex adapters. A byte-native claim requires counter
 evidence; it does not imply zero allocation. Governed buffers/caches publish only after
 successful construction. Cancellation remains subject to the

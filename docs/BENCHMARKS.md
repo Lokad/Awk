@@ -59,8 +59,9 @@ remain qualified. Detailed raw and development/history evidence stays local.
 Measured 2026-10-15 UTC. Each source pair is an independent controlled change;
 the complete GNU table retains f105e61 and its original denominators. First source pair:
 `d7d198539e0a0c0c9d157729d5a5197f5d18de82`→`2b41e403a693aa059e2ad3717066a8eeeb342fbe`. Binary arithmetic pair:
-`582cc77d15f4a2a89e8f7900a554e9bc8453fa4b`→`1bc2911a429ab7e1f976f8a713c89547cbf3a398`. Latest pair:
-`3b670a1af15e1b897a3de680f76363314920e4fd`→`f0ae2a610d97eba5f9e5053ad0731c5c497b74ac`.
+`582cc77d15f4a2a89e8f7900a554e9bc8453fa4b`→`1bc2911a429ab7e1f976f8a713c89547cbf3a398`. Record-terminator pair:
+`3b670a1af15e1b897a3de680f76363314920e4fd`→`f0ae2a610d97eba5f9e5053ad0731c5c497b74ac`. Latest pair:
+`e4d7c288bd567d4d21b15f5a2f565cd28a1a5a50`→`ef7626ec5fac553d307a83890f608e20c1e5a0d6`.
 
 | Change / case | Source pair | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -69,6 +70,8 @@ the complete GNU table retains f105e61 and its original denominators. First sour
 | User-call control | 582cc77→1bc2911 | 6.369 | 6.257 | +1.8% / +2.8% | 1,378,659 | 1,378,659 |
 | Record terminator: projection | 3b670a1→f0ae2a6 | 3.038 | 2.870 | +5.6% / +8.6% | 1,405,827 | 1,405,827 |
 | String-function control | 3b670a1→f0ae2a6 | 4.955 | 4.881 | +1.5% / +3.4% | 1,128,240 | 1,128,240 |
+| Plain %s: formatting | e4d7c28→ef7626e | 5.687 | 5.418 | +4.7% / +3.8% | 3,181,068 | 3,049,994 |
+| Unicode control | e4d7c28→ef7626e | 5.971 | 5.903 | +1.1% / +1.2% | 3,260,132 | 3,260,132 |
 
 Times are the first order's medians of two launch medians; reductions report both orders.
 Three warmups/five iterations/two launches per source/order; digests and all quiet gates pass.
@@ -95,10 +98,20 @@ the reverse order. String-function launch ranges overlap in that order; the cont
 lower medians do not establish a uniform gain.
 The arithmetic pilot is nearly flat and is not a confirmed gain.
 
-Latest validation:72,050 tests/OS,62 benchmark GNU checks,34 additional exact native goldens,
-18 stack scenarios and31 identical finite-counter rows. Focused guards cover avoided field
-copies, unchanged work, single pending consumption, early failures and field lifecycle. Cancellation,
-mutation preflights, host mediation, interpreter default and postponed Utf8Regex remain.
+Plain `%s` consumes the existing owned UTF-8 argument directly in the formatter builder,
+avoiding a string decode, widthless rune scan and re-encoding. Width/precision and `%c`
+retain their string bridges. Numeric/CONVFMT behavior, argument snapshots, post-callback
+and chunked-copy cancellation and memory admission remain qualified. Eleven net runtime
+lines in one file; no new owner/cache/backend. The arithmetic pilot is not a confirmed gain.
+Formatting allocation falls 4.12%; every within-order formatting launch pair favors the change.
+
+Measured runtime validation: 72,080 tests/OS, 62 benchmark GNU checks, 40 additional exact native goldens,
+18 stack scenarios and 31 identical finite-counter rows. Focused guards cover avoided field
+copies/string bridges, unchanged work, single pending consumption, early failures and field lifecycle.
+Disabling the plain-text path fails all four bridge guards; restoring it passes. Nine
+targeted long-copy/width/precision cancellation cases pass at the same runtime, with
+cold/warm publication coverage retained. Cancellation, mutation preflights, host mediation,
+interpreter default and postponed Utf8Regex remain.
 
 ## Retained length-only evidence
 
