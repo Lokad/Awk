@@ -836,8 +836,11 @@ internal sealed class AwkVariables
 
     private void SetScalarSlot(AwkGlobalSlotId id, AwkVariableSlot slot)
     {
-        if (!_governScalarMemory)
+        if (!_governScalarMemory || !_memoryAccounting.IsEnabled)
         {
+            if (_governScalarMemory &&
+                string.Equals(_scalarSlots[id.Value].Name.Text, OutputFieldSeparatorName, StringComparison.Ordinal))
+                _prepareOutputFieldSeparatorAssignment();
             _scalarSlots[id.Value] = _scalarSlots[id.Value].WithState(AwkScalarState.Ungoverned(slot));
             return;
         }
