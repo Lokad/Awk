@@ -8,6 +8,15 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("array-split-ordinal-key-text-delete-reuse",
             ["BEGIN{for(i=0;i<32;i++){split(\"old tail\",a);a[\"1\"]=\"new\";delete a[\"1\"];delete a[2];n+=length(a)} print n;split(\"last\",a);print a[\"1\"],length(a)}"],
             [], "0\nlast 1\n");
+        var ignoredTail = string.Join(" ", Enumerable.Repeat("ERROR", 61));
+        var keptTail = string.Join(" ", Enumerable.Repeat("tail", 61));
+        yield return Passing("benchmark-core-early-fields-wide",
+            ["$1==\"ERROR\"{print $3}"], [], "payload\n",
+            "INFO worker ignored " + ignoredTail + "\nERROR worker payload " + keptTail + "\n");
+        yield return Passing("benchmark-core-early-fields-wide-literal",
+            ["BEGIN{FS=\"|\"} $1==\"ERROR\"{print $3}"], [], "payload\n",
+            "INFO|worker|ignored|" + ignoredTail.Replace(' ', '|') +
+            "\nERROR|worker|payload|" + keptTail.Replace(' ', '|') + "\n");
         yield return Passing("benchmark-core-arithmetic-loops",
             ["{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}"],
             [], "40\n", "7\n7\n");

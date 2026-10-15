@@ -15,7 +15,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "projection", "filter", "aggregate", "profile-narrow", "profile-wide", "two-file",
+        "projection", "filter", "early-fields-wide", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
         "arithmetic-loops", "user-functions", "string-functions", "concatenation", "regex-match", "regex-captures"
     ];
@@ -56,6 +56,19 @@ internal static class ReferenceWorkloads
                 for (var i = 0; i < rows; i++)
                     input.Append(i % 2 == 0 ? "A\tB\tC\n" : "A\tB\tD\n");
                 expected.Append(rows / 2).Append('\n');
+                break;
+            case "early-fields-wide":
+                // Early rejection on wide records; profile-wide deliberately consumes every field.
+                program = "$1==\"ERROR\"{print $3}";
+                fields = 64;
+                var tail = string.Concat(Enumerable.Repeat("\ttail", fields - 3));
+                for (var i = 0; i < rows; i++)
+                {
+                    input.Append(i % 8 == 0 ? "ERROR" : "INFO").Append("\tworker\tv")
+                        .Append(i.ToString(CultureInfo.InvariantCulture)).Append(tail).Append('\n');
+                }
+                for (var i = 0; i < rows; i += 8)
+                    expected.Append('v').Append(i.ToString(CultureInfo.InvariantCulture)).Append('\n');
                 break;
             case "aggregate":
                 program = "{sum[$1]+=$2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\";for(k in sum)print k,sum[k]}";
