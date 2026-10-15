@@ -2,8 +2,10 @@
 
 Fields are lazy. Each admitted record retains its FS/FPAT/FIELDWIDTHS, case and paragraph
 configuration; later changes affect later records. Assigning `$0`, including `$0=$0`,
-captures the current configuration again. Reading NF or a field splits once; printing
-unmodified `$0` does not split. Getline without a destination installs a record;
+captures the current configuration again. On wider records, the interpreter prepares
+whitespace/single-byte literal fields only through the requested index. NF and mutations
+complete splitting; other modes, short records and tight field quotas retain full splitting.
+Printing unmodified `$0` does not split. Getline without a destination installs a record;
 getline into a variable retains the current record within the same file.
 
 Literal one-character FS is case-sensitive, including a multibyte Unicode scalar.

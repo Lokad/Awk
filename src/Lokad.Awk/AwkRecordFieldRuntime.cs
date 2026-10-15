@@ -41,7 +41,7 @@ internal sealed class AwkRecordFieldRuntime
         _maxFields = maxFields;
         _checkpoint = checkpoint;
         _frame = new(counters, governor, maxFields, throwIfValueBytesExceeded,
-            formatStringByteText, recordByteWork, checkpoint);
+            formatStringByteText, recordByteWork, checkpoint, fieldSplitter);
         // Bind once; the callback reads the current record's immutable split plan.
         _splitCurrentFields = SplitCurrentFields;
     }

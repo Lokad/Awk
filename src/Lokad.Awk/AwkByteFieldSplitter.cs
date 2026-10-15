@@ -200,6 +200,28 @@ internal sealed class AwkByteFieldSplitter(
         }
     }
 
+    // Reuse the complete splitters' scanners for prefix reads and their checkpoints.
+    public int ExtendRecordFields(
+        AwkText line, AwkFieldSeparatorSpec separator, int position, int targetCount,
+        List<AwkFieldText> fields)
+    {
+        if (line.ByteLength == 0)
+            return -1;
+        if (separator.UsesWhitespaceSemantics)
+        {
+            var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, position);
+            while (fields.Count < targetCount && scanner.MoveNext(out var field, out _))
+                fields.Add(AwkFieldText.FromRecordSlice(field.Start, field.Length));
+            return scanner.Position == line.ByteLength ? -1 : scanner.Position;
+        }
+
+        var literal = separator.ByteText.AsSpan(throwIfCancellationRequested)[0];
+        var literalScanner = new AwkSingleByteFieldScanner(line, literal, throwIfCancellationRequested, position);
+        while (fields.Count < targetCount && literalScanner.MoveNext(out var field, out _))
+            fields.Add(AwkFieldText.FromRecordSlice(field.Start, field.Length));
+        return literalScanner.Completed ? -1 : literalScanner.Position;
+    }
+
     public List<AwkFieldText> SplitRecordFieldsBySeparator(
         AwkText line,
         AwkFieldSeparatorSpec separator,
@@ -656,10 +678,12 @@ internal sealed class AwkByteFieldSplitter(
         Regex
     }
 
-    private struct AwkWhitespaceFieldScanner(AwkText line, Action checkpoint)
+    private struct AwkWhitespaceFieldScanner(AwkText line, Action checkpoint, int position = 0)
     {
-        private int _position;
+        private int _position = position;
         private long _nextCheckpoint;
+
+        public readonly int Position => _position;
 
         public AwkByteRange TrailingSeparator { get; private set; }
 
@@ -749,10 +773,13 @@ internal sealed class AwkByteFieldSplitter(
         }
     }
 
-    private struct AwkSingleByteFieldScanner(AwkText line, byte separator, Action checkpoint)
+    private struct AwkSingleByteFieldScanner(AwkText line, byte separator, Action checkpoint, int position = 0)
     {
-        private int _position;
+        private int _position = position;
         private bool _completed;
+
+        public readonly int Position => _position;
+        public readonly bool Completed => _completed;
 
         public bool MoveNext(out AwkByteRange field, out AwkByteRange trailingSeparator)
         {

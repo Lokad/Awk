@@ -11,6 +11,26 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task WideEarlyFilteringPreparesOnlyTheReachedFields(AwkExecutionEngineKind engine)
+    {
+        var tail = string.Join(" ", Enumerable.Repeat("tail", 61));
+        var input = string.Concat(Enumerable.Repeat("INFO worker ignored " + tail + "\n", 7)) +
+            "ERROR worker payload " + tail + "\n";
+        var result = await RunAsync(["$1==\"ERROR\"{print $3}"], input,
+            AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("payload\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(8, result.Counters.FieldSplits);
+        // The optional VM's field opcode still reads NF before loading a field.
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 10 : 512, result.Counters.FieldsMaterialized);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task OrdinalArrayKeysKeepMixedTextLookupsByteNative(AwkExecutionEngineKind engine)
     {
         var result = await RunAsync(
