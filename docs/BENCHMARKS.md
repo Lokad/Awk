@@ -54,30 +54,39 @@ compound-ordering difference, excluded from GNU-equivalent performance claims. F
 counter changes are limited to reduced copied text/bytes/peaks; work/cancellation/preflights
 remain qualified. Detailed raw and development/history evidence stays local.
 
-## Focused development comparison
+## Focused development comparisons
 
-Measured 2026-10-15 UTC: source `d7d198539e0a0c0c9d157729d5a5197f5d18de82` before and
-`2b41e403a693aa059e2ad3717066a8eeeb342fbe` after. Eligible text comparisons consume an unmaterialized
-right-hand field synchronously after the left operand and index finish. Stored array
-keys/values remain owned. Numeric comparisons, cached/modified fields, `$0`, IGNORECASE
-and nondecimal modes keep ordinary evaluation. No new owner or retained cache.
+Measured 2026-10-15 UTC. Each source pair is an independent controlled change;
+the complete GNU table retains f105e61 and its original denominators. First source pair:
+`d7d198539e0a0c0c9d157729d5a5197f5d18de82`→`2b41e403a693aa059e2ad3717066a8eeeb342fbe`. Latest pair:
+`582cc77d15f4a2a89e8f7900a554e9bc8453fa4b`→`1bc2911a429ab7e1f976f8a713c89547cbf3a398`.
 
-| Case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Two-file membership / join | 11.338 | 10.549 | +7.0% / +6.4% | 5,411,550 | 4,985,550 |
-| Arithmetic control | 9.565 | 9.578 | -0.1% / +6.3% | 1,381,613 | 1,381,613 |
+| Change / case | Source pair | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Right-field text: join | d7d1985→2b41e40 | 11.338 | 10.549 | +7.0% / +6.4% | 5,411,550 | 4,985,550 |
+| Numeric transport: arithmetic | 582cc77→1bc2911 | 9.502 | 9.337 | +1.7% / +2.8% | 1,381,613 | 1,381,613 |
+| User-call control | 582cc77→1bc2911 | 6.369 | 6.257 | +1.8% / +2.8% | 1,378,659 | 1,378,659 |
 
-Times shown are the first order's medians of two launch medians; the reduction column
-reports both orders. Three warmups/five iterations/two launches per source/order, verified
-digests and all eight quiet gates. Join allocations fall 7.87%
-in both orders. Arithmetic allocations are unchanged; its baseline launch spread reaches
-14.5%, so no arithmetic or single-launch filter gain is claimed. The complete GNU table
-retains its original source/date and denominators.
+Times are the first order's medians of two launch medians; reductions report both orders.
+Three warmups/five iterations/two launches per source/order; digests and all quiet gates pass.
+Do not compound gains across scripts or treat retained rows as freshly measured ratios.
 
-All 72,005 tests/OS, 62 benchmark GNU checks, 26 additional exact native golden scripts
-and 18 stack scenarios pass. All 31 finite-counter rows are identical; focused counter
-guards verify avoided field text copying, refusal cleanup and borrowed-buffer lifetime.
-Cancellation, host mediation, mutation preflights and governed ownership are preserved.
+Right-field comparisons borrow untouched bytes synchronously after left/index evaluation;
+stored array keys/values remain owned. Numeric/cached/modified/$0/case/nondecimal paths
+keep ordinary evaluation. Join allocation falls7.87%; its arithmetic control varied between
+launches (14.5% baseline spread), so no arithmetic gain was claimed.
+
+Binary arithmetic resolves operands/intermediate numeric results as doubles and publishes
+ordinary values at value boundaries. The same numeric operations, operand order, pending
+consumption and cancellation/work checks remain. No backend, owner or cache is introduced.
+Allocations are unchanged on the confirmed standard scripts. The narrow-field pilot is
+not a confirmed gain; focused counters separately prove avoided copies for numeric field
+subexpressions. No pure-number allocation reduction is claimed.
+
+Latest validation:72,047 tests/OS,62 benchmark GNU checks,34 additional exact native goldens,
+18 stack scenarios and31 identical finite-counter rows. Focused guards cover avoided field
+copies, unchanged work, single pending consumption, early failures and field lifecycle. Cancellation,
+mutation preflights, host mediation, interpreter default and postponed Utf8Regex remain.
 
 ## Retained length-only evidence
 
@@ -162,6 +171,9 @@ unlimited policy does not mean zero allocation. Profile separately (`--profiler 
 Work toward parity by profiling the highest ratios first. Prioritize gains above 10%,
 but accept useful, repeatable improvements around 4%. Confirm gains in matched orders,
 inspect process-launch variation, and retain allocations and semantic/resource evidence.
+Small changes that share an existing path can justify repeatable gains around 2%, with
+consistent launch-pair wins and unchanged allocations. Record that cost/repeatability
+decision; do not extend timing to obtain a preferred result.
 Bound each investigation to existing profiles/controls and at most two candidates;
 stop for noise or costs owned elsewhere. Keep allocation-only improvements separate. Lower the target further as larger
 leads are exhausted. Expand VM coverage only when measurements justify it.
