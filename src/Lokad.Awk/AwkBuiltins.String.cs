@@ -6,7 +6,8 @@ internal static partial class AwkBuiltins
 {
 
     private static AwkValue EvaluateCaseConversion(
-        AwkBuiltinContext context,
+        AwkText source,
+        AwkRuntimeState state,
         AwkCaseConversion conversion)
     {
         static bool TryConvertAsciiCase(
@@ -60,29 +61,25 @@ internal static partial class AwkBuiltins
             return true;
         }
 
-        if (context.ArgumentCount != 1)
-            return AwkValue.FromText(string.Empty);
-
-        var source = context.GetByteText(0);
         if (TryConvertAsciiCase(
             source,
             conversion,
-            context.State.Counters,
-            context.State.MemoryAccounting,
-            context.State.CancellationCheckpoint,
+            state.Counters,
+            state.MemoryAccounting,
+            state.CancellationCheckpoint,
             out var asciiResult))
         {
-            return context.State.CreateByteTextValue(asciiResult);
+            return state.CreateByteTextValue(asciiResult);
         }
 
-        context.State.Counters.RecordStringInteropFallback();
-        var decoded = source.AsString(context.State.Counters, context.State.CancellationCheckpoint);
-        context.State.ThrowIfCancellationRequested();
+        state.Counters.RecordStringInteropFallback();
+        var decoded = source.AsString(state.Counters, state.CancellationCheckpoint);
+        state.ThrowIfCancellationRequested();
         var converted = conversion is AwkCaseConversion.Upper
             ? decoded.ToUpperInvariant()
             : decoded.ToLowerInvariant();
-        context.State.ThrowIfCancellationRequested();
-        return context.State.CreateStringValue(converted);
+        state.ThrowIfCancellationRequested();
+        return state.CreateStringValue(converted);
     }
 
     private enum AwkCaseConversion

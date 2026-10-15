@@ -73,10 +73,10 @@ internal static partial class AwkBuiltins
                 EvaluateLength,
                 [AwkBuiltinArgumentRole.ScalarOrArray],
                 AwkBuiltinLoweringKind.Length),
-            [Name(AwkBuiltinId.Index)] = PosixPure(AwkBuiltinId.Index, AwkArity.Exact(2), EvaluateIndex),
-            [Name(AwkBuiltinId.Substr)] = PosixPure(AwkBuiltinId.Substr, AwkArity.Range(2, 3), EvaluateSubstr),
-            [Name(AwkBuiltinId.ToLower)] = PosixPure(AwkBuiltinId.ToLower, AwkArity.Exact(1), EvaluateToLower),
-            [Name(AwkBuiltinId.ToUpper)] = PosixPure(AwkBuiltinId.ToUpper, AwkArity.Exact(1), EvaluateToUpper),
+            [Name(AwkBuiltinId.Index)] = PosixPureAsync(AwkBuiltinId.Index, AwkArity.Exact(2), EvaluateIndex),
+            [Name(AwkBuiltinId.Substr)] = PosixPureAsync(AwkBuiltinId.Substr, AwkArity.Range(2, 3), EvaluateSubstr),
+            [Name(AwkBuiltinId.ToLower)] = PosixPureAsync(AwkBuiltinId.ToLower, AwkArity.Exact(1), EvaluateToLower),
+            [Name(AwkBuiltinId.ToUpper)] = PosixPureAsync(AwkBuiltinId.ToUpper, AwkArity.Exact(1), EvaluateToUpper),
             [Name(AwkBuiltinId.Int)] = PosixPure(AwkBuiltinId.Int, AwkArity.Exact(1), EvaluateInt),
             [Name(AwkBuiltinId.Sqrt)] = PosixMutatesState(AwkBuiltinId.Sqrt, AwkArity.Exact(1), EvaluateSqrt),
             [Name(AwkBuiltinId.Sin)] = PosixPure(AwkBuiltinId.Sin, AwkArity.Exact(1), EvaluateSin),
@@ -477,22 +477,29 @@ internal static partial class AwkBuiltins
             return AwkValue.FromNumber(context.State.CountStringUnits(context.GetByteText(0)));
         }
 
-        static AwkValue EvaluateIndex(AwkBuiltinContext context)
+        static async ValueTask<AwkValue> EvaluateIndex(AwkBuiltinContext context)
         {
             if (context.ArgumentCount != 2)
                 return AwkValue.FromNumber(0);
 
+            var source = await context.GetValueAsync(0).ConfigureAwait(false);
+            var needle = await context.GetValueAsync(1).ConfigureAwait(false);
             return AwkValue.FromNumber(context.State.IndexOfStringUnits(
-                context.State.FormatStringByteText(context.GetValue(0).ForceScalar()), context.GetByteText(1)));
+                context.State.FormatStringByteText(source.ForceScalar()), context.State.FormatStringByteText(needle)));
         }
 
-        static AwkValue EvaluateSubstr(AwkBuiltinContext context)
+        static async ValueTask<AwkValue> EvaluateSubstr(AwkBuiltinContext context)
         {
-            if (context.ArgumentCount is < 2 or > 3)
+            var argumentCount = context.ArgumentCount;
+            if (argumentCount is < 2 or > 3)
                 return AwkValue.FromText(string.Empty);
 
-            var source = context.GetByteText(0);
-            var start = (int)context.GetNumber(1);
+            var sourceValue = await context.GetValueAsync(0).ConfigureAwait(false);
+            var startValue = await context.GetValueAsync(1).ConfigureAwait(false);
+            var lengthValue = argumentCount == 3
+                ? await context.GetValueAsync(2).ConfigureAwait(false) : default;
+            var source = context.State.FormatStringByteText(sourceValue);
+            var start = (int)startValue.AsNumber(context.State.CancellationCheckpoint);
             if (start < 1)
                 start = 1;
 
@@ -501,11 +508,11 @@ internal static partial class AwkBuiltins
                 return AwkValue.FromText(string.Empty);
 
             var zeroBasedStart = start - 1;
-            if (context.ArgumentCount == 2)
+            if (argumentCount == 2)
                 return context.State.CreateByteTextValue(
                     context.State.SubstringByStringUnits(source, zeroBasedStart, sourceLength - zeroBasedStart));
 
-            var length = (int)context.GetNumber(2);
+            var length = (int)lengthValue.AsNumber(context.State.CancellationCheckpoint);
             if (length <= 0)
                 return AwkValue.FromText(string.Empty);
 
@@ -513,11 +520,19 @@ internal static partial class AwkBuiltins
             return context.State.CreateByteTextValue(context.State.SubstringByStringUnits(source, zeroBasedStart, boundedLength));
         }
 
-        static AwkValue EvaluateToLower(AwkBuiltinContext context) =>
-            EvaluateCaseConversion(context, AwkCaseConversion.Lower);
+        static async ValueTask<AwkValue> EvaluateToLower(AwkBuiltinContext context)
+        {
+            if (context.ArgumentCount != 1) return AwkValue.FromText(string.Empty);
+            var value = await context.GetValueAsync(0).ConfigureAwait(false);
+            return EvaluateCaseConversion(context.State.FormatStringByteText(value), context.State, AwkCaseConversion.Lower);
+        }
 
-        static AwkValue EvaluateToUpper(AwkBuiltinContext context) =>
-            EvaluateCaseConversion(context, AwkCaseConversion.Upper);
+        static async ValueTask<AwkValue> EvaluateToUpper(AwkBuiltinContext context)
+        {
+            if (context.ArgumentCount != 1) return AwkValue.FromText(string.Empty);
+            var value = await context.GetValueAsync(0).ConfigureAwait(false);
+            return EvaluateCaseConversion(context.State.FormatStringByteText(value), context.State, AwkCaseConversion.Upper);
+        }
         static AwkValue EvaluateRand(AwkBuiltinContext context)
         {
             if (context.ArgumentCount != 0)
@@ -605,6 +620,11 @@ internal static partial class AwkBuiltins
             AwkArity arity,
             AwkBuiltinEvaluator evaluator) =>
             Function(id, arity, AwkBuiltinEffects.Pure, AwkBuiltinCompatibility.Posix, [], evaluator);
+        static AwkBuiltinDefinition PosixPureAsync(
+            AwkBuiltinId id,
+            AwkArity arity,
+            AwkAsyncBuiltinEvaluator evaluator) =>
+            FunctionAsync(id, arity, AwkBuiltinEffects.Pure, AwkBuiltinCompatibility.Posix, [], evaluator);
         static AwkBuiltinDefinition GnuPure(
             AwkBuiltinId id,
             AwkArity arity,
