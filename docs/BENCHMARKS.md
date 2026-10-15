@@ -1,6 +1,6 @@
 # Benchmarks
 
-Current complete baseline, measured 2026-10-15: Release source `ade65daba248f4bd81002d7b8b2e4cc32c762bce`
+Retained complete baseline, measured 2026-10-15: Release source `ade65daba248f4bd81002d7b8b2e4cc32c762bce`
 versus GNU awk 5.2.1. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption
 is postponed. This is the declared five-change milestone. Keep the measured revision/date
 explicit until the next complete qualification; later code does not refresh retained rows.
@@ -55,6 +55,32 @@ Compared with `2caa3fa9e3ee2a75a515bdc9cf01da1222fd2247`, value-stored span iter
 reduces substitution/splitting allocations by 7.68%/8.22% in both source orders;
 overlapping launch ranges do not establish a uniform throughput gain. Detailed
 before/after comparisons and raw/history evidence stay local.
+
+## Focused development comparison
+
+Measured 2026-10-15 UTC, `488c5f7ff33c017ca6abc80b7cfa144087085548` -> `30184c27c6f24be66a0405d57aaa48b80c5b86e8`.
+The complete table above retains ade65da and its original GNU denominators.
+Three warmups/five iterations/two launches per source/order, both source orders;
+times below are the first order's medians of launch medians. Output digests and all
+quiet checks pass. Allocations are managed bytes per complete invocation.
+
+| Case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Numeric array sort | 7.920 | 7.514 | +5.12% / +5.56% | 3,438,148 | 3,237,152 |
+| Join control | 10.102 | 10.432 | -3.27% / -0.95% | 4,985,550 | 4,856,296 |
+
+Compact array keys remove a stable-hash field unused by runtime dictionaries;
+randomized hashing and text-construction checkpoints remain. Keys occupy less space
+in dictionaries, sort snapshots and resolved references. Two net runtime lines/one
+file, no new owner/cache/collection. Explicit stable hashing now repeats a text scan
+or bounded ordinal formatting. Governed estimates remain conservative and unchanged.
+The original reference-footprint ceiling is retained while allowing smaller layouts.
+All 72,093 tests/OS, GNU62/native41/stack18 and 31 identical finite-counter rows pass;
+14 focused key/counter checks pass, and the original layout fails the footprint guard.
+Sorting elapsed time falls 5.12%/5.56%, with every within-order launch pair favorable;
+allocation falls 5.85%. Join allocation falls 2.59%, but elapsed time is 3.27%/0.95%
+higher. This control tradeoff is within the predeclared 4% tolerance; no join speedup
+is claimed. The arithmetic pilot is flat and has no confirmed gain.
 
 ## What is measured
 
