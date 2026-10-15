@@ -98,15 +98,15 @@ The governed row retains its measured source, not a current-head retiming. Raw r
 and older optimization histories stay local. See [runtime limits](RUNTIME_LIMITS.md) for
 admission estimates and [record semantics](RECORD_SEMANTICS.md) for field behavior.
 
-At `eec7fcd`, all 71 exact reference checks, 74 native core goldens and 26 stack scenarios
-pass, with 72,531 tests on both Windows and Linux. All 71 published work/host/field/encoding
-snapshots and 31 finite-counter rows match the parent. Focused tests cover complete-loop
-eligibility, exact fuel/partial state, field/memory refusal, Unicode, aliases, bounded
-preparation and pending/canceled indices. Removing a checkpoint or disabling preparation
-fails the intended guards. Exact-source
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38818364055)
-passes 72,531 tests/OS; downloaded reports verify all 23 new focused checks. Strict UTF-8,
-mutation preflights and host/resource ownership remain.
+Runtime code remains `eec7fcd`: 71 exact reference checks, 74 native core goldens and
+26 stack scenarios pass. All 71 published work/host/field/encoding snapshots and 31 finite
+counter rows match the parent. Fuel/partial state, field/memory refusal, Unicode, aliases,
+bounded preparation and pending/canceled indices are covered. Current validation changes
+add scalar input/classification/refusal/cancellation, computed-NF and exact CPU-gate boundary
+checks; runtime source is unchanged. [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38823016575)
+at `3e2df88` passes 72,540 tests/OS; downloaded reports verify all 15 scalar/NF/CPU-boundary
+checks. Strict UTF-8, mutation preflights and host/resource ownership
+remain.
 
 ## Environment and measurement boundaries
 
@@ -114,7 +114,9 @@ Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
 BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. The complete-comparison rows
 use five warmups/nine iterations/one launch; timings and allocations share the source.
 Scoped rows use the separately stated three-warmup/five-iteration/two-launch settings.
-The complete baseline passed all four quiet gates, with clean source and fixed library/driver/
+CPU admission uses a 3% median / 5% maximum gate; busy ticks are subtracted before division
+to preserve exact boundary samples. The complete baseline passed all four quiet gates,
+with clean source and fixed library/driver/
 GNU identities; scoped runs also passed their gates. No concurrent VM builds/transfers.
 Single-launch results establish a baseline; variation limits small
 differences. Confirm apparent parity with larger inputs before a broader claim.
