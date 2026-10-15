@@ -58,14 +58,17 @@ remain qualified. Detailed raw and development/history evidence stays local.
 
 Measured 2026-10-15 UTC. Each source pair is an independent controlled change;
 the complete GNU table retains f105e61 and its original denominators. First source pair:
-`d7d198539e0a0c0c9d157729d5a5197f5d18de82`→`2b41e403a693aa059e2ad3717066a8eeeb342fbe`. Latest pair:
-`582cc77d15f4a2a89e8f7900a554e9bc8453fa4b`→`1bc2911a429ab7e1f976f8a713c89547cbf3a398`.
+`d7d198539e0a0c0c9d157729d5a5197f5d18de82`→`2b41e403a693aa059e2ad3717066a8eeeb342fbe`. Binary arithmetic pair:
+`582cc77d15f4a2a89e8f7900a554e9bc8453fa4b`→`1bc2911a429ab7e1f976f8a713c89547cbf3a398`. Latest pair:
+`3b670a1af15e1b897a3de680f76363314920e4fd`→`f0ae2a610d97eba5f9e5053ad0731c5c497b74ac`.
 
 | Change / case | Source pair | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | Right-field text: join | d7d1985→2b41e40 | 11.338 | 10.549 | +7.0% / +6.4% | 5,411,550 | 4,985,550 |
 | Numeric transport: arithmetic | 582cc77→1bc2911 | 9.502 | 9.337 | +1.7% / +2.8% | 1,381,613 | 1,381,613 |
 | User-call control | 582cc77→1bc2911 | 6.369 | 6.257 | +1.8% / +2.8% | 1,378,659 | 1,378,659 |
+| Record terminator: projection | 3b670a1→f0ae2a6 | 3.038 | 2.870 | +5.6% / +8.6% | 1,405,827 | 1,405,827 |
+| String-function control | 3b670a1→f0ae2a6 | 4.955 | 4.881 | +1.5% / +3.4% | 1,128,240 | 1,128,240 |
 
 Times are the first order's medians of two launch medians; reductions report both orders.
 Three warmups/five iterations/two launches per source/order; digests and all quiet gates pass.
@@ -83,7 +86,16 @@ Allocations are unchanged on the confirmed standard scripts. The narrow-field pi
 not a confirmed gain; focused counters separately prove avoided copies for numeric field
 subexpressions. No pure-number allocation reduction is claimed.
 
-Latest validation:72,047 tests/OS,62 benchmark GNU checks,34 additional exact native goldens,
+Record terminators publish GNU `RT` through the existing scalar storage setter outside
+functions, avoiding general name/special-variable dispatch. Function-local resolution,
+profile gating, symbol creation and storage admission remain unchanged. The confirmed
+scripts allocate the same managed bytes; no new slot, owner or cache is introduced.
+Every projection launch pair favors the change, despite 7.17% baseline variation in
+the reverse order. String-function launch ranges overlap in that order; the control's
+lower medians do not establish a uniform gain.
+The arithmetic pilot is nearly flat and is not a confirmed gain.
+
+Latest validation:72,050 tests/OS,62 benchmark GNU checks,34 additional exact native goldens,
 18 stack scenarios and31 identical finite-counter rows. Focused guards cover avoided field
 copies, unchanged work, single pending consumption, early failures and field lifecycle. Cancellation,
 mutation preflights, host mediation, interpreter default and postponed Utf8Regex remain.
