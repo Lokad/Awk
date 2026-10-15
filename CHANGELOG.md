@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Existing array values can be read through borrowed field keys, avoiding temporary key
+  copies. Missing reads retain owned-key creation, quota/memory preflights and ordinary
+  aliases, evaluation order and VM budget checks.
+
 - Single-field array membership looks up borrowed UTF-8 bytes without copied field
   values or temporary keys, preserving key spelling, aliases, pending index evaluation,
   owned-key fallbacks and VM budget checks.

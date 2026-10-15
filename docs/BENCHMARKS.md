@@ -1,39 +1,42 @@
 # Benchmarks
 
 Current focused results, measured 2026-10-15: Release source
-`a2ee8ba6b767e5108a59699d3434c6dad3abc87a` versus GNU awk 5.2.1.
+`8e2a2cbc056e223971aab883e06d0a273a3258e6` versus GNU awk 5.2.1.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
-The catalog has 22 families. The wider-record rows retain source `95564f7`, and the
-broader 20-family baseline retains `8fcd7eb`; their dates/settings remain explicit.
-This update measures two families, not a complete refresh.
+The catalog has 23 families. The membership row retains source `a2ee8ba`, wider-record
+rows retain `95564f7`, and the broader 20-family baseline retains `8fcd7eb`.
+Retained measurements keep their source/date/settings; this refresh measures two families.
 
 ## Representative processing: array lookups
 
 Times are medians; Lokad.Awk/awk divides Lokad elapsed time by GNU elapsed time.
 1.00× is parity, higher is slower. Allocations are managed GC bytes/invocation in MiB.
 
-| Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Field-key membership, equal hits/misses | 48.56 | 2.483 | 1.348 | 1.84× | 1.41 |
-| Two-file membership / join | 77.83 | 9.341 | 2.878 | 3.25× | 4.63 |
+| Case | Source | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Two-file membership / join | `8e2a2cb` | 77.83 | 8.563 | 2.829 | 3.03× | 4.23 |
+| Array reads, half hits / half new keys | `8e2a2cb` | 63.15 | 3.938 | 1.674 | 2.35× | 2.09 |
+| Field-key membership, equal hits/misses | `a2ee8ba` (retained) | 48.56 | 2.483 | 1.348 | 1.84× | 1.41 |
 
-Membership uses 4,096 two-field records and 64 lookup keys, with half the records
-matching. Borrowed lookups avoid copied field text and temporary owned keys. Against
-`0bd65bf` (runtime equivalent to `95564f7`), one confirmation in both source orders with
-two launches reduces membership elapsed time by 16–18% and allocations by 22%
-(1.82 to 1.41 MiB). Joins improve by 1.9–3.5%, with 16 extra bytes/invocation;
-the subsequent value read still materializes its key. These are workload-specific gains.
+The read case uses 4,096 records, 64 existing keys and 2,048 distinct new keys. Hits
+borrow field bytes; misses keep owned-key insertion and admission. Against `9d9b508`
+(runtime equivalent to `a2ee8ba`), one confirmation in both source orders with two
+launches reduces join elapsed time by 8–12.5% and allocations by 8.8% (4.63 to 4.23 MiB).
+Mixed reads/new keys improve by 4.5–6.2%, with 8.9% fewer allocations (2.29 to 2.09 MiB).
+The initial pilot's 1% mixed-case slowdown did not repeat; launch variation remains visible.
 
 Fresh GNU/Lokad timings use three warmups/five iterations/one launch; both quiet gates
 and fixed source/binary identities pass. Allocations reuse the qualified same-source
-confirmation with three warmups/five iterations/two launches. Machine/toolchain and
-embedding-versus-process costs are described below. No complete timing refresh was run.
+confirmation with three warmups/five iterations/two launches. The retained membership
+row uses its original same-count settings at `a2ee8ba`; it was not refreshed here.
+Machine/toolchain and embedding-versus-process costs are described below.
 
-All 72,242 tests/OS, 68 exact GNU checks, 50 native core goldens and 18 stack scenarios pass;
-the 31 finite-counter rows are unchanged. Exact-source
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38727529814) passes.
-Key spelling/equality, aliases, strict UTF-8, pending-index order, cancellation, memory
-admission/refunds and optional-VM budget/rollback parity remain qualified.
+All 72,285 tests/OS, 71 exact GNU checks, 55 native core goldens and 18 stack scenarios pass.
+Thirty finite-counter rows are unchanged; the join calibration avoids 5,000 field-text
+allocations and 33,890 payload bytes, with a lower governed peak and other columns unchanged.
+Exact-source [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38730184381) passes.
+Missing-element creation, owned keys after record reuse, aliases, pending-index/snapshot
+order, strict UTF-8, admission/refunds and optional-VM budget/rollback parity remain qualified.
 
 ## Wider records (retained)
 
@@ -130,7 +133,7 @@ use native fixture files for GNU and host-mediated in-memory files for Lokad.
 These are embedding-versus-CLI costs, not pure evaluator timings. Small cases can be
 dominated by process startup. All rows use the GNU/default profile, including the marked
 supported GNU conveniences. This is not a conformance test or an aggregate speedup.
-All 68 current small/medium/large and startup-control cases pass exact reference checks at `a2ee8ba`. Additional script
+All 71 current small/medium/large and startup-control cases pass exact reference checks at `8e2a2cb`. Additional script
 controls are in the [golden corpus](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.BenchmarkCore.cs).
 Ordinary builds/tests/CI require no GNU installation.
 
@@ -156,7 +159,7 @@ three warmups and five iterations, using the affected case and the most useful c
 Stop for inconclusive noise; add checks only for specific unresolved concerns. Keep full
 correctness tests, exact GNU verification and CI; GNU timing and startup campaigns are optional.
 
-Refresh the complete catalog (currently 22 families) at declared milestones: after a batch of five accepted runtime
+Refresh the complete catalog (currently 23 families) at declared milestones: after a batch of five accepted runtime
 optimizations, or an explicit full-comparison/new-source release or cumulative parity assessment.
 At that point run `--reference-benchmarks --awk PATH_TO_GAWK --filter '*medium*'` and
 `--filter '*WorkloadAllocationBenchmarks*medium*'`, each with five warmups, nine iterations
