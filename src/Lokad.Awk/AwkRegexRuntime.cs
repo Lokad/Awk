@@ -827,7 +827,7 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
     }
 }
 
-internal sealed class AwkRegexMatchSpanEnumerator(
+internal struct AwkRegexMatchSpanEnumerator(
     AwkRegexRuntime runtime,
     AwkRegex regex,
     AwkText input) : IDisposable
@@ -840,7 +840,7 @@ internal sealed class AwkRegexMatchSpanEnumerator(
 
     public bool MoveNext(out AwkRegexMatchSpan match)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_disposed, typeof(AwkRegexMatchSpanEnumerator));
         if (_completed)
         {
             match = AwkRegexMatchSpan.NoMatch;

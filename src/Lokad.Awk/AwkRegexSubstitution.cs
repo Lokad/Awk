@@ -325,7 +325,7 @@ internal static class AwkRegexSubstitution
         }
     }
 
-    private readonly struct SpanMatchSource(
+    private struct SpanMatchSource(
         AwkRegexMatchSpanEnumerator matches) : IMatchSource<AwkRegexMatchSpan>
     {
         public bool MoveNext(out AwkRegexMatchSpan match) => matches.MoveNext(out match);
