@@ -46,6 +46,9 @@ and mutation preflights. Functions retain their validated asynchronous stack bou
 host/pending work, lint and buffered diagnostics retain normal interpreter execution.
 Synchronous eligibility is bounded to expression depth 16 and 16 body statements;
 larger shapes use the normal executor, bounding preparation work and metadata.
+Synchronous builtins stage arguments directly into the existing admitted buffer, in order;
+pending operands retain its lease until completion, failure or cancellation. Async builtins
+retain lazy argument evaluation. This changes neither admission thresholds nor checkpoints.
 Eligible field/string-literal comparisons, text comparisons with a right-hand field and
 numeric-only field reads, including binary arithmetic operands, can avoid copied text
 and scalar caches. Numeric comparisons,

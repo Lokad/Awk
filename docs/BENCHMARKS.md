@@ -3,8 +3,9 @@
 Current complete comparison: **23 families**, measured 2026-10-15 at Release source
 `09ef2f24a4579f0ecbdc2676f8624c45c26caa20` against GNU awk 5.2.1. All rows share this source/settings;
 this is the declared five-change milestone refresh, not a cumulative causal speedup.
-Current runtime `e6ea6941bcdae9d2ceeb397fa454966d71dec329` additionally bounds loop preparation to
-16 body statements. Its correctness CI passes; timings retain the measured source above.
+Current runtime `9de84e80b85ea22abb7c07f1bdacae5877a4c8c9` also bounds loop preparation
+and simplifies builtin argument staging. Its focused evidence is below; the complete
+comparison retains the measured source above.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -46,20 +47,22 @@ Medium cases have 4,096 records, except all-fields wide (256×64 fields) and the
 Mixed array reads have equal existing/new keys. Marked GNU cases exercise supported
 conveniences; this comparison is not a conformance claim.
 
-The synchronous-region change was confirmed against `0e8c986` (runtime `a761b69`) once
-in both source orders, two launches/source/order: arithmetic takes 15.5–18.3% less elapsed
-time, with every launch pair over 10% faster, and adds 534 allocated bytes/invocation.
-Calls vary from 5.2% faster to 2.2% slower; strings take 0.3–3.2% longer, with unchanged
-allocation. This is a localized loop gain with disclosed control costs. Existing async
-function boundaries and host/lint/diagnostic fallbacks remain. No uniform speedup is implied.
+After this baseline, builtin argument staging at `9de84e8` was confirmed against
+`d3786a3` (runtime `e6ea694`) on 2026-10-15: ASCII string operations take **2.8–2.9% less
+elapsed time**, with unchanged **1,127,904 allocated bytes/invocation**. Medians in the
+two source orders are 4.552→4.420 ms and 4.580→4.451 ms; every candidate launch is faster
+than every baseline launch within each order. This uses three warmups/five iterations,
+two launches/source/order and eight passing quiet gates. Calls vary from 0.9% slower to
+1.0% faster; arithmetic varies from 0.8% slower to 4.8% faster. No control gain is claimed.
+This scoped confirmation does not refresh GNU timings or any row above.
 
-All 71 exact GNU checks, 63 native core goldens and 18 stack scenarios pass at the measured
-source. All 71 reference counter snapshots and 31 finite-counter rows match the parent;
-no work/checkpoint reduction is inferred. Exact-source
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38746687036)
-passes 72,365 tests/OS; the subsequent preparation-bound
-[CI](https://github.com/Lokad/Awk/actions/runs/38747994937) passes 72,367/OS.
-Strict UTF-8, aliases/order, mutation preflights, cancellation and host lifetimes remain qualified.
+All 71 exact GNU checks, 63 native core goldens and 18 stack scenarios pass at both the
+baseline and current source. The current change preserves all 31 finite-counter rows;
+argument-order, suspension, replay, fuel and refund checks pass. Current
+[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38754745862)
+passes 72,370 tests/OS; the [measured-source CI](https://github.com/Lokad/Awk/actions/runs/38746687036)
+passes 72,365/OS. Strict UTF-8, aliases/order, mutation preflights, cancellation and host
+lifetimes remain qualified.
 
 ## Environment and measurement boundaries
 
