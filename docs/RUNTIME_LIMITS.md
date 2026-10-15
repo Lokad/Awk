@@ -46,9 +46,11 @@ and mutation preflights. Functions retain their validated asynchronous stack bou
 host/pending work, lint and buffered diagnostics retain normal interpreter execution.
 Synchronous eligibility is bounded to expression depth 16 and 16 body statements;
 larger shapes use the normal executor, bounding preparation work and metadata.
-Synchronous builtins stage arguments directly into the existing admitted buffer, in order;
-pending operands retain its lease until completion, failure or cancellation. Async builtins
-retain lazy argument evaluation. This changes neither admission thresholds nor checkpoints.
+Builtin arguments keep caller order and pending lifetimes. General synchronous builtins
+use admitted staging buffers; `index`, `substr`, `tolower` and `toupper` use value locals.
+Their arguments finish before conversions. Actual result allocations still preflight;
+removing temporary arrays can change optional memory thresholds. Async host builtins
+retain lazy evaluation where required. Logical work and UTF-8 boundaries are unchanged.
 `printf` emits its admitted staging buffer; `sprintf` still returns owned text. Publication
 stays atomic. Rounded buffer capacity can change memory thresholds; timed-out host borrows
 keep shared admission until actual completion.
