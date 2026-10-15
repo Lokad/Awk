@@ -1,6 +1,6 @@
 # Benchmarks
 
-Retained complete baseline, measured 2026-10-15: Release source `ade65daba248f4bd81002d7b8b2e4cc32c762bce`
+Current complete baseline, measured 2026-10-15: Release source `8fcd7ebd7246d018aa0d97bc789267dde911279a`
 versus GNU awk 5.2.1. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption
 is postponed. This is the declared five-change milestone. Keep the measured revision/date
 explicit until the next complete qualification; later code does not refresh retained rows.
@@ -11,92 +11,47 @@ Twenty families cover fields/records, scalar/control work, arrays, functions, st
 regex and output. Medium cases use 4,096 records, except wide 256×64 fields and two-file
 4,096 records/file. Compare implementations within a row. Times are medians;
 Lokad.Awk/awk divides Lokad elapsed time by GNU elapsed time: 1.00× is parity, higher is slower.
-Rows run from worst to best ratio. 19 of 20 exceed parity at this source.
-Each complete invocation verifies output. Single-launch results establish the current
-baseline; process variation prevents treating changes across milestones as causal speedups.
-The 0.95× literal-record-separator result needs larger-input confirmation before a broader parity claim.
+Rows run from worst to best ratio. Single-launch results establish this baseline;
+process variation prevents treating differences between milestones as causal speedups.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| ERE capture arrays (GNU) | 28 | 36.752 | 7.746 | 4.74× | 16.40 |
-| Nested user calls | 8 | 6.149 | 1.616 | 3.81× | 1.31 |
-| Two-file membership / join | 77.83 | 9.853 | 2.817 | 3.50× | 4.75 |
-| Numeric array sort (GNU) | 18.92 | 7.829 | 2.486 | 3.15× | 3.28 |
-| Loop and numeric arithmetic | 8 | 9.123 | 2.934 | 3.11× | 1.32 |
-| ASCII substr/index/length/casing | 52 | 4.843 | 1.562 | 3.10× | 1.08 |
-| printf strings and integers | 24 | 5.425 | 1.806 | 3.00× | 2.91 |
-| gsub and output | 56 | 6.300 | 2.099 | 3.00× | 3.76 |
-| Keyed sum / sorted output (GNU) | 24 | 4.079 | 1.376 | 2.96× | 1.76 |
-| Field loop, 3 fields | 60 | 6.279 | 2.213 | 2.84× | 1.40 |
-| Unicode length/substr / output | 60 | 5.784 | 2.072 | 2.79× | 3.11 |
-| Concatenate record and number | 20 | 3.857 | 1.545 | 2.50× | 1.43 |
-| Boolean ERE matching | 32 | 3.052 | 1.281 | 2.38× | 0.75 |
-| ERE field separator | 48 | 4.452 | 2.002 | 2.22× | 3.49 |
-| Filter three fields | 24 | 3.394 | 1.543 | 2.20× | 1.30 |
-| Field loop, 64 fields | 80 | 4.748 | 2.179 | 2.18× | 1.08 |
-| Project a column / output | 60 | 2.861 | 1.328 | 2.15× | 1.34 |
-| Literal field separator | 48 | 2.582 | 1.402 | 1.84× | 1.26 |
-| Byte-run ERE record separator (GNU) | 36 | 1.654 | 1.443 | 1.15× | 1.00 |
-| Multicharacter record separator (GNU) | 52 | 1.409 | 1.477 | 0.95× | 0.61 |
+| ERE capture arrays (GNU) | 28 | 36.155 | 7.768 | 4.65× | 16.05 |
+| Nested user calls | 8 | 5.849 | 1.623 | 3.60× | 1.31 |
+| Two-file membership / join | 77.83 | 9.698 | 2.821 | 3.44× | 4.63 |
+| ASCII substr/index/length/casing | 52 | 4.575 | 1.565 | 2.92× | 1.08 |
+| Loop and numeric arithmetic | 8 | 8.495 | 2.918 | 2.91× | 1.32 |
+| Numeric array sort (GNU) | 18.92 | 7.158 | 2.495 | 2.87× | 3.09 |
+| gsub and output | 56 | 6.053 | 2.112 | 2.87× | 3.76 |
+| Field loop, 3 fields | 60 | 6.070 | 2.205 | 2.75× | 1.40 |
+| printf strings and integers | 24 | 4.931 | 1.805 | 2.73× | 2.91 |
+| Unicode length/substr / output | 60 | 5.611 | 2.088 | 2.69× | 3.11 |
+| Keyed sum / sorted output (GNU) | 24 | 3.487 | 1.370 | 2.55× | 1.76 |
+| Concatenate record and number | 20 | 3.683 | 1.541 | 2.39× | 1.42 |
+| Field loop, 64 fields | 80 | 5.041 | 2.178 | 2.31× | 1.08 |
+| Boolean ERE matching | 32 | 2.703 | 1.280 | 2.11× | 0.75 |
+| Filter three fields | 24 | 3.051 | 1.537 | 1.99× | 1.30 |
+| ERE field separator | 48 | 3.867 | 1.996 | 1.94× | 3.49 |
+| Project a column / output | 60 | 2.428 | 1.332 | 1.82× | 1.34 |
+| Literal field separator | 48 | 2.180 | 1.394 | 1.56× | 1.26 |
+| Byte-run ERE record separator (GNU) | 36 | 1.558 | 1.443 | 1.08× | 1.00 |
+| Multicharacter record separator (GNU) | 52 | 1.428 | 1.480 | 0.96× | 0.61 |
 
-Allocations are managed GC bytes/invocation from MemoryDiagnoser at the same source/settings.
-They are not native GNU allocations, retained live memory, budget allowances or process memory.
+Allocations are managed GC bytes/invocation from MemoryDiagnoser at the same source/settings,
+shown in MiB. They are not native GNU allocations, retained live memory or allowances.
 Both implementations use the same [script/fixture catalog](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs).
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
-BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Five warmups/nine iterations/one
-launch; clean-source/GNU identities and all four quiet gates pass. No concurrent builds/transfers.
+BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Five warmups/nine iterations/
+one launch; clean source/GNU/driver identities and all four quiet gates pass. No concurrent
+VM builds/transfers. This current baseline is not a controlled cumulative speedup.
+Ratios below parity apply to their fixtures; qualify larger inputs before a broader claim.
 
-All 72,087 tests/OS and exact-source Windows/Linux locked build/test/pack CI pass.
-The catalog has 62 exact GNU checks, plus 40 exact native core goldens and 18 stack
-scenarios. The latest iterator change leaves all 31 finite-counter rows unchanged;
-memory ownership, cancellation, mutation preflights and host mediation remain qualified.
-Controlled development evidence qualifies changes separately from this complete baseline.
-Compared with `2caa3fa9e3ee2a75a515bdc9cf01da1222fd2247`, value-stored span iteration
-reduces substitution/splitting allocations by 7.68%/8.22% in both source orders;
-overlapping launch ranges do not establish a uniform throughput gain. Detailed
-before/after comparisons and raw/history evidence stay local.
-
-## Focused development comparisons
-
-Measured 2026-10-15 UTC. Each source pair is linked below; these separate campaigns
-do not refresh the full table or its original GNU denominators. Three warmups/five
-iterations/two launches per source/order, both source orders. Complete output,
-source identities and quiet gates pass. Times are the first order's medians of launch
-medians; positive reductions mean faster, negative means slower. Allocations are
-managed bytes per complete invocation, not live-memory allowances.
-
-| Change / case | Before -> after source | Before ms | After ms | Time reduction, both orders | Managed bytes, before -> after |
-| --- | --- | ---: | ---: | ---: | ---: |
-| Compact keys: sort | [488c5f7](https://github.com/Lokad/Awk/commit/488c5f7ff33c017ca6abc80b7cfa144087085548) -> [30184c2](https://github.com/Lokad/Awk/commit/30184c27c6f24be66a0405d57aaa48b80c5b86e8) | 7.920 | 7.514 | +5.12% / +5.56% | 3,438,148 -> 3,237,152 |
-| Compact keys: join | [488c5f7](https://github.com/Lokad/Awk/commit/488c5f7ff33c017ca6abc80b7cfa144087085548) -> [30184c2](https://github.com/Lokad/Awk/commit/30184c27c6f24be66a0405d57aaa48b80c5b86e8) | 10.102 | 10.432 | -3.27% / -0.95% | 4,985,550 -> 4,856,296 |
-| Array writes: sort | [5f8ae78](https://github.com/Lokad/Awk/commit/5f8ae78c55c9e3c58e8e22a98b6584cba9269475) -> [dd28595](https://github.com/Lokad/Awk/commit/dd28595aed1c44e73e9cfe46cf4d2d451379e39c) | 7.617 | 7.437 | +2.37% / +3.66% | 3,237,152 -> 3,237,152 |
-| Array writes: join | [5f8ae78](https://github.com/Lokad/Awk/commit/5f8ae78c55c9e3c58e8e22a98b6584cba9269475) -> [dd28595](https://github.com/Lokad/Awk/commit/dd28595aed1c44e73e9cfe46cf4d2d451379e39c) | 10.438 | 10.138 | +2.87% / -0.68% | 4,856,296 -> 4,856,296 |
-| Scalar writes: arithmetic | [3c7f0a1](https://github.com/Lokad/Awk/commit/3c7f0a113f5e67446cc2d3db8f77549736a4be2f) -> [91244f6](https://github.com/Lokad/Awk/commit/91244f687f33f3a98b291be8a9b5fc1541e5b2e1) | 9.105 | 8.829 | +3.03% / +2.89% | 1,381,245 -> 1,381,245 |
-| Scalar writes: calls | [3c7f0a1](https://github.com/Lokad/Awk/commit/3c7f0a113f5e67446cc2d3db8f77549736a4be2f) -> [91244f6](https://github.com/Lokad/Awk/commit/91244f687f33f3a98b291be8a9b5fc1541e5b2e1) | 6.005 | 5.951 | +0.90% / +1.88% | 1,378,291 -> 1,378,291 |
-| Field estimates: wide records | [a734c0f](https://github.com/Lokad/Awk/commit/a734c0f3ba86536f8bada0f7eb404e4b68f5d266) -> [7eebcd2](https://github.com/Lokad/Awk/commit/7eebcd22f7e955d08c5c4e8f8728525a25bbc627) | 4.761 | 4.729 | +0.66% / +2.33% | 1,132,992 -> 1,132,992 |
-| Field estimates: projection | [a734c0f](https://github.com/Lokad/Awk/commit/a734c0f3ba86536f8bada0f7eb404e4b68f5d266) -> [7eebcd2](https://github.com/Lokad/Awk/commit/7eebcd22f7e955d08c5c4e8f8728525a25bbc627) | 2.761 | 2.585 | +6.37% / +8.48% | 1,405,459 -> 1,405,459 |
-| Field estimates: join | [a734c0f](https://github.com/Lokad/Awk/commit/a734c0f3ba86536f8bada0f7eb404e4b68f5d266) -> [7eebcd2](https://github.com/Lokad/Awk/commit/7eebcd22f7e955d08c5c4e8f8728525a25bbc627) | 10.375 | 9.874 | +4.82% / +2.62% | 4,856,296 -> 4,856,296 |
-
-Compact keys reduce dictionary/snapshot/reference storage; their join allocation gain
-comes with the explicit measured slowdown above. Array writes omit an old-value lookup
-and byte estimates when accounting is disabled; their sorting gain repeats, join does not.
-Scalar writes omit disabled accounting while preserving initialization, computed NF and
-OFS preparation before publication. Arithmetic wins in every within-order launch pair
-(minimum 1.65%); the smaller calls gains have overlapping launch ranges.
-
-Field frames keep memory-only metadata at zero when accounting is disabled, avoiding
-estimates/traversals while retaining actual payload lengths, field/value bounds and
-publication checks. Projection improves 6.37%/8.48%, join 4.82%/2.62%; all launch pairs
-favor the candidate (projection minimum 4.51%, join minimum 0.03%). Wide-record gains
-are smaller, 0.66%/2.33%; the pilot slowdown did not repeat. Allocations are unchanged.
-
-The latest change adds 17 runtime lines in one file. Governed admission/refunds,
-value limits, host effects and bounded cancellation remain qualified. All 72,133
-tests/OS, GNU62/native42/stack18 and 31 identical finite-counter rows pass. Fifteen
-field-mode checks cover reads followed by mutation/reset, staged growth/shrink,
-refusal and canceled cache publication. Partial zeroing fails four; skipped value
-preflight fails two; exact restoration passes all fifteen. No new owner/cache/backend.
-Raw comparisons and detailed history stay local.
+All 72,153 tests/OS and exact-source [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38712634086) pass.
+The catalog has 62 exact GNU checks, plus 42 exact native core goldens and 18 stack
+scenarios; all 31 finite-counter rows remain identical. Memory ownership, strict UTF-8,
+cancellation, mutation preflights and host mediation remain qualified. Controlled
+batch comparisons and detailed history are retained locally rather than mixed into
+this complete baseline.
 
 ## What is measured
 
@@ -108,9 +63,8 @@ use native fixture files for GNU and host-mediated in-memory files for Lokad.
 
 These are embedding-versus-CLI costs, not pure evaluator timings. Small cases can be
 dominated by process startup. All rows use the GNU/default profile, including the marked
-supported GNU conveniences;
-this is not a conformance test or an aggregate speedup. All 62 small/medium/large and
-startup-control cases pass exact reference checks at this source. Additional script
+supported GNU conveniences. This is not a conformance test or an aggregate speedup.
+All 62 small/medium/large and startup-control cases pass exact reference checks at this source. Additional script
 controls are in the [golden corpus](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.BenchmarkCore.cs).
 Ordinary builds/tests/CI require no GNU installation.
 
@@ -142,9 +96,9 @@ At that point run `--reference-benchmarks --awk PATH_TO_GAWK --filter '*medium*'
 `--filter '*WorkloadAllocationBenchmarks*medium*'`, each with five warmups, nine iterations
 and one launch. An accepted optimization alone does not trigger a complete refresh.
 
-Keep the retained complete table's revision/date explicit. Add focused comparisons separately
-with before/after revisions, cases, scales, settings and allocations. Never present retained
-measurements as fresh or an old GNU denominator as a freshly measured ratio. Record toolchain,
+Keep the complete table's measured revision/date explicit. Retain focused development
+comparisons locally with before/after revisions, cases, scales, settings and allocations.
+Never present retained measurements as fresh or an old GNU denominator as a freshly measured ratio. Record toolchain,
 exact-result checks and quiet gates; retain raw CSV/logs locally. Keep at most three tables.
 Do not commit BenchmarkDotNet.Artifacts or add dated summary documents.
 `--render-report PATH.json` writes a generated `PATH.json.md` beside the artifact;
@@ -157,7 +111,9 @@ Work toward parity by profiling the highest ratios first. Prioritize gains above
 but accept useful, repeatable improvements around 4%. Confirm gains in matched orders,
 inspect process-launch variation, and retain allocations and semantic/resource evidence.
 Small changes that share an existing path can justify repeatable gains around 2%, with
-consistent launch-pair wins and unchanged allocations. Record that cost/repeatability
+consistent launch-pair wins and unchanged allocations. Smaller measured transport or fewer
+mechanisms can support a compact simplification; disclose timing overlap and avoid uniform
+speedup claims when process ranges overlap. Record that cost/repeatability
 decision; do not extend timing to obtain a preferred result.
 Bound each investigation to existing profiles/controls and at most two candidates;
 stop for noise or costs owned elsewhere. Keep allocation-only improvements separate. Lower the target further as larger

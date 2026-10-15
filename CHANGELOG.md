@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Default newline reading uses the existing outer async operation directly, removing
+  a nested helper while preserving validation and resource checks before consuming input.
+
 - Field frames omit disabled memory estimates while preserving payload lengths,
   field/value limits, governed preflights and cancellation before publication.
 
