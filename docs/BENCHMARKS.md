@@ -1,11 +1,10 @@
 # Benchmarks
 
 Current complete comparison: **23 families**, measured 2026-10-15 at Release source
-`09ef2f24a4579f0ecbdc2676f8624c45c26caa20` against GNU awk 5.2.1. All rows share this source/settings;
-this is the declared five-change milestone refresh, not a cumulative causal speedup.
-Current runtime `eef8824a9311722b281e2c2ad71c1a14cb2a8a60` removes temporary argument
-arrays from core string builtins. Its qualified benefit is for governed execution;
-scoped evidence below distinguishes modes and retained sources. The complete table is unchanged.
+`ff03a99c17ab32896211cf788bb53cbdc0b98e8d` against GNU awk 5.2.1. This is the declared five-change milestone;
+all complete-comparison rows and allocations share this source/settings. It is a current
+baseline, not a controlled cumulative speedup. Scoped experiments below retain their
+own measured revisions and policies.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -17,29 +16,29 @@ within a row; different fixtures are not before/after pairs. Rows run from worst
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| ERE capture arrays (GNU) | 28.00 | 36.148 | 7.764 | 4.66× | 16.05 |
-| Nested user calls | 8.00 | 5.668 | 1.623 | 3.49× | 1.31 |
-| ASCII substr/index/length/casing | 52.00 | 4.696 | 1.558 | 3.01× | 1.08 |
-| gsub and output | 56.00 | 6.124 | 2.113 | 2.90× | 3.76 |
-| Two-file membership / join | 77.83 | 8.095 | 2.797 | 2.89× | 4.23 |
-| Numeric array sort (GNU) | 18.92 | 6.897 | 2.488 | 2.77× | 3.09 |
-| Field loop, 3 fields | 60.00 | 6.072 | 2.202 | 2.76× | 1.40 |
-| printf strings and integers | 24.00 | 4.910 | 1.802 | 2.73× | 2.91 |
-| Unicode length/substr / output | 60.00 | 5.521 | 2.088 | 2.64× | 3.11 |
-| Loop and numeric arithmetic | 8.00 | 7.382 | 2.931 | 2.52× | 1.32 |
-| Keyed sum / sorted output (GNU) | 24.00 | 3.241 | 1.369 | 2.37× | 1.36 |
-| Array reads, half hits / half new keys | 63.15 | 3.897 | 1.670 | 2.33× | 2.09 |
-| Concatenate record and number | 20.00 | 3.493 | 1.543 | 2.26× | 1.42 |
-| Field loop, 64 fields | 80.00 | 4.870 | 2.180 | 2.23× | 1.08 |
-| Boolean ERE matching | 32.00 | 2.725 | 1.281 | 2.13× | 0.75 |
-| ERE field separator | 48.00 | 3.940 | 1.997 | 1.97× | 3.49 |
-| Field-key membership, equal hits/misses | 48.56 | 2.496 | 1.315 | 1.90× | 1.41 |
-| Filter three fields | 24.00 | 2.873 | 1.537 | 1.87× | 1.30 |
-| Project a column / output | 60.00 | 2.419 | 1.332 | 1.82× | 1.34 |
-| Literal field separator | 48.00 | 2.433 | 1.398 | 1.74× | 1.26 |
-| Filter $1 / occasionally print $3, 64 fields | 1291.42 | 2.813 | 2.141 | 1.31× | 3.55 |
-| Byte-run ERE record separator (GNU) | 36.00 | 1.558 | 1.446 | 1.08× | 1.00 |
-| Multicharacter record separator (GNU) | 52.00 | 1.541 | 1.484 | 1.04× | 0.61 |
+| ERE capture arrays (GNU) | 28.00 | 36.843 | 7.823 | 4.71× | 16.05 |
+| Nested user calls | 8.00 | 5.450 | 1.675 | 3.25× | 1.31 |
+| Two-file membership / join | 77.83 | 8.469 | 2.831 | 2.99× | 4.23 |
+| ASCII substr/index/length/casing | 52.00 | 4.635 | 1.563 | 2.97× | 1.08 |
+| gsub and output | 56.00 | 6.112 | 2.111 | 2.90× | 3.76 |
+| Numeric array sort (GNU) | 18.92 | 6.948 | 2.500 | 2.78× | 3.09 |
+| Field loop, 3 fields | 60.00 | 5.978 | 2.215 | 2.70× | 1.40 |
+| printf strings and integers | 24.00 | 4.776 | 1.814 | 2.63× | 2.47 |
+| Unicode length/substr / output | 60.00 | 5.476 | 2.082 | 2.63× | 3.11 |
+| Loop and numeric arithmetic | 8.00 | 7.572 | 2.934 | 2.58× | 1.32 |
+| Keyed sum / sorted output (GNU) | 24.00 | 3.314 | 1.431 | 2.32× | 1.36 |
+| Concatenate record and number | 20.00 | 3.539 | 1.570 | 2.25× | 1.42 |
+| Field loop, 64 fields | 80.00 | 4.885 | 2.190 | 2.23× | 1.08 |
+| Array reads, half hits / half new keys | 63.15 | 4.212 | 1.897 | 2.22× | 2.09 |
+| Boolean ERE matching | 32.00 | 2.703 | 1.289 | 2.10× | 0.75 |
+| Filter three fields | 24.00 | 2.949 | 1.549 | 1.90× | 1.30 |
+| Project a column / output | 60.00 | 2.527 | 1.340 | 1.89× | 1.34 |
+| Field-key membership, equal hits/misses | 48.56 | 2.505 | 1.372 | 1.82× | 1.41 |
+| ERE field separator | 48.00 | 3.652 | 2.010 | 1.82× | 3.49 |
+| Literal field separator | 48.00 | 2.202 | 1.401 | 1.57× | 1.26 |
+| Filter $1 / occasionally print $3, 64 fields | 1291.42 | 2.893 | 2.190 | 1.32× | 3.55 |
+| Byte-run ERE record separator (GNU) | 36.00 | 1.530 | 1.448 | 1.06× | 1.00 |
+| Multicharacter record separator (GNU) | 52.00 | 1.413 | 1.646 | 0.86× | 0.61 |
 
 Both implementations use the same [script/fixture catalog](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs).
 Medium cases have 4,096 records, except all-fields wide (256×64 fields) and the join
@@ -49,15 +48,20 @@ conveniences; this comparison is not a conformance claim.
 
 Scoped evidence, measured 2026-10-15 with three warmups/five iterations and two
 launches/source/order. Each row is a separate before/after experiment, with passing quiet
-gates and stable production-library identities; these do not refresh GNU timings or the table.
+gates and stable production-library identities. These experiments are separate from the
+complete comparison above; GNU timings were not collected in the scoped experiments.
 
 | Workload / policy | Measured sources, before → after | Median ms, two source orders | Managed bytes/invocation |
 | --- | --- | --- | ---: |
+| Nested user calls / default | 8b8419d → ff03a99 | 5.862→5.477; 6.114→5.473 | 1,378,323→1,378,323 |
 | String functions / cooperative 512 MiB budget | d17f9b1 → eef8824 | 6.074→5.516; 6.058→5.260 | 2,406,537→1,128,568 |
-| Owned first field, 64 columns / default | 8993f42 → 6478b69 | 7.069→4.144; 6.985→4.129 | 16,585,748→4,100,976 |
-| printf strings and integers / default | f8aa880 → af84032 | 5.153→4.821; 4.948→4.760 | 3,049,658→2,590,899 |
 
-The current string-builtin change takes **9.2–13.2% less elapsed time** and allocates
+Single-argument user calls take **6.6–10.5% less elapsed time**, with every launch
+comparison over 4.4% faster and unchanged allocations. Arithmetic ranges from 8.5% slower
+to 3.2% faster; strings from 1.9% slower to 3.3% faster. These controls vary; no uniform
+gain is claimed. The existing frame entry, argument scope/aliases and stack boundaries stay.
+
+The retained string-builtin change takes **9.2–13.2% less elapsed time** and allocates
 **53.1% fewer managed bytes** under the cooperative budget. Every launch comparison is over 7.2% faster.
 The existing governed fixture uses the same catalog script/input and verifies exact output
 and a zero shared reservation after every invocation. No GNU process was timed in this mode.
@@ -66,29 +70,16 @@ Default strings range from 1.1% slower to 1.1% faster, with unchanged allocation
 controls were 0.6–1.6% slower. These default measurements are retained, not rerun for the
 subsequent governed-policy experiment.
 
-Retained field evidence uses `{value=$1;sum+=length(value)}END{print sum}`, 4,096 identical
-64-field records (1,323,008 bytes): `0007 worker café`, then 61 `tail` fields and LF.
-GNU verifies `16384` plus LF but was not timed. It takes 40.9–41.4% less elapsed time and
-75.3% fewer allocated bytes; formatting was flat to 1.6% slower, all-fields variable and
-a string pilot 2.9% slower (unconfirmed). The retained printf result takes 3.8–6.4% less
-elapsed time and 15.0% fewer bytes; controls overlap. Earlier measured revisions above
-are not current-head retimings or cumulative gain claims.
+The governed row retains its measured source, not a current-head retiming. Raw results
+and older optimization histories stay local. See [runtime limits](RUNTIME_LIMITS.md) for
+admission estimates and [record semantics](RECORD_SEMANTICS.md) for field behavior.
 
-`printf` keeps its admitted staging buffer through emission; rounded capacity replaces a
-copied-text estimate, so optional memory thresholds can change. Owned field reads retain
-fewer descriptors; later NF/mutation completion may rescan and charge optional fuel.
-Tight field quotas still validate before publishing a prefix. See [runtime limits](RUNTIME_LIMITS.md)
-and [record semantics](RECORD_SEMANTICS.md).
-
-All 71 exact reference checks, 67 native core goldens and 18 stack scenarios pass at the
-current source. All 71 published work/host/field/encoding snapshots match the parent;
-30/31 finite-counter rows match, with the remaining peak 120 bytes lower (removed argument
-array). Pending/faulted operands, conversion/effect order, actual result refusal before
-target mutation and shared-budget refunds pass. Exact-source
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38780508035)
-passes 72,422 tests/OS.
-The [complete-baseline CI](https://github.com/Lokad/Awk/actions/runs/38746687036) passes
-72,365 tests/OS (63 native goldens at that source).
+All 71 exact reference checks, 68 native core goldens and 18 stack scenarios pass at this
+source. All 71 published work/host/field/encoding snapshots and 31 finite-counter rows
+match the parent. Allocation guards catch heap temporaries; pending arguments and depth
+refusal preserve the caller frame. Exact-source
+[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38784579823)
+passes 72,432 tests/OS. Strict UTF-8, mutation preflights and host/resource ownership remain.
 
 ## Environment and measurement boundaries
 
