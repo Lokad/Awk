@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Single-field array membership looks up borrowed UTF-8 bytes without copied field
+  values or temporary keys, preserving key spelling, aliases, pending index evaluation,
+  owned-key fallbacks and VM budget checks.
+
 - Wider whitespace/literal records prepare fields through the requested index, avoiding
   unused descriptors in early filters. NF/mutations and tighter field quotas retain full
   splitting; captured separators, admission, cancellation and refund behavior remain.
