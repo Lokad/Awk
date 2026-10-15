@@ -15,7 +15,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "projection", "filter", "early-fields-wide", "aggregate", "profile-narrow", "profile-wide", "two-file",
+        "projection", "filter", "membership", "early-fields-wide", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
         "arithmetic-loops", "user-functions", "string-functions", "concatenation", "regex-match", "regex-captures"
     ];
@@ -93,6 +93,13 @@ internal static class ReferenceWorkloads
                 for (var i = 0; i < rows; i++)
                     input.Append(row);
                 expected.Append(rows * fields).Append(' ').Append(rows * fields * 4).Append('\n');
+                break;
+            case "membership":
+                program = "BEGIN{for(i=0;i<64;i++)lookup[\"k\" i]=1} ($1 in lookup){n++} END{print n+0}";
+                fields = 2;
+                for (var i = 0; i < rows; i++)
+                    input.Append('k').Append(i % 128).Append("\tpayload\n");
+                expected.Append(scale == "small" ? rows : rows / 2).Append('\n');
                 break;
             case "two-file":
                 program = "NR==FNR{left[$1]=$2;next} ($1 in left)&&left[$1]!=$2{n++} END{print n+0}";
