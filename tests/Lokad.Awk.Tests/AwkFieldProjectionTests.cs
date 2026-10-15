@@ -3,6 +3,68 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFieldProjectionTests
 {
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task OwnedExpressionsUsePrefixBoundsAndChargeCompletionWork(bool dynamicIndex, bool finite)
+    {
+        var (state, counters) = State(finite);
+        var (eager, eagerCounters) = State(finite);
+        var source = AwkText.FromString("0007 worker café " + string.Join(" ", Enumerable.Repeat("tail", 61)));
+        state.SetCurrentRecord(source);
+        eager.SetCurrentRecord(source);
+        Assert.Equal(64, eager.FieldCount);
+        AwkExpression Field(int index) => dynamicIndex
+            ? AwkExpression.FieldIndex(AwkExpression.Number(index.ToString(System.Globalization.CultureInfo.InvariantCulture), index))
+            : AwkExpression.FieldIndex(index);
+        var first = await Field(1).EvaluateAsync(new(state));
+        var firstEager = await Field(1).EvaluateAsync(new(eager));
+        Assert.Equal(firstEager, first);
+        Assert.Equal("0007"u8.ToArray(), first.ByteText.AsSpan().ToArray());
+        Assert.Equal(1, counters.FieldsMaterialized);
+        Assert.Equal(64, eagerCounters.FieldsMaterialized);
+        Assert.Equal(eagerCounters.ExecutionSteps, counters.ExecutionSteps);
+        var third = await Field(3).EvaluateAsync(new(state));
+        var thirdEager = await Field(3).EvaluateAsync(new(eager));
+        Assert.Equal(thirdEager, third);
+        Assert.Equal(3, counters.FieldsMaterialized);
+        Assert.Equal(eagerCounters.ExecutionSteps, counters.ExecutionSteps);
+        var beforeCompletion = counters.ExecutionSteps;
+        Assert.Equal(64, state.FieldCount);
+        Assert.Equal(beforeCompletion + AwkExecutionGovernor.ByteWorkSteps(source.ByteLength), counters.ExecutionSteps);
+        Assert.Equal(64, counters.FieldsMaterialized);
+        Assert.Equal(first, await Field(1).EvaluateAsync(new(state)));
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OwnedExpressionRetainsTightFieldQuotaBeforePublishing(bool dynamicIndex)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
+            AwkRuntimeLimits.CreateDefault().WithMaxFields(2).WithMaxExecutionMemoryBytes(1 << 20),
+            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var source = AwkText.FromString("one two " + new string('x', 160));
+        state.SetCurrentRecord(source);
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var field = dynamicIndex ? AwkExpression.FieldIndex(AwkExpression.Number("1", 1)) : AwkExpression.FieldIndex(1);
+        var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await field.EvaluateAsync(new(state)));
+        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal(0, counters.FieldsMaterialized);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Same(source, state.CurrentRecordByteText);
+        state.SetCurrentRecord(AwkText.FromString("ok next"));
+        Assert.Equal("ok"u8.ToArray(), (await field.EvaluateAsync(new(state))).ByteText.AsSpan().ToArray());
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void DirectProjectionCopiesBeforeBorrowedRecordMutationAndAvoidsFieldValues(bool finite)

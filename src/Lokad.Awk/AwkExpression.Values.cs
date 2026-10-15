@@ -13,7 +13,7 @@ internal abstract partial class AwkExpression
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            if (!_index.IsNamedField || _index.Value > context.State.FieldCount)
+            if (!_index.IsNamedField)
                 return ValueTask.FromResult(AwkValue.FromText(string.Empty));
 
             return ValueTask.FromResult(context.State.GetFieldValue(_index));
@@ -80,9 +80,6 @@ internal abstract partial class AwkExpression
 
             if (index < 0)
                 throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-
-            if (index > context.State.FieldCount)
-                return AwkValue.FromText(string.Empty);
 
             return context.State.GetFieldValue(new AwkFieldIndex(index));
         }

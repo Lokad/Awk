@@ -5,6 +5,12 @@ internal static partial class AwkGoldenCorpus
     private static IEnumerable<AwkGoldenCase> FieldProjectionCases()
     {
         var tail = string.Join(" ", Enumerable.Repeat("last", 61));
+        yield return Passing("owned-field-prefix-keeps-fs-cached-spelling-and-recomposition",
+            ["BEGIN{OFS=\"|\"} {x=$1;FS=\",\";y=$3;print x,y;print NF,$1,$3;NF=3;print $0}"],
+            [], "0007|café\n64|0007|café\n0007|worker|café\n", "0007 worker café " + tail + "\n");
+        yield return Passing("owned-literal-field-prefix-keeps-fs-and-absent-fields",
+            ["BEGIN{FS=\"|\"} {x=$1;FS=\" \";printf \"%s:%s:%s\\n\",x,$3,$65;NF=2;print NF,$0}"],
+            [], "head:tail:\n2 head middle\n", "head|middle|tail|" + tail.Replace(' ', '|') + "\n");
         yield return Passing("field-prefix-captured-separator-nf-and-mutation",
             ["BEGIN{OFS=\"|\"} {print $1;FS=\",\";print $3,NF;$2=\"changed\";print NF,$1,$2,$3}"],
             [], "a\nc|64\n64|a|changed|c\n", "a b c " + tail + "\n");
