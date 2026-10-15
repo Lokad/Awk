@@ -101,6 +101,20 @@ internal abstract partial class AwkExpression
 
     private sealed class BinaryExpression(AwkExpression left, AwkExpression right, AwkNumericOperation operation) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression)
+        {
+            if (remainingDepth > 0 && left.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var first) &&
+                right.TryPrepareFunctionCalls(functions, remainingDepth - 1, out var second) &&
+                TryGetSynchronousPair(first, second, out var syncLeft, out var syncRight))
+            {
+                expression = new SynchronousBinaryExpression(syncLeft, syncRight, operation);
+                return true;
+            }
+            expression = AwkSynchronousExpression.Unavailable;
+            return false;
+        }
+
         public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
         {
             context.State.RecordExecutionStep();

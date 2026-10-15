@@ -18,6 +18,23 @@ internal abstract partial class AwkExpression
 
     private sealed class FunctionCallExpression(AwkFunctionName name, IReadOnlyList<AwkExpression> arguments) : AwkExpression
     {
+        internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
+            int remainingDepth, out AwkSynchronousExpression expression)
+        {
+            if (remainingDepth > 0 && arguments.Count == 1 && functions.TryGetValue(name, out var function) &&
+                function.Layout.SlotCount == 1 && arguments[0].TryPrepareFunctionCalls(functions, remainingDepth - 1, out var operand))
+            {
+                var call = new SynchronousFunctionCall(function, operand);
+                if (call.SynchronousDepth <= 16 && call.SynchronousCallDepth < 4)
+                {
+                    expression = call;
+                    return true;
+                }
+            }
+            expression = AwkSynchronousExpression.Unavailable;
+            return false;
+        }
+
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             if (context.State.TryGetUserFunction(name, out var function))

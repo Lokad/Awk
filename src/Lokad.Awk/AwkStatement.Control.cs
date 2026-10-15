@@ -279,6 +279,12 @@ internal abstract partial class AwkStatement
 
     private sealed class ReturnStatement(AwkOptionalExpression valueExpression) : AwkStatement
     {
+        internal override bool TryGetReturnExpression(out AwkExpression expression)
+        {
+            expression = valueExpression.HasValue ? valueExpression.Value : AwkSynchronousExpression.Unavailable;
+            return valueExpression.HasValue;
+        }
+
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var state = context.State;

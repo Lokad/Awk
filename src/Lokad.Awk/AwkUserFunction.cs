@@ -28,15 +28,33 @@ internal interface IAwkUserFunction
 internal sealed class AwkUserFunction : IAwkUserFunction
 {
     private readonly AwkStatement[] _statements;
+    private readonly AwkSynchronousFunction? _synchronous;
 
     public AwkUserFunction(
         AwkFunctionName name,
         AwkFunctionLocalLayout localLayout,
         IReadOnlyList<AwkStatement> statements)
+        : this(name, localLayout, AwkCollectionSnapshots.Copy(statements), null)
+    {
+    }
+
+    private AwkUserFunction(AwkFunctionName name, AwkFunctionLocalLayout localLayout,
+        AwkStatement[] statements, AwkSynchronousFunction? synchronous)
     {
         FunctionName = name;
         LocalLayout = localLayout;
-        _statements = AwkCollectionSnapshots.Copy(statements);
+        _statements = statements;
+        _synchronous = synchronous;
+    }
+
+    internal AwkUserFunction WithSynchronousFunction(AwkSynchronousFunction function) =>
+        new(FunctionName, LocalLayout, _statements, function);
+
+    internal bool TryGetReturnExpression(out AwkExpression expression)
+    {
+        if (_statements.Length == 1) return _statements[0].TryGetReturnExpression(out expression);
+        expression = AwkSynchronousExpression.Unavailable;
+        return false;
     }
 
     public AwkFunctionName FunctionName { get; }
@@ -168,8 +186,13 @@ internal sealed class AwkUserFunction : IAwkUserFunction
             if (_statements.Length == 0)
                 return AwkValue.Unassigned();
 
-            if (!context.TryGetExecutionContext(out _))
+            if (!context.TryGetExecutionContext(out var execution))
                 return AwkValue.Unassigned();
+
+            if (_synchronous is { } prepared && !state.UsesExecutableEngine && state.LintMode == AwkLintMode.Off &&
+                state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
+                !execution.Output.HasPendingOutput && RuntimeHelpers.TryEnsureSufficientExecutionStack())
+                return prepared.EvaluateBody(context);
 
             var flow = await AwkStatementBlockExecutor
                 .ExecuteAsync(_statements, context)

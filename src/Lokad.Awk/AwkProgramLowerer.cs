@@ -71,6 +71,7 @@ internal static partial class AwkProgramLowerer
             functions[function.FunctionName] = function;
         }
 
+        AwkSynchronousFunction.Prepare(functions, checkpoint);
         var globalScope = AwkLoweringScope.GlobalFor(mode, checkpoint, globalReads);
         for (var ruleIndex = 0; ruleIndex < syntax.Rules.Count; ruleIndex++)
         {

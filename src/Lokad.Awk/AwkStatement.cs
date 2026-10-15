@@ -188,6 +188,12 @@ internal abstract partial class AwkStatement
         return false;
     }
 
+    internal virtual bool TryGetReturnExpression(out AwkExpression expression)
+    {
+        expression = AwkSynchronousExpression.Unavailable;
+        return false;
+    }
+
     /// <summary>Executes this statement and returns the control-flow request visible to its enclosing block.</summary>
     public abstract ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context);
 

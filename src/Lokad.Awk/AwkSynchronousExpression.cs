@@ -4,6 +4,7 @@ namespace Lokad.Awk;
 internal abstract class AwkSynchronousExpression : AwkExpression
 {
     internal virtual int SynchronousDepth => 1;
+    internal virtual int SynchronousCallDepth => 0;
     internal static AwkSynchronousExpression Unavailable { get; } = new UnavailableExpression();
 
     internal AwkValue EvaluateSynchronous(AwkEvaluationContext context)
@@ -59,6 +60,7 @@ internal abstract partial class AwkExpression
         AwkSynchronousExpression left, AwkSynchronousExpression right, AwkNumericOperation operation) : AwkSynchronousExpression
     {
         internal override int SynchronousDepth { get; } = 1 + Math.Max(left.SynchronousDepth, right.SynchronousDepth);
+        internal override int SynchronousCallDepth { get; } = Math.Max(left.SynchronousCallDepth, right.SynchronousCallDepth);
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
         {

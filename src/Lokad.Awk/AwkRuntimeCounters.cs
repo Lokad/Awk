@@ -66,6 +66,13 @@ internal sealed class AwkRuntimeCounters
     public long SynchronousLoopRuns { get; private set; }
 
     public long SynchronousExpressionRuns { get; private set; }
+    public long SynchronousFunctionRuns { get; private set; }
+
+    public void RecordSynchronousFunction()
+    {
+        if (!_enabled) return;
+        lock (_sync) SynchronousFunctionRuns++;
+    }
 
     public long HostCalls { get; private set; }
 

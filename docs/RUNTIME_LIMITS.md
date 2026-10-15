@@ -46,6 +46,10 @@ and mutation preflights. Functions retain their validated asynchronous stack bou
 host/pending work, lint and buffered diagnostics retain normal interpreter execution.
 Synchronous eligibility is bounded to expression depth 16 and 16 body statements;
 larger shapes use the normal executor, bounding preparation work and metadata.
+Small acyclic return-expression chains reuse the same frames and accounting, bounded
+to four function levels and expression depth 16. Host/pending/lint work, larger syntax
+allowances and the optional executable engine keep ordinary call execution. Entry and
+unwind stack checks remain; prepared metadata belongs to the existing compiled owner.
 Builtin arguments keep caller order and pending lifetimes. General synchronous builtins
 use admitted staging buffers; `index`, `substr`, `tolower` and `toupper` use value locals.
 Their arguments finish before conversions. Actual result allocations still preflight;

@@ -64,6 +64,7 @@ internal sealed class AwkRuntimeState
         AwkRegexEscapeWarnings? regexEscapeWarnings = null)
     {
         Counters = runtimeOptions.Counters;
+        UsesExecutableEngine = runtimeOptions.ExecutionEngineKind == AwkExecutionEngineKind.Executable;
         Limits = runtimeOptions.Limits;
         Resources = resources;
         MemoryAccounting = AwkMemoryAccounting.Create(Limits, Counters, runtimeOptions.MemoryOwner);
@@ -234,6 +235,7 @@ internal sealed class AwkRuntimeState
     public bool NonDecimalData { get; }
 
     public AwkRuntimeCounters Counters { get; }
+    internal bool UsesExecutableEngine { get; }
 
     public AwkRuntimeLimits Limits { get; }
 
