@@ -39,7 +39,7 @@ public sealed class AwkBitwiseTests
             AwkExpression[] expressions = name == "compl"
                 ? [AwkExpression.Number("six", 6)]
                 : [AwkExpression.Number("six", 6), AwkExpression.Number("three", 3)];
-            var context = new AwkBuiltinContext(expressions, new AwkEvaluationContext(state));
+            var context = new AwkEvaluationContext(state);
             for (var index = 0; index < 1_000; index++)
                 Evaluate();
 
@@ -50,7 +50,7 @@ public sealed class AwkBitwiseTests
 
             void Evaluate()
             {
-                var pending = builtin.EvaluateAsync(context);
+                var pending = builtin.EvaluateAsync(expressions, context);
                 if (!pending.IsCompletedSuccessfully)
                     throw new InvalidOperationException("Numeric bitwise arguments should complete synchronously.");
                 var value = pending.Result;
@@ -79,14 +79,14 @@ public sealed class AwkBitwiseTests
         Assert.True(AwkBuiltins.TryGetCallable(name, out var builtin));
         var counters = AwkRuntimeCounters.CreateEnabled();
         var admitted = CreateState(counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(count));
-        var result = await builtin.EvaluateAsync(new AwkBuiltinContext(expressions, new AwkEvaluationContext(admitted)));
+        var result = await builtin.EvaluateAsync(expressions, new AwkEvaluationContext(admitted));
         Assert.Equal(1, result.AsNumber());
         Assert.Equal(count, counters.ExecutionSteps);
 
         var rejectedCounters = AwkRuntimeCounters.CreateEnabled();
         var rejected = CreateState(rejectedCounters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(count - 1));
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-            await builtin.EvaluateAsync(new AwkBuiltinContext(expressions, new AwkEvaluationContext(rejected))));
+            await builtin.EvaluateAsync(expressions, new AwkEvaluationContext(rejected)));
         Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(count - 1, rejectedCounters.ExecutionSteps);
     }

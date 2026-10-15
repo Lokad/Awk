@@ -67,9 +67,10 @@ public sealed class AwkNumberParserTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = CreateState(counters, AwkRuntimeLimits.CreateDefault());
         Assert.True(AwkBuiltins.TryGetCallable("strtonum", out var builtin));
-        var context = new AwkBuiltinContext([AwkExpression.Literal(source)], new AwkEvaluationContext(state));
+        var context = new AwkEvaluationContext(state);
+        AwkExpression[] arguments = [AwkExpression.Literal(source)];
 
-        var result = await builtin.EvaluateAsync(context);
+        var result = await builtin.EvaluateAsync(arguments, context);
 
         Assert.True(result.IsNumberValue);
         Assert.Equal(expected, result.AsNumber());
@@ -88,8 +89,9 @@ public sealed class AwkNumberParserTests
         foreach (var number in new double[] { 1d / 3, -0d, double.Epsilon, Math.CopySign(double.NaN, -1) })
         {
             var before = counters.ExecutionSteps;
-            var context = new AwkBuiltinContext([AwkExpression.Number("value", number)], new AwkEvaluationContext(state));
-            var result = await builtin.EvaluateAsync(context);
+            var context = new AwkEvaluationContext(state);
+            AwkExpression[] arguments = [AwkExpression.Number("value", number)];
+            var result = await builtin.EvaluateAsync(arguments, context);
             Assert.Equal(BitConverter.DoubleToUInt64Bits(number), BitConverter.DoubleToUInt64Bits(result.AsNumber()));
             Assert.Equal(1, counters.ExecutionSteps - before);
         }
@@ -108,14 +110,14 @@ public sealed class AwkNumberParserTests
         var expression = AwkExpression.Literal("0x" + new string('0', byteCount - 3) + "1");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var admitted = CreateState(counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(chunks + 1));
-        var value = await builtin.EvaluateAsync(new AwkBuiltinContext([expression], new AwkEvaluationContext(admitted)));
+        var value = await builtin.EvaluateAsync([expression], new AwkEvaluationContext(admitted));
         Assert.Equal(1, value.AsNumber());
         Assert.Equal(chunks + 1, counters.ExecutionSteps);
 
         var rejectedCounters = AwkRuntimeCounters.CreateEnabled();
         var rejected = CreateState(rejectedCounters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(chunks));
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-            await builtin.EvaluateAsync(new AwkBuiltinContext([expression], new AwkEvaluationContext(rejected))));
+            await builtin.EvaluateAsync([expression], new AwkEvaluationContext(rejected)));
         Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(1, rejectedCounters.ExecutionSteps);
         Assert.Equal(0, rejectedCounters.StringDecodes);

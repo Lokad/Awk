@@ -773,7 +773,7 @@ internal static partial class AwkBuiltins
         if (!definition.Arity.Accepts(arguments.Count))
             throw new AwkRuntimeException(AwkMessages.FormatInvalidBuiltinArgumentCount(name));
 
-        return definition.EvaluateAsync(new AwkBuiltinContext(arguments, context));
+        return definition.EvaluateAsync(arguments, context);
     }
 
     private static AwkBuiltinDefinition PosixMutatesStateAsync(

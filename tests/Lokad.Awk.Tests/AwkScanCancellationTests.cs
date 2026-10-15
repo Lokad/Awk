@@ -172,7 +172,7 @@ public sealed class AwkScanCancellationTests
         AwkExpression[] arguments = name == "sprintf" ? [AwkExpression.Literal("%d"), canceling] : [canceling];
 
         var error = await Assert.ThrowsAsync<OperationCanceledException>(async () =>
-            await builtin.EvaluateAsync(new AwkBuiltinContext(arguments, new AwkEvaluationContext(state))));
+            await builtin.EvaluateAsync(arguments, new AwkEvaluationContext(state)));
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

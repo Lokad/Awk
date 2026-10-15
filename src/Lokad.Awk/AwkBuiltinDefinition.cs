@@ -22,7 +22,7 @@ internal readonly struct AwkBuiltinContext
         Evaluation = evaluationContext;
     }
 
-    private AwkBuiltinContext(
+    public AwkBuiltinContext(
         IReadOnlyList<AwkExpression>? expressions,
         AwkValue[] evaluatedArguments,
         int argumentCount,
@@ -75,8 +75,6 @@ internal readonly struct AwkBuiltinContext
     public bool TryGetExecutionContext(out AwkExecutionContext context) =>
         Evaluation.TryGetExecutionContext(out context);
 
-    public AwkBuiltinContext WithEvaluatedArguments(AwkValue[] values, int argumentCount) =>
-        new(_expressions, values, argumentCount, Evaluation);
 }
 
 internal abstract class AwkArity
@@ -176,8 +174,9 @@ internal sealed class AwkBuiltinDefinition(
             ? ArgumentRoles[index]
             : AwkBuiltinArgumentRole.ScalarExpression;
 
-    public ValueTask<AwkValue> EvaluateAsync(AwkBuiltinContext context) =>
-        implementation.EvaluateAsync(context);
+    public ValueTask<AwkValue> EvaluateAsync(
+        IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context) =>
+        implementation.EvaluateAsync(arguments, context);
 }
 
 internal abstract class AwkBuiltinImplementation
@@ -191,33 +190,35 @@ internal abstract class AwkBuiltinImplementation
     public static AwkBuiltinImplementation MetadataOnly { get; } = new MetadataBuiltinImplementation();
 
     /// <summary>Evaluates the built-in while preserving lazy argument semantics required by its implementation.</summary>
-    public abstract ValueTask<AwkValue> EvaluateAsync(AwkBuiltinContext context);
+    public abstract ValueTask<AwkValue> EvaluateAsync(
+        IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context);
 
     private sealed class SyncBuiltinImplementation(AwkBuiltinEvaluator evaluator) : AwkBuiltinImplementation
     {
-        public override ValueTask<AwkValue> EvaluateAsync(AwkBuiltinContext context)
+        public override ValueTask<AwkValue> EvaluateAsync(
+            IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context)
         {
-            var argumentCount = context.ArgumentCount;
+            var argumentCount = arguments.Count;
             if (argumentCount == 0)
             {
                 return ValueTask.FromResult(evaluator(
-                    context.WithEvaluatedArguments(Array.Empty<AwkValue>(), argumentCount)));
+                    new AwkBuiltinContext(arguments, [], argumentCount, context)));
             }
 
-            var buffer = AwkValueBuffer.Rent(argumentCount, context.Evaluation.State.MemoryAccounting);
+            var buffer = AwkValueBuffer.Rent(argumentCount, context.State.MemoryAccounting);
             var values = buffer.Values;
             try
             {
                 for (var index = 0; index < argumentCount; index++)
                 {
-                    var pending = context.GetValueAsync(index);
+                    var pending = arguments[index].EvaluateAsync(context);
                     if (!pending.IsCompletedSuccessfully)
-                        return EvaluateRemainingAsync(context, buffer, argumentCount, index, pending);
+                        return EvaluateRemainingAsync(arguments, context, buffer, argumentCount, index, pending);
 
                     values[index] = pending.Result;
                 }
 
-                var result = evaluator(context.WithEvaluatedArguments(values, argumentCount));
+                var result = evaluator(new AwkBuiltinContext(arguments, values, argumentCount, context));
                 buffer.Dispose();
                 return ValueTask.FromResult(result);
             }
@@ -228,7 +229,8 @@ internal abstract class AwkBuiltinImplementation
             }
 
             async ValueTask<AwkValue> EvaluateRemainingAsync(
-                AwkBuiltinContext context,
+                IReadOnlyList<AwkExpression> arguments,
+                AwkEvaluationContext context,
                 AwkValueBuffer buffer,
                 int argumentCount,
                 int currentIndex,
@@ -239,9 +241,9 @@ internal abstract class AwkBuiltinImplementation
                 {
                     values[currentIndex] = await pending.ConfigureAwait(false);
                     for (var index = currentIndex + 1; index < argumentCount; index++)
-                        values[index] = await context.GetValueAsync(index).ConfigureAwait(false);
+                        values[index] = await arguments[index].EvaluateAsync(context).ConfigureAwait(false);
 
-                    return evaluator(context.WithEvaluatedArguments(values, argumentCount));
+                    return evaluator(new AwkBuiltinContext(arguments, values, argumentCount, context));
                 }
                 finally
                 {
@@ -254,12 +256,14 @@ internal abstract class AwkBuiltinImplementation
 
     private sealed class AsyncBuiltinImplementation(AwkAsyncBuiltinEvaluator evaluator) : AwkBuiltinImplementation
     {
-        public override ValueTask<AwkValue> EvaluateAsync(AwkBuiltinContext context) => evaluator(context);
+        public override ValueTask<AwkValue> EvaluateAsync(
+            IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context) => evaluator(new(arguments, context));
     }
 
     private sealed class MetadataBuiltinImplementation : AwkBuiltinImplementation
     {
-        public override ValueTask<AwkValue> EvaluateAsync(AwkBuiltinContext context)
+        public override ValueTask<AwkValue> EvaluateAsync(
+            IReadOnlyList<AwkExpression> arguments, AwkEvaluationContext context)
         {
             throw new InvalidOperationException("Awk special forms are not runtime-callable built-ins.");
         }

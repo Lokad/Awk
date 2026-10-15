@@ -12,7 +12,7 @@ public sealed class AwkBuiltinsTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var context = new AwkEvaluationContext(state);
         AwkExpression[] arguments = [AwkExpression.Number("42", 42)];
-        _ = await definition.EvaluateAsync(new AwkBuiltinContext(arguments, context));
+        _ = await definition.EvaluateAsync(arguments, context);
 
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -21,7 +21,7 @@ public sealed class AwkBuiltinsTests
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < 10_000; index++)
         {
-            var value = await definition.EvaluateAsync(new AwkBuiltinContext(arguments, context));
+            var value = await definition.EvaluateAsync(arguments, context);
             if (value.AsNumber() != 42)
                 throw new InvalidOperationException("The synchronous builtin returned an unexpected value.");
         }
