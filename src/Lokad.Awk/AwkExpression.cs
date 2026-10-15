@@ -55,7 +55,9 @@ internal abstract partial class AwkExpression
         new LocalVariableExpression(name, slotId);
 
     public static AwkExpression ArrayElement(AwkArrayName name, AwkArrayIndex index) =>
-        new ArrayElementExpression(name, index);
+        index is AwkSimpleArrayIndex { Expression: DynamicFieldIndexExpression field }
+            ? new FieldArrayElementExpression(name, field)
+            : new ArrayElementExpression(name, index);
 
     public static AwkExpression Number(string text, double value) => new NumberExpression(text, value);
 

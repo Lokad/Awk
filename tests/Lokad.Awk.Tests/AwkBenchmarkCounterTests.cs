@@ -8,6 +8,26 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExistingArrayReadsBorrowFieldKeysButMissesStillCreateElements(bool miss)
+    {
+        var input = "hit payload\nhit other\n" + (miss ? "missing value\n" : "");
+        var borrowed = await RunAsync(["BEGIN{a[\"hit\"]=7}{sum+=a[$1]}END{print sum,length(a)}"], input,
+            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        var owned = await RunAsync(["BEGIN{a[\"hit\"]=7}{v=$1;sum+=a[v]}END{print sum,length(a)}"], input,
+            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        Assert.Equal(0, borrowed.ExitCode);
+        Assert.Equal(0, owned.ExitCode);
+        Assert.Equal(miss ? "14 2\n" : "14 1\n", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut), owned.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, owned.Counters.AwkTextAllocations - borrowed.Counters.AwkTextAllocations);
+        Assert.Equal(0, borrowed.Counters.StringDecodes);
+        Assert.Equal(0, borrowed.Counters.Utf8Encodes);
+    }
+
     [Fact]
     public async Task FieldMembershipAvoidsCopiedKeysAndScalarCachePublication()
     {

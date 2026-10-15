@@ -268,6 +268,24 @@ internal abstract partial class AwkExpression
         }
     }
 
+    private sealed class FieldArrayElementExpression(AwkArrayName name, DynamicFieldIndexExpression field) : AwkExpression
+    {
+        protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
+        {
+            context.State.RecordExecutionStep();
+            var index = (int)await field.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
+            return context.State.GetArrayFieldValue(name, index);
+        }
+
+        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
+        {
+            if (!compiler.TryEmitExpression(field))
+                return false;
+            compiler.EmitLoadArrayElement(name);
+            return true;
+        }
+    }
+
     private sealed class ArrayElementExpression(AwkArrayName name, AwkArrayIndex indexExpression) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)

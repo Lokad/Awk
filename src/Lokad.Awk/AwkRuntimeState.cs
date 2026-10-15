@@ -1041,6 +1041,17 @@ internal sealed class AwkRuntimeState
     public AwkValue GetArrayAwkValue(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.GetAwkValue(name, index);
 
+    public AwkValue GetArrayFieldValue(AwkArrayName name, int index)
+    {
+        if (index < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+        if (index > 0 && _recordFields.TryGetUnmaterializedFieldBytes(new(index), out var bytes) &&
+            _arrayRuntime.TryGetBorrowedAwkValue(name, bytes, out var value))
+            return value;
+        var field = index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
+        return GetArrayAwkValue(name, ToArrayKey(field));
+    }
+
     public AwkRuntimeValueKind GetArrayElementRuntimeKind(AwkArrayName name, AwkArrayKey index) =>
         _arrayRuntime.GetElementRuntimeKind(name, index);
 

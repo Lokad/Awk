@@ -5,6 +5,20 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("field-array-read-spelling-misses-and-empty-key",
+            ["BEGIN{a[7]=\"plain\";a[\"007\"]=\"padded\";a[\"café\"]=\"unicode\";FS=\"|\";$0=\"7|007|café\";print a[$1],a[$2],a[$3];$0=\"missing|\";print \"[\"a[$1]\"]\",\"[\"a[$2]\"]\",length(a);print (\"missing\" in a),(\"\" in a)}"],
+            [], "plain padded unicode\n[] [] 5\n1 1\n");
+        yield return Passing("field-array-read-alias-and-index-record-effects",
+            ["function idx(){$0=\"new data\";return 1} function read(a){return a[$(idx())]} BEGIN{a[\"new\"]=\"kept\";$0=\"old before\";print read(a),$0;print a[\"new\"],length(a)}"],
+            [], "kept new data\nkept 1\n");
+        yield return Passing("field-array-read-cached-numeric-and-record-zero",
+            ["BEGIN{a[\"007\"]=\"padded\";a[7]=\"numeric\";$0=\"007 tail\";v=$1;print a[$1];$1=7;print a[$1];$0=7;print a[$0]}"],
+            [], "padded\nnumeric\nnumeric\n");
+        yield return Passing("field-array-read-symbol-table-boundary",
+            ["BEGIN{v=42;$0=\"v tail\";print SYMTAB[$1]}"], [], "42\n");
+        yield return Passing("field-array-read-snapshot-before-later-effects",
+            ["function change(){a[\"hit\"]=\"after\";$0=\"other rest\";return \"tail\"} BEGIN{a[\"hit\"]=\"before\";$0=\"hit rest\";print a[$1],change(),a[\"hit\"],$0}"],
+            [], "before tail after other rest\n");
         yield return Passing("benchmark-core-membership-hit-miss",
             ["BEGIN{lookup[\"hit\"]=1} ($1 in lookup){n++} END{print n+0,length(lookup)}"],
             [], "2 1\n", "hit payload\nmiss payload\nhit other\n");
