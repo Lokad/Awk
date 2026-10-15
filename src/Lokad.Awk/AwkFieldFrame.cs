@@ -106,14 +106,18 @@ internal sealed class AwkFieldFrame(
 
             var fieldText = _fieldTexts[index];
             var value = createFieldValue(fieldText.Materialize(_recordText, counters, governor, checkpoint));
-            var oldCacheCount = _fieldValueCache.Count;
-            var newRetainedBytes = AdjustEstimate(
-                _retainedMemoryBytes,
-                EstimateFieldCacheBufferBytes(oldCacheCount),
-                EstimateFieldCacheBufferBytes(oldCacheCount + 1));
-            newRetainedBytes = AwkRuntimeMemory.CheckedAdd(
-                newRetainedBytes,
-                EstimateCachedFieldPayloadBytes(fieldText, value));
+            var newRetainedBytes = 0L;
+            if (governor.IsEnabled)
+            {
+                var oldCacheCount = _fieldValueCache.Count;
+                newRetainedBytes = AdjustEstimate(
+                    _retainedMemoryBytes,
+                    EstimateFieldCacheBufferBytes(oldCacheCount),
+                    EstimateFieldCacheBufferBytes(oldCacheCount + 1));
+                newRetainedBytes = AwkRuntimeMemory.CheckedAdd(
+                    newRetainedBytes,
+                    EstimateCachedFieldPayloadBytes(fieldText, value));
+            }
             checkpoint?.Invoke();
             ReplaceRetainedMemory(newRetainedBytes);
             _fieldValueCache[index] = value;
@@ -627,10 +631,10 @@ internal sealed class AwkFieldFrame(
 
         counters.RecordFieldSplit();
         using var splitLease = governor.ReserveTransient(
-            AwkRuntimeMemory.EstimateSplitBufferBytes(
+            governor.IsEnabled ? AwkRuntimeMemory.EstimateSplitBufferBytes(
                 _recordText.ByteLength,
                 fieldListCount: 2,
-                AwkSeparatorCaptureMode.Omit));
+                AwkSeparatorCaptureMode.Omit) : 0);
         var fieldTexts = splitFields(_recordText);
         ThrowIfFieldCountExceeded(fieldTexts.Count);
         var payloadByteLength = SumFieldPayloadByteLength(fieldTexts);
@@ -664,6 +668,8 @@ internal sealed class AwkFieldFrame(
     private AwkMemoryPeakAdmission PreflightRecomposition(long newRetainedBytes, int recordByteLength)
     {
         throwIfValueBytesExceeded(recordByteLength);
+        if (!governor.IsEnabled)
+            return default;
         var retainedIncrease = Math.Max(0, newRetainedBytes - _retainedMemoryBytes);
         // Recomposition allocates its destination while the previous record and dirty fields are live.
         return governor.ReserveAllocationPeak(AwkRuntimeMemory.CheckedAdd(
@@ -681,6 +687,9 @@ internal sealed class AwkFieldFrame(
 
     private void ReplaceRetainedMemory(long newBytes)
     {
+        if (!governor.IsEnabled)
+            return;
+
         if (newBytes > _retainedMemoryBytes)
         {
             governor.Reserve(newBytes - _retainedMemoryBytes);
@@ -707,7 +716,9 @@ internal sealed class AwkFieldFrame(
         List<AwkFieldText> fieldTexts,
         Dictionary<int, AwkValue> fieldValueCache,
         AwkValue fieldCountValue = default)
-        => EstimateRetainedBytes(AwkRuntimeMemory.EstimateTextBytes(recordText), fieldTexts, fieldValueCache, fieldCountValue);
+        => governor.IsEnabled
+            ? EstimateRetainedBytes(AwkRuntimeMemory.EstimateTextBytes(recordText), fieldTexts, fieldValueCache, fieldCountValue)
+            : 0;
 
     private long EstimateRetainedBytes(
         long recordTextBytes,
@@ -715,6 +726,9 @@ internal sealed class AwkFieldFrame(
         Dictionary<int, AwkValue> fieldValueCache,
         AwkValue fieldCountValue)
     {
+        if (!governor.IsEnabled)
+            return 0;
+
         long EstimateFieldValueCacheBytes(
             List<AwkFieldText> fieldTexts,
             Dictionary<int, AwkValue> fieldValueCache)
@@ -753,21 +767,24 @@ internal sealed class AwkFieldFrame(
         return bytes;
     }
 
-    private static long EstimateCachedFieldPayloadBytes(AwkFieldText fieldText, AwkValue value) =>
-        fieldText.Kind == AwkFieldTextKind.RecordSlice
+    private long EstimateCachedFieldPayloadBytes(AwkFieldText fieldText, AwkValue value) =>
+        governor.IsEnabled && fieldText.Kind == AwkFieldTextKind.RecordSlice
             ? value.RetainedTextMemoryBytes
             : 0;
 
     private long EstimateFieldCacheBufferBytes(int count)
     {
-        if (!governor.IsEnabled) return AwkRuntimeMemory.EstimateDictionaryBufferBytes(count);
+        if (!governor.IsEnabled) return 0;
         if (count > 0) return Math.Max(SmallFieldCacheBufferBytes, AwkRuntimeMemory.EstimateDictionaryBufferBytes(count));
         return _fieldValueCache.EnsureCapacity(0) is > 0 and <= MaxGovernedReusableFieldCacheCapacity
             ? SmallFieldCacheBufferBytes : 0;
     }
 
-    private static long AdjustEstimate(long currentBytes, long removedBytes, long addedBytes)
+    private long AdjustEstimate(long currentBytes, long removedBytes, long addedBytes)
     {
+        if (!governor.IsEnabled)
+            return 0;
+
         if (removedBytes > currentBytes)
             throw new InvalidOperationException("The field memory estimate is inconsistent.");
 
