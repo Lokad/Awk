@@ -7,10 +7,9 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
 {
     private const int MaxInt32Utf8ByteLength = 11;
 
-    private readonly AwkArrayKeyKind _kind;
     private readonly AwkText? _text;
+    private readonly AwkArrayKeyKind _kind;
     private readonly int _ordinal;
-    private readonly int _hashCode;
 
     public AwkArrayKey(string text, Action? checkpoint = null)
         : this(AwkText.FromString(text, AwkRuntimeCounters.Disabled, checkpoint), checkpoint)
@@ -22,7 +21,8 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         _kind = AwkArrayKeyKind.Text;
         _text = text;
         _ordinal = 0;
-        _hashCode = text.GetHashCode(checkpoint);
+        // Keep construction's cancellable materialization; dictionaries use their randomized comparer.
+        _ = text.GetHashCode(checkpoint);
     }
 
     public static AwkArrayKey FromOrdinal(int ordinal) =>
@@ -33,8 +33,6 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
         _kind = AwkArrayKeyKind.Ordinal;
         _text = AwkText.Empty;
         _ordinal = ordinal;
-        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
-        _hashCode = AwkByteFacts.GetOrdinalHashCode(FormatOrdinalBytes(ordinal, buffer));
     }
 
     public static AwkArrayKey FromArgvIndex(AwkArgvIndex index) =>
@@ -111,10 +109,14 @@ internal readonly struct AwkArrayKey : System.IEquatable<AwkArrayKey>
     public override bool Equals(object? obj) =>
         obj is AwkArrayKey other && Equals(other);
 
-    public override int GetHashCode() =>
-        _kind == AwkArrayKeyKind.Text && _text is null
-            ? AwkText.Empty.GetHashCode()
-            : _hashCode;
+    public override int GetHashCode()
+    {
+        if (!IsOrdinal)
+            return Text.GetHashCode();
+
+        Span<byte> buffer = stackalloc byte[MaxInt32Utf8ByteLength];
+        return AwkByteFacts.GetOrdinalHashCode(FormatOrdinalBytes(_ordinal, buffer));
+    }
 
     internal int GetRandomizedHashCode(Action? checkpoint = null)
     {

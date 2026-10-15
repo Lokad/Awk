@@ -9,6 +9,21 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task OrdinalArrayKeysKeepMixedTextLookupsByteNative(AwkExecutionEngineKind engine)
+    {
+        var result = await RunAsync(
+            ["BEGIN{a[0]=7;a[-1]=8;a[2147483647]=9;a[-2147483648]=10;a[\"01\"]=11;print a[\"0\"],a[\"-1\"],a[\"2147483647\"],a[\"-2147483648\"],a[1]+0,a[\"01\"],length(a)}"],
+            "", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("7 8 9 10 0 11 6\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.AwkTextAsStringCalls);
+    }
+
+    [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter, false)]
     [InlineData(AwkExecutionEngineKind.Interpreter, true)]
     [InlineData(AwkExecutionEngineKind.Executable, false)]

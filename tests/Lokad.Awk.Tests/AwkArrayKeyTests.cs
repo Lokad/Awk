@@ -26,6 +26,8 @@ public sealed class AwkArrayKeyTests
     [InlineData(0, "0")]
     [InlineData(42, "42")]
     [InlineData(-7, "-7")]
+    [InlineData(int.MinValue, "-2147483648")]
+    [InlineData(int.MaxValue, "2147483647")]
     public void AwkArrayKey_OrdinalKeysMatchTextKeysWithoutRetainedText(int ordinal, string text)
     {
         var fromOrdinal = AwkArrayKey.FromOrdinal(ordinal);
@@ -59,6 +61,23 @@ public sealed class AwkArrayKeyTests
         var textBytes = AwkRuntimeMemory.EstimateArrayElementBytes(new AwkArrayKey("12"), slot);
 
         Assert.True(ordinalBytes < textBytes);
+    }
+
+    [Fact]
+    public void AwkArrayKey_DefaultKeyMatchesEmptyTextAndRemainsDistinctFromZero()
+    {
+        var empty = new AwkArrayKey(AwkText.Empty);
+        var zero = AwkArrayKey.FromOrdinal(0);
+        var key = default(AwkArrayKey);
+        foreach (var comparer in new IEqualityComparer<AwkArrayKey>[] { EqualityComparer<AwkArrayKey>.Default, AwkArrayKeyComparer.Instance })
+        {
+            Assert.True(comparer.Equals(key, empty));
+            Assert.Equal(comparer.GetHashCode(empty), comparer.GetHashCode(key));
+            Assert.False(comparer.Equals(key, zero));
+            var dictionary = new Dictionary<AwkArrayKey, int>(comparer) { [key] = 1, [zero] = 2 };
+            Assert.Equal(1, dictionary[empty]);
+            Assert.Equal(2, dictionary[new AwkArrayKey("0")]);
+        }
     }
 
     [Fact]
