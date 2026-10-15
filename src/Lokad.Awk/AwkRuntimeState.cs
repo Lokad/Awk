@@ -531,6 +531,30 @@ internal sealed class AwkRuntimeState
             AwkText.CompareBytes(bytes, literal.AsSpan(CancellationCheckpoint), CancellationCheckpoint), comparison);
     }
 
+    internal bool CompareValueField(AwkValue left, int index, AwkComparison comparison)
+    {
+        if (index < 0)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+
+        ReadOnlySpan<byte> bytes = default;
+        var borrowed = index > 0 && NumberParsingMode == AwkNumberParsingMode.Decimal &&
+            !IsCaseInsensitive && _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
+        if (!borrowed)
+            return AwkComparisonOperations.Evaluate(left,
+                index == 0 ? GetCurrentRecordValue() : GetFieldValue(index), comparison, this);
+
+        // The field read and its admission precede comparison-time errors in the left value.
+        // Numeric comparisons retain ordinary input classification and owned field values.
+        if (left.TryGetNumber(out _))
+            return AwkComparisonOperations.Evaluate(left, GetFieldValue(index), comparison, this);
+
+        Counters.RecordByteTextComparison();
+        // Consume the field borrow synchronously after the left operand and index finish.
+        return AwkComparisonOperations.EvaluateTextComparison(
+            AwkText.CompareBytes(FormatStringByteText(left).AsSpan(CancellationCheckpoint), bytes,
+                CancellationCheckpoint), comparison);
+    }
+
     public int IndexOfStringUnits(AwkText source, AwkText value) =>
         _stringRuntime.IndexOfUnits(source, value, IsCaseInsensitive);
 

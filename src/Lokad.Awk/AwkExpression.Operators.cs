@@ -199,11 +199,13 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class ComparisonExpression(
+    private class ComparisonExpression(
         AwkExpression left,
         AwkExpression right,
         AwkComparison comparison) : AwkExpression
     {
+        protected AwkComparison Comparison => comparison;
+
         internal override ValueTask<bool> EvaluateConditionAsync(AwkEvaluationContext context)
         {
             context.State.RecordExecutionStep();
@@ -213,7 +215,7 @@ internal abstract partial class AwkExpression
                 : AwaitConditionLeftAsync(context, pending);
         }
 
-        private ValueTask<bool> EvaluateConditionRight(AwkEvaluationContext context, AwkValue leftValue)
+        protected virtual ValueTask<bool> EvaluateConditionRight(AwkEvaluationContext context, AwkValue leftValue)
         {
             var pending = right.EvaluateAsync(context);
             return pending.IsCompletedSuccessfully
@@ -236,7 +238,7 @@ internal abstract partial class AwkExpression
                 : AwaitLeftAsync(context, pending);
         }
 
-        private ValueTask<AwkValue> EvaluateRight(AwkEvaluationContext context, AwkValue leftValue)
+        protected virtual ValueTask<AwkValue> EvaluateRight(AwkEvaluationContext context, AwkValue leftValue)
         {
             var pending = right.EvaluateAsync(context);
             return pending.IsCompletedSuccessfully
@@ -265,6 +267,26 @@ internal abstract partial class AwkExpression
             return true;
         }
 
+    }
+
+    private sealed class FieldValueComparisonExpression(
+        AwkExpression left,
+        DynamicFieldIndexExpression field,
+        AwkComparison comparison) : ComparisonExpression(left, field, comparison)
+    {
+        protected override ValueTask<bool> EvaluateConditionRight(AwkEvaluationContext context, AwkValue leftValue) =>
+            field.CompareLeftAsync(context, leftValue, Comparison);
+
+        protected override ValueTask<AwkValue> EvaluateRight(AwkEvaluationContext context, AwkValue leftValue)
+        {
+            var pending = field.CompareLeftAsync(context, leftValue, Comparison);
+            return pending.IsCompletedSuccessfully
+                ? ValueTask.FromResult(AwkValue.FromNumber(pending.Result ? 1 : 0))
+                : AwaitComparisonAsync(pending);
+        }
+
+        private static async ValueTask<AwkValue> AwaitComparisonAsync(ValueTask<bool> pending) =>
+            AwkValue.FromNumber(await pending.ConfigureAwait(false) ? 1 : 0);
     }
 
     private sealed class FieldLiteralComparisonExpression(

@@ -83,7 +83,9 @@ internal abstract partial class AwkExpression
         left is DynamicFieldIndexExpression field && right is LiteralExpression literal &&
         literal.RegexPatternOrigin == AwkRegexPatternOrigin.Runtime
             ? new FieldLiteralComparisonExpression(left, field.IndexExpression, literal, comparison)
-            : new ComparisonExpression(left, right, comparison);
+            : right is DynamicFieldIndexExpression rightField
+                ? new FieldValueComparisonExpression(left, rightField, comparison)
+                : new ComparisonExpression(left, right, comparison);
 
     public static AwkExpression RegexMatch(
         AwkExpression left,
