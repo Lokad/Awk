@@ -42,6 +42,37 @@ public sealed class AwkBinaryNumericTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SynchronousConversionFailureStopsTheRightOperand(bool numeric)
+    {
+        var (state, counters) = State(true);
+        var left = new SynchronousOperand(AwkValue.FromNumericString("0x1.5", AwkNumberParsingMode.NonDecimalData));
+        var right = new SynchronousOperand(AwkValue.FromNumber(3));
+        var expression = AwkExpression.Add(left, right);
+        var context = new AwkEvaluationContext(state);
+        var steps = counters.ExecutionSteps;
+        var error = numeric
+            ? await Record.ExceptionAsync(async () => { _ = await expression.ResolveNumberAsync(context); })
+            : await Record.ExceptionAsync(async () => { _ = await expression.EvaluateAsync(context); });
+        Assert.IsType<AwkRuntimeException>(error);
+        Assert.Equal(1, left.Entries);
+        Assert.Equal(0, right.Entries);
+        Assert.Equal(2, counters.ExecutionSteps - steps);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    private sealed class SynchronousOperand(AwkValue value) : AwkSynchronousExpression
+    {
+        public int Entries { get; private set; }
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
+        {
+            Entries++;
+            return value;
+        }
+    }
+
     private static AwkExpression Field(int index) =>
         AwkExpression.FieldIndex(AwkExpression.Number(index.ToString(System.Globalization.CultureInfo.InvariantCulture), index));
 

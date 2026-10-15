@@ -13,6 +13,15 @@ internal abstract class AwkSynchronousExpression : AwkExpression
         return EvaluateSynchronousCore(context);
     }
 
+    internal double ResolveNumberSynchronous(AwkEvaluationContext context)
+    {
+        context.State.RecordExecutionStep();
+        return EvaluateNumberSynchronousCore(context);
+    }
+
+    protected virtual double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
+        EvaluateSynchronousCore(context).AsNumber(context.State.CancellationCheckpoint);
+
     protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
     {
         context.State.Counters.RecordSynchronousExpression();
@@ -64,10 +73,16 @@ internal abstract partial class AwkExpression
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
         {
-            var checkpoint = context.State.CancellationCheckpoint;
-            var leftValue = left.EvaluateSynchronous(context).AsNumber(checkpoint);
-            var rightValue = right.EvaluateSynchronous(context).AsNumber(checkpoint);
+            var leftValue = left.ResolveNumberSynchronous(context);
+            var rightValue = right.ResolveNumberSynchronous(context);
             return AwkValue.FromNumber(AwkNumericOperations.Apply(leftValue, rightValue, operation));
+        }
+
+        protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context)
+        {
+            var leftValue = left.ResolveNumberSynchronous(context);
+            var rightValue = right.ResolveNumberSynchronous(context);
+            return AwkNumericOperations.Apply(leftValue, rightValue, operation);
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)

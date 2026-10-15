@@ -310,6 +310,9 @@ internal abstract partial class AwkExpression
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             AwkValue.FromNumber(context.State.ResolveSourceNumberLiteral(text, gnuDefaultValue));
 
+        protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
+            context.State.ResolveSourceNumberLiteral(text, gnuDefaultValue);
+
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
             if (!TryResolvePortableExecutableNumber(text, gnuDefaultValue, out var value))
