@@ -227,7 +227,7 @@ public sealed class AwkScanCancellationTests
     private readonly struct EmptyPrintfArguments : IPrintfArguments
     {
         public int Count => 0;
-        public string GetString(int index) => throw new ArgumentOutOfRangeException(nameof(index));
+        public AwkText GetByteText(int index) => throw new ArgumentOutOfRangeException(nameof(index));
         public double GetNumber(int index) => throw new ArgumentOutOfRangeException(nameof(index));
         public bool IsNumeric(int index) => throw new ArgumentOutOfRangeException(nameof(index));
     }

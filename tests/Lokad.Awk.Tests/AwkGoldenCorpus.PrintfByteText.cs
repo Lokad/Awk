@@ -1,0 +1,20 @@
+namespace Lokad.Awk.Tests;
+
+internal static partial class AwkGoldenCorpus
+{
+    private static IEnumerable<AwkGoldenCase> PrintfByteTextCases()
+    {
+        yield return Passing("printf-byte-text-fields",
+            ["{printf \"<%s>|%s\\n\",$1,$2}"], [], "<café>|😀\n", "café 😀\n");
+        yield return Passing("printf-byte-text-numeric-convfmt-and-sprintf",
+            ["BEGIN{CONVFMT=\"%.3f\";n=7/4;printf \"%s|%s|%s\\n\",n,7,\"\";print sprintf(\"%s\",n)}"], [], "1.750|7|\n1.750\n", "");
+        yield return Passing("printf-byte-text-positional-and-empty",
+            ["BEGIN{printf \"%2$s|%1$s|%3$s\\n\",\"é\",\"😀\",\"\"}"], [], "😀|é|\n", "");
+        yield return Passing("printf-byte-text-width-precision-character-controls",
+            ["BEGIN{printf \"%5s|%.1s|%c|%-4s\\n\",\"界\",\"😀tail\",\"éx\",\"é\"}"], [], "    界|😀|é|é   \n", "");
+        yield return Passing("printf-byte-text-byte-mode",
+            ["-b", "{printf \"%s|%s\\n\",$1,$2}"], [], "café|😀\n", "café 😀\n");
+        yield return Passing("printf-byte-text-snapshot-before-later-argument-effects",
+            ["function mutate(){$0=\"new next\";return \"tail\"} {printf \"%s|%s|%s\\n\",$1,mutate(),$0}"], [], "old|tail|new next\n", "old rest\n");
+    }
+}

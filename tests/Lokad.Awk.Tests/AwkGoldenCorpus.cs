@@ -142,6 +142,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(CalendarNormalizationCases(), AwkGoldenTag.Function),
 
         .. Tagged(FormattingSyntaxCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
+        .. Tagged(PrintfByteTextCases(), AwkGoldenTag.Expression, AwkGoldenTag.Statement),
 
         .. Tagged(IntegerFormattingCases(), AwkGoldenTag.Output, AwkGoldenTag.Expression),
 

@@ -136,9 +136,11 @@ public sealed class AwkPrintfCancellationTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void PublicationBoundaryCancellationReleasesTheBuilder(bool afterCopy)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void PublicationBoundaryCancellationReleasesTheBuilder(bool afterCopy, bool warmArgument)
     {
         const string format = "prefix%20000s";
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -146,7 +148,14 @@ public sealed class AwkPrintfCancellationTests
         var governor = AwkMemoryAccounting.Create(limits, counters);
         var total = 0;
         var encodesAtCheckpoint = new List<long>();
-        var arguments = new TestArguments("界", 0);
+        TestArguments Arguments()
+        {
+            var value = new TestArguments("界", 0);
+            if (warmArgument)
+                value.GetByteText(0).AsString();
+            return value;
+        }
+        var arguments = Arguments();
         Assert.Equal(20006, PrintfEvaluation.FormatByteText(format, arguments, PrintfMissingArgumentPolicy.Throw,
             limits, counters, governor, checkpoint: () =>
             {
@@ -165,7 +174,7 @@ public sealed class AwkPrintfCancellationTests
             cancellation.Token.ThrowIfCancellationRequested();
         }
         var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(format,
-            arguments, PrintfMissingArgumentPolicy.Throw, limits, counters, governor, checkpoint: Checkpoint));
+            Arguments(), PrintfMissingArgumentPolicy.Throw, limits, counters, governor, checkpoint: Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal(afterCopy ? 1 : 0, counters.Utf8Encodes);
         Assert.Equal(0, governor.CurrentReservedBytes);
@@ -211,13 +220,15 @@ public sealed class AwkPrintfCancellationTests
     private readonly struct TestArguments(string text, double number, Action? onString = null,
         Action? onNumber = null, bool numeric = false) : IPrintfArguments
     {
+        private readonly AwkText _text = AwkText.FromSourceLiteralString(text);
+
         public int Count => 1;
 
-        public string GetString(int index)
+        public AwkText GetByteText(int index)
         {
             ArgumentOutOfRangeException.ThrowIfNotEqual(index, 0);
             onString?.Invoke();
-            return text;
+            return _text;
         }
 
         public double GetNumber(int index)

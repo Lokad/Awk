@@ -8,6 +8,31 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter, false)]
+    [InlineData(AwkExecutionEngineKind.Interpreter, true)]
+    [InlineData(AwkExecutionEngineKind.Executable, false)]
+    [InlineData(AwkExecutionEngineKind.Executable, true)]
+    internal async Task PlainPrintfTextAvoidsArgumentStringBridges(AwkExecutionEngineKind engine, bool sprintf)
+    {
+        string Script(bool width) => sprintf
+            ? "{printf \"%s\",sprintf(\"<%" + (width ? "1" : "") + "s>|%" + (width ? "1" : "") + "s\\n\",$1,$2)}"
+            : "{printf \"<%" + (width ? "1" : "") + "s>|%" + (width ? "1" : "") + "s\\n\",$1,$2}";
+        var direct = await RunAsync([Script(false)], "café 😀\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        var general = await RunAsync([Script(true)], "café 😀\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, direct.ExitCode);
+        Assert.Equal(0, general.ExitCode);
+        Assert.Equal("<café>|😀\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut), general.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", direct.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal("", general.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, general.Counters.StringDecodes - direct.Counters.StringDecodes);
+        Assert.Equal(2, general.Counters.FormattingStringInteropInputs - direct.Counters.FormattingStringInteropInputs);
+        Assert.Equal(general.Counters.ExecutionSteps, direct.Counters.ExecutionSteps);
+        Assert.Equal(general.Counters.OutputBytes, direct.Counters.OutputBytes);
+        Assert.Equal(general.Counters.Utf8Encodes, direct.Counters.Utf8Encodes);
+    }
+
     [Fact]
     public async Task Awk_NumericFieldConsumptionAvoidsCopiedTextWithoutStringInterop()
     {
@@ -106,7 +131,8 @@ public sealed class AwkBenchmarkCounterTests
     internal async Task Awk_UnicodeStringEscapesShareLiteralRuntimeCounters(AwkExecutionEngineKind engine, AwkRegexEngineKind regex)
     {
         var control = await RunAsync(["BEGIN{v=\"\U0001f600\";printf \"%s\",v;exit}"], "", regex, engine);
-        Assert.Equal(2, control.Counters.StringDecodes);
+        // Plain %s keeps the value in UTF-8; only the source escape boundary decodes.
+        Assert.Equal(1, control.Counters.StringDecodes);
         foreach (var literal in new[] { "\\u1f600", "\U0001f600" })
         {
             var (exit, host, counters) = await RunAsync(

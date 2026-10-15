@@ -100,8 +100,16 @@ internal static class PrintfEvaluation
                 if (argumentCursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
                 {
                     output.PreflightAdditionalBytes(width.Value);
-                    var value = arguments.GetString(argumentIndex);
+                    var text = arguments.GetByteText(argumentIndex);
                     checkpoint?.Invoke();
+                    if (width.Value == 0 && !precision.HasValue)
+                    {
+                        output.Append(text);
+                        continue;
+                    }
+
+                    counters.RecordFormattingStringInteropInput();
+                    var value = text.AsString(counters, checkpoint);
                     if (precision.HasValue)
                         value = TruncateToRuneCount(value, precision.Value, checkpoint);
 
@@ -149,7 +157,7 @@ internal static class PrintfEvaluation
             {
                 if (argumentCursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
                 {
-                    var formatted = FormatCharacter(arguments, argumentIndex, checkpoint);
+                    var formatted = FormatCharacter(arguments, argumentIndex, counters, checkpoint);
                     output.PreflightAdditionalBytes(Math.Max(
                         width.Value,
                         AwkUtf8Codec.GetEncodedByteCount(formatted)));
@@ -522,7 +530,7 @@ internal static class PrintfEvaluation
             return truncated;
         }
 
-        static string FormatCharacter(IPrintfArguments arguments, int index, Action? checkpoint)
+        static string FormatCharacter(IPrintfArguments arguments, int index, AwkRuntimeCounters counters, Action? checkpoint)
         {
             checkpoint?.Invoke();
             if (arguments.IsNumeric(index))
@@ -534,7 +542,8 @@ internal static class PrintfEvaluation
                     : string.Empty;
             }
 
-            var value = arguments.GetString(index);
+            counters.RecordFormattingStringInteropInput();
+            var value = arguments.GetByteText(index).AsString(counters, checkpoint);
             checkpoint?.Invoke();
             return value.Length == 0 ? string.Empty : Rune.GetRuneAt(value, 0).ToString();
         }
@@ -596,6 +605,13 @@ internal static class PrintfEvaluation
             _counters = counters;
             _governor = governor;
             _builder = new AwkUtf8Builder(limits, governor, capacity: 0);
+        }
+
+        public void Append(AwkText text)
+        {
+            var bytes = text.AsSpan(_checkpoint);
+            PreflightAdditionalBytes(bytes.Length);
+            _builder.Append(bytes, _checkpoint);
         }
 
         public void Append(string text) => Append(text.AsSpan());
@@ -678,7 +694,7 @@ internal interface IPrintfArguments
 {
     int Count { get; }
 
-    string GetString(int index);
+    AwkText GetByteText(int index);
 
     double GetNumber(int index);
 
@@ -692,11 +708,8 @@ internal readonly struct AwkValueArrayPrintfArguments(
 {
     public int Count => count;
 
-    public string GetString(int index)
-    {
-        state.Counters.RecordFormattingStringInteropInput();
-        return state.FormatStringByteText(arguments[index].ForceScalar()).AsString(state.Counters, state.CancellationCheckpoint);
-    }
+    public AwkText GetByteText(int index) =>
+        state.FormatStringByteText(arguments[index].ForceScalar());
 
     public double GetNumber(int index) => arguments[index].ForceScalar().AsNumber(state.CancellationCheckpoint);
 
@@ -710,12 +723,8 @@ internal readonly struct AwkBuiltinContextPrintfArguments(
 {
     public int Count => context.ArgumentCount - startIndex;
 
-    public string GetString(int index)
-    {
-        context.State.Counters.RecordFormattingStringInteropInput();
-        return context.State.FormatStringByteText(context.GetValue(index + startIndex).ForceScalar())
-            .AsString(context.State.Counters, context.State.CancellationCheckpoint);
-    }
+    public AwkText GetByteText(int index) =>
+        context.State.FormatStringByteText(context.GetValue(index + startIndex).ForceScalar());
 
     public double GetNumber(int index) => context.GetValue(index + startIndex).ForceScalar().AsNumber(context.State.CancellationCheckpoint);
 
@@ -733,12 +742,14 @@ internal readonly struct AwkSingleValuePrintfArguments(
 {
     public int Count => 1;
 
-    public string GetString(int index)
+    public AwkText GetByteText(int index)
     {
         ArgumentOutOfRangeException.ThrowIfNotEqual(index, 0);
 
-        counters.RecordFormattingStringInteropInput();
-        return value.AsString(counters, checkpoint);
+        // Custom scalar formats retain their existing full-precision string conversion.
+        return value.IsNumberValue
+            ? AwkText.FromString(value.AsString(counters, checkpoint), counters, checkpoint)
+            : value.ByteText;
     }
 
     public double GetNumber(int index) =>
