@@ -72,8 +72,26 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         {
             _state.ThrowIfCancellationRequested();
             var separator = GetCurrentSeparator();
-            if (_lineReader is not null && separator is NewlineSeparator)
-                return await ReadDefaultNewlineAsync(_lineReader).ConfigureAwait(false);
+            if (_lineReader is { } reader && separator is NewlineSeparator)
+            {
+                if (!await reader.TryBufferLineAsync().ConfigureAwait(false))
+                    return AwkInputRecordResult.EndOfFile;
+
+                var line = AwkRecordLine.SplitDefaultNewline(reader.PeekLine());
+                _state.Resources.ThrowIfRecordBytesExceeded(line.RecordBytes.Length);
+                _state.Resources.ThrowIfValueBytesExceeded(line.RecordBytes.Length);
+                var record = AwkText.CopyHostBytes(
+                    line.RecordBytes.Span,
+                    _state.Counters,
+                    _state.MemoryAccounting,
+                    _state.CancellationCheckpoint);
+                _state.ThrowIfCancellationRequested();
+                reader.ReadLine();
+                return AwkInputRecordResult.Record(
+                    record,
+                    line.Terminator,
+                    AwkRecordFieldSplittingMode.Ordinary);
+            }
 
             EnsureBufferedMode();
             var result = TryReadBuffered(separator);
@@ -81,27 +99,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 return result.Record;
 
             await AppendNextBatchAsync().ConfigureAwait(false);
-        }
-
-        async ValueTask<AwkInputRecordResult> ReadDefaultNewlineAsync(AsyncLineReader reader)
-        {
-            if (!await reader.TryBufferLineAsync().ConfigureAwait(false))
-                return AwkInputRecordResult.EndOfFile;
-
-            var line = AwkRecordLine.SplitDefaultNewline(reader.PeekLine());
-            _state.Resources.ThrowIfRecordBytesExceeded(line.RecordBytes.Length);
-            _state.Resources.ThrowIfValueBytesExceeded(line.RecordBytes.Length);
-            var record = AwkText.CopyHostBytes(
-                line.RecordBytes.Span,
-                _state.Counters,
-                _state.MemoryAccounting,
-                _state.CancellationCheckpoint);
-            _state.ThrowIfCancellationRequested();
-            reader.ReadLine();
-            return AwkInputRecordResult.Record(
-                record,
-                line.Terminator,
-                AwkRecordFieldSplittingMode.Ordinary);
         }
 
         void EnsureBufferedMode()
