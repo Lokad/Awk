@@ -101,35 +101,45 @@ internal abstract partial class AwkExpression
 
     private sealed class BinaryExpression(AwkExpression left, AwkExpression right, AwkNumericOperation operation) : AwkExpression
     {
+        public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
+        {
+            context.State.RecordExecutionStep();
+            return EvaluateNumberCoreAsync(context);
+        }
+
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var pending = left.EvaluateAsync(context);
+            var pending = EvaluateNumberCoreAsync(context);
             return pending.IsCompletedSuccessfully
-                ? EvaluateRight(context, pending.Result.AsNumber(context.State.CancellationCheckpoint))
+                ? ValueTask.FromResult(AwkValue.FromNumber(pending.Result))
+                : AwaitValueAsync(pending);
+        }
+
+        private static async ValueTask<AwkValue> AwaitValueAsync(ValueTask<double> pending) =>
+            AwkValue.FromNumber(await pending.ConfigureAwait(false));
+
+        private ValueTask<double> EvaluateNumberCoreAsync(AwkEvaluationContext context)
+        {
+            var pending = left.ResolveNumberAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? EvaluateRight(context, pending.Result)
                 : AwaitLeftAsync(context, pending);
         }
 
-        private ValueTask<AwkValue> EvaluateRight(AwkEvaluationContext context, double leftValue)
+        private ValueTask<double> EvaluateRight(AwkEvaluationContext context, double leftValue)
         {
-            var pending = right.EvaluateAsync(context);
+            var pending = right.ResolveNumberAsync(context);
             return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(Apply(context, leftValue, pending.Result))
+                ? ValueTask.FromResult(AwkNumericOperations.Apply(leftValue, pending.Result, operation))
                 : AwaitRightAsync(context, leftValue, pending);
         }
 
-        private async ValueTask<AwkValue> AwaitLeftAsync(AwkEvaluationContext context, ValueTask<AwkValue> pending)
-        {
-            var value = await pending.ConfigureAwait(false);
-            return await EvaluateRight(context, value.AsNumber(context.State.CancellationCheckpoint)).ConfigureAwait(false);
-        }
+        private async ValueTask<double> AwaitLeftAsync(AwkEvaluationContext context, ValueTask<double> pending) =>
+            await EvaluateRight(context, await pending.ConfigureAwait(false)).ConfigureAwait(false);
 
-        private async ValueTask<AwkValue> AwaitRightAsync(
-            AwkEvaluationContext context, double leftValue, ValueTask<AwkValue> pending) =>
-            Apply(context, leftValue, await pending.ConfigureAwait(false));
-
-        private AwkValue Apply(AwkEvaluationContext context, double leftValue, AwkValue rightValue) =>
-            AwkValue.FromNumber(AwkNumericOperations.Apply(
-                leftValue, rightValue.AsNumber(context.State.CancellationCheckpoint), operation));
+        private async ValueTask<double> AwaitRightAsync(
+            AwkEvaluationContext context, double leftValue, ValueTask<double> pending) =>
+            AwkNumericOperations.Apply(leftValue, await pending.ConfigureAwait(false), operation);
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {

@@ -6,15 +6,19 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkExpressionCompletionTests
 {
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public async Task OperandsAreOrderedAndConsumedOnce(bool comparison, bool pendingLeft, bool pendingRight)
+    [InlineData(false, false, false, false)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, true, true, false)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, true, true, false)]
+    [InlineData(false, false, false, true)]
+    [InlineData(false, false, true, true)]
+    [InlineData(false, true, false, true)]
+    [InlineData(false, true, true, true)]
+    public async Task OperandsAreOrderedAndConsumedOnce(bool comparison, bool pendingLeft, bool pendingRight, bool numeric)
     {
         var (state, counters) = CreateState();
         var left = new ValueSource(2, pendingLeft);
@@ -24,7 +28,9 @@ public sealed class AwkExpressionCompletionTests
             : AwkExpression.Add(new SourceExpression(left), new SourceExpression(right));
         var before = counters.ExecutionSteps;
 
-        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
+        var result = numeric
+            ? WrapNumberAsync(expression.ResolveNumberAsync(new AwkEvaluationContext(state)))
+            : expression.EvaluateAsync(new AwkEvaluationContext(state));
         if (pendingLeft)
         {
             Assert.False(result.IsCompleted);
@@ -93,6 +99,8 @@ public sealed class AwkExpressionCompletionTests
     [InlineData(2, true)]
     [InlineData(3, false)]
     [InlineData(3, true)]
+    [InlineData(4, false)]
+    [InlineData(4, true)]
     public async Task FailedChildIsConsumedOnceAndStopsFollowingEffects(int operation, bool pending)
     {
         var (state, _) = CreateState();
@@ -104,7 +112,7 @@ public sealed class AwkExpressionCompletionTests
         var child = new SourceExpression(first);
         var expression = operation switch
         {
-            0 => AwkExpression.Add(child, new SourceExpression(following)),
+            0 or 4 => AwkExpression.Add(child, new SourceExpression(following)),
             1 => AwkExpression.Compare(child, new SourceExpression(following), AwkComparison.LessThan),
             2 => AwkExpression.Assignment(AwkReference.Field(new SourceExpression(following)), child),
             _ => child
@@ -112,7 +120,9 @@ public sealed class AwkExpressionCompletionTests
         var context = new AwkEvaluationContext(state);
         Task result = operation == 3
             ? AwkStatement.Expression(expression).ExecuteAsync(context).AsTask()
-            : expression.EvaluateAsync(context).AsTask();
+            : operation == 4
+                ? expression.ResolveNumberAsync(context).AsTask()
+                : expression.EvaluateAsync(context).AsTask();
         if (pending)
             first.Fail(error);
 
@@ -526,6 +536,9 @@ public sealed class AwkExpressionCompletionTests
             AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
         return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options), counters);
     }
+
+    private static async ValueTask<AwkValue> WrapNumberAsync(ValueTask<double> pending) =>
+        AwkValue.FromNumber(await pending.ConfigureAwait(false));
 
     private sealed class SourceExpression(ValueSource source) : AwkExpression
     {
