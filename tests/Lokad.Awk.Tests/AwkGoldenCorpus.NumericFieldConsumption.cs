@@ -10,8 +10,11 @@ internal static partial class AwkGoldenCorpus
             ["BEGIN{$0=\"key 2\";a[1]=8;a[1]+=$2;a[1]-=$2;a[1]*=$2;a[1]/=$2;a[1]%=$2;a[1]^=$2;print a[1]}"], [], "0\n");
         yield return Passing("numeric-field-consumption-cached-modified-and-record-zero",
             ["BEGIN{$0=\"007 tail\";v=$1;a[1]+=$1;$1=2.5;a[1]+=$1;CONVFMT=\"%.4f\";print a[1],$1;$0=3.5;a[1]+=$0;print a[1]}"], [], "9.5 2.5\n13\n");
-        yield return Passing("numeric-field-consumption-target-before-index-effects",
-            ["function change(){a[\"x\"]=100;$0=\"key 3\";return 2} BEGIN{a[\"x\"]=7;$0=\"key 1\";a[\"x\"]+=$(change());print a[\"x\"],$0}"], [], "10 key 3\n");
+        yield return AwkGoldenCaseBuilder.Create("numeric-field-consumption-target-before-index-effects",
+            ["function change(){a[\"x\"]=100;$0=\"key 3\";return 2} BEGIN{a[\"x\"]=7;$0=\"key 1\";a[\"x\"]+=$(change());print a[\"x\"],$0}"], [])
+            .WithStdOut("10 key 3\n")
+            .WithNondeterminismNote("Lokad captures the compound target and left value before RHS index effects. GNU awk 5.2.1 produces 103 key 3; this preserves the documented compound-update ordering contract.")
+            .Build();
         yield return Passing("numeric-field-consumption-empty-and-out-of-range",
             ["BEGIN{FS=\":\";$0=\"k::3\";a[1]=7;a[1]+=$2;a[1]+=$4;print a[1];a[1]+=$3;print a[1]}"], [], "7\n10\n");
         const string script = "{a[1]+=$2;print a[1],$2}";
