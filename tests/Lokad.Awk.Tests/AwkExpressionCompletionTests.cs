@@ -440,6 +440,75 @@ public sealed class AwkExpressionCompletionTests
         Assert.Equal(3, counters.ExecutionSteps - before);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task NumericFieldCompoundUpdateReadsTargetBeforePendingFieldIndex(bool pendingKey, bool pendingField)
+    {
+        var (state, counters) = CreateState();
+        var array = AwkArrayName.FromText("a");
+        var key = AwkArrayKey.FromOrdinal(1);
+        state.SetArrayString(array, key, "7");
+        state.SetCurrentRecord(AwkText.FromString("key 3"));
+        var targetIndex = new ValueSource(1, pendingKey);
+        var fieldIndex = new ValueSource(2, pendingField);
+        var rhs = AwkExpression.FieldIndex(new EffectSourceExpression(fieldIndex,
+            () => state.SetArrayString(array, key, "100")));
+        var expression = AwkExpression.CompoundAssignment(
+            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(targetIndex))),
+            rhs, AwkCompoundAssignmentOperation.Add);
+        var before = counters.ExecutionSteps;
+        var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
+        if (pendingKey)
+        {
+            Assert.False(fieldIndex.Started.Task.IsCompleted);
+            targetIndex.Complete();
+        }
+        await fieldIndex.Started.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        if (pendingField)
+        {
+            Assert.False(result.IsCompleted);
+            Assert.Equal(100, state.GetArrayAwkValue(array, key).AsNumber());
+            fieldIndex.Complete();
+        }
+        Assert.Equal(10, (await result).AsNumber());
+        Assert.Equal(10, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(1, targetIndex.Consumptions);
+        Assert.Equal(1, fieldIndex.Consumptions);
+        Assert.Equal(5, counters.ExecutionSteps - before);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task NumericFieldIndexFailureDoesNotUpdateArrayOrSplitRecord(bool pendingIndex, bool canceled)
+    {
+        var (state, counters) = CreateState();
+        var array = AwkArrayName.FromText("a");
+        var key = AwkArrayKey.FromOrdinal(1);
+        state.SetArrayString(array, key, "7");
+        state.SetCurrentRecord(AwkText.FromString("key 3"));
+        var index = new ValueSource(2, pending: true);
+        Exception error = canceled ? new OperationCanceledException() : new AwkRuntimeException("numeric index failure"u8.ToArray());
+        if (!pendingIndex)
+            index.Fail(error);
+        var expression = AwkExpression.CompoundAssignment(
+            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(AwkExpression.Number("1", 1))),
+            AwkExpression.FieldIndex(new SourceExpression(index)), AwkCompoundAssignmentOperation.Add);
+        var result = expression.EvaluateAsync(new AwkEvaluationContext(state)).AsTask();
+        if (pendingIndex)
+            index.Fail(error);
+        Assert.Same(error, await Record.ExceptionAsync(() => result));
+        Assert.Equal(1, index.Consumptions);
+        Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
+        Assert.Equal(0, counters.FieldSplits);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
     private sealed class EffectSourceExpression(ValueSource source, Action effect) : AwkExpression
     {
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)

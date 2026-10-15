@@ -34,6 +34,19 @@ internal abstract partial class AwkExpression
     {
         public AwkExpression IndexExpression => indexExpression;
 
+        public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
+        {
+            context.State.RecordExecutionStep();
+            var pending = indexExpression.ResolveNumberAsync(context);
+            return pending.IsCompletedSuccessfully
+                ? ValueTask.FromResult(context.State.GetFieldNumber((int)pending.Result))
+                : AwaitNumericIndexAsync(context, pending);
+        }
+
+        private static async ValueTask<double> AwaitNumericIndexAsync(
+            AwkEvaluationContext context, ValueTask<double> pending) =>
+            context.State.GetFieldNumber((int)await pending.ConfigureAwait(false));
+
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {

@@ -203,7 +203,7 @@ internal abstract partial class AwkExpression
         context.State.FormatStringByteText(
             await EvaluateAsync(context).ConfigureAwait(false));
 
-    public ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
+    public virtual ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
     {
         var pending = EvaluateAsync(context);
         return pending.IsCompletedSuccessfully

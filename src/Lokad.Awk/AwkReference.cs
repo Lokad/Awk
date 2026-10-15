@@ -259,21 +259,21 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
     {
         var state = context.State;
         var current = state.GetArrayAwkValue(Variable, key).AsNumber(state.CancellationCheckpoint);
-        var right = value.EvaluateAsync(context);
+        var right = value.ResolveNumberAsync(context);
         return right.IsCompletedSuccessfully
             ? ValueTask.FromResult(AssignCompound(state, key, current, right.Result, operation))
             : AwaitCompoundValueAsync(state, key, current, right, operation);
     }
 
     private async ValueTask<AwkValue> AwaitCompoundValueAsync(AwkRuntimeState state, AwkArrayKey key,
-        double current, ValueTask<AwkValue> pending, AwkCompoundAssignmentOperation operation) =>
+        double current, ValueTask<double> pending, AwkCompoundAssignmentOperation operation) =>
         AssignCompound(state, key, current, await pending.ConfigureAwait(false), operation);
 
     private AwkValue AssignCompound(AwkRuntimeState state, AwkArrayKey key, double current,
-        AwkValue right, AwkCompoundAssignmentOperation operation)
+        double right, AwkCompoundAssignmentOperation operation)
     {
         var result = AwkValue.FromNumber(AwkNumericOperations.ApplyCompoundAssignment(
-            current, right.AsNumber(state.CancellationCheckpoint), operation));
+            current, right, operation));
         state.SetArrayAwkValue(Variable, key, result);
         return result;
     }

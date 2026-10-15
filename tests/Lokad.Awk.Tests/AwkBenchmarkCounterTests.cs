@@ -9,6 +9,21 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Fact]
+    public async Task Awk_NumericFieldConsumptionAvoidsCopiedTextWithoutStringInterop()
+    {
+        const string input = "k 007\nk 007\nk 007\n";
+        var direct = await RunAsync(["{a[1]+=$2} END{print a[1]}"], input);
+        var cached = await RunAsync(["{v=$2;a[1]+=v} END{print a[1]}"], input);
+        Assert.Equal(0, direct.ExitCode);
+        Assert.Equal(0, cached.ExitCode);
+        Assert.Equal("21\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("21\n", cached.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(3, cached.Counters.AwkTextAllocations - direct.Counters.AwkTextAllocations);
+        Assert.Equal(0, direct.Counters.StringDecodes);
+        Assert.Equal(0, direct.Counters.StringInteropFallbacks);
+    }
+
+    [Fact]
     public async Task Awk_FieldLiteralComparisonsKeepByteComparisonsAndAvoidFieldMaterialization()
     {
         const string input = "alpha tail\nalpha tail\nalpha tail\n";
