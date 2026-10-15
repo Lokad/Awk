@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Array writes skip redundant lookup and byte estimates when memory accounting is disabled,
+  preserving shared-budget and finite-quota admission.
+
 - Array deletion refunds the stored key's memory, preserving shared-budget and finite-quota
   accounting when equal numeric and text keys use different storage representations.
 

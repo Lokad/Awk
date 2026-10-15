@@ -82,6 +82,25 @@ allocation falls 5.85%. Join allocation falls 2.59%, but elapsed time is 3.27%/0
 higher. This control tradeoff is within the predeclared 4% tolerance; no join speedup
 is claimed. The arithmetic pilot is flat and has no confirmed gain.
 
+## Sorting and array updates
+
+Measured 2026-10-15 UTC, `5f8ae78c55c9e3c58e8e22a98b6584cba9269475` -> `dd28595aed1c44e73e9cfe46cf4d2d451379e39c`.
+Three warmups/five iterations/two launches per source/order, both source orders;
+times are the first order's medians of launch medians. Complete output, source identities
+and quiet gates pass. The full table retains ade65da and its original GNU denominators.
+
+| Case | Before ms | After ms | Time reduction, both orders | Managed bytes, unchanged |
+| --- | ---: | ---: | ---: | ---: |
+| Numeric array sort | 7.617 | 7.437 | +2.37% / +3.66% | 3,237,152 |
+| Join | 10.438 | 10.138 | +2.87% / -0.68% | 4,856,296 |
+
+Array writes skip an old-value lookup and byte estimates when neither a shared host budget
+nor finite execution-memory quota enables accounting. Six runtime lines reuse the existing
+enabled flag; governed mutation preflights and estimates remain unchanged. Sorting wins
+in every within-order launch pair (minimum 1.90%). Join's gain does not repeat; no uniform
+join speedup is claimed. All 72,110 tests/OS, GNU62/native42/stack18 and 31 identical finite
+counter rows pass. The existing refund fix remains included. No owner/cache/backend added.
+
 ## What is measured
 
 Lokad uses `Awk.TryParse`/`Awk.ExecuteAsync` with an in-memory application-owned host;
