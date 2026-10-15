@@ -33,7 +33,7 @@ internal static class PrintfEvaluation
         using var builder = new AwkUtf8Builder(limits, governor, capacity: 0);
         FormatToBuilder(builder, format, arguments, missingArgumentPolicy, limits, counters, governor,
             compatibilityMode, checkpoint);
-        var output = new PrintfByteOutput(builder, limits, counters, governor, checkpoint, retainedTextLease);
+        var output = new PrintfByteOutput(builder, limits, counters, checkpoint, retainedTextLease);
         var result = output.ToAwkText();
         checkpoint?.Invoke();
         return result;
@@ -57,7 +57,7 @@ internal static class PrintfEvaluation
             checkpoint?.Invoke();
             return;
         }
-        var output = new PrintfByteOutput(builder, limits, counters, governor, checkpoint, null);
+        var output = new PrintfByteOutput(builder, limits, counters, checkpoint, null);
         var argumentCursor = new PrintfArgumentCursor<TArguments>(arguments, missingArgumentPolicy, format, counters, governor, checkpoint);
 
         long nextCheckpoint = 0;
@@ -615,7 +615,6 @@ internal static class PrintfEvaluation
     {
         private readonly AwkRuntimeLimits _limits;
         private readonly AwkRuntimeCounters _counters;
-        private readonly AwkMemoryAccounting _governor;
         private readonly AwkUtf8Builder _builder;
         private readonly Action? _checkpoint;
         private readonly AwkMemoryLease? _retainedTextLease;
@@ -624,13 +623,12 @@ internal static class PrintfEvaluation
             AwkUtf8Builder builder,
             AwkRuntimeLimits limits,
             AwkRuntimeCounters counters,
-            AwkMemoryAccounting governor, Action? checkpoint, AwkMemoryLease? retainedTextLease)
+            Action? checkpoint, AwkMemoryLease? retainedTextLease)
         {
             _checkpoint = checkpoint;
             _retainedTextLease = retainedTextLease;
             _limits = limits;
             _counters = counters;
-            _governor = governor;
             _builder = builder;
         }
 
@@ -696,8 +694,6 @@ internal static class PrintfEvaluation
             {
                 throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
             }
-
-            _governor.PreflightAllocation(byteCount);
         }
 
         public AwkText ToAwkText()
