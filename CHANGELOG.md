@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Scalar writes skip disabled memory estimates while preserving computed NF, OFS
+  preparation before publication and finite/shared-budget admission.
+
 - Array writes skip redundant lookup and byte estimates when memory accounting is disabled,
   preserving shared-budget and finite-quota admission.
 

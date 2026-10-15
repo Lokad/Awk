@@ -56,50 +56,37 @@ reduces substitution/splitting allocations by 7.68%/8.22% in both source orders;
 overlapping launch ranges do not establish a uniform throughput gain. Detailed
 before/after comparisons and raw/history evidence stay local.
 
-## Focused development comparison
+## Focused development comparisons
 
-Measured 2026-10-15 UTC, `488c5f7ff33c017ca6abc80b7cfa144087085548` -> `30184c27c6f24be66a0405d57aaa48b80c5b86e8`.
-The complete table above retains ade65da and its original GNU denominators.
-Three warmups/five iterations/two launches per source/order, both source orders;
-times below are the first order's medians of launch medians. Output digests and all
-quiet checks pass. Allocations are managed bytes per complete invocation.
+Measured 2026-10-15 UTC. Each source pair is linked below; these separate campaigns
+do not refresh the full table or its original GNU denominators. Three warmups/five
+iterations/two launches per source/order, both source orders. Complete output,
+source identities and quiet gates pass. Times are the first order's medians of launch
+medians; positive reductions mean faster, negative means slower. Allocations are
+managed bytes per complete invocation, not live-memory allowances.
 
-| Case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Numeric array sort | 7.920 | 7.514 | +5.12% / +5.56% | 3,438,148 | 3,237,152 |
-| Join control | 10.102 | 10.432 | -3.27% / -0.95% | 4,985,550 | 4,856,296 |
+| Change / case | Before -> after source | Before ms | After ms | Time reduction, both orders | Managed bytes, before -> after |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Compact keys: sort | [488c5f7](https://github.com/Lokad/Awk/commit/488c5f7ff33c017ca6abc80b7cfa144087085548) -> [30184c2](https://github.com/Lokad/Awk/commit/30184c27c6f24be66a0405d57aaa48b80c5b86e8) | 7.920 | 7.514 | +5.12% / +5.56% | 3,438,148 -> 3,237,152 |
+| Compact keys: join | [488c5f7](https://github.com/Lokad/Awk/commit/488c5f7ff33c017ca6abc80b7cfa144087085548) -> [30184c2](https://github.com/Lokad/Awk/commit/30184c27c6f24be66a0405d57aaa48b80c5b86e8) | 10.102 | 10.432 | -3.27% / -0.95% | 4,985,550 -> 4,856,296 |
+| Array writes: sort | [5f8ae78](https://github.com/Lokad/Awk/commit/5f8ae78c55c9e3c58e8e22a98b6584cba9269475) -> [dd28595](https://github.com/Lokad/Awk/commit/dd28595aed1c44e73e9cfe46cf4d2d451379e39c) | 7.617 | 7.437 | +2.37% / +3.66% | 3,237,152 -> 3,237,152 |
+| Array writes: join | [5f8ae78](https://github.com/Lokad/Awk/commit/5f8ae78c55c9e3c58e8e22a98b6584cba9269475) -> [dd28595](https://github.com/Lokad/Awk/commit/dd28595aed1c44e73e9cfe46cf4d2d451379e39c) | 10.438 | 10.138 | +2.87% / -0.68% | 4,856,296 -> 4,856,296 |
+| Scalar writes: arithmetic | [3c7f0a1](https://github.com/Lokad/Awk/commit/3c7f0a113f5e67446cc2d3db8f77549736a4be2f) -> [91244f6](https://github.com/Lokad/Awk/commit/91244f687f33f3a98b291be8a9b5fc1541e5b2e1) | 9.105 | 8.829 | +3.03% / +2.89% | 1,381,245 -> 1,381,245 |
+| Scalar writes: calls | [3c7f0a1](https://github.com/Lokad/Awk/commit/3c7f0a113f5e67446cc2d3db8f77549736a4be2f) -> [91244f6](https://github.com/Lokad/Awk/commit/91244f687f33f3a98b291be8a9b5fc1541e5b2e1) | 6.005 | 5.951 | +0.90% / +1.88% | 1,378,291 -> 1,378,291 |
 
-Compact array keys remove a stable-hash field unused by runtime dictionaries;
-randomized hashing and text-construction checkpoints remain. Keys occupy less space
-in dictionaries, sort snapshots and resolved references. Two net runtime lines/one
-file, no new owner/cache/collection. Explicit stable hashing now repeats a text scan
-or bounded ordinal formatting. Governed estimates remain conservative and unchanged.
-The original reference-footprint ceiling is retained while allowing smaller layouts.
-All 72,093 tests/OS, GNU62/native41/stack18 and 31 identical finite-counter rows pass;
-14 focused key/counter checks pass, and the original layout fails the footprint guard.
-Sorting elapsed time falls 5.12%/5.56%, with every within-order launch pair favorable;
-allocation falls 5.85%. Join allocation falls 2.59%, but elapsed time is 3.27%/0.95%
-higher. This control tradeoff is within the predeclared 4% tolerance; no join speedup
-is claimed. The arithmetic pilot is flat and has no confirmed gain.
+Compact keys reduce dictionary/snapshot/reference storage; their join allocation gain
+comes with the explicit measured slowdown above. Array writes omit an old-value lookup
+and byte estimates when accounting is disabled; their sorting gain repeats, join does not.
+Scalar writes omit disabled accounting while preserving initialization, computed NF and
+OFS preparation before publication. Arithmetic wins in every within-order launch pair
+(minimum 1.65%); the smaller calls gains have overlapping launch ranges.
 
-## Sorting and array updates
-
-Measured 2026-10-15 UTC, `5f8ae78c55c9e3c58e8e22a98b6584cba9269475` -> `dd28595aed1c44e73e9cfe46cf4d2d451379e39c`.
-Three warmups/five iterations/two launches per source/order, both source orders;
-times are the first order's medians of launch medians. Complete output, source identities
-and quiet gates pass. The full table retains ade65da and its original GNU denominators.
-
-| Case | Before ms | After ms | Time reduction, both orders | Managed bytes, unchanged |
-| --- | ---: | ---: | ---: | ---: |
-| Numeric array sort | 7.617 | 7.437 | +2.37% / +3.66% | 3,237,152 |
-| Join | 10.438 | 10.138 | +2.87% / -0.68% | 4,856,296 |
-
-Array writes skip an old-value lookup and byte estimates when neither a shared host budget
-nor finite execution-memory quota enables accounting. Six runtime lines reuse the existing
-enabled flag; governed mutation preflights and estimates remain unchanged. Sorting wins
-in every within-order launch pair (minimum 1.90%). Join's gain does not repeat; no uniform
-join speedup is claimed. All 72,110 tests/OS, GNU62/native42/stack18 and 31 identical finite
-counter rows pass. The existing refund fix remains included. No owner/cache/backend added.
+The latest change adds three runtime lines in one file. Governed admission/refunds,
+value limits, host effects and work/cancellation semantics remain unchanged. All 72,118
+tests/OS, GNU62/native42/stack18 and 31 identical finite-counter rows pass. Eight focused
+scalar-mode checks cover startup/NF/OFS/refusal/refunds; dropping disabled-path OFS
+preparation fails two, exact restoration passes all eight. No new owner/cache/backend.
+Raw comparisons and detailed history stay local.
 
 ## What is measured
 
