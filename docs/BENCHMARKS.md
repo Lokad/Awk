@@ -1,11 +1,11 @@
 # Benchmarks
 
-Current complete baseline, measured 2026-10-15: Release source `8fcd7ebd7246d018aa0d97bc789267dde911279a`
+Retained complete baseline, measured 2026-10-15: Release source `8fcd7ebd7246d018aa0d97bc789267dde911279a`
 versus GNU awk 5.2.1. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption
 is postponed. This is the declared five-change milestone. Keep the measured revision/date
 explicit until the next complete qualification; later code does not refresh retained rows.
 
-## Representative processing
+## Complete baseline (retained)
 
 Twenty families cover fields/records, scalar/control work, arrays, functions, strings,
 regex and output. Medium cases use 4,096 records, except wide 256×64 fields and two-file
@@ -43,7 +43,7 @@ Both implementations use the same [script/fixture catalog](../benchmarks/Lokad.A
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
 BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Five warmups/nine iterations/
 one launch; clean source/GNU/driver identities and all four quiet gates pass. No concurrent
-VM builds/transfers. This current baseline is not a controlled cumulative speedup.
+VM builds/transfers. This retained baseline is not a controlled cumulative speedup.
 Ratios below parity apply to their fixtures; qualify larger inputs before a broader claim.
 
 All 72,153 tests/OS and exact-source [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38712634086) pass.
@@ -52,6 +52,28 @@ scenarios; all 31 finite-counter rows remain identical. Memory ownership, strict
 cancellation, mutation preflights and host mediation remain qualified. Controlled
 batch comparisons and detailed history are retained locally rather than mixed into
 this complete baseline.
+
+## Current focused coverage
+
+Measured 2026-10-15 at `aac35f7d135c08c57952c6113c25cface41d45df`:
+new wide-record early filtering, with the existing all-fields workload as a control.
+Runtime source is unchanged from `8fcd7eb`; this adds coverage, not an optimization.
+Same machine/toolchain, three warmups/five iterations/one launch, four quiet gates pass.
+
+| Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Filter $1 / occasionally print $3, 64 fields | 1291.42 | 5.704 | 2.135 | 2.67× | 15.39 |
+| Field loop, 64 fields (control) | 80.00 | 4.767 | 2.175 | 2.19× | 1.08 |
+
+The early-filter case has 4,096 records, reads `$1` on every record and `$3` on one
+in eight. It currently creates 262,144 field descriptors despite those prefix-only reads;
+string decoding remains zero. The control reads NF and all 64 fields on 256 records.
+Compare implementations within each row; different fixtures are not a before/after pair.
+
+The catalog now has 21 families and 65 exact GNU checks, all passing at `aac35f7`.
+All 72,165 tests/OS and [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38721369724) pass;
+the 31 finite-counter rows are unchanged. The complete table above retains its original
+20-family measurements and qualification. No complete timing refresh was performed.
 
 ## What is measured
 
@@ -90,7 +112,7 @@ three warmups and five iterations, using the affected case and the most useful c
 Stop for inconclusive noise; add checks only for specific unresolved concerns. Keep full
 correctness tests, exact GNU verification and CI; GNU timing and startup campaigns are optional.
 
-Refresh all 20 families at declared milestones: after a batch of five accepted runtime
+Refresh the complete catalog (currently 21 families) at declared milestones: after a batch of five accepted runtime
 optimizations, or an explicit full-comparison/new-source release or cumulative parity assessment.
 At that point run `--reference-benchmarks --awk PATH_TO_GAWK --filter '*medium*'` and
 `--filter '*WorkloadAllocationBenchmarks*medium*'`, each with five warmups, nine iterations
