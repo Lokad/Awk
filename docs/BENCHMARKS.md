@@ -3,9 +3,9 @@
 Current complete comparison: **23 families**, measured 2026-10-15 at Release source
 `09ef2f24a4579f0ecbdc2676f8624c45c26caa20` against GNU awk 5.2.1. All rows share this source/settings;
 this is the declared five-change milestone refresh, not a cumulative causal speedup.
-Current runtime `af8403223c06aa45418369743f18115cb7083589` also emits `printf` from its
-staging buffer. Its scoped evidence is below; the complete comparison retains the measured
-source above. The retained owned-field result is identified separately.
+Current runtime `d5cfd8e4d9aaa4a209dab04c203d5258b9ddac20` includes caller-owned `printf`
+staging and removes duplicate admission for writes within admitted capacity. Qualified
+staging and owned-field measurements below retain their exact sources; the table is unchanged.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -47,7 +47,7 @@ Medium cases have 4,096 records, except all-fields wide (256×64 fields) and the
 Mixed array reads have equal existing/new keys. Marked GNU cases exercise supported
 conveniences; this comparison is not a conformance claim.
 
-Current scoped result, measured 2026-10-15: caller-owned `printf` staging at `af84032`
+Latest qualified scoped result, measured 2026-10-15: caller-owned `printf` staging at `af84032`
 versus `f8aa880` (runtime `6478b69`) takes **3.8–6.4% less elapsed time** and **15.0% fewer
 managed allocated bytes**, **3,049,658→2,590,899 bytes/invocation**, on the catalog's formatting
 script. Medians in the two source orders are 5.153→4.821 ms and 4.948→4.760 ms; every launch
@@ -55,6 +55,10 @@ pair is over 2.5% faster. String and owned-prefix controls have unchanged alloca
 overlapping timings; no control or uniform gain is claimed. Three warmups/five iterations,
 two launches/source/order, stable production-library identities and passing quiet gates
 qualify this change. No GNU timing or row above is refreshed.
+
+The `d5cfd8e` admission fix versus `8927587` had one three-warmup/five-iteration pilot:
+formatting 1.3% faster, strings 1.6% faster, owned-prefix control 3.6% slower; allocations
+unchanged. These unconfirmed results support no speedup claim or baseline refresh.
 
 Retained scoped result, also measured 2026-10-15: removing eager field-count checks at
 `6478b69` versus `8993f42` (runtime `9de84e8`) makes
@@ -77,8 +81,8 @@ All 71 exact reference checks, 65 native core goldens and 18 stack scenarios pas
 current source. All 71 published work/host/field/encoding counter snapshots and 31 finite-
 counter rows match the parent. Targeted allocation, late-error/output-refusal and pending/
 canceled/non-cooperative timed-out host checks pass. Current
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38767634596)
-passes 72,389 tests/OS. The [complete-baseline CI](https://github.com/Lokad/Awk/actions/runs/38746687036)
+[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38769987650)
+passes 72,397 tests/OS. The [complete-baseline CI](https://github.com/Lokad/Awk/actions/runs/38746687036)
 passes 72,365/OS (63 native goldens at that source). Strict UTF-8, aliases/order, mutation
 preflights, cancellation and host lifetimes remain qualified.
 

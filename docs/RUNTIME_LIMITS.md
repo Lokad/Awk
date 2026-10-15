@@ -52,6 +52,8 @@ retain lazy argument evaluation. This changes neither admission thresholds nor c
 `printf` emits its admitted staging buffer; `sprintf` still returns owned text. Publication
 stays atomic. Rounded buffer capacity can change memory thresholds; timed-out host borrows
 keep shared admission until actual completion.
+Formatting checks value/builder length separately from storage admission. Writes within
+admitted capacity need no extra memory allowance; growth and owned result copies still do.
 Eligible field/string-literal comparisons, text comparisons with a right-hand field and
 numeric-only field reads, including binary arithmetic operands, can avoid copied text
 and scalar caches. Numeric comparisons,
