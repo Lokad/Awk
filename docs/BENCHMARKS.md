@@ -1,6 +1,6 @@
 # Benchmarks
 
-Current complete baseline, measured 2026-10-15: Release source `f105e6115ea0d2563eae0337f0ff56e9f770717c`
+Retained complete baseline, measured 2026-10-15: Release source `f105e6115ea0d2563eae0337f0ff56e9f770717c`
 versus GNU awk 5.2.1. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption
 is postponed. The declared five-optimization batch is complete. Keep this measured
 source/date until the next complete qualification; code advances do not refresh retained rows.
@@ -53,6 +53,31 @@ has 62 exact GNU cases; additional core goldens have 20 exact native matches and
 compound-ordering difference, excluded from GNU-equivalent performance claims. Finite
 counter changes are limited to reduced copied text/bytes/peaks; work/cancellation/preflights
 remain qualified. Detailed raw and development/history evidence stays local.
+
+## Focused development comparison
+
+Measured 2026-10-15 UTC: source `d7d198539e0a0c0c9d157729d5a5197f5d18de82` before and
+`2b41e403a693aa059e2ad3717066a8eeeb342fbe` after. Eligible text comparisons consume an unmaterialized
+right-hand field synchronously after the left operand and index finish. Stored array
+keys/values remain owned. Numeric comparisons, cached/modified fields, `$0`, IGNORECASE
+and nondecimal modes keep ordinary evaluation. No new owner or retained cache.
+
+| Case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Two-file membership / join | 11.338 | 10.549 | +7.0% / +6.4% | 5,411,550 | 4,985,550 |
+| Arithmetic control | 9.565 | 9.578 | -0.1% / +6.3% | 1,381,613 | 1,381,613 |
+
+Times shown are the first order's medians of two launch medians; the reduction column
+reports both orders. Three warmups/five iterations/two launches per source/order, verified
+digests and all eight quiet gates. Join allocations fall 7.87%
+in both orders. Arithmetic allocations are unchanged; its baseline launch spread reaches
+14.5%, so no arithmetic or single-launch filter gain is claimed. The complete GNU table
+retains its original source/date and denominators.
+
+All 72,005 tests/OS, 62 benchmark GNU checks, 26 additional exact native golden scripts
+and 18 stack scenarios pass. All 31 finite-counter rows are identical; focused counter
+guards verify avoided field text copying, refusal cleanup and borrowed-buffer lifetime.
+Cancellation, host mediation, mutation preflights and governed ownership are preserved.
 
 ## Retained length-only evidence
 
