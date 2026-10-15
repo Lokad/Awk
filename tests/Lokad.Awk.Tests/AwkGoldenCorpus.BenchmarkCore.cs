@@ -5,6 +5,13 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("printf-field-arguments-keep-input-spelling-numbers-and-missing-fields",
+            ["{printf \"%s:%04d:%s\\n\",$1,$2,$5}"], [], "café:0007:\nother:-003:\n", "café 007\nother -3\n");
+        yield return Passing("printf-field-arguments-keep-modified-values-and-positional-conversions",
+            ["BEGIN{$0=\"old 8\";$1=1.25;CONVFMT=\"%.3f\";printf \"%s:%d\\n\",$1,$2;$0=\"65 café\";printf \"%2$s:%1$c:%1$d\\n\",$1,$2}"], [], "1.250:8\ncafé:A:65\n");
+        yield return Passing("printf-field-arguments-freeze-values-before-later-mutations",
+            ["function change(){$0=\"after 9\";return 2} {printf \"%s:%d\\n\",$1,$(change());print $0}"], [], "before:9\nafter 9\n", "before 7\n");
+
         yield return Passing("prepared-call-chains-keep-outer-effects-and-loop-results",
             ["function add1(x){return x+1} function combine(x){return add1(add1(x))+x} BEGIN{x=7;print combine(x++),x;total=0;for(i=0;i<5;i++)total+=combine(i);print total;a[1]=1;print(1 in a)}"],
             [], "16 8\n30\n1\n");

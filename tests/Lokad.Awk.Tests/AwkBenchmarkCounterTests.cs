@@ -11,12 +11,35 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task PurePrintfFieldsBorrowBytesAndNumbersBeforeOwnedOutput(AwkExecutionEngineKind engine)
+    {
+        const string input = "sku 7\nother 8\n";
+        var borrowed = await RunAsync(["-v", "i=1", "-v", "j=2", "{printf \"%s:%04d\\n\",$1,$2}"], input,
+            AwkRegexEngineKind.DotNetCompatibility, engine);
+        var owned = await RunAsync(["-v", "i=1", "-v", "j=2", "{printf \"%s:%04d\\n\",$i,$j}"], input,
+            AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, borrowed.ExitCode);
+        Assert.Equal(owned.ExitCode, borrowed.ExitCode);
+        Assert.Equal("sku:0007\nother:0008\n", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(owned.FileSystem.GetOutput(AwkFileDescriptor.StdOut), borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(4, owned.Counters.AwkTextAllocations - borrowed.Counters.AwkTextAllocations);
+        Assert.Equal(10, owned.Counters.AwkTextPayloadBytes - borrowed.Counters.AwkTextPayloadBytes);
+        Assert.Equal(owned.Counters.FieldsMaterialized, borrowed.Counters.FieldsMaterialized);
+        Assert.Equal(owned.Counters.ExecutionSteps, borrowed.Counters.ExecutionSteps);
+        Assert.Equal(owned.Counters.Utf8Encodes, borrowed.Counters.Utf8Encodes);
+        Assert.Equal(owned.Counters.StringDecodes, borrowed.Counters.StringDecodes);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task PrintfBorrowsStagingInsteadOfAllocatingAnOwnedResult(AwkExecutionEngineKind engine)
     {
         const string input = "sku\t7\nsku\t8\n";
-        var direct = await RunAsync(["BEGIN{ORS=\"\"}{printf \"%s:%04d\\n\",$1,$2}"], input,
+        var direct = await RunAsync(["-v", "i=1", "-v", "j=2", "BEGIN{ORS=\"\"}{printf \"%s:%04d\\n\",$i,$j}"], input,
             AwkRegexEngineKind.DotNetCompatibility, engine);
-        var owned = await RunAsync(["BEGIN{ORS=\"\"}{print sprintf(\"%s:%04d\\n\",$1,$2)}"], input,
+        var owned = await RunAsync(["-v", "i=1", "-v", "j=2", "BEGIN{ORS=\"\"}{print sprintf(\"%s:%04d\\n\",$i,$j)}"], input,
             AwkRegexEngineKind.DotNetCompatibility, engine);
         Assert.Equal(0, direct.ExitCode);
         Assert.Equal(0, owned.ExitCode);

@@ -12,6 +12,22 @@ internal abstract partial class AwkExpression
 
     public static AwkExpression FieldIndex(AwkExpression indexExpression) => new DynamicFieldIndexExpression(indexExpression);
 
+    internal static bool TryGetPrintfFieldIndex(AwkExpression expression, out int index)
+    {
+        index = 0;
+        return expression is DynamicFieldIndexExpression { IndexExpression: NumberExpression number } &&
+            number.TryGetExecutableIntegerConstant(out index) && index > 0;
+    }
+
+    internal static void EvaluatePrintfFieldIndex(AwkExpression expression, AwkEvaluationContext context)
+    {
+        if (expression is not DynamicFieldIndexExpression field)
+            throw new InvalidOperationException("Prepared printf field expression is required.");
+        context.State.RecordExecutionStep();
+        // Preparation admits only portable numeric literals; preserve their original evaluation/checkpoint.
+        field.IndexExpression.EvaluateAsync(context).GetAwaiter().GetResult();
+    }
+
     internal static bool TryGetFieldIndexExpression(
         AwkExpression expression, [NotNullWhen(true)] out AwkExpression? indexExpression)
     {

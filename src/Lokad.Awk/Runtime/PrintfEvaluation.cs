@@ -127,6 +127,12 @@ internal static class PrintfEvaluation
                 if (argumentCursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
                 {
                     output.PreflightAdditionalBytes(width.Value);
+                    if (width.Value == 0 && !precision.HasValue && arguments.TryGetBorrowedBytes(argumentIndex, out var borrowed))
+                    {
+                        checkpoint?.Invoke();
+                        output.Append(borrowed);
+                        continue;
+                    }
                     var text = arguments.GetByteText(argumentIndex);
                     checkpoint?.Invoke();
                     if (width.Value == 0 && !precision.HasValue)
@@ -639,6 +645,12 @@ internal static class PrintfEvaluation
             _builder.Append(bytes, _checkpoint);
         }
 
+        public void Append(ReadOnlySpan<byte> bytes)
+        {
+            PreflightAdditionalBytes(bytes.Length);
+            _builder.Append(bytes, _checkpoint);
+        }
+
         public void Append(string text) => Append(text.AsSpan());
 
         public void Append(ReadOnlySpan<char> text)
@@ -718,6 +730,8 @@ internal interface IPrintfArguments
     double GetNumber(int index);
 
     bool IsNumeric(int index);
+
+    bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) { bytes = default; return false; }
 }
 
 internal readonly struct AwkValueArrayPrintfArguments(
@@ -726,6 +740,8 @@ internal readonly struct AwkValueArrayPrintfArguments(
     AwkRuntimeState state) : IPrintfArguments
 {
     public int Count => count;
+
+    public bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) { bytes = default; return false; }
 
     public AwkText GetByteText(int index) =>
         state.FormatStringByteText(arguments[index].ForceScalar());
@@ -741,6 +757,8 @@ internal readonly struct AwkBuiltinContextPrintfArguments(
     int startIndex) : IPrintfArguments
 {
     public int Count => context.ArgumentCount - startIndex;
+
+    public bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) { bytes = default; return false; }
 
     public AwkText GetByteText(int index) =>
         context.State.FormatStringByteText(context.GetValue(index + startIndex).ForceScalar());
@@ -760,6 +778,8 @@ internal readonly struct AwkSingleValuePrintfArguments(
     Action? checkpoint = null) : IPrintfArguments
 {
     public int Count => 1;
+
+    public bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) { bytes = default; return false; }
 
     public AwkText GetByteText(int index)
     {

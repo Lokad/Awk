@@ -512,6 +512,18 @@ internal sealed class AwkRuntimeState
         return parsed.Status == AwkNumberParseStatus.Number ? parsed.Number : 0;
     }
 
+    internal bool TryGetPrintfFieldBytes(int index, out ReadOnlySpan<byte> bytes) =>
+        _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
+
+    internal void PreflightPrintfField(int index)
+    {
+        if (TryGetPrintfFieldBytes(index, out var bytes))
+            // Original field values classify numeric input eagerly, but conversion errors stay deferred.
+            _ = AwkNumberParser.Parse(bytes, NumberParsingMode, CancellationCheckpoint);
+        else
+            _ = GetFieldValue(index);
+    }
+
     internal bool CompareFieldLiteral(int index, AwkText literal, AwkComparison comparison)
     {
         if (index < 0)

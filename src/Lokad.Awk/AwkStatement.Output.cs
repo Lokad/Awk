@@ -104,6 +104,8 @@ internal abstract partial class AwkStatement
         AwkExpression[] arguments,
         AwkOutputTarget target) : AwkStatement
     {
+        private readonly int[] _fieldIndices = AwkPrintfFieldArguments.Prepare(arguments);
+
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var state = context.State;
@@ -111,8 +113,19 @@ internal abstract partial class AwkStatement
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
             var formatText = await format.ResolveStringAsync(context).ConfigureAwait(false);
             using var formatted = new AwkUtf8Builder(state.Limits, state.MemoryAccounting, capacity: 0);
-            using (var buffer = AwkValueBuffer.Rent(arguments.Length, state.MemoryAccounting))
+            if (_fieldIndices.Length != 0)
             {
+                for (var index = 0; index < arguments.Length; index++)
+                {
+                    AwkExpression.EvaluatePrintfFieldIndex(arguments[index], context);
+                    state.PreflightPrintfField(_fieldIndices[index]);
+                }
+                AwkFormattingRuntime.FormatPrintfToBuilder(formatted, formatText,
+                    new AwkPrintfFieldArguments(_fieldIndices, state), state);
+            }
+            else
+            {
+                using var buffer = AwkValueBuffer.Rent(arguments.Length, state.MemoryAccounting);
                 var resolvedArguments = buffer.Values;
                 for (var i = 0; i < arguments.Length; i++)
                     resolvedArguments[i] = await arguments[i].EvaluateAsync(context).ConfigureAwait(false);
