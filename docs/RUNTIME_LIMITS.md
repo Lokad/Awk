@@ -58,6 +58,11 @@ retain lazy evaluation where required. Logical work and UTF-8 boundaries are unc
 `printf` emits its admitted staging buffer; `sprintf` still returns owned text. Publication
 stays atomic. Rounded buffer capacity can change memory thresholds; timed-out host borrows
 keep shared admission until actual completion.
+With at most 16 portable literal positive field operands, `printf` can borrow field bytes
+and numbers during synchronous formatting. Indices and fields still preflight in source
+order; dynamic/larger operand lists keep ordinary staging. Prepared ordinals belong to the
+compiled artifact's owner. Removing argument arrays and field copies can change optional
+memory thresholds; formatted output stays owned through actual host completion.
 Formatting checks value/builder length separately from storage admission. Writes within
 admitted capacity need no extra memory allowance; growth and owned result copies still do.
 Eligible field/string-literal comparisons, text comparisons with a right-hand field and

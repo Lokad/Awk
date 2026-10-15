@@ -3,7 +3,7 @@
 Retained complete baseline: **23 families**, measured 2026-10-15 at Release source
 `ff03a99c17ab32896211cf788bb53cbdc0b98e8d` against GNU awk 5.2.1, at the declared five-change milestone.
 All complete-comparison rows and allocations share this source/settings. They have not
-been retimed after the latest scoped change at `d63f8a8`. Scoped experiments below use
+been retimed after the latest scoped change at `1651bb4`. Scoped experiments below use
 their separately stated revisions and policies; gains are not cumulative.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
@@ -47,14 +47,24 @@ Mixed array reads have equal existing/new keys. Marked GNU cases exercise suppor
 conveniences; this comparison is not a conformance claim.
 
 Scoped evidence, measured 2026-10-15 with three warmups/five iterations and two
-launches/source/order. Each row is a separate before/after experiment, with passing quiet
+launches/source/order. Values are medians of the two launch medians per source order.
+Each row is a separate before/after experiment, with passing quiet
 gates and stable production-library identities. These experiments are separate from the
 complete comparison above; GNU timings were not collected in the scoped experiments.
 
 | Workload / policy | Measured sources, before → after | Median ms, two source orders | Managed bytes/invocation |
 | --- | --- | --- | ---: |
+| printf strings and integers / default | b225dc1 → 1651bb4 | 4.658→4.121; 4.657→4.106 | 2,590,899→1,739,192 |
 | Nested user calls / default | bf7a998 → d63f8a8 | 5.574→4.374; 5.494→4.409 | 1,378,323→1,378,803 |
 | String functions / cooperative 512 MiB budget | d17f9b1 → eef8824 | 6.074→5.516; 6.058→5.260 | 2,406,537→1,128,568 |
+
+Borrowed field arguments take **11.5–11.8% less elapsed time** and allocate **32.9% fewer
+managed bytes** on the formatting export script. Every launch comparison is over 9.3% faster.
+The interpreter evaluates and checks literal field indices before synchronous formatting,
+then publishes owned output. This avoids field-text copies and argument staging for eligible
+statements. Field descriptors still exist; owned-text counters verify the removed copies.
+Arithmetic ranges from 0.6% faster to 2.1% slower and strings from 0.9% faster to 1.3% slower;
+control allocations are unchanged, and no control gain is claimed.
 
 Prepared return-expression chains take **19.8–21.5% less elapsed time** on nested calls,
 with every launch comparison over 19.0% faster. Preparation adds 480 managed bytes per
@@ -77,12 +87,12 @@ The governed row retains its measured source, not a current-head retiming. Raw r
 and older optimization histories stay local. See [runtime limits](RUNTIME_LIMITS.md) for
 admission estimates and [record semantics](RECORD_SEMANTICS.md) for field behavior.
 
-At `d63f8a8`, all 71 exact reference checks, 69 native core goldens and 22 stack scenarios
+At `1651bb4`, all 71 exact reference checks, 72 native core goldens and 22 stack scenarios
 pass. All 71 published work/host/field/encoding snapshots and 31 finite-counter rows match
-the parent. Pending arguments, failed frame admission, deep recursion and asynchronous
-unwinding are covered. Exact-source
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38794528263)
-passes 72,463 tests/OS. Strict UTF-8, mutation
+the parent. New counters verify absent field-text copies; fuel, eager unused-field refusal,
+modified fields and noncooperative pending/canceled appends are covered. Exact-source
+[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38813979700)
+passes 72,496 tests/OS; downloaded test reports were verified. Strict UTF-8, mutation
 preflights and host/resource ownership remain.
 
 ## Environment and measurement boundaries
