@@ -495,8 +495,9 @@ internal sealed class AwkVariables
         if (!name.IsFunctionLocal)
             AwkSpecialArrayPolicy.ThrowIfElementMutationForbidden(name.Text, _mode);
         var values = GetOrCreateArraySlots(name);
-        if (values.TryGetValue(index, out var slot) && values.Remove(index))
-            _memoryAccounting.ReleaseCommitted(EstimateElementBytes(index, slot));
+        // Equal ordinal/text keys can retain different storage. Refund the key actually stored.
+        if (values.GetAlternateLookup<AwkArrayKey>().TryGetValue(index, out var storedKey, out var slot) && values.Remove(index))
+            _memoryAccounting.ReleaseCommitted(EstimateElementBytes(storedKey, slot));
     }
 
     public void SetArrayValues<TValue>(

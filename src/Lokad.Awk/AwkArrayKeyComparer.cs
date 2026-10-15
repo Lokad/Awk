@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>
+internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>, IAlternateEqualityComparer<AwkArrayKey, AwkArrayKey>
 {
     private readonly Action? _checkpoint;
 
@@ -17,6 +17,8 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>
         checkpoint is null ? Instance : new(checkpoint);
 
     public static AwkArrayKeyComparer Instance { get; } = new();
+
+    AwkArrayKey IAlternateEqualityComparer<AwkArrayKey, AwkArrayKey>.Create(AwkArrayKey key) => key;
 
     public bool Equals(AwkArrayKey left, AwkArrayKey right) =>
         left.Equals(right, left.ByteLength >= AwkExecutionGovernor.WorkChunkBytes ||

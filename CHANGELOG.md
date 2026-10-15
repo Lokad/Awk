@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Array deletion refunds the stored key's memory, preserving shared-budget and finite-quota
+  accounting when equal numeric and text keys use different storage representations.
+
 - Numeric field operands in array compound updates consume borrowed UTF-8 bytes through
   the existing parser, avoiding copied text while preserving target/RHS order, cached
   values, numeric modes, cancellation and mutation preflights.

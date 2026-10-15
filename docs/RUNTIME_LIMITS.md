@@ -74,6 +74,7 @@ mutation. Staged work admits overlapping old/new storage, publishes only a compl
 and releases temporary reservations on failure/cancellation. A mutation can fail when its
 final size fits but its staging peak does not. Previously committed state/output survives;
 preflight does not roll back earlier script or host effects.
+Array deletion refunds the stored key and value, including equivalent numeric/text lookups.
 
 Byte/memory ceilings use `awk: memory limit exceeded`; fuel, host-call and other limits
 retain their specific awk diagnostics. Unexpected CLR exception details are not exposed.
