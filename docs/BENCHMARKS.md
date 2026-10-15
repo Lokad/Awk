@@ -1,9 +1,9 @@
 # Benchmarks
 
-Current complete baseline, measured 2026-10-14: Release source `3b800e8656dc13315f137a082dd6131e9b098482`
-versus GNU awk 5.2.1. Interpreter/DotNetCompatibility are defaults; Utf8Regex adoption remains
-postponed. The declared five-optimization batch is complete. Keep this measured source/date
-until the next complete qualification; code advances do not make retained measurements fresh.
+Current complete baseline, measured 2026-10-15: Release source `f105e6115ea0d2563eae0337f0ff56e9f770717c`
+versus GNU awk 5.2.1. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption
+is postponed. The declared five-optimization batch is complete. Keep this measured
+source/date until the next complete qualification; code advances do not refresh retained rows.
 
 ## Representative processing
 
@@ -17,26 +17,26 @@ baseline; process variation prevents treating changes across milestones as causa
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| ERE capture arrays (GNU) | 28 | 37.404 | 7.804 | 4.79× | 16.40 |
-| Two-file membership / join | 77.83 | 11.847 | 2.837 | 4.18× | 5.16 |
-| Field loop, 3 fields | 60 | 9.248 | 2.220 | 4.17× | 2.62 |
-| Nested user calls | 8 | 6.682 | 1.628 | 4.10× | 1.31 |
-| Field loop, 64 fields | 80 | 8.120 | 2.182 | 3.72× | 2.71 |
-| Keyed sum / sorted output (GNU) | 24 | 5.049 | 1.372 | 3.68× | 2.17 |
-| ASCII substr/index/length/casing | 52 | 5.710 | 1.620 | 3.52× | 1.08 |
-| Loop and numeric arithmetic | 8 | 10.197 | 2.920 | 3.49× | 1.32 |
-| printf strings and integers | 24 | 6.197 | 1.807 | 3.43× | 3.28 |
-| gsub and output | 56 | 7.395 | 2.159 | 3.43× | 4.07 |
-| Filter three fields | 24 | 5.186 | 1.534 | 3.38× | 2.52 |
-| Numeric array sort (GNU) | 18.92 | 8.436 | 2.543 | 3.32× | 3.28 |
-| Unicode length/substr / output | 60 | 6.346 | 2.090 | 3.04× | 3.11 |
-| Concatenate record and number | 20 | 4.264 | 1.538 | 2.77× | 1.43 |
-| Boolean ERE matching | 32 | 3.337 | 1.286 | 2.59× | 0.75 |
-| Project a column / output | 60 | 3.245 | 1.357 | 2.39× | 1.34 |
-| Literal field separator | 48 | 3.155 | 1.390 | 2.27× | 1.27 |
-| ERE field separator | 48 | 4.469 | 2.001 | 2.23× | 3.80 |
-| Byte-run ERE record separator (GNU) | 36 | 2.397 | 1.447 | 1.66× | 1.00 |
-| Multicharacter record separator (GNU) | 52 | 2.018 | 1.481 | 1.36× | 0.61 |
+| ERE capture arrays (GNU) | 28 | 37.042 | 7.757 | 4.78× | 16.40 |
+| Nested user calls | 8 | 6.376 | 1.629 | 3.91× | 1.31 |
+| Two-file membership / join | 77.83 | 10.951 | 2.833 | 3.87× | 5.16 |
+| Loop and numeric arithmetic | 8 | 9.978 | 2.932 | 3.40× | 1.32 |
+| Numeric array sort (GNU) | 18.92 | 8.234 | 2.496 | 3.30× | 3.28 |
+| gsub and output | 56 | 6.775 | 2.115 | 3.20× | 4.07 |
+| printf strings and integers | 24 | 5.775 | 1.811 | 3.19× | 3.03 |
+| ASCII substr/index/length/casing | 52 | 4.980 | 1.568 | 3.18× | 1.08 |
+| Keyed sum / sorted output (GNU) | 24 | 4.324 | 1.381 | 3.13× | 1.76 |
+| Field loop, 3 fields | 60 | 6.513 | 2.210 | 2.95× | 1.40 |
+| Unicode length/substr / output | 60 | 6.066 | 2.091 | 2.90× | 3.11 |
+| Concatenate record and number | 20 | 4.015 | 1.543 | 2.60× | 1.43 |
+| Filter three fields | 24 | 3.580 | 1.543 | 2.32× | 1.30 |
+| Boolean ERE matching | 32 | 2.930 | 1.288 | 2.27× | 0.75 |
+| Project a column / output | 60 | 3.024 | 1.336 | 2.26× | 1.34 |
+| Field loop, 64 fields | 80 | 4.635 | 2.180 | 2.13× | 1.08 |
+| ERE field separator | 48 | 4.255 | 2.007 | 2.12× | 3.80 |
+| Literal field separator | 48 | 2.718 | 1.401 | 1.94× | 1.26 |
+| Byte-run ERE record separator (GNU) | 36 | 2.005 | 1.450 | 1.38× | 1.00 |
+| Multicharacter record separator (GNU) | 52 | 1.771 | 1.487 | 1.19× | 0.61 |
 
 Allocations are managed GC bytes/invocation from MemoryDiagnoser at the same source/settings.
 They are not native GNU allocations, retained live memory, budget allowances or process memory.
@@ -45,87 +45,14 @@ Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
 BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Five warmups/nine iterations/one
 launch; clean-source/GNU identities and all four quiet gates pass. No concurrent builds/transfers.
 
-## Focused current changes
-
-These bounded comparisons follow the complete baseline above. Each change has explicit
-before/after sources below. Existing BDN tools use both source orders, two launches/source/order,
-three warmups/five iterations. Medians shown are from the first order; time reduction gives
-first/reverse order. No GNU retiming or cumulative gain is claimed.
-
-| Case | Before ms | After ms | Time reduction, both orders | Before allocated bytes | After allocated bytes |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| IGNORECASE read: 3 fields | 8.997 | 8.663 | +3.7% / +2.4% | 2,743,662 | 2,743,670 |
-| IGNORECASE read: projection | 3.294 | 3.149 | +4.4% / +3.7% | 1,405,819 | 1,405,827 |
-| NF/OFS names: 3 fields | 8.676 | 8.167 | +5.9% / +4.0% | 2,743,670 | 2,743,670 |
-| NF/OFS names: arithmetic | 10.222 | 10.215 | +0.1% / +11.6% | 1,381,613 | 1,381,613 |
-| Printf wrapper: strings/integers | 5.796 | 5.808 | -0.2% / +2.0% | 3,443,215 | 3,181,068 |
-| Printf wrapper: projection control | 3.032 | 3.040 | -0.3% / -2.4% | 1,405,827 | 1,405,827 |
-| Borrowed comparisons: filter | 4.833 | 3.666 | +24.1% / +23.2% | 2,645,813 | 1,367,683 |
-| Borrowed comparisons: 3 fields | 8.404 | 6.636 | +21.0% / +18.5% | 2,743,670 | 1,465,525 |
-| Numeric fields: aggregation | 4.609 | 4.309 | +6.5% / +7.4% | 2,274,352 | 1,848,362 |
-| Numeric fields: arithmetic control | 9.604 | 9.666 | -0.7% / +6.1% | 1,381,613 | 1,381,613 |
-
-Initialized IGNORECASE read, measured 2026-10-14: `30df7b3b390817673cf0c06ab218ec8278eb393d` before and
-`ca0f79e70a9401d7a0f3a245a2f99f0fa2a6c3de` after. GNU scalar reads outside functions use the existing
-slot; setters, in-function name resolution and non-GNU lazy behavior remain unchanged.
-One slot-id field increases managed allocation by eight bytes/invocation. The same BDN
-settings (two source orders, two launches/source/order, three warmups/five iterations)
-confirm projection/narrow improvements; this is separate from the retained complete baseline.
-No GNU retiming or broad gain is claimed.71,824 tests/OS,62 exact GNU cases,31 identical
-finite-counter rows including memory and18 stack scenarios pass.
-
-NF/OFS name lookup, measured 2026-10-14: `568c6220e885f0dab3163cb3ca6ab38dac39f747` before and
-`a2c7b0222cb2fe1867f001b55082e7b8e5a3e353` after. Six scalar read/write/inventory guards reuse two immutable names
-from the existing central definitions, removing repeated ID-to-definition dictionary lookups.
-Ordinal comparisons, computed NF, OFS preparation and admission remain unchanged; no
-per-invocation metadata is added. The same two-order/two-launch settings confirm the narrow
-gain; allocations are unchanged. Arithmetic is flat in one order and faster in the other,
-with launch spread up to 10.6%; no arithmetic gain is claimed. Projection's single-launch
-pilot is not a confirmed gain.
-All 71,824 tests/OS, 62 exact GNU cases, 31 identical finite-counter rows including memory
-and 18 stack scenarios pass. The complete GNU comparison remains at its recorded source.
-
-Printf wrapper, measured 2026-10-14 UTC: `1b4fec7e2dff0ab7d92b06923281627bf29181db` before and
-`de82709542300115da208eb501b500447bbb1ea2` after. A private readonly value replaces the heap wrapper around the
-existing UTF-8 builder; helpers copy references, and the outer using keeps sole disposal
-ownership. Formatting allocation falls 7.61% in both orders,
-about 256 KiB per 4,096-record invocation. Elapsed reductions are
--0.2% / +2.0% across source orders; no throughput gain is claimed.
-Projection is a contrasting control; its allocations are unchanged and no control gain
-is claimed. Format behavior, UTF-8, resource admission/peaks and cancellation remain intact.
-All 71,824 tests/OS, 62 exact GNU cases, 31 identical finite-counter rows including memory
-and 18 stack scenarios pass. The complete comparison retains its recorded source/date.
-
-Borrowed field/literal comparisons, measured 2026-10-15 UTC:
-`2b10dc3aa14871ca3b9c00262e37951f0cbd3bf7` before and `19ce6091d9f9eb4d8c37dad98fce0b4da8bb0691` after. Untouched fields compare
-with ordinary string literals through the existing synchronous borrowed read and cancellable
-byte comparison. Cached/modified fields, $0, case-insensitive/nondecimal modes and effectful
-right operands keep ordinary evaluation. The opt-in executable emits its existing instructions.
-Filtering allocations fall 48.31% and three-field-loop
-allocations fall 46.59% in both source orders.
-Both cases use the same two-order/two-launch settings above; projection is a single-launch
-contrasting control, not a confirmed gain. Wide-field throughput remains unmeasured at this source.
-All 71,893 tests/OS, 62 exact benchmark reference cases, 13 additional native golden scripts
-and 18 stack scenarios pass. 30 of 31 finite-counter rows are identical;
-the remaining rows change only avoided text allocations/bytes and memory peaks. Execution
-steps, byte comparisons and all other reported counters remain unchanged. Lower charges
-reflect avoided storage; value limits, mutation preflights, cancellation and host mediation stay.
-The complete GNU comparison retains its recorded source/date; no cumulative gain is claimed.
-
-Numeric field consumption, measured 2026-10-15 UTC:
-`61dcc83eac6ed2e954d42ad921a3c0691ba58204` before and `f105e6115ea0d2563eae0337f0ff56e9f770717c` after. Array compound RHS
-consumes untouched field bytes through the existing number parser; cached/modified fields
-and $0 retain ordinary values. Target/key and left value are read before RHS effects,
-preserving the documented [ordering contract](COMPATIBILITY_CONTRACT.md).
-Aggregation allocations fall 18.73% in both orders; elapsed
-reductions are +6.5% / +7.4%.
-The aggregation throughput improvement repeats in both source orders. Arithmetic and projection are controls, not claimed gains.
-All 71,937 tests/OS,62 benchmark GNU cases,20 equivalent native golden scripts plus one
-documented ordering difference, and18 stack scenarios pass. That differing script is not
-a GNU-equivalent performance case. Counter changes are restricted to reduced text storage
-and peaks; work/admission, UTF-8, numeric modes/errors and cancellation remain qualified.
-This completes the declared five-change batch; the complete table retains its source
-until the milestone refresh is qualified.
+The five-change batch is included in this complete baseline. Controlled development
+measurements qualified field-loop/filter/numeric-consumption gains and reduced formatting
+allocations; they are not cumulative speedups inferred from separate full campaigns.
+All 71,937 tests/OS and exact Windows/Linux build/test/pack CI pass. The benchmark catalog
+has 62 exact GNU cases; additional core goldens have 20 exact native matches and one documented
+compound-ordering difference, excluded from GNU-equivalent performance claims. Finite
+counter changes are limited to reduced copied text/bytes/peaks; work/cancellation/preflights
+remain qualified. Detailed raw and development/history evidence stays local.
 
 ## Retained length-only evidence
 
