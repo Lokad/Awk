@@ -133,6 +133,34 @@ public sealed class AwkSynchronousRegionTests
         return result;
     }
 
+    [Theory]
+    [InlineData(16, true)]
+    [InlineData(17, false)]
+    public void PreparationBoundsBodyWorkBeforeInspectingStatements(int count, bool eligible)
+    {
+        var header = new PreparationProbe();
+        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+        var statement = AwkStatement.Assignment(
+            AwkReference.PreparedGlobalScalar(AwkVariableName.FromText("x"), 0), AwkExpression.Number("1", 1));
+        var prepared = AwkSynchronousFor.TryPrepare(header, condition, header,
+            Enumerable.Repeat(statement, count).ToArray());
+        Assert.Equal(eligible, prepared is not null);
+        Assert.Equal(eligible ? 2 : 0, header.Preparations);
+    }
+
+    private sealed class PreparationProbe : AwkStatement
+    {
+        public int Preparations { get; private set; }
+        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
+        {
+            Preparations++;
+            action = static _ => { };
+            return true;
+        }
+        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
+            throw new InvalidOperationException("Preparation must not execute a statement.");
+    }
+
     private static AwkStatement Loop(AwkStatement body, int iterations = 8)
     {
         var name = AwkVariableName.FromText("i");

@@ -11,7 +11,7 @@ internal sealed class AwkSynchronousFor(
     public static AwkSynchronousFor? TryPrepare(AwkStatement initializer, AwkCondition condition,
         AwkStatement increment, AwkStatement[] body)
     {
-        if (!initializer.TryPrepareSynchronousAction(out var initialize) ||
+        if (body.Length > 16 || !initializer.TryPrepareSynchronousAction(out var initialize) ||
             !condition.TryGetSynchronousExpression(out var test) ||
             !increment.TryPrepareSynchronousAction(out var step)) return null;
         var actions = new Action<AwkEvaluationContext>[body.Length];
