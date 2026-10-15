@@ -1,10 +1,10 @@
 # Benchmarks
 
-Current complete comparison: **23 families**, measured 2026-10-15 at Release source
-`ff03a99c17ab32896211cf788bb53cbdc0b98e8d` against GNU awk 5.2.1. This is the declared five-change milestone;
-all complete-comparison rows and allocations share this source/settings. It is a current
-baseline, not a controlled cumulative speedup. Scoped experiments below retain their
-own measured revisions and policies.
+Retained complete baseline: **23 families**, measured 2026-10-15 at Release source
+`ff03a99c17ab32896211cf788bb53cbdc0b98e8d` against GNU awk 5.2.1, at the declared five-change milestone.
+All complete-comparison rows and allocations share this source/settings. They have not
+been retimed after the latest scoped change at `d63f8a8`. Scoped experiments below use
+their separately stated revisions and policies; gains are not cumulative.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -53,13 +53,16 @@ complete comparison above; GNU timings were not collected in the scoped experime
 
 | Workload / policy | Measured sources, before → after | Median ms, two source orders | Managed bytes/invocation |
 | --- | --- | --- | ---: |
-| Nested user calls / default | 8b8419d → ff03a99 | 5.862→5.477; 6.114→5.473 | 1,378,323→1,378,323 |
+| Nested user calls / default | bf7a998 → d63f8a8 | 5.574→4.374; 5.494→4.409 | 1,378,323→1,378,803 |
 | String functions / cooperative 512 MiB budget | d17f9b1 → eef8824 | 6.074→5.516; 6.058→5.260 | 2,406,537→1,128,568 |
 
-Single-argument user calls take **6.6–10.5% less elapsed time**, with every launch
-comparison over 4.4% faster and unchanged allocations. Arithmetic ranges from 8.5% slower
-to 3.2% faster; strings from 1.9% slower to 3.3% faster. These controls vary; no uniform
-gain is claimed. The existing frame entry, argument scope/aliases and stack boundaries stay.
+Prepared return-expression chains take **19.8–21.5% less elapsed time** on nested calls,
+with every launch comparison over 19.0% faster. Preparation adds 480 managed bytes per
+invocation (0.035%). Arithmetic is approximately flat to 0.9% slower, with 24 extra bytes;
+strings range from 1.2% slower to 3.5% faster, with unchanged allocations. No control gain
+is claimed. Existing frames and argument/entry/unwind boundaries remain; small pure call
+chains share a bounded synchronous region. Recursive, host, pending, lint and optional
+executable paths retain ordinary execution.
 
 The retained string-builtin change takes **9.2–13.2% less elapsed time** and allocates
 **53.1% fewer managed bytes** under the cooperative budget. Every launch comparison is over 7.2% faster.
@@ -74,12 +77,13 @@ The governed row retains its measured source, not a current-head retiming. Raw r
 and older optimization histories stay local. See [runtime limits](RUNTIME_LIMITS.md) for
 admission estimates and [record semantics](RECORD_SEMANTICS.md) for field behavior.
 
-All 71 exact reference checks, 68 native core goldens and 18 stack scenarios pass at this
-source. All 71 published work/host/field/encoding snapshots and 31 finite-counter rows
-match the parent. Allocation guards catch heap temporaries; pending arguments and depth
-refusal preserve the caller frame. Exact-source
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38784579823)
-passes 72,432 tests/OS. Strict UTF-8, mutation preflights and host/resource ownership remain.
+At `d63f8a8`, all 71 exact reference checks, 69 native core goldens and 22 stack scenarios
+pass. All 71 published work/host/field/encoding snapshots and 31 finite-counter rows match
+the parent. Pending arguments, failed frame admission, deep recursion and asynchronous
+unwinding are covered. Exact-source
+[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38794528263)
+passes 72,463 tests/OS. Strict UTF-8, mutation
+preflights and host/resource ownership remain.
 
 ## Environment and measurement boundaries
 
