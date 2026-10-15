@@ -860,6 +860,12 @@ internal sealed class AwkVariables
         AwkArrayKey index,
         AwkVariableSlot slot)
     {
+        if (!_memoryAccounting.IsEnabled)
+        {
+            values[index] = slot;
+            return;
+        }
+
         var oldBytes = values.TryGetValue(index, out var existingSlot)
             ? EstimateElementBytes(index, existingSlot)
             : 0;
