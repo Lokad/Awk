@@ -42,8 +42,11 @@ has a separate ERE interpretation pass. Detailed warning/profile behavior remain
 ## Execution representation
 
 `AwkText` stores UTF-8 bytes; record/field processing, ordinary comparisons and numeric
-scanning stay byte-native. Invariant scalar folding is used for case-insensitive string
-operations; byte mode folds ASCII only. Numbers use invariant-culture binary64 semantics.
+scanning stay byte-native. Field-key lookups consume borrowed bytes synchronously;
+updates can retain an existing owned dictionary key, while new keys copy their bytes.
+Borrowed spans remain synchronous and never survive host suspension. Invariant scalar folding
+is used for case-insensitive string operations; byte mode folds ASCII only. Numbers use
+invariant-culture binary64 semantics.
 
 Regex preparation/backends, format syntax, general width/precision and character formatting,
 date formatting and non-ASCII casing have explicit string boundaries. Plain `%s` arguments

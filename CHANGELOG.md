@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Field-key array updates reuse existing owned dictionary keys, avoiding temporary field
+  copies on hits. Plain assignment/new keys retain owned-key preparation; aliases,
+  pending RHS evaluation, deletion/record reuse, admission/refunds and VM checks remain.
+
 - Existing array values can be read through borrowed field keys, avoiding temporary key
   copies. Missing reads retain owned-key creation, quota/memory preflights and ordinary
   aliases, evaluation order and VM budget checks.
