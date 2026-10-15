@@ -50,8 +50,21 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class FieldLengthExpression(AwkExpression indexExpression) : AwkExpression
+    private sealed class FieldLengthExpression(AwkExpression indexExpression) : AwkSynchronousExpression
     {
+        internal override int SynchronousDepth => indexExpression is AwkSynchronousExpression { SynchronousDepth: > 0 and <= 14 } index
+            ? index.SynchronousDepth + 2 : 0;
+        internal override int SynchronousCallDepth => indexExpression is AwkSynchronousExpression index ? index.SynchronousCallDepth : 0;
+
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
+        {
+            if (indexExpression is not AwkSynchronousExpression index)
+                throw new InvalidOperationException("Synchronous field index is required.");
+            context.State.RecordExecutionStep(); // The original field expression, before its index.
+            var field = (int)index.EvaluateSynchronous(context).AsNumber(context.State.CancellationCheckpoint);
+            return AwkValue.FromNumber(context.State.CountFieldStringUnits(field));
+        }
+
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             // Retain the field-expression checkpoint before evaluating its index.

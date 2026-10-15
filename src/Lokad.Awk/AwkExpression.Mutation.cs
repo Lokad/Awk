@@ -114,6 +114,26 @@ internal abstract partial class AwkExpression
         AwkExpression valueExpression,
         AwkCompoundAssignmentOperation operation) : AwkExpression
     {
+        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
+        {
+            if (valueExpression is AwkSynchronousExpression { SynchronousDepth: > 0 and <= 16 } value &&
+                target.TryGetSynchronousScalar(out var location))
+            {
+                action = context =>
+                {
+                    var state = context.State;
+                    state.RecordExecutionStep();
+                    var previous = location.Evaluate(state).AsNumber(state.CancellationCheckpoint);
+                    var right = value.EvaluateSynchronous(context).AsNumber(state.CancellationCheckpoint);
+                    location.AssignValue(state, AwkValue.FromNumber(
+                        AwkNumericOperations.ApplyCompoundAssignment(previous, right, operation)));
+                };
+                return true;
+            }
+            action = static _ => { };
+            return false;
+        }
+
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyCompoundAssignmentAsync(context, valueExpression, operation);
     }

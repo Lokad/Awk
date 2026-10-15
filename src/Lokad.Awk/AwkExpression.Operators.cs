@@ -307,8 +307,21 @@ internal abstract partial class AwkExpression
         AwkExpression fieldExpression,
         AwkExpression indexExpression,
         LiteralExpression literal,
-        AwkComparison comparison) : AwkExpression
+        AwkComparison comparison) : AwkSynchronousExpression
     {
+        internal override int SynchronousDepth => indexExpression is AwkSynchronousExpression { SynchronousDepth: > 0 and <= 14 } index
+            ? index.SynchronousDepth + 2 : 0;
+        internal override int SynchronousCallDepth => indexExpression is AwkSynchronousExpression index ? index.SynchronousCallDepth : 0;
+
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
+        {
+            if (indexExpression is not AwkSynchronousExpression index)
+                throw new InvalidOperationException("Synchronous field index is required.");
+            context.State.RecordExecutionStep(); // The original field expression, before its index.
+            var field = (int)index.EvaluateSynchronous(context).AsNumber(context.State.CancellationCheckpoint);
+            return AwkValue.FromNumber(context.State.CompareFieldLiteral(field, literal.LiteralText, comparison) ? 1 : 0);
+        }
+
         internal override ValueTask<bool> EvaluateConditionAsync(AwkEvaluationContext context)
         {
             context.State.RecordExecutionStep();

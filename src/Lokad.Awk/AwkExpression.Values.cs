@@ -101,9 +101,12 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class FieldCountExpression : AwkExpression
+    private sealed class FieldCountExpression : AwkSynchronousExpression
     {
         public static readonly FieldCountExpression Instance = new();
+
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
+            context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FieldCount);
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FieldCount));

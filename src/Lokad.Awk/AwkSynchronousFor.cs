@@ -1,7 +1,7 @@
 namespace Lokad.Awk;
 
-// Reuses the interpreter's scalar descriptors and setters. Calls, fields, arrays,
-// control-flow statements, diagnostics and host work retain their normal executor.
+// Reuses interpreter scalar setters and bounded synchronous expressions, including eligible
+// field reads. Host-capable indices, arrays, control flow and diagnostics retain ordinary execution.
 internal sealed class AwkSynchronousFor(
     Action<AwkEvaluationContext> initialize,
     AwkSynchronousExpression condition,
