@@ -25,7 +25,10 @@ internal static class MachineQuietProbe
             await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
             if (!TryRead(out var after) || after.Total <= before.Total || after.Idle < before.Idle)
                 return QuietCheck.Evaluate([]);
-            values.Add(100 * (1 - (double)(after.Idle - before.Idle) / (after.Total - before.Total)));
+            var total = after.Total - before.Total;
+            var idle = after.Idle - before.Idle;
+            if (idle > total) return QuietCheck.Evaluate([]);
+            values.Add(CalculateBusyPercent(total, idle));
         }
         return QuietCheck.Evaluate(values.ToArray());
 
@@ -58,6 +61,10 @@ internal static class MachineQuietProbe
             return false;
         }
     }
+
+    // Subtract integer ticks first: 1 - 0.95 rounds an exact 5% above the gate.
+    internal static double CalculateBusyPercent(ulong total, ulong idle) =>
+        100d * (total - idle) / total;
 
     [DllImport("kernel32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

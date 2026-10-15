@@ -83,6 +83,22 @@ public sealed class AwkBenchmarkHarnessTests
         Assert.False(QuietCheck.Evaluate([]).IsQuiet);
     }
 
+    [Theory]
+    [InlineData(400UL, 380UL, 5, false, true)]
+    [InlineData(400UL, 388UL, 3, true, true)]
+    [InlineData(400UL, 379UL, 5.25, false, false)]
+    [InlineData(400UL, 387UL, 3.25, true, false)]
+    [InlineData(400UL, 400UL, 0, true, true)]
+    [InlineData(400UL, 0UL, 100, false, false)]
+    public void CpuAccountingPreservesExactQuietGateBoundaries(
+        ulong total, ulong idle, double expectedPercent, bool repeated, bool expectedQuiet)
+    {
+        var busy = MachineQuietProbe.CalculateBusyPercent(total, idle);
+        Assert.Equal(expectedPercent, busy);
+        double[] samples = repeated ? [busy, busy, busy, busy, busy] : [0, 0, 0, 0, busy];
+        Assert.Equal(expectedQuiet, QuietCheck.Evaluate(samples).IsQuiet);
+    }
+
     [Fact]
     public void IncompleteDirtyBusyMismatchedOrUnverifiedReportsCannotPublishRatios()
     {
