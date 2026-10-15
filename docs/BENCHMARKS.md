@@ -3,8 +3,8 @@
 Current complete comparison: **23 families**, measured 2026-10-15 at Release source
 `09ef2f24a4579f0ecbdc2676f8624c45c26caa20` against GNU awk 5.2.1. All rows share this source/settings;
 this is the declared five-change milestone refresh, not a cumulative causal speedup.
-Current runtime `9de84e80b85ea22abb7c07f1bdacae5877a4c8c9` also bounds loop preparation
-and simplifies builtin argument staging. Its focused evidence is below; the complete
+Current runtime `6478b69af0b50ff73b4ad9feff329e3fef9aae79` also lets ordinary owned
+field reads use existing prefix splitting. Its scoped evidence is below; the complete
 comparison retains the measured source above.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
@@ -47,22 +47,30 @@ Medium cases have 4,096 records, except all-fields wide (256×64 fields) and the
 Mixed array reads have equal existing/new keys. Marked GNU cases exercise supported
 conveniences; this comparison is not a conformance claim.
 
-After this baseline, builtin argument staging at `9de84e8` was confirmed against
-`d3786a3` (runtime `e6ea694`) on 2026-10-15: ASCII string operations take **2.8–2.9% less
-elapsed time**, with unchanged **1,127,904 allocated bytes/invocation**. Medians in the
-two source orders are 4.552→4.420 ms and 4.580→4.451 ms; every candidate launch is faster
-than every baseline launch within each order. This uses three warmups/five iterations,
-two launches/source/order and eight passing quiet gates. Calls vary from 0.9% slower to
-1.0% faster; arithmetic varies from 0.8% slower to 4.8% faster. No control gain is claimed.
-This scoped confirmation does not refresh GNU timings or any row above.
+After this baseline, removing redundant eager field-count checks at `6478b69` was confirmed
+against `8993f42` (runtime `9de84e8`) on 2026-10-15. A derived early-owned-field script,
+`{value=$1;sum+=length(value)}END{print sum}`, takes **40.9–41.4% less elapsed time** and
+**75.3% fewer managed allocations**: **16,585,748→4,100,976 bytes/invocation**. Medians in the
+two source orders are 7.069→4.144 ms and 6.985→4.129 ms; every launch pair is over 39% faster.
+The fixture has 4,096 identical 64-field records (1,323,008 bytes): `0007 worker café` followed
+by 61 `tail` fields and LF. This uses the existing BenchmarkDotNet/runner/host/verification,
+three warmups/five iterations, two launches/source/order, stable production-library identities
+and passing quiet gates. GNU confirms the exact output `16384` plus LF; GNU was not timed.
+This derived case does not refresh GNU timings, the catalog or any row above.
 
-All 71 exact GNU checks, 63 native core goldens and 18 stack scenarios pass at both the
-baseline and current source. The current change preserves all 31 finite-counter rows;
-argument-order, suspension, replay, fuel and refund checks pass. Current
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38754745862)
-passes 72,370 tests/OS; the [measured-source CI](https://github.com/Lokad/Awk/actions/runs/38746687036)
-passes 72,365/OS. Strict UTF-8, aliases/order, mutation preflights, cancellation and host
-lifetimes remain qualified.
+Formatting is flat to 1.6% slower; all-fields wide processing varies from 0.4% slower to
+4.6% faster, with unchanged allocation. The string pilot was 2.9% slower and was not retimed.
+No uniform or control gain is claimed. Owned reads can retain fewer field descriptors;
+later NF/mutation completion may rescan and charge additional optional fuel. Tight field
+quotas still validate before publishing a prefix; see [record semantics](RECORD_SEMANTICS.md).
+
+All 71 exact reference checks, 65 native core goldens and 18 stack scenarios pass at the
+current source. All 31 finite-counter rows match the parent; targeted owned-prefix counters,
+completion charges, quota refusal/retry, captured separators and reconstruction checks pass.
+Current [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38762828597)
+passes 72,384 tests/OS. The [complete-baseline CI](https://github.com/Lokad/Awk/actions/runs/38746687036)
+passes 72,365/OS (63 native goldens at that source). Strict UTF-8, aliases/order, mutation
+preflights, cancellation and host lifetimes remain qualified.
 
 ## Environment and measurement boundaries
 

@@ -54,6 +54,10 @@ numeric-only field reads, including binary arithmetic operands, can avoid copied
 and scalar caches. Numeric comparisons,
 cached/modified fields and case/nondecimal fallbacks retain ordinary values. Value limits,
 mutation preflights and synchronous borrowing remain; charges reflect avoided storage.
+Ordinary owned field reads also use the existing prefix splitter and bounds checks. The
+first read retains the full-record byte-work charge; later NF/mutation completion can
+rescan and charge it again, so explicit fuel budgets may reject earlier. Tight field quotas
+still validate the complete record before publishing a prefix.
 Length-only ASCII/byte field reads can avoid text/cache allocation. An initial ASCII-record
 classification is cancellable and charged, so an explicit fuel quota may reject earlier.
 
