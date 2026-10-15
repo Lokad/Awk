@@ -8,6 +8,28 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task PrintfBorrowsStagingInsteadOfAllocatingAnOwnedResult(AwkExecutionEngineKind engine)
+    {
+        const string input = "sku\t7\nsku\t8\n";
+        var direct = await RunAsync(["BEGIN{ORS=\"\"}{printf \"%s:%04d\\n\",$1,$2}"], input,
+            AwkRegexEngineKind.DotNetCompatibility, engine);
+        var owned = await RunAsync(["BEGIN{ORS=\"\"}{print sprintf(\"%s:%04d\\n\",$1,$2)}"], input,
+            AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, direct.ExitCode);
+        Assert.Equal(0, owned.ExitCode);
+        Assert.Equal("sku:0007\nsku:0008\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut), owned.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", direct.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal("", owned.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, owned.Counters.AwkTextAllocations - direct.Counters.AwkTextAllocations);
+        Assert.Equal(18, owned.Counters.AwkTextPayloadBytes - direct.Counters.AwkTextPayloadBytes);
+        Assert.Equal(owned.Counters.Utf8Encodes, direct.Counters.Utf8Encodes);
+        Assert.Equal(owned.Counters.StringDecodes, direct.Counters.StringDecodes);
+    }
+
     [Fact]
     public async Task PureForAndNumericReturnBodiesUsePreparedSynchronousRegions()
     {

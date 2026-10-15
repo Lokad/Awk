@@ -95,6 +95,19 @@ internal sealed class AwkFormattingRuntime(
             retainedTextLease);
     }
 
+    public static void FormatPrintfToBuilder<TArguments>(
+        AwkUtf8Builder output,
+        string format,
+        TArguments arguments,
+        AwkRuntimeState state)
+        where TArguments : IPrintfArguments
+    {
+        state.Counters.RecordFormattingFallback();
+        state.Counters.RecordFormattingStringInteropInput();
+        PrintfEvaluation.FormatToBuilder(output, format, arguments, PrintfMissingArgumentPolicy.Throw,
+            state.Limits, state.Counters, state.MemoryAccounting, state.CompatibilityMode, state.CancellationCheckpoint);
+    }
+
     private bool UsesDefaultFormat(AwkFormattingVariable variable)
     {
         var format = resolveVariable(variable);

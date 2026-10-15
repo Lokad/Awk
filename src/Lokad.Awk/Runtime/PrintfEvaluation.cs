@@ -30,7 +30,34 @@ internal static class PrintfEvaluation
             return AwkText.Empty;
         }
 
-        using var output = new PrintfByteOutput(limits, counters, governor, checkpoint, retainedTextLease);
+        using var builder = new AwkUtf8Builder(limits, governor, capacity: 0);
+        FormatToBuilder(builder, format, arguments, missingArgumentPolicy, limits, counters, governor,
+            compatibilityMode, checkpoint);
+        var output = new PrintfByteOutput(builder, limits, counters, governor, checkpoint, retainedTextLease);
+        var result = output.ToAwkText();
+        checkpoint?.Invoke();
+        return result;
+    }
+
+    public static void FormatToBuilder<TArguments>(
+        AwkUtf8Builder builder,
+        string format,
+        TArguments arguments,
+        PrintfMissingArgumentPolicy missingArgumentPolicy,
+        AwkRuntimeLimits limits,
+        AwkRuntimeCounters counters,
+        AwkMemoryAccounting governor,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
+        Action? checkpoint = null)
+        where TArguments : IPrintfArguments
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        if (format.Length == 0)
+        {
+            checkpoint?.Invoke();
+            return;
+        }
+        var output = new PrintfByteOutput(builder, limits, counters, governor, checkpoint, null);
         var argumentCursor = new PrintfArgumentCursor<TArguments>(arguments, missingArgumentPolicy, format, counters, governor, checkpoint);
 
         long nextCheckpoint = 0;
@@ -176,9 +203,8 @@ internal static class PrintfEvaluation
         }
 
         checkpoint?.Invoke();
-        var result = output.ToAwkText();
-        checkpoint?.Invoke();
-        return result;
+        if (builder.Length > 0)
+            counters.RecordUtf8Encode();
 
         static void AppendInteger(
             PrintfByteOutput output, double number, PrintfConversion conversion, PrintfFlags flags,
@@ -585,7 +611,7 @@ internal static class PrintfEvaluation
         return leadingSpace ? " " + formatted : formatted;
     }
 
-    private readonly struct PrintfByteOutput : IDisposable
+    private readonly struct PrintfByteOutput
     {
         private readonly AwkRuntimeLimits _limits;
         private readonly AwkRuntimeCounters _counters;
@@ -595,6 +621,7 @@ internal static class PrintfEvaluation
         private readonly AwkMemoryLease? _retainedTextLease;
 
         public PrintfByteOutput(
+            AwkUtf8Builder builder,
             AwkRuntimeLimits limits,
             AwkRuntimeCounters counters,
             AwkMemoryAccounting governor, Action? checkpoint, AwkMemoryLease? retainedTextLease)
@@ -604,7 +631,7 @@ internal static class PrintfEvaluation
             _limits = limits;
             _counters = counters;
             _governor = governor;
-            _builder = new AwkUtf8Builder(limits, governor, capacity: 0);
+            _builder = builder;
         }
 
         public void Append(AwkText text)
@@ -675,9 +702,6 @@ internal static class PrintfEvaluation
 
         public AwkText ToAwkText()
         {
-            if (_builder.Length > 0)
-                _counters.RecordUtf8Encode();
-
             if (_retainedTextLease is null)
                 return _builder.CopyToAwkText(_counters, _checkpoint);
 
@@ -686,7 +710,6 @@ internal static class PrintfEvaluation
                 AwkMemoryAccounting.Disabled, _checkpoint);
         }
 
-        public void Dispose() => _builder.Dispose();
     }
 }
 

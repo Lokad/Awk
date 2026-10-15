@@ -121,7 +121,8 @@ public sealed class AwkPrintStagingMemoryTests
     {
         var state = State(observed, "default");
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
-        var host = new MockFileSystem();
+        var host = new PendingWriteHost();
+        host.Allow.TrySetResult();
         var io = Io(state, host);
         var values = Numbers("default");
         var payload = values.Sum(value => AwkRuntimeMemory.EstimateTextBytes(state.FormatPrintByteText(value).ByteLength));
@@ -136,13 +137,13 @@ public sealed class AwkPrintStagingMemoryTests
         }
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         long duringWrite = -1;
-        host.AfterAppend = () => duringWrite = state.MemoryAccounting.CurrentCommittedBytes;
+        host.Inner.AfterAppend = () => duringWrite = state.MemoryAccounting.CurrentCommittedBytes;
 
         await statement.ExecuteAsync(new AwkEvaluationContext(state, output, io));
         await io.CloseAsync();
 
-        Assert.Equal("1.25|2.25|3.25!", host.ReadFile("/result"));
-        var retained = printf ? AwkRuntimeMemory.EstimateTextBytes(15) :
+        Assert.Equal("1.25|2.25|3.25!", host.Inner.ReadFile("/result"));
+        var retained = printf ? host.BufferCapacity :
             AwkRuntimeMemory.EstimateAwkValueArrayBytes(3) + SegmentBytes(3) + payload + AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity;
         Assert.Equal(baseline + retained, duringWrite);
         Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
@@ -184,7 +185,7 @@ public sealed class AwkPrintStagingMemoryTests
     [InlineData(true, false, true)]
     [InlineData(true, true, false)]
     [InlineData(true, true, true)]
-    public async Task FormattingLeaseSurvivesAPendingHostWriteAndReleasesOnCompletionOrCancellation(bool observed, bool printf, bool cancel)
+    public async Task FormattingStorageSurvivesAPendingHostWriteAndReleasesOnCompletionOrCancellation(bool observed, bool printf, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         var state = State(observed, "default", cancellation.Token);
@@ -206,7 +207,7 @@ public sealed class AwkPrintStagingMemoryTests
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(pending.IsCompleted);
-            var retained = printf ? AwkRuntimeMemory.EstimateTextBytes(15) :
+            var retained = printf ? host.BufferCapacity :
                 AwkRuntimeMemory.EstimateAwkValueArrayBytes(3) + SegmentBytes(3) + payload + AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity;
             Assert.Equal(baseline + retained, state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal("kept:", output.ToString());
@@ -308,19 +309,97 @@ public sealed class AwkPrintStagingMemoryTests
         Assert.Equal(0, state.Counters.ExecutionSteps);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LateFormatFailurePreservesPriorOutputAndRefundsUnpublishedStaging(bool redirected)
+    {
+        var state = State(observed: true, "default");
+        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
+        output.Append(AwkText.FromSourceLiteralString("kept:"));
+        var host = new MockFileSystem();
+        var io = Io(state, host);
+        var format = AwkExpression.Literal("%s:%d");
+        AwkExpression[] arguments = [AwkExpression.Literal("payload")];
+        var statement = redirected ? AwkStatement.Printf(format, arguments,
+            new AwkOutputRedirection(AwkExpression.Literal("result"), AwkOutputRedirectionKind.Write)) : AwkStatement.Printf(format, arguments);
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => statement.ExecuteAsync(new(state, output, io)).AsTask());
+        Assert.Equal("awk: not enough arguments to satisfy format string\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal("kept:", output.ToString());
+        Assert.False(host.FileExists("/result"));
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        await io.CloseAsync();
+    }
+
+    [Fact]
+    public async Task TimedOutPrintfRetainsBorrowedBytesAndSharedAdmissionUntilHostCompletion()
+    {
+        var budget = new CooperativeTestBudget(Limit);
+        var host = new PendingWriteHost { IgnoreCancellation = true };
+        var diagnostic = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.Inner.AfterAppend = () =>
+        {
+            if (host.Inner.GetOutput(AwkFileDescriptor.StdErr).Contains("host operation timed out", StringComparison.Ordinal))
+                diagnostic.TrySetResult();
+        };
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{printf \"%04096d\",7 > \"result\"}"));
+        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget)
+            .WithHostOperationTimeout(TimeSpan.FromMilliseconds(10));
+        var pending = tool.ExecuteAsync(host, policy, CancellationToken.None);
+        var expected = AwkUtf8Codec.Encode(new string('0', 4095) + "7").ToArray();
+        try
+        {
+            await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var held = budget.Reserved;
+            Assert.True(held >= expected.Length);
+            await diagnostic.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(pending.IsCompleted);
+            Assert.Equal(0, budget.ScopesDisposed);
+            Assert.True(budget.Reserved >= held);
+            var accepted = budget.TryReserve(Limit - held + 1, out var pressure);
+            pressure?.Dispose();
+            Assert.False(accepted);
+            Assert.Equal(expected, host.Borrowed.ToArray());
+        }
+        finally { host.Allow.TrySetResult(); }
+        Assert.Equal(2, (await pending.WaitAsync(TimeSpan.FromSeconds(10))).Value);
+        Assert.Equal(expected, host.Consumed);
+        Assert.Equal("awk: host operation timed out\n", host.Inner.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(1, budget.ScopesDisposed);
+    }
+
     private sealed class PendingWriteHost : IAwkHost
     {
         public MockFileSystem Inner { get; } = new();
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Allow { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Finished { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool IgnoreCancellation { get; init; }
+        public ReadOnlyMemory<byte> Borrowed { get; private set; }
+        public byte[] Consumed { get; private set; } = [];
+        public int BufferCapacity { get; private set; }
 
         public async Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
+            if (IgnoreCancellation && (descriptor == AwkFileDescriptor.StdOut || descriptor == AwkFileDescriptor.StdErr))
+                return await Inner.AppendAsync(descriptor, content, token).ConfigureAwait(false);
+            if (!System.Runtime.InteropServices.MemoryMarshal.TryGetArray(content, out var segment) || segment.Array is not { } bytes)
+                throw new InvalidOperationException("Expected an array-backed output borrow.");
+            BufferCapacity = bytes.Length;
+            Borrowed = content;
             Entered.TrySetResult();
             try
             {
-                await Allow.Task.WaitAsync(token).ConfigureAwait(false);
+                if (IgnoreCancellation)
+                {
+                    await Allow.Task.ConfigureAwait(false);
+                    Consumed = content.ToArray();
+                    return AwkExitCode.Success;
+                }
+                else await Allow.Task.WaitAsync(token).ConfigureAwait(false);
                 return await Inner.AppendAsync(descriptor, content, token).ConfigureAwait(false);
             }
             finally { Finished.TrySetResult(); }

@@ -110,39 +110,21 @@ internal abstract partial class AwkStatement
             var execution = RequireExecutionContext(context);
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
             var formatText = await format.ResolveStringAsync(context).ConfigureAwait(false);
-            using var formattedTextLease = state.MemoryAccounting.CreateTransientLease();
-            AwkText formatted;
+            using var formatted = new AwkUtf8Builder(state.Limits, state.MemoryAccounting, capacity: 0);
             using (var buffer = AwkValueBuffer.Rent(arguments.Length, state.MemoryAccounting))
             {
                 var resolvedArguments = buffer.Values;
                 for (var i = 0; i < arguments.Length; i++)
                     resolvedArguments[i] = await arguments[i].EvaluateAsync(context).ConfigureAwait(false);
 
-                formatted = AwkFormattingRuntime.FormatPrintfStrictByteText(
-                    formatText,
-                    new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state),
-                    state.Limits,
-                    state.Counters,
-                    state.MemoryAccounting,
-                    state.CompatibilityMode,
-                    state.CancellationCheckpoint,
-                    formattedTextLease);
+                AwkFormattingRuntime.FormatPrintfToBuilder(formatted, formatText,
+                    new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state), state);
             }
 
-            await EmitByteTextOutputAsync(execution.Output, execution.Io, resolvedTarget, formatted, state.CancellationCheckpoint)
+            state.ThrowIfCancellationRequested();
+            await EmitOutputAsync(execution.Output, execution.Io, resolvedTarget, formatted.AsMemory())
                 .ConfigureAwait(false);
-
             return AwkStatementFlow.Continue;
-
-            static async Task EmitByteTextOutputAsync(
-                AwkOutputSink output,
-                AwkIo io,
-                AwkOptionalResolvedOutputRedirection target,
-                AwkText content,
-                Action checkpoint)
-            {
-                await EmitOutputAsync(output, io, target, content.AsMemory(checkpoint)).ConfigureAwait(false);
-            }
         }
     }
 
