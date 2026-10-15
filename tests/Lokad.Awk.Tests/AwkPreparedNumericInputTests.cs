@@ -45,27 +45,31 @@ public sealed class AwkPreparedNumericInputTests
         Assert.Equal(AwkRuntimeValueKind.NumericString, result.RuntimeKind);
     }
 
-    [Fact]
-    public void MissingHexExponentRemainsDeferredUntilNumericConversion()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MissingHexExponentRemainsDeferredUntilNumericConversion(bool array)
     {
         var state = CreateState(nonDecimal: true);
         var input = state.CreateNumericStringValue("0x1.5");
-        Store(state, input, array: true);
-        var result = Read(state, array: true);
+        Store(state, input, array);
+        var result = Read(state, array);
         Assert.Equal("0x1.5", result.AsString());
         Assert.Throws<AwkRuntimeException>(() => result.AsNumber());
     }
 
-    [Fact]
-    public void LongStoredInputStillObservesCancellationOnRead()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LongStoredInputStillObservesCancellationOnRead(bool array)
     {
         using var cancellation = new CancellationTokenSource();
         var state = CreateState(cancellationToken: cancellation.Token);
         var input = state.CreateNumericStringValue("1" + new string('0', 8000));
-        Store(state, input, array: true);
+        Store(state, input, array);
         var retained = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
-        var error = Assert.Throws<OperationCanceledException>(() => Read(state, array: true));
+        var error = Assert.Throws<OperationCanceledException>(() => Read(state, array));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -84,14 +88,16 @@ public sealed class AwkPreparedNumericInputTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    [Fact]
-    public void StoredInputStillPreflightsValueSizeBeforeReadAccounting()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StoredInputStillPreflightsValueSizeBeforeReadAccounting(bool array)
     {
         var state = CreateState(maxValueBytes: 3);
-        Store(state, AwkValue.FromNumericString("12345"), array: true);
+        Store(state, AwkValue.FromNumericString("12345"), array);
         var retained = state.MemoryAccounting.CurrentCommittedBytes;
         var created = state.Counters.ValuesCreated;
-        Assert.Throws<AwkRuntimeException>(() => Read(state, array: true));
+        Assert.Throws<AwkRuntimeException>(() => Read(state, array));
         Assert.Equal(created, state.Counters.ValuesCreated);
         Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

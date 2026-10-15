@@ -28,6 +28,8 @@ public sealed class AwkScalarMemoryModeTests
         var ofs = AwkVariableName.FromText("OFS");
         variables.SetScalarValue(name, AwkValue.FromNumber(42));
         variables.SetScalarText(ofs, " ");
+        var nf = variables.GetOrCreateScalarSlot(AwkVariableName.FromText("NF"));
+        Assert.Equal(3, variables.GetScalarValue(nf).AsNumber());
         Assert.Equal(0, preparations);
         variables.CaptureScalarMemoryBaseline();
         variables.SetScalarText(ofs, "|");
@@ -35,6 +37,7 @@ public sealed class AwkScalarMemoryModeTests
         variables.SetScalarValue(AwkVariableName.FromText("NF"), AwkValue.FromNumber(2));
         Assert.Equal(1, assignments);
         Assert.Equal(2, variables.GetOrCreateScalarValue(AwkVariableName.FromText("NF")).AsNumber());
+        Assert.Equal(2, variables.GetScalarValue(nf).AsNumber());
         for (var iteration = 0; iteration < 3; iteration++)
         {
             variables.SetScalarText(name, new string('a', 4096));
