@@ -49,6 +49,9 @@ larger shapes use the normal executor, bounding preparation work and metadata.
 Synchronous builtins stage arguments directly into the existing admitted buffer, in order;
 pending operands retain its lease until completion, failure or cancellation. Async builtins
 retain lazy argument evaluation. This changes neither admission thresholds nor checkpoints.
+`printf` emits its admitted staging buffer; `sprintf` still returns owned text. Publication
+stays atomic. Rounded buffer capacity can change memory thresholds; timed-out host borrows
+keep shared admission until actual completion.
 Eligible field/string-literal comparisons, text comparisons with a right-hand field and
 numeric-only field reads, including binary arithmetic operands, can avoid copied text
 and scalar caches. Numeric comparisons,

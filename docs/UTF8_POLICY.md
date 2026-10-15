@@ -51,6 +51,8 @@ invariant-culture binary64 semantics.
 Regex preparation/backends, format syntax, general width/precision and character formatting,
 date formatting and non-ASCII casing have explicit string boundaries. Plain `%s` arguments
 can stay in UTF-8 through the existing builder; numeric/CONVFMT conversion is unchanged.
+Statement `printf` emits staged bytes without copying an intermediate `AwkText` result;
+formatting completes before publication, and host appends borrow stable admitted storage.
 Custom scalar formats preserve their full-precision conversion through a bounded temporary. Counters distinguish decode/encode work, cached `AsString`
 requests, formatting fallback and regex adapters. A byte-native claim requires counter
 evidence; it does not imply zero allocation. Governed buffers/caches publish only after

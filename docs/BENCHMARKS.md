@@ -3,9 +3,9 @@
 Current complete comparison: **23 families**, measured 2026-10-15 at Release source
 `09ef2f24a4579f0ecbdc2676f8624c45c26caa20` against GNU awk 5.2.1. All rows share this source/settings;
 this is the declared five-change milestone refresh, not a cumulative causal speedup.
-Current runtime `6478b69af0b50ff73b4ad9feff329e3fef9aae79` also lets ordinary owned
-field reads use existing prefix splitting. Its scoped evidence is below; the complete
-comparison retains the measured source above.
+Current runtime `af8403223c06aa45418369743f18115cb7083589` also emits `printf` from its
+staging buffer. Its scoped evidence is below; the complete comparison retains the measured
+source above. The retained owned-field result is identified separately.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -47,28 +47,38 @@ Medium cases have 4,096 records, except all-fields wide (256×64 fields) and the
 Mixed array reads have equal existing/new keys. Marked GNU cases exercise supported
 conveniences; this comparison is not a conformance claim.
 
-After this baseline, removing redundant eager field-count checks at `6478b69` was confirmed
-against `8993f42` (runtime `9de84e8`) on 2026-10-15. A derived early-owned-field script,
-`{value=$1;sum+=length(value)}END{print sum}`, takes **40.9–41.4% less elapsed time** and
-**75.3% fewer managed allocations**: **16,585,748→4,100,976 bytes/invocation**. Medians in the
-two source orders are 7.069→4.144 ms and 6.985→4.129 ms; every launch pair is over 39% faster.
-The fixture has 4,096 identical 64-field records (1,323,008 bytes): `0007 worker café` followed
-by 61 `tail` fields and LF. This uses the existing BenchmarkDotNet/runner/host/verification,
-three warmups/five iterations, two launches/source/order, stable production-library identities
-and passing quiet gates. GNU confirms the exact output `16384` plus LF; GNU was not timed.
-This derived case does not refresh GNU timings, the catalog or any row above.
+Current scoped result, measured 2026-10-15: caller-owned `printf` staging at `af84032`
+versus `f8aa880` (runtime `6478b69`) takes **3.8–6.4% less elapsed time** and **15.0% fewer
+managed allocated bytes**, **3,049,658→2,590,899 bytes/invocation**, on the catalog's formatting
+script. Medians in the two source orders are 5.153→4.821 ms and 4.948→4.760 ms; every launch
+pair is over 2.5% faster. String and owned-prefix controls have unchanged allocations and
+overlapping timings; no control or uniform gain is claimed. Three warmups/five iterations,
+two launches/source/order, stable production-library identities and passing quiet gates
+qualify this change. No GNU timing or row above is refreshed.
 
-Formatting is flat to 1.6% slower; all-fields wide processing varies from 0.4% slower to
-4.6% faster, with unchanged allocation. The string pilot was 2.9% slower and was not retimed.
-No uniform or control gain is claimed. Owned reads can retain fewer field descriptors;
-later NF/mutation completion may rescan and charge additional optional fuel. Tight field
-quotas still validate before publishing a prefix; see [record semantics](RECORD_SEMANTICS.md).
+Retained scoped result, also measured 2026-10-15: removing eager field-count checks at
+`6478b69` versus `8993f42` (runtime `9de84e8`) makes
+`{value=$1;sum+=length(value)}END{print sum}` take **40.9–41.4% less elapsed time** and
+**75.3% fewer managed allocated bytes**, **16,585,748→4,100,976 bytes/invocation**.
+Medians are 7.069→4.144 ms and 6.985→4.129 ms; every launch pair is over 39% faster under
+the same scoped settings. The derived fixture has 4,096 identical 64-field records
+(1,323,008 bytes): `0007 worker café`, then 61 `tail` fields and LF. Existing runner/host/
+verification are reused. GNU confirms output `16384` plus LF; it was not timed. Formatting
+was flat to 1.6% slower, all-fields timing variable, and the string pilot 2.9% slower
+(unconfirmed). This result does not refresh the catalog/table or imply a cumulative gain.
+
+`printf` keeps its admitted staging buffer through emission; rounded capacity replaces a
+copied-text estimate, so optional memory thresholds can change. Owned field reads retain
+fewer descriptors; later NF/mutation completion may rescan and charge optional fuel.
+Tight field quotas still validate before publishing a prefix. See [runtime limits](RUNTIME_LIMITS.md)
+and [record semantics](RECORD_SEMANTICS.md).
 
 All 71 exact reference checks, 65 native core goldens and 18 stack scenarios pass at the
-current source. All 31 finite-counter rows match the parent; targeted owned-prefix counters,
-completion charges, quota refusal/retry, captured separators and reconstruction checks pass.
-Current [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38762828597)
-passes 72,384 tests/OS. The [complete-baseline CI](https://github.com/Lokad/Awk/actions/runs/38746687036)
+current source. All 71 published work/host/field/encoding counter snapshots and 31 finite-
+counter rows match the parent. Targeted allocation, late-error/output-refusal and pending/
+canceled/non-cooperative timed-out host checks pass. Current
+[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38767634596)
+passes 72,389 tests/OS. The [complete-baseline CI](https://github.com/Lokad/Awk/actions/runs/38746687036)
 passes 72,365/OS (63 native goldens at that source). Strict UTF-8, aliases/order, mutation
 preflights, cancellation and host lifetimes remain qualified.
 
