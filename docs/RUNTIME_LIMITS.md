@@ -41,6 +41,11 @@ Specialized regex-operation, sort-comparison and regex-separator scan quotas are
 in both presets. Positive `WithMaxExecutionSteps` enables a shared logical-work allowance;
 zero in a preset means absent and is not a valid setter value. Fuel is deterministic
 accounting, not a CPU-time limit. Counters observe work and never enable admission rules.
+Prepared numeric trees and eligible pure scalar loops use the same execution checkpoints
+and mutation preflights. Functions retain their validated asynchronous stack boundaries;
+host/pending work, lint and buffered diagnostics retain normal interpreter execution.
+Synchronous eligibility is bounded to expression depth 16 and 16 body statements;
+larger shapes use the normal executor, bounding preparation work and metadata.
 Eligible field/string-literal comparisons, text comparisons with a right-hand field and
 numeric-only field reads, including binary arithmetic operands, can avoid copied text
 and scalar caches. Numeric comparisons,

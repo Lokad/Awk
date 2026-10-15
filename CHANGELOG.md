@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Prepared scalar numeric trees and eligible pure `for` loops avoid nested completion
+  handling in the interpreter. Execution checkpoints, mutation preflights and function
+  stack boundaries remain; host, pending, lint and diagnostic paths retain normal execution.
+
 - Field-key array updates reuse existing owned dictionary keys, avoiding temporary field
   copies on hits. Plain assignment/new keys retain owned-key preparation; aliases,
   pending RHS evaluation, deletion/record reuse, admission/refunds and VM checks remain.
