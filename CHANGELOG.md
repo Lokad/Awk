@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Numeric field operands in array compound updates consume borrowed UTF-8 bytes through
+  the existing parser, avoiding copied text while preserving target/RHS order, cached
+  values, numeric modes, cancellation and mutation preflights.
+
 - Comparisons of untouched fields with string literals use borrowed UTF-8 bytes,
   avoiding copied field text and scalar-cache publication while preserving ordinary
   fallbacks, value limits, cancellation and evaluation order.

@@ -41,8 +41,9 @@ Specialized regex-operation, sort-comparison and regex-separator scan quotas are
 in both presets. Positive `WithMaxExecutionSteps` enables a shared logical-work allowance;
 zero in a preset means absent and is not a valid setter value. Fuel is deterministic
 accounting, not a CPU-time limit. Counters observe work and never enable admission rules.
-Ordinary field/string-literal comparisons can avoid copied text and scalar caches;
-value limits and mutation preflights remain, while memory charges reflect avoided storage.
+Ordinary field/string-literal comparisons and numeric-only field reads can avoid copied
+text and scalar caches; value limits and mutation preflights remain, while memory charges
+reflect avoided storage.
 Length-only ASCII/byte field reads can avoid text/cache allocation. An initial ASCII-record
 classification is cancellable and charged, so an explicit fuel quota may reject earlier.
 

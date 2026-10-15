@@ -62,6 +62,8 @@ first/reverse order. No GNU retiming or cumulative gain is claimed.
 | Printf wrapper: projection control | 3.032 | 3.040 | -0.3% / -2.4% | 1,405,827 | 1,405,827 |
 | Borrowed comparisons: filter | 4.833 | 3.666 | +24.1% / +23.2% | 2,645,813 | 1,367,683 |
 | Borrowed comparisons: 3 fields | 8.404 | 6.636 | +21.0% / +18.5% | 2,743,670 | 1,465,525 |
+| Numeric fields: aggregation | 4.609 | 4.309 | +6.5% / +7.4% | 2,274,352 | 1,848,362 |
+| Numeric fields: arithmetic control | 9.604 | 9.666 | -0.7% / +6.1% | 1,381,613 | 1,381,613 |
 
 Initialized IGNORECASE read, measured 2026-10-14: `30df7b3b390817673cf0c06ab218ec8278eb393d` before and
 `ca0f79e70a9401d7a0f3a245a2f99f0fa2a6c3de` after. GNU scalar reads outside functions use the existing
@@ -109,6 +111,21 @@ the remaining rows change only avoided text allocations/bytes and memory peaks. 
 steps, byte comparisons and all other reported counters remain unchanged. Lower charges
 reflect avoided storage; value limits, mutation preflights, cancellation and host mediation stay.
 The complete GNU comparison retains its recorded source/date; no cumulative gain is claimed.
+
+Numeric field consumption, measured 2026-10-15 UTC:
+`61dcc83eac6ed2e954d42ad921a3c0691ba58204` before and `f105e6115ea0d2563eae0337f0ff56e9f770717c` after. Array compound RHS
+consumes untouched field bytes through the existing number parser; cached/modified fields
+and $0 retain ordinary values. Target/key and left value are read before RHS effects,
+preserving the documented [ordering contract](COMPATIBILITY_CONTRACT.md).
+Aggregation allocations fall 18.73% in both orders; elapsed
+reductions are +6.5% / +7.4%.
+The aggregation throughput improvement repeats in both source orders. Arithmetic and projection are controls, not claimed gains.
+All 71,937 tests/OS,62 benchmark GNU cases,20 equivalent native golden scripts plus one
+documented ordering difference, and18 stack scenarios pass. That differing script is not
+a GNU-equivalent performance case. Counter changes are restricted to reduced text storage
+and peaks; work/admission, UTF-8, numeric modes/errors and cancellation remain qualified.
+This completes the declared five-change batch; the complete table retains its source
+until the milestone refresh is qualified.
 
 ## Retained length-only evidence
 

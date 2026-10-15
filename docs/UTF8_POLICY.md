@@ -55,3 +55,6 @@ successful construction. Cancellation remains subject to the
 Ordinary field/string-literal comparisons can consume untouched field bytes synchronously,
 without copied text or a cached scalar. Cached/modified fields, case-insensitive/nondecimal
 comparison and `$0` use ordinary value evaluation; borrowed spans never outlive the comparison.
+
+Numeric-only field reads can parse borrowed bytes synchronously; cached/modified fields
+and `$0` retain ordinary values. No borrowed span escapes numeric conversion.
