@@ -25,6 +25,8 @@ internal sealed class AwkOutputSink : IDisposable
         counters.RecordOutputSinkCreation();
     }
 
+    internal bool HasPendingOutput => _standardOutput.Length != 0 || _diagnostics.Count != 0;
+
     public void Append(AwkText value)
     {
         if (value.ByteLength == 0)

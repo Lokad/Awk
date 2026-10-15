@@ -146,21 +146,11 @@ internal abstract partial class AwkExpression
             if (!compiler.TryEmitExpression(left) || !compiler.TryEmitExpression(right))
                 return false;
 
-            compiler.Emit(ToOpcode(operation));
+            compiler.Emit(ToNumericOpcode(operation));
             compiler.Replace(popped: 2, pushed: 1);
             return true;
 
-            static AwkOpcode ToOpcode(AwkNumericOperation operation) =>
-                operation switch
-                {
-                    AwkNumericOperation.Add => AwkOpcode.Add,
-                    AwkNumericOperation.Subtract => AwkOpcode.Subtract,
-                    AwkNumericOperation.Multiply => AwkOpcode.Multiply,
-                    AwkNumericOperation.Divide => AwkOpcode.Divide,
-                    AwkNumericOperation.Modulo => AwkOpcode.Modulo,
-                    AwkNumericOperation.Power => AwkOpcode.Power,
-                    _ => throw new ArgumentOutOfRangeException(nameof(operation))
-                };
+
         }
     }
 

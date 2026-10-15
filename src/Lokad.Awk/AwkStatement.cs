@@ -182,6 +182,12 @@ internal abstract partial class AwkStatement
     /// <returns><see langword="true"/> only when control flow and compiler stack state were fully emitted.</returns>
     internal virtual bool TryEmitExecutable(AwkExecutableCompiler compiler) => false;
 
+    internal virtual bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
+    {
+        action = static _ => { };
+        return false;
+    }
+
     /// <summary>Executes this statement and returns the control-flow request visible to its enclosing block.</summary>
     public abstract ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context);
 

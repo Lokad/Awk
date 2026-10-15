@@ -84,9 +84,15 @@ internal abstract partial class AwkStatement
         AwkStatement increment,
         AwkStatement[] body) : AwkStatement
     {
+        private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(initializer, condition, increment, body);
+
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var state = context.State;
+            if (_synchronous is { } prepared && state.LintMode == AwkLintMode.Off &&
+                context.TryGetExecutionContext(out var execution) && !execution.Output.HasPendingOutput)
+                return prepared.Execute(context);
+
             var flow = await initializer.ExecuteAsync(context).ConfigureAwait(false);
             if (flow != AwkStatementFlow.Continue)
                 return flow;

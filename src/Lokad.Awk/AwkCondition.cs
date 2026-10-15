@@ -43,6 +43,14 @@ internal readonly struct AwkCondition
         return false;
     }
 
+    internal bool TryGetSynchronousExpression(out AwkSynchronousExpression expression)
+    {
+        if (_alternatives.Length == 1 && _alternatives[0].Length == 1)
+            return _alternatives[0][0].TryGetSynchronousExpression(out expression);
+        expression = AwkSynchronousExpression.Unavailable;
+        return false;
+    }
+
     internal bool TryEmitExecutable(AwkExecutableCompiler compiler)
     {
         if (_alternatives.Length != 1 || _alternatives[0].Length != 1)
@@ -75,6 +83,12 @@ internal sealed class AwkConditionClause
 
     public ValueTask<bool> EvaluateAsync(AwkEvaluationContext context) =>
         _expression.EvaluateConditionAsync(context);
+
+    internal bool TryGetSynchronousExpression(out AwkSynchronousExpression expression)
+    {
+        expression = _expression as AwkSynchronousExpression ?? AwkSynchronousExpression.Unavailable;
+        return expression.SynchronousDepth > 0;
+    }
 
     internal bool TryEmitExecutable(AwkExecutableCompiler compiler)
     {

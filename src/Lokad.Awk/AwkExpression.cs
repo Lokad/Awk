@@ -63,17 +63,17 @@ internal abstract partial class AwkExpression
 
     public static AwkExpression Concat(IReadOnlyList<AwkExpression> parts) => new ConcatExpression(parts);
 
-    public static AwkExpression Add(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Add);
+    public static AwkExpression Add(AwkExpression left, AwkExpression right) => CreateBinary(left, right, AwkNumericOperation.Add);
 
-    public static AwkExpression Subtract(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Subtract);
+    public static AwkExpression Subtract(AwkExpression left, AwkExpression right) => CreateBinary(left, right, AwkNumericOperation.Subtract);
 
-    public static AwkExpression Multiply(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Multiply);
+    public static AwkExpression Multiply(AwkExpression left, AwkExpression right) => CreateBinary(left, right, AwkNumericOperation.Multiply);
 
-    public static AwkExpression Divide(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Divide);
+    public static AwkExpression Divide(AwkExpression left, AwkExpression right) => CreateBinary(left, right, AwkNumericOperation.Divide);
 
-    public static AwkExpression Modulo(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Modulo);
+    public static AwkExpression Modulo(AwkExpression left, AwkExpression right) => CreateBinary(left, right, AwkNumericOperation.Modulo);
 
-    public static AwkExpression Power(AwkExpression left, AwkExpression right) => new BinaryExpression(left, right, AwkNumericOperation.Power);
+    public static AwkExpression Power(AwkExpression left, AwkExpression right) => CreateBinary(left, right, AwkNumericOperation.Power);
 
     public static AwkExpression Negate(AwkExpression expression) => new NegateExpression(expression);
 
@@ -87,7 +87,9 @@ internal abstract partial class AwkExpression
             ? new FieldLiteralComparisonExpression(left, field.IndexExpression, literal, comparison)
             : right is DynamicFieldIndexExpression rightField
                 ? new FieldValueComparisonExpression(left, rightField, comparison)
-                : new ComparisonExpression(left, right, comparison);
+                : TryGetSynchronousPair(left, right, out var syncLeft, out var syncRight)
+                    ? new SynchronousComparisonExpression(syncLeft, syncRight, comparison)
+                    : new ComparisonExpression(left, right, comparison);
 
     public static AwkExpression RegexMatch(
         AwkExpression left,
@@ -237,6 +239,12 @@ internal abstract partial class AwkExpression
 
     private static async ValueTask<bool> AwaitConditionValueAsync(ValueTask<AwkValue> pending) =>
         (await pending.ConfigureAwait(false)).IsTruthy();
+
+    internal virtual bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
+    {
+        action = static _ => { };
+        return false;
+    }
 
     /// <summary>Evaluates this expression after the shared execution-step and cancellation checks have run.</summary>
     protected abstract ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context);

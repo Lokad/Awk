@@ -235,10 +235,11 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class PreparedGlobalVariableExpression(AwkVariableName name, int index) : AwkExpression
+    private sealed class PreparedGlobalVariableExpression(AwkVariableName name, int index) : AwkSynchronousExpression
     {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.ResolvePreparedGlobalValue(name, index));
+        internal override int SynchronousDepth => AwkSpecialVariables.TryGetScalar(name, out _) ? 0 : 1;
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
+            context.State.ResolvePreparedGlobalValue(name, index);
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
@@ -256,10 +257,10 @@ internal abstract partial class AwkExpression
 
     private sealed class LocalVariableExpression(
         AwkVariableName name,
-        AwkFunctionLocalSlotId slotId) : AwkExpression
+        AwkFunctionLocalSlotId slotId) : AwkSynchronousExpression
     {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.ResolveFunctionLocalValue(slotId, name));
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
+            context.State.ResolveFunctionLocalValue(slotId, name);
 
         public override bool TryGetVariableName(out AwkVariableName variableName)
         {
@@ -304,11 +305,10 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class NumberExpression(string text, double gnuDefaultValue) : AwkExpression
+    private sealed class NumberExpression(string text, double gnuDefaultValue) : AwkSynchronousExpression
     {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(AwkValue.FromNumber(
-                context.State.ResolveSourceNumberLiteral(text, gnuDefaultValue)));
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
+            AwkValue.FromNumber(context.State.ResolveSourceNumberLiteral(text, gnuDefaultValue));
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {

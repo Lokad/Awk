@@ -63,6 +63,10 @@ internal sealed class AwkRuntimeCounters
 
     public long StringInteropFallbacks { get; private set; }
 
+    public long SynchronousLoopRuns { get; private set; }
+
+    public long SynchronousExpressionRuns { get; private set; }
+
     public long HostCalls { get; private set; }
 
     public long ExecutionSteps { get; private set; }
@@ -332,6 +336,16 @@ internal sealed class AwkRuntimeCounters
 
         lock (_sync)
             StringInteropFallbacks++;
+    }
+
+    public void RecordSynchronousLoop()
+    {
+        if (_enabled) lock (_sync) SynchronousLoopRuns++;
+    }
+
+    public void RecordSynchronousExpression()
+    {
+        if (_enabled) lock (_sync) SynchronousExpressionRuns++;
     }
 
     public void RecordHostCall()

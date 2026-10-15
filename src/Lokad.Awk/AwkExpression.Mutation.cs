@@ -7,8 +7,40 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkExpression
 {
+    private static bool TryPrepareSynchronousIncrement(AwkReference target, out Action<AwkEvaluationContext> action)
+    {
+        if (target.TryGetSynchronousScalar(out var location))
+        {
+            action = context =>
+            {
+                var state = context.State;
+                state.RecordExecutionStep();
+                var previous = location.Evaluate(state).AsNumber(state.CancellationCheckpoint);
+                location.AssignValue(state, AwkValue.FromNumber(previous + 1));
+            };
+            return true;
+        }
+        action = static _ => { };
+        return false;
+    }
+
     private sealed class AssignmentExpression(AwkReference target, AwkExpression valueExpression) : AwkExpression
     {
+        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
+        {
+            if (valueExpression is AwkSynchronousExpression { SynchronousDepth: > 0 } value &&
+                target.TryGetSynchronousScalar(out var location))
+            {
+                action = context =>
+                {
+                    context.State.RecordExecutionStep();
+                    location.AssignValue(context.State, value.EvaluateSynchronous(context));
+                };
+                return true;
+            }
+            return base.TryPrepareSynchronousAction(out action);
+        }
+
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var pending = valueExpression.EvaluateAsync(context);
@@ -88,6 +120,9 @@ internal abstract partial class AwkExpression
 
     private sealed class PreIncrementExpression(AwkReference target) : AwkExpression
     {
+        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action) =>
+            TryPrepareSynchronousIncrement(target, out action);
+
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyIncrementAsync(context);
     }
@@ -100,6 +135,9 @@ internal abstract partial class AwkExpression
 
     private sealed class PostIncrementExpression(AwkReference target) : AwkExpression
     {
+        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action) =>
+            TryPrepareSynchronousIncrement(target, out action);
+
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             target.ApplyPostIncrementAsync(context);
     }

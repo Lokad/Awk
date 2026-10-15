@@ -5,6 +5,12 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("synchronous-numeric-local-loop-and-returns",
+            ["function run(x,i){for(i=0;i<8;i++)x=(x*3+1)%101;return x} BEGIN{print run(7),run(8)}"], [], "20 16\n");
+        yield return Passing("synchronous-numeric-loop-with-call-boundaries",
+            ["function inc(x){return x+1} BEGIN{x=0;for(i=0;i<3;i++)x=inc(x);print x}"], [], "3\n");
+        yield return Passing("synchronous-numeric-loop-keeps-text-coercion",
+            ["BEGIN{x=\"007\";for(i=0;i<2;i++)x=x+1;print x;x=\"é\";for(i=0;i<2;i++)x=x+1;print x}"], [], "9\n2\n");
         yield return Passing("field-array-write-spelling-hits-misses-and-empty",
             ["BEGIN{FS=\"|\";a[7]=1;a[\"007\"]=2;a[\"café\"]=3;a[\"\"]=4;$0=\"7|007|café\";a[$1]++;a[$2]+=5;a[$3]=9;print a[7],a[\"007\"],a[\"café\"];$0=\"missing|\";a[$1]++;a[$2]+=2;print a[\"missing\"],a[\"\"],length(a)}"], [], "2 7 9\n1 6 5\n");
         yield return Passing("field-array-write-alias-and-index-record-effects",

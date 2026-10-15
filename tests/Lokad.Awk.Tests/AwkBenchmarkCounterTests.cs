@@ -8,6 +8,22 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Fact]
+    public async Task PureForAndNumericReturnBodiesUsePreparedSynchronousRegions()
+    {
+        const string script = "function inc(x){return x+1} {x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=inc(inc(x))} END{print total}";
+        var result = await RunAsync([script], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("44\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, result.Counters.SynchronousLoopRuns);
+        Assert.True(result.Counters.SynchronousExpressionRuns > 0);
+        Assert.Equal(0, result.Counters.FunctionStackSuspensions);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
     [Theory]
     [InlineData("a[$1]++", false)]
     [InlineData("a[$1]++", true)]

@@ -121,6 +121,19 @@ internal abstract record AwkReference
         return false;
     }
 
+    internal bool TryGetSynchronousScalar(out AwkResolvedReference target)
+    {
+        target = this switch
+        {
+            AwkPreparedGlobalScalarReference global when !AwkSpecialVariables.TryGetScalar(global.Variable, out _) =>
+                AwkResolvedReference.PreparedGlobalScalar(global.Variable, global.Index),
+            AwkLocalScalarReference local => AwkResolvedReference.LocalScalar(local.Variable, local.SlotId),
+            _ => default
+        };
+        return this is AwkLocalScalarReference ||
+            this is AwkPreparedGlobalScalarReference scalar && !AwkSpecialVariables.TryGetScalar(scalar.Variable, out _);
+    }
+
     protected virtual ValueTask<AwkValue> ApplyNumericUpdateAsync(
         AwkEvaluationContext context,
         Func<double, double> update,

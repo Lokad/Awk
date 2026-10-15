@@ -38,6 +38,9 @@ internal abstract partial class AwkStatement
 
     private sealed class ExpressionStatement(AwkExpression expression) : AwkStatement
     {
+        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action) =>
+            expression.TryPrepareSynchronousAction(out action);
+
         public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var pending = expression.EvaluateAsync(context);
