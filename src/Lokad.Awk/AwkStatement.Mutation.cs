@@ -38,6 +38,13 @@ internal abstract partial class AwkStatement
 
     private sealed class ExpressionStatement(AwkExpression expression) : AwkStatement
     {
+        internal override AwkStatement PrepareSynchronousCalls(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions)
+        {
+            var prepared = expression.PrepareSynchronousCallAction(functions);
+            return ReferenceEquals(prepared, expression) ? this : new ExpressionStatement(prepared);
+        }
+
         internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action) =>
             expression.TryPrepareSynchronousAction(out action);
 

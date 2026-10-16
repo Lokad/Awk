@@ -26,6 +26,11 @@ internal abstract partial class AwkExpression
 
     private sealed class AssignmentExpression(AwkReference target, AwkExpression valueExpression) : AwkExpression
     {
+        internal override AwkExpression PrepareSynchronousCallAction(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) =>
+            valueExpression.TryPrepareFunctionCalls(functions, 16, out var value) && !ReferenceEquals(value, valueExpression)
+                ? new AssignmentExpression(target, value) : this;
+
         internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
         {
             if (valueExpression is AwkSynchronousExpression { SynchronousDepth: > 0 } value &&
@@ -114,6 +119,11 @@ internal abstract partial class AwkExpression
         AwkExpression valueExpression,
         AwkCompoundAssignmentOperation operation) : AwkExpression
     {
+        internal override AwkExpression PrepareSynchronousCallAction(
+            IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) =>
+            valueExpression.TryPrepareFunctionCalls(functions, 16, out var value) && !ReferenceEquals(value, valueExpression)
+                ? new CompoundAssignmentExpression(target, value, operation) : this;
+
         internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
         {
             if (valueExpression is AwkSynchronousExpression { SynchronousDepth: > 0 and <= 16 } value &&

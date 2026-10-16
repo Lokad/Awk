@@ -262,6 +262,9 @@ internal abstract partial class AwkExpression
         return false;
     }
 
+    internal virtual AwkExpression PrepareSynchronousCallAction(
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) => this;
+
     /// <summary>Evaluates this expression after the shared execution-step and cancellation checks have run.</summary>
     protected abstract ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context);
 

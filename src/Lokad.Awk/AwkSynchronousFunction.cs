@@ -16,9 +16,10 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
         return state.TryConsumeFunctionReturnValue(out var value) ? value : AwkValue.Unassigned();
     }
 
-    public static void Prepare(Dictionary<AwkFunctionName, AwkUserFunction> functions, Action? checkpoint)
+    public static IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? Prepare(
+        Dictionary<AwkFunctionName, AwkUserFunction> functions, Action? checkpoint)
     {
-        if (functions.Count == 0) return;
+        if (functions.Count == 0) return null;
         var prepared = new Dictionary<AwkFunctionName, AwkSynchronousFunction>();
         for (var pass = 0; pass < 4; pass++)
         {
@@ -38,6 +39,7 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
             checkpoint?.Invoke();
             functions[name] = functions[name].WithSynchronousFunction(function);
         }
+        return prepared;
     }
 }
 

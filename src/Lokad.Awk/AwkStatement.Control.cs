@@ -82,14 +82,18 @@ internal abstract partial class AwkStatement
         AwkStatement initializer,
         AwkCondition condition,
         AwkStatement increment,
-        AwkStatement[] body) : AwkStatement
+        AwkStatement[] body,
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? synchronousFunctions) : AwkStatement
     {
-        private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(initializer, condition, increment, body);
+        private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(initializer, condition, increment, body, synchronousFunctions);
 
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var state = context.State;
             if (_synchronous is { } prepared && state.LintMode == AwkLintMode.Off &&
+                (!prepared.HasPreparedCalls || (!state.UsesExecutableEngine &&
+                    state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
+                    System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())) &&
                 context.TryGetExecutionContext(out var execution) && !execution.Output.HasPendingOutput)
                 return prepared.Execute(context);
 

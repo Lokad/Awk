@@ -108,6 +108,7 @@ public sealed class AwkBenchmarkCounterTests
 
     [Theory]
     [InlineData("{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}", "40\n")]
+    [InlineData("function step(x){return (x*3+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}", "40\n")]
     [InlineData("function inc(x){return x+1} {x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=inc(inc(x))} END{print total}", "44\n")]
     public async Task PureForAndNumericReturnBodiesUsePreparedSynchronousRegions(string script, string expected)
     {

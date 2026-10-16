@@ -2,14 +2,31 @@ namespace Lokad.Awk;
 
 // Reuses interpreter scalar setters and bounded synchronous expressions, including eligible
 // field reads. Host-capable indices, arrays, control flow and diagnostics retain ordinary execution.
+// Known return-function calls reuse existing frames behind the loop's policy/stack guard.
 internal sealed class AwkSynchronousFor(
     Action<AwkEvaluationContext> initialize,
     AwkSynchronousExpression condition,
     Action<AwkEvaluationContext> increment,
-    Action<AwkEvaluationContext>[] body)
+    Action<AwkEvaluationContext>[] body,
+    bool hasPreparedCalls)
 {
+    public bool HasPreparedCalls { get; } = hasPreparedCalls;
+
     public static AwkSynchronousFor? TryPrepare(AwkStatement initializer, AwkCondition condition,
-        AwkStatement increment, AwkStatement[] body)
+        AwkStatement increment, AwkStatement[] body,
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null)
+    {
+        var ordinary = TryPrepareBody(initializer, condition, increment, body, false);
+        if (ordinary is not null || body.Length > 16 || functions is not { Count: > 0 }) return ordinary;
+        var preparedBody = new AwkStatement[body.Length];
+        for (var index = 0; index < body.Length; index++)
+            preparedBody[index] = body[index].PrepareSynchronousCalls(functions);
+        return TryPrepareBody(initializer.PrepareSynchronousCalls(functions), condition.PrepareSynchronousCalls(functions),
+            increment.PrepareSynchronousCalls(functions), preparedBody, true);
+    }
+
+    private static AwkSynchronousFor? TryPrepareBody(AwkStatement initializer, AwkCondition condition,
+        AwkStatement increment, AwkStatement[] body, bool hasPreparedCalls)
     {
         if (body.Length > 16 || !initializer.TryPrepareSynchronousAction(out var initialize) ||
             !condition.TryGetSynchronousExpression(out var test) ||
@@ -19,7 +36,7 @@ internal sealed class AwkSynchronousFor(
         {
             if (!body[index].TryPrepareSynchronousAction(out actions[index])) return null;
         }
-        return new(initialize, test, step, actions);
+        return new(initialize, test, step, actions, hasPreparedCalls);
     }
 
     public AwkStatementFlow Execute(AwkEvaluationContext context)

@@ -51,6 +51,10 @@ internal readonly struct AwkCondition
         return false;
     }
 
+    internal AwkCondition PrepareSynchronousCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) =>
+        _alternatives.Length == 1 && _alternatives[0].Length == 1
+            ? new([[_alternatives[0][0].PrepareSynchronousCalls(functions)]]) : this;
+
     internal bool TryEmitExecutable(AwkExecutableCompiler compiler)
     {
         if (_alternatives.Length != 1 || _alternatives[0].Length != 1)
@@ -68,6 +72,9 @@ internal sealed class AwkConditionClause
     {
         _expression = expression;
     }
+
+    internal AwkConditionClause PrepareSynchronousCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) =>
+        _expression.TryPrepareFunctionCalls(functions, 16, out var prepared) ? new(prepared) : this;
 
     public static AwkConditionClause Comparison(AwkExpression left, AwkExpression right, AwkComparison comparison) =>
         new(AwkExpression.Compare(left, right, comparison));

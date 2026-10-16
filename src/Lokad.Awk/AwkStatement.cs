@@ -135,8 +135,9 @@ internal abstract partial class AwkStatement
         AwkStatement initializer,
         AwkCondition condition,
         AwkStatement increment,
-        IReadOnlyList<AwkStatement> body) =>
-        new ForStatement(initializer, condition, increment, AwkCollectionSnapshots.Copy(body));
+        IReadOnlyList<AwkStatement> body,
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? synchronousFunctions = null) =>
+        new ForStatement(initializer, condition, increment, AwkCollectionSnapshots.Copy(body), synchronousFunctions);
 
     public static AwkStatement While(AwkCondition condition, IReadOnlyList<AwkStatement> body) =>
         new WhileStatement(condition, AwkCollectionSnapshots.Copy(body));
@@ -187,6 +188,9 @@ internal abstract partial class AwkStatement
         action = static _ => { };
         return false;
     }
+
+    internal virtual AwkStatement PrepareSynchronousCalls(
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) => this;
 
     internal virtual bool TryGetReturnExpression(out AwkExpression expression)
     {
