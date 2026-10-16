@@ -994,10 +994,7 @@ internal sealed class AwkVariables
 
     private void ThrowIfArrayWouldGrowPastLimit(Dictionary<AwkArrayKey, AwkVariableSlot> values, AwkArrayKey index)
     {
-        if (values.ContainsKey(index))
-            return;
-
-        if (values.Count >= _maxArrayElements)
+        if (values.Count >= _maxArrayElements && !values.ContainsKey(index))
             throw new AwkRuntimeException(AwkMessages.ErrorArrayElementLimit);
     }
 

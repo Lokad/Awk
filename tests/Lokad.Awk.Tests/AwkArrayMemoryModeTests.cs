@@ -2,6 +2,59 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkArrayMemoryModeTests
 {
+    [Fact]
+    public void BelowCapacityQuotaAvoidsRedundantKeyWork()
+    {
+        var atCapacity = Measure(2);
+        var belowCapacity = Measure(3);
+        Assert.True(belowCapacity > 0); // Actual dictionary access still checks long-key work.
+        Assert.True(atCapacity > belowCapacity, $"At cap: {atCapacity}; below cap: {belowCapacity}");
+
+        static int Measure(int limit)
+        {
+            var calls = 0;
+            var measuring = false;
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var variables = CreateVariables(AwkMemoryAccounting.Disabled, counters, limit,
+                () => { if (measuring) calls++; });
+            var name = AwkArrayName.FromText("a");
+            var key = new AwkArrayKey(new string('k', AwkExecutionGovernor.WorkChunkBytes * 2));
+            variables.SetArrayValue(name, key, AwkValue.FromNumber(42));
+            variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(9));
+            measuring = true;
+            variables.SetArrayValue(name, key, AwkValue.FromNumber(7));
+            measuring = false;
+            Assert.Equal(7, variables.GetArrayValue(name, key).AsNumber());
+            Assert.True(variables.TryGetArrayCount(name, out var count));
+            Assert.Equal(2, count);
+            Assert.Equal(0, counters.AwkTextAllocations);
+            Assert.Equal(0, counters.StringDecodes);
+            return calls;
+        }
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void LongKeyAccessCancelsBeforeMutationAtOrBelowCapacity(int limit)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var armed = false;
+        var variables = CreateVariables(AwkMemoryAccounting.Disabled, AwkRuntimeCounters.Disabled,
+            limit, () => { if (armed) cancellation.Token.ThrowIfCancellationRequested(); });
+        var name = AwkArrayName.FromText("a");
+        var key = new AwkArrayKey(new string('k', AwkExecutionGovernor.WorkChunkBytes * 2));
+        variables.SetArrayValue(name, key, AwkValue.FromNumber(42));
+        variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(9));
+        cancellation.Cancel();
+        armed = true;
+        Assert.Throws<OperationCanceledException>(() => variables.SetArrayValue(name, key, AwkValue.FromNumber(7)));
+        armed = false;
+        Assert.Equal(42, variables.GetArrayValue(name, key).AsNumber());
+        Assert.True(variables.TryGetArrayCount(name, out var count));
+        Assert.Equal(2, count);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -109,10 +162,11 @@ public sealed class AwkArrayMemoryModeTests
         Assert.Equal(0, budget.Reserved);
     }
 
-    private static AwkVariables CreateVariables(AwkMemoryAccounting accounting, AwkRuntimeCounters counters) =>
-        new(2, 100, 100, accounting, counters,
+    private static AwkVariables CreateVariables(AwkMemoryAccounting accounting, AwkRuntimeCounters counters,
+        int elementLimit = 2, Action? checkpoint = null) =>
+        new(elementLimit, 100, 100, accounting, counters,
             static text => AwkValue.FromText(text),
             static text => AwkValue.FromNumericString(text),
             static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal),
-            static (_, _) => { }, static _ => { });
+            static (_, _) => { }, static _ => { }, checkpoint: checkpoint);
 }
