@@ -45,10 +45,20 @@ internal static class AwkExecutor
             return await ExecuteBodyAsync(host, invocation, cancellationToken, runtimeOptions,
                 compiledResolution, executableProgram).ConfigureAwait(false);
 
-        await using var owner = AwkExecutionMemoryOwner.Create(runtimeOptions.MemoryBudget, cancellationToken);
-        return await ExecuteBodyAsync(new AwkBudgetHost(host, owner), invocation,
-            owner.Token(cancellationToken), runtimeOptions with { MemoryOwner = owner },
-            compiledResolution, executableProgram).ConfigureAwait(false);
+        AwkExecutionMemoryOwner owner;
+        try
+        {
+            owner = AwkExecutionMemoryOwner.Create(runtimeOptions.MemoryBudget, cancellationToken);
+        }
+        catch (AwkRuntimeException exception)
+        {
+            return await ReportRuntimeFailureAsync(host, invocation, runtimeOptions, exception, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        await using (owner.ConfigureAwait(false))
+            return await ExecuteBodyAsync(new AwkBudgetHost(host, owner), invocation,
+                owner.Token(cancellationToken), runtimeOptions with { MemoryOwner = owner },
+                compiledResolution, executableProgram).ConfigureAwait(false);
     }
 
     private static async Task<AwkExitCode> ExecuteBodyAsync(
@@ -179,24 +189,8 @@ internal static class AwkExecutor
         }
         catch (AwkRuntimeException exception)
         {
-            var failure = AwkDiagnostics.Runtime(exception);
-            runtimeOptions.Counters.RecordHostCall();
-            runtimeOptions.Counters.RecordOutputBytes(failure.Message.Length);
-            try
-            {
-                var appendStatus = await AwkHostBoundaryPolicy.AwaitAsync(
-                        host.AppendAsync(invocation.Stdio.StdErr, failure.Message, cancellationToken),
-                        runtimeOptions.HostOperationTimeout,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                return appendStatus.Succeeded
-                    ? failure.ExitCode
-                    : AwkDiagnostics.FatalExitCode;
-            }
-            catch (Exception)
-            {
-                return AwkDiagnostics.FatalExitCode;
-            }
+            return await ReportRuntimeFailureAsync(host, invocation, runtimeOptions, exception, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -220,6 +214,27 @@ internal static class AwkExecutor
             {
                 return AwkDiagnostics.FatalExitCode;
             }
+        }
+    }
+
+    private static async Task<AwkExitCode> ReportRuntimeFailureAsync(
+        IAwkHost host, AwkInvocation invocation, AwkRuntimeOptions options,
+        AwkRuntimeException exception, CancellationToken cancellationToken)
+    {
+        var failure = AwkDiagnostics.Runtime(exception);
+        options.Counters.RecordHostCall();
+        options.Counters.RecordOutputBytes(failure.Message.Length);
+        try
+        {
+            var status = await AwkHostBoundaryPolicy.AwaitAsync(
+                    host.AppendAsync(invocation.Stdio.StdErr, failure.Message, cancellationToken),
+                    options.HostOperationTimeout, cancellationToken)
+                .ConfigureAwait(false);
+            return status.Succeeded ? failure.ExitCode : AwkDiagnostics.FatalExitCode;
+        }
+        catch (Exception)
+        {
+            return AwkDiagnostics.FatalExitCode;
         }
     }
 

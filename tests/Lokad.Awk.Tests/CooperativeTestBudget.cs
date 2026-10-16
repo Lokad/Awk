@@ -12,6 +12,23 @@ internal sealed class CooperativeTestBudget(long limit) : IMemoryBudget
     public long Peak { get; private set; }
     public int ScopesCreated { get; private set; }
     public int ScopesDisposed { get; private set; }
+    public long? RefuseNextAdmissionMinimumGrowth { get; set; }
+    public int Refusals { get; private set; }
+    public int GrowthAttemptsAfterRefusal { get; private set; }
+    public Action? OnRefusal { get; set; }
+
+    private bool Refuse(long growth)
+    {
+        if (RefuseNextAdmissionMinimumGrowth is { } minimum && growth >= minimum)
+        {
+            RefuseNextAdmissionMinimumGrowth = null;
+            Refusals++;
+            OnRefusal?.Invoke();
+            return true;
+        }
+        if (Refusals > 0 && growth > 0) GrowthAttemptsAfterRefusal++;
+        return false;
+    }
 
     public IMemoryScope CreateScope() { lock (_gate) return NewScope(null); }
     private Scope NewScope(Scope? parent)
@@ -31,6 +48,7 @@ internal sealed class CooperativeTestBudget(long limit) : IMemoryBudget
     {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
         scope?.EnsureAlive();
+        if (Refuse(bytes)) { reservation = null; return false; }
         if (bytes > _limit - _reserved) { reservation = null; return false; }
         var result = new Reservation(this, scope, bytes);
         scope?.Reservations.Add(result);
@@ -79,6 +97,7 @@ internal sealed class CooperativeTestBudget(long limit) : IMemoryBudget
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 scope?.EnsureAlive();
                 var growth = next - _bytes;
+                if (root.Refuse(growth)) return false;
                 if (growth > root._limit - root._reserved) return false;
                 root._reserved += growth;
                 _bytes = next;

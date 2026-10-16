@@ -37,6 +37,11 @@ Use property-style tests for broad invariants such as malformed-program robustne
 
 Current-surface tests are for internals that are hard to observe through a golden case: cancellation, injected clock/time-zone/random services, resource-limit thresholds, direct runtime services, and batching helpers. Prefer moving ordinary user-visible behavior to the golden corpus.
 
+`AwkAdmissionRefusalTests` verifies command termination on any refused host admission,
+without retry or fallback, and reuse by later commands after actual cleanup. Lower-level
+memory tests inspect unchanged reservations and refunds after false; that primitive contract
+does not authorize a running command to recover from refusal.
+
 ## Benchmarks
 
 `Lokad.Awk.Benchmarks` is not a correctness suite. Benchmark scripts should either reference canonical golden scenarios or document generated workloads, and benchmark smoke checks should not create independent behavior expectations. Use `AwkBenchmarkCounterTests` for deterministic counter invariants that belong in the correctness suite.

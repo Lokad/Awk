@@ -46,6 +46,13 @@ retained keys and values. Byte/memory refusal uses `awk: memory limit exceeded`;
 retain their specific awk diagnostics, without CLR exception details. Warnings use ordinary
 output/host budgets; cleanup shares one aggregate deadline after the ordinary host-call allowance is exhausted.
 
+Any refused host admission fails the command, including its initial reservation. The runtime
+stops script execution and returns a memory diagnostic and nonzero status; it does not retry,
+wait for allowance, spill, switch algorithms or drop/evict storage to recover. Cleanup and
+actual pending users finish before relinquished storage is refunded. Retained compiled storage
+stays charged; a later command can reuse released allowance. Refusal is distinct from caller
+cancellation and an actual `OutOfMemoryException`.
+
 Refunds wait for actual pending host users: cancellation or timeout ends a wait, not the
 underlying buffer borrow. Hosts must cooperate with cancellation. Without a supplied budget, existing deadline behavior remains.
 Framework/parser/regex construction can be indivisible; no hard CPU preemption or universal
