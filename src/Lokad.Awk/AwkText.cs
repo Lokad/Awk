@@ -195,6 +195,14 @@ internal sealed class AwkText : IEquatable<AwkText>
         return CreateTrustedOwnedBytes(bytes, counters);
     }
 
+    // The caller has proved that every owned byte is ASCII.
+    internal static AwkText FromTrustedAsciiOwnedBytes(byte[] bytes, AwkRuntimeCounters counters)
+    {
+        var text = FromTrustedOwnedBytes(bytes, counters);
+        Volatile.Write(ref text._textFacts, bytes.Length + 1);
+        return text;
+    }
+
     internal static AwkText FromTrustedOwnedBytes(
         byte[] bytes,
         AwkRuntimeCounters counters,

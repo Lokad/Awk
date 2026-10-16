@@ -90,7 +90,7 @@ internal static partial class AwkBuiltins
                 index += length;
             }
 
-            result = AwkText.FromTrustedOwnedBytes(converted, counters);
+            result = AwkText.FromTrustedAsciiOwnedBytes(converted, counters);
             return true;
         }
 

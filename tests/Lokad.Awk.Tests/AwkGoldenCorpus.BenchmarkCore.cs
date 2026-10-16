@@ -154,6 +154,12 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("benchmark-core-case-conversion",
             ["{s=tolower($0);t=toupper($0);total+=length(s)+length(t)} END{print total}"],
             [], "28\n", "AbC-09 !~\nTéSt😀\n");
+        yield return Passing("case-output-facts-keep-rune-units-and-unicode-fallback",
+            ["BEGIN{s=tolower(\"AB_09\");print length(s),index(s,\"_\"),substr(s,2,3),s~/^[a-z]+_/;u=toupper(\"café 😀\");print length(u),substr(u,2,3),index(u,\"😀\");print length(tolower(\"\"))}"],
+            [], "5 3 b_0 1\n6 AFÉ 6\n0\n");
+        yield return Passing("case-output-facts-byte-mode-keeps-byte-units",
+            ["-b", "BEGIN{s=tolower(\"AB_09\");u=toupper(\"café 😀\");print length(s),length(u),index(u,\"😀\")}"],
+            [], "5 10 7\n");
         yield return Passing("benchmark-core-regex-captures",
             ["match($0,/^([[:alpha:]]+)([0-9]+)$/,m){total+=length(m[1])+m[2]} END{print total}"],
             [], "24\n", "sku007\nitem010\n");
