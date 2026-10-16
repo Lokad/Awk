@@ -2,9 +2,13 @@
 
 Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
 `cd8d0c51727841ad6520dc032077475ee1aa1ddc` against GNU awk 5.2.1. Times and allocations below share this source,
-at the declared five-change milestone. This complete comparison is retained; newer scoped
-results and the refused refresh are separate. Interpreter/DotNetCompatibility remain defaults;
+at the declared five-change milestone. The latest scoped comparison below uses newer sources.
+Interpreter/DotNetCompatibility remain defaults;
 Utf8Regex adoption is postponed.
+
+The retained table predates the SSH observation fix below. Its recorded gates passed;
+login interference has not been excluded. Treat these ratios as directional until the next
+declared complete refresh.
 
 ## Representative processing
 
@@ -42,49 +46,42 @@ Both implementations use the same [scripts/fixtures](../benchmarks/Lokad.Awk.Ben
 Medium cases have 4,096 records, except all-fields wide (256×64 fields) and join (4,096/file).
 Early wide filtering reads `$1` on every record and `$3` on one in eight. Array reads have equal
 existing/new keys. GNU-marked cases are supported conveniences, not a conformance claim.
-This current baseline is not a controlled cumulative speedup; confirm apparent parity on
-larger inputs before making a broader claim.
+Use these ratios to choose investigations. Confirm apparent parity on larger inputs before
+making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, `174369c` (runtime `19c792d`) →
-`7043d09b943bc187f1a322c10a7284a66669787b`: three warmups/five iterations and two launches per source,
-in both source orders. Values are medians of the two launch medians, using the public
-full-invocation path. The harness now includes **25 families**; the newer unary and two-argument
-loop families are absent from the retained 23-family GNU comparison above.
+Measured 2026-10-16, `43e3cca` (runtime `7043d09`) →
+`fa1e85a35eff68e731a7d4773479fafcb4c97063`: three warmups/five iterations and two launches per source,
+in both source orders. The clean reverse order is retained from the first confirmation;
+only the observer-contaminated forward order was replaced. Values are medians of the two
+launch medians through the public full-invocation path. The harness includes **25 families**;
+the newer unary and two-argument loops remain absent from the retained GNU comparison above.
 
-| Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
+| Workload | Median ms, before → after (corrected forward; retained reverse) | Managed bytes/invocation |
 | --- | --- | ---: |
-| Two-argument loop | 17.893→12.971; 16.822→12.371 | 1,404,285→1,404,541 |
-| Unary-loop control | 10.652→10.901; 10.638→10.633 | 1,400,309→1,400,341 |
-| Column projection control | 2.436→2.521; 2.468→2.447 | 1,405,595→1,405,595 |
+| Numeric array sort | 6.675→6.393; 6.729→6.593 | 3,237,704 (unchanged) |
+| Keyed aggregation control | 3.131→3.134; 3.142→3.092 | 1,423,411 (unchanged) |
+| Column projection control | 2.496→2.439; 2.404→2.483 | 1,405,595 (unchanged) |
 
-Eligible complete loops/actions and return expressions reuse the existing known-call node for
-zero through four arguments. This avoids pooled argument transport and ordinary call dispatch;
-the original frames still admit and own parameters. Caller order, aliases, exact checkpoints,
-cancellation/refunds and VM/lint/pending-output/raised-syntax/stack fallback remain.
+Array-sort comparison helpers borrow immutable entries, avoiding repeated struct copies.
+Existing comparison/tie, formatting, resource-preflight and callback checks pass.
 
-The two-argument loop takes **26.5–27.5% less elapsed time**, with every launch
-pair improving by at least 24.4%. Preparation adds 256 managed bytes/invocation (under 0.02%).
-Unary-loop controls take 2.34% longer/0.04% less time; projection takes 3.52% longer/0.86% less
-time. Neither slowdown repeats in both source orders.
-Unary preparation adds 32 bytes; projection allocation is unchanged. No general-workload
-gain is claimed. All eight confirmation quiet gates pass, with stable source/library/driver/GNU
-identities. An initial admission refusal occurred before any timed pilot and is retained locally;
-no measured window was repeated. Raw evidence and detailed history remain local.
+Numeric sorting takes **2.0–4.2% less elapsed time** across the source orders. All four launch
+pairs improve; one is nearly flat (0.14%). Allocations are unchanged in all three workloads.
+Aggregation takes 0.10% longer/1.60% less time. Projection takes 2.32% less time/3.31% longer.
+No general-workload gain is claimed. All eight confirmation quiet gates pass, with stable
+source/library/driver/GNU identities. Earlier pilot/forward windows overlapping fresh SSH
+logins are excluded: login-banner work can itself fail the CPU gate. One refused admission
+is retained. The clean reverse order was reused; only the contaminated order was replaced.
+Raw evidence remains local.
 
-Runtime `7043d09b` passes **72,758 tests/OS**, 77 exact reference checks, 82 native
-goldens and 30 limited-stack scenarios, including four-argument chains and async unwinding.
-All 77 work/host/field/encoding snapshots and 31 finite-resource counter rows match the parent.
-Disabling zero/multi-argument preparation fails five work guards; 22 semantic/fallback controls
-pass. Focused checks cover 13 scripts at fuel 0..260, arity/defaults/extra arguments, caller/alias
-state, pending arguments without replay, cancellation/refusal/refunds and original-path selection.
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38875100459) passes; downloaded reports verify
-all 114 selected call/fuel/alias/refusal/cancellation executions per OS.
-
-The scheduled 24-family refresh collected all timings and allocations, but its final allocation
-quietness sample reached 6.53% CPU against a 5% maximum. That attempt is retained locally and
-is not a qualified complete baseline. The table above remains at `cd8d0c5`; no immediate retiming.
+Runtime `fa1e85a3` passes **72,758 tests/OS**, 77 exact reference checks and
+82 native goldens. All 77 work/host/field/encoding snapshots and 31 finite-resource rows
+match the parent. Existing tests cover sort projections/ties, comparison caps, callbacks,
+cancellation, failed admission before destination replacement, ownership and refunds.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38888643497) passes; downloaded
+reports verify all 166 selected sort/resource executions per OS.
 
 ## Environment and reproduction
 
@@ -109,6 +106,10 @@ dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*string-functions*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
+
+For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
+Fresh logins can regenerate the VM login banner and add CPU work. Keep new logins, transfers
+and builds outside these windows; thresholds remain unchanged.
 
 Full Linux workflow: [reference wrapper](../benchmarks/run-reference-linux.sh). The driver
 commands also work on Windows with a suitable GNU executable. Preserve the full correctness suite;
