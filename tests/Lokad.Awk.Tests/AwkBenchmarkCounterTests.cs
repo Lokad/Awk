@@ -8,6 +8,23 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SignedPrintfAndSprintfUseIntegerDigits(bool sprintf)
+    {
+        var script = sprintf ? "{s=sprintf(\"%+06d:%06i\",$1,$2);print s}"
+            : "{printf \"%+06d:%06i\\n\",$1,$2}";
+        var result = await RunAsync([script], "7 -7\n12 0\n",
+            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("+00007:-00007\n+00012:000000\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(4, result.Counters.PrintfSignedIntegerFastPaths);
+        Assert.Equal(2, result.Counters.FormattingFallbacks);
+        Assert.Equal(1, result.Counters.StringDecodes);
+    }
+
     [Fact]
     public async Task MultiFieldFilterUsesTheExistingBoundedCpuTree()
     {

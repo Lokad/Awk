@@ -5,6 +5,37 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkPrintfFormattingTests
 {
+    [Fact]
+    public void SignedDecimalDigitsMatchFixedFormatAcrossBinary64Boundaries()
+    {
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var observed = 0;
+        void Check(double number)
+        {
+            var integral = Math.Truncate(number);
+            var expected = (integral < 0 ? "-" : "") +
+                Math.Abs(integral).ToString("F0", System.Globalization.CultureInfo.InvariantCulture);
+            var actual = AwkFormattingRuntime.FormatPrintfStrictByteText("%d",
+                new AwkSingleValuePrintfArguments(AwkValue.FromNumber(number), counters),
+                state.Limits.WithMaxValueBytes(expected.Length), counters, state.MemoryAccounting);
+            Assert.Equal(expected, AwkUtf8Codec.Decode(actual.AsSpan()));
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+            observed++;
+        }
+        foreach (var number in new[] { 0.0, -0.0, 7.75, -7.75, double.MaxValue, -double.MaxValue }) Check(number);
+        for (var exponent = -1074; exponent <= 1023; exponent++)
+        {
+            var value = Math.ScaleB(1, exponent);
+            foreach (var adjacent in new[] { Math.BitDecrement(value), value, Math.BitIncrement(value) })
+            {
+                Check(adjacent);
+                Check(-adjacent);
+            }
+        }
+        Assert.InRange(counters.PrintfSignedIntegerFastPaths, 1, observed - 1);
+    }
+
     [Theory]
     [InlineData("%.5d", 2, "00002")]
     [InlineData("%+.5d", -2, "-00002")]

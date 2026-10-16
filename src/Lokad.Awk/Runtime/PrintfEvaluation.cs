@@ -165,7 +165,7 @@ internal static class PrintfEvaluation
                     AppendWithWidth(output, special, width.Value, flags.LeftJustify, zeroPad: false, checkpoint);
                 }
                 else if (directive.Conversion.IsInteger())
-                    AppendInteger(output, number, directive.Conversion, flags, width.Value, precision);
+                    AppendInteger(output, number, directive.Conversion, flags, width.Value, precision, counters);
                 else if (directive.Conversion is PrintfConversion.HexFloatLower or PrintfConversion.HexFloatUpper)
                 {
                     var hexadecimal = AwkHexFloatFormat.CreateFinite(number, precision, flags, directive.Conversion.IsUppercase());
@@ -214,7 +214,7 @@ internal static class PrintfEvaluation
 
         static void AppendInteger(
             PrintfByteOutput output, double number, PrintfConversion conversion, PrintfFlags flags,
-            int width, PrintfPrecisionValue precision)
+            int width, PrintfPrecisionValue precision, AwkRuntimeCounters counters)
         {
             var signed = conversion is PrintfConversion.SignedDecimal or PrintfConversion.SignedInteger;
             var integral = Math.Truncate(number);
@@ -228,7 +228,15 @@ internal static class PrintfEvaluation
 
             if (signed)
             {
-                Math.Abs(integral).TryFormat(storage, out var written, "F0", CultureInfo.InvariantCulture);
+                var magnitude = Math.Abs(integral);
+                int written;
+                if (magnitude < 18446744073709551616.0)
+                {
+                    ((ulong)magnitude).TryFormat(storage, out written, provider: CultureInfo.InvariantCulture);
+                    counters.RecordPrintfSignedIntegerFastPath();
+                }
+                else
+                    magnitude.TryFormat(storage, out written, "F0", CultureInfo.InvariantCulture);
                 digits = storage[..written];
             }
             else

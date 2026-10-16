@@ -4,6 +4,10 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> PrintfByteTextCases()
     {
+        yield return Passing("printf-signed-integer-digits-flags-fractions-and-boundaries",
+            ["BEGIN{printf \"%+06d|% 6i|%#.4d|%.0d|%06d\\n\",7,-7.75,7,0,-7;printf \"%d|%d\\n\",9007199254740991,-9223372036854775808}"],
+            [], "+00007|    -7|0007||-00007\n9007199254740991|-9223372036854775808\n");
+
         yield return Passing("printf-byte-text-fields",
             ["{printf \"<%s>|%s\\n\",$1,$2}"], [], "<café>|😀\n", "café 😀\n");
         yield return Passing("printf-byte-text-numeric-convfmt-and-sprintf",

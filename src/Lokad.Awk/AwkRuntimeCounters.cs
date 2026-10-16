@@ -59,6 +59,14 @@ internal sealed class AwkRuntimeCounters
 
     public long FormattingFallbacks { get; private set; }
 
+    public long PrintfSignedIntegerFastPaths { get; private set; }
+
+    public void RecordPrintfSignedIntegerFastPath()
+    {
+        if (_enabled) lock (_sync) PrintfSignedIntegerFastPaths++;
+    }
+
+
     public long FormattingStringInteropInputs { get; private set; }
 
     public long StringInteropFallbacks { get; private set; }
