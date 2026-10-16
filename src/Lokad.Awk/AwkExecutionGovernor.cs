@@ -24,6 +24,17 @@ internal sealed class AwkExecutionGovernor
 
     public void Check(int steps, CancellationToken cancellationToken)
     {
+        if (_maxExecutionSteps <= 0 && !_counters.IsEnabled)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return;
+        }
+
+        CheckAccounted(steps, cancellationToken);
+    }
+
+    private void CheckAccounted(int steps, CancellationToken cancellationToken)
+    {
         ThrowIfCancellationRequested(cancellationToken);
         if (_maxExecutionSteps > 0 && steps > _maxExecutionSteps - _executionSteps)
         {

@@ -6,6 +6,39 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkExecutionGovernorTests
 {
     [Theory]
+    [InlineData(0, false)]
+    [InlineData(0, true)]
+    [InlineData(3, false)]
+    [InlineData(3, true)]
+    public void CancellationAndRefusalLeaveFuelUnconsumed(int fuel, bool observed)
+    {
+        var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
+        var governor = new AwkExecutionGovernor(fuel, counters);
+        governor.Check(2, CancellationToken.None);
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var canceled = Assert.Throws<OperationCanceledException>(() => governor.Check(1, cancellation.Token));
+        Assert.Equal(cancellation.Token, canceled.CancellationToken);
+        governor.Check(0, CancellationToken.None);
+        governor.Check(1, CancellationToken.None);
+
+        if (fuel > 0)
+        {
+            var refused = Assert.Throws<AwkRuntimeException>(() => governor.Check(1, CancellationToken.None));
+            Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(refused.MessageBytes));
+        }
+        else
+        {
+            governor.Check(int.MaxValue, CancellationToken.None);
+        }
+
+        Assert.Equal(observed ? (fuel > 0 ? 3L : 3L + int.MaxValue) : 0, counters.ExecutionSteps);
+        Assert.Equal(observed ? 5 : 0, counters.CancellationChecks);
+    }
+
+    [Theory]
+    [InlineData("{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}", "7\n7\n")]
     [InlineData("BEGIN{x=1+2*3; print x; print (x ? x+1 : 0)}", "")]
     [InlineData("BEGIN{x=(1 && 2) || 3; if(x) print x; else print 0}", "")]
     [InlineData("BEGIN{a[1]=2; a[2]=3; print a[1]+a[2], (1 in a); delete a[1]}", "")]

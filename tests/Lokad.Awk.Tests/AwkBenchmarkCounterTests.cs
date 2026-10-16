@@ -106,14 +106,15 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(owned.Counters.StringDecodes, direct.Counters.StringDecodes);
     }
 
-    [Fact]
-    public async Task PureForAndNumericReturnBodiesUsePreparedSynchronousRegions()
+    [Theory]
+    [InlineData("{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}", "40\n")]
+    [InlineData("function inc(x){return x+1} {x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=inc(inc(x))} END{print total}", "44\n")]
+    public async Task PureForAndNumericReturnBodiesUsePreparedSynchronousRegions(string script, string expected)
     {
-        const string script = "function inc(x){return x+1} {x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=inc(inc(x))} END{print total}";
         var result = await RunAsync([script], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility,
             AwkExecutionEngineKind.Interpreter);
         Assert.Equal(0, result.ExitCode);
-        Assert.Equal("44\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(expected, result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(2, result.Counters.SynchronousLoopRuns);
         Assert.True(result.Counters.SynchronousExpressionRuns > 0);
