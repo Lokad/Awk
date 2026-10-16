@@ -1,4 +1,6 @@
 using System;
+using System.Buffers;
+using System.Text;
 
 namespace Lokad.Awk;
 
@@ -72,11 +74,20 @@ internal static partial class AwkBuiltins
 
             var converted = AwkText.AllocateOwnedBytes(bytes.Length, governor);
             AwkText.CopyBytes(bytes, converted, checkpoint);
-            for (var index = firstChange; index < converted.Length; index++)
+            for (var index = firstChange; index < converted.Length;)
             {
-                if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                var chunkOffset = index & (AwkExecutionGovernor.WorkChunkBytes - 1);
+                if (chunkOffset == 0)
                     checkpoint();
-                converted[index] = FoldAsciiCase(converted[index], conversion);
+                var length = Math.Min(converted.Length - index, AwkExecutionGovernor.WorkChunkBytes - chunkOffset);
+                var chunk = converted.AsSpan(index, length);
+                var status = conversion is AwkCaseConversion.Upper
+                    ? Ascii.ToUpperInPlace(chunk, out var written)
+                    : Ascii.ToLowerInPlace(chunk, out written);
+                if (status != OperationStatus.Done || written != length)
+                    throw new InvalidOperationException("Previously validated ASCII conversion failed.");
+                counters.RecordAsciiCaseConversionChunk(length);
+                index += length;
             }
 
             result = AwkText.FromTrustedOwnedBytes(converted, counters);

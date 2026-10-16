@@ -29,6 +29,20 @@ internal sealed class AwkRuntimeCounters
 
     public long WhitespaceFieldSearchBytes { get; private set; }
 
+    public long AsciiCaseConversionChunks { get; private set; }
+
+    public long AsciiCaseConversionBytes { get; private set; }
+
+    public void RecordAsciiCaseConversionChunk(int bytes)
+    {
+        if (!_enabled) return;
+        lock (_sync)
+        {
+            AsciiCaseConversionChunks++;
+            AsciiCaseConversionBytes += bytes;
+        }
+    }
+
     public void RecordWhitespaceFieldSearch(int bytes)
     {
         if (!_enabled) return;
