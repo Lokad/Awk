@@ -1,11 +1,12 @@
 # Benchmarks
 
-Current complete baseline: **28 families**, measured 2026-10-16 at Release source
-`69c0a3453860c7edcc4a161c71ebc9d7681608f7` against GNU awk 5.2.1. All rows in the first table use this source.
-Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
+Current scoped runtime: `144b9ff312818e86ff39e627324317a464c6f073`, measured 2026-10-16. String-processing
+confirmation medians take **2.0–4.7% less time**, with unchanged allocations.
+One launch pair is 0.55% slower; the remaining three improve. Details are below.
 
-The latest controlled change reduces changed-casing time by **9.8–10.2%**, with managed
-allocations remaining at **3.55 MiB**. Scoped larger-input comparisons are below.
+The complete **28-family baseline is retained** from 2026-10-16 at Release source
+`69c0a3453860c7edcc4a161c71ebc9d7681608f7` against GNU awk 5.2.1. All first-table rows use that earlier source.
+Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 There is no overall performance-parity or cumulative-gain claim.
 
 ## Representative processing
@@ -53,47 +54,52 @@ Use these ratios to choose investigations; confirm apparent parity on larger inp
 
 ## Latest controlled change
 
-Measured 2026-10-16, runtime `f52d9f4c6dc7ebea50cbd95efba3797da2a3d0b2`
-→ `69c0a3453860c7edcc4a161c71ebc9d7681608f7`, with identical harness and inputs.
-Three warmups/five iterations, two launches/source in both source orders; changed casing,
+Measured 2026-10-16, runtime `69c0a3453860c7edcc4a161c71ebc9d7681608f7`
+→ `144b9ff312818e86ff39e627324317a464c6f073`, with identical harness and inputs.
+Three warmups/five iterations, two launches/source in both source orders; string processing,
 Unicode string processing and projection were timed. Times are medians of launch medians;
 allocations are GC MiB.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| Changed ASCII case | 4.023→3.628; 4.004→3.596 | 3.55→3.55 (both orders) |
-| Unicode length/substr control | 4.721→4.771; 4.738→4.704 | 3.11→3.11 (both orders) |
-| Single-column projection control | 2.543→2.451; 2.473→2.471 | 1.34→1.34 (both orders) |
+| ASCII substr/index/length/casing | 3.638→3.564; 3.656→3.484 | 1.08→1.08; 1.08→1.08 |
+| Unicode length/substr control | 4.757→4.596; 4.760→4.687 | 3.11→3.11; 3.11→3.11 |
+| Single-column projection control | 2.491→2.441; 2.467→2.515 | 1.34→1.34; 1.34→1.34 |
 
-Strict UTF-8 ingress validates wholly ASCII chunks with the existing BCL validator at the
-original 4 KiB checkpoints. Other chunks retain the rune decoder and its scalar-boundary
-checkpoints. This adds six lines in one existing helper, removing per-byte rune decoding for
-ASCII. It adds no cache, decoder, owner, engine or resource policy. Non-ASCII chunks incur an
-extra bounded ASCII scan; strict rejection, cancellation/error order and admission remain.
+Three return sites reuse the existing deferred text-value helper for `substr` and ASCII
+casing results. This removes eager numeric-prefix preparation when callers only use the
+text; numeric consumers parse on demand and may parse repeatedly. Unicode casing fallback,
+string typing, numeric modes, UTF-8, admission, ownership and bounded cancellation remain.
+No new value kind, cache, owner, public API or dependency is introduced.
 
-Changed casing takes **9.8–10.2% less time**; all four launch pairs improve. Managed allocations
-are 3,725,203 bytes before and 3,725,202–3,725,203 after (a one-byte diagnostic difference).
-Unicode processing takes 1.05% more / 0.72% less time.
-Projection takes 3.63% less / 0.08% less time.
-No general, control or cumulative gain is claimed. One pilot and one balanced confirmation
-were run; all six source windows have qualified quiet gates, stable identities and no extra SSH login.
+String medians take **2.0–4.7% less time**, with **1,128,136 allocated bytes** per invocation
+before and after. The four launch-pair changes are 4.59% less, 0.55% more, 3.60% less and
+5.77% less time. These support a modest median gain with launch variation. One pilot and
+one balanced confirmation were run.
 
-The source passes **72,990 tests/OS**, 86 exact reference snapshots, 100 equivalent native goldens,
-30 limited-stack scenarios/OS and 32 unchanged finite-resource rows. One additional native case
-retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38949545837)
-passes; downloaded reports verify all 476 selected ingress/cancellation/admission/call guards per OS.
+Unicode medians take 3.38% / 1.53% less time; projection takes 1.99% less / 1.93% more time.
+Control allocations are unchanged. No general or control gain is attributed to this change.
+All six source windows have qualified quiet gates, stable identities and no extra SSH login.
+
+The source passes **73,023 tests/OS**, 86 exact reference snapshots, 106 equivalent native
+goldens, 30 limited-stack scenarios/OS and 32 unchanged finite-resource rows. One additional
+native case retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
+Restoring eager preparation fails both numeric-prefix scan guards; 24 controls pass.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38958056832)
+passes; downloaded reports verify all 152 selected string/UTF-8/admission/argument guards per OS.
 
 ## Scoped GNU comparisons
 
-Changed-casing rows are current at **69c0a34**, measured 2026-10-16. The paired runner uses nine
-alternating pairs/scale, exact output checks and qualified quiet gates. Call-loop and long-field
-rows are retained from the explicitly named sources on the same date. Each window has stable
-identities and no additional SSH login. These scoped measurements are separate from the
-complete baseline and the controlled BenchmarkDotNet comparison above.
+String-processing rows are current at **144b9ff**, measured 2026-10-16. The paired runner
+uses nine alternating pairs/scale, exact output checks and qualified quiet gates. Other rows
+are retained from the explicitly named sources on the same date. Each window has stable
+identities and no additional SSH login. These scoped comparisons are separate from the
+retained complete baseline and the controlled BenchmarkDotNet comparison above.
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
+| ASCII strings / 52.00 / 4,096 | 144b9ff | 3.500 | 1.547 | 2.26× | 1.08 |
+| ASCII strings / 832.00 / 65,536 | 144b9ff | 55.300 | 9.802 | 5.64× | — |
 | Changed case / 580.00 / 4,096 | 69c0a34 | 3.622 | 2.959 | 1.22× | 3.55 |
 | Changed case / 9,280.00 / 65,536 | 69c0a34 | 57.330 | 32.246 | 1.78× | — |
 | Call loop / 8.00 / 4,096 | f52d9f4 | 8.675 | 3.813 | 2.28× | 1.34 |
@@ -101,17 +107,19 @@ complete baseline and the controlled BenchmarkDotNet comparison above.
 | Long fields / 1,025.50 / 256 | 7ad867d | 0.851 | 2.050 | 0.41× | 2.15 |
 | Long fields / 16,408.00 / 4,096 | 7ad867d | 13.349 | 16.624 | 0.80× | — |
 
-Changed casing converts both directions and sums lengths on 144-byte mixed ASCII records.
-Call loops run eight unary arithmetic calls/record; long-field filtering tests `$2` after a
-4 KiB first field, with half the records matching. Scripts are in the shared fixtures linked above.
-Only medium-scale managed allocations were measured by BenchmarkDotNet; “—” means unmeasured.
-Retained long-field results support parity for that larger-input script. Current casing and
-retained call-loop results still show gaps; there is no overall parity claim.
+ASCII strings run `substr`, `index`, `length` and unchanged `tolower` on `id:beta:tail`.
+Current GNU ratios are **2.26× medium / 5.64× large**.
+Retained casing converts both directions on 144-byte mixed ASCII records; call loops run
+eight unary arithmetic calls/record; long-field filtering tests `$2` after a 4 KiB first field.
+Scripts are in the shared fixtures linked above. Only medium-scale managed allocations
+were measured by BenchmarkDotNet; “—” means unmeasured.
+Retained long-field results support parity for that larger-input script. The other scoped
+rows still show gaps; there is no overall parity claim.
 
 ## Environment and reproduction
 
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
-BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. The complete baseline uses
+BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. The retained complete baseline uses
 five warmups/nine iterations/one launch. Timing and allocation phases have qualified pre/post
 quiet gates, stable source/binary identities and no additional authenticated SSH login.
 CPU admission requires at most 3% median/5% maximum background load. Single-launch variation
