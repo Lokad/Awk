@@ -408,13 +408,13 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class FieldArrayMembershipExpression(DynamicFieldIndexExpression field, AwkArrayName arrayName) : AwkExpression
+    private sealed class FieldArrayMembershipExpression(DynamicFieldIndexExpression field, AwkArrayName arrayName, int globalIndex) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             context.State.RecordExecutionStep(); // The field expression still has its ordinary checkpoint.
             var index = (int)await field.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
-            return AwkValue.FromNumber(context.State.ContainsArrayField(arrayName, index) ? 1 : 0);
+            return AwkValue.FromNumber(context.State.ContainsArrayField(arrayName, index, globalIndex) ? 1 : 0);
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
@@ -426,12 +426,12 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class ArrayMembershipExpression(AwkArrayIndex indexExpression, AwkArrayName arrayName) : AwkExpression
+    private sealed class ArrayMembershipExpression(AwkArrayIndex indexExpression, AwkArrayName arrayName, int globalIndex) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var key = await indexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
-            return AwkValue.FromNumber(context.State.ContainsArrayValue(arrayName, key) ? 1 : 0);
+            return AwkValue.FromNumber(context.State.ContainsArrayValue(arrayName, key, globalIndex) ? 1 : 0);
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)

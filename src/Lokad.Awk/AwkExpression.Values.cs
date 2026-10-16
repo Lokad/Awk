@@ -308,13 +308,13 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class FieldArrayElementExpression(AwkArrayName name, DynamicFieldIndexExpression field) : AwkExpression
+    private sealed class FieldArrayElementExpression(AwkArrayName name, DynamicFieldIndexExpression field, int globalIndex) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             context.State.RecordExecutionStep();
             var index = (int)await field.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
-            return context.State.GetArrayFieldValue(name, index);
+            return context.State.GetArrayFieldValue(name, index, globalIndex);
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
@@ -326,12 +326,12 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class ArrayElementExpression(AwkArrayName name, AwkArrayIndex indexExpression) : AwkExpression
+    private sealed class ArrayElementExpression(AwkArrayName name, AwkArrayIndex indexExpression, int globalIndex) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var key = await indexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
-            return context.State.GetArrayAwkValue(name, key);
+            return context.State.GetArrayAwkValue(name, key, globalIndex);
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)

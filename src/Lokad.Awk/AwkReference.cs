@@ -14,8 +14,8 @@ internal abstract record AwkReference
     public static AwkReference LocalScalar(AwkVariableName variable, AwkFunctionLocalSlotId slotId) =>
         new AwkLocalScalarReference(variable, slotId);
 
-    public static AwkReference ArrayElement(AwkArrayName variable, AwkArrayIndex indexExpression) =>
-        new AwkArrayElementReference(variable, indexExpression);
+    public static AwkReference ArrayElement(AwkArrayName variable, AwkArrayIndex indexExpression, int globalIndex = -1) =>
+        new AwkArrayElementReference(variable, indexExpression, globalIndex);
 
     public static AwkReference Field(AwkExpression fieldIndexExpression) =>
         new AwkFieldReference(fieldIndexExpression);
@@ -246,13 +246,13 @@ internal sealed record AwkLocalScalarReference(
     }
 }
 
-internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayIndex IndexExpression) : AwkReference
+internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayIndex IndexExpression, int GlobalIndex = -1) : AwkReference
 {
     public override async ValueTask AssignValueAsync(AwkEvaluationContext context, AwkValue value)
     {
         // Plain assignment commonly inserts a new key; keep its owned-key path.
         var index = await IndexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
-        context.State.SetArrayAwkValue(Variable, index, value);
+        context.State.SetArrayAwkValue(Variable, index, value, GlobalIndex);
     }
 
     protected override async ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context)

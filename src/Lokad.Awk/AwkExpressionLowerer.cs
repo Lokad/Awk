@@ -113,7 +113,8 @@ internal static partial class AwkExpressionLowerer
             if (!TryLowerArrayIndex(expression.Children, scope, out var index))
                 return false;
 
-            lowered = AwkExpression.ArrayElement(new AwkArrayName(target.Identifier), index);
+            lowered = AwkExpression.ArrayElement(new AwkArrayName(target.Identifier), index,
+                scope.GetPreparedGlobalArrayIndex(target.Identifier));
             return true;
         }
 
@@ -751,7 +752,7 @@ internal static partial class AwkExpressionLowerer
 
                 lowered = AwkExpression.ArrayMembership(
                     membershipIndex,
-                    new AwkArrayName(arrayName.Identifier));
+                    new AwkArrayName(arrayName.Identifier), scope.GetPreparedGlobalArrayIndex(arrayName.Identifier));
                 return true;
             }
 

@@ -83,17 +83,29 @@ internal sealed class AwkArrayRuntime
     public AwkText GetByteText(AwkArrayName name, AwkArrayKey index) =>
         _state.FormatStringByteText(GetAwkValue(name, index));
 
-    public AwkValue GetAwkValue(AwkArrayName name, AwkArrayKey index)
+    public AwkValue GetAwkValue(AwkArrayName name, AwkArrayKey index, int globalIndex = -1)
     {
-        var resolved = _variableRuntime.ResolveArrayReadName(name);
+        var resolved = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveArrayReadName(name);
         if (_variables.TryGetExistingArrayValue(resolved, index, out var value))
+        {
+            _state.BindGlobalArray(globalIndex);
             return value;
+        }
         using var admission = _variables.PreflightArrayElementRead(resolved, index);
-        return _variables.GetArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
+        var destination = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveOrPromoteArrayName(name);
+        var result = _variables.GetArrayValue(destination, index);
+        _state.BindGlobalArray(globalIndex);
+        return result;
     }
 
-    public bool TryGetBorrowedAwkValue(AwkArrayName name, ReadOnlySpan<byte> index, out AwkValue value) =>
-        _variables.TryGetExistingArrayValue(_variableRuntime.ResolveArrayReadName(name), index, out value);
+    public bool TryGetBorrowedAwkValue(AwkArrayName name, ReadOnlySpan<byte> index, out AwkValue value,
+        int globalIndex = -1)
+    {
+        var resolved = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveArrayReadName(name);
+        var found = _variables.TryGetExistingArrayValue(resolved, index, out value);
+        if (found) _state.BindGlobalArray(globalIndex);
+        return found;
+    }
 
     public bool TryGetBorrowedKey(AwkArrayName name, ReadOnlySpan<byte> index, out AwkArrayKey key) =>
         _variables.TryGetExistingArrayKey(_variableRuntime.ResolveArrayReadName(name), index, out key);
@@ -114,20 +126,32 @@ internal sealed class AwkArrayRuntime
         return _variables.TryPeekArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index, out value);
     }
 
-    public bool ContainsValue(AwkArrayName name, AwkArrayKey index) =>
-        _variables.ContainsArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
+    public bool ContainsValue(AwkArrayName name, AwkArrayKey index, int globalIndex = -1)
+    {
+        var resolved = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveOrPromoteArrayName(name);
+        var found = _variables.ContainsArrayValue(resolved, index);
+        _state.BindGlobalArray(globalIndex);
+        return found;
+    }
 
-    public bool ContainsValue(AwkArrayName name, ReadOnlySpan<byte> index) =>
-        _variables.ContainsArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index);
+    public bool ContainsValue(AwkArrayName name, ReadOnlySpan<byte> index, int globalIndex = -1)
+    {
+        var resolved = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveOrPromoteArrayName(name);
+        var found = _variables.ContainsArrayValue(resolved, index);
+        _state.BindGlobalArray(globalIndex);
+        return found;
+    }
 
     public void SetString(AwkArrayName name, AwkArrayKey index, string value)
     {
         _variables.SetArrayString(_variableRuntime.ResolveOrPromoteArrayName(name), index, value);
     }
 
-    public void SetAwkValue(AwkArrayName name, AwkArrayKey index, AwkValue value)
+    public void SetAwkValue(AwkArrayName name, AwkArrayKey index, AwkValue value, int globalIndex = -1)
     {
-        _variables.SetArrayValue(_variableRuntime.ResolveOrPromoteArrayName(name), index, value);
+        var resolved = _state.TryUseBoundGlobalArray(globalIndex) ? name : _variableRuntime.ResolveOrPromoteArrayName(name);
+        _variables.SetArrayValue(resolved, index, value);
+        _state.BindGlobalArray(globalIndex);
     }
 
     public void DeleteValue(AwkArrayName name, AwkArrayKey index)

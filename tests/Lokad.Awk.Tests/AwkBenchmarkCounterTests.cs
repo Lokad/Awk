@@ -9,6 +9,27 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Fact]
+    public async Task ParsedJoinUsesEstablishedArrayKinds()
+    {
+        const string source = "NR==FNR{left[$1]=$2;next} ($1 in left)&&left[$1]!=$2{n++} END{print n+0}";
+        var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
+            AwkTestHarness.BuildInvocation("awk", [source, "/left", "/right"]), CancellationToken.None);
+        for (var run = 0; run < 2; run++)
+        {
+            var host = new MockFileSystem();
+            host.AddFile("/left", "k1\tv1\nk2\tv2\n");
+            host.AddFile("/right", run == 0 ? "k1\tv1\nk2\tchanged\n" : "k1\tv1\nk2\tv2\n");
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var options = CreateOptions(counters, AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            var result = await program.ExecuteAsync(host, CancellationToken.None, options);
+            Assert.Equal(0, result.Value);
+            Assert.Equal(run == 0 ? "1\n" : "0\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(5, counters.BoundGlobalArrayAccesses);
+        }
+    }
+
+    [Fact]
     public async Task ParsedScalarLengthUsesExistingPreparedBindings()
     {
         const string source = "{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}";

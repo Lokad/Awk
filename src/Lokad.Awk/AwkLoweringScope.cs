@@ -43,6 +43,9 @@ internal sealed class AwkLoweringScope
         return false;
     }
 
+    internal int GetPreparedGlobalArrayIndex(AwkIdentifier identifier) =>
+        !_hasFunctionLocals && TryGetGlobalReadIndex(new AwkVariableName(identifier), out var index) ? index : -1;
+
     public AwkCompatibilityMode CompatibilityMode { get; }
 
     public Action? Checkpoint { get; }
