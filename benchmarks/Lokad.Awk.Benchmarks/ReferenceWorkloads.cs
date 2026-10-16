@@ -17,7 +17,7 @@ internal static class ReferenceWorkloads
     [
         "projection", "filter", "membership", "array-read", "early-fields-wide", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
-        "arithmetic-loops", "user-functions", "loop-with-calls", "string-functions", "concatenation", "regex-match", "regex-captures"
+        "arithmetic-loops", "user-functions", "loop-with-calls", "multi-arg-loop", "string-functions", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
 
@@ -188,6 +188,12 @@ internal static class ReferenceWorkloads
                 fields = 1;
                 Repeat("7\n", "");
                 expected.Append(rows * 9).Append('\n');
+                break;
+            case "multi-arg-loop":
+                program = "function step(x,a){return (x*3+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
+                fields = 1;
+                Repeat("7\n", "");
+                expected.Append(rows * 93).Append('\n');
                 break;
             case "string-functions":
                 program = "{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}";

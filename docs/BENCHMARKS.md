@@ -50,7 +50,8 @@ larger inputs before making a broader claim.
 Measured 2026-10-16, `45c3d92` → `397d1c2ec76234112ed8845e888d518ae42347ec`: three warmups/five
 iterations and two launches per source, in both source orders. Identical scripts and inputs
 use the public full-invocation path. Values are medians of the two launch medians; the complete
-GNU comparison above retains its stated source. The harness includes 24 families.
+GNU comparison above retains its stated source. The current harness includes 25 families;
+the two-argument call loop is absent from the retained complete comparison.
 
 | Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
 | --- | --- | ---: |
