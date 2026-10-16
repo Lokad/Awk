@@ -1,7 +1,7 @@
 # Benchmarks
 
-Current scoped source **506db1b** reduces call-loop time by **4.2–4.8%**, with unchanged
-allocations. The loop still takes **2.74× / 3.66× GNU elapsed time** at medium/large inputs.
+Current scoped source **444da21** reduces call-loop time by **5.1–8.1%**, with unchanged
+allocations. The loop still takes **2.59× / 3.43× GNU elapsed time** at medium/large inputs.
 The retained complete baseline below remains directional.
 
 Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
@@ -63,37 +63,38 @@ making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, runtime `394fd2209ec2f12bd3cdf431e34e2bf4986785d1`
-→ `506db1b4fd92344de973a4a52233d8cc9343675a`, with identical harness and inputs.
+Measured 2026-10-16, runtime `506db1b4fd92344de973a4a52233d8cc9343675a`
+→ `444da21f10d04ba74c0778f93dc0efa912937c86`, with identical harness and inputs.
 Three warmups/five iterations, two launches/source in both source orders; only two affected call
 families and projection were timed. Times are medians of launch medians; allocations are GC MiB.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| Loop with unary arithmetic calls | 10.710→10.193; 10.812→10.354 | 1.34→1.34 (both orders) |
-| Nested user calls | 3.834→3.883; 3.920→3.787 | 1.32→1.32 (both orders) |
-| Single-column projection control | 2.503→2.543; 2.507→2.544 | 1.34→1.34 (both orders) |
+| Loop with unary arithmetic calls | 10.378→9.845; 10.497→9.642 | 1.34→1.34 (both orders) |
+| Nested user calls | 3.808→3.733; 3.846→3.650 | 1.32→1.32 (both orders) |
+| Single-column projection control | 2.514→2.559; 2.487→2.508 | 1.34→1.34 (both orders) |
 
-Prepared pure functions return the same scalar snapshot directly, removing the immediately
-consumed frame return-value store/read. This removes one net runtime line. Return checkpoints,
-untyped snapshots, array rejection, frame ownership/admission/refunds and stack boundaries remain;
-ordinary returns and fallback eligibility are unchanged. No cache, owner or counter is added.
+Evaluation contexts retain their existing state/output/IO references directly, removing the
+redundant presence flag and nested stored pair. On the measured VM this reduces context size
+from 32 to 24 bytes and builtin context size from 56 to 48 bytes. Explicit snapshots, ambient
+lookup, pending scopes, default diagnostics and resource/cancellation behavior remain. No new
+type, owner, cache or heap allocation is introduced; runtime line count is unchanged.
 
-Call loops take **4.2–4.8% less time**; all four launch pairs improve by at least 4.2%, with exactly
-1,400,349 allocated bytes. Nested calls take 1.29% more / 3.39% less time. Projection takes
-1.58% / 1.47% more time; one projection pair takes 5.6% longer. No general or causal control gain
-is claimed. One pilot and one balanced confirmation were run; all six source windows have
-qualified quiet gates, stable identities and no extra authenticated SSH login.
+Call loops take **5.1–8.1% less time**; all four launch pairs improve, with exactly
+1,400,349 allocated bytes. Nested-call medians take 1.97% / 5.10% less time; one pair is slower.
+Projection takes 1.81% / 0.83% more time. No general or causal control gain is claimed.
+One pilot and one balanced confirmation were run; all six source windows have qualified quiet
+gates, stable identities and no extra authenticated SSH login.
 
-The source passes **72,905 tests/OS**, 86 exact reference snapshots, 95 equivalent native goldens,
+The source passes **72,914 tests/OS**, 86 exact reference snapshots, 95 equivalent native goldens,
 30 limited-stack scenarios/OS and 32 unchanged finite-resource rows. One additional native case
 retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38932460744)
-passes; downloaded reports verify all 161 selected call/cancellation/memory guards per OS.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38936684541)
+passes; downloaded reports verify all 172 selected context/call/cancellation/memory guards per OS.
 
 ## Scoped GNU comparisons
 
-Call-loop rows are **current at 506db1b**, measured 2026-10-16: eight unary calls/record,
+Call-loop rows are **current at 444da21**, measured 2026-10-16: eight unary calls/record,
 `function step(x){return (x*3+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}`.
 The paired runner uses nine alternating pairs/scale, exact output checks and qualified quiet
 gates. Casing/long-field rows are retained from the explicitly named earlier sources on the
@@ -102,8 +103,8 @@ from the incomplete full refresh and the controlled BenchmarkDotNet comparison a
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Call loop / 8.00 / 4,096 | 506db1b | 10.489 | 3.826 | 2.74× | 1.34 |
-| Call loop / 128.00 / 65,536 | 506db1b | 167.681 | 45.791 | 3.66× | — |
+| Call loop / 8.00 / 4,096 | 444da21 | 9.885 | 3.814 | 2.59× | 1.34 |
+| Call loop / 128.00 / 65,536 | 444da21 | 156.496 | 45.686 | 3.43× | — |
 | Changed case / 580.00 / 4,096 | 22233ac | 5.185 | 2.944 | 1.76× | 3.55 |
 | Changed case / 9,280.00 / 65,536 | 22233ac | 82.727 | 32.114 | 2.58× | — |
 | Long fields / 1,025.50 / 256 | 7ad867d | 0.851 | 2.050 | 0.41× | 2.15 |
@@ -137,7 +138,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*case-conversion*' '*WorkloadAllocationBenchmarks*medium*string-functions*' '*WorkloadAllocationBenchmarks*medium*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*loop-with-calls*' '*WorkloadAllocationBenchmarks*medium*user-functions*' '*WorkloadAllocationBenchmarks*medium*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
