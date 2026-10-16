@@ -7,11 +7,15 @@ internal readonly struct AwkAction
 {
     private readonly AwkPattern? _pattern;
     private readonly AwkStatement[]? _statements;
+    private readonly Action<AwkEvaluationContext>? _synchronousCalls;
 
-    public AwkAction(AwkPattern? pattern, IReadOnlyList<AwkStatement> statements)
+    public AwkAction(AwkPattern? pattern, IReadOnlyList<AwkStatement> statements,
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null)
     {
         _pattern = pattern;
-        _statements = AwkCollectionSnapshots.Copy(statements);
+        var snapshot = AwkCollectionSnapshots.Copy(statements);
+        _statements = snapshot;
+        _synchronousCalls = AwkStatementBlockExecutor.TryPrepareCalls(snapshot, functions);
     }
 
     internal bool IsPatternless => _pattern == null;
@@ -34,6 +38,14 @@ internal readonly struct AwkAction
 
         using var executionContext = state.PushExecutionContext(output, io);
         var evaluationContext = new AwkEvaluationContext(state, output, io);
+        if (_synchronousCalls is { } prepared && !state.UsesExecutableEngine && state.LintMode == AwkLintMode.Off &&
+            state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
+            !output.HasPendingOutput && System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())
+        {
+            state.Counters.RecordSynchronousAction();
+            prepared(evaluationContext);
+            return AwkStatementFlow.Continue;
+        }
         var flow = await AwkStatementBlockExecutor
             .ExecuteAsync(statements, evaluationContext)
             .ConfigureAwait(false);

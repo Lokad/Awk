@@ -267,29 +267,29 @@ internal static partial class AwkProgramLowerer
 
             if (rule.Kind != AwkRuleKind.Main)
             {
-                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, statements));
+                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, statements, scope.SynchronousFunctions));
             }
 
             if (rule.PatternTokens.Count == 0)
             {
-                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, statements));
+                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(null, statements, scope.SynchronousFunctions));
             }
 
             if (TryLowerSyntaxRegexPattern(rule, scope, out var regexPattern))
             {
-                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(regexPattern, statements));
+                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(regexPattern, statements, scope.SynchronousFunctions));
             }
 
             if (TryLowerSyntaxExpressionRangePattern(rule, scope, out var expressionRangePattern))
             {
-                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(expressionRangePattern, statements));
+                return AwkLoweringOutcome<AwkAction>.Success(new AwkAction(expressionRangePattern, statements, scope.SynchronousFunctions));
             }
 
             if (TryLowerSyntaxExpressionPattern(rule, scope, out var expressionCondition))
             {
                 var syntaxCondition = expressionCondition ?? throw new InvalidOperationException();
                 return AwkLoweringOutcome<AwkAction>.Success(
-                    new AwkAction(null, [AwkStatement.If(syntaxCondition, statements)]));
+                    new AwkAction(null, [AwkStatement.If(syntaxCondition, statements)], scope.SynchronousFunctions));
             }
 
             return AwkLoweringOutcome<AwkAction>.Failure(new AwkDiagnostic(

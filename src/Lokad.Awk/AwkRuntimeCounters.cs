@@ -73,6 +73,8 @@ internal sealed class AwkRuntimeCounters
 
     public long SynchronousLoopRuns { get; private set; }
 
+    public long SynchronousActionRuns { get; private set; }
+
     public long SynchronousExpressionRuns { get; private set; }
     public long SynchronousFunctionRuns { get; private set; }
 
@@ -356,6 +358,11 @@ internal sealed class AwkRuntimeCounters
     public void RecordSynchronousLoop()
     {
         if (_enabled) lock (_sync) SynchronousLoopRuns++;
+    }
+
+    public void RecordSynchronousAction()
+    {
+        if (_enabled) lock (_sync) SynchronousActionRuns++;
     }
 
     public void RecordSynchronousExpression()

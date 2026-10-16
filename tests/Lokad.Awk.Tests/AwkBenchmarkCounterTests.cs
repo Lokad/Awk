@@ -9,6 +9,20 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task PureScalarActionsUsePreparedCallsOnlyInTheInterpreter(AwkExecutionEngineKind engine)
+    {
+        const string script = "function inc(x){return x+1} function twice(x){return inc(inc(x))} {total+=twice($1)} END{print total}";
+        var result = await RunAsync([script], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("18\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousActionRuns);
+        Assert.Equal(0, result.Counters.FunctionStackSuspensions);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task SignedPrintfAndSprintfUseIntegerDigits(bool sprintf)
