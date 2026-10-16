@@ -59,6 +59,8 @@ Numeric fields and strings retain their origins/spelling. Missing ordinary array
 create untyped entries; membership does not. Untouched arguments can be forwarded as array
 aliases; scalar assignment/return copies values without sharing type cells. Bare arrays pass
 by alias; grouped variable arguments impose scalar context and reject arrays.
+`length` honors function scope: scalar or missing parameters shadow globals, and array
+parameters use their actual alias, including when forwarded through another function.
 
 Compound assignment targets/keys and left values are evaluated before the RHS. Interfering
 RHS effects, including SUBSEP changes, can differ from GNU awk; [assignment operand order](https://www.gnu.org/s/gawk/manual/html_node/Assignment-Ops.html)

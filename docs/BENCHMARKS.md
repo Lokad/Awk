@@ -1,6 +1,6 @@
 # Benchmarks
 
-Current scoped runtime: `144b9ff312818e86ff39e627324317a464c6f073`, measured 2026-10-16. String-processing
+Latest scoped measurements are retained from `144b9ff312818e86ff39e627324317a464c6f073`, measured 2026-10-16. String-processing
 confirmation medians take **2.0–4.7% less time**, with unchanged allocations.
 One launch pair is 0.55% slower; the remaining three improve. Details are below.
 
@@ -8,6 +8,8 @@ The complete **28-family baseline is retained** from 2026-10-16 at Release sourc
 `69c0a3453860c7edcc4a161c71ebc9d7681608f7` against GNU awk 5.2.1. All first-table rows use that earlier source.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 There is no overall performance-parity or cumulative-gain claim.
+
+Runtime `a33eee8` adds a function-scope correctness fix. The tables retain their measured source revisions.
 
 ## Representative processing
 
@@ -90,7 +92,7 @@ passes; downloaded reports verify all 152 selected string/UTF-8/admission/argume
 
 ## Scoped GNU comparisons
 
-String-processing rows are current at **144b9ff**, measured 2026-10-16. The paired runner
+String-processing rows are retained at **144b9ff**, measured 2026-10-16. The paired runner
 uses nine alternating pairs/scale, exact output checks and qualified quiet gates. Other rows
 are retained from the explicitly named sources on the same date. Each window has stable
 identities and no additional SSH login. These scoped comparisons are separate from the
@@ -108,7 +110,7 @@ retained complete baseline and the controlled BenchmarkDotNet comparison above.
 | Long fields / 16,408.00 / 4,096 | 7ad867d | 13.349 | 16.624 | 0.80× | — |
 
 ASCII strings run `substr`, `index`, `length` and unchanged `tolower` on `id:beta:tail`.
-Current GNU ratios are **2.26× medium / 5.64× large**.
+Retained string GNU ratios are **2.26× medium / 5.64× large**.
 Retained casing converts both directions on 144-byte mixed ASCII records; call loops run
 eight unary arithmetic calls/record; long-field filtering tests `$2` after a 4 KiB first field.
 Scripts are in the shared fixtures linked above. Only medium-scale managed allocations
