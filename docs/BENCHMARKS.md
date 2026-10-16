@@ -1,8 +1,9 @@
 # Benchmarks
 
-Current complete baseline: **23 families**, measured 2026-10-16 at Release source
+Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
 `cd8d0c51727841ad6520dc032077475ee1aa1ddc` against GNU awk 5.2.1. Times and allocations below share this source,
-at the declared five-change milestone. Interpreter/DotNetCompatibility remain defaults;
+at the declared five-change milestone. These complete-comparison rows have not been retimed
+after the scoped change at `1024484`. Interpreter/DotNetCompatibility remain defaults;
 Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -46,34 +47,34 @@ larger inputs before making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, `abcfb37` → `cd8d0c5`: three warmups/five iterations and two launches
+Measured 2026-10-16, `cd8d0c5` → `1024484`: three warmups/five iterations and two launches
 per source, in both source orders. Values are medians of the two launch medians. These
-scoped experiments did not refresh GNU timings and are separate from the complete baseline.
+scoped experiments did not refresh GNU timings or the complete baseline above.
 
 | Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
 | --- | --- | ---: |
-| String operations | 4.436→3.877; 4.417→3.862 | 1,127,904→1,127,944 |
-| Unicode length/substr/output | 5.339→5.072; 5.435→5.174 | 3,259,796→3,259,804 |
-| Arithmetic control | 7.037→6.927; 7.008→7.497 | 1,381,835→1,381,835 |
+| Three-field filter | 2.891→2.590; 2.956→2.595 | 1,367,354→1,367,370 |
+| Two-file join control | 8.333→8.334; 8.191→8.301 | 4,430,330→4,430,330 |
+| Arithmetic control | 7.073→7.027; 6.966→7.084 | 1,381,835→1,381,835 |
 
-Bounded synchronous interpreter preparation removes completion dispatch around complete
-field/string expression subtrees and shares the original string operations. Strings take
-**12.6% less elapsed time** in both orders; every launch pair improves 12.0–13.2%. Unicode
-takes **4.8–5.0% less**, with every pair improving. Additional preparation costs 40/8 managed
-bytes respectively (under 0.004%). Original setters, field borrowing, statement flushes,
-logical fuel, cancellation and asynchronous fallback remain.
+Bounded AND/OR evaluation shares the existing synchronous interpreter tree and VM emitter.
+The filter takes **10.4–12.2% less elapsed time**, with every launch pair
+improving at least 9.3%. Preparation adds 16 managed bytes/invocation (under 0.002%).
+Short-circuit order, original children/setters, statements/flushes, logical fuel, cancellation
+and pending-child fallback remain. Two field helpers also retain borrowed numeric reads for
+nested field indices; counter guards fail if those reads materialize field text.
 
-Arithmetic is mixed: 1.6% less elapsed in one order, 7.0% more in the other, with 12–14%
-variation between candidate launches. This cost/uncertainty remains visible; no arithmetic
-or general-workload gain is claimed. All eight confirmation quiet gates pass; library/driver/
-GNU identities stay fixed. Raw results and detailed older measurements remain local.
+Join controls are 0.0% more; 1.3% more; arithmetic controls are
+0.6% less; 1.7% more. Their allocations are unchanged. No join, arithmetic or
+general-workload gain is claimed. All eight confirmation quiet gates pass and production
+library/driver/GNU identities remain fixed. Raw results and detailed histories stay local.
 
-Windows/Linux each pass 72,586 tests; 71 reference checks, 74 native core goldens, 26 stack
-scenarios and all 31 finite-counter rows pass. All 71 published work/host/field/encoding
-snapshots match the parent. Actual-script and missing-preparation negatives verify the
-optimized path; fuel/partial-state, pending-argument and depth guards pass. Exact-source
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38834329270) passes; downloaded reports verify 44 new
-focused cases and the two existing borrowed-numeric-field guards.
+Latest runtime `1024484` passes 72,631 tests on Windows and Linux, 71 reference checks,
+75 native core goldens and 26 stack scenarios. All 71 published work/host/field/encoding
+snapshots and 31 finite-counter rows match `cd8d0c5`. Preparation/short-circuit negatives,
+exact fuel/partial-state, pending/depth and nested numeric-field guards pass. Exact-source
+[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38841220644) passes; downloaded reports verify all
+45 new focused/corpus executions and three existing string/numeric guards.
 
 ## Environment and reproduction
 
