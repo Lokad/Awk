@@ -3,7 +3,7 @@
 Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
 `cd8d0c51727841ad6520dc032077475ee1aa1ddc` against GNU awk 5.2.1. Times and allocations below share this source,
 at the declared five-change milestone. These complete-comparison rows have not been retimed
-after the scoped change at `1024484`. Interpreter/DotNetCompatibility remain defaults;
+after the scoped changes through `6c61de55`. Interpreter/DotNetCompatibility remain defaults;
 Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -45,36 +45,34 @@ existing/new keys. GNU-marked cases are supported conveniences, not a conformanc
 This current baseline is not a controlled cumulative speedup; confirm apparent parity on
 larger inputs before making a broader claim.
 
-## Latest controlled change
+## Latest scoped check
 
-Measured 2026-10-16, `cd8d0c5` → `1024484`: three warmups/five iterations and two launches
-per source, in both source orders. Values are medians of the two launch medians. These
-scoped experiments did not refresh GNU timings or the complete baseline above.
+Measured 2026-10-16, `1024484` → `6c61de555efeaa4b43a63e39aa719a970fdaf1f9`: three warmups/five iterations,
+one launch per source. This pilot did not refresh GNU timings or the complete baseline above.
 
-| Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
-| --- | --- | ---: |
-| Three-field filter | 2.891→2.590; 2.956→2.595 | 1,367,354→1,367,370 |
-| Two-file join control | 8.333→8.334; 8.191→8.301 | 4,430,330→4,430,330 |
-| Arithmetic control | 7.073→7.027; 6.966→7.084 | 1,381,835→1,381,835 |
+| Workload | Median ms, before → after | Managed bytes/invocation |
+| --- | ---: | ---: |
+| Keyed sum / sorted output | 3.247→3.257 | 1,423,227→1,423,227 |
+| Two-file join control | 8.250→8.140 | 4,430,330→4,430,330 |
+| ASCII string control | 3.860→3.999 | 1,128,328→1,127,944 |
 
-Bounded AND/OR evaluation shares the existing synchronous interpreter tree and VM emitter.
-The filter takes **10.4–12.2% less elapsed time**, with every launch pair
-improving at least 9.3%. Preparation adds 16 managed bytes/invocation (under 0.002%).
-Short-circuit order, original children/setters, statements/flushes, logical fuel, cancellation
-and pending-child fallback remain. Two field helpers also retain borrowed numeric reads for
-nested field indices; counter guards fail if those reads materialize field text.
+Array element limits now check the count first and look up the key only at capacity.
+Existing-key updates remain allowed at the cap; new keys fail before mutation. The change
+removes three lines and avoids redundant key work. Memory admission/refunds, special arrays,
+aliases and cancellation checks remain.
 
-Join controls are 0.0% more; 1.3% more; arithmetic controls are
-0.6% less; 1.7% more. Their allocations are unchanged. No join, arithmetic or
-general-workload gain is claimed. All eight confirmation quiet gates pass and production
-library/driver/GNU identities remain fixed. Raw results and detailed histories stay local.
+Aggregation was **0.3% longer**, join 1.3% less and strings 3.6% longer in this single-launch
+check. **No throughput gain is claimed.** The change is retained for simpler protection
+logic and demonstrated avoidance of redundant key work. No confirmation or complete refresh
+was run. All four pilot quiet gates pass; library/driver/GNU identities remain fixed.
+Raw evidence and detailed histories stay local.
 
-Latest runtime `1024484` passes 72,631 tests on Windows and Linux, 71 reference checks,
+Runtime `6c61de55` passes 72,634 tests on Windows and Linux, 71 reference checks,
 75 native core goldens and 26 stack scenarios. All 71 published work/host/field/encoding
-snapshots and 31 finite-counter rows match `cd8d0c5`. Preparation/short-circuit negatives,
-exact fuel/partial-state, pending/depth and nested numeric-field guards pass. Exact-source
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38841220644) passes; downloaded reports verify all
-45 new focused/corpus executions and three existing string/numeric guards.
+snapshots and 31 finite-counter rows match `1024484`. Restoring the redundant quota probe
+fails its work guard; quota boundaries, long-key cancellation and memory/refund modes pass.
+Exact-source [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38848643175) passes; downloaded reports
+verify the three new guards and eleven existing memory/quota executions.
 
 ## Environment and reproduction
 
