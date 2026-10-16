@@ -77,11 +77,17 @@ internal sealed class AwkRuntimeCounters
 
     public long SynchronousExpressionRuns { get; private set; }
     public long SynchronousFunctionRuns { get; private set; }
+    public long FunctionArgumentBufferRents { get; private set; }
 
     public void RecordSynchronousFunction()
     {
         if (!_enabled) return;
         lock (_sync) SynchronousFunctionRuns++;
+    }
+
+    public void RecordFunctionArgumentBufferRent()
+    {
+        if (_enabled) lock (_sync) FunctionArgumentBufferRents++;
     }
 
     public long HostCalls { get; private set; }

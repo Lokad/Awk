@@ -56,10 +56,17 @@ internal abstract partial class AwkExpression
         internal override bool TryPrepareFunctionCalls(IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions,
             int remainingDepth, out AwkSynchronousExpression expression)
         {
-            if (remainingDepth > 0 && arguments.Count == 1 && functions.TryGetValue(name, out var function) &&
-                function.Layout.SlotCount == 1 && arguments[0].TryPrepareFunctionCalls(functions, remainingDepth - 1, out var operand))
+            if (remainingDepth > 0 && arguments.Count <= 4 && functions.TryGetValue(name, out var function) &&
+                function.Layout.SlotCount == arguments.Count)
             {
-                var call = new SynchronousFunctionCall(function, operand);
+                var operands = new AwkSynchronousExpression[arguments.Count];
+                for (var index = 0; index < operands.Length; index++)
+                    if (!arguments[index].TryPrepareFunctionCalls(functions, remainingDepth - 1, out operands[index]))
+                    {
+                        expression = AwkSynchronousExpression.Unavailable;
+                        return false;
+                    }
+                var call = new SynchronousFunctionCall(function, operands);
                 if (call.SynchronousDepth <= 16 && call.SynchronousCallDepth < 4)
                 {
                     expression = call;

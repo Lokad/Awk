@@ -67,7 +67,9 @@ borrowed numeric field reads (including nested field indices) and original sette
 retain ordinary execution; function entry/unwind stack checks remain. Immutable preparation
 belongs to the existing compiled owner. The interpreter remains the default engine.
 Syntax-depth settings above 128 retain unconditional function-entry/unwind suspension.
-Eligible loops and complete scalar actions also reuse known unary-call metadata. Calls retain
+Eligible loops and complete scalar actions also reuse known-call metadata for zero through
+four arguments. Multiple arguments use a fixed stack temporary and the original function frames;
+omitted/extra arguments and larger arities retain ordinary evaluation. Calls retain
 their original executor at VM, lint, pending-output, raised-syntax and stack-safety boundaries.
 
 `index`, `substr`, `tolower` and `toupper` evaluate arguments into value locals before

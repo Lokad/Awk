@@ -52,22 +52,61 @@ internal abstract partial class AwkExpression
         return remainingDepth > 0 && expression.SynchronousDepth is > 0 and <= 16;
     }
 
-    private sealed class SynchronousFunctionCall(AwkSynchronousFunction function, AwkSynchronousExpression operand)
-        : AwkSynchronousExpression
+    private sealed class SynchronousFunctionCall : AwkSynchronousExpression
     {
-        internal override int SynchronousDepth { get; } = 1 + Math.Max(function.Body.SynchronousDepth, operand.SynchronousDepth);
-        internal override int SynchronousCallDepth { get; } = 1 + Math.Max(function.Body.SynchronousCallDepth, operand.SynchronousCallDepth);
+        private readonly AwkSynchronousFunction _function;
+        private readonly AwkSynchronousExpression[] _operands;
+
+        public SynchronousFunctionCall(AwkSynchronousFunction function, AwkSynchronousExpression[] operands)
+        {
+            _function = function;
+            _operands = operands;
+            var depth = function.Body.SynchronousDepth;
+            var calls = function.Body.SynchronousCallDepth;
+            foreach (var operand in operands)
+            {
+                depth = Math.Max(depth, operand.SynchronousDepth);
+                calls = Math.Max(calls, operand.SynchronousCallDepth);
+            }
+            SynchronousDepth = depth + 1;
+            SynchronousCallDepth = calls + 1;
+        }
+
+        internal override int SynchronousDepth { get; }
+        internal override int SynchronousCallDepth { get; }
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
         {
             var state = context.State;
             state.RecordExecutionStep(); // Invocation, after its call-expression checkpoint.
             state.ThrowIfCancellationRequested();
-            var argument = operand.TryGetVariableName(out var name) && state.TryResolveArrayArgument(name, out var alias)
-                ? alias : AwkFunctionArgument.FromValue(operand.EvaluateSynchronous(context));
-            state.ThrowIfCancellationRequested();
-            state.PushFunctionFrame(function.Layout, [argument]);
-            try { return function.EvaluateBody(context); }
+            if (_operands.Length == 0)
+            {
+                state.ThrowIfCancellationRequested();
+                state.PushFunctionFrame(_function.Layout, []);
+            }
+            else if (_operands.Length == 1)
+            {
+                var operand = _operands[0];
+                var argument = operand.TryGetVariableName(out var name) && state.TryResolveArrayArgument(name, out var alias)
+                    ? alias : AwkFunctionArgument.FromValue(operand.EvaluateSynchronous(context));
+                state.ThrowIfCancellationRequested();
+                state.PushFunctionFrame(_function.Layout, [argument]);
+            }
+            else
+            {
+                // Preparation bounds arity to four; each nested call has its own temporary.
+                Span<AwkFunctionArgument> arguments = [default, default, default, default];
+                for (var index = 0; index < _operands.Length; index++)
+                {
+                    var operand = _operands[index];
+                    arguments[index] = operand.TryGetVariableName(out var name) && state.TryResolveArrayArgument(name, out var alias)
+                        ? alias : AwkFunctionArgument.FromValue(operand.EvaluateSynchronous(context));
+                }
+                state.ThrowIfCancellationRequested();
+                state.PushFunctionFrame(_function.Layout, arguments[.._operands.Length]);
+            }
+            try { return _function.EvaluateBody(context); }
             finally { state.PopFunctionFrame(); }
         }
     }

@@ -5,6 +5,15 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("prepared-multi-arguments-evaluate-in-caller-order",
+            ["function pack(x,y){return x*10+y} function inc(x){return x+1} BEGIN{x=3;total=pack(inc(x),pack(x,inc(x)))} END{print total,x}"],
+            [], "74 3\n");
+        yield return Passing("prepared-multi-arguments-forward-array-aliases",
+            ["function second(a,x){return x+1} function forward(a,x){return second(a,x)} BEGIN{a[1]=7} BEGIN{total=forward(a,41)} END{print total,length(a)}"],
+            [], "42 1\n");
+        yield return Passing("prepared-multi-arguments-keep-zero-and-four-argument-calls",
+            ["function zero(){return 1} function pack(a,b,c,d){return 1000*a+100*b+10*c+d} BEGIN{total=pack(zero(),2,3,4)} END{print total}"],
+            [], "1234\n");
         yield return Passing("benchmark-core-two-argument-call-loop",
             ["function step(x,a){return (x*3+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}"],
             [], "186\n", "7\n7\n");

@@ -90,7 +90,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
                     : AwkFunctionArgument.FromValue(await expression.EvaluateAsync(context).ConfigureAwait(false));
                 PushArguments([argument], context);
             }
-            else using (var buffer = RentedFunctionArguments.Rent(arguments.Count))
+            else using (var buffer = RentedFunctionArguments.Rent(arguments.Count, state.Counters))
             {
                 var values = buffer.Values;
                 for (var index = 0; index < arguments.Count; index++)
@@ -143,7 +143,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
             {
                 PushArguments([AwkFunctionArgument.FromValue(arguments[0])], context);
             }
-            else using (var buffer = RentedFunctionArguments.Rent(arguments.Count))
+            else using (var buffer = RentedFunctionArguments.Rent(arguments.Count, state.Counters))
             {
                 var values = buffer.Values;
                 for (var index = 0; index < arguments.Count; index++)
@@ -224,17 +224,18 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         private readonly bool _isPooled;
         private readonly AwkFunctionArgument[]? _values;
 
-        private RentedFunctionArguments(int count)
+        private RentedFunctionArguments(int count, AwkRuntimeCounters counters)
         {
             _isPooled = count > 0;
             _values = _isPooled
                 ? ArrayPool<AwkFunctionArgument>.Shared.Rent(count)
                 : [];
+            if (_isPooled) counters.RecordFunctionArgumentBufferRent();
         }
 
         public AwkFunctionArgument[] Values => _values ?? [];
 
-        public static RentedFunctionArguments Rent(int count) => new(count);
+        public static RentedFunctionArguments Rent(int count, AwkRuntimeCounters counters) => new(count, counters);
 
         public void Dispose()
         {

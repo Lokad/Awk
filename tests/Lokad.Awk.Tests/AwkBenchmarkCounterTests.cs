@@ -11,6 +11,22 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task CompleteTwoArgumentLoopsAvoidPooledArgumentTransport(AwkExecutionEngineKind engine)
+    {
+        const string script = "function step(x,a){return (x*3+a)%101} " +
+            "{x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
+        var result = await RunAsync([script], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousLoopRuns);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 0 : 16, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(0, result.Counters.FunctionStackSuspensions);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task PureScalarActionsUsePreparedCallsOnlyInTheInterpreter(AwkExecutionEngineKind engine)
     {
         const string script = "function inc(x){return x+1} function twice(x){return inc(inc(x))} {total+=twice($1)} END{print total}";
