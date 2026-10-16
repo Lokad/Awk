@@ -160,29 +160,31 @@ internal sealed class AwkFieldFrame(
     public bool TryGetUnmaterializedFieldBytes(
         AwkFieldIndex index, Func<AwkText, List<AwkFieldText>> splitFields, out ReadOnlySpan<byte> bytes)
     {
-        var borrowed = TryGetUnmaterializedFieldText(index, splitFields, out var field, out var record);
-        bytes = borrowed ? field.AsSpan(record, checkpoint) : default;
-        return borrowed;
+        EnsureField(index, splitFields);
+        bytes = default;
+        if (!index.IsNamedField || index.Value > _fieldTexts.Count)
+            return true;
+
+        var fieldIndex = index.Value - 1;
+        var field = _fieldTexts[fieldIndex];
+        if (_fieldValueCache.ContainsKey(fieldIndex) || field.Kind == AwkFieldTextKind.Owned)
+            return false;
+
+        throwIfValueBytesExceeded(field.ByteLength());
+        bytes = field.AsSpan(_recordText, checkpoint);
+        return true;
     }
 
     public bool TryGetUnmaterializedFieldText(
         AwkFieldIndex index, Func<AwkText, List<AwkFieldText>> splitFields,
         out AwkFieldText field, out AwkText record)
     {
-        EnsureField(index, splitFields);
-        field = AwkFieldText.Empty;
+        // Reuse byte-view admission without transporting descriptors for existing byte consumers.
+        var borrowed = TryGetUnmaterializedFieldBytes(index, splitFields, out _);
         record = _recordText;
-        if (!index.IsNamedField || index.Value > _fieldTexts.Count)
-            return true;
-
-        var fieldIndex = index.Value - 1;
-        var text = _fieldTexts[fieldIndex];
-        if (_fieldValueCache.ContainsKey(fieldIndex) || text.Kind == AwkFieldTextKind.Owned)
-            return false;
-
-        throwIfValueBytesExceeded(text.ByteLength());
-        field = text;
-        return true;
+        field = borrowed && index.IsNamedField && index.Value <= _fieldTexts.Count
+            ? _fieldTexts[index.Value - 1] : AwkFieldText.Empty;
+        return borrowed;
     }
 
     public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan = default)
