@@ -151,6 +151,9 @@ internal static partial class AwkGoldenCorpus
             ["$2==\"keep\"{n++} END{print n+0}"], [], "2\n",
             new string('x', 4_096) + "\tkeep\n" + new string('y', 4_097) + "\tskip\n" +
             " \t" + string.Concat(Enumerable.Repeat("é长", 2_048)) + " keep \t\n");
+        yield return Passing("benchmark-core-case-conversion",
+            ["{s=tolower($0);t=toupper($0);total+=length(s)+length(t)} END{print total}"],
+            [], "28\n", "AbC-09 !~\nTéSt😀\n");
         yield return Passing("benchmark-core-regex-captures",
             ["match($0,/^([[:alpha:]]+)([0-9]+)$/,m){total+=length(m[1])+m[2]} END{print total}"],
             [], "24\n", "sku007\nitem010\n");

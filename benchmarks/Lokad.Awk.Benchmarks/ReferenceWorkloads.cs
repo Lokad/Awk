@@ -17,7 +17,7 @@ internal static class ReferenceWorkloads
     [
         "projection", "multi-column", "filter", "membership", "array-read", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
-        "arithmetic-loops", "user-functions", "loop-with-calls", "multi-arg-loop", "string-functions", "concatenation", "regex-match", "regex-captures"
+        "arithmetic-loops", "user-functions", "loop-with-calls", "multi-arg-loop", "string-functions", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
 
@@ -64,6 +64,15 @@ internal static class ReferenceWorkloads
                 for (var i = 0; i < rows; i++)
                     input.Append(longToken).Append(i % 2 == 0 ? "\tkeep\n" : "\tskip\n");
                 expected.Append(rows / 2).Append('\n');
+                break;
+            case "case-conversion":
+                // Both directions change actual bytes; string-functions mostly reuses lowercase input.
+                program = "{s=tolower($0);t=toupper($0);total+=length(s)+length(t)} END{print total}";
+                fields = 1;
+                var mixedCase = string.Concat(Enumerable.Repeat("Sku09-Ab:", 16));
+                for (var i = 0; i < rows; i++)
+                    input.Append(mixedCase).Append('\n');
+                expected.Append(rows * mixedCase.Length * 2).Append('\n');
                 break;
             case "filter":
                 program = "$1==\"A\" && $2==\"B\" && $3==\"C\"{n++} END{print n+0}";
