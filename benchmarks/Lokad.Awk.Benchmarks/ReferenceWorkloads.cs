@@ -17,7 +17,7 @@ internal static class ReferenceWorkloads
     [
         "projection", "filter", "membership", "array-read", "early-fields-wide", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
-        "arithmetic-loops", "user-functions", "string-functions", "concatenation", "regex-match", "regex-captures"
+        "arithmetic-loops", "user-functions", "loop-with-calls", "string-functions", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
 
@@ -175,7 +175,10 @@ internal static class ReferenceWorkloads
             // Scripts have canonical small controls in AwkGoldenCorpus.BenchmarkCore.cs.
             // Expected scaled results below use independent fixture formulas, outside timing.
             case "arithmetic-loops":
-                program = "{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}";
+            case "loop-with-calls":
+                program = name == "loop-with-calls"
+                    ? "function step(x){return (x*3+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}"
+                    : "{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}";
                 fields = 1;
                 Repeat("7\n", "");
                 expected.Append(rows * 20).Append('\n');
