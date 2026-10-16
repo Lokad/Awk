@@ -51,37 +51,39 @@ making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, `43e3cca` (runtime `7043d09`) →
-`fa1e85a35eff68e731a7d4773479fafcb4c97063`: three warmups/five iterations and two launches per source,
-in both source orders. The clean reverse order is retained from the first confirmation;
-only the observer-contaminated forward order was replaced. Values are medians of the two
-launch medians through the public full-invocation path. The harness includes **25 families**;
-the newer unary and two-argument loops remain absent from the retained GNU comparison above.
+Measured 2026-10-16, `fa1e85a35eff68e731a7d4773479fafcb4c97063` →
+`f8caf6ef47a7717f583c183adc090bdb293028e9`: three warmups/five iterations and two launches per source,
+in both source orders. Values are medians of the two launch medians through the public
+full-invocation path. The harness includes **25 families**; the newer unary and two-argument
+loops remain absent from the retained GNU comparison above.
 
-| Workload | Median ms, before → after (corrected forward; retained reverse) | Managed bytes/invocation |
+| Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
 | --- | --- | ---: |
-| Numeric array sort | 6.675→6.393; 6.729→6.593 | 3,237,704 (unchanged) |
-| Keyed aggregation control | 3.131→3.134; 3.142→3.092 | 1,423,411 (unchanged) |
-| Column projection control | 2.496→2.439; 2.404→2.483 | 1,405,595 (unchanged) |
+| Numeric array sort | 6.601→5.933; 6.374→5.970 | 3,237,704→3,237,463 |
+| printf control | 3.871→4.008; 3.879→3.843 | 1,739,296 (unchanged) |
+| Column projection control | 2.428→2.479; 2.425→2.431 | 1,405,595 (unchanged) |
 
-Array-sort comparison helpers borrow immutable entries, avoiding repeated struct copies.
-Existing comparison/tie, formatting, resource-preflight and callback checks pass.
+Single-value stdout `print` uses local values and formatted segments, removing two staging
+array rentals and a nested async emitter per eligible print. Formatting remains leased and
+the complete output append still preflights before publication. Statement flush, host failure,
+operand/format order and cancellation behavior remain qualified.
 
-Numeric sorting takes **2.0–4.2% less elapsed time** across the source orders. All four launch
-pairs improve; one is nearly flat (0.14%). Allocations are unchanged in all three workloads.
-Aggregation takes 0.10% longer/1.60% less time. Projection takes 2.32% less time/3.31% longer.
-No general-workload gain is claimed. All eight confirmation quiet gates pass, with stable
-source/library/driver/GNU identities. Earlier pilot/forward windows overlapping fresh SSH
-logins are excluded: login-banner work can itself fail the CPU gate. One refused admission
-is retained. The clean reverse order was reused; only the contaminated order was replaced.
-Raw evidence remains local.
+Numeric sorting takes **6.3–10.1% less elapsed time**; all four launch pairs improve
+by at least 6.2%. Default execution already pools the staging arrays, so managed
+allocations are effectively unchanged. The printf control takes 3.55% longer/0.92% less time;
+projection takes 2.09%/0.24% longer. No repeated material control regression or general gain is
+claimed. All eight confirmation quiet gates pass with stable source/library/driver/GNU
+identities; journal evidence confirms no fresh SSH login in any measured window. No window
+was repeated. Raw evidence stays local.
 
-Runtime `fa1e85a3` passes **72,758 tests/OS**, 77 exact reference checks and
-82 native goldens. All 77 work/host/field/encoding snapshots and 31 finite-resource rows
-match the parent. Existing tests cover sort projections/ties, comparison caps, callbacks,
-cancellation, failed admission before destination replacement, ownership and refunds.
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38888643497) passes; downloaded
-reports verify all 166 selected sort/resource executions per OS.
+Runtime `f8caf6ef` passes **72,778 tests/OS**, 77 exact reference checks, 83 native
+goldens and 30 limited-stack scenarios. All logical/host/text counters match the parent;
+24 finite-resource rows are identical and seven have only lower estimated memory peaks
+(56 or 96 bytes, matching removed staging). Explicit memory limits can therefore admit prints
+that previously needed temporary-array headroom. Physical-work/storage guards detect disabling
+the path; pending operands, cancellation, refused admission and noncooperative host completion
+are covered. [Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38893272842) passes;
+downloaded reports verify all 102 distinct selected print/resource checks per OS.
 
 ## Environment and reproduction
 
