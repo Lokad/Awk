@@ -676,7 +676,7 @@ internal sealed class AwkArrayRuntime
         public int Compare(AwkArraySortEntry left, AwkArraySortEntry right)
         {
             state.Resources.RecordSortComparison();
-            return comparer.Compare(left, right, state);
+            return comparer.Compare(in left, in right, state);
         }
     }
 
@@ -858,7 +858,7 @@ internal sealed class AwkArrayRuntime
         AwkArraySortMode mode,
         AwkRuntimeCounters counters)
     {
-        public int Compare(AwkArraySortEntry left, AwkArraySortEntry right, AwkRuntimeState state)
+        public int Compare(in AwkArraySortEntry left, in AwkArraySortEntry right, AwkRuntimeState state)
         {
             switch (mode)
             {
@@ -886,17 +886,17 @@ internal sealed class AwkArrayRuntime
 
             int ThenCompareKeys(
                 int comparison,
-                AwkArraySortEntry left,
-                AwkArraySortEntry right) =>
+                in AwkArraySortEntry left,
+                in AwkArraySortEntry right) =>
                 comparison != 0 ? comparison : CompareKeys(left, right, state);
 
-            int CompareValues(AwkArraySortEntry left, AwkArraySortEntry right)
+            int CompareValues(in AwkArraySortEntry left, in AwkArraySortEntry right)
             {
                 counters.RecordByteTextComparison();
                 return state.CompareByteText(left.ValueText, right.ValueText, sorting: true);
             }
 
-            int CompareNumericValues(AwkArraySortEntry left, AwkArraySortEntry right)
+            int CompareNumericValues(in AwkArraySortEntry left, in AwkArraySortEntry right)
             {
                 var comparison = CompareNumbers(left, right);
                 if (comparison != 0)
@@ -907,7 +907,7 @@ internal sealed class AwkArrayRuntime
                     state.FormatStringByteText(right.Value, textLease), sorting: true);
             }
 
-            int CompareTypes(AwkArraySortEntry left, AwkArraySortEntry right)
+            int CompareTypes(in AwkArraySortEntry left, in AwkArraySortEntry right)
             {
                 var leftNumeric = left.Value.TryGetNumber(out var leftNumber);
                 var rightNumeric = right.Value.TryGetNumber(out var rightNumber);
@@ -918,7 +918,7 @@ internal sealed class AwkArrayRuntime
                 return CompareValues(left, right);
             }
 
-            static int CompareNumbers(AwkArraySortEntry left, AwkArraySortEntry right) =>
+            static int CompareNumbers(in AwkArraySortEntry left, in AwkArraySortEntry right) =>
                 CompareSortNumbers(left.NumericKey, right.NumericKey);
         }
 
@@ -926,7 +926,7 @@ internal sealed class AwkArrayRuntime
             double.IsNaN(left) ? (double.IsNaN(right) ? 0 : 1) :
             double.IsNaN(right) ? -1 : left.CompareTo(right);
 
-        private int CompareKeys(AwkArraySortEntry left, AwkArraySortEntry right, AwkRuntimeState state)
+        private int CompareKeys(in AwkArraySortEntry left, in AwkArraySortEntry right, AwkRuntimeState state)
         {
             counters.RecordByteTextComparison();
             return state.CompareByteText(left.KeyText, right.KeyText, sorting: true);
