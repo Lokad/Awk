@@ -84,8 +84,9 @@ SYMTAB reads support introspection/aliases but diagnose scalar conversion. See
 
 Case-insensitive text uses invariant scalar folding (ASCII only in byte mode), without
 normalization or multi-scalar expansion. Array keys stay case-sensitive. Sorting has a
-separate total order, with original-byte/index tie-breaks. Unicode edge differences from
-GNU and regex folding remain classified rather than silently treated as exact agreement.
+separate total order, with original-byte/index tie-breaks. Numeric-sort ties with mixed
+ordinal/text keys and Unicode folding can differ from GNU 5.2.1; these are classified
+limitations, not exact agreement. Regex folding also has documented edge differences.
 
 ## Host I/O and getline
 
