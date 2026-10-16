@@ -3,14 +3,14 @@ namespace Lokad.Awk;
 internal readonly struct AwkEvaluationContext
 {
     private readonly AwkRuntimeState? _state;
-    private readonly bool _hasExecutionContext;
-    private readonly AwkExecutionContext _executionContext;
+    private readonly AwkOutputSink? _output;
+    private readonly AwkIo? _io;
 
     public AwkEvaluationContext(AwkRuntimeState state)
     {
         _state = state;
-        _hasExecutionContext = false;
-        _executionContext = default;
+        _output = null;
+        _io = null;
     }
 
     public AwkEvaluationContext(
@@ -19,8 +19,8 @@ internal readonly struct AwkEvaluationContext
         AwkIo io)
         : this(state)
     {
-        _hasExecutionContext = true;
-        _executionContext = new AwkExecutionContext(output, io);
+        _output = output;
+        _io = io;
     }
 
     public AwkRuntimeState State => _state ??
@@ -28,9 +28,9 @@ internal readonly struct AwkEvaluationContext
 
     public bool TryGetExecutionContext(out AwkExecutionContext context)
     {
-        if (_hasExecutionContext)
+        if (_output is { } output)
         {
-            context = _executionContext;
+            context = new AwkExecutionContext(output, _io);
             return true;
         }
 

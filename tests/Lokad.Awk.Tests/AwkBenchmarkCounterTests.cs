@@ -44,18 +44,24 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task CompleteTwoArgumentLoopsAvoidPooledArgumentTransport(AwkExecutionEngineKind engine)
+    [InlineData(AwkExecutionEngineKind.Interpreter, false)]
+    [InlineData(AwkExecutionEngineKind.Executable, false)]
+    [InlineData(AwkExecutionEngineKind.Interpreter, true)]
+    [InlineData(AwkExecutionEngineKind.Executable, true)]
+    internal async Task CompleteCallLoopsAvoidPooledArgumentTransport(AwkExecutionEngineKind engine, bool multiple)
     {
-        const string script = "function step(x,a){return (x*3+a)%101} " +
-            "{x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
+        var script = multiple
+            ? "function step(x,a){return (x*3+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}"
+            : "function step(x){return (x*3+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}";
         var result = await RunAsync([script], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
         Assert.Equal(0, result.ExitCode);
-        Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(multiple ? "186\n" : "40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousLoopRuns);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 0 : 16, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter || !multiple ? 0 : 16, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 16 : 0, result.Counters.SynchronousFunctionRuns);
+        if (engine == AwkExecutionEngineKind.Interpreter)
+            Assert.Equal(multiple ? 338 : 322, result.Counters.ExecutionSteps);
         Assert.Equal(0, result.Counters.FunctionStackSuspensions);
     }
 
