@@ -2,8 +2,8 @@
 
 Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
 `cd8d0c51727841ad6520dc032077475ee1aa1ddc` against GNU awk 5.2.1. Times and allocations below share this source,
-at the declared five-change milestone. These complete-comparison rows have not been retimed
-after the scoped changes through `aa1fd2ca`. Interpreter/DotNetCompatibility remain defaults;
+at the declared five-change milestone. This complete comparison is retained; newer scoped
+results and the refused refresh are separate. Interpreter/DotNetCompatibility remain defaults;
 Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -47,36 +47,39 @@ larger inputs before making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, `90b1490` → `aa1fd2ca7a8efc048c0a5c3d7ae1777d52a2ed7b`: three warmups/five
-iterations and two launches per source, in both source orders. Values are medians of the two
-launch medians. This scoped comparison did not refresh GNU timings or the complete baseline above.
+Measured 2026-10-16, `2a423fd` → `45c3d92ab36b69cb7666de6ab13693f792ccc045`: three warmups/five
+iterations and two launches per source, in both source orders. The baseline adds the shared
+function-loop fixture to runtime `aa1fd2c`; the fixture and inputs are identical in both lanes.
+Values are medians of the two launch medians. GNU timings and the complete table above
+retain their stated source; the harness now includes 24 families.
 
 | Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
 | --- | --- | ---: |
-| Loop and numeric arithmetic | 7.172→6.549; 6.854→6.704 | 1,381,835→1,381,835 |
-| ASCII string control | 3.944→3.877; 3.844→3.792 | 1,127,944→1,127,944 |
-| Two-file join control | 8.152→7.997; 8.287→7.925 | 4,430,330→4,430,330 |
+| Loop with arithmetic function calls | 14.168→10.471; 14.542→10.554 | 1,399,125→1,399,933 |
+| Plain arithmetic control | 6.789→6.728; 6.443→6.599 | 1,381,835→1,381,883 |
+| Two-file join control | 7.868→7.983; 7.980→7.907 | 4,430,330→4,430,378 |
 
-Default execution checkpoints poll cancellation directly, avoiding disabled accounting work.
-Explicit fuel and enabled counters keep the original accounting path. Checkpoint frequency,
-resource limits, host behavior and memory ownership remain unchanged.
+Eligible interpreter loops reuse bounded known-call metadata and existing function frames.
+Original statements remain for VM, lint, pending-output, raised-syntax and stack-safety fallback;
+logical fuel, caller/alias order, cancellation, mutation admission and governed refunds remain.
 
-Arithmetic takes **2.2–8.7% less elapsed time** across the two orders.
-Three launch pairs improve by 4.3–8.9%; the fourth is essentially flat (0.04% less).
-The benefit's size is variable; reverse-order candidate launches differ by 5.1%.
-Allocations are unchanged. String controls are
-1.7% less; 1.4% less; join controls are 1.9% less; 4.4% less.
-No control or general-workload gain is claimed. One short explicit-fuel source ABBA control
-took 1.2% less elapsed time; this is a diagnostic check, not a separate throughput claim.
-All eight confirmation quiet gates pass; library/driver/GNU identities remain fixed.
-Raw evidence and histories stay local.
+Function loops take **26.1–27.4% less elapsed time**, with every launch pair
+improving by at least 22.0%. Preparation adds 808 managed bytes/invocation (under 0.06%).
+Plain arithmetic is mixed: 0.9% less in one order, 2.4% more in the other; one pair takes 8.2%
+longer. Join controls are 1.5% more/0.9% less. Both controls add 48 bytes. No control or general
+gain is claimed. All eight confirmation quiet gates pass; source/library/driver/GNU identities
+stay fixed. Raw results and histories remain local.
 
-Runtime `aa1fd2ca` passes 72,647 tests on Windows and Linux, 71 reference checks,
-76 native core goldens and 26 stack scenarios. All 71 published work/host/field/encoding
-snapshots and 31 finite-counter rows match `90b1490`. Cancellation preserves its token and
-leaves fuel unconsumed; zero, exact-boundary and large-step accounting remain covered.
-Exact-source [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38854956544) passes; downloaded reports
-verify all 32 selected checkpoint/loop/fuel/cancellation executions per OS.
+Runtime `45c3d92a` passes 72,668 tests/OS, 74 exact reference checks, 77 native goldens
+and 26 stack scenarios. All 74 work/host/field/encoding snapshots and 31 finite rows match the
+parent. Removing preparation fails four work/cancellation guards. Focused checks cover exact
+fuel/partial state, caller/alias/depth behavior, pending users and actual path selection.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38859270240) passes; downloaded reports verify
+all 40 selected loop/call/fuel/alias/cancellation executions per OS.
+
+The scheduled 24-family refresh collected all timings and allocations, but its final allocation
+quietness sample reached 6.53% CPU against a 5% maximum. That attempt is retained locally and
+is not a qualified complete baseline. The table above remains at `cd8d0c5`; no immediate retiming.
 
 ## Environment and reproduction
 
