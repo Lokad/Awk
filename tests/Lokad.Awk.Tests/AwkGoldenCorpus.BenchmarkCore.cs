@@ -5,6 +5,13 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("utf8-ingress-keeps-ascii-chunk-boundaries",
+            ["{print length($0),length($1),$2}"], [], "4101 4096 tail\n",
+            new string('a', 4096) + " tail\n");
+        yield return Passing("utf8-ingress-keeps-supplementary-chunk-boundaries",
+            ["{print length($0),length($1),$2}"], [], "4101 4096 tail\n",
+            new string('a', 4095) + "😀 tail\n");
+
         yield return Passing("numeric-locals-keep-mixed-values-nested-frames-and-global-shadowing",
             ["function id(x){return x} function echo(x){return id(x)} BEGIN{x=99;a=echo(7);b=echo(\"007\");c=echo();d=echo(1.25)} END{print a,b,b==7,c==\"\",c==0,d,x}"],
             [], "7 007 0 1 1 1.25 99\n");

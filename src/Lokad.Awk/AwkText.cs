@@ -932,6 +932,12 @@ internal sealed class AwkText : IEquatable<AwkText>
             {
                 checkpoint?.Invoke();
                 nextCheckpoint = (long)offset + AwkExecutionGovernor.WorkChunkBytes;
+                var length = Math.Min(remaining.Length, AwkExecutionGovernor.WorkChunkBytes);
+                if (Ascii.IsValid(remaining[..length]))
+                {
+                    remaining = remaining[length..];
+                    continue;
+                }
             }
             var status = Rune.DecodeFromUtf8(remaining, out _, out var consumed);
             if (status != OperationStatus.Done)

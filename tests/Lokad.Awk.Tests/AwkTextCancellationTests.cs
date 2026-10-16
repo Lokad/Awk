@@ -4,6 +4,105 @@ public sealed class AwkTextCancellationTests
 {
     private const int LongText = 16_384;
 
+    public static IEnumerable<object[]> Utf8IngressInvalidEdges()
+    {
+        foreach (var prefix in new[] { 0, 4095, 4096, 4097, 8191 })
+        foreach (var suffix in new[] { "80", "C0AF", "EDA080", "F4908080", "E282", "F0288CBC" })
+            yield return [prefix, suffix];
+    }
+
+    [Theory]
+    [MemberData(nameof(Utf8IngressInvalidEdges))]
+    public void Utf8IngressRejectsMalformedChunkEdgesBeforeAllocation(int prefix, string suffix)
+    {
+        var invalid = Convert.FromHexString(suffix);
+        var bytes = new byte[prefix + invalid.Length];
+        bytes.AsSpan(0, prefix).Fill((byte)'a');
+        invalid.CopyTo(bytes.AsSpan(prefix));
+        foreach (var ingress in new[] { "host", "owned", "copy" })
+        {
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            var governor = Governor(counters);
+            var error = Assert.Throws<AwkRuntimeException>(() =>
+            {
+                _ = ingress switch
+                {
+                    "host" => AwkText.FromHostBytes(bytes, counters),
+                    "owned" => AwkText.FromOwnedBytes(bytes, counters),
+                    _ => AwkText.CopyHostBytes(bytes, counters, governor)
+                };
+            });
+            Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            Assert.Equal(0, counters.AwkTextAllocations);
+            Assert.Equal(0, counters.AwkTextPayloadBytes);
+            Assert.Equal(0, governor.CurrentCommittedBytes);
+            Assert.Equal(0, governor.CurrentReservedBytes);
+        }
+    }
+
+    [Theory]
+    [InlineData(4095, "FF", false)]
+    [InlineData(4096, "FF", true)]
+    [InlineData(4097, "FF", true)]
+    [InlineData(4095, "E282", false)]
+    [InlineData(4095, "E2FFAC", false)]
+    [InlineData(4095, "F09F9880FF", true)]
+    [InlineData(4096, "E282", true)]
+    public void Utf8IngressKeepsCancellationAndInvalidByteFailureOrder(int prefix, string suffix, bool cancellationWins)
+    {
+        var tail = Convert.FromHexString(suffix);
+        var bytes = new byte[prefix + tail.Length];
+        bytes.AsSpan(0, prefix).Fill((byte)'a');
+        tail.CopyTo(bytes.AsSpan(prefix));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var governor = Governor(counters);
+        using var cancellation = new CancellationTokenSource();
+        var checks = 0;
+        void Check()
+        {
+            if (++checks == 2) cancellation.Cancel();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }
+
+        if (cancellationWins)
+        {
+            var error = Assert.Throws<OperationCanceledException>(() => AwkText.CopyHostBytes(bytes, counters, governor, Check));
+            Assert.Equal(cancellation.Token, error.CancellationToken);
+            Assert.Equal(2, checks);
+        }
+        else
+        {
+            var error = Assert.Throws<AwkRuntimeException>(() => AwkText.CopyHostBytes(bytes, counters, governor, Check));
+            Assert.Equal("awk: invalid UTF-8 input\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            Assert.Equal(1, checks);
+        }
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters.AwkTextPayloadBytes);
+        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.CurrentReservedBytes);
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(4095, false)]
+    [InlineData(4096, false)]
+    [InlineData(8193, false)]
+    [InlineData(4095, true)]
+    public void Utf8IngressKeepsOwnedCopyAndByteNativeCounters(int prefix, bool supplementary)
+    {
+        var input = AwkUtf8Codec.Encode(new string('a', prefix) + (supplementary ? "😀" : "")).ToArray();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var governor = Governor(counters);
+        var text = AwkText.CopyHostBytes(input, counters, governor);
+        Assert.True(text.AsSpan().SequenceEqual(input));
+        Assert.Equal(input.Length == 0 ? 0 : 1, counters.AwkTextAllocations);
+        Assert.Equal(input.Length, counters.AwkTextPayloadBytes);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, governor.CurrentCommittedBytes);
+        Assert.Equal(0, governor.CurrentReservedBytes);
+    }
+
     [Theory]
     [InlineData("ascii")]
     [InlineData("bmp")]
