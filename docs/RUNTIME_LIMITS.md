@@ -1,28 +1,8 @@
 # Runtime limits
 
-`WithMemoryBudget(IMemoryBudget)` admits frontend/runtime storage against a borrowed shared host allowance.
-The library declares the interfaces; hosts implement adapters over their own governor.
-Each execution owns a child scope and a coarse charge. Command descriptors carry that active
-budget into nested execution. Refusal uses the existing awk memory-limit diagnostic.
-Retained runtime storage and simultaneous construction peaks share that charge; their
-refunds wait for actual pending host users, without a host reservation for each peak.
-An invocation's budget takes precedence over the policy budget to preserve transitive ownership.
-`MaxExecutionMemoryBytes` remains an optional execution quota, not a copied root allowance.
-
-Governed cleanup waits for actual host-task completion before refunding borrowed storage;
-cancellation or a timeout only ends the operation's wait. Hosts must cooperate with cancellation.
-Without a supplied budget, existing deadline/default behavior is unchanged. Runtime buffers,
-retained state and major construction peaks are covered. Source copies and lexer/parser/binder
-storage use one coarse frontend charge, retained through execution. Governed internal compiled reuse
-owns a surviving scope: disposal stops new executions, waits for active users and refunds it.
-Source/token envelopes can refuse conservatively; minor metadata, process caches and backend
-internals remain approximate. This is not complete allocation coverage.
-
 Pass an immutable `AwkExecutionPolicy` to `Awk.ExecuteAsync`. `CreateDefault()` favors
-ordinary compatibility; `CreateRestricted()` reduces capabilities and supplies finite
-budgets for untrusted scripts. Refine either with its public `With...` methods.
-
-## Choose a preset
+ordinary compatibility; `CreateRestricted()` supplies finite budgets and fewer capabilities.
+Refine either with its `With...` methods.
 
 | Budget | Default | Restricted |
 | --- | --- | --- |
@@ -37,51 +17,61 @@ budgets for untrusted scripts. Refine either with its public `With...` methods.
 | Aggregate cleanup deadline | 30 seconds | 5 seconds |
 | Whole-execution deadline | Caller-owned | 30 seconds, cooperative |
 
-Specialized regex-operation, sort-comparison and regex-separator scan quotas are optional
-in both presets. Positive `WithMaxExecutionSteps` enables a shared logical-work allowance;
-zero in a preset means absent and is not a valid setter value. Fuel is deterministic
-accounting, not a CPU-time limit. Counters observe work and never enable admission rules.
-Prepared numeric trees and eligible scalar/field loops use the same execution checkpoints
-and mutation preflights. Numeric intermediates stay numeric within the existing tree; source
-number modes, value boundaries and conversion/error order remain unchanged. NF, field length/literal comparisons and scalar compound updates
-can share these regions; host-capable/pending indices keep ordinary evaluation. Compound
-updates snapshot the left number before the right expression and reuse the original scalar
-setters. Functions retain their validated asynchronous stack boundaries;
-host/pending work, lint and buffered diagnostics retain normal interpreter execution.
-Synchronous eligibility is bounded to expression depth 16 and 16 body statements;
-larger shapes use the normal executor, bounding preparation work and metadata.
-Small acyclic return-expression chains reuse the same frames and accounting, bounded
-to four function levels and expression depth 16. Host/pending/lint work, larger syntax
-allowances and the optional executable engine keep ordinary call execution. Entry and
-unwind stack checks remain; prepared metadata belongs to the existing compiled owner.
-Builtin arguments keep caller order and pending lifetimes. General synchronous builtins
-use admitted staging buffers; `index`, `substr`, `tolower` and `toupper` use value locals.
-Their arguments finish before conversions. Actual result allocations still preflight;
-removing temporary arrays can change optional memory thresholds. Async host builtins
-retain lazy evaluation where required. Logical work and UTF-8 boundaries are unchanged.
-`printf` emits its admitted staging buffer; `sprintf` still returns owned text. Publication
-stays atomic. Rounded buffer capacity can change memory thresholds; timed-out host borrows
-keep shared admission until actual completion.
-With at most 16 portable literal positive field operands, `printf` can borrow field bytes
-and numbers during synchronous formatting. Indices and fields still preflight in source
-order; dynamic/larger operand lists keep ordinary staging. Prepared ordinals belong to the
-compiled artifact's owner. Removing argument arrays and field copies can change optional
-memory thresholds; formatted output stays owned through actual host completion.
-Formatting checks value/builder length separately from storage admission. Writes within
-admitted capacity need no extra memory allowance; growth and owned result copies still do.
-Eligible field/string-literal comparisons, text comparisons with a right-hand field and
-numeric-only field reads, including binary arithmetic operands, can avoid copied text
-and scalar caches. Numeric comparisons,
-cached/modified fields and case/nondecimal fallbacks retain ordinary values. Value limits,
-mutation preflights and synchronous borrowing remain; charges reflect avoided storage.
-Ordinary owned field reads also use the existing prefix splitter and bounds checks. The
-first read retains the full-record byte-work charge; later NF/mutation completion can
-rescan and charge it again, so explicit fuel budgets may reject earlier. Tight field quotas
-still validate the complete record before publishing a prefix.
-Length-only ASCII/byte field reads can avoid text/cache allocation. An initial ASCII-record
-classification is cancellable and charged, so an explicit fuel quota may reject earlier.
+Specialized regex-operation, sorting and separator-scan quotas remain optional in both
+presets. Positive `WithMaxExecutionSteps` enables deterministic logical fuel, not a CPU-time
+limit. Zero in a preset means absent; it is not a valid setter value. Counters observe work
+and never enable admission rules. `WithExecutionTimeout` produces an awk failure on expiry;
+caller cancellation remains cancellation.
+Other frontend, I/O, regex and VM quotas are documented by the public policy getters/XML.
 
-For ordinary execution with finite memory and caller-owned cancellation:
+## Shared memory
+
+`WithMemoryBudget(IMemoryBudget)` borrows the host's shared allowance. The library declares
+the interfaces; hosts adapt their own governor. Each execution owns a scope and a coarse
+charge for retained storage and major construction peaks. Descriptors carry the active budget
+into nested execution; an invocation's budget takes precedence over the policy budget.
+`MaxExecutionMemoryBytes` is an additional optional quota, not a copied root allowance.
+It covers runtime storage; frontend/compiled ownership is separate.
+
+Source/parser/binder storage uses a coarse frontend charge. Governed compiled reuse retains
+its owner through active executions; disposal stops new executions, waits for users and
+refunds it. Admission is conservative, and minor metadata, process caches and backend
+internals are approximate. These estimates are not a managed-heap cap.
+
+Memory failures preflight before observable mutation. Staging admits overlapping old/new
+storage, so a final result can fit while its construction peak does not. Earlier state/output
+survives; preflight does not roll back prior script or host effects. Array deletion refunds
+retained keys and values. Byte/memory refusal uses `awk: memory limit exceeded`; other limits
+retain their specific awk diagnostics, without CLR exception details. Warnings use ordinary
+output/host budgets; cleanup shares one aggregate deadline after the ordinary host-call allowance is exhausted.
+
+Refunds wait for actual pending host users: cancellation or timeout ends a wait, not the
+underlying buffer borrow. Hosts must cooperate with cancellation. Without a supplied budget, existing deadline behavior remains.
+Framework/parser/regex construction can be indivisible; no hard CPU preemption or universal
+cancellation latency is promised. Matching deadlines do not bound regex construction.
+
+## Interpreter preparation and buffers
+
+Eligible numeric, field and string expressions and scalar loops reuse bounded synchronous
+interpreter regions. They preserve logical checkpoints, argument/conversion/error order,
+borrowed numeric field reads and original setters. Eligibility stops at expression depth 16,
+16 body statements and four acyclic function levels. Host/pending/lint work and larger shapes
+retain ordinary execution; function entry/unwind stack checks remain. Immutable preparation
+belongs to the existing compiled owner. The interpreter remains the default engine.
+Syntax-depth settings above 128 retain unconditional function-entry/unwind suspension.
+
+`index`, `substr`, `tolower` and `toupper` evaluate arguments into value locals before
+conversion; other builtins use admitted staging where required. Actual result allocations
+preflight. `printf` publishes its admitted staging buffer atomically; `sprintf` returns owned
+text. Eligible literal field operands can borrow bytes/numbers during synchronous formatting.
+Avoided copies and rounded capacities can change optional memory thresholds.
+
+Fields split incrementally where supported; tight quotas still validate the whole record
+before publishing a prefix. NF or mutation can complete the scan. Record classification and
+rescans remain cancellable and charged, so explicit fuel can reject earlier. See
+[record semantics](RECORD_SEMANTICS.md) and [UTF-8 policy](UTF8_POLICY.md).
+
+For finite execution memory with caller-owned cancellation:
 
 ```csharp
 var policy = AwkExecutionPolicy.CreateDefault()
@@ -89,78 +79,4 @@ var policy = AwkExecutionPolicy.CreateDefault()
 var exitCode = await awk.ExecuteAsync(host, policy, cancellationToken);
 ```
 
-`WithExecutionTimeout` adds an owned cooperative deadline. Its expiry is an awk failure;
-caller cancellation remains cancellation. See [host containment](SECURITY.md) for
-restricted capabilities and the application's responsibilities.
-
-## Admission and failure behavior
-
-Invocation/source/frontend limits bound arguments, environment, source bytes/units,
-expanded source/includes, tokens, diagnostics, symbols, identifiers and syntax depth.
-Runtime limits independently bound input/records, text/builders, fields/arrays, output,
-open redirections/pipes, regex preparation/captures/cache retention and VM stack storage.
-The public policy getters and XML documentation are the complete numeric reference.
-
-Arrays, fields, records, output, capture arrays and VM growth preflight before observable
-mutation. Staged work admits overlapping old/new storage, publishes only a completed result
-and releases temporary reservations on failure/cancellation. A mutation can fail when its
-final size fits but its staging peak does not. Previously committed state/output survives;
-preflight does not roll back earlier script or host effects.
-Array deletion refunds the stored key and value, including equivalent numeric/text lookups.
-
-Byte/memory ceilings use `awk: memory limit exceeded`; fuel, host-call and other limits
-retain their specific awk diagnostics. Unexpected CLR exception details are not exposed.
-Warnings use the same governed output/host budgets as execution, including warnings retained
-by compiled programs. Cleanup can run after the ordinary host-call allowance is exhausted,
-within one aggregate cleanup deadline per phase; it does not receive a new deadline per file.
-
-## Memory and cancellation scope
-
-`MaxExecutionMemoryBytes` measures conservative live storage owned by the runtime:
-values/arrays, record/field caches, prepared global scalar slots, builders, staged output, VM frames and admitted regex
-preparation/scratch. Estimates include retained capacity and cache headroom. It is not a
-measurement of managed allocations or process heap use. Frontend/compiled artifacts,
-immutable process metadata and host storage have separate ownership. The shared host allowance
-also admits major frontend/compiled storage; the numeric execution quota remains runtime-only.
-Streaming reads remain bounded; general regex RS can rescan buffered data.
-
-Prepared slots belong to each execution; their vector is admitted before allocation.
-Ordinary global reads and updates reuse those slots. Scalar creation stays lazy; a first
-write binds only after its normal assignment succeeds. The vector charge can cause a
-tight finite-memory budget to reject earlier.
-
-Already-parsed mode-independent numeric input can reuse the number field in an existing
-slot. Original text/classification, value-size admission and long-read cancellation remain
-intact; no extra retained storage is introduced.
-
-Without a finite memory budget, small field-value dictionary buffers are reused
-across records. Governed execution also reuses the smallest cache, keeping a coarse
-320-byte capacity charge until reset; cached values are cleared and larger buffers discarded.
-The added backing-capacity allowance can make tight finite quotas reject earlier.
-
-Empty lists used only for estimates are shared; each frame keeps its own zero-capacity
-placeholder. Published/staged field ownership and logical charges remain unchanged.
-
-Capture metadata reuses scoped UTF-8 scratch sized before key construction and released
-before array publication. Its initial capacity can shift tight-budget rejection earlier.
-
-Owned long scans/copies observe periodic cancellation and publish completed caches only.
-Framework allocation/conversion/search, parser operations and regex constructors can be
-indivisible; matching deadlines do not bound constructor time. Data/depth admission,
-bounded regex caches and backend safeguards remain independent protections. No universal
-cancellation latency or hard CPU preemption is promised.
-
-Host-operation and command waits observe deadlines; they cannot force host tasks to terminate.
-Governed cleanup still awaits actual storage users. Normal close uses the earlier applicable host/cleanup deadline.
-Hosts must supply their own cancellation, backpressure and effect containment.
-
-Function entry and unwind check CLR stack pressure, including before argument evaluation,
-and suspend when needed. Syntax-depth settings above 128 retain unconditional suspension
-at both boundaries. The function-frame quota owns recursion admission; suspension counters
-are observational. The interpreter remains the default, with the executable engine opt-in
-and sharing the same cancellation, resource and mutation contracts.
-
-Use the existing `--counter-report` benchmark command to qualify changed accounting or
-byte/string boundaries; see [benchmarks](BENCHMARKS.md). Numeric defaults, validation and
-presets have one immutable owner. Execution accounting and scoped leases report owned storage
-to the borrowed host allowance; the numeric memory ceiling remains an optional execution quota.
+See [host containment](SECURITY.md) for capabilities and application responsibilities.
