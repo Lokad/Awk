@@ -3,7 +3,7 @@
 Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
 `cd8d0c51727841ad6520dc032077475ee1aa1ddc` against GNU awk 5.2.1. Times and allocations below share this source,
 at the declared five-change milestone. These complete-comparison rows have not been retimed
-after the scoped changes through `90b1490a. Interpreter/DotNetCompatibility remain defaults;
+after the scoped changes through `aa1fd2ca`. Interpreter/DotNetCompatibility remain defaults;
 Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -47,34 +47,36 @@ larger inputs before making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, `6c61de5` → `90b1490a0e601ae97b0677c421b992facd53e335`: three warmups/five
+Measured 2026-10-16, `90b1490` → `aa1fd2ca7a8efc048c0a5c3d7ae1777d52a2ed7b`: three warmups/five
 iterations and two launches per source, in both source orders. Values are medians of the two
 launch medians. This scoped comparison did not refresh GNU timings or the complete baseline above.
 
 | Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
 | --- | --- | ---: |
-| printf strings / signed integers | 4.106→3.936; 4.118→3.921 | 1,739,192→1,739,192 |
-| ASCII string control | 3.971→3.942; 3.861→3.918 | 1,127,944→1,127,944 |
-| Two-file join control | 8.189→8.109; 8.158→8.235 | 4,430,330→4,430,330 |
+| Loop and numeric arithmetic | 7.172→6.549; 6.854→6.704 | 1,381,835→1,381,835 |
+| ASCII string control | 3.944→3.877; 3.844→3.792 | 1,127,944→1,127,944 |
+| Two-file join control | 8.152→7.997; 8.287→7.925 | 4,430,330→4,430,330 |
 
-Ordinary signed decimal conversions use integer digit formatting for finite, truncated
-magnitudes below 2^64. Larger magnitudes retain the original double fixed-format path.
-Signs, flags, widths, precision, output staging and resource checks remain shared.
-No format cache, prepared directives, buffer or owner is added.
+Default execution checkpoints poll cancellation directly, avoiding disabled accounting work.
+Explicit fuel and enabled counters keep the original accounting path. Checkpoint frequency,
+resource limits, host behavior and memory ownership remain unchanged.
 
-Formatting takes **4.2–4.8% less elapsed time**, with every launch pair
-improving by at least 2.5%. Managed allocation figures are shown above. Strings are
-0.7% less; 1.5% more; join controls are 1.0% less; 1.0% more.
-No control or general-workload gain is claimed. All eight accepted confirmation quiet gates
-pass; library/driver/GNU identities remain fixed. Raw evidence and histories stay local.
+Arithmetic takes **2.2–8.7% less elapsed time** across the two orders.
+Three launch pairs improve by 4.3–8.9%; the fourth is essentially flat (0.04% less).
+The benefit's size is variable; reverse-order candidate launches differ by 5.1%.
+Allocations are unchanged. String controls are
+1.7% less; 1.4% less; join controls are 1.9% less; 4.4% less.
+No control or general-workload gain is claimed. One short explicit-fuel source ABBA control
+took 1.2% less elapsed time; this is a diagnostic check, not a separate throughput claim.
+All eight confirmation quiet gates pass; library/driver/GNU identities remain fixed.
+Raw evidence and histories stay local.
 
-Runtime `90b1490a` passes 72,641 tests on Windows and Linux, 71 reference checks,
+Runtime `aa1fd2ca` passes 72,647 tests on Windows and Linux, 71 reference checks,
 76 native core goldens and 26 stack scenarios. All 71 published work/host/field/encoding
-snapshots and 31 finite-counter rows match `6c61de5`. Exact output is checked against the
-previous fixed-format result across 12,594 binary64 values. Restoring that path fails both
-printf/sprintf fast-path guards; limits and pending/canceled host writes remain covered.
-Exact-source [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38852791643) passes; downloaded reports
-verify seven new focused/corpus executions and fifteen existing format/lifetime checks.
+snapshots and 31 finite-counter rows match `90b1490`. Cancellation preserves its token and
+leaves fuel unconsumed; zero, exact-boundary and large-step accounting remain covered.
+Exact-source [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38854956544) passes; downloaded reports
+verify all 32 selected checkpoint/loop/fuel/cancellation executions per OS.
 
 ## Environment and reproduction
 

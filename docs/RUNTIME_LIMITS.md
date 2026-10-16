@@ -21,7 +21,8 @@ Specialized regex-operation, sorting and separator-scan quotas remain optional i
 presets. Positive `WithMaxExecutionSteps` enables deterministic logical fuel, not a CPU-time
 limit. Zero in a preset means absent; it is not a valid setter value. Counters observe work
 and never enable admission rules. `WithExecutionTimeout` produces an awk failure on expiry;
-caller cancellation remains cancellation.
+caller cancellation remains cancellation. Every logical checkpoint still polls cancellation,
+including default execution without fuel or counters.
 Other frontend, I/O, regex and VM quotas are documented by the public policy getters/XML.
 
 ## Shared memory
