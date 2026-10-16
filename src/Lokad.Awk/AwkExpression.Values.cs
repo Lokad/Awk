@@ -272,6 +272,11 @@ internal abstract partial class AwkExpression
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.ResolvePreparedGlobalValue(name, index);
 
+        protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
+            context.State.TryResolvePreparedGlobalNumber(index, out var number)
+                ? number
+                : EvaluateSynchronousCore(context).AsNumber(context.State.CancellationCheckpoint);
+
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
             compiler.EmitLoadScalar(name);
