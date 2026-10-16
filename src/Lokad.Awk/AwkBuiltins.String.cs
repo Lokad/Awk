@@ -20,10 +20,10 @@ internal static partial class AwkBuiltins
         if (start > sourceLength) return AwkValue.FromText(string.Empty);
         var zeroBasedStart = start - 1;
         if (argumentCount == 2)
-            return state.CreateByteTextValue(state.SubstringByStringUnits(source, zeroBasedStart, sourceLength - zeroBasedStart));
+            return state.CreateDeferredTextValue(state.SubstringByStringUnits(source, zeroBasedStart, sourceLength - zeroBasedStart));
         var length = (int)lengthValue.AsNumber(state.CancellationCheckpoint);
         if (length <= 0) return AwkValue.FromText(string.Empty);
-        return state.CreateByteTextValue(state.SubstringByStringUnits(source, zeroBasedStart, Math.Min(length, sourceLength - zeroBasedStart)));
+        return state.CreateDeferredTextValue(state.SubstringByStringUnits(source, zeroBasedStart, Math.Min(length, sourceLength - zeroBasedStart)));
     }
 
     internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper) =>
@@ -102,7 +102,7 @@ internal static partial class AwkBuiltins
             state.CancellationCheckpoint,
             out var asciiResult))
         {
-            return state.CreateByteTextValue(asciiResult);
+            return state.CreateDeferredTextValue(asciiResult);
         }
 
         state.Counters.RecordStringInteropFallback();
