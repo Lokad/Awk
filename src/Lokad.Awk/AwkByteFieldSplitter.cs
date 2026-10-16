@@ -73,7 +73,7 @@ internal sealed class AwkByteFieldSplitter(
 
             var fields = new List<AwkText>();
             var separators = new List<AwkCapturedSeparator>();
-            var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested);
+            var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, runtimeCounters);
             while (scanner.MoveNext(out var field, out var precedingSeparator))
             {
                 if (precedingSeparator.Length > 0)
@@ -209,7 +209,7 @@ internal sealed class AwkByteFieldSplitter(
             return -1;
         if (separator.UsesWhitespaceSemantics)
         {
-            var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, position);
+            var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, runtimeCounters, position);
             while (fields.Count < targetCount && scanner.MoveNext(out var field, out _))
                 fields.Add(AwkFieldText.FromRecordSlice(field.Start, field.Length));
             return scanner.Position == line.ByteLength ? -1 : scanner.Position;
@@ -459,7 +459,7 @@ internal sealed class AwkByteFieldSplitter(
     private TFields ScanWhitespaceFields<TSink, TFields>(AwkText line, TSink sink)
         where TSink : struct, IFieldSink<TFields>
     {
-        var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested);
+        var scanner = new AwkWhitespaceFieldScanner(line, throwIfCancellationRequested, runtimeCounters);
         while (scanner.MoveNext(out var field, out _))
             sink.Add(field);
 
@@ -678,7 +678,8 @@ internal sealed class AwkByteFieldSplitter(
         Regex
     }
 
-    private struct AwkWhitespaceFieldScanner(AwkText line, Action checkpoint, int position = 0)
+    private struct AwkWhitespaceFieldScanner(AwkText line, Action checkpoint,
+        AwkRuntimeCounters counters, int position = 0)
     {
         private int _position = position;
         private long _nextCheckpoint;
@@ -709,7 +710,16 @@ internal sealed class AwkByteFieldSplitter(
             while (_position < content.Length && !IsDefaultFieldWhitespace(content[_position]))
             {
                 CheckProgress();
-                _position++;
+                // Never search beyond the next existing cancellation boundary.
+                var end = (int)Math.Min(content.Length, _nextCheckpoint);
+                var length = content[_position..end].IndexOfAny((byte)' ', (byte)'\t', (byte)'\n');
+                counters.RecordWhitespaceFieldSearch(length < 0 ? end - _position : length + 1);
+                if (length >= 0)
+                {
+                    _position += length;
+                    break;
+                }
+                _position = end;
             }
 
             field = new AwkByteRange(fieldStart, _position - fieldStart);

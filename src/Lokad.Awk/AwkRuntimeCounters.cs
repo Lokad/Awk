@@ -25,6 +25,20 @@ internal sealed class AwkRuntimeCounters
 
     public long FieldSplits { get; private set; }
 
+    public long WhitespaceFieldSearches { get; private set; }
+
+    public long WhitespaceFieldSearchBytes { get; private set; }
+
+    public void RecordWhitespaceFieldSearch(int bytes)
+    {
+        if (!_enabled) return;
+        lock (_sync)
+        {
+            WhitespaceFieldSearches++;
+            WhitespaceFieldSearchBytes += bytes;
+        }
+    }
+
     public long ValuesCreated { get; private set; }
 
     public long StringDecodes { get; private set; }

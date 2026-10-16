@@ -5,6 +5,40 @@ public sealed class AwkFieldCancellationTests
     private const int LongScan = 16_384;
 
     [Theory]
+    [InlineData("record")]
+    [InlineData("split")]
+    [InlineData("captures")]
+    public void WhitespaceFieldSearchesCoverLongRunsWithinExistingChunks(string mode)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var splitter = Splitter(() => { }, counters, AwkMemoryAccounting.Disabled);
+        var ascii = new string('a', 3 * AwkExecutionGovernor.WorkChunkBytes + 17);
+        var unicode = string.Concat(Enumerable.Repeat("é长", 1_200));
+        var text = AwkText.FromString(" \t" + ascii + "\t" + unicode + " \n");
+        if (mode == "record")
+        {
+            var fields = splitter.SplitRecordFields(text);
+            Assert.Equal(2, fields.Count);
+            Assert.True(fields[0].AsSpan(text).SequenceEqual(AwkUtf8Codec.Encode(ascii).Span));
+            Assert.True(fields[1].AsSpan(text).SequenceEqual(AwkUtf8Codec.Encode(unicode).Span));
+        }
+        else
+        {
+            var result = splitter.SplitFieldTextsBySeparator(text, AwkFieldSeparatorSpec.Default,
+                mode == "captures" ? AwkSeparatorCaptureMode.Capture : AwkSeparatorCaptureMode.Omit, counters);
+            Assert.Equal(2, result.Fields.Count);
+            Assert.Equal(ascii, result.Fields[0].AsString());
+            Assert.Equal(unicode, result.Fields[1].AsString());
+            Assert.Equal(mode == "captures" ? 3 : 0, result.Separators.Count);
+        }
+        // Searches are bounded by the existing 4KiB checkpoints, independent of rune width.
+        Assert.InRange(counters.WhitespaceFieldSearches, 5, 7);
+        Assert.InRange(counters.WhitespaceFieldSearchBytes, text.ByteLength - 5, text.ByteLength);
+        Assert.Equal(0, counters.Utf8Encodes);
+        Assert.Equal(0, counters.StringDecodes);
+    }
+
+    [Theory]
     [InlineData("digits")]
     [InlineData("blanks")]
     [InlineData("strtoul-whitespace")]
