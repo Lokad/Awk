@@ -55,41 +55,50 @@ making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, `34c5c6ed064805c47ca554e9f55e452cbb17d12b` →
-`1468c21721dca0c3c90d5127d5c7aab49a784f6e`: three warmups/five iterations and two launches/source,
-in both source orders. The baseline adds the same multi-column fixture to runtime `f8caf6e`;
-the fixture and inputs are identical. Values are medians of the two launch medians through
-the public full-invocation path, separate from the complete comparison above. The harness
-now covers 26 families.
+Measured 2026-10-16, `1468c21721dca0c3c90d5127d5c7aab49a784f6e` →
+`7e41eb3c9c5e9e958e18c12ffb5ca233cbfff99b`: three warmups/five iterations and two launches/source,
+in both source orders. These are medians of the two launch medians through the public
+full-invocation path, separate from the retained GNU comparison above. The same 26-family
+harness and inputs apply to both sources; only the affected workload and two controls were timed.
 
 | Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
 | --- | --- | ---: |
-| Three-column projection | 4.544→4.078; 4.452→4.050 | 2,692,213 (unchanged) |
-| printf control | 3.898→3.861; 3.858→3.849 | 1,739,296 (unchanged) |
-| Single-column projection control | 2.467→2.488; 2.496→2.483 | 1,405,595 (unchanged) |
+| Three-column projection | 4.117→3.266; 3.935→3.295 | 2,692,213→1,414,731 |
+| printf control | 3.878→3.992; 3.895→3.860 | 1,739,296 (unchanged) |
+| Single-column projection control | 2.469→2.460; 2.448→2.454 | 1,405,595 (unchanged) |
 
-Stdout `print` with two through four values uses locals and formatted local segments, removing
-two staging array transports and nested emission. Field values keep their existing ownership.
-Formatting uses the existing lease and atomic append; argument/OFS/ORS/format order, UTF-8,
-fuel, cancellation, statement flushing and actual host-user lifetime remain qualified.
+Interpreter stdout `print` with two through four literal positive field operands reuses field
+descriptors through synchronous formatting and output copying. It avoids field text/value/cache
+construction. Cached or modified fields retain ordinary numeric formatting; dynamic, redirected,
+larger and VM prints keep their existing paths. Preparation shares the existing literal-field
+rules; ordinary byte-view consumers keep their original direct path. Existing formatting leases,
+complete output preflights, statement flushing and actual host-user lifetimes remain.
 
-Multi-column printing takes **9.0–10.2% less elapsed time**. All four launch pairs improve,
-one by 1.3%; the first order has up to 10.7% spread between launch medians. Managed allocations
-are unchanged because default execution already pools the arrays. printf takes 0.94%/0.24%
-less time; single-column projection takes 0.86% more/0.52% less. No control or general gain is
-claimed. All confirmation gates and source/library/driver/GNU identities pass. Journal evidence
-excludes extra authenticated SSH logins in all six timing windows; none were repeated.
+Three-column projection takes **16.3–20.7% less elapsed time** and allocates
+**47.5% fewer managed bytes**. All four launch pairs improve by at least
+15.4%. printf takes 2.95% more / 0.91% less elapsed time;
+single-column projection takes 0.37% less / 0.25% more. One printf launch pair takes 7.0% longer.
+Control allocations are unchanged;
+no control or general gain is claimed. All source/library/driver/GNU identities and confirmation
+quiet gates pass. Each variant received at most one bounded confirmation; failed timings were
+not rerun. The initial pilots reused explicitly retained
+before evidence; the final confirmation is balanced. Raw data and detailed investigation
+history remain local.
 
-Runtime `1468c21` passes **72,823 tests/OS**, 80 exact reference snapshots, 86 equivalent native
-goldens and 30 limited-stack scenarios/OS. One additional native case records an unchanged
-[numeric OFS/ORS spelling difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting);
-it is explicitly classified. Of 32 finite rows, 26 match exactly; six have only lower estimated
-memory peaks (52–192 bytes). Actual mutation/formatting/output allocations still preflight;
-reduced staging can relax optional memory thresholds. Disabling the new path fails seven
-work/storage checks while nine controls pass; exact restoration/full correctness pass.
-Pending operands, refused admission and noncooperative host completion are covered.
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38899613295) passes; downloaded reports
-verify all 133 distinct selected print/resource guards/OS. Raw data and detailed histories stay local.
+Runtime `7e41eb3c` passes **72,854 tests/OS**, 80 exact logical reference snapshots,
+88 equivalent native goldens and 30 limited-stack scenarios/OS. One additional native case
+retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
+Of 32 finite rows, 31 match exactly; the three-record multi-column case reduces text allocations
+12→3, their payload bytes 90→48 and estimated memory peak 4,226→3,728 bytes. All other cells match.
+Small preparation metadata and fewer retained field values can change optional memory thresholds;
+later field reads may materialize values that printing previously cached. Existing mutation and
+output admission remain. Exact fuel, tight quotas, duplicate/cached/modified/missing fields,
+captured splitting, cancellation during copy and pending/noncooperative host users are covered.
+The retained negative check disables the unchanged print branch: three physical-work guards
+fail while 26 controls pass; exact restoration passes all 29.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38907294623) passes; downloaded reports verify
+all 190 distinct selected field/print/resource checks per OS. No complete baseline refresh was
+repeated for this change; normal scoped development resumes.
 
 ## Environment and reproduction
 
