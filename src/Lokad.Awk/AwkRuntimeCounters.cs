@@ -143,6 +143,14 @@ internal sealed class AwkRuntimeCounters
 
     public long BoundScalarArguments { get; private set; }
 
+    public long BoundScalarLengths { get; private set; }
+
+    public void RecordBoundScalarLength()
+    {
+        if (!_enabled) return;
+        lock (_sync) BoundScalarLengths++;
+    }
+
     public long NumericLocalReads { get; private set; }
 
     public void RecordNumericLocalRead()

@@ -271,7 +271,9 @@ internal static partial class AwkExpressionLowerer
                         lowered = AwkExpression.Length(
                             scope.TryGetFunctionLocalSlot(variableName, out var slotId)
                                 ? AwkExpression.LocalVariable(variableName, slotId)
-                                : AwkExpression.Variable(variableName),
+                                : scope.TryGetGlobalReadIndex(variableName, out var globalIndex)
+                                    ? AwkExpression.PreparedGlobalVariable(variableName, globalIndex)
+                                    : AwkExpression.Variable(variableName),
                             AwkOptionalIdentifier.Some(arrayName.Identifier));
                         return true;
                     }

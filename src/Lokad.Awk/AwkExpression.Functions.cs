@@ -144,12 +144,18 @@ internal abstract partial class AwkExpression
 
         private bool TryGetNamedArrayLength(AwkEvaluationContext context, out AwkValue result)
         {
-            if (arrayName.HasValue && context.State.TryGetExistingArrayCount(new AwkArrayName(arrayName.Value), out var count))
+            result = default;
+            if (!arrayName.HasValue) return false;
+            if (valueExpression is PreparedGlobalVariableExpression scalar && scalar.IsBoundScalarFor(context.State, arrayName.Value))
+            {
+                context.State.Counters.RecordBoundScalarLength();
+                return false;
+            }
+            if (context.State.TryGetExistingArrayCount(new AwkArrayName(arrayName.Value), out var count))
             {
                 result = AwkValue.FromNumber(count);
                 return true;
             }
-            result = default;
             return false;
         }
 

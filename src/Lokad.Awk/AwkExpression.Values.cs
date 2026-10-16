@@ -256,6 +256,9 @@ internal abstract partial class AwkExpression
 
     private sealed class PreparedGlobalVariableExpression(AwkVariableName name, int index) : AwkSynchronousExpression
     {
+        internal bool IsBoundScalarFor(AwkRuntimeState state, AwkIdentifier identifier) =>
+            name.Identifier == identifier && state.HasBoundGlobalScalar(index);
+
         internal override bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument)
         {
             if (!state.HasBoundGlobalScalar(index))
