@@ -1,7 +1,7 @@
 # Benchmarks
 
-Current scoped source **22233ac** reduces changed ASCII casing time by 11.3–17.9%, with unchanged
-allocations. It still takes 1.76× / 2.58× GNU elapsed time at medium/large scales. See below.
+Current scoped source **394fd22** reduces changed ASCII casing time by 12.9–22.1%,
+with unchanged allocations. The retained complete baseline below remains directional.
 
 Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
 `cd8d0c51727841ad6520dc032077475ee1aa1ddc` against GNU awk 5.2.1. Times and allocations below share this source,
@@ -13,9 +13,10 @@ The retained table predates the SSH observation fix below. Its recorded gates pa
 login interference has not been excluded. Treat these ratios as directional until the next
 declared complete refresh.
 
-The scheduled 26-family refresh at `1468c21` did not qualify: a GNU early-wide-fields invocation
-exceeded the driver's 15-second deadline. Allocations never started; partial timings are excluded.
-The attempt is closed without an immediate rerun. The scoped results below are independently qualified.
+Complete refreshes at `1468c21` and `394fd22` failed on a GNU early-wide-fields invocation's
+15-second deadline. The latter produced 55 valid timing rows, with no allocation phase or final
+quietness gate. Partial timings remain diagnostic; no immediate retry was run. Investigate the
+process/driver failure before another full refresh. Scoped results below qualify independently.
 
 ## Representative processing
 
@@ -59,70 +60,60 @@ making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, runtime `4c0e49ff9999ec75b6af7733cdfb7ed65f5da747`
-→ `22233aca032f65b40576e04f7fc8e0610ad36efc`, using the same 28-family harness and inputs.
-Three warmups/five iterations and two launches/source in both source orders;
-only actual casing and two controls were timed. Times are medians of the two launch medians.
-Allocations are managed GC MiB/invocation.
+Measured 2026-10-16, runtime `22233aca032f65b40576e04f7fc8e0610ad36efc`
+→ `394fd2209ec2f12bd3cdf431e34e2bf4986785d1`, with identical harness and inputs.
+Three warmups/five iterations, two launches/source in both source orders; only changed casing
+and two controls were timed. Times are medians of the two launch medians; allocations are GC MiB.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| Changed ASCII casing | 6.185→5.080; 5.918→5.250 | 3.55→3.55 (both orders) |
-| Unchanged-case string operations control | 3.852→3.774; 3.823→3.786 | 1.08→1.08 (both orders) |
-| Single-column projection control | 2.493→2.531; 2.455→2.517 | 1.34→1.34 (both orders) |
+| Changed ASCII casing | 5.239→4.079; 4.884→4.252 | 3.55→3.55 (both orders) |
+| Unchanged-case string operations control | 3.874→3.857; 3.758→3.866 | 1.08→1.08 (both orders) |
+| Single-column projection control | 2.476→2.504; 2.449→2.459 | 1.34→1.34 (both orders) |
 
-Successful ASCII case conversion records its already-proven rune/ASCII facts in the text's
-existing metadata. Later length and ASCII queries avoid rescanning. No new field, counter,
-cache or owner is introduced. Validation, immutable bytes, Unicode fallback, result admission
-and no-change sharing remain. Logical byte-work charges and caller cancellation checks remain;
-polls belonging to removed scans can decrease.
+Managed ASCII validation and range searches replace scalar preparation at the original 4 KiB
+checkpoints. The scalar folding helper is removed. Complete validation before result admission,
+no-change sharing, late Unicode fallback, immutable output, logical work and cancellation remain.
+The change adds observational counters; it introduces no new cache, owner or policy.
 
-Actual casing takes **11.3–17.9% less elapsed time**; all four launch pairs improve by at
-least 9.5%. Allocations are exactly unchanged. Unchanged-case strings take 2.03% / 0.97%
-less time. Projection takes **1.51% / 2.52% more time**; one launch pair takes 5.6% longer.
-This is a scoped tradeoff, not a general speedup; no causal control attribution is claimed.
-One pilot and one balanced confirmation were run. All six timing windows have qualified
-quietness, stable identities and no extra SSH login. No complete baseline refresh was repeated.
+Changed casing takes **12.9–22.1% less time**, with unchanged 3,725,203 allocated bytes; all four
+launch pairs improve by at least 12.9%. String controls take 0.44% less / 2.89% more time;
+projection takes 1.16% / 0.42% more time. No general or causal control speedup is claimed.
+One pilot and one balanced confirmation were run; all six source windows have qualified quiet
+gates, stable identities and no extra authenticated SSH login.
 
-The same runtime passes **72,885 tests/OS**, 86 exact logical reference snapshots,
-92 equivalent native goldens, 30 limited-stack scenarios/OS and 32 identical finite-resource rows.
-One additional native case retains the documented
-[numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38924041733)
-passes; downloaded reports verify all 103 selected casing/cancellation/memory checks per OS.
+The source passes **72,897 tests/OS**, 86 exact reference snapshots, 94 equivalent native goldens,
+30 limited-stack scenarios/OS and 32 unchanged finite-resource rows. One additional native case
+retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38927003103)
+passes; downloaded reports verify all 115 selected casing/cancellation/memory guards per OS.
 
-## Scoped GNU comparisons
+## Retained scale checks
 
-Changed-case processing uses 144-byte mixed ASCII records, both conversion directions and
-length aggregation: `{s=tolower($0);t=toupper($0);total+=length(s)+length(t)} END{print total}`.
-Casing rows are fresh at `22233ac`, measured 2026-10-16. Long-field rows are retained from
-`7ad867d` on the same date: `$2=="keep"{n++} END{print n+0}`, with a 4 KiB first field and
-half matching records. These vary field length and actual conversion independently of output
-volume. Each family uses nine alternating paired samples/scale against GNU awk 5.2.1, complete
-output verification and qualified quiet gates. These results are separate from the retained
-complete comparison above.
+These qualified GNU comparisons are retained measurements from **earlier sources**, measured
+2026-10-16; they are not results for `394fd22`. Each uses nine alternating pairs and exact output
+verification, with quiet gates and no extra SSH login. Changed casing converts both directions
+and sums lengths on 144-byte mixed ASCII records. Long-field filtering tests `$2` after a 4 KiB
+first field, with half the records matching. Only medium-scale managed allocations were measured.
 
-| Case / input KiB / records | Source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
+| Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Changed case / 2.27 / 16 | 22233ac | 0.069 | 1.012 | 0.07× | — |
 | Changed case / 580.00 / 4,096 | 22233ac | 5.185 | 2.944 | 1.76× | 3.55 |
 | Changed case / 9,280.00 / 65,536 | 22233ac | 82.727 | 32.114 | 2.58× | — |
-| Long fields / 64.09 / 16 | 7ad867d (retained) | 0.077 | 1.066 | 0.07× | — |
-| Long fields / 1,025.50 / 256 | 7ad867d (retained) | 0.851 | 2.050 | 0.41× | 2.15 |
-| Long fields / 16,408.00 / 4,096 | 7ad867d (retained) | 13.349 | 16.624 | 0.80× | — |
+| Long fields / 1,025.50 / 256 | 7ad867d | 0.851 | 2.050 | 0.41× | 2.15 |
+| Long fields / 16,408.00 / 4,096 | 7ad867d | 13.349 | 16.624 | 0.80× | — |
 
-Only medium-scale allocations were measured, by BenchmarkDotNet; “—” means unmeasured.
-The larger inputs confirm a remaining casing gap and parity for the long-field script.
-Small-input ratios particularly reflect GNU process startup as well as processing;
-no overall parity claim follows.
+“—” means unmeasured. Larger inputs support parity for this long-field script; there is no
+overall parity claim, and the latest casing source still needs larger-input qualification.
 
 ## Environment and reproduction
 
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
-BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. The complete baseline uses
-five warmups/nine iterations/one launch, with all four quiet gates passing and stable
-identities/clean source. CPU admission requires at most 3% median/5% maximum background
-load. Single-launch baseline variation limits small differences.
+BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. The retained complete baseline used
+five warmups/nine iterations/one launch; its original gates passed, but login interference
+has not been excluded. The failed milestone has no complete qualification. CPU admission
+requires at most 3% median/5% maximum background load. Single-launch baseline variation limits
+small differences.
 
 Lokad includes parsing/compilation through `Awk.TryParse`/`Awk.ExecuteAsync` with an application
 in-memory host. GNU includes process launch and pipe I/O; startup is not subtracted. Both
