@@ -89,8 +89,8 @@ passes; downloaded reports verify all 476 selected ingress/cancellation/admissio
 Changed-casing rows are current at **69c0a34**, measured 2026-10-16. The paired runner uses nine
 alternating pairs/scale, exact output checks and qualified quiet gates. Call-loop and long-field
 rows are retained from the explicitly named sources on the same date. Each window has stable
-identities and no additional SSH login. These qualify independently of the incomplete full
-refresh and the controlled BenchmarkDotNet comparison above.
+identities and no additional SSH login. These scoped measurements are separate from the
+complete baseline and the controlled BenchmarkDotNet comparison above.
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
