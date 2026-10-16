@@ -42,28 +42,28 @@ internal static partial class AwkBuiltins
             Action checkpoint,
             out AwkText result)
         {
-            static byte FoldAsciiCase(byte value, AwkCaseConversion conversion) =>
-                conversion is AwkCaseConversion.Upper
-                    ? value is >= (byte)'a' and <= (byte)'z'
-                        ? (byte)(value - 32)
-                        : value
-                    : AwkByteFacts.ToAsciiLower(value);
-
             var bytes = source.AsSpan(checkpoint);
             var firstChange = -1;
-            for (var index = 0; index < bytes.Length; index++)
+            for (var index = 0; index < bytes.Length;)
             {
-                if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
-                    checkpoint();
-                var value = bytes[index];
-                if (value > 0x7F)
+                checkpoint();
+                var length = Math.Min(bytes.Length - index, AwkExecutionGovernor.WorkChunkBytes);
+                var chunk = bytes.Slice(index, length);
+                if (!Ascii.IsValid(chunk))
                 {
                     result = AwkText.Empty;
                     return false;
                 }
-
-                if (FoldAsciiCase(value, conversion) != value && firstChange < 0)
-                    firstChange = index;
+                counters.RecordAsciiCasePreparationChunk(length);
+                if (firstChange < 0)
+                {
+                    var change = conversion is AwkCaseConversion.Upper
+                        ? chunk.IndexOfAnyInRange((byte)'a', (byte)'z')
+                        : chunk.IndexOfAnyInRange((byte)'A', (byte)'Z');
+                    if (change >= 0)
+                        firstChange = index + change;
+                }
+                index += length;
             }
 
             if (firstChange < 0)

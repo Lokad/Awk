@@ -16,6 +16,9 @@ public sealed class AwkDirectStringBuiltinTests
             var prefix = new string('_', prefixBytes);
             var source = AwkValue.FromText(prefix + new string(upper ? 'a' : 'A', changedBytes));
             var result = AwkBuiltins.EvaluateCaseValue(state, source, upper);
+            Assert.Equal(prefixBytes + changedBytes, state.Counters.AsciiCasePreparationBytes);
+            Assert.Equal(AwkExecutionGovernor.ByteWorkSteps(prefixBytes + changedBytes),
+                state.Counters.AsciiCasePreparationChunks);
             var checks = state.Counters.CancellationChecks;
             Assert.Equal(prefixBytes + changedBytes, result.ByteText.GetRuneLength(state.CancellationCheckpoint));
             Assert.Equal(checks, state.Counters.CancellationChecks);

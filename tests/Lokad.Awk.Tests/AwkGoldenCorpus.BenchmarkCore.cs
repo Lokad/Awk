@@ -160,6 +160,13 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("case-output-facts-byte-mode-keeps-byte-units",
             ["-b", "BEGIN{s=tolower(\"AB_09\");u=toupper(\"café 😀\");print length(s),length(u),index(u,\"😀\")}"],
             [], "5 10 7\n");
+        yield return Passing("case-preparation-keeps-late-unicode-fallback",
+            ["{s=tolower($0);t=toupper($0);print length(s),substr(s,1,1),substr(s,length(s),1),substr(t,1,1),substr(t,length(t),1)}"],
+            [], "4097 a é A É\n4097 _ é _ É\n",
+            new string('A', 4_096) + "é\n" + new string('_', 4_096) + "é\n");
+        yield return Passing("case-preparation-keeps-unchanged-controls-and-empty-values",
+            ["{s=tolower($0);print length(s),s==$0} END{print length(toupper(\"\"))}"],
+            [], "7 1\n0 1\n0\n", "abc-09_\n\n");
         yield return Passing("benchmark-core-regex-captures",
             ["match($0,/^([[:alpha:]]+)([0-9]+)$/,m){total+=length(m[1])+m[2]} END{print total}"],
             [], "24\n", "sku007\nitem010\n");

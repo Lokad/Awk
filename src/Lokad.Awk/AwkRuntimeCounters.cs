@@ -33,6 +33,20 @@ internal sealed class AwkRuntimeCounters
 
     public long AsciiCaseConversionBytes { get; private set; }
 
+    public long AsciiCasePreparationChunks { get; private set; }
+
+    public long AsciiCasePreparationBytes { get; private set; }
+
+    public void RecordAsciiCasePreparationChunk(int bytes)
+    {
+        if (!_enabled) return;
+        lock (_sync)
+        {
+            AsciiCasePreparationChunks++;
+            AsciiCasePreparationBytes += bytes;
+        }
+    }
+
     public void RecordAsciiCaseConversionChunk(int bytes)
     {
         if (!_enabled) return;
