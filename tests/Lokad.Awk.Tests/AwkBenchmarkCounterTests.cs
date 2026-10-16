@@ -59,6 +59,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousLoopRuns);
         Assert.Equal(engine == AwkExecutionEngineKind.Interpreter || !multiple ? 0 : 16, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(multiple ? 30 : 14, result.Counters.NumericLocalReads);
         Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 16 : 0, result.Counters.SynchronousFunctionRuns);
         Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? multiple ? 32 : 16 : 0,
             result.Counters.BoundScalarArguments);

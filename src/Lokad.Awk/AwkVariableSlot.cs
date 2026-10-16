@@ -103,6 +103,12 @@ internal readonly struct AwkVariableSlot
 
     public AwkVariableSlotKind Kind { get; }
 
+    public bool TryGetNumber(out double number)
+    {
+        number = _number;
+        return Kind == AwkVariableSlotKind.Number;
+    }
+
     // Selected only after the caller checks PreparedNumericString.
     public AwkValue GetPreparedNumericInput() =>
         AwkValue.FromPreparedNumericInput(ByteText, _number);

@@ -60,6 +60,9 @@ internal sealed class AwkFunctionRuntime
     public bool TryConsumeReturnValue(out AwkValue value) =>
         _calls.TryConsumeReturnValue(out value);
 
+    public bool TryResolveLocalNumber(AwkFunctionLocalSlotId slotId, out double number) =>
+        _calls.TryResolveLocalNumber(slotId, out number);
+
     public bool TryResolveLocal(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
         _calls.TryResolveLocal(name, out local);
 

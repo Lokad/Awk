@@ -540,6 +540,50 @@ public sealed class AwkPreparedFunctionRegionTests
         await io.CloseAsync();
     }
 
+    [Fact]
+    public void NumericLocalReadsKeepNumberBitsAndFallbackLifetimes()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = State(counters, AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(3)
+            .WithMaxExecutionMemoryBytes(1 << 20));
+        var name = AwkVariableName.FromText("x");
+        var slot = new AwkFunctionLocalSlotId(0);
+        var layout = new AwkFunctionLocalLayout([name]);
+        state.AssignVariableValue(name, AwkValue.FromNumber(99));
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        foreach (var number in new[] { 0d, -0d, double.NaN, double.PositiveInfinity, double.NegativeInfinity, 42.5 })
+        {
+            state.PushFunctionFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromNumber(number))]);
+            try
+            {
+                var values = counters.ValuesCreated;
+                var value = state.ResolveFunctionLocalValue(slot, name);
+                Assert.True(value.IsNumberValue);
+                Assert.Equal(BitConverter.DoubleToInt64Bits(number), BitConverter.DoubleToInt64Bits(value.AsNumber()));
+                Assert.Equal(values, counters.ValuesCreated);
+            }
+            finally { state.PopFunctionFrame(); }
+            Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        Assert.Equal(6, counters.NumericLocalReads);
+        Assert.Equal(99, state.ResolveFunctionLocalValue(slot, name).AsNumber());
+        Assert.Equal(6, counters.NumericLocalReads);
+        state.PushFunctionFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromText("007"))]);
+        try
+        {
+            Assert.Equal("007", state.ResolveFunctionLocalValue(slot, name).AsString());
+            Assert.Equal("007", state.ResolveFunctionLocalValue(new(-1), name).AsString());
+            Assert.Equal("007", state.ResolveFunctionLocalValue(new(9), name).AsString());
+            Assert.Equal(6, counters.NumericLocalReads);
+        }
+        finally { state.PopFunctionFrame(); }
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal(0, counters.ExecutionSteps);
+        Assert.False(state.IsInsideFunction);
+    }
+
     private static AwkProgram Bind(string source)
     {
         var binding = AwkBinder.Bind(AwkParser.Parse(source));

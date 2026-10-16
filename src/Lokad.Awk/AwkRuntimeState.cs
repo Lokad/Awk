@@ -669,8 +669,16 @@ internal sealed class AwkRuntimeState
 
     public AwkValue ResolveFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
-        AwkVariableName name) =>
-        _variableRuntime.ResolveFunctionLocalValue(slotId, name);
+        AwkVariableName name)
+    {
+        if (_functions.TryResolveLocalNumber(slotId, out var number))
+        {
+            Counters.RecordNumericLocalRead();
+            return AwkValue.FromNumber(number);
+        }
+
+        return _variableRuntime.ResolveFunctionLocalValue(slotId, name);
+    }
 
     public void AssignPreparedGlobalValue(AwkVariableName name, int index, AwkValue value)
     {
