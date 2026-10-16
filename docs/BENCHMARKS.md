@@ -3,7 +3,7 @@
 Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
 `cd8d0c51727841ad6520dc032077475ee1aa1ddc` against GNU awk 5.2.1. Times and allocations below share this source,
 at the declared five-change milestone. These complete-comparison rows have not been retimed
-after the scoped changes through `6c61de55`. Interpreter/DotNetCompatibility remain defaults;
+after the scoped changes through `90b1490a. Interpreter/DotNetCompatibility remain defaults;
 Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -45,34 +45,36 @@ existing/new keys. GNU-marked cases are supported conveniences, not a conformanc
 This current baseline is not a controlled cumulative speedup; confirm apparent parity on
 larger inputs before making a broader claim.
 
-## Latest scoped check
+## Latest controlled change
 
-Measured 2026-10-16, `1024484` → `6c61de555efeaa4b43a63e39aa719a970fdaf1f9`: three warmups/five iterations,
-one launch per source. This pilot did not refresh GNU timings or the complete baseline above.
+Measured 2026-10-16, `6c61de5` → `90b1490a0e601ae97b0677c421b992facd53e335`: three warmups/five
+iterations and two launches per source, in both source orders. Values are medians of the two
+launch medians. This scoped comparison did not refresh GNU timings or the complete baseline above.
 
-| Workload | Median ms, before → after | Managed bytes/invocation |
-| --- | ---: | ---: |
-| Keyed sum / sorted output | 3.247→3.257 | 1,423,227→1,423,227 |
-| Two-file join control | 8.250→8.140 | 4,430,330→4,430,330 |
-| ASCII string control | 3.860→3.999 | 1,128,328→1,127,944 |
+| Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
+| --- | --- | ---: |
+| printf strings / signed integers | 4.106→3.936; 4.118→3.921 | 1,739,192→1,739,192 |
+| ASCII string control | 3.971→3.942; 3.861→3.918 | 1,127,944→1,127,944 |
+| Two-file join control | 8.189→8.109; 8.158→8.235 | 4,430,330→4,430,330 |
 
-Array element limits now check the count first and look up the key only at capacity.
-Existing-key updates remain allowed at the cap; new keys fail before mutation. The change
-removes three lines and avoids redundant key work. Memory admission/refunds, special arrays,
-aliases and cancellation checks remain.
+Ordinary signed decimal conversions use integer digit formatting for finite, truncated
+magnitudes below 2^64. Larger magnitudes retain the original double fixed-format path.
+Signs, flags, widths, precision, output staging and resource checks remain shared.
+No format cache, prepared directives, buffer or owner is added.
 
-Aggregation was **0.3% longer**, join 1.3% less and strings 3.6% longer in this single-launch
-check. **No throughput gain is claimed.** The change is retained for simpler protection
-logic and demonstrated avoidance of redundant key work. No confirmation or complete refresh
-was run. All four pilot quiet gates pass; library/driver/GNU identities remain fixed.
-Raw evidence and detailed histories stay local.
+Formatting takes **4.2–4.8% less elapsed time**, with every launch pair
+improving by at least 2.5%. Managed allocation figures are shown above. Strings are
+0.7% less; 1.5% more; join controls are 1.0% less; 1.0% more.
+No control or general-workload gain is claimed. All eight accepted confirmation quiet gates
+pass; library/driver/GNU identities remain fixed. Raw evidence and histories stay local.
 
-Runtime `6c61de55` passes 72,634 tests on Windows and Linux, 71 reference checks,
-75 native core goldens and 26 stack scenarios. All 71 published work/host/field/encoding
-snapshots and 31 finite-counter rows match `1024484`. Restoring the redundant quota probe
-fails its work guard; quota boundaries, long-key cancellation and memory/refund modes pass.
-Exact-source [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38848643175) passes; downloaded reports
-verify the three new guards and eleven existing memory/quota executions.
+Runtime `90b1490a` passes 72,641 tests on Windows and Linux, 71 reference checks,
+76 native core goldens and 26 stack scenarios. All 71 published work/host/field/encoding
+snapshots and 31 finite-counter rows match `6c61de5`. Exact output is checked against the
+previous fixed-format result across 12,594 binary64 values. Restoring that path fails both
+printf/sprintf fast-path guards; limits and pending/canceled host writes remain covered.
+Exact-source [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38852791643) passes; downloaded reports
+verify seven new focused/corpus executions and fifteen existing format/lifetime checks.
 
 ## Environment and reproduction
 
