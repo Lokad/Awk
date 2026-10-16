@@ -15,7 +15,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "projection", "filter", "membership", "array-read", "early-fields-wide", "aggregate", "profile-narrow", "profile-wide", "two-file",
+        "projection", "multi-column", "filter", "membership", "array-read", "early-fields-wide", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
         "arithmetic-loops", "user-functions", "loop-with-calls", "multi-arg-loop", "string-functions", "concatenation", "regex-match", "regex-captures"
     ];
@@ -50,6 +50,10 @@ internal static class ReferenceWorkloads
             case "projection":
                 program = "{print $2}";
                 Repeat("sku\tvalue\ttail\n", "value\n");
+                break;
+            case "multi-column":
+                program = "{print $1,$3,$2}";
+                Repeat("sku\tvalue\ttail\n", "sku tail value\n");
                 break;
             case "filter":
                 program = "$1==\"A\" && $2==\"B\" && $3==\"C\"{n++} END{print n+0}";

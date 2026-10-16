@@ -5,6 +5,8 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("benchmark-core-multi-column-print",
+            ["{print $1,$3,$2}"], [], "sku tail value\nother done 7\n", "sku\tvalue\ttail\nother\t7\tdone\n");
         yield return Passing("single-print-keeps-operand-ors-format-and-utf8-order",
             ["function value(){ORS=\"|\";OFMT=\"%.2f\";return 1.25} BEGIN{print value();print \"café\";print 2.5;print $0}"],
             [], "1.25|café|2.50||");

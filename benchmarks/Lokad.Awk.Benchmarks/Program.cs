@@ -838,6 +838,13 @@ internal static class BenchmarkCounterReport
             recordCount: 3,
             counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
         new(
+            "counter multi-column projection",
+            "{print $1,$3,$2}",
+            ["{print $1,$3,$2}", "/data.tsv"],
+            [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n")],
+            recordCount: 3,
+            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+        new(
             "counter streaming projection calibration",
             "{print $2}",
             ["{print $2}", "/stream.tsv"],

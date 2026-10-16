@@ -11,6 +11,24 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task MultiColumnPrintingHasByteNativeCounterEvidence(AwkExecutionEngineKind engine)
+    {
+        const string source = "{print $1,$3,$2}";
+        var result = await RunAsync([source], "sku\tvalue\ttail\nsku\tvalue\ttail\nsku\tvalue\ttail\n",
+            AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("sku tail value\nsku tail value\nsku tail value\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(3, result.Counters.RecordsRead);
+        Assert.Equal(9, result.Counters.FieldsMaterialized);
+        Assert.Equal(12, result.Counters.AwkTextAllocations);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task SingleStdoutValuesAvoidStagingArrays(AwkExecutionEngineKind engine)
     {
         const string source = "BEGIN{a[1]=7;print a[1];print \"café\";print 2.5}";
