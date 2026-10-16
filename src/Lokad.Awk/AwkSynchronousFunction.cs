@@ -12,8 +12,7 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
         var state = context.State;
         state.Counters.RecordSynchronousFunction();
         state.RecordExecutionStep(); // Return statement checkpoint in its enclosing block.
-        state.SetFunctionReturnValue(Body.EvaluateSynchronous(context));
-        return state.TryConsumeFunctionReturnValue(out var value) ? value : AwkValue.Unassigned();
+        return Body.EvaluateSynchronous(context).AsScalarCopy();
     }
 
     public static IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? Prepare(

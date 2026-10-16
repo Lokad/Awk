@@ -4,6 +4,10 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("prepared-return-keeps-scalar-snapshots-and-input-spelling",
+            ["function id(x){return x} function missing(){return unused} BEGIN{s=id(\"007\");n=id(7);u=missing();unused=9;print s,s==7,n,n+1,u==\"\",u==0;print id(id(\"café\"))}"],
+            [], "007 0 7 8 1 1\ncafé\n");
+
         yield return AwkGoldenCaseBuilder
             .Create("function-next-original-repro",
                 ["function f(){next}{f();print \"bad\"}END{print NR}"],

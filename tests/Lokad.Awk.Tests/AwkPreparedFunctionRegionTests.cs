@@ -462,6 +462,48 @@ public sealed class AwkPreparedFunctionRegionTests
         await io.CloseAsync();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PreparedReturnSnapshotsRejectArraysAndDetachUntypedOrigins(bool array)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = State(counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20));
+        var layout = Bind("function f(){return 0} BEGIN{}").Functions[AwkFunctionName.FromText("f")].LocalLayout;
+        var origin = new AwkUntypedScalar();
+        Assert.True(AwkIdentifier.TryParse("a", out var identifier));
+        var value = array ? AwkValue.FromGlobalArrayReference(identifier) : AwkValue.FromUntypedScalar(origin);
+        var function = new AwkSynchronousFunction(layout, new FixedReturnExpression(value));
+        var host = new MockFileSystem();
+        var io = Io(state, host, counters);
+        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        state.PushFunctionFrame(layout, []);
+        var frameBytes = state.MemoryAccounting.CurrentCommittedBytes;
+        try
+        {
+            if (array)
+                Assert.Throws<AwkRuntimeException>(() => function.EvaluateBody(new(state, output, io)));
+            else
+            {
+                var result = function.EvaluateBody(new(state, output, io));
+                Assert.True(result.IsUnassignedValue);
+                Assert.False(result.TryGetUntypedScalar(out _));
+                Assert.False(origin.IsScalar);
+                origin.Promote();
+                Assert.True(result.IsUnassignedValue);
+            }
+            Assert.Equal(1, counters.SynchronousFunctionRuns);
+            Assert.Equal(2, counters.ExecutionSteps);
+            Assert.Equal(frameBytes, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        finally { state.PopFunctionFrame(); }
+        Assert.False(state.IsInsideFunction);
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
+        await io.CloseAsync();
+    }
+
     private static AwkProgram Bind(string source)
     {
         var binding = AwkBinder.Bind(AwkParser.Parse(source));
@@ -528,6 +570,11 @@ public sealed class AwkPreparedFunctionRegionTests
     private static AwkIo Io(AwkRuntimeState state, MockFileSystem host, AwkRuntimeCounters counters) =>
         new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
             CancellationToken.None, counters, state.Limits, state, static () => []);
+
+    private sealed class FixedReturnExpression(AwkValue value) : AwkSynchronousExpression
+    {
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) => value;
+    }
 
     private sealed class PendingOperand(Task<AwkValue> completion) : AwkExpression
     {
