@@ -47,37 +47,40 @@ larger inputs before making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, `45c3d92` → `397d1c2ec76234112ed8845e888d518ae42347ec`: three warmups/five
-iterations and two launches per source, in both source orders. Identical scripts and inputs
-use the public full-invocation path. Values are medians of the two launch medians; the complete
-GNU comparison above retains its stated source. The current harness includes 25 families;
-the two-argument call loop is absent from the retained complete comparison.
+Measured 2026-10-16, `174369c` (runtime `19c792d`) →
+`7043d09b943bc187f1a322c10a7284a66669787b`: three warmups/five iterations and two launches per source,
+in both source orders. Values are medians of the two launch medians, using the public
+full-invocation path. The harness now includes **25 families**; the newer unary and two-argument
+loop families are absent from the retained 23-family GNU comparison above.
 
 | Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
 | --- | --- | ---: |
-| Nested user calls | 4.358→3.865; 4.241→3.833 | 1,378,891→1,379,427 |
-| Loop-with-calls control | 10.548→10.555; 10.406→10.523 | 1,399,933→1,400,309 |
-| Two-file join control | 8.052→7.949; 8.022→8.008 | 4,430,378→4,430,562 |
+| Two-argument loop | 17.893→12.971; 16.822→12.371 | 1,404,285→1,404,541 |
+| Unary-loop control | 10.652→10.901; 10.638→10.633 | 1,400,309→1,400,341 |
+| Column projection control | 2.436→2.521; 2.468→2.447 | 1,405,595→1,405,595 |
 
-Complete scalar actions with eligible unary calls reuse existing known-call metadata, setters
-and function frames. Their original statement graphs remain for VM, lint, pending output,
-larger syntax limits and insufficient stack. Fuel, caller/alias order, mutation preflights,
-cancellation and actual-user refunds remain.
+Eligible complete loops/actions and return expressions reuse the existing known-call node for
+zero through four arguments. This avoids pooled argument transport and ordinary call dispatch;
+the original frames still admit and own parameters. Caller order, aliases, exact checkpoints,
+cancellation/refunds and VM/lint/pending-output/raised-syntax/stack fallback remain.
 
-Nested calls take **9.6–11.3% less elapsed time**, with every launch pair
-improving by at least 7.1%. Preparation adds 536 managed bytes/invocation (under 0.04%).
-Loop-with-calls controls take 0.07%/1.13% longer and add 376 bytes; join controls take
-1.28%/0.17% less and add 184 bytes. The pilot's 4.13% join slowdown did not repeat.
-No control or general-workload gain is claimed. All eight confirmation quiet gates pass;
-source/library/driver/GNU identities stay fixed. Raw evidence and histories remain local.
+The two-argument loop takes **26.5–27.5% less elapsed time**, with every launch
+pair improving by at least 24.4%. Preparation adds 256 managed bytes/invocation (under 0.02%).
+Unary-loop controls take 2.34% longer/0.04% less time; projection takes 3.52% longer/0.86% less
+time. Neither slowdown repeats in both source orders.
+Unary preparation adds 32 bytes; projection allocation is unchanged. No general-workload
+gain is claimed. All eight confirmation quiet gates pass, with stable source/library/driver/GNU
+identities. An initial admission refusal occurred before any timed pilot and is retained locally;
+no measured window was repeated. Raw evidence and detailed history remain local.
 
-Runtime `397d1c2e` passes 72,691 tests/OS, 74 exact reference checks, 78 native goldens
-and 26 stack scenarios. All 74 work/host/field/encoding snapshots and 31 finite rows match the
-parent. Disabling scalar-action preparation fails five targeted guards; eight controls pass.
-Focused checks cover eight scripts at fuel 0..260, caller/alias state, 16/17-statement bounds,
-pending arguments without replay, cancellation/refunds and original-path selection.
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38864001597) passes; downloaded reports verify
-all 40 selected action/loop/call/fuel/alias/cancellation executions per OS.
+Runtime `7043d09b` passes **72,758 tests/OS**, 77 exact reference checks, 82 native
+goldens and 30 limited-stack scenarios, including four-argument chains and async unwinding.
+All 77 work/host/field/encoding snapshots and 31 finite-resource counter rows match the parent.
+Disabling zero/multi-argument preparation fails five work guards; 22 semantic/fallback controls
+pass. Focused checks cover 13 scripts at fuel 0..260, arity/defaults/extra arguments, caller/alias
+state, pending arguments without replay, cancellation/refusal/refunds and original-path selection.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38875100459) passes; downloaded reports verify
+all 114 selected call/fuel/alias/refusal/cancellation executions per OS.
 
 The scheduled 24-family refresh collected all timings and allocations, but its final allocation
 quietness sample reached 6.53% CPU against a 5% maximum. That attempt is retained locally and
