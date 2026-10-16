@@ -10,6 +10,41 @@ internal abstract partial class AwkExpression
     private static AwkValue TypeOf(AwkRuntimeValueKind kind) =>
         AwkValue.FromText(AwkRuntimeValueKindNames.Format(kind));
 
+    private static AwkExpression CreateStringBuiltin(AwkBuiltinDefinition definition, IReadOnlyList<AwkExpression> arguments)
+    {
+        if (definition.Id is AwkBuiltinId.Index or AwkBuiltinId.Substr or AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper &&
+            definition.Arity.Accepts(arguments.Count))
+        {
+            var depth = 0; var calls = 0;
+            foreach (var argument in arguments)
+            {
+                if (argument is not AwkSynchronousExpression { SynchronousDepth: > 0 and < 16 } value)
+                    return new BuiltinCallExpression(definition, arguments);
+                depth = Math.Max(depth, value.SynchronousDepth);
+                calls = Math.Max(calls, value.SynchronousCallDepth);
+            }
+            return new SynchronousStringBuiltinExpression(definition.Id, arguments, depth + 1, calls);
+        }
+        return new BuiltinCallExpression(definition, arguments);
+    }
+
+    private sealed class SynchronousStringBuiltinExpression(AwkBuiltinId id, IReadOnlyList<AwkExpression> arguments,
+        int depth, int calls) : AwkSynchronousExpression
+    {
+        internal override int SynchronousDepth => depth;
+        internal override int SynchronousCallDepth => calls;
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
+        {
+            var first = ((AwkSynchronousExpression)arguments[0]).EvaluateSynchronous(context);
+            if (id is AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper)
+                return AwkBuiltins.EvaluateCaseValue(context.State, first, id == AwkBuiltinId.ToUpper);
+            var second = ((AwkSynchronousExpression)arguments[1]).EvaluateSynchronous(context);
+            if (id == AwkBuiltinId.Index) return AwkBuiltins.EvaluateIndexValues(context.State, first, second);
+            var third = arguments.Count == 3 ? ((AwkSynchronousExpression)arguments[2]).EvaluateSynchronous(context) : default;
+            return AwkBuiltins.EvaluateSubstrValues(context.State, first, second, third, arguments.Count);
+        }
+    }
+
     private sealed class BuiltinCallExpression(AwkBuiltinDefinition definition, IReadOnlyList<AwkExpression> arguments) : AwkExpression
     {
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
@@ -80,24 +115,41 @@ internal abstract partial class AwkExpression
             AwkValue.FromNumber(context.State.CountFieldStringUnits((int)await pending.ConfigureAwait(false)));
     }
 
-    private sealed class LengthExpression(AwkExpression valueExpression, AwkOptionalIdentifier arrayName) : AwkExpression
+    private sealed class LengthExpression(AwkExpression valueExpression, AwkOptionalIdentifier arrayName) : AwkSynchronousExpression
     {
+        internal override int SynchronousDepth => valueExpression is AwkSynchronousExpression { SynchronousDepth: > 0 and < 16 } value
+            ? value.SynchronousDepth + 1 : 0;
+        internal override int SynchronousCallDepth => valueExpression is AwkSynchronousExpression value ? value.SynchronousCallDepth : 0;
+
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
+        {
+            if (TryGetNamedArrayLength(context, out var result)) return result;
+            return valueExpression is AwkSynchronousExpression value
+                ? EvaluateLengthValue(context, value.EvaluateSynchronous(context))
+                : throw new InvalidOperationException("Synchronous length argument is required.");
+        }
+
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            if (arrayName.HasValue &&
-                context.State.TryGetExistingArrayCount(new AwkArrayName(arrayName.Value), out var count))
-            {
-
-                return AwkValue.FromNumber(count);
-            }
-
-            var value = await valueExpression.EvaluateAsync(context).ConfigureAwait(false);
-            if (value.TryGetArrayName(out var name) && context.State.TryGetExistingArrayCount(name, out var arrayCount))
-            {
-                return AwkValue.FromNumber(arrayCount);
-            }
-            return AwkValue.FromNumber(context.State.CountStringUnits(context.State.FormatStringByteText(value)));
+            if (TryGetNamedArrayLength(context, out var result)) return result;
+            return EvaluateLengthValue(context, await valueExpression.EvaluateAsync(context).ConfigureAwait(false));
         }
+
+        private bool TryGetNamedArrayLength(AwkEvaluationContext context, out AwkValue result)
+        {
+            if (arrayName.HasValue && context.State.TryGetExistingArrayCount(new AwkArrayName(arrayName.Value), out var count))
+            {
+                result = AwkValue.FromNumber(count);
+                return true;
+            }
+            result = default;
+            return false;
+        }
+
+        private static AwkValue EvaluateLengthValue(AwkEvaluationContext context, AwkValue value) =>
+            value.TryGetArrayName(out var name) && context.State.TryGetExistingArrayCount(name, out var count)
+                ? AwkValue.FromNumber(count)
+                : AwkValue.FromNumber(context.State.CountStringUnits(context.State.FormatStringByteText(value)));
     }
 
     private sealed class IsArrayExpression(AwkArrayName variableName) : AwkExpression

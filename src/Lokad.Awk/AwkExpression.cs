@@ -142,7 +142,7 @@ internal abstract partial class AwkExpression
     public static AwkExpression ScalarArgument(AwkExpression value) => new ScalarArgumentExpression(value);
 
     public static AwkExpression BuiltinCall(AwkBuiltinDefinition definition, IReadOnlyList<AwkExpression> arguments) =>
-        new BuiltinCallExpression(definition, AwkCollectionSnapshots.Copy(arguments));
+        CreateStringBuiltin(definition, AwkCollectionSnapshots.Copy(arguments));
 
     public static AwkExpression Gsub(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) =>
         new GsubExpression(pattern, replacement, target);

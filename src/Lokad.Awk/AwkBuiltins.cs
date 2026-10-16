@@ -484,8 +484,7 @@ internal static partial class AwkBuiltins
 
             var source = await context.GetValueAsync(0).ConfigureAwait(false);
             var needle = await context.GetValueAsync(1).ConfigureAwait(false);
-            return AwkValue.FromNumber(context.State.IndexOfStringUnits(
-                context.State.FormatStringByteText(source.ForceScalar()), context.State.FormatStringByteText(needle)));
+            return EvaluateIndexValues(context.State, source, needle);
         }
 
         static async ValueTask<AwkValue> EvaluateSubstr(AwkBuiltinContext context)
@@ -498,40 +497,21 @@ internal static partial class AwkBuiltins
             var startValue = await context.GetValueAsync(1).ConfigureAwait(false);
             var lengthValue = argumentCount == 3
                 ? await context.GetValueAsync(2).ConfigureAwait(false) : default;
-            var source = context.State.FormatStringByteText(sourceValue);
-            var start = (int)startValue.AsNumber(context.State.CancellationCheckpoint);
-            if (start < 1)
-                start = 1;
-
-            var sourceLength = context.State.CountStringUnits(source);
-            if (start > sourceLength)
-                return AwkValue.FromText(string.Empty);
-
-            var zeroBasedStart = start - 1;
-            if (argumentCount == 2)
-                return context.State.CreateByteTextValue(
-                    context.State.SubstringByStringUnits(source, zeroBasedStart, sourceLength - zeroBasedStart));
-
-            var length = (int)lengthValue.AsNumber(context.State.CancellationCheckpoint);
-            if (length <= 0)
-                return AwkValue.FromText(string.Empty);
-
-            var boundedLength = Math.Min(length, sourceLength - zeroBasedStart);
-            return context.State.CreateByteTextValue(context.State.SubstringByStringUnits(source, zeroBasedStart, boundedLength));
+            return EvaluateSubstrValues(context.State, sourceValue, startValue, lengthValue, argumentCount);
         }
 
         static async ValueTask<AwkValue> EvaluateToLower(AwkBuiltinContext context)
         {
             if (context.ArgumentCount != 1) return AwkValue.FromText(string.Empty);
             var value = await context.GetValueAsync(0).ConfigureAwait(false);
-            return EvaluateCaseConversion(context.State.FormatStringByteText(value), context.State, AwkCaseConversion.Lower);
+            return EvaluateCaseValue(context.State, value, upper: false);
         }
 
         static async ValueTask<AwkValue> EvaluateToUpper(AwkBuiltinContext context)
         {
             if (context.ArgumentCount != 1) return AwkValue.FromText(string.Empty);
             var value = await context.GetValueAsync(0).ConfigureAwait(false);
-            return EvaluateCaseConversion(context.State.FormatStringByteText(value), context.State, AwkCaseConversion.Upper);
+            return EvaluateCaseValue(context.State, value, upper: true);
         }
         static AwkValue EvaluateRand(AwkBuiltinContext context)
         {

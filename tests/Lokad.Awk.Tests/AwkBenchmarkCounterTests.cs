@@ -9,6 +9,18 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Fact]
+    public async Task CompleteStringActionsUseBoundedSynchronousSubtrees()
+    {
+        var result = await RunAsync(["{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}"],
+            "id:beta:tail\nid:beta:tail\n", AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("24\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(5, result.Counters.SynchronousExpressionRuns);
+        Assert.Equal(0, result.Counters.StringDecodes);
+    }
+
+    [Fact]
     public async Task CompleteFieldLoopsUseTheExistingSynchronousRegion()
     {
         var result = await RunAsync(["{for(i=1;i<=NF;i++){nonempty+=($i!=\"\");chars+=length($i)}} END{print nonempty,chars}"],

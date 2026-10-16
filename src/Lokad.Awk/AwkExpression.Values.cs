@@ -30,9 +30,24 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class DynamicFieldIndexExpression(AwkExpression indexExpression) : AwkExpression
+    private sealed class DynamicFieldIndexExpression(AwkExpression indexExpression) : AwkSynchronousExpression
     {
         public AwkExpression IndexExpression => indexExpression;
+
+        internal override int SynchronousDepth => indexExpression is AwkSynchronousExpression { SynchronousDepth: > 0 and < 16 } index
+            ? index.SynchronousDepth + 1 : 0;
+        internal override int SynchronousCallDepth => indexExpression is AwkSynchronousExpression index ? index.SynchronousCallDepth : 0;
+
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
+            indexExpression is AwkSynchronousExpression index
+                ? ResolveField(context, (int)index.ResolveNumberSynchronous(context))
+                : throw new InvalidOperationException("Synchronous field index is required.");
+
+        protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
+            indexExpression is AwkSynchronousExpression index
+                ? context.State.GetFieldNumber((int)index.ResolveNumberSynchronous(context))
+                : throw new InvalidOperationException("Synchronous field index is required.");
+
 
         public ValueTask<bool> CompareLeftAsync(AwkEvaluationContext context, AwkValue left, AwkComparison comparison)
         {
@@ -197,7 +212,7 @@ internal abstract partial class AwkExpression
     }
 
     private sealed class LiteralExpression(string literal,
-        AwkRegexPatternOrigin patternOrigin = AwkRegexPatternOrigin.Runtime) : AwkExpression
+        AwkRegexPatternOrigin patternOrigin = AwkRegexPatternOrigin.Runtime) : AwkSynchronousExpression
     {
         private readonly AwkText _literalText = AwkText.FromSourceLiteralString(literal);
 
@@ -205,8 +220,8 @@ internal abstract partial class AwkExpression
 
         internal override AwkRegexPatternOrigin RegexPatternOrigin => patternOrigin;
 
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.CreateByteTextValue(_literalText));
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
+            context.State.CreateByteTextValue(_literalText);
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
@@ -216,10 +231,11 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class VariableExpression(AwkVariableName name) : AwkExpression
+    private sealed class VariableExpression(AwkVariableName name) : AwkSynchronousExpression
     {
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(context.State.ResolveVariableValue(name));
+        internal override int SynchronousDepth => AwkSpecialVariables.TryGetScalar(name, out _) ? 0 : 1;
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
+            context.State.ResolveVariableValue(name);
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {

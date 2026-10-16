@@ -5,6 +5,28 @@ namespace Lokad.Awk;
 internal static partial class AwkBuiltins
 {
 
+    internal static AwkValue EvaluateIndexValues(AwkRuntimeState state, AwkValue source, AwkValue needle) =>
+        AwkValue.FromNumber(state.IndexOfStringUnits(state.FormatStringByteText(source.ForceScalar()), state.FormatStringByteText(needle)));
+
+    internal static AwkValue EvaluateSubstrValues(AwkRuntimeState state, AwkValue sourceValue,
+        AwkValue startValue, AwkValue lengthValue, int argumentCount)
+    {
+        var source = state.FormatStringByteText(sourceValue);
+        var start = (int)startValue.AsNumber(state.CancellationCheckpoint);
+        if (start < 1) start = 1;
+        var sourceLength = state.CountStringUnits(source);
+        if (start > sourceLength) return AwkValue.FromText(string.Empty);
+        var zeroBasedStart = start - 1;
+        if (argumentCount == 2)
+            return state.CreateByteTextValue(state.SubstringByStringUnits(source, zeroBasedStart, sourceLength - zeroBasedStart));
+        var length = (int)lengthValue.AsNumber(state.CancellationCheckpoint);
+        if (length <= 0) return AwkValue.FromText(string.Empty);
+        return state.CreateByteTextValue(state.SubstringByStringUnits(source, zeroBasedStart, Math.Min(length, sourceLength - zeroBasedStart)));
+    }
+
+    internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper) =>
+        EvaluateCaseConversion(state.FormatStringByteText(value), state, upper ? AwkCaseConversion.Upper : AwkCaseConversion.Lower);
+
     private static AwkValue EvaluateCaseConversion(
         AwkText source,
         AwkRuntimeState state,
