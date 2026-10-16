@@ -1,8 +1,11 @@
 # Benchmarks
 
+Current scoped source **7ad867d** improves long-field filtering by 37.0–38.5%; the new
+16 MiB case takes 0.80× GNU elapsed time. See the controlled and native comparisons below.
+
 Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
 `cd8d0c51727841ad6520dc032077475ee1aa1ddc` against GNU awk 5.2.1. Times and allocations below share this source,
-at the declared five-change milestone. The latest scoped comparison below uses newer sources.
+at the declared five-change milestone. The latest scoped comparisons below use newer sources.
 Interpreter/DotNetCompatibility remain defaults;
 Utf8Regex adoption is postponed.
 
@@ -12,7 +15,7 @@ declared complete refresh.
 
 The scheduled 26-family refresh at `1468c21` did not qualify: a GNU early-wide-fields invocation
 exceeded the driver's 15-second deadline. Allocations never started; partial timings are excluded.
-The attempt is closed without an immediate rerun. The controlled result below remains qualified.
+The attempt is closed without an immediate rerun. The scoped results below are independently qualified.
 
 ## Representative processing
 
@@ -47,7 +50,8 @@ in MiB, not GNU allocations, retained memory or allowances. Rows run from worst 
 | Multicharacter record separator (GNU) | 52.00 | 1.401 | 1.480 | 0.95× | 0.61 |
 
 Both implementations use the same [scripts/fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs).
-Medium cases have 4,096 records, except all-fields wide (256×64 fields) and join (4,096/file).
+The retained table's medium cases have 4,096 records, except all-fields wide (256×64 fields)
+and join (4,096/file).
 Early wide filtering reads `$1` on every record and `$3` on one in eight. Array reads have equal
 existing/new keys. GNU-marked cases are supported conveniences, not a conformance claim.
 Use these ratios to choose investigations. Confirm apparent parity on larger inputs before
@@ -55,50 +59,54 @@ making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, `1468c21721dca0c3c90d5127d5c7aab49a784f6e` →
-`7e41eb3c9c5e9e958e18c12ffb5ca233cbfff99b`: three warmups/five iterations and two launches/source,
-in both source orders. These are medians of the two launch medians through the public
-full-invocation path, separate from the retained GNU comparison above. The same 26-family
-harness and inputs apply to both sources; only the affected workload and two controls were timed.
+Measured 2026-10-16, benchmark-only source `e8aa7775ed2a1eb7cfbf84e03b324f9b7ef1cc43`
+→ runtime `7ad867dded6e521d5b972af43b751f32f26c7af2`. The before runtime is identical to
+`7e41eb3`; both sources use the same 27-family harness. Three warmups/five iterations and
+two launches/source in both source orders; only the affected workload and two controls were timed.
+Times are medians of the two launch medians. Allocations are managed GC MiB/invocation.
 
-| Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
+| Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| Three-column projection | 4.117→3.266; 3.935→3.295 | 2,692,213→1,414,731 |
-| printf control | 3.878→3.992; 3.895→3.860 | 1,739,296 (unchanged) |
-| Single-column projection control | 2.469→2.460; 2.448→2.454 | 1,405,595 (unchanged) |
+| Long-field filtering | 1.353→0.832; 1.327→0.836 | 2.15→2.15 (both orders) |
+| Single-column projection control | 2.405→2.490; 2.601→2.516 | 1.34→1.34 (both orders) |
+| Two-file join control | 8.174→8.210; 8.081→8.030 | 4.23→4.23 (both orders) |
 
-Interpreter stdout `print` with two through four literal positive field operands reuses field
-descriptors through synchronous formatting and output copying. It avoids field text/value/cache
-construction. Cached or modified fields retain ordinary numeric formatting; dynamic, redirected,
-larger and VM prints keep their existing paths. Preparation shares the existing literal-field
-rules; ordinary byte-view consumers keep their original direct path. Existing formatting leases,
-complete output preflights, statement flushing and actual host-user lifetimes remain.
+The shared whitespace splitter searches non-whitespace runs with managed span intrinsics,
+bounded by its existing 4 KiB cancellation checkpoints. Scalar whitespace traversal, strict
+UTF-8 validation, captured separators, incremental field cursors and record-owned FS remain.
+No new storage, cache, ownership or host buffering policy is introduced.
 
-Three-column projection takes **16.3–20.7% less elapsed time** and allocates
-**47.5% fewer managed bytes**. All four launch pairs improve by at least
-15.4%. printf takes 2.95% more / 0.91% less elapsed time;
-single-column projection takes 0.37% less / 0.25% more. One printf launch pair takes 7.0% longer.
-Control allocations are unchanged;
-no control or general gain is claimed. All source/library/driver/GNU identities and confirmation
-quiet gates pass. Each variant received at most one bounded confirmation; failed timings were
-not rerun. The initial pilots reused explicitly retained
-before evidence; the final confirmation is balanced. Raw data and detailed investigation
-history remain local.
+Long-field filtering takes **37.0–38.5% less elapsed time**; all four launch pairs improve
+by at least 35.6%. Allocation estimates differ by at most 255 bytes/invocation for this case;
+no allocation gain is claimed. Projection takes 3.52% more / 3.26% less time, and join takes
+0.44% more / 0.63% less, with exactly unchanged allocations. No general or control gain is claimed.
+All six before/after quiet windows have clean source, stable identities and no extra SSH login.
+One pilot and one balanced confirmation were run; no complete baseline refresh was repeated.
 
-Runtime `7e41eb3c` passes **72,854 tests/OS**, 80 exact logical reference snapshots,
-88 equivalent native goldens and 30 limited-stack scenarios/OS. One additional native case
-retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-Of 32 finite rows, 31 match exactly; the three-record multi-column case reduces text allocations
-12→3, their payload bytes 90→48 and estimated memory peak 4,226→3,728 bytes. All other cells match.
-Small preparation metadata and fewer retained field values can change optional memory thresholds;
-later field reads may materialize values that printing previously cached. Existing mutation and
-output admission remain. Exact fuel, tight quotas, duplicate/cached/modified/missing fields,
-captured splitting, cancellation during copy and pending/noncooperative host users are covered.
-The retained negative check disables the unchanged print branch: three physical-work guards
-fail while 26 controls pass; exact restoration passes all 29.
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38907294623) passes; downloaded reports verify
-all 190 distinct selected field/print/resource checks per OS. No complete baseline refresh was
-repeated for this change; normal scoped development resumes.
+The same runtime passes **72,863 tests/OS** in
+[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38915568543),
+including all 94 selected field/cancellation/memory checks per OS. It also passes 83 exact
+logical reference snapshots, 89 equivalent native goldens, 30 limited-stack scenarios/OS
+and 32 identical finite-resource rows. One additional native case retains the documented
+[numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
+
+## Current long-field comparison
+
+New orthogonal case: `$2=="keep"{n++} END{print n+0}`, with a 4 KiB first field, a short
+second field and half matching records. It varies field length independently of field count
+and output volume. Source `7ad867d`, measured 2026-10-16 against the same GNU awk 5.2.1:
+nine alternating paired samples/scale, complete output verification and all quiet gates pass.
+These fresh measurements are separate from the retained complete comparison above.
+
+| Input KiB / records | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
+| --- | ---: | ---: | ---: | ---: |
+| 64.09 / 16 | 0.077 | 1.066 | 0.07× | — |
+| 1,025.50 / 256 | 0.851 | 2.050 | 0.41× | 2.15 |
+| 16,408.00 / 4,096 | 13.349 | 16.624 | 0.80× | — |
+
+Only medium-scale allocations were measured, by the controlled BenchmarkDotNet run above;
+“—” means unmeasured. The larger input confirms parity for this script. Small-input ratios
+particularly reflect GNU process startup as well as processing; no overall parity claim follows.
 
 ## Environment and reproduction
 
@@ -121,7 +129,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*string-functions*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*long-fields*' '*WorkloadAllocationBenchmarks*medium*two-file*' '*WorkloadAllocationBenchmarks*medium*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
