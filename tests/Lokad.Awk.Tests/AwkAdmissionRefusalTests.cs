@@ -2,8 +2,9 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkAdmissionRefusalTests
 {
-    [Fact]
-    public async Task SinglePrintAdmissionRefusalStopsLaterAndEndWorkWithoutRecovery()
+    [Theory]
+    [InlineData(1)] [InlineData(2)] [InlineData(4)]
+    public async Task StdoutPrintAdmissionRefusalStopsLaterAndEndWorkWithoutRecovery(int count)
     {
         var budget = new CooperativeTestBudget(1 << 20);
         var host = new MockFileSystem();
@@ -12,7 +13,8 @@ public sealed class AwkAdmissionRefusalTests
             if (budget.Refusals == 0 && host.GetOutput(AwkFileDescriptor.StdOut) == "before\n")
                 budget.RefuseNextAdmissionMinimumGrowth = 1;
         };
-        const string source = "BEGIN{print \"before\";OFMT=\"%8192.2f\";print 1.25;print \"after\"} END{print \"end\"}";
+        var source = "BEGIN{print \"before\";OFMT=\"%8192.2f\";print " +
+            string.Join(",", Enumerable.Repeat("1.25", count)) + ";print \"after\"} END{print \"end\"}";
         var tool = AwkTestHarness.ParseAwk(Command(source, budget));
         Assert.Equal(2, (await tool.ExecuteAsync(host, CancellationToken.None)).Value);
         Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));

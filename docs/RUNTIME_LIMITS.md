@@ -77,8 +77,9 @@ conversion; other builtins use admitted staging where required. Actual result al
 preflight. `printf` publishes its admitted staging buffer atomically; `sprintf` returns owned
 text. Eligible literal field operands can borrow bytes/numbers during synchronous formatting.
 Avoided copies and rounded capacities can change optional memory thresholds.
-Single-value stdout `print` uses locals instead of staging arrays; formatting remains leased
-and the complete append preflights before publication. Statement flush boundaries remain.
+Stdout `print` with one through four values uses locals instead of staging arrays; formatting
+remains leased and the complete append preflights before publication. Larger, redirected and
+executable-engine prints retain staging. Statement flush boundaries remain.
 
 Fields split incrementally where supported; tight quotas still validate the whole record
 before publishing a prefix. NF or mutation can complete the scan. Record classification and

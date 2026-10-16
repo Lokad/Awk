@@ -22,6 +22,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(3, result.Counters.RecordsRead);
         Assert.Equal(9, result.Counters.FieldsMaterialized);
         Assert.Equal(12, result.Counters.AwkTextAllocations);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 3 : 0, result.Counters.SmallValuePrintRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }

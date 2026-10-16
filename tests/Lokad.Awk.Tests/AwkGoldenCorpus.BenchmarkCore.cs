@@ -5,6 +5,15 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("small-print-keeps-side-effects-operand-and-separator-order",
+            ["function first(){OFS=\"|\";return \"café\"} function last(){ORS=\"!\";OFMT=\"%.2f\";return 2.5} BEGIN{print first(),last();print 1,2,3;print 1,2,3,4;print 1,2,3,4,5}"],
+            [], "café|2.50!1|2|3!1|2|3|4!1|2|3|4|5!");
+        yield return Passing("small-print-keeps-field-values-before-later-record-mutation",
+            ["function change(){$0=\"after second third\";return 2}{print $1,$(change()),$3;print $0}"],
+            [], "before second third\nafter second third\n", "before old tail\n");
+        yield return Passing("small-print-keeps-numeric-separator-and-field-formatting",
+            ["BEGIN{OFS=1.5;ORS=2.5;CONVFMT=\"%.2f\";OFMT=\"%.3f\";$0=\"07 008\";print $1,$2;$1=3.25;print $1,$2}"],
+            [], "071.500082.503.2501.500082.50");
         yield return Passing("benchmark-core-multi-column-print",
             ["{print $1,$3,$2}"], [], "sku tail value\nother done 7\n", "sku\tvalue\ttail\nother\t7\tdone\n");
         yield return Passing("single-print-keeps-operand-ors-format-and-utf8-order",

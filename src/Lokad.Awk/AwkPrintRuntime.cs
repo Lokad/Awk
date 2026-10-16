@@ -5,6 +5,28 @@ namespace Lokad.Awk;
 
 internal static class AwkPrintRuntime
 {
+    internal static void AppendSmall(AwkOutputSink output, ReadOnlySpan<AwkValue> values, int count, AwkRuntimeState state)
+    {
+        var outputFieldSeparator = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator);
+        var outputRecordSeparator = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
+        state.CancellationCheckpoint();
+        state.Counters.RecordSmallValuePrint();
+        using var lease = state.MemoryAccounting.CreateTransientLease();
+        var separator = state.FormatStringByteText(outputFieldSeparator, lease);
+        var terminator = state.FormatStringByteText(outputRecordSeparator, lease);
+        Span<AwkText> segments = [AwkText.Empty, AwkText.Empty, AwkText.Empty, AwkText.Empty,
+            AwkText.Empty, AwkText.Empty, AwkText.Empty, AwkText.Empty];
+        state.CancellationCheckpoint();
+        for (var index = 0; index < count; index++)
+        {
+            if (index > 0) segments[index * 2 - 1] = separator;
+            segments[index * 2] = state.FormatPrintByteText(values[index], lease);
+        }
+        segments[count * 2 - 1] = terminator;
+        state.CancellationCheckpoint();
+        output.Append(segments[..(count * 2)]);
+    }
+
     internal static void AppendSingle(AwkOutputSink output, AwkValue value, AwkRuntimeState state)
     {
         state.CancellationCheckpoint();

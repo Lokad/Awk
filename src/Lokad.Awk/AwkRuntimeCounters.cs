@@ -63,6 +63,13 @@ internal sealed class AwkRuntimeCounters
 
     public long SingleValuePrintRuns { get; private set; }
 
+    public long SmallValuePrintRuns { get; private set; }
+
+    public void RecordSmallValuePrint()
+    {
+        if (_enabled) lock (_sync) SmallValuePrintRuns++;
+    }
+
     public void RecordSingleValuePrint()
     {
         if (_enabled) lock (_sync) SingleValuePrintRuns++;

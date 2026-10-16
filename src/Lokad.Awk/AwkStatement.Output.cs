@@ -45,6 +45,17 @@ internal abstract partial class AwkStatement
                 AwkPrintRuntime.AppendSingle(execution.Output, value, state);
                 return AwkStatementFlow.Continue;
             }
+            if (!target.IsRedirected && expressions.Length is >= 2 and <= 4)
+            {
+                var first = await expressions[0].EvaluateAsync(context).ConfigureAwait(false);
+                var second = await expressions[1].EvaluateAsync(context).ConfigureAwait(false);
+                var third = expressions.Length >= 3
+                    ? await expressions[2].EvaluateAsync(context).ConfigureAwait(false) : default;
+                var fourth = expressions.Length == 4
+                    ? await expressions[3].EvaluateAsync(context).ConfigureAwait(false) : default;
+                AwkPrintRuntime.AppendSmall(execution.Output, [first, second, third, fourth], expressions.Length, state);
+                return AwkStatementFlow.Continue;
+            }
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
             using var buffer = AwkValueBuffer.Rent(expressions.Length, state.MemoryAccounting);
             var values = buffer.Values;

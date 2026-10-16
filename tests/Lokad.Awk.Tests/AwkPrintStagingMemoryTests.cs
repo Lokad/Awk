@@ -95,10 +95,10 @@ public sealed partial class AwkPrintStagingMemoryTests
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var host = new MockFileSystem();
         var io = Io(state, host);
-        var operands = Enumerable.Range(0, 4).Select(_ => AwkExpression.PreIncrement(AwkReference.Scalar(name))).ToArray();
+        var operands = Enumerable.Range(0, 5).Select(_ => AwkExpression.PreIncrement(AwkReference.Scalar(name))).ToArray();
         var statement = printf ? AwkStatement.Printf(AwkExpression.Literal("%d%d%d%d"), operands) : AwkStatement.Print(operands);
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - AwkRuntimeMemory.EstimateAwkValueArrayBytes(4) + 1))
+        using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - AwkRuntimeMemory.EstimateAwkValueArrayBytes(5) + 1))
         {
             var before = state.MemoryAccounting.CurrentCommittedBytes;
             var failure = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
@@ -333,23 +333,28 @@ public sealed partial class AwkPrintStagingMemoryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public async Task TimedOutOutputRetainsBorrowedBytesAndSharedAdmissionUntilHostCompletion(bool singlePrint)
+    [InlineData(0)] [InlineData(1)] [InlineData(2)]
+    public async Task TimedOutOutputRetainsBorrowedBytesAndSharedAdmissionUntilHostCompletion(int printCount)
     {
         var budget = new CooperativeTestBudget(Limit);
-        var host = new PendingWriteHost { IgnoreCancellation = true, HoldStandardOutput = singlePrint };
+        var host = new PendingWriteHost { IgnoreCancellation = true, HoldStandardOutput = printCount != 0 };
         var diagnostic = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         host.Inner.AfterAppend = () =>
         {
             if (host.Inner.GetOutput(AwkFileDescriptor.StdErr).Contains("host operation timed out", StringComparison.Ordinal))
                 diagnostic.TrySetResult();
         };
-        var source = singlePrint ? "BEGIN{s=sprintf(\"%04096d\",7);print s}" : "BEGIN{printf \"%04096d\",7 > \"result\"}";
+        var source = printCount switch
+        {
+            1 => "BEGIN{s=sprintf(\"%04096d\",7);print s}",
+            2 => "BEGIN{s=sprintf(\"%04096d\",7);print s,8}",
+            _ => "BEGIN{printf \"%04096d\",7 > \"result\"}"
+        };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
         var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget)
             .WithHostOperationTimeout(TimeSpan.FromMilliseconds(10));
         var pending = tool.ExecuteAsync(host, policy, CancellationToken.None);
-        var expected = AwkUtf8Codec.Encode(new string('0', 4095) + (singlePrint ? "7\n" : "7")).ToArray();
+        var expected = AwkUtf8Codec.Encode(new string('0', 4095) + (printCount == 2 ? "7 8\n" : printCount == 1 ? "7\n" : "7")).ToArray();
         try
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
