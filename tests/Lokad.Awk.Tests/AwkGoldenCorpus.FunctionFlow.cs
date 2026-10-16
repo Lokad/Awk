@@ -4,6 +4,18 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("function-length-local-scalars-shadow-global-array",
+            ["function size(a){return length(a)} BEGIN{a[1]=7;a[2]=8;print size(\"hello\"),size(12345),size(),length(a)}"],
+            [], "5 5 0 2\n");
+
+        yield return Passing("function-length-untyped-aliases-do-not-read-global-array",
+            ["function size(a){return length(a)} function relay(x){return size(x)} BEGIN{a[1]=7;a[2]=8;print size(z),relay(z),size(),length(a)}"],
+            [], "0 0 0 2\n");
+
+        yield return Passing("function-length-keeps-nested-and-empty-array-aliases",
+            ["function size(a){return length(a)} function relay(x){return size(x)} BEGIN{a[1]=7;a[2]=8;b[\"x\"]=1;print size(b),relay(b),length(a);delete b;print size(b),relay(b),length(a)}"],
+            [], "1 1 2\n0 0 2\n");
+
         yield return Passing("prepared-return-keeps-scalar-snapshots-and-input-spelling",
             ["function id(x){return x} function missing(){return unused} BEGIN{s=id(\"007\");n=id(7);u=missing();unused=9;print s,s==7,n,n+1,u==\"\",u==0;print id(id(\"café\"))}"],
             [], "007 0 7 8 1 1\ncafé\n");

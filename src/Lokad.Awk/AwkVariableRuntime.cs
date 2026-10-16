@@ -56,8 +56,14 @@ internal sealed class AwkVariableRuntime(
     public bool TryGetExistingArrayCount(AwkArrayName name, out int count)
     {
         var resolved = ResolveName(new AwkVariableName(name.Identifier));
-        if (resolved.Kind == AwkVariableNameResolutionKind.LocalArrayAlias)
+        if (resolved.Kind is AwkVariableNameResolutionKind.LocalArrayAlias or AwkVariableNameResolutionKind.PotentialArrayAlias)
             return variables.TryGetArrayCount(resolved.ArrayName, out count);
+
+        if (resolved.Kind is AwkVariableNameResolutionKind.LocalScalar or AwkVariableNameResolutionKind.MissingLocalScalar)
+        {
+            count = 0;
+            return false;
+        }
 
         return variables.TryGetArrayCount(name, out count);
     }
