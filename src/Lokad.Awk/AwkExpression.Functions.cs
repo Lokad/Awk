@@ -96,7 +96,7 @@ internal abstract partial class AwkExpression
             if (indexExpression is not AwkSynchronousExpression index)
                 throw new InvalidOperationException("Synchronous field index is required.");
             context.State.RecordExecutionStep(); // The original field expression, before its index.
-            var field = (int)index.EvaluateSynchronous(context).AsNumber(context.State.CancellationCheckpoint);
+            var field = (int)index.ResolveNumberSynchronous(context);
             return AwkValue.FromNumber(context.State.CountFieldStringUnits(field));
         }
 

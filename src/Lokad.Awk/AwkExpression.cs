@@ -125,10 +125,10 @@ internal abstract partial class AwkExpression
             : new ArrayMembershipExpression(index, arrayName);
 
     public static AwkExpression LogicalAnd(AwkExpression left, AwkExpression right) =>
-        new LogicalExpression(left, right, LogicalOperation.And);
+        CreateLogical(left, right, LogicalOperation.And);
 
     public static AwkExpression LogicalOr(AwkExpression left, AwkExpression right) =>
-        new LogicalExpression(left, right, LogicalOperation.Or);
+        CreateLogical(left, right, LogicalOperation.Or);
 
     public static AwkExpression Ternary(
         AwkExpression condition,

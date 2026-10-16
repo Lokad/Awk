@@ -318,7 +318,7 @@ internal abstract partial class AwkExpression
             if (indexExpression is not AwkSynchronousExpression index)
                 throw new InvalidOperationException("Synchronous field index is required.");
             context.State.RecordExecutionStep(); // The original field expression, before its index.
-            var field = (int)index.EvaluateSynchronous(context).AsNumber(context.State.CancellationCheckpoint);
+            var field = (int)index.ResolveNumberSynchronous(context);
             return AwkValue.FromNumber(context.State.CompareFieldLiteral(field, literal.LiteralText, comparison) ? 1 : 0);
         }
 
@@ -375,55 +375,8 @@ internal abstract partial class AwkExpression
             return AwkValue.FromNumber((await right.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy() ? 1 : 0);
         }
 
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (operation == LogicalOperation.And)
-                EmitAnd(compiler);
-            else
-                EmitOr(compiler);
-
-            return true;
-
-            void EmitAnd(AwkExecutableCompiler compiler)
-            {
-                var startDepth = compiler.StackDepth;
-                compiler.EmitExpressionOrFallback(left);
-                var falseJump = compiler.EmitJumpIfFalse();
-                compiler.Pop();
-
-                compiler.EmitExpressionOrFallback(right);
-                compiler.Emit(AwkOpcode.Truthiness);
-                var endJump = compiler.EmitJump();
-                var resultDepth = compiler.StackDepth;
-
-                compiler.SetStackDepth(startDepth);
-                compiler.PatchJumpTarget(falseJump, compiler.CurrentOffset);
-                EmitBooleanConstant(compiler, value: false);
-
-                compiler.PatchJumpTarget(endJump, compiler.CurrentOffset);
-                compiler.SetStackDepth(resultDepth);
-            }
-
-            void EmitOr(AwkExecutableCompiler compiler)
-            {
-                var startDepth = compiler.StackDepth;
-                compiler.EmitExpressionOrFallback(left);
-                var evaluateRightJump = compiler.EmitJumpIfFalse();
-                compiler.Pop();
-
-                EmitBooleanConstant(compiler, value: true);
-                var endJump = compiler.EmitJump();
-                var resultDepth = compiler.StackDepth;
-
-                compiler.SetStackDepth(startDepth);
-                compiler.PatchJumpTarget(evaluateRightJump, compiler.CurrentOffset);
-                compiler.EmitExpressionOrFallback(right);
-                compiler.Emit(AwkOpcode.Truthiness);
-
-                compiler.PatchJumpTarget(endJump, compiler.CurrentOffset);
-                compiler.SetStackDepth(resultDepth);
-            }
-        }
+        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler) =>
+            EmitLogical(compiler, left, right, operation);
     }
 
     private sealed class RegexMatchExpression(

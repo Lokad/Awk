@@ -9,6 +9,18 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Fact]
+    public async Task MultiFieldFilterUsesTheExistingBoundedCpuTree()
+    {
+        var result = await RunAsync(["$1==\"A\"&&$2==\"B\"&&$3==\"C\"{n++} END{print n+0}"],
+            "A B C\nA B D\nD B C\n", AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("1\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(4, result.Counters.SynchronousExpressionRuns);
+        Assert.Equal(0, result.Counters.StringDecodes);
+    }
+
+    [Fact]
     public async Task CompleteStringActionsUseBoundedSynchronousSubtrees()
     {
         var result = await RunAsync(["{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}"],
