@@ -3,7 +3,7 @@
 Retained complete baseline: **23 families**, measured 2026-10-15 at Release source
 `ff03a99c17ab32896211cf788bb53cbdc0b98e8d` against GNU awk 5.2.1, at the declared five-change milestone.
 All complete-comparison rows and allocations share this source/settings. They have not
-been retimed after the latest scoped change at `eec7fcd`. Scoped experiments below use
+been retimed after the latest scoped change at `abcfb37`. Scoped experiments below use
 their separately stated revisions and policies; gains are not cumulative.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
@@ -46,7 +46,8 @@ Medium cases have 4,096 records, except all-fields wide (256×64 fields) and the
 Mixed array reads have equal existing/new keys. Marked GNU cases exercise supported
 conveniences; this comparison is not a conformance claim.
 
-Scoped evidence, measured 2026-10-15 with three warmups/five iterations and two
+Arithmetic scoped evidence spans 2026-10-15–16; other scoped rows retain 2026-10-15.
+These experiments use three warmups/five iterations and two
 launches/source/order. Values are medians of the two launch medians per source order.
 Each row is a separate before/after experiment, with passing quiet
 gates and stable production-library identities. These experiments are separate from the
@@ -54,11 +55,21 @@ complete comparison above; GNU timings were not collected in the scoped experime
 
 | Workload / policy | Measured sources, before → after | Median ms, two source orders | Managed bytes/invocation |
 | --- | --- | --- | ---: |
+| Loop and numeric arithmetic / default | 3e2df88 → abcfb37 | 7.552→6.861; 7.399→6.830 | 1,381,835→1,381,835 |
 | Field loop, 3 fields / default | 3d48499 → eec7fcd | 5.826→4.709; 5.912→4.699 | 1,465,349→1,465,901 |
 | Field loop, 64 fields / default | 3d48499 → eec7fcd | 4.803→3.373; 4.877→3.295 | 1,133,184→1,133,736 |
 | printf strings and integers / default | b225dc1 → 1651bb4 | 4.658→4.121; 4.657→4.106 | 2,590,899→1,739,192 |
 | Nested user calls / default | bf7a998 → d63f8a8 | 5.574→4.374; 5.494→4.409 | 1,378,323→1,378,803 |
 | String functions / cooperative 512 MiB budget | d17f9b1 → eef8824 | 6.074→5.516; 6.058→5.260 | 2,406,537→1,128,568 |
+
+Numeric intermediate results take **7.7–9.2% less elapsed time** on arithmetic, with
+all four launch pairs improving by 7.6–9.9%. Managed allocations are unchanged. Existing
+synchronous nodes pass numeric intermediate results directly; ordinary value evaluation
+stays direct, and other leaves retain their conversion rules. The interpreter and its
+checkpoints, source-number modes and tree bounds remain. Strings take **1.4–4.7% longer**;
+narrow fields range from 1.1% longer to 5.5% less, with 17.4% baseline launch variation in
+the reverse order. No narrow-field or general-workload gain is claimed. All control
+allocations are unchanged; all eight confirmation quiet gates pass.
 
 Prepared complete field loops take **19.2–20.5% less elapsed time** with three fields and
 **29.8–32.4% less** with 64 fields. Every launch pair improves: at least 16.7% and 27.1%,
@@ -98,15 +109,14 @@ The governed row retains its measured source, not a current-head retiming. Raw r
 and older optimization histories stay local. See [runtime limits](RUNTIME_LIMITS.md) for
 admission estimates and [record semantics](RECORD_SEMANTICS.md) for field behavior.
 
-Runtime code remains `eec7fcd`: 71 exact reference checks, 74 native core goldens and
-26 stack scenarios pass. All 71 published work/host/field/encoding snapshots and 31 finite
-counter rows match the parent. Fuel/partial state, field/memory refusal, Unicode, aliases,
-bounded preparation and pending/canceled indices are covered. Current validation changes
-add scalar input/classification/refusal/cancellation, computed-NF and exact CPU-gate boundary
-checks; runtime source is unchanged. [Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38823016575)
-at `3e2df88` passes 72,540 tests/OS; downloaded reports verify all 15 scalar/NF/CPU-boundary
-checks. Strict UTF-8, mutation preflights and host/resource ownership
-remain.
+Runtime `abcfb37` passes 71 exact reference checks, 74 native core goldens and 26 stack
+scenarios. All 71 published work/host/field/encoding snapshots and 31 finite-counter rows
+match the fixed-gate baseline `3e2df88`. Windows/Linux each pass 72,542 tests, including
+left conversion failure before right evaluation and exact child checkpoints; omitting a
+checkpoint fails both new guards. Exact-source
+[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38827158130)
+passes 72,542 tests/OS; downloaded reports verify all 23 focused numeric/scalar/NF/CPU-gate
+checks. Strict UTF-8, mutation preflights, host ownership and interpreter defaults remain.
 
 ## Environment and measurement boundaries
 

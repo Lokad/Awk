@@ -42,7 +42,8 @@ in both presets. Positive `WithMaxExecutionSteps` enables a shared logical-work 
 zero in a preset means absent and is not a valid setter value. Fuel is deterministic
 accounting, not a CPU-time limit. Counters observe work and never enable admission rules.
 Prepared numeric trees and eligible scalar/field loops use the same execution checkpoints
-and mutation preflights. NF, field length/literal comparisons and scalar compound updates
+and mutation preflights. Numeric intermediates stay numeric within the existing tree; source
+number modes, value boundaries and conversion/error order remain unchanged. NF, field length/literal comparisons and scalar compound updates
 can share these regions; host-capable/pending indices keep ordinary evaluation. Compound
 updates snapshot the left number before the right expression and reuse the original scalar
 setters. Functions retain their validated asynchronous stack boundaries;
