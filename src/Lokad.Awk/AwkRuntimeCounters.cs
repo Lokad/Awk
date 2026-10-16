@@ -61,6 +61,13 @@ internal sealed class AwkRuntimeCounters
 
     public long PrintfSignedIntegerFastPaths { get; private set; }
 
+    public long SingleValuePrintRuns { get; private set; }
+
+    public void RecordSingleValuePrint()
+    {
+        if (_enabled) lock (_sync) SingleValuePrintRuns++;
+    }
+
     public void RecordPrintfSignedIntegerFastPath()
     {
         if (_enabled) lock (_sync) PrintfSignedIntegerFastPaths++;

@@ -11,6 +11,21 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task SingleStdoutValuesAvoidStagingArrays(AwkExecutionEngineKind engine)
+    {
+        const string source = "BEGIN{a[1]=7;print a[1];print \"café\";print 2.5}";
+        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("7\ncafé\n2.5\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 3 : 0, result.Counters.SingleValuePrintRuns);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+        Assert.Equal(0, result.Counters.StringDecodes);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task CompleteTwoArgumentLoopsAvoidPooledArgumentTransport(AwkExecutionEngineKind engine)
     {
         const string script = "function step(x,a){return (x*3+a)%101} " +

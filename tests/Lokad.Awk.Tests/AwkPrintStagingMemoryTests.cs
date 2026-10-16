@@ -1,6 +1,6 @@
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkPrintStagingMemoryTests
+public sealed partial class AwkPrintStagingMemoryTests
 {
     private const int Limit = 8 << 20;
     private static readonly AwkText Separator = AwkText.FromSourceLiteralString("|");
@@ -250,8 +250,7 @@ public sealed class AwkPrintStagingMemoryTests
         var text = new string('x', 10_000);
         var statement = printf ? AwkStatement.Printf(AwkExpression.Literal(text), []) : AwkStatement.Print([AwkExpression.Literal(text)]);
         var io = Io(state, new MockFileSystem());
-        var headroom = printf ? AwkRuntimeMemory.EstimateTextBytes(text.Length) + 16_384 :
-            AwkRuntimeMemory.EstimateAwkValueArrayBytes(1) + SegmentBytes(1) + 131_072 - 1;
+        var headroom = printf ? AwkRuntimeMemory.EstimateTextBytes(text.Length) + 16_384 : 131_072 - 1;
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - headroom);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -333,22 +332,24 @@ public sealed class AwkPrintStagingMemoryTests
         await io.CloseAsync();
     }
 
-    [Fact]
-    public async Task TimedOutPrintfRetainsBorrowedBytesAndSharedAdmissionUntilHostCompletion()
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task TimedOutOutputRetainsBorrowedBytesAndSharedAdmissionUntilHostCompletion(bool singlePrint)
     {
         var budget = new CooperativeTestBudget(Limit);
-        var host = new PendingWriteHost { IgnoreCancellation = true };
+        var host = new PendingWriteHost { IgnoreCancellation = true, HoldStandardOutput = singlePrint };
         var diagnostic = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         host.Inner.AfterAppend = () =>
         {
             if (host.Inner.GetOutput(AwkFileDescriptor.StdErr).Contains("host operation timed out", StringComparison.Ordinal))
                 diagnostic.TrySetResult();
         };
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{printf \"%04096d\",7 > \"result\"}"));
+        var source = singlePrint ? "BEGIN{s=sprintf(\"%04096d\",7);print s}" : "BEGIN{printf \"%04096d\",7 > \"result\"}";
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
         var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget)
             .WithHostOperationTimeout(TimeSpan.FromMilliseconds(10));
         var pending = tool.ExecuteAsync(host, policy, CancellationToken.None);
-        var expected = AwkUtf8Codec.Encode(new string('0', 4095) + "7").ToArray();
+        var expected = AwkUtf8Codec.Encode(new string('0', 4095) + (singlePrint ? "7\n" : "7")).ToArray();
         try
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -378,13 +379,15 @@ public sealed class AwkPrintStagingMemoryTests
         public TaskCompletionSource Allow { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Finished { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool IgnoreCancellation { get; init; }
+        public bool HoldStandardOutput { get; init; }
         public ReadOnlyMemory<byte> Borrowed { get; private set; }
         public byte[] Consumed { get; private set; } = [];
         public int BufferCapacity { get; private set; }
 
         public async Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
         {
-            if (IgnoreCancellation && (descriptor == AwkFileDescriptor.StdOut || descriptor == AwkFileDescriptor.StdErr))
+            if (IgnoreCancellation && (descriptor == AwkFileDescriptor.StdErr ||
+                descriptor == AwkFileDescriptor.StdOut && !HoldStandardOutput))
                 return await Inner.AppendAsync(descriptor, content, token).ConfigureAwait(false);
             if (!System.Runtime.InteropServices.MemoryMarshal.TryGetArray(content, out var segment) || segment.Array is not { } bytes)
                 throw new InvalidOperationException("Expected an array-backed output borrow.");

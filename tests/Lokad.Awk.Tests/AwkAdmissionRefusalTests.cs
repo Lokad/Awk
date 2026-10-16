@@ -2,6 +2,28 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkAdmissionRefusalTests
 {
+    [Fact]
+    public async Task SinglePrintAdmissionRefusalStopsLaterAndEndWorkWithoutRecovery()
+    {
+        var budget = new CooperativeTestBudget(1 << 20);
+        var host = new MockFileSystem();
+        host.AfterAppend = () =>
+        {
+            if (budget.Refusals == 0 && host.GetOutput(AwkFileDescriptor.StdOut) == "before\n")
+                budget.RefuseNextAdmissionMinimumGrowth = 1;
+        };
+        const string source = "BEGIN{print \"before\";OFMT=\"%8192.2f\";print 1.25;print \"after\"} END{print \"end\"}";
+        var tool = AwkTestHarness.ParseAwk(Command(source, budget));
+        Assert.Equal(2, (await tool.ExecuteAsync(host, CancellationToken.None)).Value);
+        Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(1, budget.Refusals);
+        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task FailedInitialRefusalDiagnosticStillReturnsFatalStatus(bool throwFromHost)

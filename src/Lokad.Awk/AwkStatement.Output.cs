@@ -39,6 +39,12 @@ internal abstract partial class AwkStatement
 
             var state = context.State;
             var execution = RequireExecutionContext(context);
+            if (!target.IsRedirected && expressions.Length == 1)
+            {
+                var value = await expressions[0].EvaluateAsync(context).ConfigureAwait(false);
+                AwkPrintRuntime.AppendSingle(execution.Output, value, state);
+                return AwkStatementFlow.Continue;
+            }
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
             using var buffer = AwkValueBuffer.Rent(expressions.Length, state.MemoryAccounting);
             var values = buffer.Values;
