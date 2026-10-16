@@ -1,7 +1,7 @@
 # Benchmarks
 
-Current scoped source **f52d9f4** reduces call-loop time by **3.0–7.8%**, with unchanged
-allocations. The loop still takes **2.28× / 3.04× GNU elapsed time** at medium/large inputs.
+Current scoped source **69c0a34** reduces changed-casing time by **9.8–10.2%**, with managed
+allocations remaining at **3.55 MiB**. Casing takes **1.22× / 1.78× GNU elapsed time** at medium/large inputs.
 The retained complete baseline below remains directional.
 
 Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
@@ -63,60 +63,60 @@ making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, runtime `f4aad1db2038195465bdd5c09cefdd8833f00a21`
-→ `f52d9f4c6dc7ebea50cbd95efba3797da2a3d0b2`, with identical harness and inputs.
-Three warmups/five iterations, two launches/source in both source orders; only two affected call
-families and projection were timed. Times are medians of launch medians; allocations are GC MiB.
+Measured 2026-10-16, runtime `f52d9f4c6dc7ebea50cbd95efba3797da2a3d0b2`
+→ `69c0a3453860c7edcc4a161c71ebc9d7681608f7`, with identical harness and inputs.
+Three warmups/five iterations, two launches/source in both source orders; changed casing,
+Unicode string processing and projection were timed. Times are medians of launch medians;
+allocations are GC MiB.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| Loop with unary arithmetic calls | 8.761→8.495; 8.951→8.250 | 1.34→1.34 (both orders) |
-| Nested user calls | 3.803→3.752; 3.734→3.789 | 1.32→1.32 (both orders) |
-| Single-column projection control | 2.529→2.675; 2.504→2.510 | 1.34→1.34 (both orders) |
+| Changed ASCII case | 4.023→3.628; 4.004→3.596 | 3.55→3.55 (both orders) |
+| Unicode length/substr control | 4.721→4.771; 4.738→4.704 | 3.11→3.11 (both orders) |
+| Single-column projection control | 2.543→2.451; 2.473→2.471 | 1.34→1.34 (both orders) |
 
-Already-numeric scalar function parameters are read directly from the existing current frame,
-bypassing the general local-value projection. Text/numeric strings, absent or untyped values and
-array aliases retain the original path. Numeric bits, value admission, work checkpoints,
-cancellation and frame ownership remain unchanged. This adds 40 net runtime lines in five files,
-including an observational counter; no new cache, frame, memory owner, engine or resource policy.
+Strict UTF-8 ingress validates wholly ASCII chunks with the existing BCL validator at the
+original 4 KiB checkpoints. Other chunks retain the rune decoder and its scalar-boundary
+checkpoints. This adds six lines in one existing helper, removing per-byte rune decoding for
+ASCII. It adds no cache, decoder, owner, engine or resource policy. Non-ASCII chunks incur an
+extra bounded ASCII scan; strict rejection, cancellation/error order and admission remain.
 
-Call loops take **3.0–7.8% less time**; all four launch pairs improve, with exactly 1,400,349
-allocated bytes. Nested calls take 1.36% less / 1.45% more time.
-One nested-call pair takes 5.3% longer.
-Projection takes 5.76% more / 0.25% more time.
-One projection pair takes 12.5% longer.
+Changed casing takes **9.8–10.2% less time**; all four launch pairs improve. Managed allocations
+are 3,725,203 bytes before and 3,725,202–3,725,203 after (a one-byte diagnostic difference).
+Unicode processing takes 1.05% more / 0.72% less time.
+Projection takes 3.63% less / 0.08% less time.
 No general, control or cumulative gain is claimed. One pilot and one balanced confirmation
 were run; all six source windows have qualified quiet gates, stable identities and no extra SSH login.
 
-The source passes **72,936 tests/OS**, 86 exact reference snapshots, 98 equivalent native goldens,
+The source passes **72,990 tests/OS**, 86 exact reference snapshots, 100 equivalent native goldens,
 30 limited-stack scenarios/OS and 32 unchanged finite-resource rows. One additional native case
 retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38944371605)
-passes; downloaded reports verify all 194 selected local/binding/call/cancellation/memory guards per OS.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38949545837)
+passes; downloaded reports verify all 476 selected ingress/cancellation/admission/call guards per OS.
 
 ## Scoped GNU comparisons
 
-Call-loop rows are **current at f52d9f4**, measured 2026-10-16: eight unary calls/record,
-`function step(x){return (x*3+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}`.
-The paired runner uses nine alternating pairs/scale, exact output checks and qualified quiet
-gates. Casing/long-field rows are retained from the explicitly named earlier sources on the
-same date. Each window has stable identities and no additional SSH login. These are separate
-from the incomplete full refresh and the controlled BenchmarkDotNet comparison above.
+Changed-casing rows are current at **69c0a34**, measured 2026-10-16. The paired runner uses nine
+alternating pairs/scale, exact output checks and qualified quiet gates. Call-loop and long-field
+rows are retained from the explicitly named sources on the same date. Each window has stable
+identities and no additional SSH login. These qualify independently of the incomplete full
+refresh and the controlled BenchmarkDotNet comparison above.
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
+| Changed case / 580.00 / 4,096 | 69c0a34 | 3.622 | 2.959 | 1.22× | 3.55 |
+| Changed case / 9,280.00 / 65,536 | 69c0a34 | 57.330 | 32.246 | 1.78× | — |
 | Call loop / 8.00 / 4,096 | f52d9f4 | 8.675 | 3.813 | 2.28× | 1.34 |
 | Call loop / 128.00 / 65,536 | f52d9f4 | 138.482 | 45.626 | 3.04× | — |
-| Changed case / 580.00 / 4,096 | 22233ac | 5.185 | 2.944 | 1.76× | 3.55 |
-| Changed case / 9,280.00 / 65,536 | 22233ac | 82.727 | 32.114 | 2.58× | — |
 | Long fields / 1,025.50 / 256 | 7ad867d | 0.851 | 2.050 | 0.41× | 2.15 |
 | Long fields / 16,408.00 / 4,096 | 7ad867d | 13.349 | 16.624 | 0.80× | — |
 
 Changed casing converts both directions and sums lengths on 144-byte mixed ASCII records.
-Long-field filtering tests `$2` after a 4 KiB first field, with half the records matching.
+Call loops run eight unary arithmetic calls/record; long-field filtering tests `$2` after a
+4 KiB first field, with half the records matching. Scripts are in the shared fixtures linked above.
 Only medium-scale managed allocations were measured by BenchmarkDotNet; “—” means unmeasured.
-Larger inputs support parity for the retained long-field script, with a remaining current call-loop
-gap. There is no overall parity claim; latest-source casing still needs larger-input qualification.
+Retained long-field results support parity for that larger-input script. Current casing and
+retained call-loop results still show gaps; there is no overall parity claim.
 
 ## Environment and reproduction
 
@@ -140,7 +140,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*loop-with-calls*' '*WorkloadAllocationBenchmarks*medium*user-functions*' '*WorkloadAllocationBenchmarks*medium*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*case-conversion*' '*WorkloadAllocationBenchmarks*medium*unicode*' '*WorkloadAllocationBenchmarks*medium*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
