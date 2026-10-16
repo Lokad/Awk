@@ -233,6 +233,9 @@ internal abstract partial class AwkExpression
 
     private sealed class VariableExpression(AwkVariableName name) : AwkSynchronousExpression
     {
+        internal override bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument) =>
+            state.TryResolveArrayArgument(name, out argument);
+
         internal override int SynchronousDepth => AwkSpecialVariables.TryGetScalar(name, out _) ? 0 : 1;
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.ResolveVariableValue(name);
@@ -253,6 +256,15 @@ internal abstract partial class AwkExpression
 
     private sealed class PreparedGlobalVariableExpression(AwkVariableName name, int index) : AwkSynchronousExpression
     {
+        internal override bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument)
+        {
+            if (!state.HasBoundGlobalScalar(index))
+                return state.TryResolveArrayArgument(name, out argument);
+            state.Counters.RecordBoundScalarArgument();
+            argument = default;
+            return false;
+        }
+
         internal override int SynchronousDepth => AwkSpecialVariables.TryGetScalar(name, out _) ? 0 : 1;
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.ResolvePreparedGlobalValue(name, index);
@@ -275,6 +287,9 @@ internal abstract partial class AwkExpression
         AwkVariableName name,
         AwkFunctionLocalSlotId slotId) : AwkSynchronousExpression
     {
+        internal override bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument) =>
+            state.TryResolveArrayArgument(name, out argument);
+
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.ResolveFunctionLocalValue(slotId, name);
 

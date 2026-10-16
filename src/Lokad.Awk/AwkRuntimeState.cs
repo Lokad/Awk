@@ -649,6 +649,10 @@ internal sealed class AwkRuntimeState
         _globalReadSlots = slots;
     }
 
+    // Entries are published only after a successful scalar read or write.
+    internal bool HasBoundGlobalScalar(int index) =>
+        _globalReadSlots is { } slots && (uint)index < (uint)slots.Length && slots[index] != 0;
+
     public AwkValue ResolvePreparedGlobalValue(AwkVariableName name, int index)
     {
         if (_globalReadSlots is not { } slots)

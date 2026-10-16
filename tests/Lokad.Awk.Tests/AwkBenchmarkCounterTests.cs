@@ -60,9 +60,23 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousLoopRuns);
         Assert.Equal(engine == AwkExecutionEngineKind.Interpreter || !multiple ? 0 : 16, result.Counters.FunctionArgumentBufferRents);
         Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 16 : 0, result.Counters.SynchronousFunctionRuns);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? multiple ? 32 : 16 : 0,
+            result.Counters.BoundScalarArguments);
         if (engine == AwkExecutionEngineKind.Interpreter)
             Assert.Equal(multiple ? 338 : 322, result.Counters.ExecutionSteps);
         Assert.Equal(0, result.Counters.FunctionStackSuspensions);
+    }
+
+    [Fact]
+    public async Task BoundScalarArgumentsKeepUnboundAliasesAndReadSpelling()
+    {
+        const string source = "function second(a,x){return x} function id(x){return x} BEGIN{r=second(a,1)} BEGIN{print r;a[\"k\"]=7} BEGIN{r=second(a,2)} BEGIN{print r,a[\"k\"];s=\"007\"} BEGIN{r=id(s);t=id(s)} BEGIN{print r,t,s==7;s=9} BEGIN{r=id(s)} END{print r}";
+        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("1\n2 7\n007 007 0\n9\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(3, result.Counters.BoundScalarArguments);
     }
 
     [Theory]

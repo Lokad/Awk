@@ -504,6 +504,42 @@ public sealed class AwkPreparedFunctionRegionTests
         await io.CloseAsync();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BoundArgumentReadsPreflightValuesBeforeEnteringTheFrame(bool bound)
+    {
+        var program = Bind("function id(v){return v} BEGIN{total=id(x)}");
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = State(counters, AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(3)
+            .WithMaxExecutionMemoryBytes(1 << 20));
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeFunctions(program.Functions);
+        var x = AwkVariableName.FromText("x");
+        var total = AwkVariableName.FromText("total");
+        state.AssignVariableValue(x, AwkValue.FromNumber(1));
+        state.AssignVariableValue(total, AwkValue.FromNumber(1));
+        var host = new MockFileSystem();
+        var io = Io(state, host, counters);
+        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        if (bound) await program.BeginActions[0].ExecuteAsync(state, io, output);
+        state.AssignVariableValue(x, AwkValue.FromNumericString("12345"));
+        var functions = counters.SynchronousFunctionRuns;
+        var values = counters.ValuesCreated;
+        var hits = counters.BoundScalarArguments;
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
+            await program.BeginActions[0].ExecuteAsync(state, io, output));
+        Assert.Equal(hits + (bound ? 1 : 0), counters.BoundScalarArguments);
+        Assert.Equal(values, counters.ValuesCreated);
+        Assert.Equal(functions, counters.SynchronousFunctionRuns);
+        Assert.Equal(1, state.ResolveVariableValue(total).AsNumber());
+        Assert.False(state.IsInsideFunction);
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        await io.CloseAsync();
+    }
+
     private static AwkProgram Bind(string source)
     {
         var binding = AwkBinder.Bind(AwkParser.Parse(source));

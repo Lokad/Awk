@@ -7,6 +7,14 @@ internal abstract class AwkSynchronousExpression : AwkExpression
     internal virtual int SynchronousCallDepth => 0;
     internal static AwkSynchronousExpression Unavailable { get; } = new UnavailableExpression();
 
+    internal virtual bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument)
+    {
+        if (TryGetVariableName(out var name))
+            return state.TryResolveArrayArgument(name, out argument);
+        argument = default;
+        return false;
+    }
+
     internal AwkValue EvaluateSynchronous(AwkEvaluationContext context)
     {
         context.State.RecordExecutionStep();

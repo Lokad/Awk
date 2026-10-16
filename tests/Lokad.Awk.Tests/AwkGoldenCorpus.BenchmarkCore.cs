@@ -5,6 +5,13 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("prepared-bound-arguments-keep-untyped-array-aliases-and-spelling",
+            ["function second(a,x){return x} function id(x){return x} BEGIN{r=second(a,1)} BEGIN{print r;a[\"k\"]=7} BEGIN{r=second(a,2)} BEGIN{print r,a[\"k\"];s=\"007\"} BEGIN{r=id(s);t=id(s)} BEGIN{print r,t,s==7;s=9} BEGIN{r=id(s)} END{print r}"],
+            [], "1\n2 7\n007 007 0\n9\n");
+        yield return Passing("prepared-bound-arguments-keep-caller-local-shadowing",
+            ["function id(x){return x} function hop(v){return id(v)} BEGIN{v=7;r=id(v);t=hop(9)} BEGIN{print r,t,v} BEGIN{r=hop(\"007\");t=id(v)} END{print r,t}"],
+            [], "7 9 7\n007 7\n");
+
         yield return Passing("field-list-print-keeps-unicode-cached-modified-and-missing-values",
             ["BEGIN{OFS=\"|\";ORS=\"!\";FS=\",\"}{print $1,$3,$2;x=$1;$2=1.25;OFMT=\"%.2f\";print $1,$2,$4;NF=1;print $3,$1}"],
             [], "café|😀|007!café|1.25|!|café!", "café,007,😀\n");

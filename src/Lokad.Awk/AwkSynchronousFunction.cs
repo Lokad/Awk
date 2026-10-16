@@ -87,7 +87,7 @@ internal abstract partial class AwkExpression
             else if (_operands.Length == 1)
             {
                 var operand = _operands[0];
-                var argument = operand.TryGetVariableName(out var name) && state.TryResolveArrayArgument(name, out var alias)
+                var argument = operand.TryResolveArrayArgument(state, out var alias)
                     ? alias : AwkFunctionArgument.FromValue(operand.EvaluateSynchronous(context));
                 state.ThrowIfCancellationRequested();
                 state.PushFunctionFrame(_function.Layout, [argument]);
@@ -99,7 +99,7 @@ internal abstract partial class AwkExpression
                 for (var index = 0; index < _operands.Length; index++)
                 {
                     var operand = _operands[index];
-                    arguments[index] = operand.TryGetVariableName(out var name) && state.TryResolveArrayArgument(name, out var alias)
+                    arguments[index] = operand.TryResolveArrayArgument(state, out var alias)
                         ? alias : AwkFunctionArgument.FromValue(operand.EvaluateSynchronous(context));
                 }
                 state.ThrowIfCancellationRequested();
