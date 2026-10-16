@@ -54,6 +54,9 @@ internal sealed class AwkOutputSink : IDisposable
     public void Append(ReadOnlySpan<byte> content, AwkText terminator) =>
         _standardOutput.Append(content, terminator, _checkpoint);
 
+    public void Append(ReadOnlySpan<AwkFieldText> segments, AwkText record) =>
+        _standardOutput.Append(segments, record, _checkpoint);
+
     public void ReportDiagnostic(AwkDiagnostic diagnostic)
     {
         var messageBytes = AwkRuntimeMemory.EstimateDiagnosticMessageBytes(diagnostic.Message.Length);

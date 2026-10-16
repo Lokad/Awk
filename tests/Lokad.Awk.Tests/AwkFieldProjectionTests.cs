@@ -1,6 +1,6 @@
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkFieldProjectionTests
+public sealed partial class AwkFieldProjectionTests
 {
     [Theory]
     [InlineData(false, false)]

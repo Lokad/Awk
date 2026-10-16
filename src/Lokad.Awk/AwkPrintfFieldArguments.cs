@@ -17,15 +17,4 @@ internal readonly struct AwkPrintfFieldArguments(int[] fields, AwkRuntimeState s
     public bool TryGetBorrowedBytes(int index, out ReadOnlySpan<byte> bytes) =>
         state.TryGetPrintfFieldBytes(fields[index], out bytes);
 
-    internal static int[] Prepare(AwkExpression[] arguments)
-    {
-        // A preparation bound, not an awk argument limit; larger statements keep ordinary staging.
-        if (arguments.Length is 0 or > 16) return [];
-        foreach (var argument in arguments)
-            if (!AwkExpression.TryGetPrintfFieldIndex(argument, out _)) return [];
-        var fields = new int[arguments.Length];
-        for (var index = 0; index < fields.Length; index++)
-            AwkExpression.TryGetPrintfFieldIndex(arguments[index], out fields[index]);
-        return fields;
-    }
 }

@@ -80,6 +80,8 @@ Avoided copies and rounded capacities can change optional memory thresholds.
 Stdout `print` with one through four values uses locals instead of staging arrays; formatting
 remains leased and the complete append preflights before publication. Larger, redirected and
 executable-engine prints retain staging. Statement flush boundaries remain.
+Two to four literal positive field operands can borrow field slices through synchronous output
+copying. Modified/cached fields retain print formatting; every complete append still preflights.
 
 Fields split incrementally where supported; tight quotas still validate the whole record
 before publishing a prefix. NF or mutation can complete the scan. Record classification and

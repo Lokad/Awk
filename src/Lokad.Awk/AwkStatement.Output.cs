@@ -32,6 +32,9 @@ internal abstract partial class AwkStatement
         AwkExpression[] expressions,
         AwkOutputTarget target) : AwkStatement
     {
+        private readonly int[] _fieldIndices = !target.IsRedirected && expressions.Length >= 2
+            ? AwkExpression.PrepareLiteralFieldIndices(expressions, maximum: 4) : [];
+
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             if (expressions.Length == 0)
@@ -39,6 +42,11 @@ internal abstract partial class AwkStatement
 
             var state = context.State;
             var execution = RequireExecutionContext(context);
+            if (_fieldIndices.Length != 0)
+            {
+                AwkPrintRuntime.AppendFields(execution.Output, expressions, _fieldIndices, context);
+                return AwkStatementFlow.Continue;
+            }
             if (!target.IsRedirected && expressions.Length == 1)
             {
                 var value = await expressions[0].EvaluateAsync(context).ConfigureAwait(false);
@@ -121,7 +129,7 @@ internal abstract partial class AwkStatement
         AwkExpression[] arguments,
         AwkOutputTarget target) : AwkStatement
     {
-        private readonly int[] _fieldIndices = AwkPrintfFieldArguments.Prepare(arguments);
+        private readonly int[] _fieldIndices = AwkExpression.PrepareLiteralFieldIndices(arguments, maximum: 16);
 
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
@@ -134,7 +142,7 @@ internal abstract partial class AwkStatement
             {
                 for (var index = 0; index < arguments.Length; index++)
                 {
-                    AwkExpression.EvaluatePrintfFieldIndex(arguments[index], context);
+                    AwkExpression.EvaluateLiteralFieldIndex(arguments[index], context);
                     state.PreflightPrintfField(_fieldIndices[index]);
                 }
                 AwkFormattingRuntime.FormatPrintfToBuilder(formatted, formatText,

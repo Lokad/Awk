@@ -333,7 +333,7 @@ public sealed partial class AwkPrintStagingMemoryTests
     }
 
     [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
     public async Task TimedOutOutputRetainsBorrowedBytesAndSharedAdmissionUntilHostCompletion(int printCount)
     {
         var budget = new CooperativeTestBudget(Limit);
@@ -348,13 +348,15 @@ public sealed partial class AwkPrintStagingMemoryTests
         {
             1 => "BEGIN{s=sprintf(\"%04096d\",7);print s}",
             2 => "BEGIN{s=sprintf(\"%04096d\",7);print s,8}",
+            3 => "BEGIN{$0=sprintf(\"%04096d café\",7);print $1,$2}",
             _ => "BEGIN{printf \"%04096d\",7 > \"result\"}"
         };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
         var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget)
             .WithHostOperationTimeout(TimeSpan.FromMilliseconds(10));
         var pending = tool.ExecuteAsync(host, policy, CancellationToken.None);
-        var expected = AwkUtf8Codec.Encode(new string('0', 4095) + (printCount == 2 ? "7 8\n" : printCount == 1 ? "7\n" : "7")).ToArray();
+        var ending = printCount switch { 3 => "7 café\n", 2 => "7 8\n", 1 => "7\n", _ => "7" };
+        var expected = AwkUtf8Codec.Encode(new string('0', 4095) + ending).ToArray();
         try
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));

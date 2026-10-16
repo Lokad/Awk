@@ -5,6 +5,12 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("field-list-print-keeps-unicode-cached-modified-and-missing-values",
+            ["BEGIN{OFS=\"|\";ORS=\"!\";FS=\",\"}{print $1,$3,$2;x=$1;$2=1.25;OFMT=\"%.2f\";print $1,$2,$4;NF=1;print $3,$1}"],
+            [], "café|😀|007!café|1.25|!|café!", "café,007,😀\n");
+        yield return Passing("field-list-print-keeps-duplicate-fields-and-captured-separator",
+            ["{x=$1;FS=\",\";print $1,$1,$3,$2;print NF,$0}"],
+            [], "007 007 tail café\n3 007 café tail\n", "007 café tail\n");
         yield return Passing("small-print-keeps-side-effects-operand-and-separator-order",
             ["function first(){OFS=\"|\";return \"café\"} function last(){ORS=\"!\";OFMT=\"%.2f\";return 2.5} BEGIN{print first(),last();print 1,2,3;print 1,2,3,4;print 1,2,3,4,5}"],
             [], "café|2.50!1|2|3!1|2|3|4!1|2|3|4|5!");

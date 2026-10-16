@@ -5,6 +5,42 @@ namespace Lokad.Awk;
 
 internal static class AwkPrintRuntime
 {
+    internal static void AppendFields(AwkOutputSink output, AwkExpression[] expressions,
+        int[] fields, AwkEvaluationContext context)
+    {
+        var state = context.State;
+        Span<AwkValue> values = [default, default, default, default];
+        Span<AwkFieldText> segments = [AwkFieldText.Empty, AwkFieldText.Empty, AwkFieldText.Empty,
+            AwkFieldText.Empty, AwkFieldText.Empty, AwkFieldText.Empty, AwkFieldText.Empty, AwkFieldText.Empty];
+        var record = AwkText.Empty;
+        var borrowed = 0;
+        for (var index = 0; index < fields.Length; index++)
+        {
+            AwkExpression.EvaluateLiteralFieldIndex(expressions[index], context);
+            if (state.TryPreparePrintField(fields[index], out segments[index * 2], out record))
+                borrowed |= 1 << index;
+            else values[index] = state.GetFieldValue(fields[index]);
+        }
+        // Literal indices cannot mutate or suspend: every slice still refers to this record.
+        var ofs = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator);
+        var ors = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
+        state.CancellationCheckpoint();
+        state.Counters.RecordFieldListPrint();
+        using var lease = state.MemoryAccounting.CreateTransientLease();
+        var separator = AwkFieldText.FromOwned(state.FormatStringByteText(ofs, lease));
+        var terminator = AwkFieldText.FromOwned(state.FormatStringByteText(ors, lease));
+        state.CancellationCheckpoint();
+        for (var index = 0; index < fields.Length; index++)
+        {
+            if (index > 0) segments[index * 2 - 1] = separator;
+            if ((borrowed & (1 << index)) == 0)
+                segments[index * 2] = AwkFieldText.FromOwned(state.FormatPrintByteText(values[index], lease));
+        }
+        segments[fields.Length * 2 - 1] = terminator;
+        state.CancellationCheckpoint();
+        output.Append(segments[..(fields.Length * 2)], record);
+    }
+
     internal static void AppendSmall(AwkOutputSink output, ReadOnlySpan<AwkValue> values, int count, AwkRuntimeState state)
     {
         var outputFieldSeparator = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputFieldSeparator);

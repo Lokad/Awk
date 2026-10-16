@@ -71,6 +71,9 @@ internal sealed class AwkRecordFieldRuntime
     public bool TryGetUnmaterializedFieldBytes(AwkFieldIndex index, out ReadOnlySpan<byte> bytes) =>
         _frame.TryGetUnmaterializedFieldBytes(index, _splitCurrentFields, out bytes);
 
+    public bool TryGetUnmaterializedFieldText(AwkFieldIndex index, out AwkFieldText field, out AwkText record) =>
+        _frame.TryGetUnmaterializedFieldText(index, _splitCurrentFields, out field, out record);
+
     public void SetCurrentRecord(AwkText line)
     {
         _frame.SetRecordText(line, _fieldSplitter.CaptureRecordPlan());

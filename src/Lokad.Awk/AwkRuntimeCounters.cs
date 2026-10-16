@@ -65,6 +65,13 @@ internal sealed class AwkRuntimeCounters
 
     public long SmallValuePrintRuns { get; private set; }
 
+    public long FieldListPrintRuns { get; private set; }
+
+    public void RecordFieldListPrint()
+    {
+        if (_enabled) lock (_sync) FieldListPrintRuns++;
+    }
+
     public void RecordSmallValuePrint()
     {
         if (_enabled) lock (_sync) SmallValuePrintRuns++;

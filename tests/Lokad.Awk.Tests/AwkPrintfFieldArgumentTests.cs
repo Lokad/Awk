@@ -28,8 +28,9 @@ public sealed class AwkPrintfFieldArgumentTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public async Task PendingHostBorrowsOwnedFormattingAfterRecordChanges(bool cancel)
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public async Task PendingHostBorrowsOwnedFormattingAfterRecordChanges(bool cancel, bool fieldList)
     {
         using var cancellation = new CancellationTokenSource();
         var budget = new CooperativeTestBudget(2 << 20);
@@ -43,8 +44,10 @@ public sealed class AwkPrintfFieldArgumentTests
         var host = new PendingHost();
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static () => []);
-        var statement = AwkStatement.Printf(AwkExpression.Literal("%s:%04d\n"),
-            [AwkExpression.FieldIndex(AwkExpression.Number("1", 1)), AwkExpression.FieldIndex(AwkExpression.Number("2", 2))]);
+        AwkExpression[] fields = [AwkExpression.FieldIndex(AwkExpression.Number("1", 1)), AwkExpression.FieldIndex(AwkExpression.Number("2", 2))];
+        var statement = fieldList ? AwkStatement.Print(fields)
+            : AwkStatement.Printf(AwkExpression.Literal("%s:%04d\n"), fields);
+        var expected = fieldList ? "before 7\n" : "before:0007\n";
         var program = new AwkProgram([], [new(null, [statement])], [], [], [],
             new Dictionary<AwkFunctionName, AwkUserFunction>());
         using var executor = new AwkRuntimeActionExecutor(program, null, state);
@@ -53,16 +56,16 @@ public sealed class AwkPrintfFieldArgumentTests
         {
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.False(run.IsCompleted);
-            Assert.Equal("before:0007\n", System.Text.Encoding.UTF8.GetString(host.Bytes.Span));
+            Assert.Equal(expected, System.Text.Encoding.UTF8.GetString(host.Bytes.Span));
             state.SetCurrentRecord(AwkText.FromSourceLiteralString("changed 999"));
-            Assert.Equal("before:0007\n", System.Text.Encoding.UTF8.GetString(host.Bytes.Span));
+            Assert.Equal(expected, System.Text.Encoding.UTF8.GetString(host.Bytes.Span));
             Assert.True(budget.Reserved > 0);
             if (cancel)
             {
                 cancellation.Cancel();
                 await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
                 Assert.True(budget.Reserved > 0);
-                Assert.Equal("before:0007\n", System.Text.Encoding.UTF8.GetString(host.Bytes.Span));
+                Assert.Equal(expected, System.Text.Encoding.UTF8.GetString(host.Bytes.Span));
             }
             host.Release.TrySetResult(AwkExitCode.Success);
             if (!cancel) Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));

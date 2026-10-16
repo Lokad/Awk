@@ -160,18 +160,28 @@ internal sealed class AwkFieldFrame(
     public bool TryGetUnmaterializedFieldBytes(
         AwkFieldIndex index, Func<AwkText, List<AwkFieldText>> splitFields, out ReadOnlySpan<byte> bytes)
     {
+        var borrowed = TryGetUnmaterializedFieldText(index, splitFields, out var field, out var record);
+        bytes = borrowed ? field.AsSpan(record, checkpoint) : default;
+        return borrowed;
+    }
+
+    public bool TryGetUnmaterializedFieldText(
+        AwkFieldIndex index, Func<AwkText, List<AwkFieldText>> splitFields,
+        out AwkFieldText field, out AwkText record)
+    {
         EnsureField(index, splitFields);
-        bytes = default;
+        field = AwkFieldText.Empty;
+        record = _recordText;
         if (!index.IsNamedField || index.Value > _fieldTexts.Count)
             return true;
 
         var fieldIndex = index.Value - 1;
-        var field = _fieldTexts[fieldIndex];
-        if (_fieldValueCache.ContainsKey(fieldIndex) || field.Kind == AwkFieldTextKind.Owned)
+        var text = _fieldTexts[fieldIndex];
+        if (_fieldValueCache.ContainsKey(fieldIndex) || text.Kind == AwkFieldTextKind.Owned)
             return false;
 
-        throwIfValueBytesExceeded(field.ByteLength());
-        bytes = field.AsSpan(_recordText, checkpoint);
+        throwIfValueBytesExceeded(text.ByteLength());
+        field = text;
         return true;
     }
 

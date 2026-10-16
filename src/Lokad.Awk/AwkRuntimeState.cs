@@ -515,6 +515,17 @@ internal sealed class AwkRuntimeState
     internal bool TryGetPrintfFieldBytes(int index, out ReadOnlySpan<byte> bytes) =>
         _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
 
+    internal bool TryPreparePrintField(int index, out AwkFieldText field, out AwkText record)
+    {
+        if (!_recordFields.TryGetUnmaterializedFieldText(new(index), out field, out record)) return false;
+        var bytes = field.AsSpan(record, CancellationCheckpoint);
+        var parsed = AwkNumberParser.Parse(bytes, NumberParsingMode, CancellationCheckpoint);
+        // Match eager input classification, keeping numeric-conversion errors deferred.
+        if (parsed.Status == AwkNumberParseStatus.Number)
+            _ = AwkNumberParser.SkipWhitespace(bytes, parsed.End, CancellationCheckpoint);
+        return true;
+    }
+
     internal void PreflightPrintfField(int index)
     {
         if (TryGetPrintfFieldBytes(index, out var bytes))
