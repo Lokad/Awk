@@ -15,7 +15,7 @@ internal abstract partial class AwkExpression
             {
                 var state = context.State;
                 state.RecordExecutionStep();
-                var previous = location.Evaluate(state).AsNumber(state.CancellationCheckpoint);
+                var previous = location.EvaluateNumber(state);
                 location.AssignValue(state, AwkValue.FromNumber(previous + 1));
             };
             return true;
@@ -133,7 +133,7 @@ internal abstract partial class AwkExpression
                 {
                     var state = context.State;
                     state.RecordExecutionStep();
-                    var previous = location.Evaluate(state).AsNumber(state.CancellationCheckpoint);
+                    var previous = location.EvaluateNumber(state);
                     var right = value.EvaluateSynchronous(context).AsNumber(state.CancellationCheckpoint);
                     location.AssignValue(state, AwkValue.FromNumber(
                         AwkNumericOperations.ApplyCompoundAssignment(previous, right, operation)));

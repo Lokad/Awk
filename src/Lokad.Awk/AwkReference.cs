@@ -398,6 +398,13 @@ internal readonly struct AwkResolvedReference
             return state.GetFieldValue(fieldIndex);
         }
     }
+
+    public double EvaluateNumber(AwkRuntimeState state) =>
+        _kind == AwkResolvedReferenceKind.PreparedGlobalScalar &&
+        state.TryResolvePreparedGlobalNumber(_globalIndex, out var number)
+            ? number
+            : Evaluate(state).AsNumber(state.CancellationCheckpoint);
+
     public void PrepareForSubstitution(AwkRuntimeState state)
     {
         if (_kind is AwkResolvedReferenceKind.Field && _fieldIndex.IsNamedField)

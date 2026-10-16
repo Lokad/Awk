@@ -295,6 +295,17 @@ internal sealed class AwkVariables
         return CreateValue(GetScalarState(id).Slot).ForceScalar();
     }
 
+    public bool TryGetScalarNumber(AwkGlobalSlotId id, out double number)
+    {
+        if (_resolveFieldCountValue is not null &&
+            string.Equals(_scalarSlots[id.Value].Name.Text, FieldCountName, StringComparison.Ordinal))
+        {
+            number = 0;
+            return false;
+        }
+        return GetScalarState(id).Slot.TryGetNumber(out number);
+    }
+
     public void SetScalarValue(AwkGlobalSlotId id, AwkValue value)
     {
         var name = _scalarSlots[id.Value].Name;

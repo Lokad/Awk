@@ -653,6 +653,21 @@ internal sealed class AwkRuntimeState
     internal bool HasBoundGlobalScalar(int index) =>
         _globalReadSlots is { } slots && (uint)index < (uint)slots.Length && slots[index] != 0;
 
+    internal bool TryResolvePreparedGlobalNumber(int index, out double number)
+    {
+        if (_globalReadSlots is { } slots)
+        {
+            var encoded = slots[index];
+            if (encoded != 0 && _variables.TryGetScalarNumber(new AwkGlobalSlotId(encoded - 1), out number))
+            {
+                Counters.RecordNumericGlobalRead();
+                return true;
+            }
+        }
+        number = 0;
+        return false;
+    }
+
     public AwkValue ResolvePreparedGlobalValue(AwkVariableName name, int index)
     {
         if (_globalReadSlots is not { } slots)
