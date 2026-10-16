@@ -47,35 +47,36 @@ larger inputs before making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, `2a423fd` → `45c3d92ab36b69cb7666de6ab13693f792ccc045`: three warmups/five
-iterations and two launches per source, in both source orders. The baseline adds the shared
-function-loop fixture to runtime `aa1fd2c`; the fixture and inputs are identical in both lanes.
-Values are medians of the two launch medians. GNU timings and the complete table above
-retain their stated source; the harness now includes 24 families.
+Measured 2026-10-16, `45c3d92` → `397d1c2ec76234112ed8845e888d518ae42347ec`: three warmups/five
+iterations and two launches per source, in both source orders. Identical scripts and inputs
+use the public full-invocation path. Values are medians of the two launch medians; the complete
+GNU comparison above retains its stated source. The harness includes 24 families.
 
 | Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
 | --- | --- | ---: |
-| Loop with arithmetic function calls | 14.168→10.471; 14.542→10.554 | 1,399,125→1,399,933 |
-| Plain arithmetic control | 6.789→6.728; 6.443→6.599 | 1,381,835→1,381,883 |
-| Two-file join control | 7.868→7.983; 7.980→7.907 | 4,430,330→4,430,378 |
+| Nested user calls | 4.358→3.865; 4.241→3.833 | 1,378,891→1,379,427 |
+| Loop-with-calls control | 10.548→10.555; 10.406→10.523 | 1,399,933→1,400,309 |
+| Two-file join control | 8.052→7.949; 8.022→8.008 | 4,430,378→4,430,562 |
 
-Eligible interpreter loops reuse bounded known-call metadata and existing function frames.
-Original statements remain for VM, lint, pending-output, raised-syntax and stack-safety fallback;
-logical fuel, caller/alias order, cancellation, mutation admission and governed refunds remain.
+Complete scalar actions with eligible unary calls reuse existing known-call metadata, setters
+and function frames. Their original statement graphs remain for VM, lint, pending output,
+larger syntax limits and insufficient stack. Fuel, caller/alias order, mutation preflights,
+cancellation and actual-user refunds remain.
 
-Function loops take **26.1–27.4% less elapsed time**, with every launch pair
-improving by at least 22.0%. Preparation adds 808 managed bytes/invocation (under 0.06%).
-Plain arithmetic is mixed: 0.9% less in one order, 2.4% more in the other; one pair takes 8.2%
-longer. Join controls are 1.5% more/0.9% less. Both controls add 48 bytes. No control or general
-gain is claimed. All eight confirmation quiet gates pass; source/library/driver/GNU identities
-stay fixed. Raw results and histories remain local.
+Nested calls take **9.6–11.3% less elapsed time**, with every launch pair
+improving by at least 7.1%. Preparation adds 536 managed bytes/invocation (under 0.04%).
+Loop-with-calls controls take 0.07%/1.13% longer and add 376 bytes; join controls take
+1.28%/0.17% less and add 184 bytes. The pilot's 4.13% join slowdown did not repeat.
+No control or general-workload gain is claimed. All eight confirmation quiet gates pass;
+source/library/driver/GNU identities stay fixed. Raw evidence and histories remain local.
 
-Runtime `45c3d92a` passes 72,668 tests/OS, 74 exact reference checks, 77 native goldens
+Runtime `397d1c2e` passes 72,691 tests/OS, 74 exact reference checks, 78 native goldens
 and 26 stack scenarios. All 74 work/host/field/encoding snapshots and 31 finite rows match the
-parent. Removing preparation fails four work/cancellation guards. Focused checks cover exact
-fuel/partial state, caller/alias/depth behavior, pending users and actual path selection.
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38859270240) passes; downloaded reports verify
-all 40 selected loop/call/fuel/alias/cancellation executions per OS.
+parent. Disabling scalar-action preparation fails five targeted guards; eight controls pass.
+Focused checks cover eight scripts at fuel 0..260, caller/alias state, 16/17-statement bounds,
+pending arguments without replay, cancellation/refunds and original-path selection.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38864001597) passes; downloaded reports verify
+all 40 selected action/loop/call/fuel/alias/cancellation executions per OS.
 
 The scheduled 24-family refresh collected all timings and allocations, but its final allocation
 quietness sample reached 6.53% CPU against a 5% maximum. That attempt is retained locally and
