@@ -1,7 +1,7 @@
 # Benchmarks
 
-Current scoped source **7ad867d** improves long-field filtering by 37.0–38.5%; the new
-16 MiB case takes 0.80× GNU elapsed time. See the controlled and native comparisons below.
+Current scoped source **4c0e49f** improves changed ASCII casing by 13.8–14.6%, with unchanged
+allocations. It still takes 2.05× / 2.99× GNU elapsed time at medium/large scales. See below.
 
 Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
 `cd8d0c51727841ad6520dc032077475ee1aa1ddc` against GNU awk 5.2.1. Times and allocations below share this source,
@@ -59,54 +59,62 @@ making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, benchmark-only source `e8aa7775ed2a1eb7cfbf84e03b324f9b7ef1cc43`
-→ runtime `7ad867dded6e521d5b972af43b751f32f26c7af2`. The before runtime is identical to
-`7e41eb3`; both sources use the same 27-family harness. Three warmups/five iterations and
-two launches/source in both source orders; only the affected workload and two controls were timed.
+Measured 2026-10-16, benchmark-only source `91cccd764cffbe2b96e224b8cfb0e1839197192c`
+→ runtime `4c0e49ff9999ec75b6af7733cdfb7ed65f5da747`. The before runtime is identical to
+`7ad867d`; both sources use the same 28-family harness. Three warmups/five iterations and
+two launches/source in both source orders; only actual casing and two controls were timed.
 Times are medians of the two launch medians. Allocations are managed GC MiB/invocation.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| Long-field filtering | 1.353→0.832; 1.327→0.836 | 2.15→2.15 (both orders) |
-| Single-column projection control | 2.405→2.490; 2.601→2.516 | 1.34→1.34 (both orders) |
-| Two-file join control | 8.174→8.210; 8.081→8.030 | 4.23→4.23 (both orders) |
+| Changed ASCII casing | 6.982→5.960; 7.150→6.164 | 3.55→3.55 (both orders) |
+| Unchanged-case string operations control | 3.862→3.834; 3.785→3.781 | 1.08→1.08 (both orders) |
+| Single-column projection control | 2.531→2.500; 2.565→2.503 | 1.34→1.34 (both orders) |
 
-The shared whitespace splitter searches non-whitespace runs with managed span intrinsics,
-bounded by its existing 4 KiB cancellation checkpoints. Scalar whitespace traversal, strict
-UTF-8 validation, captured separators, incremental field cursors and record-owned FS remain.
-No new storage, cache, ownership or host buffering policy is introduced.
+The already-owned ASCII result buffer now uses .NET's
+[ASCII case routines](https://learn.microsoft.com/en-us/dotnet/api/system.text.ascii?view=net-10.0)
+in chunks bounded by the existing 4 KiB checkpoints. Prevalidation, copying, unchanged-text
+sharing, Unicode fallback and result admission stay intact. No new storage, cache or owner.
 
-Long-field filtering takes **37.0–38.5% less elapsed time**; all four launch pairs improve
-by at least 35.6%. Allocation estimates differ by at most 255 bytes/invocation for this case;
-no allocation gain is claimed. Projection takes 3.52% more / 3.26% less time, and join takes
-0.44% more / 0.63% less, with exactly unchanged allocations. No general or control gain is claimed.
-All six before/after quiet windows have clean source, stable identities and no extra SSH login.
-One pilot and one balanced confirmation were run; no complete baseline refresh was repeated.
+Actual casing takes **13.8–14.6% less elapsed time**; all four launch pairs improve by at
+least 12.0%. Allocations are exactly unchanged. Unchanged-case strings take 0.71% / 0.09%
+less time, and projection takes 1.24% / 2.44% less; no general or control gain is attributed.
+The existing string fixture mostly calls `tolower` on already-lowercase text; the new family
+exercises both directions changing bytes. One pilot and one balanced confirmation were run.
+All six timing windows have qualified quietness, stable identities and no extra SSH login.
+No complete baseline refresh was repeated.
 
-The same runtime passes **72,863 tests/OS** in
-[Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38915568543),
-including all 94 selected field/cancellation/memory checks per OS. It also passes 83 exact
-logical reference snapshots, 89 equivalent native goldens, 30 limited-stack scenarios/OS
-and 32 identical finite-resource rows. One additional native case retains the documented
+The same runtime passes **72,873 tests/OS**, 86 exact logical reference snapshots,
+90 equivalent native goldens, 30 limited-stack scenarios/OS and 32 identical finite-resource rows.
+One additional native case retains the documented
 [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38919979554)
+passes; downloaded reports verify all 91 selected casing/cancellation/memory checks per OS.
 
-## Current long-field comparison
+## Scoped GNU comparisons
 
-New orthogonal case: `$2=="keep"{n++} END{print n+0}`, with a 4 KiB first field, a short
-second field and half matching records. It varies field length independently of field count
-and output volume. Source `7ad867d`, measured 2026-10-16 against the same GNU awk 5.2.1:
-nine alternating paired samples/scale, complete output verification and all quiet gates pass.
-These fresh measurements are separate from the retained complete comparison above.
+Changed-case processing uses 144-byte mixed ASCII records, both conversion directions and
+length aggregation: `{s=tolower($0);t=toupper($0);total+=length(s)+length(t)} END{print total}`.
+Casing rows are fresh at `4c0e49f`, measured 2026-10-16. Long-field rows are retained from
+`7ad867d` on the same date: `$2=="keep"{n++} END{print n+0}`, with a 4 KiB first field and
+half matching records. These vary field length and actual conversion independently of output
+volume. Each family uses nine alternating paired samples/scale against GNU awk 5.2.1, complete
+output verification and qualified quiet gates. These results are separate from the retained
+complete comparison above.
 
-| Input KiB / records | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
-| --- | ---: | ---: | ---: | ---: |
-| 64.09 / 16 | 0.077 | 1.066 | 0.07× | — |
-| 1,025.50 / 256 | 0.851 | 2.050 | 0.41× | 2.15 |
-| 16,408.00 / 4,096 | 13.349 | 16.624 | 0.80× | — |
+| Case / input KiB / records | Source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Changed case / 2.27 / 16 | 4c0e49f | 0.072 | 1.014 | 0.07× | — |
+| Changed case / 580.00 / 4,096 | 4c0e49f | 6.063 | 2.957 | 2.05× | 3.55 |
+| Changed case / 9,280.00 / 65,536 | 4c0e49f | 97.139 | 32.473 | 2.99× | — |
+| Long fields / 64.09 / 16 | 7ad867d (retained) | 0.077 | 1.066 | 0.07× | — |
+| Long fields / 1,025.50 / 256 | 7ad867d (retained) | 0.851 | 2.050 | 0.41× | 2.15 |
+| Long fields / 16,408.00 / 4,096 | 7ad867d (retained) | 13.349 | 16.624 | 0.80× | — |
 
-Only medium-scale allocations were measured, by the controlled BenchmarkDotNet run above;
-“—” means unmeasured. The larger input confirms parity for this script. Small-input ratios
-particularly reflect GNU process startup as well as processing; no overall parity claim follows.
+Only medium-scale allocations were measured, by BenchmarkDotNet; “—” means unmeasured.
+The larger inputs confirm a remaining casing gap and parity for the long-field script.
+Small-input ratios particularly reflect GNU process startup as well as processing;
+no overall parity claim follows.
 
 ## Environment and reproduction
 
@@ -129,7 +137,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*long-fields*' '*WorkloadAllocationBenchmarks*medium*two-file*' '*WorkloadAllocationBenchmarks*medium*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*case-conversion*' '*WorkloadAllocationBenchmarks*medium*string-functions*' '*WorkloadAllocationBenchmarks*medium*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
