@@ -10,6 +10,10 @@ The retained table predates the SSH observation fix below. Its recorded gates pa
 login interference has not been excluded. Treat these ratios as directional until the next
 declared complete refresh.
 
+The scheduled 26-family refresh at `1468c21` did not qualify: a GNU early-wide-fields invocation
+exceeded the driver's 15-second deadline. Allocations never started; partial timings are excluded.
+The attempt is closed without an immediate rerun. The controlled result below remains qualified.
+
 ## Representative processing
 
 Times are medians for one complete invocation. Lokad.Awk/awk divides Lokad elapsed time by
@@ -51,39 +55,41 @@ making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, `fa1e85a35eff68e731a7d4773479fafcb4c97063` →
-`f8caf6ef47a7717f583c183adc090bdb293028e9`: three warmups/five iterations and two launches per source,
-in both source orders. Values are medians of the two launch medians through the public
-full-invocation path. The harness includes **25 families**; the newer unary and two-argument
-loops remain absent from the retained GNU comparison above.
+Measured 2026-10-16, `34c5c6ed064805c47ca554e9f55e452cbb17d12b` →
+`1468c21721dca0c3c90d5127d5c7aab49a784f6e`: three warmups/five iterations and two launches/source,
+in both source orders. The baseline adds the same multi-column fixture to runtime `f8caf6e`;
+the fixture and inputs are identical. Values are medians of the two launch medians through
+the public full-invocation path, separate from the complete comparison above. The harness
+now covers 26 families.
 
 | Workload | Median ms, before → after (two source orders) | Managed bytes/invocation |
 | --- | --- | ---: |
-| Numeric array sort | 6.601→5.933; 6.374→5.970 | 3,237,704→3,237,463 |
-| printf control | 3.871→4.008; 3.879→3.843 | 1,739,296 (unchanged) |
-| Column projection control | 2.428→2.479; 2.425→2.431 | 1,405,595 (unchanged) |
+| Three-column projection | 4.544→4.078; 4.452→4.050 | 2,692,213 (unchanged) |
+| printf control | 3.898→3.861; 3.858→3.849 | 1,739,296 (unchanged) |
+| Single-column projection control | 2.467→2.488; 2.496→2.483 | 1,405,595 (unchanged) |
 
-Single-value stdout `print` uses local values and formatted segments, removing two staging
-array rentals and a nested async emitter per eligible print. Formatting remains leased and
-the complete output append still preflights before publication. Statement flush, host failure,
-operand/format order and cancellation behavior remain qualified.
+Stdout `print` with two through four values uses locals and formatted local segments, removing
+two staging array transports and nested emission. Field values keep their existing ownership.
+Formatting uses the existing lease and atomic append; argument/OFS/ORS/format order, UTF-8,
+fuel, cancellation, statement flushing and actual host-user lifetime remain qualified.
 
-Numeric sorting takes **6.3–10.1% less elapsed time**; all four launch pairs improve
-by at least 6.2%. Default execution already pools the staging arrays, so managed
-allocations are effectively unchanged. The printf control takes 3.55% longer/0.92% less time;
-projection takes 2.09%/0.24% longer. No repeated material control regression or general gain is
-claimed. All eight confirmation quiet gates pass with stable source/library/driver/GNU
-identities; journal evidence confirms no fresh SSH login in any measured window. No window
-was repeated. Raw evidence stays local.
+Multi-column printing takes **9.0–10.2% less elapsed time**. All four launch pairs improve,
+one by 1.3%; the first order has up to 10.7% spread between launch medians. Managed allocations
+are unchanged because default execution already pools the arrays. printf takes 0.94%/0.24%
+less time; single-column projection takes 0.86% more/0.52% less. No control or general gain is
+claimed. All confirmation gates and source/library/driver/GNU identities pass. Journal evidence
+excludes extra authenticated SSH logins in all six timing windows; none were repeated.
 
-Runtime `f8caf6ef` passes **72,778 tests/OS**, 77 exact reference checks, 83 native
-goldens and 30 limited-stack scenarios. All logical/host/text counters match the parent;
-24 finite-resource rows are identical and seven have only lower estimated memory peaks
-(56 or 96 bytes, matching removed staging). Explicit memory limits can therefore admit prints
-that previously needed temporary-array headroom. Physical-work/storage guards detect disabling
-the path; pending operands, cancellation, refused admission and noncooperative host completion
-are covered. [Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38893272842) passes;
-downloaded reports verify all 102 distinct selected print/resource checks per OS.
+Runtime `1468c21` passes **72,823 tests/OS**, 80 exact reference snapshots, 86 equivalent native
+goldens and 30 limited-stack scenarios/OS. One additional native case records an unchanged
+[numeric OFS/ORS spelling difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting);
+it is explicitly classified. Of 32 finite rows, 26 match exactly; six have only lower estimated
+memory peaks (52–192 bytes). Actual mutation/formatting/output allocations still preflight;
+reduced staging can relax optional memory thresholds. Disabling the new path fails seven
+work/storage checks while nine controls pass; exact restoration/full correctness pass.
+Pending operands, refused admission and noncooperative host completion are covered.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38899613295) passes; downloaded reports
+verify all 133 distinct selected print/resource guards/OS. Raw data and detailed histories stay local.
 
 ## Environment and reproduction
 

@@ -68,6 +68,8 @@ Common printf/sprintf controls, hexadecimal output and GNU positional arguments 
 newer controls remain partial. Formatting preflights complete output. Signed nonfinite values,
 integer range/padding, strtonum, bitwise and time behavior follow qualified golden policies,
 not every platform's native libc quirks. Time uses the policy clock/zone, not environment lookup.
+Numeric OFS/ORS are formatted with the current CONVFMT; GNU can retain their assigned spelling.
+Use string separators when that spelling matters across implementations.
 See [numeric](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.NumericSemantics.cs),
 [formatting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FormattingSyntax.cs) and
 [calendar](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.CalendarNormalization.cs) cases.
