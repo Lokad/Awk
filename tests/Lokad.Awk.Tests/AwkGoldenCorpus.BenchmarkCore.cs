@@ -147,6 +147,10 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("benchmark-core-regex-match",
             ["$0~/^[A-Z]{3}[0-9]{4}$/{n++} END{print n+0}"],
             [], "1\n", "ABC0123\nabc0123\n");
+        yield return Passing("benchmark-core-long-fields",
+            ["$2==\"keep\"{n++} END{print n+0}"], [], "2\n",
+            new string('x', 4_096) + "\tkeep\n" + new string('y', 4_097) + "\tskip\n" +
+            " \t" + string.Concat(Enumerable.Repeat("é长", 2_048)) + " keep \t\n");
         yield return Passing("benchmark-core-regex-captures",
             ["match($0,/^([[:alpha:]]+)([0-9]+)$/,m){total+=length(m[1])+m[2]} END{print total}"],
             [], "24\n", "sku007\nitem010\n");

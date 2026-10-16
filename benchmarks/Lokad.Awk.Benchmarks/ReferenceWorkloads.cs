@@ -15,7 +15,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "projection", "multi-column", "filter", "membership", "array-read", "early-fields-wide", "aggregate", "profile-narrow", "profile-wide", "two-file",
+        "projection", "multi-column", "filter", "membership", "array-read", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
         "arithmetic-loops", "user-functions", "loop-with-calls", "multi-arg-loop", "string-functions", "concatenation", "regex-match", "regex-captures"
     ];
@@ -54,6 +54,16 @@ internal static class ReferenceWorkloads
             case "multi-column":
                 program = "{print $1,$3,$2}";
                 Repeat("sku\tvalue\ttail\n", "sku tail value\n");
+                break;
+            case "long-fields":
+                // Long tokens isolate delimiter traversal from field count and output volume.
+                program = "$2==\"keep\"{n++} END{print n+0}";
+                fields = 2;
+                rows = scale switch { "small" => 16, "medium" => 256, _ => 4_096 };
+                var longToken = new string('x', 4_096);
+                for (var i = 0; i < rows; i++)
+                    input.Append(longToken).Append(i % 2 == 0 ? "\tkeep\n" : "\tskip\n");
+                expected.Append(rows / 2).Append('\n');
                 break;
             case "filter":
                 program = "$1==\"A\" && $2==\"B\" && $3==\"C\"{n++} END{print n+0}";
