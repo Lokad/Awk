@@ -1,7 +1,7 @@
 # Benchmarks
 
-Current scoped source **444da21** reduces call-loop time by **5.1–8.1%**, with unchanged
-allocations. The loop still takes **2.59× / 3.43× GNU elapsed time** at medium/large inputs.
+Current scoped source **f4aad1d** reduces call-loop time by **7.2–8.4%**, with unchanged
+allocations. The loop still takes **2.30× / 3.06× GNU elapsed time** at medium/large inputs.
 The retained complete baseline below remains directional.
 
 Retained complete baseline: **23 families**, measured 2026-10-16 at Release source
@@ -63,38 +63,38 @@ making a broader claim.
 
 ## Latest controlled change
 
-Measured 2026-10-16, runtime `506db1b4fd92344de973a4a52233d8cc9343675a`
-→ `444da21f10d04ba74c0778f93dc0efa912937c86`, with identical harness and inputs.
+Measured 2026-10-16, runtime `444da21f10d04ba74c0778f93dc0efa912937c86`
+→ `f4aad1db2038195465bdd5c09cefdd8833f00a21`, with identical harness and inputs.
 Three warmups/five iterations, two launches/source in both source orders; only two affected call
 families and projection were timed. Times are medians of launch medians; allocations are GC MiB.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| Loop with unary arithmetic calls | 10.378→9.845; 10.497→9.642 | 1.34→1.34 (both orders) |
-| Nested user calls | 3.808→3.733; 3.846→3.650 | 1.32→1.32 (both orders) |
-| Single-column projection control | 2.514→2.559; 2.487→2.508 | 1.34→1.34 (both orders) |
+| Loop with unary arithmetic calls | 9.593→8.906; 9.714→8.901 | 1.34→1.34 (both orders) |
+| Nested user calls | 3.847→3.880; 3.780→3.709 | 1.32→1.32 (both orders) |
+| Single-column projection control | 2.486→2.511; 2.531→2.522 | 1.34→1.34 (both orders) |
 
-Evaluation contexts retain their existing state/output/IO references directly, removing the
-redundant presence flag and nested stored pair. On the measured VM this reduces context size
-from 32 to 24 bytes and builtin context size from 56 to 48 bytes. Explicit snapshots, ambient
-lookup, pending scopes, default diagnostics and resource/cancellation behavior remain. No new
-type, owner, cache or heap allocation is introduced; runtime line count is unchanged.
+Prepared calls reuse an existing successful global scalar binding to omit repeated argument-name
+and array probes. Uncached, untyped, array and local arguments retain normal alias resolution.
+The subsequent ordinary value read, execution checkpoint and value admission still run before
+frame entry. This adds 35 net runtime lines in five files and one observational counter; it
+introduces no new cache, type, owner, engine or resource policy.
 
-Call loops take **5.1–8.1% less time**; all four launch pairs improve, with exactly
-1,400,349 allocated bytes. Nested-call medians take 1.97% / 5.10% less time; one pair is slower.
-Projection takes 1.81% / 0.83% more time. No general or causal control gain is claimed.
+Call loops take **7.2–8.4% less time**; all four launch pairs improve, with exactly 1,400,349
+allocated bytes. Nested calls take 0.87% more / 1.89% less time; one pair takes 4.7% longer.
+Projection takes 1.02% more / 0.38% less time. No general or causal control gain is claimed.
 One pilot and one balanced confirmation were run; all six source windows have qualified quiet
 gates, stable identities and no extra authenticated SSH login.
 
-The source passes **72,914 tests/OS**, 86 exact reference snapshots, 95 equivalent native goldens,
+The source passes **72,929 tests/OS**, 86 exact reference snapshots, 97 equivalent native goldens,
 30 limited-stack scenarios/OS and 32 unchanged finite-resource rows. One additional native case
 retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38936684541)
-passes; downloaded reports verify all 172 selected context/call/cancellation/memory guards per OS.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38941033234)
+passes; downloaded reports verify all 187 selected binding/call/cancellation/memory guards per OS.
 
 ## Scoped GNU comparisons
 
-Call-loop rows are **current at 444da21**, measured 2026-10-16: eight unary calls/record,
+Call-loop rows are **current at f4aad1d**, measured 2026-10-16: eight unary calls/record,
 `function step(x){return (x*3+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}`.
 The paired runner uses nine alternating pairs/scale, exact output checks and qualified quiet
 gates. Casing/long-field rows are retained from the explicitly named earlier sources on the
@@ -103,8 +103,8 @@ from the incomplete full refresh and the controlled BenchmarkDotNet comparison a
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Call loop / 8.00 / 4,096 | 444da21 | 9.885 | 3.814 | 2.59× | 1.34 |
-| Call loop / 128.00 / 65,536 | 444da21 | 156.496 | 45.686 | 3.43× | — |
+| Call loop / 8.00 / 4,096 | f4aad1d | 8.790 | 3.815 | 2.30× | 1.34 |
+| Call loop / 128.00 / 65,536 | f4aad1d | 139.817 | 45.645 | 3.06× | — |
 | Changed case / 580.00 / 4,096 | 22233ac | 5.185 | 2.944 | 1.76× | 3.55 |
 | Changed case / 9,280.00 / 65,536 | 22233ac | 82.727 | 32.114 | 2.58× | — |
 | Long fields / 1,025.50 / 256 | 7ad867d | 0.851 | 2.050 | 0.41× | 2.15 |
