@@ -1,8 +1,8 @@
 # Benchmarks
 
-Current scoped runtime: `c5c7a01c5603418128cdeb3dfe56d3d445d89b3c`, measured 2026-10-16. String-processing
-confirmation medians take **7.4–8.8% less time**, with **8 extra preparation bytes** per invocation.
-All four launch pairs improve. Controls and allocation details are below.
+Current scoped runtime: `dbe6f7a3b9d3dfdee5336fdee4e1e08cbfc4de7a`, measured 2026-10-16 UTC. Wide-field
+confirmation medians take **11.3–13.7% less time**, with unchanged allocations.
+All launch-pair results and contrasting controls are reported below.
 
 The complete **28-family baseline is retained** from 2026-10-16 at Release source
 `69c0a3453860c7edcc4a161c71ebc9d7681608f7` against GNU awk 5.2.1. All first-table rows use that earlier source.
@@ -54,44 +54,42 @@ Use these ratios to choose investigations; confirm apparent parity on larger inp
 
 ## Latest controlled change
 
-Measured 2026-10-16, runtime `a33eee800b63ae48d758fea1a01a9c4b98be1809`
-→ `c5c7a01c5603418128cdeb3dfe56d3d445d89b3c`, with identical harness and inputs.
-Three warmups/five iterations, two launches/source in both source orders; string processing,
-Unicode string processing and projection were timed. Times are medians of launch medians;
+Measured 2026-10-16 UTC, runtime `c5c7a01c5603418128cdeb3dfe56d3d445d89b3c`
+→ `dbe6f7a3b9d3dfdee5336fdee4e1e08cbfc4de7a`, with identical harness and inputs.
+Three warmups/five iterations, two launches/source in both source orders; wide-field processing,
+ASCII strings and Unicode strings were timed. Times are medians of launch medians;
 allocations are GC MiB.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| ASCII substr/index/length/casing | 3.526→3.217; 3.495→3.235 | 1.08→1.08; 1.08→1.08 |
-| Unicode length/substr control | 4.784→4.737; 4.779→4.679 | 3.11→3.11; 3.11→3.11 |
-| Single-column projection control | 2.438→2.488; 2.486→2.468 | 1.34→1.34; 1.34→1.34 |
+| Field loop, 64 fields | 3.041→2.625; 2.925→2.595 | 1.08→1.08; 1.08→1.08 |
+| ASCII substr/index/length/casing control | 3.280→3.255; 3.227→3.307 | 1.08→1.08; 1.08→1.08 |
+| Unicode length/substr control | 4.734→4.732; 4.689→4.796 | 3.11→3.11; 3.11→3.11 |
 
-Named global `length` operands now use the existing prepared read slots. Once a matching
-scalar slot is bound, execution skips repeated array-name resolution and retains the
-ordinary value read and admission checks. Local, special, unbound and array cases retain
-their existing behavior. The interpreter, resource policy and ownership mechanisms are unchanged.
+Prepared scalar updates read a stored Number directly when its global slot is already bound.
+This avoids constructing and unpacking a value. Missing values, numeric strings and other
+kinds retain ordinary resolution and admission; computed NF remains live. Setters, statement
+checkpoints, cancellation, ownership and the interpreter default are unchanged.
 
-String medians take **7.4–8.8% less time**; launch-pair reductions are
-9.43%, 8.09%, 7.18% and 7.68%. Allocations rise from **1,128,136 to 1,128,144 bytes** per
-invocation: eight bytes of preparation metadata for the indexed expression. Text allocation
-and copy counters are unchanged. Unicode medians take 0.98% / 2.10% less time; projection
-takes 2.07% more / 0.71% less time. Control allocations are unchanged; no control or general gain is claimed.
+Wide-field medians take **11.3–13.7% less time**; launch-pair reductions are
++10.51%, +16.57%, +11.19%, +11.37%. Managed allocations remain **1,133,936 bytes** per invocation.
+Control reductions (positive means less time): ASCII strings +0.77% / -2.46%;
+Unicode +0.05% / -2.27%. No control, general or cumulative gain is claimed.
 
 One qualified pilot and one balanced confirmation were run. All six source windows have
-qualified quiet gates, stable identities and no extra SSH login. A preceding ineligible
-prototype did not exercise parsed `length(s)` bindings; its timings are excluded.
+qualified quiet gates, stable identities and no extra SSH login.
 
-The source passes **73,046 tests/OS**, 86 exact reference snapshots, 109 equivalent native
+The source passes **73,052 tests/OS**, 86 exact reference snapshots, 109 equivalent native
 goldens, 30 limited-stack scenarios/OS and 32 unchanged finite-resource rows. One additional
 native case retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-An end-to-end counter guard verifies the parsed workload reaches the prepared binding path;
-eligibility and value-admission guards preserve names, arrays, first reads and failure-before-mutation.
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38967892668)
-passes; downloaded reports verify all 194 selected binding/scope/UTF-8/admission guards per OS.
+The parsed four-field guard verifies ten direct Number reads; focused guards preserve first
+binding, current values, numeric-string admission, computed NF and general reference kinds.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38976929132)
+passes; downloaded reports verify all 201 selected numeric, field, scope and admission guards per OS.
 
 ## Scoped GNU comparisons
 
-String-processing rows are current at **c5c7a01**, measured 2026-10-16. The paired runner
+Wide-field rows are current at **dbe6f7a**, measured 2026-10-16 UTC. The paired runner
 uses nine alternating pairs/scale, exact output checks and qualified quiet gates. Other rows
 are retained from the explicitly named sources on the same date. Each window has stable
 identities and no additional SSH login. These scoped comparisons are separate from the
@@ -99,6 +97,8 @@ retained complete baseline and the controlled BenchmarkDotNet comparison above.
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
+| Field loop / 80.00 / 256 | dbe6f7a | 2.708 | 2.155 | 1.26× | 1.08 |
+| Field loop / 1,280.00 / 4,096 | dbe6f7a | 42.241 | 19.409 | 2.18× | — |
 | ASCII strings / 52.00 / 4,096 | c5c7a01 | 3.300 | 1.545 | 2.14× | 1.08 |
 | ASCII strings / 832.00 / 65,536 | c5c7a01 | 51.467 | 9.819 | 5.24× | — |
 | Changed case / 580.00 / 4,096 | 69c0a34 | 3.622 | 2.959 | 1.22× | 3.55 |
@@ -108,8 +108,10 @@ retained complete baseline and the controlled BenchmarkDotNet comparison above.
 | Long fields / 1,025.50 / 256 | 7ad867d | 0.851 | 2.050 | 0.41× | 2.15 |
 | Long fields / 16,408.00 / 4,096 | 7ad867d | 13.349 | 16.624 | 0.80× | — |
 
-ASCII strings run `substr`, `index`, `length` and unchanged `tolower` on `id:beta:tail`.
-Current GNU ratios are **2.14× medium / 5.24× large**.
+The wide-field script iterates over every field, tests nonempty values and sums lengths.
+Current GNU ratios are **1.26× medium / 2.18× large**.
+Retained ASCII strings run `substr`, `index`, `length` and unchanged `tolower` on `id:beta:tail`;
+their earlier c5c7a01 ratios remain 2.14× medium / 5.24× large.
 Retained casing converts both directions on 144-byte mixed ASCII records; call loops run
 eight unary arithmetic calls/record; long-field filtering tests `$2` after a 4 KiB first field.
 Scripts are in the shared fixtures linked above. Only medium-scale managed allocations

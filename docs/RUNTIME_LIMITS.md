@@ -66,6 +66,8 @@ borrowed numeric field reads (including nested field indices) and original sette
 16 body statements and four acyclic function levels. Host/pending/lint work and larger shapes
 retain ordinary execution; function entry/unwind stack checks remain. Immutable preparation
 belongs to the existing compiled owner. The interpreter remains the default engine.
+Stored Number scalars can feed prepared updates directly; other kinds retain ordinary value
+admission and conversion.
 Syntax-depth settings above 128 retain unconditional function-entry/unwind suspension.
 Eligible loops and complete scalar actions also reuse known-call metadata for zero through
 four arguments. Multiple arguments use a fixed stack temporary and the original function frames;
