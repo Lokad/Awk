@@ -65,41 +65,41 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC: `606de302c8872d46b0c51f6c8c03e8541c464c62`
-→ `b6e73a63c1ab231981324ce4926643aecdc1ca5b`, identical harness and inputs, **large scale**.
+Measured 2026-10-17 UTC: `b6e73a63c1ab231981324ce4926643aecdc1ca5b`
+→ `890ba3cf0ce30e56a5912269f8032161357ec212`, identical harness and inputs, **large scale**.
 Three warmups/five iterations, two launches/source in both source orders. Times are medians
 of launch medians. Managed allocations use all four launch observations/source: median and
 full range where readings differ, per complete invocation.
 
 | Workload | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
 | --- | --- | ---: |
-| Keyed aggregation / 65,536 records | 44.501→39.686; 44.452→39.395 | 10,416,571 [10,416,571–10,416,583]→10,416,578 |
-| Array-read control / 65,536 records | 49.040→49.517; 48.523→48.971 | 19,976,256 [19,976,192–19,976,537]→19,976,243 [19,976,198–19,976,343] |
-| Projection control / 65,536 records | 39.446→39.485; 39.598→38.599 | 11,443,027→11,443,027 |
+| Alternating array reads / 65,536 records | 38.345→34.742; 38.871→35.080 | 10,382,994 [10,382,994–10,383,000]→10,383,150 [10,383,150–10,383,160] |
+| Aggregation control / 65,536 records | 39.833→39.108; 41.755→39.802 | 10,416,578 [10,416,571–10,416,578]→10,416,578 |
+| Projection control / 65,536 records | 39.723→38.920; 39.347→38.728 | 11,443,027 [11,443,021–11,443,027]→11,443,027 |
 
-Field-key compound updates reuse the owned key and current value from one existing lookup.
-The key and numeric left value are captured before RHS evaluation, including suspension,
-record reuse and array replacement. Misses and writes retain the original admission/mutation
-path. Numeric index literals use the original runtime/profile evaluation, preserving fuel,
-conversion and error order without temporary UTF-8 literal parsing. No borrowed span escapes
-the synchronous lookup. The change adds 72 net runtime lines in 6 files;
-no new cache, owner or instruction representation.
+Field-key array reads with CPU-only indices can now join the existing bounded synchronous
+expression tree. The original lookups still handle hits, missing-key creation, aliases,
+special arrays, value snapshots and memory admission. Dynamic/pending/deep indices and the
+existing interpreter/VM, field-diagnostic and host boundaries retain their original paths.
+This adds 12 net runtime lines in one existing class, with no new cache, owner or engine.
 
-Four target launch-pair reductions: +10.03%, +11.64%, +9.24%, +13.47%.
-Array-read control: -0.97%/-0.92% less elapsed (negative means longer), a repeatable
-slowdown below 1%. Projection control: -0.10%/+2.52%. Neither is an attributed gain.
-The pilot's 11.48% array-read slowdown did not repeat; the original observation is retained.
+Alternating reads took **9.40%/9.75% less elapsed time** in the two source orders. The four
+launch-pair reductions were +5.72%, +12.98%, +10.61% and +8.92%; the pilot's +15.93% result
+is retained rather than substituted for confirmation. Aggregation controls were +1.82%/+4.68%
+less elapsed and projection +2.02%/+1.57%; these are not attributed gains.
 
-Managed allocations are effectively unchanged: the target cohort differs by about 7 bytes
-per invocation, with no allocation-savings claim. Existing-key steady updates have a dedicated
-allocation regression check. Counters prove 65,520 reused lookups and 131,040 fewer container
-probes; logical, host, conversion and resource counters match. Full Windows/Linux tests,
-exact GNU outputs, finite fuel/admission checks, negative mutations, stack probes and CI qualify.
+The target allocates about **157 more bytes per invocation**. A separate Windows allocation
+diagnostic at 16/4,096/65,536 records found the same 160-byte median increase, consistent with
+fixed preparation. Larger-case variation is retained; there is no allocation-savings claim.
+Counters prove 65,536 prepared actions and 131,072 fewer ordinary expression entries, while
+logical work, host effects, conversion and resource counts match. Full Windows/Linux tests,
+exact GNU outputs, finite fuel/admission checks, negative guards and stack probes qualify.
 The existing interpreter and regex defaults remain unchanged.
 
-One promising pilot and one balanced confirmation used stable identities, qualified quiet
-gates and no extra measurement-window SSH login. These controlled comparisons do not
-establish GNU parity or a cumulative gain. The complete baseline was not refreshed.
+One pilot and one balanced confirmation used stable identities, qualified quiet gates and
+no extra measurement-window SSH login. This embedded-only comparison establishes no fresh
+GNU ratio or cumulative gain. The complete baseline above and other named larger-input
+comparisons retain their stated source revisions; they were not refreshed for this change.
 
 ## Larger-input comparisons
 

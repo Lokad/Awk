@@ -97,6 +97,9 @@ condition/return checkpoint order; both branches contribute to existing preparat
 Multiple arguments use a fixed stack temporary and the original function frames;
 omitted/extra arguments and larger arities retain ordinary evaluation. Calls retain
 their original executor at VM, lint, pending-output, raised-syntax and stack-safety boundaries.
+Field-key array reads with CPU-only indices can join the same bounded expression regions.
+Their original lookup handles missing entries, aliases, special arrays and value snapshots;
+field-diagnostic, depth and pending-index boundaries retain the original fallback.
 
 `index`, `substr`, `tolower` and `toupper` evaluate arguments into value locals before
 conversion; other builtins use admitted staging where required. Actual result allocations
