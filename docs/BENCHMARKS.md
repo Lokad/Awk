@@ -1,8 +1,8 @@
 # Benchmarks
 
-Current scoped runtime: `d94caaa80dc03b41af3fbf20ef21240ce0df3af3`, measured 2026-10-17 UTC.
-Controlled while-loop medians take **25.8–26.5% less time**, with 400 bytes of extra preparation per invocation.
-All launch pairs and contrasting controls are reported below; no general or cumulative gain is claimed.
+Current scoped runtime: **1c8c9d3889b19afa2373b1f7481cd36a2af12d09**, measured 2026-10-17 UTC.
+Controlled ASCII-string medians take **9.7–11.1% less time**.
+Preparation adds bounded managed allocation per invocation; all launch pairs, allocations and controls follow.
 
 The complete **28-family baseline is retained** from 2026-10-17 at Release source
 `516ffd1800fe06f7a06a10a778553b4a19db1cee` against GNU awk 5.2.1. All first-table rows use that source.
@@ -55,56 +55,56 @@ Use these ratios to choose investigations; confirm apparent parity on larger inp
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC, runtime `3ff88fd7cf172dce96b144f591b292ca546797cb`
-→ `d94caaa80dc03b41af3fbf20ef21240ce0df3af3`, with identical harness and inputs.
-Baseline 3ff88fd adds only the common while fixture and its canonical golden; its runtime
-source matches c3de4b2. Three warmups/five iterations, two launches/source in both source orders. Times are medians
+Measured 2026-10-17 UTC, runtime **d94caaa80dc03b41af3fbf20ef21240ce0df3af3**
+→ **1c8c9d3889b19afa2373b1f7481cd36a2af12d09**, with identical harness and inputs.
+Three warmups/five iterations, two launches/source in both source orders. Times are medians
 of launch medians; allocations are GC MiB. This comparison is separate from the retained baseline above.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| While arithmetic | 7.639→5.614; 7.541→5.598 | 1.32→1.32; 1.32→1.32 |
-| Nested-call control | 3.359→3.377; 3.440→3.568 | 1.32→1.32; 1.32→1.32 |
-| For arithmetic control | 5.393→5.565; 5.465→5.391 | 1.32→1.32; 1.32→1.32 |
+| ASCII string operations | 3.264→2.901; 3.242→2.928 | 1.08→1.08; 1.08→1.08 |
+| While arithmetic control | 5.655→5.586; 5.576→5.674 | 1.32→1.32; 1.32→1.32 |
+| Nested-call control | 3.340→3.408; 3.502→3.385 | 1.32→1.32; 1.32→1.32 |
 
-Eligible pure `while` loops reuse the existing bounded synchronous loop kernel, avoiding
-per-iteration async completion, statement and empty-flush dispatch. For-loop eligibility is
-shared; the original while executor remains fallback. Host/output/control-flow bodies, lint,
-pending output and larger trees retain ordinary execution. Ordered evaluation, logical fuel,
-cancellation, admission and atomic mutations remain unchanged. No engine, IR or owner is added.
+Bounded pure scalar actions reuse the existing prepared-action path without requiring a user
+function call. This removes statement/completion/empty-flush dispatch and rewrite bookkeeping.
+The original AST/executor, setters and owners remain. VM, lint, pending output, larger trees
+and potentially diagnostic captured field modes retain ordinary execution before effects.
+No engine, IR, memory owner or regex backend is added.
 
-While-loop medians take **25.8–26.5% less time**. All four launch-pair reductions:
-+27.43%, +25.57%, +25.55%, +26.00%. Medium managed allocations: **1,383,155→1,383,555 bytes; 1,383,155→1,383,555 bytes**.
-The extra 400/400 bytes per invocation are bounded loop preparation, within the
-declared 512-byte budget; new storage is prepared once per program, without per-record growth.
-Both controls have unchanged allocations. Control reductions (positive means less time):
-nested calls -0.53% / -3.71%; for arithmetic -3.19% / +1.35%. No general, control or cumulative gain is claimed.
+ASCII-string medians take **9.7–11.1% less time**; all four launch-pair reductions:
++10.74%, +11.51%, +8.27%, +11.05%. Managed allocations: **1,128,000→1,128,448 bytes; 1,128,000→1,128,448 bytes**. Extra bytes/invocation in the two orders:
+strings 448/448, while 392/392, nested calls 0/0.
+The declared preparation budgets were 1,024 bytes for strings/while and zero for nested calls.
+New storage belongs to program preparation, with no per-record storage. Control reductions
+(positive means less time): while +1.22% / -1.75%; nested calls -2.03% / +3.34%. No general, control or cumulative gain is claimed.
 
 One qualified pilot and one balanced confirmation were run; all six source windows have
-qualified quiet gates, stable identities and no extra SSH login. The complete baseline is
-retained until the next declared milestone; this is the third accepted change in the next batch.
+qualified quiet gates, stable identities and no extra SSH login. The full baseline is retained
+until the next declared milestone; this is the fourth accepted change in the batch.
 
-The source passes **73,113 tests/OS**, 89 exact reference snapshots, 110 equivalent native goldens,
-30 limited-stack scenarios/OS and 32 unchanged finite-resource rows. One additional native case
-retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-The parsed while and empty-header for fixtures verify two kernel runs across two records
-in both engines. All 161 tested fuel boundaries match legacy values, indices and diagnostics;
-memory refusal leaves the target intact. Disabling while preparation fails four expected
-guards while 30 controls pass. Cancellation, lint, pending output, suspending bodies and
-break/continue/return/output fallback are covered.
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38997296818) passes;
-downloaded reports verify all 330 selected guards per OS.
+The source passes **73,125 tests/OS** and 343 selected guards, 89 exact reference snapshots,
+110 equivalent native goldens, 30 limited-stack scenarios/OS and 32 unchanged finite-resource
+rows. One additional native case retains the documented
+[numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
+The parsed string fixture proves two prepared actions. Fuel/caller parity, partial memory
+refusal, cancellation, policy/shape bounds and captured separators are covered. Restoring
+call-only preparation fails six expected guards while 99 controls pass. Generated code
+confirms the prepared dispatch route. [Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38999527009)
+passes; downloaded reports verify all 343 selected guards per OS.
 
 ## Scoped GNU comparisons
 
-While-loop rows use **d94caaa**, measured 2026-10-17 UTC, with nine alternating
-pairs/scale, exact output checks and qualified quiet gates. Nested-call rows retain
-2026-10-17 at c3de4b2; join rows retain 2026-10-17 at 516ffd1; other rows retain their
-explicitly named 2026-10-16 sources. All windows have stable identities and no extra SSH
+ASCII-string rows use **1c8c9d3**, measured 2026-10-17 UTC, with nine alternating
+pairs/scale, exact output checks and qualified quiet gates. While rows retain 2026-10-17
+at d94caaa; nested calls retain c3de4b2 and join retains 516ffd1 from that date. Other rows
+retain their named 2026-10-16 sources. All windows have stable identities and no extra SSH
 login. These paired comparisons are separate from both BenchmarkDotNet tables above.
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
+| ASCII strings / 52.00 / 4,096 | 1c8c9d3 | 2.871 | 1.541 | 1.86× | 1.08 |
+| ASCII strings / 832.00 / 65,536 | 1c8c9d3 | 45.409 | 9.840 | 4.61× | — |
 | While arithmetic / 8.00 / 4,096 | d94caaa | 5.527 | 2.899 | 1.91× | 1.32 |
 | While arithmetic / 128.00 / 65,536 | d94caaa | 87.786 | 31.020 | 2.83× | — |
 | Nested calls / 8.00 / 4,096 | c3de4b2 | 3.424 | 1.602 | 2.14× | 1.32 |
@@ -113,8 +113,6 @@ login. These paired comparisons are separate from both BenchmarkDotNet tables ab
 | Two-file join / 1,386.30 / 65,536 per file | 516ffd1 | 137.927 | 30.332 | 4.55× | — |
 | Field loop / 80.00 / 256 | f39d294 | 2.531 | 2.165 | 1.17× | 1.08 |
 | Field loop / 1,280.00 / 4,096 | f39d294 | 39.441 | 19.528 | 2.02× | — |
-| ASCII strings / 52.00 / 4,096 | c5c7a01 | 3.300 | 1.545 | 2.14× | 1.08 |
-| ASCII strings / 832.00 / 65,536 | c5c7a01 | 51.467 | 9.819 | 5.24× | — |
 | Changed case / 580.00 / 4,096 | 69c0a34 | 3.622 | 2.959 | 1.22× | 3.55 |
 | Changed case / 9,280.00 / 65,536 | 69c0a34 | 57.330 | 32.246 | 1.78× | — |
 | Call loop / 8.00 / 4,096 | f52d9f4 | 8.675 | 3.813 | 2.28× | 1.34 |
@@ -122,8 +120,8 @@ login. These paired comparisons are separate from both BenchmarkDotNet tables ab
 | Long fields / 1,025.50 / 256 | 7ad867d | 0.851 | 2.050 | 0.41× | 2.15 |
 | Long fields / 16,408.00 / 4,096 | 7ad867d | 13.349 | 16.624 | 0.80× | — |
 
-The current while script executes eight multiply/add/modulo updates per input record.
-Its paired GNU ratios are **1.91× medium / 2.83× large**.
+The current string script combines substr, index, length and lowercase conversion.
+Its paired GNU ratios are **1.86× medium / 4.61× large**.
 
 The other scoped rows retain their earlier revisions/dates. Scripts use the shared fixtures
 linked above. Only medium-scale managed allocations were measured by BenchmarkDotNet;
