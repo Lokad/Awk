@@ -727,6 +727,12 @@ internal sealed class AwkRuntimeState
             return AwkValue.FromNumber(number);
         }
 
+        if (_functions.TryResolveScalarLocalValue(slotId, out var value))
+        {
+            Counters.RecordScalarLocalValueRead();
+            return value;
+        }
+
         return _variableRuntime.ResolveFunctionLocalValue(slotId, name);
     }
 

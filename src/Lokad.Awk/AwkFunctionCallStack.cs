@@ -196,6 +196,21 @@ internal sealed class AwkFunctionCallStack(
         return false;
     }
 
+    public bool TryResolveScalarLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue value)
+    {
+        if (_frames.TryPeek(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
+        {
+            ref readonly var slot = ref frame.GetSlot(slotId.Index);
+            if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
+            {
+                value = createValue(slot.Value);
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
     public bool TryResolveLocal(AwkVariableName name, out AwkResolvedFunctionLocal local) =>
         TryResolveLocal(name, AwkFunctionLocalProjection.Kind, out local);
 

@@ -81,6 +81,8 @@ retain ordinary value admission and conversion.
 Function frames keep up to two locals inline; reset clears their references. Larger layouts retain pooled arrays.
 The frame-base estimate is 160 bytes plus local-entry estimates; storage changes can move optional memory thresholds.
 Function locals share scalar/array value conversion and retain prepared numeric values/spelling.
+After the Number fast path, established scalar locals use that same value factory directly;
+missing, untyped and array locals retain the general projection and promotion rules.
 Prepared scalar arguments reuse current kinds; value-size admission and long-text cancellation
 remain in ordinary evaluation. Missing locals and aliases retain original resolution.
 Established ordinary global arrays retain their kind after successful access; storage and

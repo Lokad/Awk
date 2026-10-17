@@ -835,6 +835,7 @@ public sealed class AwkPreparedFunctionRegionTests
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         Assert.Equal(6, counters.NumericLocalReads);
+        Assert.Equal(0, counters.ScalarLocalValueReads);
         Assert.Equal(99, state.ResolveFunctionLocalValue(slot, name).AsNumber());
         Assert.Equal(6, counters.NumericLocalReads);
         state.PushFunctionFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromText("007"))]);
@@ -844,12 +845,46 @@ public sealed class AwkPreparedFunctionRegionTests
             Assert.Equal("007", state.ResolveFunctionLocalValue(new(-1), name).AsString());
             Assert.Equal("007", state.ResolveFunctionLocalValue(new(9), name).AsString());
             Assert.Equal(6, counters.NumericLocalReads);
+            Assert.Equal(1, counters.ScalarLocalValueReads);
         }
         finally { state.PopFunctionFrame(); }
         Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, counters.ExecutionSteps);
         Assert.False(state.IsInsideFunction);
+    }
+
+    [Fact]
+    public void ScalarLocalValueReadsPreserveFailedAdmissionAndFrameLifetime()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = State(counters, AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(3)
+            .WithMaxExecutionMemoryBytes(1 << 20));
+        var name = AwkVariableName.FromText("x");
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        state.PushFunctionFrame(new([name]), [AwkFunctionArgument.Scalar(AwkValue.FromText("long"))]);
+        var frameBytes = state.MemoryAccounting.CurrentCommittedBytes;
+        try
+        {
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                Assert.Throws<AwkRuntimeException>(() => state.ResolveFunctionLocalValue(new(0), name));
+                Assert.True(state.IsInsideFunction);
+                Assert.Equal(frameBytes, state.MemoryAccounting.CurrentCommittedBytes);
+                Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+                Assert.Equal(0, counters.ScalarLocalValueReads);
+            }
+        }
+        finally { state.PopFunctionFrame(); }
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
+        state.PushFunctionFrame(new([name]), [AwkFunctionArgument.Scalar(AwkValue.FromText("007"))]);
+        try
+        {
+            Assert.Equal("007", state.ResolveFunctionLocalValue(new(0), name).AsString());
+            Assert.Equal(1, counters.ScalarLocalValueReads);
+        }
+        finally { state.PopFunctionFrame(); }
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
     }
 
     private static AwkProgram Bind(string source)

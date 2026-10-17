@@ -182,6 +182,13 @@ internal sealed class AwkRuntimeCounters
 
     public long NumericLocalReads { get; private set; }
 
+    public long ScalarLocalValueReads { get; private set; }
+
+    public void RecordScalarLocalValueRead()
+    {
+        if (_enabled) lock (_sync) ScalarLocalValueReads++;
+    }
+
     public long BoundGlobalArrayAccesses { get; private set; }
 
     public void RecordBoundGlobalArrayAccess()
