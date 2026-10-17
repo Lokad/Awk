@@ -1,21 +1,15 @@
 # Benchmarks
 
-Latest qualified optimization comparison: `f7d8b53ef6b659d2fe1a457e0a30bde48c823ec6`, measured 2026-10-17 UTC.
-Large-input nested calls take **2.46–3.08% less time** in the two source orders.
-Fresh GNU elapsed ratio for this workload: **4.50×**.
-
-The catalogue has 30 families. The complete **29-family baseline is retained** from
-2026-10-17 at Release source `3031909b6f9bc60582eb47dadcbaa09ea4e4aacd` against GNU awk 5.2.1.
-Every first-table row except alternating reads retains that source. The alternating row
-retains `bb6b432c10c2bdc4d7212bc9d2ced3326d9e94ef`, measured 2026-10-17 UTC.
-Four runtime changes have been accepted since the complete refresh; no overall parity or
-cumulative-gain claim. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
-
-The later file-action binding correction at `94563878d6f005381f8f61afbd5ebcd9cfc53b4a`
-does not refresh these tables. Compared with `651f2d03cb9fcfa53f3c9039e85876b0ca12c713`,
-its bounded large-input regression check used nested calls
-and aggregation: 0.89% less and 1.42% more elapsed time, respectively, with unchanged allocations.
-That single-launch check supports regression review; it is not a confirmed optimization gain.
+Latest qualified optimization comparison: `f51c41eab15b13e58e2184d7e4d4042c04b35974`, measured 2026-10-17 UTC.
+Large-input post-test arithmetic loops take **17.50–18.25% less time** in the two source orders.
+The catalogue has 31 families. The new post-test loop has a controlled comparison below;
+its GNU ratio is pending. The complete **29-family baseline is retained** from 2026-10-17
+at Release source `3031909b6f9bc60582eb47dadcbaa09ea4e4aacd` against GNU awk 5.2.1.
+Every first-table row except alternating reads retains that source. Alternating reads retains
+`bb6b432c10c2bdc4d7212bc9d2ced3326d9e94ef`, measured 2026-10-17 UTC.
+Five optimizations have been accepted since that complete refresh; a 31-family milestone
+refresh is now due. No overall parity or cumulative-gain claim. Interpreter/DotNetCompatibility
+remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
 
@@ -65,40 +59,30 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC: `73a3ad81ea4d4f00ccf3ffe5718d045c9dd5647c`
-→ `f7d8b53ef6b659d2fe1a457e0a30bde48c823ec6`, identical harness and inputs, **large scale**.
+Measured 2026-10-17 UTC: `fceeefb4883d939fdabaaaf94651e61f07800ad7`
+→ `f51c41eab15b13e58e2184d7e4d4042c04b35974`, identical harness and inputs, **large scale**.
 Three warmups/five iterations, two launches/source in both source orders. Times are medians
 of launch medians; allocations are managed bytes per complete invocation.
 
 | Workload | Median ms, before → after (two source orders) | Allocated bytes, before → after |
 | --- | --- | ---: |
-| Nested calls / 65,536 records | 48.178→46.994; 48.077→46.596 | 10,126,871→10,126,871 |
-| Numeric-call control / 65,536 records | 131.675→134.612; 133.251→133.665 | 10,152,400→10,152,400 |
-| Join control / 65,536 records per file | 125.800→127.279; 125.490→125.070 | 43,507,069→43,516,899; 43,507,072→43,507,130 |
+| Post-test arithmetic / 65,536 records | 102.756→84.773; 102.674→83.931 | 10,142,506→10,132,765; 10,132,666→10,132,765 |
+| While-loop control / 65,536 records | 80.340→79.428; 79.963→79.594 | 10,131,536→10,131,536; 10,131,536→10,131,536 |
+| Nested-call control / 65,536 records | 46.168→46.388; 46.072→46.667 | 10,126,871→10,126,871; 10,126,871→10,126,871 |
 
-Established scalar locals use their original value factory after the unchanged Number fast path,
-without general scalar/array projection transport. Missing, untyped and array cases retain
-original promotion/fallback. The change adds 31 net runtime lines in four files, one helper
-and an optional counter; no new owner, frame layout, argument buffer or per-record storage.
-Spelling, value admission, cancellation and actual-user lifetimes remain unchanged.
+Eligible `do…while` bodies reuse the existing bounded synchronous loop actions, preserving
+the mandatory first body, post-test order, logical checkpoints and scalar setters. Control-flow,
+host-capable, pending-output and lint cases keep ordinary execution. Existing `for`/`while`
+execution remains unchanged. The change adds 30 net runtime lines in three files, including
+an optional counter; no new owner, cache or instruction representation.
 
-Nested-call reductions are **2.46% / 3.08%**; four launch-pair reductions: +3.77%, +1.07%, +4.77%, +1.37%.
-Numeric-call control: -2.23% / -0.31% less elapsed (negative means longer).
-Join control: -1.18% / +0.33% less elapsed (negative means longer).
-Control results and small allocation differences are retained; no control gain is attributed
-to this path. The join reading exceeds the original 128-byte control allocation allowance.
-Review accepted its 0.023% managed-total difference with zero new-path hits; the original
-gate is recorded as failed. One pilot and one balanced confirmation pass quiet gates, stable identities
-and no additional SSH logins; no source/settings variants or retiming.
-
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39040038478) passes **73,267 tests/OS**,
-including 708 selected guards. Parsed large-workload path counts are 131,072 / 65,536 / 0;
-all original counters, 92 reference snapshots and 32 finite-resource rows match. Thirty stack
-scenarios/OS pass. Disabling the route fails four checks while four numeric-call controls pass.
-Native goldens have 123 equivalent cases plus the documented
-[numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-Only nested calls received a fresh large-input GNU comparison: nine alternating pairs with
-exact output and qualified quiet/identity/SSH gates. No complete-family refresh.
+Four target launch-pair reductions: +15.82%, +19.18%, +20.86%, +15.54%.
+While-loop control: +1.14% / +0.46% less elapsed (negative means longer).
+Nested-call control: -0.48% / -1.29% less elapsed (negative means longer).
+Controls are retained and are not attributed gains. Fixed compilation metadata was allowed
+up to 1,024 bytes per invocation; no per-record allocation was introduced. One pilot and one
+balanced confirmation qualified quiet gates, identities and SSH isolation. These are controlled
+source comparisons, not GNU parity or a refreshed complete baseline.
 
 ## Larger-input comparisons
 
