@@ -19,6 +19,13 @@ internal sealed class AwkRuntimeCounters
 
     public long RecordsRead { get; private set; }
 
+    public long ArrayContainerCacheHits { get; private set; }
+
+    public void RecordArrayContainerCacheHit()
+    {
+        if (_enabled) lock (_sync) ArrayContainerCacheHits++;
+    }
+
     public long PrintfSinkFormats { get; private set; }
 
     public void RecordPrintfSinkFormat()

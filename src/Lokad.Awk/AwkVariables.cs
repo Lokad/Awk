@@ -105,7 +105,7 @@ internal sealed class AwkVariables
         _resolveFieldCountValue = resolveFieldCountValue;
         _prepareOutputFieldSeparatorAssignment = prepareOutputFieldSeparatorAssignment ?? (() => { });
         _arrayKeyComparer = AwkArrayKeyComparer.ForRuntime(checkpoint, counters, memoryAccounting);
-        _arrays = new AwkArrayStorage(_arrayKeyComparer);
+        _arrays = new AwkArrayStorage(_arrayKeyComparer, counters);
         _symbolTable = new AwkSymbolTableArray(
             () => _globalNames,
             EnumerateScalarInventory,
