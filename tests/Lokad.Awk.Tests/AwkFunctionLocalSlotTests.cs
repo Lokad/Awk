@@ -7,6 +7,37 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionLocalSlotTests
 {
     [Fact]
+    public void ScalarArgumentOrdinalsRespectCurrentKindsAndActiveLayout()
+    {
+        var stack = CreateCallStack(AwkRuntimeCounters.Disabled);
+        var first = new AwkFunctionLocalSlotId(0);
+        Assert.False(stack.HasScalarLocal(first));
+        AwkVariableName[] names = [AwkVariableName.FromText("x"), AwkVariableName.FromText("y"),
+            AwkVariableName.FromText("potential"), AwkVariableName.FromText("array"), AwkVariableName.FromText("missing")];
+        var array = AwkArrayName.FromText("a");
+        stack.PushFrame(new AwkFunctionLocalLayout(names), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(7)),
+            AwkFunctionArgument.Scalar(AwkValue.FromNumericString("007")),
+            AwkFunctionArgument.PotentialArray(array), AwkFunctionArgument.Array(array)]);
+        try
+        {
+            Assert.True(stack.HasScalarLocal(first));
+            Assert.True(stack.HasScalarLocal(new AwkFunctionLocalSlotId(1)));
+            foreach (var index in new[] { -1, 2, 3, 4, 5, int.MaxValue })
+                Assert.False(stack.HasScalarLocal(new AwkFunctionLocalSlotId(index)));
+            Assert.True(stack.TryResolveLocal(names[4], out var missing));
+            Assert.Equal(AwkFunctionLocalSlotKind.MissingScalar, missing.Kind);
+            Assert.True(stack.TryAssignLocal(new AwkFunctionLocalSlotId(4), AwkValue.FromNumber(9)));
+            Assert.True(stack.HasScalarLocal(new AwkFunctionLocalSlotId(4)));
+            stack.PushFrame(new AwkFunctionLocalLayout([names[0]]), [AwkFunctionArgument.Array(array)]);
+            try { Assert.False(stack.HasScalarLocal(first)); }
+            finally { stack.PopFrame(static _ => { }); }
+            Assert.True(stack.HasScalarLocal(first));
+        }
+        finally { stack.PopFrame(static _ => { }); }
+        Assert.False(stack.HasScalarLocal(first));
+    }
+
+    [Fact]
     public void AwkFunctionCallStack_ReusesFrameAndSlotStorage()
     {
         var stack = CreateCallStack(AwkRuntimeCounters.Disabled);

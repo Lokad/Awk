@@ -295,8 +295,15 @@ internal abstract partial class AwkExpression
         AwkVariableName name,
         AwkFunctionLocalSlotId slotId) : AwkSynchronousExpression
     {
-        internal override bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument) =>
-            state.TryResolveArrayArgument(name, out argument);
+        internal override bool TryResolveArrayArgument(AwkRuntimeState state, out AwkFunctionArgument argument)
+        {
+            if (state.HasPreparedLocalScalarArgument(slotId))
+            {
+                argument = default;
+                return false;
+            }
+            return state.TryResolveArrayArgument(name, out argument);
+        }
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.ResolveFunctionLocalValue(slotId, name);

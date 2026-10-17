@@ -3,6 +3,27 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPreparedNumericInputTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LocalArgumentTypeProbeDoesNotReadOrAdmitTheValue(bool numericInput)
+    {
+        var state = CreateState(maxValueBytes: 3);
+        var value = numericInput ? AwkValue.FromNumericString("12345") : AwkValue.FromText("12345");
+        using var frame = Store(state, value, 2);
+        var created = state.Counters.ValuesCreated;
+        var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        Assert.True(state.HasPreparedLocalScalarArgument(new AwkFunctionLocalSlotId(0)));
+        Assert.Equal(1, state.Counters.BoundLocalScalarArguments);
+        Assert.Equal(created, state.Counters.ValuesCreated);
+        var error = Assert.Throws<AwkRuntimeException>(() => Read(state, 2));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal(created, state.Counters.ValuesCreated);
+        Assert.Equal(0, state.Counters.PreparedNumericSlotReads);
+        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+    }
+
+    [Theory]
     [InlineData("123.5", 123.5, 0)]
     [InlineData("123.5", 123.5, 1)]
     [InlineData("123.5", 123.5, 2)]

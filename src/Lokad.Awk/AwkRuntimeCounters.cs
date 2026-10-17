@@ -164,6 +164,13 @@ internal sealed class AwkRuntimeCounters
 
     public long PreparedNumericSlotReads { get; private set; }
 
+    public long BoundLocalScalarArguments { get; private set; }
+
+    public void RecordBoundLocalScalarArgument()
+    {
+        if (_enabled) lock (_sync) BoundLocalScalarArguments++;
+    }
+
     public void RecordPreparedNumericSlotRead()
     {
         if (_enabled) lock (_sync) PreparedNumericSlotReads++;

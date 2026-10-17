@@ -20,6 +20,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("36\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(8, result.Counters.PreparedNumericSlotReads);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 4 : 0,
+            result.Counters.BoundLocalScalarArguments);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
         Assert.Equal(0, result.Counters.FunctionStackSuspensions);

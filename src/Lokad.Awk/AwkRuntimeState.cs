@@ -614,6 +614,13 @@ internal sealed class AwkRuntimeState
     public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument) =>
         _variableRuntime.TryResolveArrayArgument(name, out argument);
 
+    internal bool HasPreparedLocalScalarArgument(AwkFunctionLocalSlotId slotId)
+    {
+        if (!_functions.HasScalarLocal(slotId)) return false;
+        Counters.RecordBoundLocalScalarArgument();
+        return true;
+    }
+
     public bool TryGetExistingArrayCount(AwkArrayName name, out int count) =>
         _variableRuntime.TryGetExistingArrayCount(name, out count);
 

@@ -20,6 +20,11 @@ internal sealed class AwkFunctionCallStack(
 
     public bool IsInsideFunction => _frames.Count > 0;
 
+    public bool HasScalarLocal(AwkFunctionLocalSlotId slotId) =>
+        _frames.TryPeek(out var frame) &&
+        (uint)slotId.Index < (uint)frame.Layout.SlotCount &&
+        frame.Slots[slotId.Index].Kind == AwkFunctionLocalSlotKind.Scalar;
+
     public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments)
     {
         static long EstimateFrameBytes(AwkFunctionFrame frame)
