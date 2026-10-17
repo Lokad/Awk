@@ -1,13 +1,13 @@
 # Benchmarks
 
-Current scoped runtime: `47e3aa40777f5744c1048ce5c62adee4cce0452a`, measured 2026-10-17 UTC.
-Controlled filtering takes **9.1–9.6% less time**, with 408 extra managed bytes per invocation.
-Controls and all launch pairs are reported below.
+Current scoped runtime: `c90b108e9c48533c376bee6db0d72d3964edea0b`, measured 2026-10-17 UTC.
+Controlled filtering takes **5.1–8.0% less time**, with unchanged managed allocation.
+Arithmetic control takes **0.7–3.8% longer**; join is mixed. All launch pairs are reported below.
 
 The complete **29-family baseline is retained** from 2026-10-17 at Release source
 `e4408c325212647d31fdc93ce7f99e8d2c989392` against GNU awk 5.2.1. All first-table rows use that source.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
-This is the third accepted optimization since the complete refresh.
+This is the fourth accepted optimization since the complete refresh.
 
 ## Representative processing
 
@@ -55,48 +55,51 @@ Use these ratios to choose investigations; confirm apparent parity on larger inp
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC, runtime `24de9e74bfc72586d3feada6f77df84ede2fcc04`
-→ `47e3aa40777f5744c1048ce5c62adee4cce0452a`, with identical harness and inputs.
+Measured 2026-10-17 UTC, runtime `47e3aa40777f5744c1048ce5c62adee4cce0452a`
+→ `c90b108e9c48533c376bee6db0d72d3964edea0b`, with identical harness and inputs.
 Three warmups/five iterations, two launches/source in both source orders. Times are medians
 of launch medians; allocations are GC MiB. This is separate from the retained baseline above.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| Three-field filter | 2.588→2.340; 2.621→2.384 | 0.71→0.71; 0.71→0.71 |
-| Arithmetic control | 4.999→5.003; 5.061→4.929 | 0.72→0.72; 0.72→0.72 |
-| Projection control | 2.478→2.415; 2.461→2.430 | 0.75→0.75; 0.75→0.75 |
+| Three-field filter | 2.274→2.092; 2.313→2.196 | 0.71→0.71; 0.71→0.71 |
+| Two-file join control | 7.399→7.290; 7.492→7.514 | 3.04→3.04; 3.04→3.04 |
+| Arithmetic control | 5.006→5.195; 4.954→4.989 | 0.72→0.72; 0.72→0.72 |
 
-Eligible complete scalar `if`/`else` actions reuse existing synchronous expression kernels,
-scalar setters and action guards. This removes internal condition/statement/block completion
-handling. Preparation stops at four conditional levels and 16 statements across an action.
-Field diagnostics, lint, pending output, host operations, flow signals and larger shapes retain
-ordinary execution. Exact checkpoints, short circuiting, mutation preflights, contexts and
-pending-user lifetimes remain. No new execution engine, record IR, cache or memory owner.
+Borrowed field/literal byte comparisons use the existing deferred-text factory for unused
+short literal values. This removes eager numeric parsing while preserving literal admission,
+value counts, byte comparison, exact fuel and strict UTF-8. Literals of at least 4,096 bytes
+retain original parsing/checkpoints; cached/modified fields, `$0`, case folding and nondecimal
+modes retain ordinary conversion. The change adds 10 net runtime lines in two files and no
+AST metadata, cache, owner or admission mechanism.
 
-Filter medians take **9.1–9.6% less time**; all four launch-pair reductions:
-+11.85%, +7.31%, +13.47%, +4.75%.
-Candidate launch spread is 5.5%/11.1% across source orders; every launch pair improves.
-Managed allocation is **745,034→745,442 bytes** in both orders: **408 bytes/invocation** more
-fixed preparation metadata, within the declared 1,024-byte budget. Arithmetic and projection
-each allocate 24 bytes less; 32 finite-resource rows and logical counters remain identical.
+Filter medians take **5.1–8.0% less time**; all four launch-pair reductions:
++5.59%, +10.38%, +5.46%, +4.68%.
+All confirmation allocations are unchanged: filter **745,442 bytes**, join **3,185,311 bytes**,
+arithmetic **759,962 bytes** per invocation. Fields, value-created counts, comparisons,
+execution steps, conversions and all 32 finite-resource rows remain identical.
 
-Control reductions (positive means less time): arithmetic -0.09% / +2.60%;
-projection +2.54% / +1.27%. No general/control or cumulative gain is claimed.
-One pilot and one balanced confirmation qualify, with quiet gates, stable identities and
-no extra SSH login in all six source windows. No variants, retiming or full refresh.
+Control reductions (positive means less time): join +1.46% / -0.29%;
+arithmetic -3.78% / -0.72%. Arithmetic therefore takes **3.78%/0.72% longer**. Both orders
+remain within the declared 4% limit for recurring control regressions. Candidate launch spread
+in the first order is 8.3%; the cause is unproven. No general/control or cumulative gain is claimed.
+The pilot's arithmetic result was 8.61% longer; that full magnitude did not repeat. A pilot
+15-byte join allocation difference also did not repeat and remains unexplained.
+One pilot/one balanced confirmation qualify with quiet gates, stable identities and no extra
+SSH login in all six source windows. No variants, retiming or full baseline refresh.
 
-The source passes **73,182 tests/OS**, including 437 selected guards, 89 exact reference
-snapshots and 30 limited-stack scenarios/OS. The parsed filter verifies 4,096 conditional
-actions with unchanged field materialization, execution steps and UTF-8 conversion counters.
-Fuel/partial-state, branch, depth/work, memory-refusal and pending/canceled-context checks pass;
-two negative mutations cause three expected failures while 11 controls pass.
-Native goldens have 111 equivalent cases and one documented
+The source passes **73,190 tests/OS**, including 450 selected guards, 89 exact reference
+snapshots and 30 limited-stack scenarios/OS. The parsed filter verifies 12,288 deferred
+literal admissions with all original logical work unchanged. Threshold, refusal/cancellation,
+record immutability, quoted numeric/space/special/UTF-8 text and fallback checks pass.
+Two negative mutations produce seven expected failures while 11 controls pass. Native goldens
+have 112 equivalent cases and one documented
 [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39014278009) passes.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39016023342) passes.
 
 ## Scoped GNU comparisons
 
-Filter rows use **47e3aa4**, measured 2026-10-17 UTC, with nine alternating pairs/scale,
+Filter rows use **c90b108**, measured 2026-10-17 UTC, with nine alternating pairs/scale,
 exact output checks and qualified quiet gates. Nested calls retain 24de9e7, join c9d7c74,
 for arithmetic e4408c3, strings 1c8c9d3 and while d94caaa from that date.
 Other rows retain their named 2026-10-16 sources. All windows have stable identities and
@@ -104,8 +107,8 @@ no extra SSH login. These comparisons are separate from both BenchmarkDotNet tab
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Three-field filter / 24.00 / 4,096 | 47e3aa4 | 2.327 | 1.530 | 1.52× | 0.71 |
-| Three-field filter / 384.00 / 65,536 | 47e3aa4 | 36.404 | 8.991 | 4.05× | — |
+| Three-field filter / 24.00 / 4,096 | c90b108 | 2.147 | 1.525 | 1.41× | 0.71 |
+| Three-field filter / 384.00 / 65,536 | c90b108 | 33.969 | 8.946 | 3.80× | — |
 | Nested calls / 8.00 / 4,096 | 24de9e7 | 3.100 | 1.619 | 1.91× | 0.72 |
 | Nested calls / 128.00 / 65,536 | 24de9e7 | 48.587 | 10.418 | 4.66× | — |
 | Two-file join / 77.83 / 4,096 per file | c9d7c74 | 7.345 | 2.820 | 2.60× | 3.04 |
@@ -126,7 +129,7 @@ no extra SSH login. These comparisons are separate from both BenchmarkDotNet tab
 | Long fields / 16,408.00 / 4,096 | 7ad867d | 13.349 | 16.624 | 0.80× | — |
 
 The current filter uses three short-circuit field comparisons and a scalar count.
-Its paired GNU ratios are **1.52× medium / 4.05× large**.
+Its paired GNU ratios are **1.41× medium / 3.80× large**.
 The larger case still has a substantial gap; the controlled medium gain is not a scaled-input claim.
 
 The other scoped rows retain their earlier revisions/dates. Scripts use the shared fixtures
@@ -157,7 +160,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*filter*' '*WorkloadAllocationBenchmarks*medium*arithmetic-loops*' '*WorkloadAllocationBenchmarks*medium*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*filter*' '*WorkloadAllocationBenchmarks*medium*arithmetic-loops*' '*WorkloadAllocationBenchmarks*medium*two-file*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
