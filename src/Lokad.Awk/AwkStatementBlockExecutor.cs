@@ -15,7 +15,7 @@ internal static class AwkStatementBlockExecutor
         {
             var statement = functions is { Count: > 0 }
                 ? statements[index].PrepareSynchronousCalls(functions) : statements[index];
-            if (!statement.TryPrepareSynchronousAction(out actions[index])) return null;
+            if (!statement.TryPrepareTopLevelSynchronousAction(out actions[index])) return null;
         }
         return Execute;
 

@@ -87,6 +87,13 @@ internal abstract partial class AwkStatement
     {
         private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(initializer, condition, increment, body, synchronousFunctions);
 
+        internal override bool TryPrepareTopLevelSynchronousAction(out Action<AwkEvaluationContext> action)
+        {
+            if (_synchronous is not { } prepared) return base.TryPrepareTopLevelSynchronousAction(out action);
+            action = context => prepared.Execute(context);
+            return true;
+        }
+
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var state = context.State;
@@ -137,6 +144,13 @@ internal abstract partial class AwkStatement
     {
         private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(
             NoOp(), condition, NoOp(), body);
+
+        internal override bool TryPrepareTopLevelSynchronousAction(out Action<AwkEvaluationContext> action)
+        {
+            if (_synchronous is not { } prepared) return base.TryPrepareTopLevelSynchronousAction(out action);
+            action = context => prepared.Execute(context);
+            return true;
+        }
 
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
