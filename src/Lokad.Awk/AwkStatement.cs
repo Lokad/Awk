@@ -198,6 +198,14 @@ internal abstract partial class AwkStatement
     internal virtual AwkStatement PrepareSynchronousCalls(
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) => this;
 
+    internal virtual bool TryGetLocalAssignment(
+        out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkExpression value)
+    {
+        local = default;
+        value = AwkSynchronousExpression.Unavailable;
+        return false;
+    }
+
     internal virtual bool TryGetReturnExpression(out AwkExpression expression)
     {
         expression = AwkSynchronousExpression.Unavailable;

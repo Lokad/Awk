@@ -67,6 +67,16 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         return TryGetReturnExpression(out expression);
     }
 
+    internal bool TryGetLocalAssignmentReturnBody(
+        out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local,
+        out AwkExpression value, out AwkExpression expression)
+    {
+        local = default;
+        value = expression = AwkSynchronousExpression.Unavailable;
+        return _statements.Length == 2 && _statements[0].TryGetLocalAssignment(out local, out value) &&
+            _statements[1].TryGetReturnExpression(out expression);
+    }
+
     public AwkFunctionName FunctionName { get; }
 
     public string Name => FunctionName.Text;
@@ -201,6 +211,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
 
             if (_synchronous is { } prepared && !state.UsesExecutableEngine && state.LintMode == AwkLintMode.Off &&
                 state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
+                (!prepared.HasLocalAssignment || state.FieldsCannotReportRegexDiagnostics) &&
                 !execution.Output.HasPendingOutput && RuntimeHelpers.TryEnsureSufficientExecutionStack())
                 return prepared.EvaluateBody(context);
 

@@ -895,7 +895,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         return binding.Program.Program;
     }
 
-    private static async Task<Result> RunAsync(string source, bool ordinary, int fuel = 0, int functionDepth = 0)
+    private static async Task<Result> RunAsync(string source, bool ordinary, int fuel = 0, int functionDepth = 0,
+        AwkRuntimeLimits? limitsOverride = null)
     {
         var program = Bind(source);
         var beginActions = program.BeginActions;
@@ -915,14 +916,18 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var functions = program.Functions.ToDictionary(pair => pair.Key, pair => pair.Value);
         if (ordinary)
             foreach (var (name, function) in program.Functions)
-                if (function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative))
+                if (function.TryGetLocalAssignmentReturnBody(out var local, out var prefix, out var returned))
+                    functions[name] = new(name, function.LocalLayout,
+                        [AwkStatement.Assignment(AwkReference.LocalScalar(local.Name, local.Slot), prefix),
+                         AwkStatement.Return(AwkOptionalExpression.Some(returned))]);
+                else if (function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative))
                     functions[name] = new(name, function.LocalLayout, condition.SynchronousDepth > 0
                         ? [AwkStatement.If(new([[AwkConditionClause.Truthy(condition)]]),
                             [AwkStatement.Return(AwkOptionalExpression.Some(expression))]),
                             AwkStatement.Return(AwkOptionalExpression.Some(alternative))]
                         : [AwkStatement.Return(AwkOptionalExpression.Some(expression))]);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+        var limits = limitsOverride ?? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
         if (fuel > 0) limits = limits.WithMaxExecutionSteps(fuel);
         if (functionDepth > 0) limits = limits.WithMaxFunctionCallDepth(functionDepth);
         var state = State(counters, limits);

@@ -57,7 +57,8 @@ internal abstract partial class AwkExpression
             int remainingDepth, out AwkSynchronousExpression expression)
         {
             if (remainingDepth > 0 && arguments.Count <= 4 && functions.TryGetValue(name, out var function) &&
-                function.Layout.SlotCount == arguments.Count)
+                (function.Layout.SlotCount == arguments.Count ||
+                    (function.HasLocalAssignment && arguments.Count < function.Layout.SlotCount && function.Layout.SlotCount <= 4)))
             {
                 var operands = new AwkSynchronousExpression[arguments.Count];
                 for (var index = 0; index < operands.Length; index++)

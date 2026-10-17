@@ -288,6 +288,14 @@ internal abstract partial class AwkExpression
     internal virtual AwkExpression PrepareSynchronousCallAction(
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) => this;
 
+    internal virtual bool TryGetLocalAssignment(
+        out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkExpression value)
+    {
+        local = default;
+        value = AwkSynchronousExpression.Unavailable;
+        return false;
+    }
+
     /// <summary>Evaluates this expression after the shared execution-step and cancellation checks have run.</summary>
     protected abstract ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context);
 

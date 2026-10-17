@@ -6,6 +6,8 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
 {
     private readonly AwkSynchronousExpression _condition = AwkSynchronousExpression.Unavailable;
     private readonly AwkSynchronousExpression _alternative = body;
+    private readonly AwkSynchronousExpression _prefix = AwkSynchronousExpression.Unavailable;
+    private readonly (AwkVariableName Name, AwkFunctionLocalSlotId Slot) _local;
 
     private AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkSynchronousExpression body,
         AwkSynchronousExpression condition, AwkSynchronousExpression alternative) : this(layout, body)
@@ -14,17 +16,31 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
         _alternative = alternative;
     }
 
+    private AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkSynchronousExpression body,
+        (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, AwkSynchronousExpression prefix) : this(layout, body)
+    {
+        _local = local;
+        _prefix = prefix;
+    }
+
     public AwkFunctionLocalLayout Layout { get; } = layout;
     public AwkSynchronousExpression Body { get; } = body;
-    internal int SynchronousDepth => Math.Max(Body.SynchronousDepth,
-        Math.Max(_condition.SynchronousDepth, _alternative.SynchronousDepth));
-    internal int SynchronousCallDepth => Math.Max(Body.SynchronousCallDepth,
-        Math.Max(_condition.SynchronousCallDepth, _alternative.SynchronousCallDepth));
+    internal bool HasLocalAssignment => _prefix.SynchronousDepth > 0;
+    internal int SynchronousDepth => Math.Max(_prefix.SynchronousDepth, Math.Max(Body.SynchronousDepth,
+        Math.Max(_condition.SynchronousDepth, _alternative.SynchronousDepth)));
+    internal int SynchronousCallDepth => Math.Max(_prefix.SynchronousCallDepth, Math.Max(Body.SynchronousCallDepth,
+        Math.Max(_condition.SynchronousCallDepth, _alternative.SynchronousCallDepth)));
 
     public AwkValue EvaluateBody(AwkEvaluationContext context)
     {
         var state = context.State;
         state.Counters.RecordSynchronousFunction();
+        if (HasLocalAssignment)
+        {
+            state.RecordExecutionStep(); // Assignment statement in the function block.
+            state.RecordExecutionStep(); // Assignment expression, before its value.
+            state.AssignFunctionLocalValue(_local.Slot, _local.Name, _prefix.EvaluateSynchronous(context));
+        }
         var selected = Body;
         if (_condition.SynchronousDepth > 0)
         {
@@ -46,14 +62,24 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
             foreach (var (name, function) in functions)
             {
                 checkpoint?.Invoke();
-                if (prepared.ContainsKey(name) ||
-                    !function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative) ||
-                    !expression.TryPrepareFunctionCalls(prepared, 16, out var body)) continue;
-                var otherwise = body;
-                if (condition.SynchronousDepth > 0 && (condition.SynchronousDepth > 16 ||
-                    !alternative.TryPrepareFunctionCalls(prepared, 16, out otherwise))) continue;
-                var candidate = new AwkSynchronousFunction(function.LocalLayout, body, condition, otherwise);
-                if (candidate.SynchronousCallDepth >= 4) continue;
+                if (prepared.ContainsKey(name)) continue;
+                AwkSynchronousFunction candidate;
+                if (function.TryGetLocalAssignmentReturnBody(out var local, out var value, out var result))
+                {
+                    if (!value.TryPrepareFunctionCalls(prepared, 16, out var prefix) ||
+                        !result.TryPrepareFunctionCalls(prepared, 16, out var returned)) continue;
+                    candidate = new(function.LocalLayout, returned, local, prefix);
+                }
+                else
+                {
+                    if (!function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative) ||
+                        !expression.TryPrepareFunctionCalls(prepared, 16, out var body)) continue;
+                    var otherwise = body;
+                    if (condition.SynchronousDepth > 0 && (condition.SynchronousDepth > 16 ||
+                        !alternative.TryPrepareFunctionCalls(prepared, 16, out otherwise))) continue;
+                    candidate = new(function.LocalLayout, body, condition, otherwise);
+                }
+                if (candidate.SynchronousDepth > 16 || candidate.SynchronousCallDepth >= 4) continue;
                 prepared.Add(name, candidate);
             }
             if (prepared.Count == count) break;

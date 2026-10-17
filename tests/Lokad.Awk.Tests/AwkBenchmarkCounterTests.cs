@@ -11,6 +11,25 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task ParsedLocalAssignmentReturnsPrepareCallsAndOmittedLocalSlots(AwkExecutionEngineKind engine)
+    {
+        var result = await RunAsync(
+            ["function step(x,a,t){t=(x*3+a)%101;return t} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}"],
+            "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 16 : 0, result.Counters.SynchronousFunctionRuns);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 0 : 16, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousLoopRuns);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousActionRuns);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task ParsedFieldArrayReadsUseExistingBoundedAction(AwkExecutionEngineKind engine)
     {
         var result = await RunAsync(["BEGIN{a[\"café\"]=7;b[\"café\"]=3} {n+=a[$1]+b[$1]} END{print n,length(a),length(b)}"],

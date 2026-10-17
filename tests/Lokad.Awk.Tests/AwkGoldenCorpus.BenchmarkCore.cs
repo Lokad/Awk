@@ -5,6 +5,12 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("local-assignment-return-keeps-arguments-and-omitted-locals",
+            ["function step(x,a,t){t=(x*3+a)%101;return t} BEGIN{x=7;t=91;print step(x++,x++),x,t;print step(0);print step(7,8,123)}"],
+            [], "29 9 91\n0\n29\n");
+        yield return Passing("local-assignment-return-keeps-text-and-array-aliases",
+            ["function keep(x,t){t=x;return t} function count(a,t){t=length(a);return t} BEGIN{t=91;a[1]=7;print keep(\"café\"),keep(\"007\"),\"[\" keep(missing) \"]\",count(a),t}"],
+            [], "café 007 [] 1 91\n");
         yield return Passing("field-array-region-keeps-hits-misses-and-utf8-keys",
             ["BEGIN{a[\"café\"]=7;b[\"café\"]=3} {n+=a[$1]+b[$1]} END{print n,length(a),length(b),a[\"missing\"]+0}"],
             [], "20 2 2 0\n", "café\nmissing\ncafé\n");

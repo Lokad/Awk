@@ -38,6 +38,10 @@ internal abstract partial class AwkStatement
 
     private sealed class ExpressionStatement(AwkExpression expression) : AwkStatement
     {
+        internal override bool TryGetLocalAssignment(
+            out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkExpression value) =>
+            expression.TryGetLocalAssignment(out local, out value);
+
         internal override AwkStatement PrepareSynchronousCalls(
             IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions)
         {

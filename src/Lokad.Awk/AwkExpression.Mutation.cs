@@ -26,6 +26,18 @@ internal abstract partial class AwkExpression
 
     private sealed class AssignmentExpression(AwkReference target, AwkExpression valueExpression) : AwkExpression
     {
+        internal override bool TryGetLocalAssignment(
+            out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkExpression value)
+        {
+            if (target is AwkLocalScalarReference scalar)
+            {
+                local = (scalar.Variable, scalar.SlotId);
+                value = valueExpression;
+                return true;
+            }
+            return base.TryGetLocalAssignment(out local, out value);
+        }
+
         internal override AwkExpression PrepareSynchronousCallAction(
             IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) =>
             valueExpression.TryPrepareFunctionCalls(functions, 16, out var value) && !ReferenceEquals(value, valueExpression)
