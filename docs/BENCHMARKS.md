@@ -1,6 +1,6 @@
 # Benchmarks
 
-Current scoped runtime: `f7d8b53ef6b659d2fe1a457e0a30bde48c823ec6`, measured 2026-10-17 UTC.
+Latest qualified optimization comparison: `f7d8b53ef6b659d2fe1a457e0a30bde48c823ec6`, measured 2026-10-17 UTC.
 Large-input nested calls take **2.46–3.08% less time** in the two source orders.
 Fresh GNU elapsed ratio for this workload: **4.50×**.
 
@@ -10,6 +10,12 @@ Every first-table row except alternating reads retains that source. The alternat
 retains `bb6b432c10c2bdc4d7212bc9d2ced3326d9e94ef`, measured 2026-10-17 UTC.
 Four runtime changes have been accepted since the complete refresh; no overall parity or
 cumulative-gain claim. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
+
+The later file-action binding correction at `94563878d6f005381f8f61afbd5ebcd9cfc53b4a`
+does not refresh these tables. Compared with `651f2d03cb9fcfa53f3c9039e85876b0ca12c713`,
+its bounded large-input regression check used nested calls
+and aggregation: 0.89% less and 1.42% more elapsed time, respectively, with unchanged allocations.
+That single-launch check supports regression review; it is not a confirmed optimization gain.
 
 ## Representative processing
 
