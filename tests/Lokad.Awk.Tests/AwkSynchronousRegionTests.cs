@@ -1,6 +1,6 @@
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkSynchronousRegionTests
+public sealed partial class AwkSynchronousRegionTests
 {
     [Fact]
     public async Task PreparedWhileMatchesLegacyAtEveryFuelBoundary()
@@ -328,7 +328,7 @@ public sealed class AwkSynchronousRegionTests
         long Reserved, string Output, string Error);
 
     private static async Task<Result> RunLoop(bool forceLegacy, int fuel, bool pendingOutput,
-        bool whileLoop = false, bool lint = false, bool failMemory = false)
+        bool whileLoop = false, bool lint = false, bool failMemory = false, bool doWhileLoop = false)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = State(counters, fuel, lint: lint);
@@ -339,7 +339,7 @@ public sealed class AwkSynchronousRegionTests
             AwkExpression.Number("1", 1)), AwkExpression.Number("101", 101));
         var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1),
             failMemory ? AwkExpression.Literal(new string('x', 2 << 20)) : value);
-        var loop = Loop(forceLegacy ? new ForwardingStatement(body) : body, whileLoop: whileLoop);
+        var loop = Loop(forceLegacy ? new ForwardingStatement(body) : body, whileLoop: whileLoop, doWhileLoop: doWhileLoop);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
@@ -383,12 +383,14 @@ public sealed class AwkSynchronousRegionTests
             throw new InvalidOperationException("Preparation must not execute a statement.");
     }
 
-    private static AwkStatement Loop(AwkStatement body, int iterations = 8, bool whileLoop = false)
+    private static AwkStatement Loop(AwkStatement body, int iterations = 8, bool whileLoop = false, bool doWhileLoop = false)
     {
         var name = AwkVariableName.FromText("i");
         var reference = AwkReference.PreparedGlobalScalar(name, 0);
         var condition = new AwkCondition([[AwkConditionClause.Comparison(AwkExpression.PreparedGlobalVariable(name, 0),
             AwkExpression.Number(iterations.ToString(System.Globalization.CultureInfo.InvariantCulture), iterations), AwkComparison.LessThan)]]);
+        if (doWhileLoop)
+            return AwkStatement.DoWhile([body, AwkStatement.PostIncrement(reference)], condition);
         if (whileLoop)
             return AwkStatement.While(condition, [body, AwkStatement.PostIncrement(reference)]);
         return AwkStatement.For(AwkStatement.Assignment(reference, AwkExpression.Number("0", 0)), condition,

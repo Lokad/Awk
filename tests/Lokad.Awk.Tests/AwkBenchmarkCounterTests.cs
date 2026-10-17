@@ -11,6 +11,22 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task ParsedDoWhileArithmeticUsesBoundedLoopKernel(AwkExecutionEngineKind engine)
+    {
+        var result = await RunAsync(["{x=$1;i=0;do{x=(x*3+1)%101;i++}while(i<8);total+=x} END{print total}"],
+            "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, result.Counters.SynchronousDoWhileLoopRuns);
+        if (engine == AwkExecutionEngineKind.Executable)
+            Assert.True(result.Counters.VmFallbackCalls > 0);
+        Assert.Equal(2, result.Counters.RecordsRead);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task ParsedFileActionsKeepPhysicalCallerDepthAndNestedLocals(AwkExecutionEngineKind engine)
     {
         const string source = "function helper(x){print \"helper\",x;return x+1} function readNext(x){getline line;print \"caller\",x} BEGIN{readNext(\"local\")} BEGINFILE{print \"file\",x;print \"nested\",helper(2)}";

@@ -21,6 +21,13 @@ internal sealed class AwkRuntimeCounters
 
     public long ArrayContainerCacheHits { get; private set; }
 
+    public long SynchronousDoWhileLoopRuns { get; private set; }
+
+    public void RecordSynchronousDoWhileLoop()
+    {
+        if (_enabled) lock (_sync) SynchronousDoWhileLoopRuns++;
+    }
+
     public void RecordArrayContainerCacheHit()
     {
         if (_enabled) lock (_sync) ArrayContainerCacheHits++;

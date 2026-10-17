@@ -207,8 +207,14 @@ internal abstract partial class AwkStatement
 
     private sealed class DoWhileStatement(AwkStatement[] body, AwkCondition condition) : AwkStatement
     {
+        private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(
+            NoOp(), condition, NoOp(), body);
+
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
+            if (_synchronous is { } prepared && prepared.CanExecute(context))
+                return prepared.ExecuteDoWhile(context);
+
             var state = context.State;
             do
             {

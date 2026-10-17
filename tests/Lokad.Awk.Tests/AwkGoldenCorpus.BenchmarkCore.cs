@@ -5,6 +5,12 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("do-while-first-body-and-control-fallback",
+            ["BEGIN{i=0;do{i++}while(0);print i;i=0;do{i++;if(i==2)continue;if(i==4)break;n+=i}while(i<8);print i,n}"],
+            [], "1\n4 4\n");
+        yield return Passing("do-while-host-condition-follows-body",
+            ["BEGIN{do{x++;print x,line}while((getline line)>0)}"],
+            [], "1 \n2 a\n3 b\n", "a\nb\n");
         yield return Passing("benchmark-core-do-while-arithmetic",
             ["{x=$1;i=0;do{x=(x*3+1)%101;i++}while(i<8);total+=x} END{print total}"],
             [], "40\n", "7\n7\n");

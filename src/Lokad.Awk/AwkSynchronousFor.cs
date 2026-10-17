@@ -66,4 +66,21 @@ internal sealed class AwkSynchronousFor(
         }
         return AwkStatementFlow.Continue;
     }
+
+    public AwkStatementFlow ExecuteDoWhile(AwkEvaluationContext context)
+    {
+        var state = context.State;
+        state.Counters.RecordSynchronousLoop();
+        state.Counters.RecordSynchronousDoWhileLoop();
+        do
+        {
+            state.RecordExecutionStep();
+            foreach (var action in body)
+            {
+                state.RecordExecutionStep();
+                action(context);
+            }
+        } while (condition.EvaluateSynchronous(context).IsTruthy());
+        return AwkStatementFlow.Continue;
+    }
 }

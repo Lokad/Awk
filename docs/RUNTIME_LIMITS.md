@@ -67,7 +67,7 @@ cancellation latency is promised. Matching deadlines do not bound regex construc
 ## Interpreter preparation and buffers
 
 Eligible numeric, field, string and logical expressions, scalar actions, bounded `if`/`else` actions
-and `for`/`while` loops reuse synchronous interpreter regions. They preserve logical checkpoints,
+and `for`/`while`/`do…while` loops reuse synchronous interpreter regions. They preserve logical checkpoints,
 argument/conversion/error order, borrowed numeric field reads and original setters. Preparation stops
 at expression depth 16, four conditional levels and 16 statements across a complete action;
 loops retain their 16-statement bodies and four acyclic function levels. Host/output/flow signals,
