@@ -547,7 +547,10 @@ internal sealed class AwkRuntimeState
         var value = borrowed ? default : index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         // Literal evaluation follows the field read, including its value limit and checkpoint.
         RecordExecutionStep();
-        var right = CreateByteTextValue(literal);
+        var deferLiteral = borrowed && literal.ByteLength < AwkExecutionGovernor.WorkChunkBytes;
+        // The byte-only branch never inspects this value; keep long literal scan checkpoints.
+        var right = deferLiteral ? CreateDeferredTextValue(literal) : CreateByteTextValue(literal);
+        if (deferLiteral) Counters.RecordDeferredComparisonLiteral();
         if (!borrowed)
             return AwkComparisonOperations.Evaluate(value, right, comparison, this);
 

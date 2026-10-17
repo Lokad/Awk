@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FieldLiteralComparisonCases()
     {
+        yield return Passing("field-literal-comparison-keeps-numeric-special-space-and-utf8-text",
+            ["BEGIN{FS=\":\";$0=\"007:nan:inf: \\t+1e2:😀\";print $1==\"007\",$1==\"7\",$2==\"nan\",$3==\"inf\",$4==\" \\t+1e2\",$5==\"😀\"}"],
+            [], "1 0 1 1 1 1\n");
         yield return Passing("field-literal-comparison-all-operators",
             ["BEGIN{$0=\"alpha z\";print ($1==\"alpha\"),($1!=\"alpha\"),($1<\"z\"),($1<=\"alpha\"),($1>\"a\"),($1>=\"alpha\")}"],
             [], "1 0 1 1 1 1\n");

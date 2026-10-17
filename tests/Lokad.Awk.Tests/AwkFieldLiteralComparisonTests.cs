@@ -24,7 +24,7 @@ public sealed class AwkFieldLiteralComparisonTests
     [Fact]
     public void LiteralByteRefusalPreservesRecordAndReleasesTemporaryAdmission()
     {
-        var (state, _) = State(true, valueLimit: 3);
+        var (state, counters) = State(true, valueLimit: 3);
         state.SetCurrentRecord(AwkText.FromString("ok"));
         _ = state.FieldCount;
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
@@ -33,7 +33,9 @@ public sealed class AwkFieldLiteralComparisonTests
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal("ok", state.CurrentRecordByteText.AsString());
+        Assert.Equal(0, counters.DeferredComparisonLiterals);
         Assert.True(state.CompareFieldLiteral(1, AwkText.FromString("ok"), AwkComparison.Equal));
+        Assert.Equal(1, counters.DeferredComparisonLiterals);
     }
 
     [Fact]
@@ -51,6 +53,26 @@ public sealed class AwkFieldLiteralComparisonTests
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(text, state.CurrentRecordByteText.AsString());
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(AwkExecutionGovernor.WorkChunkBytes - 1)]
+    [InlineData(AwkExecutionGovernor.WorkChunkBytes)]
+    [InlineData(AwkExecutionGovernor.WorkChunkBytes + 1)]
+    public void LiteralAdmissionAndThresholdPreserveValueWork(int length)
+    {
+        var (state, counters) = State(true);
+        state.SetCurrentRecord(AwkText.FromString("x"));
+        _ = state.FieldCount;
+        var committed = state.MemoryAccounting.CurrentCommittedBytes;
+        var values = counters.ValuesCreated;
+        Assert.False(state.CompareFieldLiteral(1, AwkText.FromString(new string('1', length)), AwkComparison.Equal));
+        Assert.Equal(1, counters.ValuesCreated - values);
+        Assert.Equal(length < AwkExecutionGovernor.WorkChunkBytes ? 1 : 0, counters.DeferredComparisonLiterals);
+        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        Assert.Equal("x", state.CurrentRecordByteText.AsString());
     }
 
     private static (AwkRuntimeState, AwkRuntimeCounters) State(bool finite,

@@ -501,6 +501,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("3\n", materialized.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(3, borrowed.Counters.ByteTextComparisons);
         Assert.Equal(3, materialized.Counters.ByteTextComparisons);
+        Assert.Equal(3, borrowed.Counters.DeferredComparisonLiterals);
+        Assert.Equal(0, materialized.Counters.DeferredComparisonLiterals);
         Assert.Equal(3, borrowed.Counters.FieldSplits);
         Assert.Equal(3, materialized.Counters.AwkTextAllocations - borrowed.Counters.AwkTextAllocations);
         Assert.Equal(0, borrowed.Counters.StringInteropFallbacks);

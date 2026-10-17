@@ -265,6 +265,13 @@ internal sealed class AwkRuntimeCounters
 
     public long ByteTextComparisons { get; private set; }
 
+    public long DeferredComparisonLiterals { get; private set; }
+
+    public void RecordDeferredComparisonLiteral()
+    {
+        if (_enabled) lock (_sync) DeferredComparisonLiterals++;
+    }
+
     public long ConcatenationBytesCopied { get; private set; }
 
     public long RuneSliceBytesScanned { get; private set; }
