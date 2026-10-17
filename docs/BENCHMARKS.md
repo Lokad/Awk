@@ -9,9 +9,9 @@ prepared arithmetic-call cases.
 The other **31 rows retain** the complete baseline measured 2026-10-17 UTC at
 `8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this extension.
 Core runtime code is identical between these baseline revisions. The latest accepted
-field-target change takes **10.82–11.38% less time** on large keyed aggregation;
+field-array preparation takes **9.40–9.75% less time** on large alternating-array reads;
 its newer source and separate evidence appear below. The first table retains its named
-measurements. Development batch is 2/5; no overall parity or cumulative-gain claim.
+measurements. Development batch is 3/5; no overall parity or cumulative-gain claim.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -152,7 +152,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*large*aggregate*' '*WorkloadAllocationBenchmarks*large*array-read")' '*WorkloadAllocationBenchmarks*large*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*large*aggregate*' '*WorkloadAllocationBenchmarks*large*array-read-alternating*' '*WorkloadAllocationBenchmarks*large*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
