@@ -1,10 +1,14 @@
 # Benchmarks
 
-Current **29-family baseline**, measured 2026-10-17 UTC at Release source
-`3031909b6f9bc60582eb47dadcbaa09ea4e4aacd` against GNU awk 5.2.1. Every first-table row uses this source.
-The latest controlled join change takes **4.5–7.2% less time**, with unchanged
-managed allocations. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
-There is no overall parity or cumulative-gain claim.
+Current scoped runtime: `ea3bbe647abfd93e91d7b82fe721425a9686c645`, measured 2026-10-17 UTC.
+Controlled two-argument call loops take **8.6–9.7% less time**, with
+**48 extra managed bytes/invocation**. Unary timing is flat; nested calls vary by source order.
+
+The complete **29-family baseline is retained** from 2026-10-17 at Release source
+`3031909b6f9bc60582eb47dadcbaa09ea4e4aacd` against GNU awk 5.2.1.
+Every first-table row uses that source. This is the first accepted change since the refresh.
+Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
+No overall parity or cumulative-gain claim.
 
 ## Representative processing
 
@@ -52,46 +56,61 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC: `c90b108e9c48533c376bee6db0d72d3964edea0b`
-→ `3031909b6f9bc60582eb47dadcbaa09ea4e4aacd`, with identical harness and inputs.
+Measured 2026-10-17 UTC: `3031909b6f9bc60582eb47dadcbaa09ea4e4aacd`
+→ `ea3bbe647abfd93e91d7b82fe721425a9686c645`, with identical harness and inputs.
 Three warmups/five iterations, two launches/source in both source orders. Times are medians
-of launch medians, separate from the complete baseline above. Allocations are unchanged
-in both source orders.
+of launch medians, separate from the retained complete baseline. Allocation counts apply
+to both source orders unless two pairs are shown.
 
 | Workload | Median ms, before → after (two source orders) | Allocated bytes, before → after |
 | --- | --- | ---: |
-| Two-file join | 7.282→6.952; 7.472→6.935 | 3,185,311→3,185,311; 3,185,311→3,185,311 |
-| Projection control | 2.474→2.473; 2.482→2.461 | 783,010→783,010; 783,010→783,010 |
-| ASCII strings control | 2.923→3.019; 3.001→3.019 | 1,128,424→1,128,424; 1,128,424→1,128,424 |
+| Two-argument call loop | 9.019→8.244; 9.043→8.164 | 782,290→782,338 |
+| Unary-call control | 7.020→7.023; 7.230→7.195 | 778,090→778,138 |
+| Nested-call control | 2.976→3.098; 3.075→3.052 | 757,010→757,106 |
 
-Computation-only statements skip an empty output-flush call. Actual stdout and diagnostics
-retain their statement boundaries; buffering is unchanged. Parsed join execution verifies
-21,504 skips with unchanged host calls, logical work, values and conversions. There is no added
-program/frame metadata, cache, owner or memory mechanism.
+Existing recycled frames keep one or two locals inline; three or more retain pooled arrays.
+This removes the two-local rent, reference clearing and return. No new type, pool, owner, IR
+or argument transport is introduced. The change adds four net runtime lines in three files.
 
-Join takes **4.54–7.19% less time**; all four launch-pair reductions:
-+2.75%, +6.32%, +4.27%, +9.90%. Control reductions (positive means less time): projection +0.06% / +0.86%;
-ASCII strings -3.26% / -0.61%. Strings therefore take **3.26%/0.61% longer**.
-The pilot showed join +2.00%, projection +7.33%, strings -3.43%; projection's full pilot gain
-did not repeat. No control/general gain is claimed. One pilot/one balanced confirmation,
-qualified quiet gates, stable identities and no additional SSH login cover all six source windows.
-This fifth accepted change triggered the complete 29-family refresh above.
+Each frame allocation grows **128→176 bytes**, including unary/larger-layout frames.
+The existing frame-base estimate rises **112→160 bytes**, retaining local-entry estimates;
+optional memory caps can reject earlier. Fixture allocation increases are fixed per invocation:
+**two-argument +48 bytes, unary +48 bytes, nested +96 bytes**, with no new per-record storage.
+Both inline references clear before reuse/refund; missing values, aliases and caller argument
+order remain intact.
 
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39023293869) passes **73,208 tests/OS**,
-including 537 selected guards. All 89 reference snapshots and 32 finite-resource counter rows
-match; 30 limited-stack scenarios/OS pass. Stdout/diagnostic ordering and pending, failed and
-canceled host appends qualify. Negative guard mutations fail seven/two checks while five/ten
-controls pass. Native goldens have 113 equivalent cases and the documented
+Target reductions are **8.59% / 9.72%**; four launch-pair reductions:
++7.31%, +9.86%, +11.28%, +8.11%. Control reductions (positive means less time): unary -0.03% / +0.49%;
+nested -4.11% / +0.73%. Nested calls therefore take **4.11% longer in one order**
+and **0.73% less time in the other**. That cost is retained, not averaged away; no recurring
+control regression exceeds the declared 4% limit. No general/control gain is claimed.
+The pilot's 4.12% unary improvement did not repeat. One pilot and one balanced confirmation
+qualify with quiet gates, stable identities and no extra SSH login in all six source windows.
+
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39028521355) passes **73,235 tests/OS**
+and 564 selected guards. Parsed target execution verifies 32,768 inline frames instead of zero,
+with unchanged original logical, argument-rent, field, value, host and conversion counters.
+All 89 reference snapshots match. Of 32 finite-resource rows, 31 are identical and one
+has the expected **48-byte** peak increase. Thirty limited-stack scenarios/OS pass.
+Negative route/reset mutations fail seven/three checks while four/eight controls pass.
+Native goldens have 116 equivalent cases and the documented
 [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
 
-## Retained larger-input comparisons
+Fresh paired GNU comparisons at this source give **1.99× medium /
+2.54× large** elapsed ratios. Nine alternating pairs/scale qualify with
+exact output checks, stable identities, quiet gates and no extra SSH login. The large result
+still shows a substantial gap. No complete-family refresh was run for this change.
 
-These rows keep their **original sources and dates**; they were not refreshed with the current
-medium baseline. The original paired runs check exact outputs and quiet gates, with stable
-identities and no extra SSH login. Larger-input managed allocations were not measured.
+## Larger-input comparisons
+
+The two-argument row is fresh at the scoped source above. Other rows retain their original
+sources/dates and were not refreshed with the current medium baseline. Their original paired
+runs check exact outputs and quiet gates, with stable identities and no extra SSH login.
+Larger-input managed allocations were not measured.
 
 | Case / input KiB / records | Measured source / date UTC | Lokad ms | GNU ms | Lokad.Awk/awk |
 | --- | --- | ---: | ---: | ---: |
+| Two-argument calls / 128.00 / 65,536 | ea3bbe6 / 2026-10-17 | 129.310 | 50.947 | 2.54× |
 | Three-field filter / 384.00 / 65,536 | c90b108 / 2026-10-17 | 33.969 | 8.946 | 3.80× |
 | Nested calls / 128.00 / 65,536 | 24de9e7 / 2026-10-17 | 48.587 | 10.418 | 4.66× |
 | Two-file join / 1,386.30 / 65,536 per file | c9d7c74 / 2026-10-17 | 138.740 | 30.512 | 4.55× |
@@ -129,7 +148,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*two-file*' '*WorkloadAllocationBenchmarks*medium*projection*' '*WorkloadAllocationBenchmarks*medium*string-functions*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*multi-arg-loop*' '*WorkloadAllocationBenchmarks*medium*loop-with-calls*' '*WorkloadAllocationBenchmarks*medium*user-functions*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.

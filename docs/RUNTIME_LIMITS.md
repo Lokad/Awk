@@ -72,8 +72,8 @@ Small record field lists reuse at most four slots under the existing frame, with
 Retained capacity is included in record admission; ineligible splitting modes and larger buffers are discarded.
 Stored Number scalars can feed prepared global numeric reads and updates directly; other kinds
 retain ordinary value admission and conversion.
-One-local function frames store the local inline; reset clears it, and larger layouts retain pooled arrays.
-The existing frame estimate includes 48 extra bytes of frame storage; optional memory thresholds can reject earlier.
+Function frames keep up to two locals inline; reset clears their references. Larger layouts retain pooled arrays.
+The frame-base estimate is 160 bytes plus local-entry estimates; storage changes can move optional memory thresholds.
 Function locals share scalar/array value conversion and retain prepared numeric values/spelling.
 Prepared scalar arguments reuse current kinds; value-size admission and long-text cancellation
 remain in ordinary evaluation. Missing locals and aliases retain original resolution.
