@@ -1,10 +1,12 @@
 # Benchmarks
 
-Current **28-family baseline**, measured 2026-10-17 UTC at Release source
-`516ffd1800fe06f7a06a10a778553b4a19db1cee` against GNU awk 5.2.1. All first-table rows use this source.
-The latest controlled join change takes **5.1–5.4% less time**,
-with 24 bytes/invocation of additional preparation metadata. There is no overall parity or
-cumulative-gain claim. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
+Current scoped runtime: `cc84b9ed4f9b2b60de7bc7232929eea17f219f0b`, measured 2026-10-17 UTC.
+Controlled nested-call medians take **5.7–11.3% less time**, with **144 fewer managed bytes/invocation**.
+All launch pairs and contrasting controls are reported below; no general or cumulative gain is claimed.
+
+The complete **28-family baseline is retained** from 2026-10-17 at Release source
+`516ffd1800fe06f7a06a10a778553b4a19db1cee` against GNU awk 5.2.1. All first-table rows use that source.
+Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
 
@@ -51,50 +53,53 @@ Use these ratios to choose investigations; confirm apparent parity on larger inp
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC, runtime `f39d294f65009f5666200cac55bb4a8c09f3bc6a`
-→ `516ffd1800fe06f7a06a10a778553b4a19db1cee`, with identical harness and inputs.
+Measured 2026-10-17 UTC, runtime `516ffd1800fe06f7a06a10a778553b4a19db1cee`
+→ `cc84b9ed4f9b2b60de7bc7232929eea17f219f0b`, with identical harness and inputs.
 Three warmups/five iterations, two launches/source in both source orders. Times are medians
-of launch medians; allocations are GC MiB. This comparison is separate from the complete baseline above.
+of launch medians; allocations are GC MiB. This comparison is separate from the retained baseline above.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| Two-file membership / join | 8.036→7.602; 7.971→7.566 | 4.23→4.23; 4.23→4.23 |
-| Keyed sum / sorted output control | 3.141→3.075; 3.194→3.187 | 1.36→1.36; 1.36→1.36 |
-| Field-key membership control | 2.484→2.378; 2.480→2.312 | 1.41→1.41; 1.41→1.41 |
+| Nested user calls | 3.857→3.637; 3.994→3.544 | 1.32→1.32; 1.32→1.32 |
+| Two-argument call loop control | 9.530→9.274; 9.420→9.158 | 1.34→1.34; 1.34→1.34 |
+| Two-file join control | 7.904→7.826; 7.759→7.755 | 4.23→4.23; 4.23→4.23 |
 
-Established ordinary global array kinds reuse existing execution-owned binding slots after
-successful access, skipping repeated name classification. Every lookup still uses current
-storage; replacement, value and mutation preflights remain original. Special arrays and live
-function contexts retain name resolution. No dictionary cache or memory owner was introduced.
+Function locals share the existing scalar/array slot-value factory. Eligible numeric strings
+retain their prepared value and spelling instead of repeating parsing. Initial input parsing,
+other stored kinds, reading modes, value admission and long-text cancellation remain original.
+Two factory delegates and their fields/plumbing are removed; no cache, owner or engine is added.
 
-Join medians take **5.1–5.4% less time**;
-launch-pair reductions are +5.48%, +5.31%, +4.64%, +5.52%.
-Managed allocations are **4,430,444→4,430,468 bytes** per join invocation. Aggregate adds 24 bytes,
-membership 16 bytes, from prepared ordinals; all fit the declared 128-byte preparation allowance.
-Control reductions (positive means less time): aggregate +2.10% / +0.20%;
-membership +4.25% / +6.76%. No general, control or cumulative gain is claimed.
+Nested-call medians take **5.7–11.3% less time**; all four launch-pair reductions are
++3.85%, +7.47%, +14.80%, +7.37%. Managed allocations are **1,379,531→1,379,387 bytes** per nested-call invocation.
+Each control also allocates 144 fewer bytes, from the removed delegates/fields.
+Control reductions (positive means less time): two-argument loops +2.69% / +2.79%;
+join +0.98% / +0.04%. No general, control or cumulative gain is claimed.
 
 One qualified pilot and one balanced confirmation were run; all six source windows have
-qualified quiet gates, stable identities and no extra SSH login. The fifth accepted change
-triggered the complete refresh above, with five warmups/nine iterations/one launch and four quiet gates.
+qualified quiet gates, stable identities and no extra SSH login. The complete baseline is
+retained until the next declared milestone; this is the first accepted change in the next batch.
 
-The source passes **73,079 tests/OS**, 86 exact reference snapshots, 109 equivalent native goldens,
+The source passes **73,089 tests/OS**, 86 exact reference snapshots, 109 equivalent native goldens,
 30 limited-stack scenarios/OS and 32 unchanged finite-resource rows. One additional native case
 retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-A parsed join reused across fresh hosts verifies five bound-array accesses per execution.
-Focused guards cover initial failures, replacements, scalar/array arguments, pending keys,
-function contexts and mutation limits. [Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38985165008)
-passes; downloaded reports verify all 228 selected numeric, field, scope and admission guards per OS.
+The exact parsed nested-call fixture verifies eight prepared local reads on four records in
+both engines. Existing numeric-input tests now cover locals as well as scalar/array storage,
+including spelling, mode-sensitive inputs, deferred errors, value admission and cancellation.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38989786575) passes;
+downloaded reports verify all 287 selected function, numeric, cancellation and admission guards per OS.
 
 ## Scoped GNU comparisons
 
-Join rows use **516ffd1**, measured 2026-10-17 UTC, with nine alternating
-pairs/scale, exact output checks and qualified quiet gates. Other rows are retained from
-2026-10-16 at the explicitly named sources. All windows have stable identities and no extra
-SSH login. These paired comparisons are separate from both BenchmarkDotNet tables above.
+Nested-call rows use **cc84b9e**, measured 2026-10-17 UTC, with nine alternating
+pairs/scale, exact output checks and qualified quiet gates. Join rows are retained from
+2026-10-17 at 516ffd1; other rows retain their explicitly named 2026-10-16 sources. All windows
+have stable identities and no extra SSH login. These paired comparisons are separate from both
+BenchmarkDotNet tables above.
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
+| Nested calls / 8.00 / 4,096 | cc84b9e | 3.607 | 1.613 | 2.24× | 1.32 |
+| Nested calls / 128.00 / 65,536 | cc84b9e | 56.794 | 10.475 | 5.42× | — |
 | Two-file join / 77.83 / 4,096 per file | 516ffd1 | 7.838 | 2.814 | 2.79× | 4.23 |
 | Two-file join / 1,386.30 / 65,536 per file | 516ffd1 | 137.927 | 30.332 | 4.55× | — |
 | Field loop / 80.00 / 256 | f39d294 | 2.531 | 2.165 | 1.17× | 1.08 |
@@ -108,18 +113,13 @@ SSH login. These paired comparisons are separate from both BenchmarkDotNet table
 | Long fields / 1,025.50 / 256 | 7ad867d | 0.851 | 2.050 | 0.41× | 2.15 |
 | Long fields / 16,408.00 / 4,096 | 7ad867d | 13.349 | 16.624 | 0.80× | — |
 
-The current two-file join builds a field-key lookup, then tests membership and changed values.
-Its paired GNU ratios are **2.79× medium / 4.55× large**.
-The retained wide-field script iterates over every field, tests nonempty values and sums lengths.
-Its retained f39d294 GNU ratios are **1.17× medium / 2.02× large**.
-Retained ASCII strings run `substr`, `index`, `length` and unchanged `tolower` on `id:beta:tail`;
-their earlier c5c7a01 ratios remain 2.14× medium / 5.24× large.
-Retained casing converts both directions on 144-byte mixed ASCII records; call loops run
-eight unary arithmetic calls/record; long-field filtering tests `$2` after a 4 KiB first field.
-Scripts are in the shared fixtures linked above. Only medium-scale managed allocations
-were measured by BenchmarkDotNet; “—” means unmeasured.
-Retained long-field results support parity for that larger-input script. The other scoped
-rows still show gaps; there is no overall parity claim.
+The current nested-call script passes numeric input through `twice(x)` and nested `inc(x)` calls.
+Its paired GNU ratios are **2.24× medium / 5.42× large**.
+
+The other scoped rows retain their earlier revisions/dates. Scripts use the shared fixtures
+linked above. Only medium-scale managed allocations were measured by BenchmarkDotNet;
+“—” means unmeasured. Retained long-field measurements support parity for that larger-input
+script; the other scoped rows still show gaps. There is no overall parity claim.
 
 ## Environment and reproduction
 
