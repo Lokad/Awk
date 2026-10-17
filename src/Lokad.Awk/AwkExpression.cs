@@ -51,6 +51,18 @@ internal abstract partial class AwkExpression
         return false;
     }
 
+    internal static bool TryGetNumericFieldIndexExpression(
+        AwkExpression expression, [NotNullWhen(true)] out AwkExpression? indexExpression)
+    {
+        if (expression is DynamicFieldIndexExpression { IndexExpression: NumberExpression number })
+        {
+            indexExpression = number;
+            return true;
+        }
+        indexExpression = null;
+        return false;
+    }
+
     public static AwkExpression FieldCount() => FieldCountExpression.Instance;
 
     public static AwkExpression FieldNf() => FieldNfExpression.Instance;

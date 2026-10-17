@@ -9,6 +9,21 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task ParsedFieldCompoundTargetsReuseTheExistingKeyAndValue(AwkExecutionEngineKind engine)
+    {
+        var result = await RunAsync(["BEGIN{a[\"k\"]=7} {a[$1]+=$2} END{print a[\"k\"],a[\"café\"],length(a)}"],
+            "k 3\ncafé 2\nk 4\ncafé 5\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("14 7 2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(3, result.Counters.BorrowedFieldTargetSnapshots);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter, false)]
     [InlineData(AwkExecutionEngineKind.Executable, false)]
     [InlineData(AwkExecutionEngineKind.Interpreter, true)]

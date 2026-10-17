@@ -264,6 +264,16 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
     public override ValueTask<AwkValue> ApplyCompoundAssignmentAsync(
         AwkEvaluationContext context, AwkExpression value, AwkCompoundAssignmentOperation operation)
     {
+        if (IndexExpression is AwkSimpleArrayIndex simple &&
+            AwkExpression.TryGetNumericFieldIndexExpression(simple.Expression, out var indexExpression))
+        {
+            var state = context.State;
+            state.RecordExecutionStep(); // Field expression, before its numeric index literal.
+            // The shape check admits only NumberExpression, whose evaluation always completes synchronously.
+            var field = (int)indexExpression.ResolveNumberAsync(context).GetAwaiter().GetResult();
+            state.GetArrayFieldTarget(Variable, field, out var fieldKey, out var currentValue);
+            return ApplyCompoundForValue(context, fieldKey, currentValue.AsNumber(state.CancellationCheckpoint), value, operation);
+        }
         var key = IndexExpression.ResolveTargetKeyAsync(context, Variable);
         return key.IsCompletedSuccessfully
             ? ApplyCompoundForKey(context, key.Result, value, operation)
@@ -279,6 +289,13 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
     {
         var state = context.State;
         var current = state.GetArrayAwkValue(Variable, key).AsNumber(state.CancellationCheckpoint);
+        return ApplyCompoundForValue(context, key, current, value, operation);
+    }
+
+    private ValueTask<AwkValue> ApplyCompoundForValue(AwkEvaluationContext context, AwkArrayKey key,
+        double current, AwkExpression value, AwkCompoundAssignmentOperation operation)
+    {
+        var state = context.State;
         var right = value.ResolveNumberAsync(context);
         return right.IsCompletedSuccessfully
             ? ValueTask.FromResult(AssignCompound(state, key, current, right.Result, operation))

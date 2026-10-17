@@ -21,6 +21,13 @@ internal sealed class AwkRuntimeCounters
 
     public long ArrayContainerCacheHits { get; private set; }
 
+    public long BorrowedFieldTargetSnapshots { get; private set; }
+
+    public void RecordBorrowedFieldTargetSnapshot()
+    {
+        if (_enabled) lock (_sync) BorrowedFieldTargetSnapshots++;
+    }
+
     public long SynchronousDoWhileLoopRuns { get; private set; }
 
     public void RecordSynchronousDoWhileLoop()

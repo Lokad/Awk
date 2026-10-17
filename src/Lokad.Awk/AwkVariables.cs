@@ -567,13 +567,30 @@ internal sealed class AwkVariables
         return false;
     }
 
-    public bool TryGetExistingArrayKey(AwkArrayName name, ReadOnlySpan<byte> index, out AwkArrayKey key)
+    public bool TryGetExistingArrayKey(AwkArrayName name, ReadOnlySpan<byte> index, out AwkArrayKey key) =>
+        TryGetExistingArraySlot(name, index, out key, out _);
+
+    public bool TryGetExistingArrayKeyValue(AwkArrayName name, ReadOnlySpan<byte> index,
+        out AwkArrayKey key, out AwkValue value)
+    {
+        if (TryGetExistingArraySlot(name, index, out key, out var slot))
+        {
+            value = CreateValue(slot);
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    private bool TryGetExistingArraySlot(AwkArrayName name, ReadOnlySpan<byte> index,
+        out AwkArrayKey key, out AwkVariableSlot slot)
     {
         if ((name.IsFunctionLocal || !IsSymbolTable(name.Text)) &&
             _arrays.TryGetSlots(name, out var slots) &&
-            slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out key, out _))
+            slots.GetAlternateLookup<ReadOnlySpan<byte>>().TryGetValue(index, out key, out slot))
             return true;
         key = default;
+        slot = default;
         return false;
     }
 

@@ -2,7 +2,7 @@ using System.Threading.Tasks.Sources;
 
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkArrayCompoundUpdateTests
+public sealed partial class AwkArrayCompoundUpdateTests
 {
     private static readonly AwkArrayKey Key = new("k");
     private static readonly AwkArrayIndex Index = AwkArrayIndex.Simple(AwkExpression.Literal("k"));
