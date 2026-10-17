@@ -7,6 +7,122 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFunctionLocalSlotTests
 {
     [Fact]
+    public void GlobalBindingScopeRetainsChargesPhysicalDepthAndNestedBindings()
+    {
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+        var memory = AwkMemoryAccounting.Create(limits, AwkRuntimeCounters.Disabled);
+        var stack = new AwkFunctionCallStack(2, memory, static slot => slot.ToValue(
+            static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text),
+            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)));
+        var name = AwkVariableName.FromText("x");
+        var slot = new AwkFunctionLocalSlotId(0);
+        var layout = new AwkFunctionLocalLayout([name]);
+        var initial = memory.CurrentCommittedBytes;
+        stack.PushFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromNumber(7))]);
+        var retained = memory.CurrentCommittedBytes;
+        Assert.True(retained > initial);
+        using (stack.EnterGlobalBindings())
+        {
+            Assert.True(stack.IsInsideFunction);
+            Assert.Equal(retained, memory.CurrentCommittedBytes);
+            Assert.False(stack.HasScalarLocal(slot));
+            Assert.False(stack.TryResolveLocalNumber(slot, out _));
+            Assert.False(stack.TryResolveScalarLocalValue(slot, out _));
+            Assert.False(stack.TryResolveLocal(name, out _));
+            Assert.False(stack.TryResolveLocal(slot, out _));
+            Assert.False(stack.TryResolveLocalValue(name, out _));
+            Assert.False(stack.TryResolveLocalValue(slot, out _));
+            Assert.False(stack.TryResolveArrayArgument(name, out _));
+            Assert.False(stack.TryResolveOrPromoteArrayName(name, out _));
+            Assert.False(stack.TryGetArrayReadName(name, out _));
+            Assert.False(stack.TryAssignLocal(name, AwkValue.FromNumber(99)));
+            Assert.False(stack.TryAssignLocal(slot, AwkValue.FromNumber(99)));
+            Assert.Throws<AwkRuntimeException>(() => stack.SetReturnValue(AwkValue.FromNumber(99)));
+            Assert.False(stack.TryConsumeReturnValue(out _));
+            stack.PushFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromNumber(3))]);
+            try
+            {
+                Assert.True(stack.TryResolveLocalValue(name, out var nested));
+                Assert.Equal(3, nested.Value.AsNumber());
+                using (stack.EnterGlobalBindings())
+                {
+                    Assert.False(stack.TryResolveLocal(name, out _));
+                    Assert.Throws<AwkRuntimeException>(() => stack.PushFrame(layout, []));
+                    Assert.Equal(0, memory.CurrentReservedBytes);
+                }
+                Assert.True(stack.TryResolveLocalValue(name, out nested));
+                Assert.Equal(3, nested.Value.AsNumber());
+            }
+            finally { stack.PopFrame(static _ => { }); }
+            Assert.False(stack.TryResolveLocal(name, out _));
+            Assert.Equal(retained, memory.CurrentCommittedBytes);
+        }
+        Assert.True(stack.TryResolveLocalValue(name, out var restored));
+        Assert.Equal(7, restored.Value.AsNumber());
+        stack.PopFrame(static _ => { });
+        Assert.Equal(initial, memory.CurrentCommittedBytes);
+    }
+
+    [Fact]
+    public void GlobalBindingScopeKeepsHiddenAliasesInPromotion()
+    {
+        var stack = CreateCallStack(AwkRuntimeCounters.Disabled);
+        var outer = AwkVariableName.FromText("outer");
+        var inner = AwkVariableName.FromText("inner");
+        var array = AwkArrayName.FromText("shared");
+        stack.PushFrame(new([outer]), [AwkFunctionArgument.PotentialArray(array)]);
+        using (stack.EnterGlobalBindings())
+        {
+            stack.PushFrame(new([inner]), [AwkFunctionArgument.PotentialArray(array)]);
+            try
+            {
+                Assert.True(stack.TryResolveOrPromoteArrayName(inner, out var promoted));
+                Assert.Equal(array, promoted);
+            }
+            finally { stack.PopFrame(static _ => { }); }
+            Assert.False(stack.TryResolveLocal(outer, out _));
+        }
+        Assert.True(stack.TryResolveLocal(outer, out var local));
+        Assert.Equal(AwkFunctionLocalSlotKind.ArrayAlias, local.Kind);
+        Assert.Equal(array, local.ArrayName);
+        stack.PopFrame(static _ => { });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GlobalBindingScopeRestoresCallerAfterPendingCompletion(bool cancel)
+    {
+        var stack = CreateCallStack(AwkRuntimeCounters.Disabled);
+        var name = AwkVariableName.FromText("x");
+        stack.PushFrame(new([name]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(7))]);
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        async Task ExecuteGlobalAsync()
+        {
+            using var scope = stack.EnterGlobalBindings();
+            await completion.Task.ConfigureAwait(false);
+            Assert.False(stack.TryResolveLocal(name, out _));
+        }
+        var pending = ExecuteGlobalAsync();
+        Assert.False(pending.IsCompleted);
+        Assert.True(stack.IsInsideFunction);
+        Assert.False(stack.TryResolveLocal(name, out _));
+        if (cancel)
+        {
+            completion.SetCanceled();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+        }
+        else
+        {
+            completion.SetResult();
+            await pending;
+        }
+        Assert.True(stack.TryResolveLocalValue(name, out var restored));
+        Assert.Equal(7, restored.Value.AsNumber());
+        stack.PopFrame(static _ => { });
+    }
+
+    [Fact]
     public void ScalarArgumentOrdinalsRespectCurrentKindsAndActiveLayout()
     {
         var stack = CreateCallStack(AwkRuntimeCounters.Disabled);

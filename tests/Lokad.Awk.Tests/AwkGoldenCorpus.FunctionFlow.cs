@@ -4,6 +4,29 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("file-action-cold-scalar-uses-global-binding",
+            ["function readNext(x){getline line;print \"function\",x} BEGIN{readNext(\"local\")} BEGINFILE{print \"file\",x;x=\"global\"}"],
+            [], "file \nfunction local\n", "record\n");
+        yield return Passing("file-action-warm-scalar-keeps-global-binding",
+            ["function readNext(x){getline line;print \"function\",x} BEGIN{x=\"global\";readNext(\"local\")} BEGINFILE{print \"file\",x}"],
+            [], "file global\nfunction local\n", "record\n");
+        yield return Passing("file-action-array-write-does-not-change-caller-alias",
+            ["function readNext(a){getline line;print \"function\",a[1]} BEGIN{source[1]=\"local\";readNext(source)} BEGINFILE{a[1]=\"global\";print \"file\",a[1]} END{print \"global\",a[1],source[1]}"],
+            [], "file global\nfunction local\nglobal global local\n", "record\n");
+        yield return Passing("file-action-nested-functions-see-their-own-arguments",
+            ["function helper(x){print \"helper\",x;return x+1} function identity(y){return y==\"\"?\"empty\":y} function readNext(x){getline line;print \"function\",x} BEGIN{readNext(\"local\")} BEGINFILE{print \"nested\",helper(2);print \"argument\",identity(x)}"],
+            [], "helper 2\nnested 3\nargument empty\nfunction local\n", "record\n");
+        yield return Passing("file-action-endfile-hides-and-restores-caller-locals",
+            ["function readAll(x){while((getline line)>0){};print \"function\",x} BEGIN{readAll(\"local\")} ENDFILE{print \"end\",x;x=\"global\"} END{print \"global\",x}"],
+            [], "end \nfunction local\nglobal global\n", "record\n");
+        yield return Passing("file-action-global-array-promotion-reaches-caller-alias",
+            ["function readNext(a){getline line;a[2]=\"after\";print length(a),a[1],a[2]} BEGIN{readNext(source)} BEGINFILE{source[1]=\"global\"} END{print source[1],source[2]}"],
+            [], "2 global after\nglobal after\n", "record\n");
+        yield return Passing("file-action-bindings-restore-between-files-and-phases",
+            ["function readAll(x){while((getline line)>0)print \"read\",x,line;print \"caller\",x} BEGIN{readAll(\"local\")} BEGINFILE{print \"begin\",FNR,x;x=\"global\"} ENDFILE{print \"end\",FNR,x} END{print \"global\",x}", "/a.txt", "/b.txt"],
+            [File("/a.txt", "a\n"), File("/b.txt", "b\n")],
+            "begin 0 \nread local a\nend 1 global\nbegin 0 global\nread local b\nend 1 global\ncaller local\nglobal global\n");
+
         yield return Passing("function-length-local-scalars-shadow-global-array",
             ["function size(a){return length(a)} BEGIN{a[1]=7;a[2]=8;print size(\"hello\"),size(12345),size(),length(a)}"],
             [], "5 5 0 2\n");

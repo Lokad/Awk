@@ -422,6 +422,8 @@ internal sealed class AwkRuntimeState
 
     public bool IsInsideFunction => _functions.IsInsideFunction;
 
+    internal AwkFunctionCallStack.GlobalBindingScope EnterGlobalBindings() => _functions.EnterGlobalBindings();
+
     internal bool FieldsCannotReportRegexDiagnostics => _recordFields.CannotReportRegexDiagnostics;
 
     public void SetFunctionReturnValue(AwkValue value)

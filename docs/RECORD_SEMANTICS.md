@@ -67,7 +67,8 @@ Only successfully opened files receive ENDFILE when skipped; exit from BEGINFILE
 Functions may execute next/nextfile only in valid input phases. Control unwinds the full
 expression/call chain before the action handles it; later arguments, assignments and effects
 are skipped. Exit follows the normal END lifecycle. Sort callbacks reject next/nextfile/exit.
-Nested file actions through getline restore the caller's phase/context.
+Nested file actions through getline use global bindings and restore the caller's
+phase/context and locals afterward; suspended caller frames remain charged.
 
 ## Fields, NF and reconstruction
 

@@ -148,6 +148,7 @@ internal sealed class AwkRuntimeActionExecutor : IDisposable
         AwkIo io)
     {
         using var actionPhase = state.EnterActionPhase(phase);
+        using var globalBindings = state.EnterGlobalBindings();
         try
         {
             if (executableActions == null)

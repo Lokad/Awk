@@ -28,6 +28,8 @@ internal sealed class AwkFunctionRuntime
 
     public bool IsInsideFunction => _calls.IsInsideFunction;
 
+    public AwkFunctionCallStack.GlobalBindingScope EnterGlobalBindings() => _calls.EnterGlobalBindings();
+
     public bool HasScalarLocal(AwkFunctionLocalSlotId slotId) => _calls.HasScalarLocal(slotId);
 
     public void InitializeFunctions<TFunction>(

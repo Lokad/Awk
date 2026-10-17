@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Lokad.Awk;
 
@@ -17,11 +18,34 @@ internal sealed class AwkFunctionCallStack(
     // references lets those promote directly; only forwarded aliases need a scan.
     private readonly Dictionary<AwkArrayName, int> _potentialArrayAliasCounts = new();
     private long _nextFrameId;
+    private int _localScopeFloor;
 
+    // Scheduling and depth limits include callers suspended by global file actions.
     public bool IsInsideFunction => _frames.Count > 0;
 
+    public GlobalBindingScope EnterGlobalBindings()
+    {
+        // Hide caller bindings without releasing frames, charges or array aliases.
+        var previous = _localScopeFloor;
+        _localScopeFloor = _frames.Count;
+        return new GlobalBindingScope(this, previous);
+    }
+
+    internal readonly struct GlobalBindingScope(AwkFunctionCallStack calls, int previousFloor) : IDisposable
+    {
+        public void Dispose() => calls._localScopeFloor = previousFloor;
+    }
+
+    private bool TryPeekLocalFrame([NotNullWhen(true)] out AwkFunctionFrame? frame)
+    {
+        if (_frames.Count > _localScopeFloor)
+            return _frames.TryPeek(out frame);
+        frame = null;
+        return false;
+    }
+
     public bool HasScalarLocal(AwkFunctionLocalSlotId slotId) =>
-        _frames.TryPeek(out var frame) &&
+        TryPeekLocalFrame(out var frame) &&
         (uint)slotId.Index < (uint)frame.Layout.SlotCount &&
         frame.GetSlot(slotId.Index).Kind == AwkFunctionLocalSlotKind.Scalar;
 
@@ -162,20 +186,19 @@ internal sealed class AwkFunctionCallStack(
 
     public void SetReturnValue(AwkValue value)
     {
-        if (_frames.Count == 0)
+        if (!TryPeekLocalFrame(out var frame))
             throw new AwkRuntimeException(AwkMessages.ErrorReturnOutsideFunction);
 
         value = value.AsScalarCopy();
-        var frame = _frames.Peek();
         frame.HasReturnValue = true;
         frame.ReturnValue = value;
     }
 
     public bool TryConsumeReturnValue(out AwkValue value)
     {
-        if (_frames.Count > 0 && _frames.Peek().HasReturnValue)
+        if (TryPeekLocalFrame(out var frame) && frame.HasReturnValue)
         {
-            value = _frames.Peek().ReturnValue;
+            value = frame.ReturnValue;
             return true;
         }
 
@@ -185,7 +208,7 @@ internal sealed class AwkFunctionCallStack(
 
     public bool TryResolveLocalNumber(AwkFunctionLocalSlotId slotId, out double number)
     {
-        if (_frames.TryPeek(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
+        if (TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
         {
             ref readonly var slot = ref frame.GetSlot(slotId.Index);
             if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
@@ -198,7 +221,7 @@ internal sealed class AwkFunctionCallStack(
 
     public bool TryResolveScalarLocalValue(AwkFunctionLocalSlotId slotId, out AwkValue value)
     {
-        if (_frames.TryPeek(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
+        if (TryPeekLocalFrame(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
         {
             ref readonly var slot = ref frame.GetSlot(slotId.Index);
             if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
@@ -228,10 +251,10 @@ internal sealed class AwkFunctionCallStack(
         AwkFunctionLocalProjection projection,
         out AwkResolvedFunctionLocal local)
     {
-        if (_frames.Count > 0 &&
-            TryGetLocalSlot(_frames.Peek(), name, out var slotId, out var slot))
+        if (TryPeekLocalFrame(out var frame) &&
+            TryGetLocalSlot(frame, name, out var slotId, out var slot))
         {
-            slot = PromoteScalarProjection(_frames.Peek(), slotId, slot, projection);
+            slot = PromoteScalarProjection(frame, slotId, slot, projection);
             local = ResolveLocal(slot, projection);
             return true;
         }
@@ -245,10 +268,10 @@ internal sealed class AwkFunctionCallStack(
         AwkFunctionLocalProjection projection,
         out AwkResolvedFunctionLocal local)
     {
-        if (_frames.Count > 0 &&
-            TryGetLocalSlot(_frames.Peek(), slotId, out var slot))
+        if (TryPeekLocalFrame(out var frame) &&
+            TryGetLocalSlot(frame, slotId, out var slot))
         {
-            slot = PromoteScalarProjection(_frames.Peek(), slotId, slot, projection);
+            slot = PromoteScalarProjection(frame, slotId, slot, projection);
             local = ResolveLocal(slot, projection);
             return true;
         }
@@ -259,13 +282,12 @@ internal sealed class AwkFunctionCallStack(
 
     public bool TryResolveArrayArgument(AwkVariableName name, out AwkFunctionArgument argument)
     {
-        if (_frames.Count == 0)
+        if (!TryPeekLocalFrame(out var frame))
         {
             argument = default;
             return false;
         }
 
-        var frame = _frames.Peek();
         if (!TryGetLocalSlot(frame, name, out var slotId, out var slot))
         {
             argument = default;
@@ -317,13 +339,12 @@ internal sealed class AwkFunctionCallStack(
 
     public bool TryResolveOrPromoteArrayName(AwkVariableName name, out AwkArrayName arrayName)
     {
-        if (_frames.Count == 0)
+        if (!TryPeekLocalFrame(out var frame))
         {
             arrayName = default;
             return false;
         }
 
-        var frame = _frames.Peek();
         if (!TryGetLocalSlot(frame, name, out var slotId, out var slot))
         {
             arrayName = default;
@@ -400,9 +421,8 @@ internal sealed class AwkFunctionCallStack(
 
     public bool TryGetArrayReadName(AwkVariableName name, out AwkArrayName arrayName)
     {
-        if (_frames.Count > 0)
+        if (TryPeekLocalFrame(out var frame))
         {
-            var frame = _frames.Peek();
             if (TryGetLocalSlot(frame, name, out _, out var slot))
             {
                 if (slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias ||
@@ -430,10 +450,9 @@ internal sealed class AwkFunctionCallStack(
 
     private bool TryAssignLocal(AwkVariableName name, AwkVariableSlot value)
     {
-        if (_frames.Count == 0)
+        if (!TryPeekLocalFrame(out var frame))
             return false;
 
-        var frame = _frames.Peek();
         if (!TryGetLocalSlot(frame, name, out var slotId, out var slot) ||
             slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias ||
             slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && _containsArray(slot.ArrayName))
@@ -454,10 +473,9 @@ internal sealed class AwkFunctionCallStack(
 
     private bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkVariableSlot value)
     {
-        if (_frames.Count == 0)
+        if (!TryPeekLocalFrame(out var frame))
             return false;
 
-        var frame = _frames.Peek();
         if (!TryGetLocalSlot(frame, slotId, out var slot) ||
             slot.Kind == AwkFunctionLocalSlotKind.ArrayAlias ||
             slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias && _containsArray(slot.ArrayName))
