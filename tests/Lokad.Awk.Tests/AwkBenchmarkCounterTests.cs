@@ -71,12 +71,27 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("36\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(8, result.Counters.PreparedNumericSlotReads);
+        Assert.Equal(12, result.Counters.InlineFunctionFrames);
         Assert.Equal(3, result.Counters.FieldListBufferReuses);
         Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 4 : 0,
             result.Counters.BoundLocalScalarArguments);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
         Assert.Equal(0, result.Counters.FunctionStackSuspensions);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task ParsedMixedFunctionLayoutsRecycleWithoutStaleLocals(AwkExecutionEngineKind engine)
+    {
+        const string source = "function one(x){return ++x} function zero(){return 3} function two(x,y){return x+y} " +
+            "BEGIN{print one(7),zero(),two(5,6),one()}";
+        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("8 3 11 1\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, result.Counters.InlineFunctionFrames);
     }
 
     [Fact]

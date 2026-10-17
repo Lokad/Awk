@@ -20,7 +20,7 @@ internal static class AwkRuntimeMemory
     private const int AwkValueBytes = 32;
     private const int AwkArrayKeyBytes = 32;
     private const int ArraySortEntryBytes = 96;
-    private const int FunctionFrameBytes = 64;
+    private const int FunctionFrameBytes = 112;
     private const int FunctionLocalEntryBytes = 64;
     private const int ConcatenatedTextNodeBytes = 80;
     private const int SymbolMetadataBytes = 160;

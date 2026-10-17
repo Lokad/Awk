@@ -195,6 +195,13 @@ internal sealed class AwkRuntimeCounters
     }
     public long FunctionArgumentBufferRents { get; private set; }
 
+    public long InlineFunctionFrames { get; private set; }
+
+    public void RecordInlineFunctionFrame()
+    {
+        if (_enabled) lock (_sync) InlineFunctionFrames++;
+    }
+
     public void RecordSynchronousFunction()
     {
         if (!_enabled) return;

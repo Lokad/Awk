@@ -411,7 +411,8 @@ internal sealed class AwkRuntimeState
         AwkFunctionLocalLayout layout,
         ReadOnlySpan<AwkFunctionArgument> arguments)
     {
-        _functions.PushFrame(layout, arguments);
+        if (_functions.PushFrame(layout, arguments))
+            Counters.RecordInlineFunctionFrame();
     }
 
     public void PopFunctionFrame()

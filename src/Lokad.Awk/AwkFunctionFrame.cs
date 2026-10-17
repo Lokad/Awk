@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 
 namespace Lokad.Awk;
@@ -37,11 +38,16 @@ internal readonly record struct AwkFunctionLocalSlotId(int Index);
 
 internal sealed class AwkFunctionFrame
 {
-    // Slot arrays are pooled and may be larger than the active layout. SlotCount
-    // is therefore the authoritative bound while the frame is initialized.
+    private AwkFunctionLocalSlot _singleSlot;
+    private AwkFunctionLocalSlot[] _slots = [];
+
+    // Layout bounds are checked by the call stack; pooled arrays can be larger.
     public AwkFunctionLocalLayout Layout { get; private set; } = AwkFunctionLocalLayout.Empty;
 
-    public AwkFunctionLocalSlot[] Slots { get; private set; } = [];
+    public bool UsesInlineSlot => Layout.SlotCount == 1;
+
+    public ref AwkFunctionLocalSlot GetSlot(int index) =>
+        ref (UsesInlineSlot ? ref _singleSlot : ref _slots[index]);
 
     public bool HasReturnValue { get; set; }
 
@@ -51,18 +57,21 @@ internal sealed class AwkFunctionFrame
 
     public long Id { get; private set; }
 
-    public void Initialize(long id, AwkFunctionLocalLayout layout, AwkFunctionLocalSlot[] slots)
+    public void Initialize(long id, AwkFunctionLocalLayout layout)
     {
         Id = id;
         Layout = layout;
-        Slots = slots;
+        _slots = layout.SlotCount <= 1
+            ? []
+            : ArrayPool<AwkFunctionLocalSlot>.Shared.Rent(layout.SlotCount);
     }
 
     public AwkFunctionLocalSlot[] Reset()
     {
-        var slots = Slots;
+        var slots = _slots;
         Layout = AwkFunctionLocalLayout.Empty;
-        Slots = [];
+        _slots = [];
+        _singleSlot = default;
         HasReturnValue = false;
         ReturnValue = AwkValue.Unassigned();
         RetainedMemoryBytes = 0;

@@ -46,7 +46,7 @@ internal sealed class AwkFunctionRuntime
     public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out IAwkUserFunction? function) =>
         _functions.TryGetValue(name, out function);
 
-    public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments) =>
+    public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments) =>
         _calls.PushFrame(layout, arguments);
 
     public void PopFrame() =>

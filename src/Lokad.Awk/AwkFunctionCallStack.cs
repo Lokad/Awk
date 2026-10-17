@@ -23,9 +23,9 @@ internal sealed class AwkFunctionCallStack(
     public bool HasScalarLocal(AwkFunctionLocalSlotId slotId) =>
         _frames.TryPeek(out var frame) &&
         (uint)slotId.Index < (uint)frame.Layout.SlotCount &&
-        frame.Slots[slotId.Index].Kind == AwkFunctionLocalSlotKind.Scalar;
+        frame.GetSlot(slotId.Index).Kind == AwkFunctionLocalSlotKind.Scalar;
 
-    public void PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments)
+    public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments)
     {
         static long EstimateFrameBytes(AwkFunctionFrame frame)
         {
@@ -34,7 +34,7 @@ internal sealed class AwkFunctionCallStack(
             {
                 bytes = AwkRuntimeMemory.CheckedAdd(
                     bytes,
-                    EstimateLocalSlotBytes(frame.Slots[index]));
+                    EstimateLocalSlotBytes(frame.GetSlot(index)));
             }
 
             return bytes;
@@ -43,44 +43,33 @@ internal sealed class AwkFunctionCallStack(
         if (_frames.Count >= maxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
 
-        var slots = ArrayPool<AwkFunctionLocalSlot>.Shared.Rent(layout.SlotCount);
-        for (var index = 0; index < layout.SlotCount; index++)
-        {
-            if (index >= arguments.Length)
-            {
-                slots[index] = AwkFunctionLocalSlot.MissingScalar();
-                continue;
-            }
-
-            var argument = arguments[index];
-            if (argument.Kind == AwkFunctionArgumentKind.Array)
-            {
-                slots[index] = AwkFunctionLocalSlot.ArrayAlias(argument.ArrayName);
-                continue;
-            }
-
-            if (argument.Kind == AwkFunctionArgumentKind.PotentialArray)
-            {
-                slots[index] = AwkFunctionLocalSlot.PotentialArrayAlias(argument.ArrayName, argument.Value);
-                continue;
-            }
-
-            if (argument.Kind == AwkFunctionArgumentKind.UntypedScalar)
-            {
-                slots[index] = AwkFunctionLocalSlot.UntypedScalar(argument.Value);
-                continue;
-            }
-
-            slots[index] = AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(argument.Value));
-        }
-
         var frame = _recycledFrames.Count == 0
             ? new AwkFunctionFrame()
             : _recycledFrames.Pop();
-        frame.Initialize(++_nextFrameId, layout, slots);
         var potentialAliasesRegistered = false;
         try
         {
+            frame.Initialize(++_nextFrameId, layout);
+            for (var index = 0; index < layout.SlotCount; index++)
+            {
+                ref var slot = ref frame.GetSlot(index);
+                if (index >= arguments.Length)
+                {
+                    slot = AwkFunctionLocalSlot.MissingScalar();
+                    continue;
+                }
+
+                var argument = arguments[index];
+                slot = argument.Kind switch
+                {
+                    AwkFunctionArgumentKind.Array => AwkFunctionLocalSlot.ArrayAlias(argument.ArrayName),
+                    AwkFunctionArgumentKind.PotentialArray =>
+                        AwkFunctionLocalSlot.PotentialArrayAlias(argument.ArrayName, argument.Value),
+                    AwkFunctionArgumentKind.UntypedScalar => AwkFunctionLocalSlot.UntypedScalar(argument.Value),
+                    _ => AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(argument.Value))
+                };
+            }
+
             RegisterPotentialArrayAliases(frame);
             potentialAliasesRegistered = true;
             frame.RetainedMemoryBytes = EstimateFrameBytes(frame);
@@ -105,6 +94,8 @@ internal sealed class AwkFunctionCallStack(
                 memoryAccounting.ReleaseReserved(frame.RetainedMemoryBytes);
                 throw;
             }
+
+            return frame.UsesInlineSlot;
         }
         catch
         {
@@ -121,7 +112,7 @@ internal sealed class AwkFunctionCallStack(
             {
                 for (; registeredSlotCount < frame.Layout.SlotCount; registeredSlotCount++)
                 {
-                    var slot = frame.Slots[registeredSlotCount];
+                    var slot = frame.GetSlot(registeredSlotCount);
                     if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
                         RegisterPotentialArrayAlias(slot.ArrayName);
                 }
@@ -130,7 +121,7 @@ internal sealed class AwkFunctionCallStack(
             {
                 for (var index = 0; index < registeredSlotCount; index++)
                 {
-                    var slot = frame.Slots[index];
+                    var slot = frame.GetSlot(index);
                     if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
                         UnregisterPotentialArrayAlias(slot.ArrayName);
                 }
@@ -143,7 +134,7 @@ internal sealed class AwkFunctionCallStack(
         {
             for (var index = 0; index < frame.Layout.SlotCount; index++)
             {
-                var slot = frame.Slots[index];
+                var slot = frame.GetSlot(index);
                 if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
                     UnregisterPotentialArrayAlias(slot.ArrayName);
             }
@@ -155,7 +146,7 @@ internal sealed class AwkFunctionCallStack(
         var frame = _frames.Pop();
         for (var index = 0; index < frame.Layout.SlotCount; index++)
         {
-            var slot = frame.Slots[index];
+            var slot = frame.GetSlot(index);
             if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
                 UnregisterPotentialArrayAlias(slot.ArrayName);
             if (slot.Kind is (AwkFunctionLocalSlotKind.ArrayAlias or AwkFunctionLocalSlotKind.PotentialArrayAlias) &&
@@ -196,7 +187,7 @@ internal sealed class AwkFunctionCallStack(
     {
         if (_frames.TryPeek(out var frame) && (uint)slotId.Index < (uint)frame.Layout.SlotCount)
         {
-            ref readonly var slot = ref frame.Slots[slotId.Index];
+            ref readonly var slot = ref frame.GetSlot(slotId.Index);
             if (slot.Kind == AwkFunctionLocalSlotKind.Scalar)
                 return slot.Value.TryGetNumber(out number);
         }
@@ -371,7 +362,7 @@ internal sealed class AwkFunctionCallStack(
             {
                 for (var index = 0; index < frame.Layout.SlotCount; index++)
                 {
-                    var slot = frame.Slots[index];
+                    var slot = frame.GetSlot(index);
                     if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias &&
                         slot.ArrayName == arrayName)
                     {
@@ -491,7 +482,7 @@ internal sealed class AwkFunctionCallStack(
 
             try
             {
-                frame.Slots[slotId.Index] = newSlot;
+                frame.GetSlot(slotId.Index) = newSlot;
             }
             catch
             {
@@ -525,7 +516,8 @@ internal sealed class AwkFunctionCallStack(
     private void RecycleFrame(AwkFunctionFrame frame)
     {
         var slots = frame.Reset();
-        ArrayPool<AwkFunctionLocalSlot>.Shared.Return(slots, clearArray: true);
+        if (slots.Length > 0)
+            ArrayPool<AwkFunctionLocalSlot>.Shared.Return(slots, clearArray: true);
         _recycledFrames.Push(frame);
     }
 
@@ -604,7 +596,7 @@ internal sealed class AwkFunctionCallStack(
     {
         if (frame.Layout.TryGetSlot(name, out slotId))
         {
-            slot = frame.Slots[slotId.Index];
+            slot = frame.GetSlot(slotId.Index);
             return true;
         }
 
@@ -619,7 +611,7 @@ internal sealed class AwkFunctionCallStack(
     {
         if ((uint)slotId.Index < (uint)frame.Layout.SlotCount)
         {
-            slot = frame.Slots[slotId.Index];
+            slot = frame.GetSlot(slotId.Index);
             return true;
         }
 
