@@ -1,16 +1,15 @@
 # Benchmarks
 
-Current scoped runtime: `bb6b432c10c2bdc4d7212bc9d2ced3326d9e94ef`, measured 2026-10-17 UTC.
-Keyed aggregation takes **5.3–6.3% less time**, with **32 extra managed bytes/invocation**.
-Alternating two-array reads take **4.61% / 1.42% longer** in the two source orders.
-Fresh GNU elapsed ratios for aggregation are **2.17× medium / 7.22× large**.
+Current scoped runtime: `f7d8b53ef6b659d2fe1a457e0a30bde48c823ec6`, measured 2026-10-17 UTC.
+Large-input nested calls take **2.46–3.08% less time** in the two source orders.
+Fresh GNU elapsed ratio for this workload: **4.50×**.
 
-The catalogue now has 30 families. The complete **29-family baseline is retained** from
+The catalogue has 30 families. The complete **29-family baseline is retained** from
 2026-10-17 at Release source `3031909b6f9bc60582eb47dadcbaa09ea4e4aacd` against GNU awk 5.2.1.
-Every first-table row except alternating reads retains that source. The new alternating row
-uses the scoped runtime above, measured 2026-10-17 UTC. Three runtime changes have been
-accepted since the complete refresh; no overall parity or cumulative-gain claim.
-Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
+Every first-table row except alternating reads retains that source. The alternating row
+retains `bb6b432c10c2bdc4d7212bc9d2ced3326d9e94ef`, measured 2026-10-17 UTC.
+Four runtime changes have been accepted since the complete refresh; no overall parity or
+cumulative-gain claim. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
 
@@ -60,46 +59,47 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC: `071337db9225f1fe7442b69b8e9099621060bf53`
-→ `bb6b432c10c2bdc4d7212bc9d2ced3326d9e94ef`, identical harness/inputs. The baseline adds the new control with unchanged
-runtime code from `6f408f1`. Three warmups/five iterations, two launches/source in both source
-orders. Times are medians of launch medians; allocation counts apply to both orders.
+Measured 2026-10-17 UTC: `73a3ad81ea4d4f00ccf3ffe5718d045c9dd5647c`
+→ `f7d8b53ef6b659d2fe1a457e0a30bde48c823ec6`, identical harness and inputs, **large scale**.
+Three warmups/five iterations, two launches/source in both source orders. Times are medians
+of launch medians; allocations are managed bytes per complete invocation.
 
 | Workload | Median ms, before → after (two source orders) | Allocated bytes, before → after |
 | --- | --- | ---: |
-| Keyed aggregation | 2.980→2.822; 3.054→2.862 | 801,059→801,091 |
-| Alternating-read control | 2.399→2.510; 2.456→2.491 | 805,875→805,907 |
-| Arithmetic control | 5.170→5.048; 5.108→5.017 | 759,962→759,994 |
+| Nested calls / 65,536 records | 48.178→46.994; 48.077→46.596 | 10,126,871→10,126,871 |
+| Numeric-call control / 65,536 records | 131.675→134.612; 133.251→133.665 | 10,152,400→10,152,400 |
+| Join control / 65,536 records per file | 125.800→127.279; 125.490→125.070 | 43,507,069→43,516,899; 43,507,072→43,507,130 |
 
-Existing array storage caches one resolved container. Replacement refreshes a matching entry;
-removal clears it before refund. This avoids repeated outer name/table probes. It adds 45 net
-runtime lines in three files and **32 bytes of fixed storage metadata per invocation**; there
-is no added per-record/key storage, global-slot-layout change, wrapper or memory owner.
-Original typing, special/virtual arrays, aliases, mutation admission and cancellation remain.
+Established scalar locals use their original value factory after the unchanged Number fast path,
+without general scalar/array projection transport. Missing, untyped and array cases retain
+original promotion/fallback. The change adds 31 net runtime lines in four files, one helper
+and an optional counter; no new owner, frame layout, argument buffer or per-record storage.
+Spelling, value admission, cancellation and actual-user lifetimes remain unchanged.
 
-Aggregation reductions are **5.30% / 6.29%**; four launch-pair reductions:
-+3.37%, +7.22%, +6.12%, +6.45%. The pilot's 12.85% did not repeat.
-Alternating reads take **4.61% / 1.42% longer**. Arithmetic reductions are
-**2.35% / 1.80%**; one reverse-order pair is flat. No control improvement is claimed.
-The miss-path cost is retained explicitly. One pilot and one balanced confirmation pass
-quiet gates, stable identities and no extra SSH logins in six source windows; no retiming.
+Nested-call reductions are **2.46% / 3.08%**; four launch-pair reductions: +3.77%, +1.07%, +4.77%, +1.37%.
+Numeric-call control: -2.23% / -0.31% less elapsed (negative means longer).
+Join control: -1.18% / +0.33% less elapsed (negative means longer).
+Control results and small allocation differences are retained; no control gain is attributed
+to this path. The join reading exceeds the original 128-byte control allocation allowance.
+Review accepted its 0.023% managed-total difference with zero new-path hits; the original
+gate is recorded as failed. One pilot and one balanced confirmation pass quiet gates, stable identities
+and no additional SSH logins; no source/settings variants or retiming.
 
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39035249630)
-passes **73,260 tests/OS**, including 701 selected guards. Parsed aggregation has 24,634 hits;
-both controls have zero. Original logical/value/field/host/conversion work matches. All 92
-reference snapshots and 32 finite-resource counter rows match; 30 stack scenarios/OS pass.
-Missing refresh/removal/ordinary-route mutations fail 3/2/4 checks with 4/5/3 controls.
-Weak-reference checks cover replaced/removed storage. Native goldens have 122 equivalent cases
-plus the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-
-Only aggregation and the new control received fresh GNU comparisons: nine alternating
-pairs/scale, exact output, stable identities and quiet/SSH gates. No complete-family refresh.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39040038478) passes **73,267 tests/OS**,
+including 708 selected guards. Parsed large-workload path counts are 131,072 / 65,536 / 0;
+all original counters, 92 reference snapshots and 32 finite-resource rows match. Thirty stack
+scenarios/OS pass. Disabling the route fails four checks while four numeric-call controls pass.
+Native goldens have 123 equivalent cases plus the documented
+[numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
+Only nested calls received a fresh large-input GNU comparison: nine alternating pairs with
+exact output and qualified quiet/identity/SSH gates. No complete-family refresh.
 
 ## Larger-input comparisons
 
-Aggregation and alternating-read rows are fresh at the scoped source above. Other rows retain
-their explicit sources/dates and were not refreshed. Original paired runs checked exact outputs,
-quiet gates, stable identities and no extra SSH logins. Larger-input allocations were not measured.
+Only the nested-call row is fresh at the scoped runtime above. Other rows retain their named
+sources/dates. Managed allocations for the three scoped large workloads appear above; the other
+large rows received no allocation refresh. These comparisons include source preparation and
+GNU process costs, with exact-output, quiet, identity and SSH qualification.
 
 | Case / input KiB / records | Measured source / date UTC | Lokad ms | GNU ms | Lokad.Awk/awk |
 | --- | --- | ---: | ---: | ---: |
@@ -108,7 +108,7 @@ quiet gates, stable identities and no extra SSH logins. Larger-input allocations
 | printf / 384.00 / 65,536 | 6f408f1 / 2026-10-17 | 58.613 | 13.428 | 4.36× |
 | Two-argument calls / 128.00 / 65,536 | ea3bbe6 / 2026-10-17 | 129.310 | 50.947 | 2.54× |
 | Three-field filter / 384.00 / 65,536 | c90b108 / 2026-10-17 | 33.969 | 8.946 | 3.80× |
-| Nested calls / 128.00 / 65,536 | 24de9e7 / 2026-10-17 | 48.587 | 10.418 | 4.66× |
+| Nested calls / 128.00 / 65,536 | f7d8b53 / 2026-10-17 | 47.170 | 10.481 | 4.50× |
 | Two-file join / 1,386.30 / 65,536 per file | c9d7c74 / 2026-10-17 | 138.740 | 30.512 | 4.55× |
 | For arithmetic / 128.00 / 65,536 | e4408c3 / 2026-10-17 | 80.618 | 31.328 | 2.57× |
 | ASCII strings / 832.00 / 65,536 | 1c8c9d3 / 2026-10-17 | 45.409 | 9.840 | 4.61× |
@@ -118,8 +118,7 @@ quiet gates, stable identities and no extra SSH logins. Larger-input allocations
 | Call loop / 128.00 / 65,536 | f52d9f4 / 2026-10-16 | 138.482 | 45.626 | 3.04× |
 | Long fields / 16,408.00 / 4,096 | 7ad867d / 2026-10-16 | 13.349 | 16.624 | 0.80× |
 
-These scripts still show substantial large-input gaps except the retained long-field result.
-Do not combine older scale results with current medium measurements into a speedup claim.
+Substantial large-input gaps remain; retained measurements are not fresh results or cumulative gains.
 
 ## Environment and reproduction
 
