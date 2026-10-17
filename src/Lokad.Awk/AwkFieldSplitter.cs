@@ -135,7 +135,8 @@ internal sealed class AwkFieldSplitter(
     public List<AwkFieldText> SplitRecordFields(AwkText line) =>
         SplitRecordFields(line, CaptureRecordPlan());
 
-    public List<AwkFieldText> SplitRecordFields(AwkText line, AwkRecordSplitPlan plan)
+    public List<AwkFieldText> SplitRecordFields(AwkText line, AwkRecordSplitPlan plan,
+        List<AwkFieldText>? fieldBuffer = null)
     {
         recordByteWork?.Invoke(line.ByteLength);
         if (compatibilityMode != AwkCompatibilityMode.GnuDefault &&
@@ -274,11 +275,11 @@ internal sealed class AwkFieldSplitter(
                 ? _byteSplitter.SplitParagraphRecordFieldsBySeparator(
                     line,
                     plan.Separator,
-                    plan.CaseSensitivity)
+                    plan.CaseSensitivity, fieldBuffer)
                 : _byteSplitter.SplitRecordFieldsBySeparator(
                     line,
                     plan.Separator,
-                    plan.CaseSensitivity)
+                    plan.CaseSensitivity, fieldBuffer)
         };
     }
 

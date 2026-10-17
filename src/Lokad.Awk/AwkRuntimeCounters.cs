@@ -22,6 +22,7 @@ internal sealed class AwkRuntimeCounters
     public long BytesRead { get; private set; }
 
     public long FieldsMaterialized { get; private set; }
+    public long FieldListBufferReuses { get; private set; }
 
     public long FieldSplits { get; private set; }
 
@@ -301,6 +302,12 @@ internal sealed class AwkRuntimeCounters
 
         lock (_sync)
             FieldsMaterialized += count;
+    }
+
+    public void RecordFieldListBufferReuse()
+    {
+        if (!_enabled) return;
+        lock (_sync) FieldListBufferReuses++;
     }
 
     public void RecordFieldSplit()

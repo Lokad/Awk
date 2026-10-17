@@ -225,7 +225,8 @@ internal sealed class AwkByteFieldSplitter(
     public List<AwkFieldText> SplitRecordFieldsBySeparator(
         AwkText line,
         AwkFieldSeparatorSpec separator,
-        AwkRegexCaseSensitivity caseSensitivity)
+        AwkRegexCaseSensitivity caseSensitivity,
+        List<AwkFieldText>? fieldBuffer = null)
     {
         var plan = ResolveSeparator(separator, runtimeCounters, caseSensitivity);
         if (line.ByteLength == 0)
@@ -233,7 +234,7 @@ internal sealed class AwkByteFieldSplitter(
 
         return plan.Kind switch
         {
-            FieldSeparatorKind.Whitespace => SplitWhitespaceRecordFields(line),
+            FieldSeparatorKind.Whitespace => SplitWhitespaceRecordFields(line, fieldBuffer),
             FieldSeparatorKind.Characters => SplitCharacterRecordFields(
                 line,
                 stringUnitMode),
@@ -249,14 +250,15 @@ internal sealed class AwkByteFieldSplitter(
             return ScanSingleByteFields<RecordListFieldSink, List<AwkFieldText>>(
                 line,
                 separator,
-                new RecordListFieldSink(fieldCount));
+                new RecordListFieldSink(fieldCount, fieldBuffer));
         }
     }
 
     public List<AwkFieldText> SplitParagraphRecordFieldsBySeparator(
         AwkText line,
         AwkFieldSeparatorSpec separator,
-        AwkRegexCaseSensitivity caseSensitivity)
+        AwkRegexCaseSensitivity caseSensitivity,
+        List<AwkFieldText>? fieldBuffer = null)
     {
         var plan = ResolveSeparator(separator, runtimeCounters, caseSensitivity);
         if (line.ByteLength == 0)
@@ -265,7 +267,7 @@ internal sealed class AwkByteFieldSplitter(
         return plan.Kind switch
         {
             FieldSeparatorKind.SingleByte => SplitSingleByteParagraphRecordFields(line, plan.SingleByte),
-            FieldSeparatorKind.Whitespace => SplitWhitespaceRecordFields(line),
+            FieldSeparatorKind.Whitespace => SplitWhitespaceRecordFields(line, fieldBuffer),
             FieldSeparatorKind.Characters => SplitCharacterRecordFields(
                 line,
                 stringUnitMode),
@@ -430,12 +432,12 @@ internal sealed class AwkByteFieldSplitter(
         return fields;
     }
 
-    private List<AwkFieldText> SplitWhitespaceRecordFields(AwkText line) =>
+    private List<AwkFieldText> SplitWhitespaceRecordFields(AwkText line, List<AwkFieldText>? fieldBuffer = null) =>
         line.ByteLength == 0
             ? []
             : ScanWhitespaceFields<RecordListFieldSink, List<AwkFieldText>>(
                 line,
-                new RecordListFieldSink());
+                new RecordListFieldSink(0, fieldBuffer));
 
     private List<AwkFieldText> SplitCharacterRecordFields(
         AwkText line,
@@ -599,9 +601,9 @@ internal sealed class AwkByteFieldSplitter(
             _fields = [];
         }
 
-        public RecordListFieldSink(int capacity)
+        public RecordListFieldSink(int capacity, List<AwkFieldText>? fields = null)
         {
-            _fields = new List<AwkFieldText>(capacity);
+            _fields = fields ?? new List<AwkFieldText>(capacity);
         }
 
         public void Add(AwkByteRange field) =>

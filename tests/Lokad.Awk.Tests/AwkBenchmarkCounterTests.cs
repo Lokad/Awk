@@ -71,6 +71,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("36\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(8, result.Counters.PreparedNumericSlotReads);
+        Assert.Equal(3, result.Counters.FieldListBufferReuses);
         Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 4 : 0,
             result.Counters.BoundLocalScalarArguments);
         Assert.Equal(0, result.Counters.StringDecodes);
@@ -96,6 +97,7 @@ public sealed class AwkBenchmarkCounterTests
             Assert.Equal(run == 0 ? "1\n" : "0\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(5, counters.BoundGlobalArrayAccesses);
+            Assert.Equal(3, counters.FieldListBufferReuses);
         }
     }
 

@@ -16,6 +16,7 @@ internal sealed class AwkFieldFrame(
     private const int MutationCheckpointFields = 1024;
     // Tiny records are cheaper to finish once than to stage successive prefixes.
     private const int IncrementalRecordBytes = 128;
+    private const int MaxReusableFieldListCapacity = 4;
     private const int MaxReusableFieldCacheCapacity = 128;
     // A rough backing-capacity charge covers this dictionary and its two small arrays.
     private const int MaxGovernedReusableFieldCacheCapacity = 3;
@@ -189,22 +190,18 @@ internal sealed class AwkFieldFrame(
 
     public void SetRecordText(AwkText text, AwkRecordSplitPlan splitPlan = default)
     {
-        ReplaceRetainedMemory(AwkRuntimeMemory.CheckedAdd(
-            EstimateRetainedBytes(text, EmptyFieldTexts, EmptyFieldValueCache),
-            splitPlan.RetainedMemoryBytes));
+        ReplaceRetainedMemory(EstimateEmptyRecordBytes(text, splitPlan));
         SplitPlan = splitPlan;
         _recordText = text;
         _recordWasRecomposed = false;
         _recordValue = AwkValue.FromText(string.Empty);
         _recordValueIsCurrent = false;
         _recordTextIsCurrent = true;
-        ClearSplitFields();
+        ClearSplitFields(reuseFieldBuffer: AwkFieldSplitter.SupportsIncrementalFields(splitPlan));
     }
 
     public long EstimateRecordMemoryGrowth(AwkText text, AwkRecordSplitPlan splitPlan) =>
-        Math.Max(0, AwkRuntimeMemory.CheckedAdd(
-            EstimateRetainedBytes(text, EmptyFieldTexts, EmptyFieldValueCache),
-            splitPlan.RetainedMemoryBytes) - _retainedMemoryBytes);
+        Math.Max(0, EstimateEmptyRecordBytes(text, splitPlan) - _retainedMemoryBytes);
 
     public void SetRecordValue(
         AwkValue value,
@@ -212,16 +209,14 @@ internal sealed class AwkFieldFrame(
         AwkRecordSplitPlan splitPlan = default)
     {
         var text = formatStringByteText(value);
-        ReplaceRetainedMemory(AwkRuntimeMemory.CheckedAdd(
-            EstimateRetainedBytes(text, EmptyFieldTexts, EmptyFieldValueCache),
-            splitPlan.RetainedMemoryBytes));
+        ReplaceRetainedMemory(EstimateEmptyRecordBytes(text, splitPlan));
         SplitPlan = splitPlan;
         _recordText = text;
         _recordWasRecomposed = false;
         _recordValue = value;
         _recordValueIsCurrent = true;
         _recordTextIsCurrent = true;
-        ClearSplitFields();
+        ClearSplitFields(reuseFieldBuffer: AwkFieldSplitter.SupportsIncrementalFields(splitPlan));
     }
 
     public void AssignFieldValue(
@@ -713,25 +708,46 @@ internal sealed class AwkFieldFrame(
                 _recordText.ByteLength,
                 fieldListCount: 2,
                 AwkSeparatorCaptureMode.Omit) : 0);
-        var fieldTexts = splitFields(_recordText);
-        ThrowIfFieldCountExceeded(fieldTexts.Count);
-        var payloadByteLength = SumFieldPayloadByteLength(fieldTexts);
-        var retainedBytes = EstimateRetainedBytes(_recordText, fieldTexts, _fieldValueCache);
-        checkpoint?.Invoke();
-        ReplaceRetainedMemory(retainedBytes);
+        var reusable = _fieldTexts.Count == 0 && _fieldTexts.Capacity is > 0 and <= MaxReusableFieldListCapacity &&
+            fieldSplitter is not null && AwkFieldSplitter.SupportsIncrementalFields(SplitPlan) ? _fieldTexts : null;
         var previousCount = _fieldTexts.Count;
-        _fieldTexts = fieldTexts;
-        _fieldCountValue = AwkValue.FromNumber(fieldTexts.Count);
-        _fieldPayloadByteLength = payloadByteLength;
-        counters.RecordFieldsMaterialized(_fieldTexts.Count - previousCount);
-        _fieldsAreSplit = true;
-        SplitPlan = default;
+        // Keep a private empty view until staging succeeds; later field mutation owns its list.
+        if (reusable is not null) _fieldTexts = [];
+        try
+        {
+            var fieldTexts = reusable is not null && fieldSplitter is not null
+                ? fieldSplitter.SplitRecordFields(_recordText, SplitPlan, reusable) : splitFields(_recordText);
+            ThrowIfFieldCountExceeded(fieldTexts.Count);
+            var payloadByteLength = SumFieldPayloadByteLength(fieldTexts);
+            var retainedBytes = EstimateRetainedBytes(_recordText, fieldTexts, _fieldValueCache);
+            checkpoint?.Invoke();
+            ReplaceRetainedMemory(retainedBytes);
+            _fieldTexts = fieldTexts;
+            _fieldCountValue = AwkValue.FromNumber(fieldTexts.Count);
+            _fieldPayloadByteLength = payloadByteLength;
+            counters.RecordFieldsMaterialized(_fieldTexts.Count - previousCount);
+            _fieldsAreSplit = true;
+            SplitPlan = default;
+            if (ReferenceEquals(fieldTexts, reusable)) counters.RecordFieldListBufferReuse();
+        }
+        catch
+        {
+            if (reusable is not null)
+            {
+                reusable.Clear();
+                _fieldTexts = reusable.Capacity <= MaxReusableFieldListCapacity ? reusable : [];
+            }
+            throw;
+        }
     }
 
-    private void ClearSplitFields(bool releaseCache = false)
+    private void ClearSplitFields(bool releaseCache = false, bool reuseFieldBuffer = true)
     {
         _fieldCountValue = AwkValue.FromNumber(0);
-        if (_fieldTexts.Capacity != 0)
+        // Custom split callbacks can retain their returned lists; only the bound splitter owns reusable storage.
+        if (!releaseCache && reuseFieldBuffer && fieldSplitter is not null && _fieldTexts.Capacity is > 0 and <= MaxReusableFieldListCapacity)
+            _fieldTexts.Clear();
+        else if (_fieldTexts.Capacity != 0)
             _fieldTexts = [];
         if (!releaseCache && _fieldValueCache.EnsureCapacity(0) <=
             (governor.IsEnabled ? MaxGovernedReusableFieldCacheCapacity : MaxReusableFieldCacheCapacity))
@@ -790,6 +806,13 @@ internal sealed class AwkFieldFrame(
 
         _retainedMemoryBytes = newBytes;
     }
+
+    private long EstimateEmptyRecordBytes(AwkText text, AwkRecordSplitPlan plan) =>
+        AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(
+            EstimateRetainedBytes(text, EmptyFieldTexts, EmptyFieldValueCache), plan.RetainedMemoryBytes),
+            governor.IsEnabled && fieldSplitter is not null && AwkFieldSplitter.SupportsIncrementalFields(plan) &&
+                _fieldTexts.Capacity is > 0 and <= MaxReusableFieldListCapacity
+                ? AwkRuntimeMemory.EstimateFieldTextListBytes(_fieldTexts.Capacity) : 0);
 
     private long EstimateRetainedBytes(
         AwkText recordText,

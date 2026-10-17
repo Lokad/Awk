@@ -5,6 +5,38 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
 {
+    [Fact]
+    public void OrdinarySmallRecordsReuseDescriptorStorageWithinBoundedAllocation()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var options = new AwkRuntimeOptions(
+            () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
+            counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            CancellationToken.None, options);
+        var record = AwkText.FromSourceLiteralString("alpha beta");
+        for (var index = 0; index < 100; index++)
+        {
+            state.SetCurrentRecord(record);
+            _ = state.FieldCount;
+        }
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var total = 0;
+        for (var index = 0; index < 1_000; index++)
+        {
+            state.SetCurrentRecord(record);
+            total += state.FieldCount;
+        }
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        output.WriteLine("1,000 ordinary small-record field splits: {0} allocated bytes.", allocated);
+        Assert.Equal(2_000, total);
+        Assert.Equal(1_099, counters.FieldListBufferReuses);
+        Assert.InRange(allocated, 0, 96_000);
+        Assert.Equal(0, counters.AwkTextAllocations);
+        Assert.Equal(0, counters.StringDecodes);
+    }
+
     [Theory]
     [InlineData(false, 1_600_000)]
     [InlineData(true, 1_900_000)]

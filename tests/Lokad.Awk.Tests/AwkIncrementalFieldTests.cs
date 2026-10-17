@@ -2,6 +2,181 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkIncrementalFieldTests
 {
+    [Fact]
+    public async Task RefusedRecordReplacementPreservesTheOwnedSmallBuffer()
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = Accounting(2, owner, counters);
+        var (frame, splitter) = Frame(accounting, counters, " ");
+        var old = AwkText.FromSourceLiteralString("left right");
+        frame.SetRecordText(old, splitter.CaptureRecordPlan());
+        Assert.Equal("left", Read(frame, splitter, 1));
+        var committed = accounting.CurrentCommittedBytes;
+        budget.RefuseNextAdmissionMinimumGrowth = 1;
+        budget.OnRefusal = () => Assert.Same(old, frame.RecordAwkText);
+        var error = Assert.Throws<AwkRuntimeException>(() => frame.SetRecordText(
+            AwkText.FromSourceLiteralString(new string('x', 256 << 10)), splitter.CaptureRecordPlan()));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Same(old, frame.RecordAwkText);
+        Assert.Equal("right", Read(frame, splitter, 2));
+        Assert.Equal(committed, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, accounting.CurrentReservedBytes);
+        Assert.Equal(1, budget.Refusals);
+        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        frame.ResetRecord();
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(0, " ")] [InlineData(1, " ")] [InlineData(2, " ")]
+    [InlineData(0, "|")] [InlineData(1, "|")] [InlineData(2, "|")]
+    public async Task ReusedBuffersKeepCapturedSeparatorsAndMutationSnapshots(int mode, string separator)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = Accounting(mode, owner, counters);
+        var (frame, splitter) = Frame(accounting, counters, separator);
+        frame.SetRecordText(AwkText.FromSourceLiteralString("warm" + separator + "row"), splitter.CaptureRecordPlan());
+        Assert.Equal("warm", Read(frame, splitter, 1));
+        frame.SetRecordText(AwkText.FromSourceLiteralString("café" + separator + "δ"), splitter.CaptureRecordPlan());
+        splitter.AssignFieldSeparator(AwkText.FromSourceLiteralString(","));
+        Assert.Equal("café", Read(frame, splitter, 1));
+        Assert.Equal("δ", Read(frame, splitter, 2));
+        var saved = frame.GetFieldValue(new(2), line => splitter.SplitRecordFields(line, frame.SplitPlan), AwkValue.FromText);
+        frame.AssignFieldValue(new(2), AwkValue.FromText("changed"), AwkText.FromSourceLiteralString("|"),
+            line => splitter.SplitRecordFields(line, frame.SplitPlan));
+        Assert.Equal("café|changed", frame.RecordAwkText.AsString());
+        frame.SetRecordText(AwkText.FromSourceLiteralString("u,v"), splitter.CaptureRecordPlan());
+        Assert.Equal("u", Read(frame, splitter, 1));
+        Assert.Equal("v", Read(frame, splitter, 2));
+        Assert.Equal("δ", saved.AsString());
+        Assert.Equal(2, counters.FieldListBufferReuses);
+        frame.ResetRecord();
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(0, " ")] [InlineData(1, " ")] [InlineData(2, " ")]
+    [InlineData(0, "|")] [InlineData(1, "|")] [InlineData(2, "|")]
+    public async Task SmallFieldListsReuseAcrossRecordsAndRefundOnReset(int mode, string separator)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = Accounting(mode, owner, counters);
+        var (frame, splitter) = Frame(accounting, counters, separator);
+        AwkValue saved = default;
+        for (var repeat = 0; repeat < 3; repeat++)
+        {
+            frame.SetRecordText(AwkText.FromSourceLiteralString("café" + separator + repeat), splitter.CaptureRecordPlan());
+            Assert.Equal("café", Read(frame, splitter, 1));
+            Assert.Equal(repeat.ToString(System.Globalization.CultureInfo.InvariantCulture), Read(frame, splitter, 2));
+            Assert.Equal(2, frame.GetFieldCount(line => splitter.SplitRecordFields(line, frame.SplitPlan)));
+            Assert.Equal(repeat, counters.FieldListBufferReuses);
+            if (repeat == 0) saved = frame.GetFieldValue(new(2), line => splitter.SplitRecordFields(line, frame.SplitPlan), AwkValue.FromText);
+        }
+        Assert.Equal("0", saved.AsString());
+        Assert.Equal(6, counters.FieldsMaterialized);
+        frame.ResetRecord();
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, accounting.CurrentReservedBytes);
+        Assert.Equal(0, budget.Reserved);
+        frame.AssignFieldValue(new(1), AwkValue.FromText("fresh"), AwkText.FromSourceLiteralString(" "),
+            line => splitter.SplitRecordFields(line, frame.SplitPlan));
+        Assert.Equal("fresh", frame.RecordAwkText.AsString());
+        frame.ResetRecord();
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(0, " ")] [InlineData(1, " ")] [InlineData(2, " ")]
+    [InlineData(0, "|")] [InlineData(1, "|")] [InlineData(2, "|")]
+    public async Task ReusedFieldListQuotaFailureCannotPublishAPrefix(int mode, string separator)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = Accounting(mode, owner, counters);
+        var (frame, splitter) = Frame(accounting, counters, separator, maxFields: 2);
+        frame.SetRecordText(AwkText.FromSourceLiteralString("one" + separator + "two"), splitter.CaptureRecordPlan());
+        Assert.Equal("one", Read(frame, splitter, 1));
+        var source = AwkText.FromSourceLiteralString(string.Join(separator, Enumerable.Repeat("bad", 6)));
+        frame.SetRecordText(source, splitter.CaptureRecordPlan());
+        var plan = frame.SplitPlan;
+        var committed = accounting.CurrentCommittedBytes;
+        for (var repeat = 0; repeat < 2; repeat++)
+        {
+            var error = Assert.Throws<AwkRuntimeException>(() => Read(frame, splitter, 1));
+            Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            Assert.Equal(2, counters.FieldsMaterialized);
+            Assert.Equal(0, counters.FieldListBufferReuses);
+            Assert.Same(source, frame.RecordAwkText);
+            Assert.Equal(plan, frame.SplitPlan);
+            Assert.Equal(committed, accounting.CurrentCommittedBytes);
+            Assert.Equal(0, accounting.CurrentReservedBytes);
+        }
+        frame.ResetRecord();
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)]
+    public async Task ReusedFieldListCancellationClearsUnpublishedDescriptors(int mode)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = Accounting(mode, owner, counters);
+        var armed = false; var checks = 0;
+        void Check() { if (armed && ++checks == 4) throw new OperationCanceledException(); }
+        var (frame, splitter) = Frame(accounting, counters, " ", checkpoint: Check);
+        frame.SetRecordText(AwkText.FromSourceLiteralString("old value"), splitter.CaptureRecordPlan());
+        Assert.Equal("old", Read(frame, splitter, 1));
+        var source = AwkText.FromSourceLiteralString("first second " + new string('x', 8192));
+        frame.SetRecordText(source, splitter.CaptureRecordPlan());
+        var committed = accounting.CurrentCommittedBytes;
+        armed = true;
+        Assert.Throws<OperationCanceledException>(() => frame.GetFieldCount(line => splitter.SplitRecordFields(line, frame.SplitPlan)));
+        armed = false;
+        Assert.Equal(2, counters.FieldsMaterialized);
+        Assert.Same(source, frame.RecordAwkText);
+        Assert.Equal(committed, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, accounting.CurrentReservedBytes);
+        Assert.Equal("first", Read(frame, splitter, 1));
+        Assert.Equal(3, counters.FieldsMaterialized);
+        frame.ResetRecord();
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)]
+    public async Task LargeFieldListsAreDiscardedBeforeSmallReuse(int mode)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = Accounting(mode, owner, counters);
+        var (frame, splitter) = Frame(accounting, counters, " ");
+        frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("x", 8))), splitter.CaptureRecordPlan());
+        Assert.Equal(8, frame.GetFieldCount(line => splitter.SplitRecordFields(line, frame.SplitPlan)));
+        frame.SetRecordText(AwkText.FromSourceLiteralString("small row"), splitter.CaptureRecordPlan());
+        Assert.Equal("small", Read(frame, splitter, 1));
+        Assert.Equal(0, counters.FieldListBufferReuses);
+        frame.SetRecordText(AwkText.FromSourceLiteralString("next row"), splitter.CaptureRecordPlan());
+        Assert.Equal("next", Read(frame, splitter, 1));
+        Assert.Equal(1, counters.FieldListBufferReuses);
+        frame.ResetRecord();
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Theory]
     [InlineData(0, " ")]
     [InlineData(1, " ")]
