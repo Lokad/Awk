@@ -89,7 +89,9 @@ Established ordinary global arrays retain their kind after successful access; st
 mutation checks remain original. Special arrays and live function contexts retain name resolution.
 Syntax-depth settings above 128 retain unconditional function-entry/unwind suspension.
 Eligible loops and complete scalar actions also reuse known-call metadata for zero through
-four arguments. Multiple arguments use a fixed stack temporary and the original function frames;
+four arguments. Single-return and exact `if(c)return a;return b` bodies retain statement/
+condition/return checkpoint order; both branches contribute to existing preparation bounds.
+Multiple arguments use a fixed stack temporary and the original function frames;
 omitted/extra arguments and larger arities retain ordinary evaluation. Calls retain
 their original executor at VM, lint, pending-output, raised-syntax and stack-safety boundaries.
 

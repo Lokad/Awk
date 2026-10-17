@@ -8,9 +8,10 @@ prepared arithmetic-call cases.
 
 The other **31 rows retain** the complete baseline measured 2026-10-17 UTC at
 `8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this extension.
-Core runtime code is identical between these revisions. The latest accepted post-test-loop
-change takes **17.50–18.25% less time** on large inputs, with separate evidence below.
-Development batch remains 0/5; no overall parity or cumulative-gain claim.
+Core runtime code is identical between these baseline revisions. The latest accepted
+conditional-return preparation takes **48.11–51.09% less time** on large paired
+branching calls; its newer source and separate evidence appear below. The first table retains
+its named measurements. Development batch is 1/5; no overall parity or cumulative-gain claim.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -64,32 +65,42 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC: `fceeefb4883d939fdabaaaf94651e61f07800ad7`
-→ `f51c41eab15b13e58e2184d7e4d4042c04b35974`, identical harness and inputs, **large scale**.
+Measured 2026-10-17 UTC: `eae9e30a21e9f1ad6611bc6283f09543eea78a9d`
+→ `606de302c8872d46b0c51f6c8c03e8541c464c62`, identical harness and inputs, **large scale**.
 Three warmups/five iterations, two launches/source in both source orders. Times are medians
-of launch medians; allocations are managed bytes per complete invocation.
+of launch medians. Managed allocations use all four launch observations/source: median and
+full range where readings differ, per complete invocation.
 
-| Workload | Median ms, before → after (two source orders) | Allocated bytes, before → after |
+| Workload | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
 | --- | --- | ---: |
-| Post-test arithmetic / 65,536 records | 102.756→84.773; 102.674→83.931 | 10,142,506→10,132,765; 10,132,666→10,132,765 |
-| While-loop control / 65,536 records | 80.340→79.428; 79.963→79.594 | 10,131,536→10,131,536; 10,131,536→10,131,536 |
-| Nested-call control / 65,536 records | 46.168→46.388; 46.072→46.667 | 10,126,871→10,126,871; 10,126,871→10,126,871 |
+| Branching paired calls / 65,536 records | 266.818→138.462; 285.888→139.827 | 10,179,536→10,180,824 |
+| Branching unary calls (also affected) / 65,536 records | 227.042→121.946; 222.732→124.022 | 10,173,493→10,174,874 [10,174,832–10,184,714] |
+| Prepared paired-call control / 65,536 records | 134.331→131.542; 132.506→132.597 | 10,152,400→10,152,416 |
 
-Eligible `do…while` bodies reuse the existing bounded synchronous loop actions, preserving
-the mandatory first body, post-test order, logical checkpoints and scalar setters. Control-flow,
-host-capable, pending-output and lint cases keep ordinary execution. Existing `for`/`while`
-execution remains unchanged. The change adds 30 net runtime lines in three files, including
-an optional counter; no new owner, cache or instruction representation.
+Exact `if (condition) return a; return b;` functions reuse existing prepared calls and
+complete scalar actions/loops. The gain includes bypassed ordinary invocation, argument
+transport and statement traversal; it does not isolate one dispatch cost. Other bodies keep
+ordinary execution. If/condition/return/expression checkpoints, frame admission, aliases,
+caller effects, cancellation and VM/lint/pending-output/stack fallbacks remain. The change
+adds 51 net runtime lines in 4 files, with no new executor, cache or owner.
 
-Four target launch-pair reductions: +15.82%, +19.18%, +20.86%, +15.54%.
-While-loop control: +1.14% / +0.46% less elapsed (negative means longer).
-Nested-call control: -0.48% / -1.29% less elapsed (negative means longer).
-Controls are retained and are not attributed gains. Fixed compilation metadata was allowed
-up to 1,024 bytes per invocation; the repeatable target delta was +99 bytes. The first-order
-baseline allocation reading was 9,840 bytes higher; it is retained without a savings claim.
-No per-record allocation was introduced. One pilot and one balanced confirmation qualified
-quiet gates, identities and SSH isolation. These are controlled
-source comparisons; they do not establish GNU parity or a cumulative gain.
+Four target launch-pair reductions: +47.44%, +48.77%, +52.58%, +49.50%.
+Unary reductions: +46.29%/+44.32%; this case is also affected.
+Prepared-pair control: +2.08%/-0.07% less elapsed (negative means longer); not an attributed gain.
+
+Allocation cost includes newly enabled action/loop metadata and two references per prepared
+function. An allocation-only check at 16/4,096/65,536 records found 736–1,512 extra bytes in
+affected cases and 16 bytes in the prepared control. Small/medium deltas matched; large samples
+varied, so no exact byte-attribution or allocation-savings claim. Confirmation's typical
+allocation growth is 1,288/1,380 bytes; one unary launch also includes an unexplained additional
+9,840 bytes per invocation, retained in the range above. Allocation summaries include every
+launch rather than only the last exported reading. Typical metadata growth fits 2 KiB;
+production quotas are unchanged. Source review found no added allocation per record/call.
+
+Full Windows/Linux tests, exact GNU outputs, finite fuel/resource checks, negative mutations,
+stack probes and CI qualify. One pilot and one balanced confirmation used stable identities,
+qualified quiet gates and no extra measurement-window SSH login. These controlled comparisons
+do not establish GNU parity or a cumulative gain.
 
 ## Larger-input comparisons
 
@@ -142,7 +153,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*multi-arg-loop*' '*WorkloadAllocationBenchmarks*medium*loop-with-calls*' '*WorkloadAllocationBenchmarks*medium*user-functions*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*large*branching-calls*' '*WorkloadAllocationBenchmarks*large*branching-unary-calls*' '*WorkloadAllocationBenchmarks*large*multi-arg-loop*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
