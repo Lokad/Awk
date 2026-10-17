@@ -15,7 +15,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "projection", "multi-column", "filter", "membership", "array-read", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
+        "projection", "multi-column", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
         "arithmetic-loops", "while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "string-functions", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
@@ -141,6 +141,14 @@ internal static class ReferenceWorkloads
                     input.Append("\tpayload\n");
                 }
                 expected.Append(readTotal).Append(' ').Append(64 + rows / 2).Append('\n');
+                break;
+            case "array-read-alternating":
+                // Combining two lookup tables contrasts with repeatedly accessing one container.
+                program = "BEGIN{for(i=0;i<16;i++){a[\"sku\" i]=i;b[\"sku\" i]=i+1}} {n+=a[$1]+b[$1]} END{print n}";
+                fields = 1;
+                for (var i = 0; i < rows; i++)
+                    input.Append("sku").Append(i % 16).Append('\n');
+                expected.Append(rows * 16).Append('\n');
                 break;
             case "two-file":
                 program = "NR==FNR{left[$1]=$2;next} ($1 in left)&&left[$1]!=$2{n++} END{print n+0}";

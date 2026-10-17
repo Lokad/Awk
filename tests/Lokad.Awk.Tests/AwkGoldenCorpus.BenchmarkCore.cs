@@ -5,6 +5,9 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("benchmark-core-alternating-array-reads",
+            ["BEGIN{for(i=0;i<16;i++){a[\"sku\" i]=i;b[\"sku\" i]=i+1}} {n+=a[$1]+b[$1]} END{print n}"],
+            [], "256\n", "sku0\nsku1\nsku2\nsku3\nsku4\nsku5\nsku6\nsku7\nsku8\nsku9\nsku10\nsku11\nsku12\nsku13\nsku14\nsku15\n");
         yield return Passing("pair-frame-argument-effects-stay-in-caller",
             ["function mix(a,b){return a*10+b} function change(){x++;return x} BEGIN{x=1;print mix(x,change()),x}"], [], "12 2\n");
         yield return Passing("pair-frame-recycles-one-two-and-three-locals",
