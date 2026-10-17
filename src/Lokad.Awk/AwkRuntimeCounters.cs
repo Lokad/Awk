@@ -139,6 +139,13 @@ internal sealed class AwkRuntimeCounters
 
     public long SynchronousActionRuns { get; private set; }
 
+    public long SynchronousConditionalRuns { get; private set; }
+
+    public void RecordSynchronousConditional()
+    {
+        if (_enabled) lock (_sync) SynchronousConditionalRuns++;
+    }
+
     public long SynchronousExpressionRuns { get; private set; }
     public long SynchronousFunctionRuns { get; private set; }
 

@@ -95,6 +95,21 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
+    public async Task ParsedConditionalActionsReuseExistingKernels()
+    {
+        const string source = "{if($1==\"A\"&&$2==\"B\"){x+=1;if($3==\"C\")y+=2;else y+=3}else x+=4} END{print x,y}";
+        var result = await RunAsync([source], "A B C\nA B D\nA Z C\n",
+            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("6 5\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(3, result.Counters.SynchronousActionRuns);
+        Assert.Equal(5, result.Counters.SynchronousConditionalRuns);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Fact]
     public async Task ParsedJoinUsesEstablishedArrayKinds()
     {
         const string source = "NR==FNR{left[$1]=$2;next} ($1 in left)&&left[$1]!=$2{n++} END{print n+0}";
@@ -241,7 +256,9 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("1\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(4, result.Counters.SynchronousExpressionRuns);
+        Assert.Equal(1, result.Counters.SynchronousExpressionRuns);
+        Assert.Equal(3, result.Counters.SynchronousActionRuns);
+        Assert.Equal(3, result.Counters.SynchronousConditionalRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
     }
 

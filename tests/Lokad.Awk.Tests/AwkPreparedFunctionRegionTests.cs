@@ -47,12 +47,12 @@ public sealed class AwkPreparedFunctionRegionTests
         foreach (var source in new[] { "{for(i=0;i<1;i++)x++}", "{while(i<1)i++}" })
         {
             var loop = Bind(source).MainActions[0].Statements[0];
-            Assert.True(loop.TryPrepareTopLevelSynchronousAction(out _));
+            Assert.NotNull(AwkStatementBlockExecutor.TryPrepareActions([loop], null));
             Assert.False(loop.TryPrepareSynchronousAction(out _));
             var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
-            Assert.False(AwkStatement.For(AwkStatement.NoOp(), condition, AwkStatement.NoOp(), [loop])
-                .TryPrepareTopLevelSynchronousAction(out _));
-            Assert.False(AwkStatement.While(condition, [loop]).TryPrepareTopLevelSynchronousAction(out _));
+            Assert.Null(AwkStatementBlockExecutor.TryPrepareActions(
+                [AwkStatement.For(AwkStatement.NoOp(), condition, AwkStatement.NoOp(), [loop])], null));
+            Assert.Null(AwkStatementBlockExecutor.TryPrepareActions([AwkStatement.While(condition, [loop])], null));
         }
     }
 

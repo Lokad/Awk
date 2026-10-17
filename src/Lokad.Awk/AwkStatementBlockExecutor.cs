@@ -10,15 +10,33 @@ internal static class AwkStatementBlockExecutor
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions)
     {
         if (statements.Length is 0 or > 16) return null;
+        var remaining = 16;
+        return TryPrepareActions(statements, functions, 4, ref remaining, out var execute) ? execute : null;
+    }
+
+    internal static bool TryPrepareActions(AwkStatement[] statements,
+        IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions, int conditionalDepth,
+        ref int remainingStatements, out Action<AwkEvaluationContext> execute)
+    {
+        execute = static _ => { };
+        if (statements.Length > remainingStatements) return false;
+        if (statements.Length == 0) return true;
         var actions = new Action<AwkEvaluationContext>[statements.Length];
         for (var index = 0; index < statements.Length; index++)
         {
+            if (--remainingStatements < 0) return false;
             var statement = functions is { Count: > 0 }
                 ? statements[index].PrepareSynchronousCalls(functions) : statements[index];
-            if (!statement.TryPrepareTopLevelSynchronousAction(out actions[index])) return null;
+            if (!statement.TryPrepareTopLevelSynchronousAction(conditionalDepth,
+                    ref remainingStatements, out actions[index])) return false;
         }
-        return Execute;
+        execute = PrepareExecution(actions);
+        return true;
+    }
 
+    private static Action<AwkEvaluationContext> PrepareExecution(Action<AwkEvaluationContext>[] actions)
+    {
+        return Execute;
         void Execute(AwkEvaluationContext context)
         {
             foreach (var action in actions)

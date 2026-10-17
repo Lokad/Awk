@@ -191,7 +191,8 @@ internal abstract partial class AwkStatement
 
     // Only whole actions use this entry, under AwkAction's policy/stack/field guards.
     // Loop-body preparation keeps the scalar entry, excluding nested loops.
-    internal virtual bool TryPrepareTopLevelSynchronousAction(out Action<AwkEvaluationContext> action) =>
+    internal virtual bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
+        ref int remainingStatements, out Action<AwkEvaluationContext> action) =>
         TryPrepareSynchronousAction(out action);
 
     internal virtual AwkStatement PrepareSynchronousCalls(

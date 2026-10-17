@@ -14,6 +14,27 @@ internal abstract partial class AwkStatement
         AwkStatement[] body,
         AwkStatement[] elseBody) : AwkStatement
     {
+        internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
+            ref int remainingStatements, out Action<AwkEvaluationContext> action)
+        {
+            action = static _ => { };
+            if (conditionalDepth <= 0 || !condition.TryGetSynchronousExpression(out var test) ||
+                !AwkStatementBlockExecutor.TryPrepareActions(body, null, conditionalDepth - 1,
+                    ref remainingStatements, out var yes) ||
+                !AwkStatementBlockExecutor.TryPrepareActions(elseBody, null, conditionalDepth - 1,
+                    ref remainingStatements, out var no)) return false;
+            action = PrepareConditional(test, yes, no);
+            return true;
+        }
+
+        private static Action<AwkEvaluationContext> PrepareConditional(AwkSynchronousExpression test,
+            Action<AwkEvaluationContext> yes, Action<AwkEvaluationContext> no) => context =>
+        {
+            context.State.Counters.RecordSynchronousConditional();
+            if (test.EvaluateSynchronous(context).IsTruthy()) yes(context);
+            else no(context);
+        };
+
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var selectedBody = await condition.EvaluateAsync(context).ConfigureAwait(false) ? body : elseBody;
@@ -87,9 +108,11 @@ internal abstract partial class AwkStatement
     {
         private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(initializer, condition, increment, body, synchronousFunctions);
 
-        internal override bool TryPrepareTopLevelSynchronousAction(out Action<AwkEvaluationContext> action)
+        internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
+            ref int remainingStatements, out Action<AwkEvaluationContext> action)
         {
-            if (_synchronous is not { } prepared) return base.TryPrepareTopLevelSynchronousAction(out action);
+            if (_synchronous is not { } prepared)
+                return base.TryPrepareTopLevelSynchronousAction(conditionalDepth, ref remainingStatements, out action);
             action = context => prepared.Execute(context);
             return true;
         }
@@ -145,9 +168,11 @@ internal abstract partial class AwkStatement
         private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(
             NoOp(), condition, NoOp(), body);
 
-        internal override bool TryPrepareTopLevelSynchronousAction(out Action<AwkEvaluationContext> action)
+        internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
+            ref int remainingStatements, out Action<AwkEvaluationContext> action)
         {
-            if (_synchronous is not { } prepared) return base.TryPrepareTopLevelSynchronousAction(out action);
+            if (_synchronous is not { } prepared)
+                return base.TryPrepareTopLevelSynchronousAction(conditionalDepth, ref remainingStatements, out action);
             action = context => prepared.Execute(context);
             return true;
         }

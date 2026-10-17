@@ -158,6 +158,175 @@ public sealed class AwkSynchronousRegionTests
         await io.CloseAsync();
     }
 
+    [Fact]
+    public async Task PreparedConditionalMatchesLegacyAtEveryFuelBoundary()
+    {
+        for (var fuel = 0; fuel <= 160; fuel++)
+        {
+            var prepared = await RunConditional(false, fuel);
+            var legacy = await RunConditional(true, fuel);
+            Assert.Equal(legacy with { Runs = prepared.Runs }, prepared);
+            Assert.Equal(0, legacy.Runs);
+            if (fuel == 0)
+            {
+                Assert.Equal(4, prepared.Value);
+                Assert.Equal(23, prepared.Index);
+                Assert.Equal(6, prepared.Runs);
+                Assert.Equal("", prepared.Error);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task ConditionalPolicyBoundariesSelectLegacyBeforeEffects(int boundary)
+    {
+        var prepared = await RunConditional(false, 0, boundary);
+        var legacy = await RunConditional(true, 0, boundary);
+        Assert.Equal(legacy, prepared);
+        Assert.Equal(0, prepared.Runs);
+    }
+
+    [Fact]
+    public async Task ConditionalMemoryRefusalPreservesEarlierEffects()
+    {
+        var prepared = await RunConditional(false, 0, failMemory: true);
+        var legacy = await RunConditional(true, 0, failMemory: true);
+        Assert.Equal(legacy with { Runs = prepared.Runs }, prepared);
+        Assert.Equal(0, prepared.Value);
+        Assert.Equal(1, prepared.Index);
+        Assert.Equal(2, prepared.Runs);
+        Assert.Equal("awk: memory limit exceeded\n", prepared.Error);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PendingConditionalBodyKeepsContextUntilItsActualCompletion(bool cancel)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = State(counters, 0);
+        var name = AwkVariableName.FromText("x");
+        state.AssignVariableValue(name, AwkValue.FromNumber(7));
+        var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var operand = new PendingOperand(source.Task);
+        var statement = AwkStatement.If(new([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]),
+            [AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), operand)]);
+        var host = new MockFileSystem();
+        var io = Io(state, host, counters);
+        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        var pending = new AwkAction(null, [statement]).ExecuteAsync(state, io, output).AsTask();
+        Assert.False(pending.IsCompleted);
+        Assert.True(state.TryGetExecutionContext(out _));
+        Assert.Equal(7, state.ResolveVariableValue(name).AsNumber());
+        Assert.Equal(1, operand.Entries);
+        Assert.Equal(0, counters.SynchronousConditionalRuns);
+        if (cancel)
+        {
+            source.SetCanceled();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending);
+            Assert.True(pending.IsCanceled);
+        }
+        else
+        {
+            source.SetResult(AwkValue.FromNumber(9));
+            Assert.Equal(AwkStatementFlow.Continue, await pending);
+        }
+        Assert.False(state.TryGetExecutionContext(out _));
+        Assert.Equal(cancel ? 7 : 9, state.ResolveVariableValue(name).AsNumber());
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        await io.CloseAsync();
+    }
+
+    [Theory]
+    [InlineData(4, true)]
+    [InlineData(5, false)]
+    public void ConditionalPreparationBoundsNesting(int depth, bool eligible)
+    {
+        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+        var statement = AwkStatement.NoOp();
+        for (var index = 0; index < depth; index++) statement = AwkStatement.If(condition, [statement]);
+        Assert.Equal(eligible, AwkStatementBlockExecutor.TryPrepareActions([statement], null) is not null);
+    }
+
+    [Theory]
+    [InlineData(15, true)]
+    [InlineData(16, false)]
+    public void ConditionalPreparationBoundsStatementsBeforeInspectingBody(int count, bool eligible)
+    {
+        var probe = new PreparationProbe();
+        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+        var statement = AwkStatement.If(condition, Enumerable.Repeat<AwkStatement>(probe, count).ToArray());
+        Assert.Equal(eligible, AwkStatementBlockExecutor.TryPrepareActions([statement], null) is not null);
+        Assert.Equal(eligible ? count : 0, probe.Preparations);
+    }
+
+    [Fact]
+    public void ConditionalPreparationSharesStatementBudgetWithFollowingStatements()
+    {
+        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+        var statements = Enumerable.Repeat(AwkStatement.NoOp(), 16).ToArray();
+        statements[0] = AwkStatement.If(condition, [AwkStatement.NoOp()]);
+        Assert.Null(AwkStatementBlockExecutor.TryPrepareActions(statements, null));
+    }
+
+    private static async Task<ConditionalResult> RunConditional(bool forceLegacy, int fuel,
+        int boundary = 0, bool failMemory = false)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var state = State(counters, fuel, lint: boundary == 1);
+        var name = AwkVariableName.FromText("x");
+        var indexName = AwkVariableName.FromText("i");
+        state.AssignVariableValue(name, AwkValue.FromNumber(0));
+        if (boundary == 3)
+        {
+            state.AssignVariableValue(AwkVariableName.FromText("FS"), AwkValue.FromText("[ ,]"));
+            state.SetCurrentRecord(AwkText.FromString("a b"));
+        }
+        var value = AwkExpression.PreparedGlobalVariable(name, 1);
+        var indexValue = AwkExpression.PreparedGlobalVariable(indexName, 0);
+        var target = AwkReference.PreparedGlobalScalar(name, 1);
+        var indexTarget = AwkReference.PreparedGlobalScalar(indexName, 0);
+        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.LogicalOr(
+            AwkExpression.Compare(value, AwkExpression.Number("5", 5), AwkComparison.LessThan),
+            AwkExpression.Compare(indexValue, AwkExpression.Number("0", 0), AwkComparison.Equal)))]]);
+        var inner = AwkStatement.If(new([[AwkConditionClause.Comparison(value,
+                AwkExpression.Number("0", 0), AwkComparison.Equal)]]),
+            [AwkStatement.Assignment(indexTarget, AwkExpression.Add(indexValue, AwkExpression.Number("1", 1)))],
+            [AwkStatement.Assignment(indexTarget, AwkExpression.Add(indexValue, AwkExpression.Number("2", 2)))]);
+        var statement = AwkStatement.If(condition,
+            [inner, AwkStatement.Assignment(target, failMemory ? AwkExpression.Literal(new string('x', 2 << 20)) :
+                AwkExpression.Add(value, AwkExpression.Number("3", 3)))],
+            [AwkStatement.Assignment(indexTarget, AwkExpression.Add(indexValue, AwkExpression.Number("10", 10))),
+                AwkStatement.Assignment(target, AwkExpression.Subtract(value, AwkExpression.Number("1", 1)))]);
+        var action = new AwkAction(null, [forceLegacy ? new ForwardingStatement(statement) : statement]);
+        var host = new MockFileSystem();
+        var io = Io(state, host, counters);
+        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        var error = "";
+        try
+        {
+            for (var run = 0; run < 4; run++)
+            {
+                if (boundary == 2) output.Append(AwkText.FromSourceLiteralString("prior"));
+                await action.ExecuteAsync(state, io, output);
+            }
+        }
+        catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
+        Assert.False(state.TryGetExecutionContext(out _));
+        var result = new ConditionalResult(state.ResolveVariableValue(name).AsNumber(),
+            state.ResolveVariableValue(indexName).AsNumber(), counters.ExecutionSteps,
+            counters.SynchronousConditionalRuns, state.MemoryAccounting.CurrentReservedBytes,
+            host.GetOutput(AwkFileDescriptor.StdOut), error);
+        await io.CloseAsync();
+        return result;
+    }
+
+    private readonly record struct ConditionalResult(double Value, double Index, long Steps, long Runs,
+        long Reserved, string Output, string Error);
+
     private static async Task<Result> RunLoop(bool forceLegacy, int fuel, bool pendingOutput,
         bool whileLoop = false, bool lint = false, bool failMemory = false)
     {
