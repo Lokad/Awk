@@ -5,6 +5,12 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("pair-frame-argument-effects-stay-in-caller",
+            ["function mix(a,b){return a*10+b} function change(){x++;return x} BEGIN{x=1;print mix(x,change()),x}"], [], "12 2\n");
+        yield return Passing("pair-frame-recycles-one-two-and-three-locals",
+            ["function one(x){return x} function two(x,y){return one(x)+one(y)} function three(x,y,z){return two(x,y)+one(z)} BEGIN{for(i=1;i<=3;i++)print one(i),two(i,i+1),three(i,i+1,i+2)}"], [], "1 3 6\n2 5 9\n3 7 12\n");
+        yield return Passing("pair-frame-promotes-both-shared-array-aliases",
+            ["function fill(a,b){a[1]=7;b[2]=9;return a[2]+b[1]} BEGIN{print fill(x,x),x[1],x[2]}"], [], "16 7 9\n");
         yield return Passing("cpu-statements-keep-function-and-print-order",
             ["function f(x){n++;print \"f\",n;return x+1}{n++;x=f($1);n++;print x,n} END{print \"end\",n}"],
             [], "f 2\n8 3\nf 5\n9 6\nend 6\n", "7\n8\n");

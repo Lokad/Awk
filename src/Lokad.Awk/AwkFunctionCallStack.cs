@@ -95,7 +95,7 @@ internal sealed class AwkFunctionCallStack(
                 throw;
             }
 
-            return frame.UsesInlineSlot;
+            return frame.UsesInlineSlots;
         }
         catch
         {

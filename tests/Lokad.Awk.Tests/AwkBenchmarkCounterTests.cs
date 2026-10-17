@@ -8,6 +8,23 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task ParsedPairCallsReuseInlineFrames(AwkExecutionEngineKind engine)
+    {
+        const string source = "function step(x,a){return (x*3+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
+        var result = await RunAsync([source], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(16, result.Counters.InlineFunctionFrames);
+        if (engine == AwkExecutionEngineKind.Interpreter)
+            Assert.Equal(0, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
     [Fact]
     public async Task ParsedMixedActionsSkipOnlyEmptyStatementFlushes()
     {
@@ -104,7 +121,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("8 3 11 1\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, result.Counters.InlineFunctionFrames);
+        Assert.Equal(3, result.Counters.InlineFunctionFrames);
     }
 
     [Fact]

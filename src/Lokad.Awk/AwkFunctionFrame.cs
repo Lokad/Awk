@@ -38,16 +38,19 @@ internal readonly record struct AwkFunctionLocalSlotId(int Index);
 
 internal sealed class AwkFunctionFrame
 {
-    private AwkFunctionLocalSlot _singleSlot;
+    private AwkFunctionLocalSlot _firstSlot;
+    private AwkFunctionLocalSlot _secondSlot;
     private AwkFunctionLocalSlot[] _slots = [];
 
     // Layout bounds are checked by the call stack; pooled arrays can be larger.
     public AwkFunctionLocalLayout Layout { get; private set; } = AwkFunctionLocalLayout.Empty;
 
-    public bool UsesInlineSlot => Layout.SlotCount == 1;
+    public bool UsesInlineSlots => Layout.SlotCount is 1 or 2;
 
     public ref AwkFunctionLocalSlot GetSlot(int index) =>
-        ref (UsesInlineSlot ? ref _singleSlot : ref _slots[index]);
+        ref (UsesInlineSlots
+            ? ref (index == 0 ? ref _firstSlot : ref _secondSlot)
+            : ref _slots[index]);
 
     public bool HasReturnValue { get; set; }
 
@@ -61,7 +64,7 @@ internal sealed class AwkFunctionFrame
     {
         Id = id;
         Layout = layout;
-        _slots = layout.SlotCount <= 1
+        _slots = layout.SlotCount <= 2
             ? []
             : ArrayPool<AwkFunctionLocalSlot>.Shared.Rent(layout.SlotCount);
     }
@@ -71,7 +74,8 @@ internal sealed class AwkFunctionFrame
         var slots = _slots;
         Layout = AwkFunctionLocalLayout.Empty;
         _slots = [];
-        _singleSlot = default;
+        _firstSlot = default;
+        _secondSlot = default;
         HasReturnValue = false;
         ReturnValue = AwkValue.Unassigned();
         RetainedMemoryBytes = 0;
