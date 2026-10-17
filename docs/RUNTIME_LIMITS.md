@@ -68,8 +68,9 @@ retain ordinary execution; function entry/unwind stack checks remain. Immutable 
 belongs to the existing compiled owner. The interpreter remains the default engine.
 Stored Number scalars can feed prepared global numeric reads and updates directly; other kinds
 retain ordinary value admission and conversion.
-Function locals share scalar/array slot-value conversion; prepared numeric input retains its
-value and spelling while preserving value-size admission and long-text cancellation checks.
+Function locals share scalar/array value conversion and retain prepared numeric values/spelling.
+Prepared scalar arguments reuse current kinds; value-size admission and long-text cancellation
+remain in ordinary evaluation. Missing locals and aliases retain original resolution.
 Established ordinary global arrays retain their kind after successful access; storage and
 mutation checks remain original. Special arrays and live function contexts retain name resolution.
 Syntax-depth settings above 128 retain unconditional function-entry/unwind suspension.

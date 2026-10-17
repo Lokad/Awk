@@ -1,7 +1,7 @@
 # Benchmarks
 
-Current scoped runtime: `cc84b9ed4f9b2b60de7bc7232929eea17f219f0b`, measured 2026-10-17 UTC.
-Controlled nested-call medians take **5.7–11.3% less time**, with **144 fewer managed bytes/invocation**.
+Current scoped runtime: `c3de4b247be8aff752d71d982418f322febf3b08`, measured 2026-10-17 UTC.
+Controlled nested-call medians take **4.3–5.3% less time**, with unchanged managed allocations.
 All launch pairs and contrasting controls are reported below; no general or cumulative gain is claimed.
 
 The complete **28-family baseline is retained** from 2026-10-17 at Release source
@@ -53,44 +53,45 @@ Use these ratios to choose investigations; confirm apparent parity on larger inp
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC, runtime `516ffd1800fe06f7a06a10a778553b4a19db1cee`
-→ `cc84b9ed4f9b2b60de7bc7232929eea17f219f0b`, with identical harness and inputs.
+Measured 2026-10-17 UTC, runtime `cc84b9ed4f9b2b60de7bc7232929eea17f219f0b`
+→ `c3de4b247be8aff752d71d982418f322febf3b08`, with identical harness and inputs.
 Three warmups/five iterations, two launches/source in both source orders. Times are medians
 of launch medians; allocations are GC MiB. This comparison is separate from the retained baseline above.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| Nested user calls | 3.857→3.637; 3.994→3.544 | 1.32→1.32; 1.32→1.32 |
-| Two-argument call loop control | 9.530→9.274; 9.420→9.158 | 1.34→1.34; 1.34→1.34 |
-| Two-file join control | 7.904→7.826; 7.759→7.755 | 4.23→4.23; 4.23→4.23 |
+| Nested user calls | 3.594→3.403; 3.568→3.413 | 1.32→1.32; 1.32→1.32 |
+| Unary call loop control | 7.998→8.179; 8.099→8.111 | 1.34→1.34; 1.34→1.34 |
+| Two-file join control | 7.823→7.700; 7.764→7.925 | 4.23→4.23; 4.23→4.23 |
 
-Function locals share the existing scalar/array slot-value factory. Eligible numeric strings
-retain their prepared value and spelling instead of repeating parsing. Initial input parsing,
-other stored kinds, reading modes, value admission and long-text cancellation remain original.
-Two factory delegates and their fields/plumbing are removed; no cache, owner or engine is added.
+Prepared local arguments use existing slot ordinals to prove their current scalar kind,
+skipping repeated name classification. The guard neither reads nor admits the value;
+ordinary evaluation, value limits and caller order remain original. Missing locals,
+potential/forwarded aliases and other kinds retain name resolution. No cache, owner or
+argument-transport mechanism is added; the optional VM retains its original path.
 
-Nested-call medians take **5.7–11.3% less time**; all four launch-pair reductions are
-+3.85%, +7.47%, +14.80%, +7.37%. Managed allocations are **1,379,531→1,379,387 bytes** per nested-call invocation.
-Each control also allocates 144 fewer bytes, from the removed delegates/fields.
-Control reductions (positive means less time): two-argument loops +2.69% / +2.79%;
-join +0.98% / +0.04%. No general, control or cumulative gain is claimed.
+Nested-call medians take **4.3–5.3% less time**; all four launch-pair reductions are
++4.71%, +5.91%, +5.32%, +3.36%. Managed allocations remain **1,379,387 bytes** per nested-call invocation,
+and both controls have unchanged allocations. Control reductions (positive means less time):
+unary call loops -2.27% / -0.14%; join +1.58% / -2.07%.
+No general, control or cumulative gain is claimed.
 
 One qualified pilot and one balanced confirmation were run; all six source windows have
 qualified quiet gates, stable identities and no extra SSH login. The complete baseline is
-retained until the next declared milestone; this is the first accepted change in the next batch.
+retained until the next declared milestone; this is the second accepted change in the next batch.
 
-The source passes **73,089 tests/OS**, 86 exact reference snapshots, 109 equivalent native goldens,
+The source passes **73,092 tests/OS**, 86 exact reference snapshots, 109 equivalent native goldens,
 30 limited-stack scenarios/OS and 32 unchanged finite-resource rows. One additional native case
 retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-The exact parsed nested-call fixture verifies eight prepared local reads on four records in
-both engines. Existing numeric-input tests now cover locals as well as scalar/array storage,
-including spelling, mode-sensitive inputs, deferred errors, value admission and cancellation.
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38989786575) passes;
-downloaded reports verify all 287 selected function, numeric, cancellation and admission guards per OS.
+The parsed nested-call fixture verifies four scalar-argument bypasses and eight prepared reads
+on four records. Focused guards cover current/nested frame kinds, active bounds, aliases,
+unassigned locals and value admission before results/counters. Generated code confirms the
+direct kind check with cold name fallback. [Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38991535553)
+passes; downloaded reports verify all 290 selected function, numeric, cancellation and admission guards per OS.
 
 ## Scoped GNU comparisons
 
-Nested-call rows use **cc84b9e**, measured 2026-10-17 UTC, with nine alternating
+Nested-call rows use **c3de4b2**, measured 2026-10-17 UTC, with nine alternating
 pairs/scale, exact output checks and qualified quiet gates. Join rows are retained from
 2026-10-17 at 516ffd1; other rows retain their explicitly named 2026-10-16 sources. All windows
 have stable identities and no extra SSH login. These paired comparisons are separate from both
@@ -98,8 +99,8 @@ BenchmarkDotNet tables above.
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Nested calls / 8.00 / 4,096 | cc84b9e | 3.607 | 1.613 | 2.24× | 1.32 |
-| Nested calls / 128.00 / 65,536 | cc84b9e | 56.794 | 10.475 | 5.42× | — |
+| Nested calls / 8.00 / 4,096 | c3de4b2 | 3.424 | 1.602 | 2.14× | 1.32 |
+| Nested calls / 128.00 / 65,536 | c3de4b2 | 53.941 | 10.421 | 5.18× | — |
 | Two-file join / 77.83 / 4,096 per file | 516ffd1 | 7.838 | 2.814 | 2.79× | 4.23 |
 | Two-file join / 1,386.30 / 65,536 per file | 516ffd1 | 137.927 | 30.332 | 4.55× | — |
 | Field loop / 80.00 / 256 | f39d294 | 2.531 | 2.165 | 1.17× | 1.08 |
@@ -114,7 +115,7 @@ BenchmarkDotNet tables above.
 | Long fields / 16,408.00 / 4,096 | 7ad867d | 13.349 | 16.624 | 0.80× | — |
 
 The current nested-call script passes numeric input through `twice(x)` and nested `inc(x)` calls.
-Its paired GNU ratios are **2.24× medium / 5.42× large**.
+Its paired GNU ratios are **2.14× medium / 5.18× large**.
 
 The other scoped rows retain their earlier revisions/dates. Scripts use the shared fixtures
 linked above. Only medium-scale managed allocations were measured by BenchmarkDotNet;
