@@ -5,6 +5,15 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("field-array-region-keeps-hits-misses-and-utf8-keys",
+            ["BEGIN{a[\"café\"]=7;b[\"café\"]=3} {n+=a[$1]+b[$1]} END{print n,length(a),length(b),a[\"missing\"]+0}"],
+            [], "20 2 2 0\n", "café\nmissing\ncafé\n");
+        yield return Passing("field-array-region-keeps-aliases-and-local-indices",
+            ["function read(a,x){return a[$x]+a[$(x+1)]} BEGIN{a[\"007\"]=2;a[\"tail\"]=3;b[\"007\"]=7;b[\"tail\"]=11} {s+=read(a,1);t+=read(b,1)} END{print s,t}"],
+            [], "10 36\n", "007 tail\n007 tail\n");
+        yield return Passing("field-array-region-keeps-left-before-right-effects",
+            ["function change(){a[\"k\"]=99;$0=\"other\";return 1} BEGIN{a[\"k\"]=7;b[\"other\"]=3;$0=\"k\";n=a[$1]+b[$(change())];print n,a[\"k\"],$0}"],
+            [], "10 99 other\n");
         yield return Passing("field-target-snapshot-keeps-hits-misses-and-utf8-keys",
             ["BEGIN{a[\"k\"]=7} {a[$1]+=$2} END{print a[\"k\"],a[\"café\"],length(a)}"],
             [], "14 7 2\n", "k 3\ncafé 2\nk 4\ncafé 5\n");

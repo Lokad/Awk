@@ -11,6 +11,22 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task ParsedFieldArrayReadsUseExistingBoundedAction(AwkExecutionEngineKind engine)
+    {
+        var result = await RunAsync(["BEGIN{a[\"café\"]=7;b[\"café\"]=3} {n+=a[$1]+b[$1]} END{print n,length(a),length(b)}"],
+            "café\nmissing\ncafé\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("20 2 2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 3 : 0, result.Counters.SynchronousActionRuns);
+        Assert.Equal(3, result.Counters.FieldsMaterialized);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task ParsedFieldCompoundTargetsReuseTheExistingKeyAndValue(AwkExecutionEngineKind engine)
     {
         var result = await RunAsync(["BEGIN{a[\"k\"]=7} {a[$1]+=$2} END{print a[\"k\"],a[\"café\"],length(a)}"],

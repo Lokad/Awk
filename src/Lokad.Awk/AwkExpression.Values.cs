@@ -315,18 +315,30 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class FieldArrayElementExpression(AwkArrayName name, DynamicFieldIndexExpression field, int globalIndex) : AwkExpression
+    private sealed class FieldArrayElementExpression(AwkArrayName name, DynamicFieldIndexExpression fieldOperand, int globalIndex) : AwkSynchronousExpression
     {
+        internal override int SynchronousDepth => fieldOperand.SynchronousDepth is > 0 and < 16
+            ? fieldOperand.SynchronousDepth + 1 : 0;
+        internal override int SynchronousCallDepth => fieldOperand.SynchronousCallDepth;
+
+        protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
+        {
+            context.State.RecordExecutionStep(); // Field expression, before its index.
+            return fieldOperand.IndexExpression is AwkSynchronousExpression index
+                ? context.State.GetArrayFieldValue(name, (int)index.ResolveNumberSynchronous(context), globalIndex)
+                : throw new InvalidOperationException("Synchronous field index is required.");
+        }
+
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             context.State.RecordExecutionStep();
-            var index = (int)await field.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
+            var index = (int)await fieldOperand.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
             return context.State.GetArrayFieldValue(name, index, globalIndex);
         }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
-            if (!compiler.TryEmitExpression(field))
+            if (!compiler.TryEmitExpression(fieldOperand))
                 return false;
             compiler.EmitLoadArrayElement(name);
             return true;
