@@ -916,16 +916,19 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var functions = program.Functions.ToDictionary(pair => pair.Key, pair => pair.Value);
         if (ordinary)
             foreach (var (name, function) in program.Functions)
-                if (function.TryGetLocalAssignmentReturnBody(out var local, out var prefix, out var returned))
-                    functions[name] = new(name, function.LocalLayout,
-                        [AwkStatement.Assignment(AwkReference.LocalScalar(local.Name, local.Slot), prefix),
-                         AwkStatement.Return(AwkOptionalExpression.Some(returned))]);
-                else if (function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative))
-                    functions[name] = new(name, function.LocalLayout, condition.SynchronousDepth > 0
-                        ? [AwkStatement.If(new([[AwkConditionClause.Truthy(condition)]]),
-                            [AwkStatement.Return(AwkOptionalExpression.Some(expression))]),
-                            AwkStatement.Return(AwkOptionalExpression.Some(alternative))]
-                        : [AwkStatement.Return(AwkOptionalExpression.Some(expression))]);
+                if (function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative,
+                    out var local, out var prefix))
+                {
+                    var statements = new List<AwkStatement>();
+                    if (prefix.HasValue)
+                        statements.Add(AwkStatement.Assignment(AwkReference.LocalScalar(local.Name, local.Slot), prefix.Value));
+                    if (condition.SynchronousDepth > 0)
+                        statements.Add(AwkStatement.If(new([[AwkConditionClause.Truthy(condition)]]),
+                            [AwkStatement.Return(AwkOptionalExpression.Some(expression))]));
+                    statements.Add(AwkStatement.Return(AwkOptionalExpression.Some(
+                        condition.SynchronousDepth > 0 ? alternative : expression)));
+                    functions[name] = new(name, function.LocalLayout, statements);
+                }
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = limitsOverride ?? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
         if (fuel > 0) limits = limits.WithMaxExecutionSteps(fuel);

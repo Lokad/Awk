@@ -10,15 +10,11 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
     private readonly (AwkVariableName Name, AwkFunctionLocalSlotId Slot) _local;
 
     private AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkSynchronousExpression body,
-        AwkSynchronousExpression condition, AwkSynchronousExpression alternative) : this(layout, body)
+        AwkSynchronousExpression condition, AwkSynchronousExpression alternative,
+        (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, AwkSynchronousExpression prefix) : this(layout, body)
     {
         _condition = condition;
         _alternative = alternative;
-    }
-
-    private AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkSynchronousExpression body,
-        (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, AwkSynchronousExpression prefix) : this(layout, body)
-    {
         _local = local;
         _prefix = prefix;
     }
@@ -62,23 +58,16 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
             foreach (var (name, function) in functions)
             {
                 checkpoint?.Invoke();
-                if (prepared.ContainsKey(name)) continue;
-                AwkSynchronousFunction candidate;
-                if (function.TryGetLocalAssignmentReturnBody(out var local, out var value, out var result))
-                {
-                    if (!value.TryPrepareFunctionCalls(prepared, 16, out var prefix) ||
-                        !result.TryPrepareFunctionCalls(prepared, 16, out var returned)) continue;
-                    candidate = new(function.LocalLayout, returned, local, prefix);
-                }
-                else
-                {
-                    if (!function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative) ||
-                        !expression.TryPrepareFunctionCalls(prepared, 16, out var body)) continue;
-                    var otherwise = body;
-                    if (condition.SynchronousDepth > 0 && (condition.SynchronousDepth > 16 ||
-                        !alternative.TryPrepareFunctionCalls(prepared, 16, out otherwise))) continue;
-                    candidate = new(function.LocalLayout, body, condition, otherwise);
-                }
+                if (prepared.ContainsKey(name) ||
+                    !function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative,
+                        out var local, out var prefix) ||
+                    !expression.TryPrepareFunctionCalls(prepared, 16, out var body)) continue;
+                var initial = AwkSynchronousExpression.Unavailable;
+                if (prefix.HasValue && !prefix.Value.TryPrepareFunctionCalls(prepared, 16, out initial)) continue;
+                var otherwise = body;
+                if (condition.SynchronousDepth > 0 && (condition.SynchronousDepth > 16 ||
+                    !alternative.TryPrepareFunctionCalls(prepared, 16, out otherwise))) continue;
+                var candidate = new AwkSynchronousFunction(function.LocalLayout, body, condition, otherwise, local, initial);
                 if (candidate.SynchronousDepth > 16 || candidate.SynchronousCallDepth >= 4) continue;
                 prepared.Add(name, candidate);
             }

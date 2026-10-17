@@ -11,6 +11,24 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task ParsedLocalConditionalFunctionsComposeExistingPreparedBody(AwkExecutionEngineKind engine)
+    {
+        var result = await RunAsync(
+            ["function clip(s,n,t){t=tolower(s);if(length(t)>n)return substr(t,1,n);return t} {v=clip($1,$2);total+=length(v)} END{print total}"],
+            "ID:beta:tail 4\nID:beta:tail 32\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("16\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousFunctionRuns);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 0 : 2, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousActionRuns);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task ParsedLocalAssignmentReturnsPrepareCallsAndOmittedLocalSlots(AwkExecutionEngineKind engine)
     {
         var result = await RunAsync(

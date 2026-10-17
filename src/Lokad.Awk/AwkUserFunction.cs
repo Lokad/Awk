@@ -50,31 +50,26 @@ internal sealed class AwkUserFunction : IAwkUserFunction
     internal AwkUserFunction WithSynchronousFunction(AwkSynchronousFunction function) =>
         new(FunctionName, LocalLayout, _statements, function);
 
-    internal bool TryGetReturnExpression(out AwkExpression expression)
-    {
-        if (_statements.Length == 1) return _statements[0].TryGetReturnExpression(out expression);
-        expression = AwkSynchronousExpression.Unavailable;
-        return false;
-    }
-
     internal bool TryGetSynchronousReturnBody(out AwkExpression expression,
-        out AwkSynchronousExpression condition, out AwkExpression alternative)
+        out AwkSynchronousExpression condition, out AwkExpression alternative,
+        out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkOptionalExpression prefix)
     {
+        expression = AwkSynchronousExpression.Unavailable;
         condition = AwkSynchronousExpression.Unavailable;
         alternative = AwkSynchronousExpression.Unavailable;
-        if (_statements.Length == 2 && _statements[0].TryGetGuardedReturn(out condition, out expression))
-            return _statements[1].TryGetReturnExpression(out alternative);
-        return TryGetReturnExpression(out expression);
-    }
-
-    internal bool TryGetLocalAssignmentReturnBody(
-        out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local,
-        out AwkExpression value, out AwkExpression expression)
-    {
         local = default;
-        value = expression = AwkSynchronousExpression.Unavailable;
-        return _statements.Length == 2 && _statements[0].TryGetLocalAssignment(out local, out value) &&
-            _statements[1].TryGetReturnExpression(out expression);
+        prefix = AwkOptionalExpression.None;
+        var start = 0;
+        if (_statements.Length >= 2 && _statements[0].TryGetLocalAssignment(out local, out var value))
+        {
+            prefix = AwkOptionalExpression.Some(value);
+            start = 1;
+        }
+        if (_statements.Length - start == 1)
+            return _statements[start].TryGetReturnExpression(out expression);
+        return _statements.Length - start == 2 &&
+            _statements[start].TryGetGuardedReturn(out condition, out expression) &&
+            _statements[start + 1].TryGetReturnExpression(out alternative);
     }
 
     public AwkFunctionName FunctionName { get; }
