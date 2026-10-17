@@ -17,7 +17,7 @@ internal static class ReferenceWorkloads
     [
         "projection", "multi-column", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
-        "arithmetic-loops", "while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "string-functions", "case-conversion", "concatenation", "regex-match", "regex-captures"
+        "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "string-functions", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
 
@@ -207,12 +207,15 @@ internal static class ReferenceWorkloads
             // Expected scaled results below use independent fixture formulas, outside timing.
             case "arithmetic-loops":
             case "while-arithmetic":
+            case "do-while-arithmetic":
             case "loop-with-calls":
-                program = name == "loop-with-calls"
-                    ? "function step(x){return (x*3+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}"
-                    : name == "while-arithmetic"
-                        ? "{x=$1;i=0;while(i<8){x=(x*3+1)%101;i++}total+=x} END{print total}"
-                        : "{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}";
+                program = name switch
+                {
+                    "loop-with-calls" => "function step(x){return (x*3+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}",
+                    "while-arithmetic" => "{x=$1;i=0;while(i<8){x=(x*3+1)%101;i++}total+=x} END{print total}",
+                    "do-while-arithmetic" => "{x=$1;i=0;do{x=(x*3+1)%101;i++}while(i<8);total+=x} END{print total}",
+                    _ => "{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}"
+                };
                 fields = 1;
                 Repeat("7\n", "");
                 expected.Append(rows * 20).Append('\n');
