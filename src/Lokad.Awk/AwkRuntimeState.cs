@@ -99,9 +99,7 @@ internal sealed class AwkRuntimeState
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryAccounting,
-            CreateByteTextValue,
-            CreateNumericStringValue,
-            CreateDeferredTextValue,
+            _variables.CreateValue,
             _variables.ContainsArray,
             _variables.RemoveFunctionLocalArray);
         _regexRuntime = new AwkRegexRuntime(

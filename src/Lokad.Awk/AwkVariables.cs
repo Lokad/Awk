@@ -806,7 +806,7 @@ internal sealed class AwkVariables
         _memoryAccounting.ReleaseCommitted(EstimateArrayBytes(slots));
     }
 
-    private AwkValue CreateValue(AwkVariableSlot slot) =>
+    internal AwkValue CreateValue(AwkVariableSlot slot) =>
         slot.Kind == AwkVariableSlotKind.PreparedNumericString
             ? CreatePreparedNumericInput(slot)
             : slot.ToValue(_createByteTextValue, _createNumericStringValue, _createDeferredTextValue);
@@ -819,6 +819,7 @@ internal sealed class AwkVariables
         _counters.RecordValueCreated();
         if (byteLength >= AwkExecutionGovernor.WorkChunkBytes)
             _checkpoint?.Invoke();
+        _counters.RecordPreparedNumericSlotRead();
         return value;
     }
 

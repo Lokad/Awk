@@ -162,6 +162,13 @@ internal sealed class AwkRuntimeCounters
 
     public long NumericGlobalReads { get; private set; }
 
+    public long PreparedNumericSlotReads { get; private set; }
+
+    public void RecordPreparedNumericSlotRead()
+    {
+        if (_enabled) lock (_sync) PreparedNumericSlotReads++;
+    }
+
     public void RecordNumericGlobalRead()
     {
         if (_enabled) lock (_sync) NumericGlobalReads++;

@@ -188,7 +188,7 @@ public sealed class AwkFunctionLocalSlotTests
         new(
             maxFunctionCallDepth: 8,
             AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters),
-            static text => AwkValue.FromText(text),
-            static text => AwkValue.FromNumericString(text),
-            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal));
+            static slot => slot.ToValue(static text => AwkValue.FromText(text),
+                static text => AwkValue.FromNumericString(text),
+                static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)));
 }

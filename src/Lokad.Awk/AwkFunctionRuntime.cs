@@ -14,9 +14,7 @@ internal sealed class AwkFunctionRuntime
     public AwkFunctionRuntime(
         int maxFunctionCallDepth,
         AwkMemoryAccounting memoryAccounting,
-        Func<AwkText, AwkValue> createByteTextValue,
-        Func<AwkText, AwkValue> createNumericStringValue,
-        Func<AwkText, AwkValue> createDeferredTextValue,
+        Func<AwkVariableSlot, AwkValue> createValue,
         Func<AwkArrayName, bool> containsArray,
         Action<AwkArrayName> removeFunctionLocalArray)
     {
@@ -24,9 +22,7 @@ internal sealed class AwkFunctionRuntime
         _calls = new AwkFunctionCallStack(
             maxFunctionCallDepth,
             memoryAccounting,
-            createByteTextValue,
-            createNumericStringValue,
-            createDeferredTextValue,
+            createValue,
             containsArray);
     }
 

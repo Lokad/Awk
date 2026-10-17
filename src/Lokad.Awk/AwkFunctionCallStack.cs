@@ -7,9 +7,7 @@ namespace Lokad.Awk;
 internal sealed class AwkFunctionCallStack(
     int maxFunctionCallDepth,
     AwkMemoryAccounting memoryAccounting,
-    Func<AwkText, AwkValue> createByteTextValue,
-    Func<AwkText, AwkValue> createNumericStringValue,
-    Func<AwkText, AwkValue> createDeferredTextValue,
+    Func<AwkVariableSlot, AwkValue> createValue,
     Func<AwkArrayName, bool>? containsArray = null)
 {
     private readonly Func<AwkArrayName, bool> _containsArray = containsArray ?? (static _ => false);
@@ -277,14 +275,14 @@ internal sealed class AwkFunctionCallStack(
                 return true;
             }
             argument = AwkFunctionArgument.PotentialArray(slot.ArrayName,
-                slot.Value.ToValue(createByteTextValue, createNumericStringValue, createDeferredTextValue));
+                createValue(slot.Value));
             return true;
         }
 
         if (slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntyped)
         {
             argument = AwkFunctionArgument.FromValue(
-                slot.Value.ToValue(createByteTextValue, createNumericStringValue, createDeferredTextValue));
+                createValue(slot.Value));
             return true;
         }
 
@@ -540,7 +538,7 @@ internal sealed class AwkFunctionCallStack(
 
         if (slot.Kind == AwkFunctionLocalSlotKind.UntypedScalar && slot.Value.IsUntyped)
             return AwkResolvedFunctionLocal.UntypedScalar(
-                slot.Value.ToValue(createByteTextValue, createNumericStringValue, createDeferredTextValue));
+                createValue(slot.Value));
 
         if (slot.Kind == AwkFunctionLocalSlotKind.MissingScalar)
             return AwkResolvedFunctionLocal.MissingScalar();
@@ -549,7 +547,7 @@ internal sealed class AwkFunctionCallStack(
         {
             AwkFunctionLocalProjection.Kind => AwkResolvedFunctionLocal.Scalar(),
             AwkFunctionLocalProjection.Value => AwkResolvedFunctionLocal.ScalarValue(
-                slot.Value.ToValue(createByteTextValue, createNumericStringValue, createDeferredTextValue)),
+                createValue(slot.Value)),
             _ => throw new InvalidOperationException("Unknown function-local projection.")
         };
     }

@@ -8,6 +8,23 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task ParsedNestedCallsReusePreparedNumericInput(AwkExecutionEngineKind engine)
+    {
+        const string source = "function inc(x){return x+1} function twice(x){return inc(inc(x))} {total+=twice($1)} END{print total}";
+        var result = await RunAsync([source], "7\n7\n7\n7\n",
+            AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("36\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(8, result.Counters.PreparedNumericSlotReads);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+        Assert.Equal(0, result.Counters.FunctionStackSuspensions);
+    }
+
     [Fact]
     public async Task ParsedJoinUsesEstablishedArrayKinds()
     {
