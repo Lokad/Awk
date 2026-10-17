@@ -60,10 +60,10 @@ cancellation latency is promised. Matching deadlines do not bound regex construc
 
 ## Interpreter preparation and buffers
 
-Eligible numeric, field, string and logical expressions and scalar loops reuse bounded synchronous
+Eligible numeric, field, string and logical expressions and scalar `for`/`while` loops reuse bounded synchronous
 interpreter regions. They preserve logical checkpoints, argument/conversion/error order,
 borrowed numeric field reads (including nested field indices) and original setters. Eligibility stops at expression depth 16,
-16 body statements and four acyclic function levels. Host/pending/lint work and larger shapes
+16 body statements and four acyclic function levels. Host/output/control-flow/pending/lint work and larger shapes
 retain ordinary execution; function entry/unwind stack checks remain. Immutable preparation
 belongs to the existing compiled owner. The interpreter remains the default engine.
 Stored Number scalars can feed prepared global numeric reads and updates directly; other kinds

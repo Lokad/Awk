@@ -1,12 +1,14 @@
 # Benchmarks
 
-Current scoped runtime: `c3de4b247be8aff752d71d982418f322febf3b08`, measured 2026-10-17 UTC.
-Controlled nested-call medians take **4.3–5.3% less time**, with unchanged managed allocations.
+Current scoped runtime: `d94caaa80dc03b41af3fbf20ef21240ce0df3af3`, measured 2026-10-17 UTC.
+Controlled while-loop medians take **25.8–26.5% less time**, with 400 bytes of extra preparation per invocation.
 All launch pairs and contrasting controls are reported below; no general or cumulative gain is claimed.
 
 The complete **28-family baseline is retained** from 2026-10-17 at Release source
 `516ffd1800fe06f7a06a10a778553b4a19db1cee` against GNU awk 5.2.1. All first-table rows use that source.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
+The harness now includes 29 families; the new while case is measured below. The complete
+28-family table remains retained until the next declared refresh milestone.
 
 ## Representative processing
 
@@ -53,52 +55,58 @@ Use these ratios to choose investigations; confirm apparent parity on larger inp
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC, runtime `cc84b9ed4f9b2b60de7bc7232929eea17f219f0b`
-→ `c3de4b247be8aff752d71d982418f322febf3b08`, with identical harness and inputs.
-Three warmups/five iterations, two launches/source in both source orders. Times are medians
+Measured 2026-10-17 UTC, runtime `3ff88fd7cf172dce96b144f591b292ca546797cb`
+→ `d94caaa80dc03b41af3fbf20ef21240ce0df3af3`, with identical harness and inputs.
+Baseline 3ff88fd adds only the common while fixture and its canonical golden; its runtime
+source matches c3de4b2. Three warmups/five iterations, two launches/source in both source orders. Times are medians
 of launch medians; allocations are GC MiB. This comparison is separate from the retained baseline above.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| Nested user calls | 3.594→3.403; 3.568→3.413 | 1.32→1.32; 1.32→1.32 |
-| Unary call loop control | 7.998→8.179; 8.099→8.111 | 1.34→1.34; 1.34→1.34 |
-| Two-file join control | 7.823→7.700; 7.764→7.925 | 4.23→4.23; 4.23→4.23 |
+| While arithmetic | 7.639→5.614; 7.541→5.598 | 1.32→1.32; 1.32→1.32 |
+| Nested-call control | 3.359→3.377; 3.440→3.568 | 1.32→1.32; 1.32→1.32 |
+| For arithmetic control | 5.393→5.565; 5.465→5.391 | 1.32→1.32; 1.32→1.32 |
 
-Prepared local arguments use existing slot ordinals to prove their current scalar kind,
-skipping repeated name classification. The guard neither reads nor admits the value;
-ordinary evaluation, value limits and caller order remain original. Missing locals,
-potential/forwarded aliases and other kinds retain name resolution. No cache, owner or
-argument-transport mechanism is added; the optional VM retains its original path.
+Eligible pure `while` loops reuse the existing bounded synchronous loop kernel, avoiding
+per-iteration async completion, statement and empty-flush dispatch. For-loop eligibility is
+shared; the original while executor remains fallback. Host/output/control-flow bodies, lint,
+pending output and larger trees retain ordinary execution. Ordered evaluation, logical fuel,
+cancellation, admission and atomic mutations remain unchanged. No engine, IR or owner is added.
 
-Nested-call medians take **4.3–5.3% less time**; all four launch-pair reductions are
-+4.71%, +5.91%, +5.32%, +3.36%. Managed allocations remain **1,379,387 bytes** per nested-call invocation,
-and both controls have unchanged allocations. Control reductions (positive means less time):
-unary call loops -2.27% / -0.14%; join +1.58% / -2.07%.
-No general, control or cumulative gain is claimed.
+While-loop medians take **25.8–26.5% less time**. All four launch-pair reductions:
++27.43%, +25.57%, +25.55%, +26.00%. Medium managed allocations: **1,383,155→1,383,555 bytes; 1,383,155→1,383,555 bytes**.
+The extra 400/400 bytes per invocation are bounded loop preparation, within the
+declared 512-byte budget; new storage is prepared once per program, without per-record growth.
+Both controls have unchanged allocations. Control reductions (positive means less time):
+nested calls -0.53% / -3.71%; for arithmetic -3.19% / +1.35%. No general, control or cumulative gain is claimed.
 
 One qualified pilot and one balanced confirmation were run; all six source windows have
 qualified quiet gates, stable identities and no extra SSH login. The complete baseline is
-retained until the next declared milestone; this is the second accepted change in the next batch.
+retained until the next declared milestone; this is the third accepted change in the next batch.
 
-The source passes **73,092 tests/OS**, 86 exact reference snapshots, 109 equivalent native goldens,
+The source passes **73,113 tests/OS**, 89 exact reference snapshots, 110 equivalent native goldens,
 30 limited-stack scenarios/OS and 32 unchanged finite-resource rows. One additional native case
 retains the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-The parsed nested-call fixture verifies four scalar-argument bypasses and eight prepared reads
-on four records. Focused guards cover current/nested frame kinds, active bounds, aliases,
-unassigned locals and value admission before results/counters. Generated code confirms the
-direct kind check with cold name fallback. [Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38991535553)
-passes; downloaded reports verify all 290 selected function, numeric, cancellation and admission guards per OS.
+The parsed while and empty-header for fixtures verify two kernel runs across two records
+in both engines. All 161 tested fuel boundaries match legacy values, indices and diagnostics;
+memory refusal leaves the target intact. Disabling while preparation fails four expected
+guards while 30 controls pass. Cancellation, lint, pending output, suspending bodies and
+break/continue/return/output fallback are covered.
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38997296818) passes;
+downloaded reports verify all 330 selected guards per OS.
 
 ## Scoped GNU comparisons
 
-Nested-call rows use **c3de4b2**, measured 2026-10-17 UTC, with nine alternating
-pairs/scale, exact output checks and qualified quiet gates. Join rows are retained from
-2026-10-17 at 516ffd1; other rows retain their explicitly named 2026-10-16 sources. All windows
-have stable identities and no extra SSH login. These paired comparisons are separate from both
-BenchmarkDotNet tables above.
+While-loop rows use **d94caaa**, measured 2026-10-17 UTC, with nine alternating
+pairs/scale, exact output checks and qualified quiet gates. Nested-call rows retain
+2026-10-17 at c3de4b2; join rows retain 2026-10-17 at 516ffd1; other rows retain their
+explicitly named 2026-10-16 sources. All windows have stable identities and no extra SSH
+login. These paired comparisons are separate from both BenchmarkDotNet tables above.
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
+| While arithmetic / 8.00 / 4,096 | d94caaa | 5.527 | 2.899 | 1.91× | 1.32 |
+| While arithmetic / 128.00 / 65,536 | d94caaa | 87.786 | 31.020 | 2.83× | — |
 | Nested calls / 8.00 / 4,096 | c3de4b2 | 3.424 | 1.602 | 2.14× | 1.32 |
 | Nested calls / 128.00 / 65,536 | c3de4b2 | 53.941 | 10.421 | 5.18× | — |
 | Two-file join / 77.83 / 4,096 per file | 516ffd1 | 7.838 | 2.814 | 2.79× | 4.23 |
@@ -114,8 +122,8 @@ BenchmarkDotNet tables above.
 | Long fields / 1,025.50 / 256 | 7ad867d | 0.851 | 2.050 | 0.41× | 2.15 |
 | Long fields / 16,408.00 / 4,096 | 7ad867d | 13.349 | 16.624 | 0.80× | — |
 
-The current nested-call script passes numeric input through `twice(x)` and nested `inc(x)` calls.
-Its paired GNU ratios are **2.14× medium / 5.18× large**.
+The current while script executes eight multiply/add/modulo updates per input record.
+Its paired GNU ratios are **1.91× medium / 2.83× large**.
 
 The other scoped rows retain their earlier revisions/dates. Scripts use the shared fixtures
 linked above. Only medium-scale managed allocations were measured by BenchmarkDotNet;
