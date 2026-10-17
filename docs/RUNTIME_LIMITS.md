@@ -92,11 +92,13 @@ value precede RHS evaluation; misses and writes retain their original preflights
 use runtime/profile evaluation; borrowed bytes stay within the synchronous lookup.
 Syntax-depth settings above 128 retain unconditional function-entry/unwind suspension.
 Eligible loops and complete scalar actions also reuse known-call metadata for zero through
-four arguments. Single-return and exact `if(c)return a;return b` bodies retain statement/
-condition/return checkpoint order; both branches contribute to existing preparation bounds.
-Multiple arguments use a fixed stack temporary and the original function frames;
-omitted/extra arguments and larger arities retain ordinary evaluation. Calls retain
-their original executor at VM, lint, pending-output, raised-syntax and stack-safety boundaries.
+four arguments. Single returns, exact `if(c)return a;return b` and one local assignment
+followed by a return retain their original checkpoints. All expressions and calls contribute
+to the existing depth bounds. Multiple arguments use a fixed stack temporary and original
+frames. Local-assignment bodies also admit omitted trailing locals with at most four slots;
+other omitted/extra arguments and larger arities retain ordinary evaluation. Calls keep
+their original executor at VM, lint, pending-output, raised-syntax and stack-safety boundaries;
+assignment prefixes also preserve captured-field diagnostic publication boundaries.
 Field-key array reads with CPU-only indices can join the same bounded expression regions.
 Their original lookup handles missing entries, aliases, special arrays and value snapshots;
 field-diagnostic, depth and pending-index boundaries retain the original fallback.
