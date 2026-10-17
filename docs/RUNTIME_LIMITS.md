@@ -92,7 +92,8 @@ text. Eligible literal field operands can borrow bytes/numbers during synchronou
 Avoided copies and rounded capacities can change optional memory thresholds.
 Stdout `print` with one through four values uses locals instead of staging arrays; formatting
 remains leased and the complete append preflights before publication. Larger, redirected and
-executable-engine prints retain staging. Statement flush boundaries remain.
+executable-engine prints retain staging. Each statement flushes queued stdout and diagnostics
+before control flow continues; statements with no queued output skip the empty sink call.
 Two to four literal positive field operands can borrow field slices through synchronous output
 copying. Modified/cached fields retain print formatting; every complete append still preflights.
 
