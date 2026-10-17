@@ -11,6 +11,19 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task ParsedPrintfFormatsIntoItsEmptySink(AwkExecutionEngineKind engine)
+    {
+        var result = await RunAsync(["{printf \"%s:%04d\\n\",$1,$2}"], "a 7\nb 8\n",
+            AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("a:0007\nb:0008\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, result.Counters.PrintfSinkFormats);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task ParsedPairCallsReuseInlineFrames(AwkExecutionEngineKind engine)
     {
         const string source = "function step(x,a){return (x*3+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";

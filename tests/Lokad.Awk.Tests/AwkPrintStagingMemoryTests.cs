@@ -333,7 +333,7 @@ public sealed partial class AwkPrintStagingMemoryTests
     }
 
     [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)]
     public async Task TimedOutOutputRetainsBorrowedBytesAndSharedAdmissionUntilHostCompletion(int printCount)
     {
         var budget = new CooperativeTestBudget(Limit);
@@ -349,6 +349,7 @@ public sealed partial class AwkPrintStagingMemoryTests
             1 => "BEGIN{s=sprintf(\"%04096d\",7);print s}",
             2 => "BEGIN{s=sprintf(\"%04096d\",7);print s,8}",
             3 => "BEGIN{$0=sprintf(\"%04096d café\",7);print $1,$2}",
+            4 => "BEGIN{printf \"%04096d\",7}",
             _ => "BEGIN{printf \"%04096d\",7 > \"result\"}"
         };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));

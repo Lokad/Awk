@@ -27,6 +27,27 @@ internal sealed class AwkOutputSink : IDisposable
 
     internal bool HasPendingOutput => _standardOutput.Length != 0 || _diagnostics.Count != 0;
 
+    internal bool TryFormatPrintf<TArguments>(string format, TArguments arguments, AwkRuntimeState state)
+        where TArguments : IPrintfArguments
+    {
+        if (_standardOutput.Length != 0)
+            return false;
+
+        try
+        {
+            AwkFormattingRuntime.FormatPrintfToBuilder(_standardOutput, format, arguments, state);
+            state.ThrowIfCancellationRequested();
+        }
+        catch
+        {
+            // Nothing was published. Keep retained capacity charged to this sink.
+            _standardOutput.Clear();
+            throw;
+        }
+        state.Counters.RecordPrintfSinkFormat();
+        return true;
+    }
+
     public void Append(AwkText value)
     {
         if (value.ByteLength == 0)

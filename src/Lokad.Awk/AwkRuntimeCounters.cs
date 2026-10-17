@@ -19,6 +19,13 @@ internal sealed class AwkRuntimeCounters
 
     public long RecordsRead { get; private set; }
 
+    public long PrintfSinkFormats { get; private set; }
+
+    public void RecordPrintfSinkFormat()
+    {
+        if (_enabled) lock (_sync) PrintfSinkFormats++;
+    }
+
     public long BytesRead { get; private set; }
 
     public long FieldsMaterialized { get; private set; }

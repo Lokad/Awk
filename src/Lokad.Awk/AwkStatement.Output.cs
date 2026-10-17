@@ -137,32 +137,44 @@ internal abstract partial class AwkStatement
             var execution = RequireExecutionContext(context);
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
             var formatText = await format.ResolveStringAsync(context).ConfigureAwait(false);
-            using var formatted = new AwkUtf8Builder(state.Limits, state.MemoryAccounting, capacity: 0);
-            if (_fieldIndices.Length != 0)
+            AwkUtf8Builder? formatted = null;
+            try
             {
-                for (var index = 0; index < arguments.Length; index++)
+                if (_fieldIndices.Length != 0)
                 {
-                    AwkExpression.EvaluateLiteralFieldIndex(arguments[index], context);
-                    state.PreflightPrintfField(_fieldIndices[index]);
+                    for (var index = 0; index < arguments.Length; index++)
+                    {
+                        AwkExpression.EvaluateLiteralFieldIndex(arguments[index], context);
+                        state.PreflightPrintfField(_fieldIndices[index]);
+                    }
+                    var fields = new AwkPrintfFieldArguments(_fieldIndices, state);
+                    if (!resolvedTarget.HasValue && execution.Output.TryFormatPrintf(formatText, fields, state))
+                        return AwkStatementFlow.Continue;
+                    formatted = new AwkUtf8Builder(state.Limits, state.MemoryAccounting, capacity: 0);
+                    AwkFormattingRuntime.FormatPrintfToBuilder(formatted, formatText, fields, state);
                 }
-                AwkFormattingRuntime.FormatPrintfToBuilder(formatted, formatText,
-                    new AwkPrintfFieldArguments(_fieldIndices, state), state);
+                else
+                {
+                    using var buffer = AwkValueBuffer.Rent(arguments.Length, state.MemoryAccounting);
+                    var resolvedArguments = buffer.Values;
+                    for (var i = 0; i < arguments.Length; i++)
+                        resolvedArguments[i] = await arguments[i].EvaluateAsync(context).ConfigureAwait(false);
+
+                    var values = new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state);
+                    if (!resolvedTarget.HasValue && execution.Output.TryFormatPrintf(formatText, values, state))
+                        return AwkStatementFlow.Continue;
+                    formatted = new AwkUtf8Builder(state.Limits, state.MemoryAccounting, capacity: 0);
+                    AwkFormattingRuntime.FormatPrintfToBuilder(formatted, formatText, values, state);
+                }
+                state.ThrowIfCancellationRequested();
+                await EmitOutputAsync(execution.Output, execution.Io, resolvedTarget, formatted.AsMemory())
+                    .ConfigureAwait(false);
+                return AwkStatementFlow.Continue;
             }
-            else
+            finally
             {
-                using var buffer = AwkValueBuffer.Rent(arguments.Length, state.MemoryAccounting);
-                var resolvedArguments = buffer.Values;
-                for (var i = 0; i < arguments.Length; i++)
-                    resolvedArguments[i] = await arguments[i].EvaluateAsync(context).ConfigureAwait(false);
-
-                AwkFormattingRuntime.FormatPrintfToBuilder(formatted, formatText,
-                    new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state), state);
+                formatted?.Dispose();
             }
-
-            state.ThrowIfCancellationRequested();
-            await EmitOutputAsync(execution.Output, execution.Io, resolvedTarget, formatted.AsMemory())
-                .ConfigureAwait(false);
-            return AwkStatementFlow.Continue;
         }
     }
 
