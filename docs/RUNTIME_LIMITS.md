@@ -67,6 +67,8 @@ borrowed numeric field reads (including nested field indices) and original sette
 retain ordinary execution; function entry/unwind stack checks remain. Immutable preparation
 belongs to the existing compiled owner. The interpreter remains the default engine.
 Prepared actions retain original dispatch for nested loops and potentially diagnostic captured field modes.
+Small record field lists reuse at most four slots under the existing frame, with private staged publication.
+Retained capacity is included in record admission; ineligible splitting modes and larger buffers are discarded.
 Stored Number scalars can feed prepared global numeric reads and updates directly; other kinds
 retain ordinary value admission and conversion.
 Function locals share scalar/array value conversion and retain prepared numeric values/spelling.
