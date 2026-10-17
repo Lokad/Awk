@@ -1,10 +1,16 @@
 # Benchmarks
 
-Current **31-family baseline**, measured 2026-10-17 UTC at Release source
-`8a4794947bce4ce7d4785056450d41e3f049701b` against GNU awk 5.2.1. Every first-table row uses that revision.
-The latest controlled post-test-loop change takes **17.50–18.25% less time** on large inputs;
-its separate before/after evidence is below. This milestone follows five accepted optimizations;
-the next development batch starts at 0/5. No overall parity or cumulative-gain claim.
+Current **33-family comparison** against GNU awk 5.2.1. The two branching-function rows
+marked † were measured 2026-10-17 UTC at Release source
+`07647eccd7e00356fed9c22b11418b9fe10164b9`: **4.12× / 3.53×** GNU elapsed time, about
+**0.77 MiB** allocated each. These ordinary multi-statement functions complement the existing
+prepared arithmetic-call cases.
+
+The other **31 rows retain** the complete baseline measured 2026-10-17 UTC at
+`8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this extension.
+Core runtime code is identical between these revisions. The latest accepted post-test-loop
+change takes **17.50–18.25% less time** on large inputs, with separate evidence below.
+Development batch remains 0/5; no overall parity or cumulative-gain claim.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -16,6 +22,8 @@ not GNU allocations, retained memory or allowances. Rows run from worst ratio to
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE capture arrays (GNU) | 28.00 | 35.893 | 8.126 | 4.42× | 16.05 |
+| Branching function, two arguments † | 8.00 | 17.750 | 4.308 | 4.12× | 0.77 |
+| Branching function, one argument † | 8.00 | 14.116 | 4.002 | 3.53× | 0.77 |
 | gsub and output | 56.00 | 5.630 | 2.117 | 2.66× | 3.76 |
 | Two-file membership / join | 77.83 | 6.810 | 2.809 | 2.42× | 3.04 |
 | Unicode length/substr / output | 60.00 | 4.640 | 2.088 | 2.22× | 2.52 |
@@ -112,8 +120,10 @@ Substantial large-input gaps remain; retained measurements are not fresh results
 ## Environment and reproduction
 
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
-BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. The complete baseline uses
-five warmups/nine iterations/one launch. Timing and allocation phases have qualified pre/post
+BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. The retained complete baseline
+uses five warmups/nine iterations/one launch. The two new medium branching-function rows use
+nine balanced GNU timing pairs and three warmups/five iterations/one allocation launch.
+Timing and allocation phases have qualified pre/post
 quiet gates, stable source/binary identities and no additional authenticated SSH login.
 CPU admission requires at most 3% median/5% maximum background load. Single-launch variation
 limits small differences. Semantic preflight is reused from the same source and binaries.
