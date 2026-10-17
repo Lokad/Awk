@@ -87,6 +87,9 @@ Prepared scalar arguments reuse current kinds; value-size admission and long-tex
 remain in ordinary evaluation. Missing locals and aliases retain original resolution.
 Established ordinary global arrays retain their kind after successful access; storage and
 mutation checks remain original. Special arrays and live function contexts retain name resolution.
+Field-key compound updates can reuse an existing key/value lookup. Owned key and numeric left
+value precede RHS evaluation; misses and writes retain their original preflights. Index literals
+use runtime/profile evaluation; borrowed bytes stay within the synchronous lookup.
 Syntax-depth settings above 128 retain unconditional function-entry/unwind suspension.
 Eligible loops and complete scalar actions also reuse known-call metadata for zero through
 four arguments. Single-return and exact `if(c)return a;return b` bodies retain statement/

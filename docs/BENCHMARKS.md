@@ -9,9 +9,9 @@ prepared arithmetic-call cases.
 The other **31 rows retain** the complete baseline measured 2026-10-17 UTC at
 `8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this extension.
 Core runtime code is identical between these baseline revisions. The latest accepted
-conditional-return preparation takes **48.11–51.09% less time** on large paired
-branching calls; its newer source and separate evidence appear below. The first table retains
-its named measurements. Development batch is 1/5; no overall parity or cumulative-gain claim.
+field-target change takes **10.82–11.38% less time** on large keyed aggregation;
+its newer source and separate evidence appear below. The first table retains its named
+measurements. Development batch is 2/5; no overall parity or cumulative-gain claim.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
@@ -65,42 +65,41 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC: `eae9e30a21e9f1ad6611bc6283f09543eea78a9d`
-→ `606de302c8872d46b0c51f6c8c03e8541c464c62`, identical harness and inputs, **large scale**.
+Measured 2026-10-17 UTC: `606de302c8872d46b0c51f6c8c03e8541c464c62`
+→ `b6e73a63c1ab231981324ce4926643aecdc1ca5b`, identical harness and inputs, **large scale**.
 Three warmups/five iterations, two launches/source in both source orders. Times are medians
 of launch medians. Managed allocations use all four launch observations/source: median and
 full range where readings differ, per complete invocation.
 
 | Workload | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
 | --- | --- | ---: |
-| Branching paired calls / 65,536 records | 266.818→138.462; 285.888→139.827 | 10,179,536→10,180,824 |
-| Branching unary calls (also affected) / 65,536 records | 227.042→121.946; 222.732→124.022 | 10,173,493→10,174,874 [10,174,832–10,184,714] |
-| Prepared paired-call control / 65,536 records | 134.331→131.542; 132.506→132.597 | 10,152,400→10,152,416 |
+| Keyed aggregation / 65,536 records | 44.501→39.686; 44.452→39.395 | 10,416,571 [10,416,571–10,416,583]→10,416,578 |
+| Array-read control / 65,536 records | 49.040→49.517; 48.523→48.971 | 19,976,256 [19,976,192–19,976,537]→19,976,243 [19,976,198–19,976,343] |
+| Projection control / 65,536 records | 39.446→39.485; 39.598→38.599 | 11,443,027→11,443,027 |
 
-Exact `if (condition) return a; return b;` functions reuse existing prepared calls and
-complete scalar actions/loops. The gain includes bypassed ordinary invocation, argument
-transport and statement traversal; it does not isolate one dispatch cost. Other bodies keep
-ordinary execution. If/condition/return/expression checkpoints, frame admission, aliases,
-caller effects, cancellation and VM/lint/pending-output/stack fallbacks remain. The change
-adds 51 net runtime lines in 4 files, with no new executor, cache or owner.
+Field-key compound updates reuse the owned key and current value from one existing lookup.
+The key and numeric left value are captured before RHS evaluation, including suspension,
+record reuse and array replacement. Misses and writes retain the original admission/mutation
+path. Numeric index literals use the original runtime/profile evaluation, preserving fuel,
+conversion and error order without temporary UTF-8 literal parsing. No borrowed span escapes
+the synchronous lookup. The change adds 72 net runtime lines in 6 files;
+no new cache, owner or instruction representation.
 
-Four target launch-pair reductions: +47.44%, +48.77%, +52.58%, +49.50%.
-Unary reductions: +46.29%/+44.32%; this case is also affected.
-Prepared-pair control: +2.08%/-0.07% less elapsed (negative means longer); not an attributed gain.
+Four target launch-pair reductions: +10.03%, +11.64%, +9.24%, +13.47%.
+Array-read control: -0.97%/-0.92% less elapsed (negative means longer), a repeatable
+slowdown below 1%. Projection control: -0.10%/+2.52%. Neither is an attributed gain.
+The pilot's 11.48% array-read slowdown did not repeat; the original observation is retained.
 
-Allocation cost includes newly enabled action/loop metadata and two references per prepared
-function. An allocation-only check at 16/4,096/65,536 records found 736–1,512 extra bytes in
-affected cases and 16 bytes in the prepared control. Small/medium deltas matched; large samples
-varied, so no exact byte-attribution or allocation-savings claim. Confirmation's typical
-allocation growth is 1,288/1,380 bytes; one unary launch also includes an unexplained additional
-9,840 bytes per invocation, retained in the range above. Allocation summaries include every
-launch rather than only the last exported reading. Typical metadata growth fits 2 KiB;
-production quotas are unchanged. Source review found no added allocation per record/call.
+Managed allocations are effectively unchanged: the target cohort differs by about 7 bytes
+per invocation, with no allocation-savings claim. Existing-key steady updates have a dedicated
+allocation regression check. Counters prove 65,520 reused lookups and 131,040 fewer container
+probes; logical, host, conversion and resource counters match. Full Windows/Linux tests,
+exact GNU outputs, finite fuel/admission checks, negative mutations, stack probes and CI qualify.
+The existing interpreter and regex defaults remain unchanged.
 
-Full Windows/Linux tests, exact GNU outputs, finite fuel/resource checks, negative mutations,
-stack probes and CI qualify. One pilot and one balanced confirmation used stable identities,
-qualified quiet gates and no extra measurement-window SSH login. These controlled comparisons
-do not establish GNU parity or a cumulative gain.
+One promising pilot and one balanced confirmation used stable identities, qualified quiet
+gates and no extra measurement-window SSH login. These controlled comparisons do not
+establish GNU parity or a cumulative gain. The complete baseline was not refreshed.
 
 ## Larger-input comparisons
 
@@ -153,7 +152,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*large*branching-calls*' '*WorkloadAllocationBenchmarks*large*branching-unary-calls*' '*WorkloadAllocationBenchmarks*large*multi-arg-loop*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*large*aggregate*' '*WorkloadAllocationBenchmarks*large*array-read")' '*WorkloadAllocationBenchmarks*large*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
