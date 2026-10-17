@@ -1,6 +1,6 @@
 namespace Lokad.Awk.Tests;
 
-public sealed class AwkPreparedFunctionRegionTests
+public sealed partial class AwkPreparedFunctionRegionTests
 {
     [Theory]
     [InlineData("for")]
@@ -915,8 +915,12 @@ public sealed class AwkPreparedFunctionRegionTests
         var functions = program.Functions.ToDictionary(pair => pair.Key, pair => pair.Value);
         if (ordinary)
             foreach (var (name, function) in program.Functions)
-                if (function.TryGetReturnExpression(out var expression))
-                    functions[name] = new(name, function.LocalLayout, [AwkStatement.Return(AwkOptionalExpression.Some(expression))]);
+                if (function.TryGetSynchronousReturnBody(out var expression, out var condition, out var alternative))
+                    functions[name] = new(name, function.LocalLayout, condition.SynchronousDepth > 0
+                        ? [AwkStatement.If(new([[AwkConditionClause.Truthy(condition)]]),
+                            [AwkStatement.Return(AwkOptionalExpression.Some(expression))]),
+                            AwkStatement.Return(AwkOptionalExpression.Some(alternative))]
+                        : [AwkStatement.Return(AwkOptionalExpression.Some(expression))]);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
         if (fuel > 0) limits = limits.WithMaxExecutionSteps(fuel);

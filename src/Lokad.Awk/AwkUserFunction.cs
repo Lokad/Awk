@@ -57,6 +57,16 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         return false;
     }
 
+    internal bool TryGetSynchronousReturnBody(out AwkExpression expression,
+        out AwkSynchronousExpression condition, out AwkExpression alternative)
+    {
+        condition = AwkSynchronousExpression.Unavailable;
+        alternative = AwkSynchronousExpression.Unavailable;
+        if (_statements.Length == 2 && _statements[0].TryGetGuardedReturn(out condition, out expression))
+            return _statements[1].TryGetReturnExpression(out alternative);
+        return TryGetReturnExpression(out expression);
+    }
+
     public AwkFunctionName FunctionName { get; }
 
     public string Name => FunctionName.Text;

@@ -5,6 +5,15 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("conditional-return-keeps-caller-effects-and-branches",
+            ["function pick(x,y){if(x<y)return x;return y} function wrap(x,y){return pick(x,y)} BEGIN{x=1;print wrap(x++,x++),x;print wrap(9,4);print \"[\" pick(3) \"]\"}"],
+            [], "1 3\n4\n[]\n");
+        yield return Passing("conditional-return-keeps-utf8-and-untyped-snapshots",
+            ["function keep(x){if(length(x)>2)return x;return \"short\"} function pass(x){if(1)return x;return 0} BEGIN{print keep(\"café\"),keep(\"x\");print \"[\" pass(missing) \"]\";missing=7;print pass(missing)}"],
+            [], "café short\n[]\n7\n");
+        yield return Passing("conditional-return-keeps-array-aliases",
+            ["function count(a,x){if(x)return length(a);return 0} BEGIN{a[1]=7;print count(a,1),count(a,0);a[2]=9;print count(a,1)}"],
+            [], "1 0\n2\n");
         yield return Passing("benchmark-core-branching-calls",
             ["function step(x,a){if(x<50)return (x*3+a)%101;return (x+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}"],
             [], "182\n", "7\n7\n");

@@ -13,7 +13,7 @@ public sealed class AwkBenchmarkCounterTests
     [InlineData(AwkExecutionEngineKind.Executable, false)]
     [InlineData(AwkExecutionEngineKind.Interpreter, true)]
     [InlineData(AwkExecutionEngineKind.Executable, true)]
-    internal async Task ParsedBranchingCallsExerciseOrdinaryArgumentStaging(AwkExecutionEngineKind engine, bool unary)
+    internal async Task ParsedBranchingCallsUsePreparedBodiesWithOrdinaryFallback(AwkExecutionEngineKind engine, bool unary)
     {
         var source = unary
             ? "function step(x){if(x<50)return (x*3+1)%101;return (x+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}"
@@ -23,8 +23,9 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(unary ? "146\n" : "182\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(unary ? 0 : 16, result.Counters.FunctionArgumentBufferRents);
-        Assert.Equal(0, result.Counters.SynchronousFunctionRuns);
+        Assert.Equal(unary || engine == AwkExecutionEngineKind.Interpreter ? 0 : 16,
+            result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 16 : 0, result.Counters.SynchronousFunctionRuns);
     }
 
     [Theory]

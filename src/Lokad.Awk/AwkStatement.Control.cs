@@ -14,6 +14,15 @@ internal abstract partial class AwkStatement
         AwkStatement[] body,
         AwkStatement[] elseBody) : AwkStatement
     {
+        internal override bool TryGetGuardedReturn(out AwkSynchronousExpression test, out AwkExpression expression)
+        {
+            test = AwkSynchronousExpression.Unavailable;
+            expression = AwkSynchronousExpression.Unavailable;
+            return elseBody.Length == 0 && body.Length == 1 &&
+                condition.TryGetSynchronousExpression(out test) &&
+                body[0].TryGetReturnExpression(out expression);
+        }
+
         internal override bool TryPrepareTopLevelSynchronousAction(int conditionalDepth,
             ref int remainingStatements, out Action<AwkEvaluationContext> action)
         {
