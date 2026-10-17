@@ -68,6 +68,8 @@ retain ordinary execution; function entry/unwind stack checks remain. Immutable 
 belongs to the existing compiled owner. The interpreter remains the default engine.
 Stored Number scalars can feed prepared global numeric reads and updates directly; other kinds
 retain ordinary value admission and conversion.
+Established ordinary global arrays retain their kind after successful access; storage and
+mutation checks remain original. Special arrays and live function contexts retain name resolution.
 Syntax-depth settings above 128 retain unconditional function-entry/unwind suspension.
 Eligible loops and complete scalar actions also reuse known-call metadata for zero through
 four arguments. Multiple arguments use a fixed stack temporary and the original function frames;
