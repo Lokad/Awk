@@ -219,7 +219,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("24\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(5, result.Counters.SynchronousExpressionRuns);
+        Assert.Equal(1, result.Counters.SynchronousExpressionRuns);
+        Assert.Equal(2, result.Counters.SynchronousActionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
     }
 

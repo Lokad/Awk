@@ -7,7 +7,7 @@ internal readonly struct AwkAction
 {
     private readonly AwkPattern? _pattern;
     private readonly AwkStatement[]? _statements;
-    private readonly Action<AwkEvaluationContext>? _synchronousCalls;
+    private readonly Action<AwkEvaluationContext>? _synchronous;
 
     public AwkAction(AwkPattern? pattern, IReadOnlyList<AwkStatement> statements,
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null)
@@ -15,7 +15,7 @@ internal readonly struct AwkAction
         _pattern = pattern;
         var snapshot = AwkCollectionSnapshots.Copy(statements);
         _statements = snapshot;
-        _synchronousCalls = AwkStatementBlockExecutor.TryPrepareCalls(snapshot, functions);
+        _synchronous = AwkStatementBlockExecutor.TryPrepareActions(snapshot, functions);
     }
 
     internal bool IsPatternless => _pattern == null;
@@ -38,7 +38,8 @@ internal readonly struct AwkAction
 
         using var executionContext = state.PushExecutionContext(output, io);
         var evaluationContext = new AwkEvaluationContext(state, output, io);
-        if (_synchronousCalls is { } prepared && !state.UsesExecutableEngine && state.LintMode == AwkLintMode.Off &&
+        if (_synchronous is { } prepared && !state.UsesExecutableEngine && state.LintMode == AwkLintMode.Off &&
+            state.FieldsCannotReportRegexDiagnostics &&
             state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
             !output.HasPendingOutput && System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())
         {

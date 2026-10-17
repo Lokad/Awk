@@ -6,19 +6,18 @@ namespace Lokad.Awk;
 /// <summary>Runs an interpreter statement block with its shared budget, cancellation, and flush boundaries.</summary>
 internal static class AwkStatementBlockExecutor
 {
-    internal static Action<AwkEvaluationContext>? TryPrepareCalls(AwkStatement[] statements,
+    internal static Action<AwkEvaluationContext>? TryPrepareActions(AwkStatement[] statements,
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions)
     {
-        if (statements.Length is 0 or > 16 || functions is not { Count: > 0 }) return null;
+        if (statements.Length is 0 or > 16) return null;
         var actions = new Action<AwkEvaluationContext>[statements.Length];
-        var hasCalls = false;
         for (var index = 0; index < statements.Length; index++)
         {
-            var statement = statements[index].PrepareSynchronousCalls(functions);
-            hasCalls |= !ReferenceEquals(statement, statements[index]);
+            var statement = functions is { Count: > 0 }
+                ? statements[index].PrepareSynchronousCalls(functions) : statements[index];
             if (!statement.TryPrepareSynchronousAction(out actions[index])) return null;
         }
-        return hasCalls ? Execute : null;
+        return Execute;
 
         void Execute(AwkEvaluationContext context)
         {
