@@ -39,6 +39,9 @@ its owner through active executions; disposal stops new executions, waits for us
 refunds it. Admission is conservative, and minor metadata, process caches and backend
 internals are approximate. These estimates are not a managed-heap cap.
 
+Array storage caches at most one container lookup; replacement/removal refreshes or clears
+it. This adds 32 bytes of minor metadata per execution, under the existing coarse allowance.
+
 Stdout printf can reuse admitted output capacity; format failures discard unpublished bytes.
 Redirection retains staging. Reduced overlapping storage can relax optional memory thresholds.
 

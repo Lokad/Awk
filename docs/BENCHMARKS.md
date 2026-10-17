@@ -1,15 +1,16 @@
 # Benchmarks
 
-Current scoped runtime: `6f408f1cd338f7e6a72d8df789789d0974894730`, measured 2026-10-17 UTC.
-Controlled printf takes **5.8–6.0% less time** and allocates **35.2% fewer
-managed bytes/invocation**. Fresh GNU elapsed ratios are **2.06× medium /
-4.36× large**. Projection is effectively flat; string controls vary by source order.
+Current scoped runtime: `bb6b432c10c2bdc4d7212bc9d2ced3326d9e94ef`, measured 2026-10-17 UTC.
+Keyed aggregation takes **5.3–6.3% less time**, with **32 extra managed bytes/invocation**.
+Alternating two-array reads take **4.61% / 1.42% longer** in the two source orders.
+Fresh GNU elapsed ratios for aggregation are **2.17× medium / 7.22× large**.
 
-The complete **29-family baseline is retained** from 2026-10-17 at Release source
-`3031909b6f9bc60582eb47dadcbaa09ea4e4aacd` against GNU awk 5.2.1.
-Every first-table row uses that source. Two changes have been accepted since the refresh.
+The catalogue now has 30 families. The complete **29-family baseline is retained** from
+2026-10-17 at Release source `3031909b6f9bc60582eb47dadcbaa09ea4e4aacd` against GNU awk 5.2.1.
+Every first-table row except alternating reads retains that source. The new alternating row
+uses the scoped runtime above, measured 2026-10-17 UTC. Three runtime changes have been
+accepted since the complete refresh; no overall parity or cumulative-gain claim.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
-No overall parity or cumulative-gain claim.
 
 ## Representative processing
 
@@ -37,6 +38,7 @@ not GNU allocations, retained memory or allowances. Rows run from worst ratio to
 | ERE field separator | 48.00 | 3.791 | 1.998 | 1.90× | 3.49 |
 | ASCII substr/index/length/casing | 52.00 | 2.931 | 1.563 | 1.88× | 1.08 |
 | While loop and numeric arithmetic | 8.00 | 5.315 | 3.040 | 1.75× | 0.73 |
+| Alternating two-array reads | 21.50 | 2.511 | 1.454 | 1.73× | 0.77 |
 | Mixed narrow-record processing | 60.00 | 3.729 | 2.208 | 1.69× | 0.80 |
 | Field-key membership | 48.56 | 2.218 | 1.315 | 1.69× | 0.82 |
 | Loop and numeric arithmetic | 8.00 | 4.906 | 2.932 | 1.67× | 0.72 |
@@ -52,59 +54,57 @@ not GNU allocations, retained memory or allowances. Rows run from worst ratio to
 Both implementations use the same [scripts/fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs).
 Most medium cases have 4,096 records; all-fields wide and long-field cases have 256,
 and join has 4,096/file. Early wide filtering reads `$1` on every record and `$3` on one in eight.
-Array reads have equal existing/new keys. GNU-marked conveniences do not imply full conformance.
+Single-array reads have equal existing/new keys; the new control alternates all-hit reads
+from two lookup tables. GNU-marked conveniences do not imply full conformance.
 Confirm apparent parity on larger inputs; the retained scale comparisons below are separate evidence.
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC: `ea3bbe647abfd93e91d7b82fe721425a9686c645`
-→ `6f408f1cd338f7e6a72d8df789789d0974894730`, with identical harness and inputs.
-Three warmups/five iterations, two launches/source in both source orders. Times are medians
-of launch medians, separate from the retained complete baseline. Allocation counts apply
-to both source orders.
+Measured 2026-10-17 UTC: `071337db9225f1fe7442b69b8e9099621060bf53`
+→ `bb6b432c10c2bdc4d7212bc9d2ced3326d9e94ef`, identical harness/inputs. The baseline adds the new control with unchanged
+runtime code from `6f408f1`. Three warmups/five iterations, two launches/source in both source
+orders. Times are medians of launch medians; allocation counts apply to both orders.
 
 | Workload | Median ms, before → after (two source orders) | Allocated bytes, before → after |
 | --- | --- | ---: |
-| printf | 3.906→3.672; 3.909→3.682 | 1,116,712→723,490 |
-| Projection control | 2.480→2.479; 2.488→2.497 | 783,010→783,010 |
-| ASCII string control | 3.030→2.996; 2.886→2.940 | 1,128,424→1,128,424 |
+| Keyed aggregation | 2.980→2.822; 3.054→2.862 | 801,059→801,091 |
+| Alternating-read control | 2.399→2.510; 2.456→2.491 | 805,875→805,907 |
+| Arithmetic control | 5.170→5.048; 5.108→5.017 | 759,962→759,994 |
 
-When stdout's byte buffer is empty, printf formats into its existing builder after evaluating
-arguments. This avoids a temporary builder/backing array and a copy. Failed formatting clears
-unpublished bytes. Nonempty output and redirection retain staging; sprintf and statement flushes
-are unchanged. The sink owns retained capacity through actual host users. Lower overlapping
-storage can relax optional memory thresholds. No new owner, pool, cache or buffering policy.
-The runtime change adds 40 net lines in three files.
+Existing array storage caches one resolved container. Replacement refreshes a matching entry;
+removal clears it before refund. This avoids repeated outer name/table probes. It adds 45 net
+runtime lines in three files and **32 bytes of fixed storage metadata per invocation**; there
+is no added per-record/key storage, global-slot-layout change, wrapper or memory owner.
+Original typing, special/virtual arrays, aliases, mutation admission and cancellation remain.
 
-Target reductions are **6.00% / 5.81%**; all four launch-pair reductions:
-+6.54%, +5.47%, +4.25%, +7.34%. Allocations fall **393,222 bytes / 35.2%**.
-Control reductions (positive means less time): projection
-+0.04% / -0.34%; strings
-+1.13% / -1.88%.
-The pilot's 3.41%/3.92% control slowdowns did not repeat; no control improvement is claimed.
-One pilot and one balanced confirmation qualify with quiet gates, stable identities and
-no extra SSH login in all six source windows.
+Aggregation reductions are **5.30% / 6.29%**; four launch-pair reductions:
++3.37%, +7.22%, +6.12%, +6.45%. The pilot's 12.85% did not repeat.
+Alternating reads take **4.61% / 1.42% longer**. Arithmetic reductions are
+**2.35% / 1.80%**; one reverse-order pair is flat. No control improvement is claimed.
+The miss-path cost is retained explicitly. One pilot and one balanced confirmation pass
+quiet gates, stable identities and no extra SSH logins in six source windows; no retiming.
 
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39031752443)
-passes **73,241 tests/OS**, including 682 selected guards. All 4,096 parsed printf calls reach
-the new path with unchanged original logical/value/field/host/conversion counters.
-All 89 reference snapshots and 32 finite-resource counter rows match; 30 limited-stack scenarios/OS
-pass. Missing rollback/disabled-route mutations fail three/four checks with 115/114 controls.
-Native goldens have 120 equivalent cases plus the documented
-[numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39035249630)
+passes **73,260 tests/OS**, including 701 selected guards. Parsed aggregation has 24,634 hits;
+both controls have zero. Original logical/value/field/host/conversion work matches. All 92
+reference snapshots and 32 finite-resource counter rows match; 30 stack scenarios/OS pass.
+Missing refresh/removal/ordinary-route mutations fail 3/2/4 checks with 4/5/3 controls.
+Weak-reference checks cover replaced/removed storage. Native goldens have 122 equivalent cases
+plus the documented [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
 
-Fresh paired GNU comparisons use nine alternating pairs/scale, exact output checks, stable
-identities and quiet gates without extra SSH logins. These are scoped results; no complete-family
-refresh was run.
+Only aggregation and the new control received fresh GNU comparisons: nine alternating
+pairs/scale, exact output, stable identities and quiet/SSH gates. No complete-family refresh.
 
 ## Larger-input comparisons
 
-The printf row is fresh at the scoped source above. Other rows retain their explicit sources/dates
-and were not refreshed. Original paired runs checked exact outputs, quiet gates, stable identities
-and no extra SSH login. Larger-input managed allocations were not measured.
+Aggregation and alternating-read rows are fresh at the scoped source above. Other rows retain
+their explicit sources/dates and were not refreshed. Original paired runs checked exact outputs,
+quiet gates, stable identities and no extra SSH logins. Larger-input allocations were not measured.
 
 | Case / input KiB / records | Measured source / date UTC | Lokad ms | GNU ms | Lokad.Awk/awk |
 | --- | --- | ---: | ---: | ---: |
+| Keyed aggregation / 384.00 / 65,536 | bb6b432 / 2026-10-17 | 45.786 | 6.337 | 7.22× |
+| Alternating array reads / 344.00 / 65,536 | bb6b432 / 2026-10-17 | 39.003 | 7.629 | 5.11× |
 | printf / 384.00 / 65,536 | 6f408f1 / 2026-10-17 | 58.613 | 13.428 | 4.36× |
 | Two-argument calls / 128.00 / 65,536 | ea3bbe6 / 2026-10-17 | 129.310 | 50.947 | 2.54× |
 | Three-field filter / 384.00 / 65,536 | c90b108 / 2026-10-17 | 33.969 | 8.946 | 3.80× |
