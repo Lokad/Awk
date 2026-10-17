@@ -213,6 +213,12 @@ internal abstract partial class AwkStatement
     {
         public static readonly NoOpStatement Instance = new();
 
+        internal override bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
+        {
+            action = static _ => { };
+            return true;
+        }
+
         public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(AwkStatementFlow.Continue);
 

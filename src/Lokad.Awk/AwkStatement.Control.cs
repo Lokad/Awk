@@ -90,11 +90,7 @@ internal abstract partial class AwkStatement
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var state = context.State;
-            if (_synchronous is { } prepared && state.LintMode == AwkLintMode.Off &&
-                (!prepared.HasPreparedCalls || (!state.UsesExecutableEngine &&
-                    state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
-                    System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())) &&
-                context.TryGetExecutionContext(out var execution) && !execution.Output.HasPendingOutput)
+            if (_synchronous is { } prepared && prepared.CanExecute(context))
                 return prepared.Execute(context);
 
             var flow = await initializer.ExecuteAsync(context).ConfigureAwait(false);
@@ -139,8 +135,14 @@ internal abstract partial class AwkStatement
 
     private sealed class WhileStatement(AwkCondition condition, AwkStatement[] body) : AwkStatement
     {
+        private readonly AwkSynchronousFor? _synchronous = AwkSynchronousFor.TryPrepare(
+            NoOp(), condition, NoOp(), body);
+
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
+            if (_synchronous is { } prepared && prepared.CanExecute(context))
+                return prepared.Execute(context);
+
             var state = context.State;
             while (await condition
                 .EvaluateAsync(context)

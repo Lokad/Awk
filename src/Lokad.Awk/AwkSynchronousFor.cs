@@ -12,6 +12,16 @@ internal sealed class AwkSynchronousFor(
 {
     public bool HasPreparedCalls { get; } = hasPreparedCalls;
 
+    public bool CanExecute(AwkEvaluationContext context)
+    {
+        var state = context.State;
+        return state.LintMode == AwkLintMode.Off &&
+            (!HasPreparedCalls || (!state.UsesExecutableEngine &&
+                state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
+                System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())) &&
+            context.TryGetExecutionContext(out var execution) && !execution.Output.HasPendingOutput;
+    }
+
     public static AwkSynchronousFor? TryPrepare(AwkStatement initializer, AwkCondition condition,
         AwkStatement increment, AwkStatement[] body,
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>? functions = null)

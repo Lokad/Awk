@@ -9,6 +9,40 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter, false)]
+    [InlineData(AwkExecutionEngineKind.Executable, false)]
+    [InlineData(AwkExecutionEngineKind.Interpreter, true)]
+    [InlineData(AwkExecutionEngineKind.Executable, true)]
+    internal async Task ParsedWhileArithmeticReusesBoundedLoopKernel(AwkExecutionEngineKind engine, bool emptyFor)
+    {
+        var source = emptyFor
+            ? "{x=$1;i=0;for(;i<8;){x=(x*3+1)%101;i++}total+=x} END{print total}"
+            : "{x=$1;i=0;while(i<8){x=(x*3+1)%101;i++}total+=x} END{print total}";
+        var result = await RunAsync([source], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, result.Counters.SynchronousLoopRuns);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Theory]
+    [InlineData("BEGIN{i=0;while(i<3){i++;if(i==2)break}print i}", "2\n")]
+    [InlineData("BEGIN{i=0;while(i<3){i++;continue}print i}", "3\n")]
+    [InlineData("function f(){while(1)return 7} BEGIN{print f()}", "7\n")]
+    [InlineData("BEGIN{i=0;while(i<2){print i;i++}}", "0\n1\n")]
+    internal async Task ParsedWhileFlowAndOutputKeepOrdinaryExecution(string source, string expected)
+    {
+        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(expected, result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, result.Counters.SynchronousLoopRuns);
+    }
+
+    [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task ParsedNestedCallsReusePreparedNumericInput(AwkExecutionEngineKind engine)
