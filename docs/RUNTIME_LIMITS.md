@@ -60,12 +60,13 @@ cancellation latency is promised. Matching deadlines do not bound regex construc
 
 ## Interpreter preparation and buffers
 
-Eligible numeric, field, string and logical expressions, scalar actions and `for`/`while` loops
-reuse bounded synchronous interpreter regions. They preserve logical checkpoints, argument/conversion/error order,
-borrowed numeric field reads (including nested field indices) and original setters. Eligibility stops at expression depth 16,
-16 body statements and four acyclic function levels. Host/output/control-flow/pending/lint work and larger shapes
-retain ordinary execution; function entry/unwind stack checks remain. Immutable preparation
-belongs to the existing compiled owner. The interpreter remains the default engine.
+Eligible numeric, field, string and logical expressions, scalar actions, bounded `if`/`else` actions
+and `for`/`while` loops reuse synchronous interpreter regions. They preserve logical checkpoints,
+argument/conversion/error order, borrowed numeric field reads and original setters. Preparation stops
+at expression depth 16, four conditional levels and 16 statements across a complete action;
+loops retain their 16-statement bodies and four acyclic function levels. Host/output/flow signals,
+pending/lint work and larger shapes retain ordinary execution; function entry/unwind stack checks remain.
+Immutable preparation belongs to the existing compiled owner. The interpreter remains the default engine.
 Prepared actions retain original dispatch for nested loops and potentially diagnostic captured field modes.
 Small record field lists reuse at most four slots under the existing frame, with private staged publication.
 Retained capacity is included in record admission; ineligible splitting modes and larger buffers are discarded.
