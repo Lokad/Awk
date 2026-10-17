@@ -153,6 +153,10 @@ internal static partial class AwkGoldenCorpus
         yield return Passing("benchmark-core-arithmetic-loops",
             ["{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}"],
             [], "40\n", "7\n7\n");
+
+        yield return Passing("benchmark-core-while-arithmetic",
+            ["{x=$1;i=0;while(i<8){x=(x*3+1)%101;i++}total+=x} END{print total}"],
+            [], "40\n", "7\n7\n");
         yield return Passing("benchmark-core-user-functions",
             ["function inc(x){return x+1} function twice(x){return inc(inc(x))} {total+=twice($1)} END{print total}"],
             [], "12\n", "7\n1\n");
