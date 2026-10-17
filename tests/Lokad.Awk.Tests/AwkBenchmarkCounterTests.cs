@@ -8,6 +8,19 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Fact]
+    public async Task ParsedMixedActionsSkipOnlyEmptyStatementFlushes()
+    {
+        const string source = "{a[$1]=$2;n++;print n} END{print n}";
+        var result = await RunAsync([source], "a 1\nb 2\n", AwkRegexEngineKind.DotNetCompatibility,
+            AwkExecutionEngineKind.Interpreter);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("1\n2\n2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(4, result.Counters.SkippedEmptyStatementFlushes);
+        Assert.Equal(4, result.Counters.HostCalls); // Three appends and one complete standard-input read.
+    }
+
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter, false)]
     [InlineData(AwkExecutionEngineKind.Executable, false)]

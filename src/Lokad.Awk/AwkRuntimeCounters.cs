@@ -22,6 +22,13 @@ internal sealed class AwkRuntimeCounters
     public long BytesRead { get; private set; }
 
     public long FieldsMaterialized { get; private set; }
+
+    public long SkippedEmptyStatementFlushes { get; private set; }
+
+    public void RecordSkippedEmptyStatementFlush()
+    {
+        if (_enabled) lock (_sync) SkippedEmptyStatementFlushes++;
+    }
     public long FieldListBufferReuses { get; private set; }
 
     public long FieldSplits { get; private set; }

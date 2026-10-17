@@ -4,6 +4,138 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkFlushTests
 {
+    [Theory]
+    [InlineData("none", false)]
+    [InlineData("stdout", false)]
+    [InlineData("diagnostic", false)]
+    [InlineData("both", false)]
+    [InlineData("none", true)]
+    [InlineData("stdout", true)]
+    [InlineData("diagnostic", true)]
+    [InlineData("both", true)]
+    public async Task StatementFlushGuardKeepsPayloadAndFlowBoundaries(string payload, bool stop)
+    {
+        var host = new MockFileSystem();
+        var appends = 0;
+        host.AfterAppend = () => appends++;
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+        var state = State(limits, counters);
+        var io = Io(host, limits, state);
+        using var output = new AwkOutputSink(limits, state.MemoryAccounting, counters);
+        var seen = false;
+        const string warning = "awk: warning: block marker\n";
+        var stdout = payload is "stdout" or "both" ? "payload\n" : "";
+        var stderr = payload is "diagnostic" or "both" ? warning : "";
+        var flow = stop ? AwkStatementFlow.NextRecord : AwkStatementFlow.Continue;
+        AwkStatement[] statements =
+        [
+            new CallbackStatement(() =>
+            {
+                if (stdout.Length != 0) output.Append(AwkText.FromSourceLiteralString(stdout));
+                if (stderr.Length != 0) output.ReportDiagnostic(new(default, warning));
+            }, flow),
+            new CallbackStatement(() =>
+            {
+                seen = true;
+                Assert.Equal(stdout, host.GetOutput(AwkFileDescriptor.StdOut));
+                Assert.Equal(stderr, host.GetOutput(AwkFileDescriptor.StdErr));
+            }, AwkStatementFlow.Continue)
+        ];
+        Assert.Equal(flow, await AwkStatementBlockExecutor.ExecuteAsync(statements, new(state, output, io)));
+        Assert.Equal(!stop, seen);
+        Assert.Equal(stdout, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(stderr, host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal((stdout.Length != 0 ? 1 : 0) + (stderr.Length != 0 ? 1 : 0), appends);
+        Assert.Equal((payload == "none" ? 1 : 0) + (stop ? 0 : 1), counters.SkippedEmptyStatementFlushes);
+        Assert.Equal((stop ? 1 : 2) + appends, counters.ExecutionSteps);
+        Assert.False(output.HasPendingOutput);
+        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        await io.CloseAsync();
+    }
+
+    [Theory]
+    [InlineData("success")]
+    [InlineData("reject")]
+    [InlineData("cancel")]
+    public async Task StatementOutputWaitsForActualAppendBeforeContinuing(string completion)
+    {
+        var host = new PendingStatementHost();
+        using var cancellation = new CancellationTokenSource();
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token,
+            Options(AwkExecutionEngineKind.Interpreter, limits, counters));
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
+            AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static () => []);
+        using var output = new AwkOutputSink(limits, state.MemoryAccounting, counters);
+        var continued = false;
+        AwkStatement[] statements =
+        [
+            new CallbackStatement(() => output.Append(AwkText.FromSourceLiteralString("held bytes\n")), AwkStatementFlow.Continue),
+            new CallbackStatement(() => continued = true, AwkStatementFlow.Continue)
+        ];
+        var pending = AwkStatementBlockExecutor.ExecuteAsync(statements, new(state, output, io)).AsTask();
+        try
+        {
+            await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(pending.IsCompleted);
+            Assert.False(continued);
+            Assert.True(output.HasPendingOutput);
+            Assert.Equal("held bytes\n", Encoding.UTF8.GetString(host.Content.Span));
+            if (completion == "cancel")
+            {
+                cancellation.Cancel();
+                host.Release.TrySetCanceled(cancellation.Token);
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending);
+                Assert.True(pending.IsCanceled);
+            }
+            else
+            {
+                host.Release.SetResult(completion == "success" ? AwkExitCode.Success : AwkExitCode.FatalError);
+                if (completion == "success") Assert.Equal(AwkStatementFlow.Continue, await pending);
+                else await Assert.ThrowsAsync<AwkRuntimeException>(async () => await pending);
+            }
+            Assert.Equal(completion == "success", continued);
+            Assert.Equal(completion != "success", output.HasPendingOutput);
+            Assert.Equal(completion == "success" ? 1 : 0, counters.SkippedEmptyStatementFlushes);
+            Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        }
+        finally
+        {
+            host.Release.TrySetResult(AwkExitCode.FatalError);
+            await io.CloseAsync();
+        }
+    }
+
+    private sealed class PendingStatementHost : IAwkHost
+    {
+        private readonly MockFileSystem _files = new();
+        public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<AwkExitCode> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public ReadOnlyMemory<byte> Content { get; private set; }
+        public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content, CancellationToken token)
+        {
+            Content = content;
+            Entered.TrySetResult(true);
+            return Release.Task;
+        }
+        public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) => _files.OpenFileAsync(path, mode, token);
+        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => _files.CloseDescriptorAsync(descriptor, token);
+        public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => _files.ReadLinesAsync(descriptor, count, token);
+        public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token) => _files.RunCommandsAsync(commands, token);
+        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) => _files.CreatePipeAsync(mode, token);
+    }
+
+    private sealed class CallbackStatement(Action run, AwkStatementFlow flow) : AwkStatement
+    {
+        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
+        {
+            run();
+            return ValueTask.FromResult(flow);
+        }
+    }
+
     [Fact]
     public async Task FlushingRetainsTheFileLimitAndReopensTheSameFileForAppend()
     {

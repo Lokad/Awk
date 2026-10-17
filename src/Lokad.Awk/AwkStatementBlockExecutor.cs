@@ -59,7 +59,10 @@ internal static class AwkStatementBlockExecutor
         {
             state.RecordExecutionStep();
             var flow = await statements[index].ExecuteAsync(context).ConfigureAwait(false);
-            await execution.Output.FlushAsync(execution.Io).ConfigureAwait(false);
+            if (execution.Output.HasPendingOutput)
+                await execution.Output.FlushAsync(execution.Io).ConfigureAwait(false);
+            else
+                state.Counters.RecordSkippedEmptyStatementFlush();
             if (flow != AwkStatementFlow.Continue)
                 return flow;
         }
