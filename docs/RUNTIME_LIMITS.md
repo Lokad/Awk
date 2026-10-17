@@ -39,6 +39,9 @@ its owner through active executions; disposal stops new executions, waits for us
 refunds it. Admission is conservative, and minor metadata, process caches and backend
 internals are approximate. These estimates are not a managed-heap cap.
 
+Stdout printf can reuse admitted output capacity; format failures discard unpublished bytes.
+Redirection retains staging. Reduced overlapping storage can relax optional memory thresholds.
+
 Memory failures preflight before observable mutation. Staging admits overlapping old/new
 storage, so a final result can fit while its construction peak does not. Earlier state/output
 survives; preflight does not roll back prior script or host effects. Array deletion refunds

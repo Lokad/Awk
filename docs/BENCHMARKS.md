@@ -1,12 +1,13 @@
 # Benchmarks
 
-Current scoped runtime: `ea3bbe647abfd93e91d7b82fe721425a9686c645`, measured 2026-10-17 UTC.
-Controlled two-argument call loops take **8.6–9.7% less time**, with
-**48 extra managed bytes/invocation**. Unary timing is flat; nested calls vary by source order.
+Current scoped runtime: `6f408f1cd338f7e6a72d8df789789d0974894730`, measured 2026-10-17 UTC.
+Controlled printf takes **5.8–6.0% less time** and allocates **35.2% fewer
+managed bytes/invocation**. Fresh GNU elapsed ratios are **2.06× medium /
+4.36× large**. Projection is effectively flat; string controls vary by source order.
 
 The complete **29-family baseline is retained** from 2026-10-17 at Release source
 `3031909b6f9bc60582eb47dadcbaa09ea4e4aacd` against GNU awk 5.2.1.
-Every first-table row uses that source. This is the first accepted change since the refresh.
+Every first-table row uses that source. Two changes have been accepted since the refresh.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 No overall parity or cumulative-gain claim.
 
@@ -56,60 +57,55 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC: `3031909b6f9bc60582eb47dadcbaa09ea4e4aacd`
-→ `ea3bbe647abfd93e91d7b82fe721425a9686c645`, with identical harness and inputs.
+Measured 2026-10-17 UTC: `ea3bbe647abfd93e91d7b82fe721425a9686c645`
+→ `6f408f1cd338f7e6a72d8df789789d0974894730`, with identical harness and inputs.
 Three warmups/five iterations, two launches/source in both source orders. Times are medians
 of launch medians, separate from the retained complete baseline. Allocation counts apply
-to both source orders unless two pairs are shown.
+to both source orders.
 
 | Workload | Median ms, before → after (two source orders) | Allocated bytes, before → after |
 | --- | --- | ---: |
-| Two-argument call loop | 9.019→8.244; 9.043→8.164 | 782,290→782,338 |
-| Unary-call control | 7.020→7.023; 7.230→7.195 | 778,090→778,138 |
-| Nested-call control | 2.976→3.098; 3.075→3.052 | 757,010→757,106 |
+| printf | 3.906→3.672; 3.909→3.682 | 1,116,712→723,490 |
+| Projection control | 2.480→2.479; 2.488→2.497 | 783,010→783,010 |
+| ASCII string control | 3.030→2.996; 2.886→2.940 | 1,128,424→1,128,424 |
 
-Existing recycled frames keep one or two locals inline; three or more retain pooled arrays.
-This removes the two-local rent, reference clearing and return. No new type, pool, owner, IR
-or argument transport is introduced. The change adds four net runtime lines in three files.
+When stdout's byte buffer is empty, printf formats into its existing builder after evaluating
+arguments. This avoids a temporary builder/backing array and a copy. Failed formatting clears
+unpublished bytes. Nonempty output and redirection retain staging; sprintf and statement flushes
+are unchanged. The sink owns retained capacity through actual host users. Lower overlapping
+storage can relax optional memory thresholds. No new owner, pool, cache or buffering policy.
+The runtime change adds 40 net lines in three files.
 
-Each frame allocation grows **128→176 bytes**, including unary/larger-layout frames.
-The existing frame-base estimate rises **112→160 bytes**, retaining local-entry estimates;
-optional memory caps can reject earlier. Fixture allocation increases are fixed per invocation:
-**two-argument +48 bytes, unary +48 bytes, nested +96 bytes**, with no new per-record storage.
-Both inline references clear before reuse/refund; missing values, aliases and caller argument
-order remain intact.
+Target reductions are **6.00% / 5.81%**; all four launch-pair reductions:
++6.54%, +5.47%, +4.25%, +7.34%. Allocations fall **393,222 bytes / 35.2%**.
+Control reductions (positive means less time): projection
++0.04% / -0.34%; strings
++1.13% / -1.88%.
+The pilot's 3.41%/3.92% control slowdowns did not repeat; no control improvement is claimed.
+One pilot and one balanced confirmation qualify with quiet gates, stable identities and
+no extra SSH login in all six source windows.
 
-Target reductions are **8.59% / 9.72%**; four launch-pair reductions:
-+7.31%, +9.86%, +11.28%, +8.11%. Control reductions (positive means less time): unary -0.03% / +0.49%;
-nested -4.11% / +0.73%. Nested calls therefore take **4.11% longer in one order**
-and **0.73% less time in the other**. That cost is retained, not averaged away; no recurring
-control regression exceeds the declared 4% limit. No general/control gain is claimed.
-The pilot's 4.12% unary improvement did not repeat. One pilot and one balanced confirmation
-qualify with quiet gates, stable identities and no extra SSH login in all six source windows.
-
-[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39028521355) passes **73,235 tests/OS**
-and 564 selected guards. Parsed target execution verifies 32,768 inline frames instead of zero,
-with unchanged original logical, argument-rent, field, value, host and conversion counters.
-All 89 reference snapshots match. Of 32 finite-resource rows, 31 are identical and one
-has the expected **48-byte** peak increase. Thirty limited-stack scenarios/OS pass.
-Negative route/reset mutations fail seven/three checks while four/eight controls pass.
-Native goldens have 116 equivalent cases and the documented
+[Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39031752443)
+passes **73,241 tests/OS**, including 682 selected guards. All 4,096 parsed printf calls reach
+the new path with unchanged original logical/value/field/host/conversion counters.
+All 89 reference snapshots and 32 finite-resource counter rows match; 30 limited-stack scenarios/OS
+pass. Missing rollback/disabled-route mutations fail three/four checks with 115/114 controls.
+Native goldens have 120 equivalent cases plus the documented
 [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
 
-Fresh paired GNU comparisons at this source give **1.99× medium /
-2.54× large** elapsed ratios. Nine alternating pairs/scale qualify with
-exact output checks, stable identities, quiet gates and no extra SSH login. The large result
-still shows a substantial gap. No complete-family refresh was run for this change.
+Fresh paired GNU comparisons use nine alternating pairs/scale, exact output checks, stable
+identities and quiet gates without extra SSH logins. These are scoped results; no complete-family
+refresh was run.
 
 ## Larger-input comparisons
 
-The two-argument row is fresh at the scoped source above. Other rows retain their original
-sources/dates and were not refreshed with the current medium baseline. Their original paired
-runs check exact outputs and quiet gates, with stable identities and no extra SSH login.
-Larger-input managed allocations were not measured.
+The printf row is fresh at the scoped source above. Other rows retain their explicit sources/dates
+and were not refreshed. Original paired runs checked exact outputs, quiet gates, stable identities
+and no extra SSH login. Larger-input managed allocations were not measured.
 
 | Case / input KiB / records | Measured source / date UTC | Lokad ms | GNU ms | Lokad.Awk/awk |
 | --- | --- | ---: | ---: | ---: |
+| printf / 384.00 / 65,536 | 6f408f1 / 2026-10-17 | 58.613 | 13.428 | 4.36× |
 | Two-argument calls / 128.00 / 65,536 | ea3bbe6 / 2026-10-17 | 129.310 | 50.947 | 2.54× |
 | Three-field filter / 384.00 / 65,536 | c90b108 / 2026-10-17 | 33.969 | 8.946 | 3.80× |
 | Nested calls / 128.00 / 65,536 | 24de9e7 / 2026-10-17 | 48.587 | 10.418 | 4.66× |
