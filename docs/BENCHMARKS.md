@@ -1,14 +1,10 @@
 # Benchmarks
 
-Current scoped runtime: **1c8c9d3889b19afa2373b1f7481cd36a2af12d09**, measured 2026-10-17 UTC.
-Controlled ASCII-string medians take **9.7–11.1% less time**.
-Preparation adds bounded managed allocation per invocation; all launch pairs, allocations and controls follow.
-
-The complete **28-family baseline is retained** from 2026-10-17 at Release source
-`516ffd1800fe06f7a06a10a778553b4a19db1cee` against GNU awk 5.2.1. All first-table rows use that source.
-Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
-The harness now includes 29 families; the new while case is measured below. The complete
-28-family table remains retained until the next declared refresh milestone.
+Current **29-family baseline**, measured 2026-10-17 UTC at Release source
+`e4408c325212647d31fdc93ce7f99e8d2c989392` against GNU awk 5.2.1. All first-table rows use this source.
+The latest controlled for-loop change takes **6.0–7.5% less time**,
+with 312 bytes/invocation of extra preparation for each loop workload. There is no overall
+parity or cumulative-gain claim. Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
 
@@ -18,34 +14,35 @@ in MiB, not GNU allocations, retained memory or allowances. Rows run from worst 
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| ERE capture arrays (GNU) | 28.00 | 36.372 | 7.745 | 4.70× | 16.05 |
-| Two-file membership / join | 77.83 | 8.324 | 2.840 | 2.93× | 4.23 |
-| gsub and output | 56.00 | 5.577 | 2.116 | 2.64× | 3.76 |
-| Nested user calls | 8.00 | 3.820 | 1.632 | 2.34× | 1.32 |
-| Keyed sum / sorted output (GNU) | 24.00 | 3.171 | 1.368 | 2.32× | 1.36 |
-| Loop with two-argument calls | 8.00 | 9.370 | 4.157 | 2.25× | 1.34 |
-| Numeric array sort (GNU) | 18.92 | 5.612 | 2.498 | 2.25× | 3.09 |
-| Unicode length/substr / output | 60.00 | 4.617 | 2.091 | 2.21× | 3.11 |
-| Growing string concatenation | 20.00 | 3.388 | 1.535 | 2.21× | 1.43 |
-| Field-key array reads, existing/new | 63.15 | 3.628 | 1.670 | 2.17× | 2.09 |
-| printf | 24.00 | 3.926 | 1.810 | 2.17× | 1.66 |
-| ERE boolean matching | 32.00 | 2.761 | 1.286 | 2.15× | 0.75 |
-| Loop with unary arithmetic calls | 8.00 | 8.102 | 3.817 | 2.12× | 1.34 |
-| Project three columns / output | 60.00 | 3.319 | 1.581 | 2.10× | 1.35 |
-| ASCII substr/index/length/casing | 52.00 | 3.256 | 1.571 | 2.07× | 1.08 |
-| ERE field separator | 48.00 | 3.771 | 2.007 | 1.88× | 3.49 |
-| Project a column / output | 60.00 | 2.480 | 1.330 | 1.86× | 1.34 |
-| Loop and numeric arithmetic | 8.00 | 5.384 | 2.925 | 1.84× | 1.32 |
-| Field-key membership | 48.56 | 2.373 | 1.315 | 1.80× | 1.41 |
-| Mixed narrow-record processing | 60.00 | 3.966 | 2.198 | 1.80× | 1.40 |
-| Filter three fields | 24.00 | 2.582 | 1.539 | 1.68× | 1.30 |
-| Literal field separator | 48.00 | 2.118 | 1.404 | 1.51× | 1.26 |
-| Field loop, 64 fields | 80.00 | 2.498 | 2.172 | 1.15× | 1.08 |
-| Changed ASCII case | 580.00 | 3.234 | 2.962 | 1.09× | 3.55 |
-| Filter $1 / occasionally print $3, 64 fields | 1,291.42 | 2.236 | 2.134 | 1.05× | 3.55 |
-| Byte-run ERE record separator (GNU) | 36.00 | 1.487 | 1.446 | 1.03× | 1.00 |
-| Multicharacter record separator (GNU) | 52.00 | 1.312 | 1.478 | 0.89× | 0.61 |
-| Filter $2 after a 4 KiB field | 1,025.50 | 0.612 | 2.076 | 0.29× | 2.15 |
+| ERE capture arrays (GNU) | 28.00 | 35.757 | 7.754 | 4.61× | 16.05 |
+| Two-file membership / join | 77.83 | 7.797 | 2.824 | 2.76× | 4.23 |
+| gsub and output | 56.00 | 5.584 | 2.104 | 2.65× | 3.76 |
+| Keyed sum / sorted output (GNU) | 24.00 | 3.143 | 1.368 | 2.30× | 1.36 |
+| Numeric array sort (GNU) | 18.92 | 5.567 | 2.489 | 2.24× | 3.09 |
+| Unicode length/substr / output | 60.00 | 4.631 | 2.081 | 2.23× | 3.11 |
+| Field-key array reads, existing/new | 63.15 | 3.644 | 1.668 | 2.18× | 2.09 |
+| printf | 24.00 | 3.916 | 1.814 | 2.16× | 1.66 |
+| Growing string concatenation | 20.00 | 3.312 | 1.538 | 2.15× | 1.43 |
+| ERE boolean matching | 32.00 | 2.728 | 1.280 | 2.13× | 0.75 |
+| Loop with two-argument calls | 8.00 | 8.692 | 4.148 | 2.10× | 1.34 |
+| Project three columns / output | 60.00 | 3.287 | 1.574 | 2.09× | 1.35 |
+| Nested user calls | 8.00 | 3.379 | 1.623 | 2.08× | 1.32 |
+| Loop with unary arithmetic calls | 8.00 | 7.818 | 3.821 | 2.05× | 1.34 |
+| Field-key membership | 48.56 | 2.674 | 1.314 | 2.04× | 1.41 |
+| ERE field separator | 48.00 | 3.878 | 1.994 | 1.95× | 3.49 |
+| Project a column / output | 60.00 | 2.462 | 1.326 | 1.86× | 1.34 |
+| ASCII substr/index/length/casing | 52.00 | 2.885 | 1.558 | 1.85× | 1.08 |
+| While loop and numeric arithmetic | 8.00 | 5.212 | 2.927 | 1.78× | 1.32 |
+| Loop and numeric arithmetic | 8.00 | 5.036 | 2.926 | 1.72× | 1.32 |
+| Mixed narrow-record processing | 60.00 | 3.754 | 2.204 | 1.70× | 1.40 |
+| Filter three fields | 24.00 | 2.564 | 1.540 | 1.66× | 1.30 |
+| Literal field separator | 48.00 | 1.946 | 1.396 | 1.39× | 1.27 |
+| Field loop, 64 fields | 80.00 | 2.516 | 2.179 | 1.15× | 1.08 |
+| Filter $1 / occasionally print $3, 64 fields | 1,291.42 | 2.240 | 2.132 | 1.05× | 3.55 |
+| Byte-run ERE record separator (GNU) | 36.00 | 1.369 | 1.448 | 0.95× | 1.00 |
+| Changed ASCII case | 580.00 | 2.639 | 2.965 | 0.89× | 3.55 |
+| Multicharacter record separator (GNU) | 52.00 | 1.217 | 1.478 | 0.82× | 0.61 |
+| Filter $2 after a 4 KiB field | 1,025.50 | 0.592 | 2.078 | 0.28× | 2.15 |
 
 Both implementations use the same [scripts/fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs).
 Most medium cases have 4,096 records; all-fields wide and long-field cases have 256,
@@ -55,54 +52,58 @@ Use these ratios to choose investigations; confirm apparent parity on larger inp
 
 ## Latest controlled change
 
-Measured 2026-10-17 UTC, runtime **d94caaa80dc03b41af3fbf20ef21240ce0df3af3**
-→ **1c8c9d3889b19afa2373b1f7481cd36a2af12d09**, with identical harness and inputs.
+Measured 2026-10-17 UTC, runtime `1c8c9d3889b19afa2373b1f7481cd36a2af12d09`
+→ `e4408c325212647d31fdc93ce7f99e8d2c989392`, with identical harness and inputs.
 Three warmups/five iterations, two launches/source in both source orders. Times are medians
-of launch medians; allocations are GC MiB. This comparison is separate from the retained baseline above.
+of launch medians; allocations are GC MiB. This is separate from the complete baseline above.
 
 | Workload | Median ms, before → after (two source orders) | Allocated MiB, before → after |
 | --- | --- | ---: |
-| ASCII string operations | 3.264→2.901; 3.242→2.928 | 1.08→1.08; 1.08→1.08 |
-| While arithmetic control | 5.655→5.586; 5.576→5.674 | 1.32→1.32; 1.32→1.32 |
-| Nested-call control | 3.340→3.408; 3.502→3.385 | 1.32→1.32; 1.32→1.32 |
+| For arithmetic | 5.387→4.981; 5.394→5.073 | 1.32→1.32; 1.32→1.32 |
+| While arithmetic contrast | 5.522→5.044; 5.947→5.008 | 1.32→1.32; 1.32→1.32 |
+| Nested-call control | 3.391→3.355; 3.374→3.446 | 1.32→1.32; 1.32→1.32 |
 
-Bounded pure scalar actions reuse the existing prepared-action path without requiring a user
-function call. This removes statement/completion/empty-flush dispatch and rewrite bookkeeping.
-The original AST/executor, setters and owners remain. VM, lint, pending output, larger trees
-and potentially diagnostic captured field modes retain ordinary execution before effects.
+Complete scalar actions reuse existing prepared for/while kernels, removing outer statement,
+completion and empty-flush dispatch. A top-level-only preparation entry keeps nested loop
+bodies excluded. Original AST/kernels/setters/owners and policy/stack/field guards remain.
 No engine, IR, memory owner or regex backend is added.
 
-ASCII-string medians take **9.7–11.1% less time**; all four launch-pair reductions:
-+10.74%, +11.51%, +8.27%, +11.05%. Managed allocations: **1,128,000→1,128,448 bytes; 1,128,000→1,128,448 bytes**. Extra bytes/invocation in the two orders:
-strings 448/448, while 392/392, nested calls 0/0.
-The declared preparation budgets were 1,024 bytes for strings/while and zero for nested calls.
-New storage belongs to program preparation, with no per-record storage. Control reductions
-(positive means less time): while +1.22% / -1.75%; nested calls -2.03% / +3.34%. No general, control or cumulative gain is claimed.
+For-loop medians take **6.0–7.5% less time**; all four launch-pair reductions:
++8.59%, +6.48%, +3.83%, +8.09%. Managed allocations in both source orders:
+**for 1,382,123→1,382,435 bytes; while 1,383,947→1,384,259 bytes**.
+Each adds **312 bytes/invocation** of bounded program preparation, within its declared
+1,024-byte budget, with no per-record storage. Nested calls remain 1,379,387 bytes.
+Contrast/control reductions (positive means less time): while +8.66% / +15.78%;
+nested calls +1.05% / -2.12%. The reverse-order while baseline varies between
+launches; the table reports both orders. No general, nested-call or cumulative gain is claimed.
 
 One qualified pilot and one balanced confirmation were run; all six source windows have
-qualified quiet gates, stable identities and no extra SSH login. The full baseline is retained
-until the next declared milestone; this is the fourth accepted change in the batch.
+qualified quiet gates, stable identities and no extra SSH login. This fifth accepted change
+triggered the complete 29-family refresh above: five warmups/nine iterations/one launch and
+four quiet gates.
 
-The source passes **73,125 tests/OS** and 343 selected guards, 89 exact reference snapshots,
+The source passes **73,135 tests/OS** and 353 selected guards, 89 exact reference snapshots,
 110 equivalent native goldens, 30 limited-stack scenarios/OS and 32 unchanged finite-resource
 rows. One additional native case retains the documented
 [numeric OFS/ORS difference](COMPATIBILITY_CONTRACT.md#values-numbers-and-formatting).
-The parsed string fixture proves two prepared actions. Fuel/caller parity, partial memory
-refusal, cancellation, policy/shape bounds and captured separators are covered. Restoring
-call-only preparation fails six expected guards while 99 controls pass. Generated code
-confirms the prepared dispatch route. [Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/38999527009)
-passes; downloaded reports verify all 343 selected guards per OS.
+Parsed 4,096-record for/while fixtures verify 4,096 prepared actions in both one-shot and compiled
+execution. All 404 fuel/caller pairs, memory refusal, policy/field/cancellation and nested-loop bounds
+qualify; disabling the entry fails eight expected guards while 108 controls pass. Generated code
+confirms dispatch removal. [Exact-source Windows/Linux build/test/pack CI](https://github.com/Lokad/Awk/actions/runs/39001151333)
+passes; downloaded reports verify all 353 selected guards per OS.
 
 ## Scoped GNU comparisons
 
-ASCII-string rows use **1c8c9d3**, measured 2026-10-17 UTC, with nine alternating
-pairs/scale, exact output checks and qualified quiet gates. While rows retain 2026-10-17
-at d94caaa; nested calls retain c3de4b2 and join retains 516ffd1 from that date. Other rows
+For-arithmetic rows use **e4408c3**, measured 2026-10-17 UTC, with nine alternating
+pairs/scale, exact output checks and qualified quiet gates. Strings retain 1c8c9d3,
+while retains d94caaa, nested calls c3de4b2 and join 516ffd1 from that date. Other rows
 retain their named 2026-10-16 sources. All windows have stable identities and no extra SSH
 login. These paired comparisons are separate from both BenchmarkDotNet tables above.
 
 | Case / input KiB / records | Measured source | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
+| For arithmetic / 8.00 / 4,096 | e4408c3 | 5.086 | 2.909 | 1.75× | 1.32 |
+| For arithmetic / 128.00 / 65,536 | e4408c3 | 80.618 | 31.328 | 2.57× | — |
 | ASCII strings / 52.00 / 4,096 | 1c8c9d3 | 2.871 | 1.541 | 1.86× | 1.08 |
 | ASCII strings / 832.00 / 65,536 | 1c8c9d3 | 45.409 | 9.840 | 4.61× | — |
 | While arithmetic / 8.00 / 4,096 | d94caaa | 5.527 | 2.899 | 1.91× | 1.32 |
@@ -120,8 +121,8 @@ login. These paired comparisons are separate from both BenchmarkDotNet tables ab
 | Long fields / 1,025.50 / 256 | 7ad867d | 0.851 | 2.050 | 0.41× | 2.15 |
 | Long fields / 16,408.00 / 4,096 | 7ad867d | 13.349 | 16.624 | 0.80× | — |
 
-The current string script combines substr, index, length and lowercase conversion.
-Its paired GNU ratios are **1.86× medium / 4.61× large**.
+The current for script executes eight multiply/add/modulo updates per input record.
+Its paired GNU ratios are **1.75× medium / 2.57× large**.
 
 The other scoped rows retain their earlier revisions/dates. Scripts use the shared fixtures
 linked above. Only medium-scale managed allocations were measured by BenchmarkDotNet;
@@ -135,7 +136,7 @@ BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. The complete baseli
 five warmups/nine iterations/one launch. Timing and allocation phases have qualified pre/post
 quiet gates, stable source/binary identities and no additional authenticated SSH login.
 CPU admission requires at most 3% median/5% maximum background load. Single-launch variation
-limits small differences. Semantic preflight is retained from the same source and binaries.
+limits small differences. Semantic preflight is reused from the same source and binaries.
 
 
 Lokad includes parsing/compilation through `Awk.TryParse`/`Awk.ExecuteAsync` with an application
@@ -151,7 +152,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*case-conversion*' '*WorkloadAllocationBenchmarks*medium*unicode*' '*WorkloadAllocationBenchmarks*medium*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*arithmetic-loops*' '*WorkloadAllocationBenchmarks*medium*while-arithmetic*' '*WorkloadAllocationBenchmarks*medium*user-functions*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
