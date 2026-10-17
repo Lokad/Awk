@@ -5,6 +5,12 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("benchmark-core-branching-calls",
+            ["function step(x,a){if(x<50)return (x*3+a)%101;return (x+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}"],
+            [], "182\n", "7\n7\n");
+        yield return Passing("benchmark-core-branching-unary-calls",
+            ["function step(x){if(x<50)return (x*3+1)%101;return (x+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}"],
+            [], "146\n", "7\n7\n");
         yield return Passing("do-while-first-body-and-control-fallback",
             ["BEGIN{i=0;do{i++}while(0);print i;i=0;do{i++;if(i==2)continue;if(i==4)break;n+=i}while(i<8);print i,n}"],
             [], "1\n4 4\n");

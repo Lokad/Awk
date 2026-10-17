@@ -9,6 +9,25 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter, false)]
+    [InlineData(AwkExecutionEngineKind.Executable, false)]
+    [InlineData(AwkExecutionEngineKind.Interpreter, true)]
+    [InlineData(AwkExecutionEngineKind.Executable, true)]
+    internal async Task ParsedBranchingCallsExerciseOrdinaryArgumentStaging(AwkExecutionEngineKind engine, bool unary)
+    {
+        var source = unary
+            ? "function step(x){if(x<50)return (x*3+1)%101;return (x+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}"
+            : "function step(x,a){if(x<50)return (x*3+a)%101;return (x+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
+        var result = await RunAsync([source],
+            "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(unary ? "146\n" : "182\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(unary ? 0 : 16, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(0, result.Counters.SynchronousFunctionRuns);
+    }
+
+    [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task ParsedDoWhileArithmeticUsesBoundedLoopKernel(AwkExecutionEngineKind engine)

@@ -17,7 +17,7 @@ internal static class ReferenceWorkloads
     [
         "projection", "multi-column", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
-        "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "string-functions", "case-conversion", "concatenation", "regex-match", "regex-captures"
+        "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "branching-calls", "branching-unary-calls", "string-functions", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
 
@@ -231,6 +231,22 @@ internal static class ReferenceWorkloads
                 fields = 1;
                 Repeat("7\n", "");
                 expected.Append(rows * 93).Append('\n');
+                break;
+            case "branching-calls":
+                // A multi-statement body exercises ordinary calls, separately from
+                // the prepared single-return function in multi-arg-loop.
+                program = "function step(x,a){if(x<50)return (x*3+a)%101;return (x+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
+                fields = 1;
+                Repeat("7\n", "");
+                expected.Append(rows * 91).Append('\n');
+                break;
+            case "branching-unary-calls":
+                // Contrast ordinary unary dispatch with both ordinary pairs and
+                // the prepared single-return unary function in loop-with-calls.
+                program = "function step(x){if(x<50)return (x*3+1)%101;return (x+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}";
+                fields = 1;
+                Repeat("7\n", "");
+                expected.Append(rows * 73).Append('\n');
                 break;
             case "string-functions":
                 program = "{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}";
