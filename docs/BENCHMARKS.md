@@ -12,8 +12,10 @@ Core runtime code is identical between these baseline revisions. The latest acce
 local-assignment/conditional-return composition takes **18.21%/16.11% less time** on a
 normalization/clipping script; source, allocations and controls appear below. The public
 catalogue now has 35 families. Its two newest cases have no fresh GNU ratio yet.
-Batch is 5/5: the complete refresh is due; the first table retains its named measurements.
-No overall parity or cumulative-gain claim.
+The declared 35-family refresh at `9155dff` did not qualify: the GNU long-field case
+exceeded its existing 15-second deadline after warmup. It produced 69 timing rows,
+no allocation phase and no final quietness checks. Those partial figures are diagnostic;
+the first table retains its named measurements. No automatic retry or cumulative-gain claim.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
