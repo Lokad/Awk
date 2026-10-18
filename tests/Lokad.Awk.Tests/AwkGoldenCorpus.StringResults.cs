@@ -4,6 +4,12 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        yield return Passing("field-substrings-own-partial-and-whole-results-across-getline",
+            ["{a=substr($2,1,2);b=substr($2,1);getline;print a,b,$2;exit}"],
+            [], "ré résumé replaced\n", "café résumé\nnext replaced\n");
+        yield return Passing("field-substring-keeps-input-before-mutating-argument",
+            ["function change(){$0=\"x different\";return 1} {print substr($2,change(),2),$2}"],
+            [], "ré different\n", "café résumé\n");
         yield return Passing("short-concatenation-formats-each-operand-before-later-effects",
             ["function fmt(){CONVFMT=\"%.1f\";return \"β\"} BEGIN{CONVFMT=\"%.3f\";s=1.2344 fmt() 1.2344;print s}"],
             [], "1.234β1.2\n");

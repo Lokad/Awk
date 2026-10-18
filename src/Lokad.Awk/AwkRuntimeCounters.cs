@@ -23,6 +23,13 @@ internal sealed class AwkRuntimeCounters
 
     public long BorrowedFieldTargetSnapshots { get; private set; }
 
+    public long BorrowedFieldSubstrings { get; private set; }
+
+    public void RecordBorrowedFieldSubstring()
+    {
+        if (_enabled) lock (_sync) BorrowedFieldSubstrings++;
+    }
+
     public void RecordBorrowedFieldTargetSnapshot()
     {
         if (_enabled) lock (_sync) BorrowedFieldTargetSnapshots++;

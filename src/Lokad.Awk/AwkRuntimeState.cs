@@ -471,6 +471,46 @@ internal sealed class AwkRuntimeState
     public int CountStringUnits(AwkText value) =>
         _stringRuntime.CountUnits(value);
 
+    internal AwkValue CreateShortFieldSubstring(ReadOnlySpan<byte> source, AwkValue startValue,
+        AwkValue lengthValue, int argumentCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(source.Length, AwkRuntimeMemory.TextRuneCheckpointStride);
+        Counters.RecordBorrowedFieldSubstring();
+        var start = (int)startValue.AsNumber(CancellationCheckpoint);
+        if (start < 1) start = 1;
+        var byteMode = _stringRuntime.IsByteMode;
+        if (!byteMode) Resources.RecordByteWork(source.Length);
+        var sourceLength = byteMode ? source.Length : AwkText.CountRunes(source, CancellationCheckpoint);
+        if (start > sourceLength) return AwkValue.FromText(string.Empty);
+        var zeroBasedStart = start - 1;
+        var length = argumentCount == 2 ? sourceLength - zeroBasedStart
+            : (int)lengthValue.AsNumber(CancellationCheckpoint);
+        if (length <= 0) return AwkValue.FromText(string.Empty);
+        length = Math.Min(length, sourceLength - zeroBasedStart);
+        Resources.RecordByteWork(source.Length);
+        var byteStart = zeroBasedStart;
+        var byteEnd = zeroBasedStart + length;
+        if (!byteMode)
+        {
+            byteStart = 0;
+            var offset = 0;
+            for (var rune = 0; rune < zeroBasedStart + length; rune++)
+            {
+                if (rune == zeroBasedStart) byteStart = offset;
+                if (Rune.DecodeFromUtf8(source[offset..], out _, out var consumed) != System.Buffers.OperationStatus.Done)
+                    throw new InvalidOperationException("Field contains invalid UTF-8.");
+                offset += consumed;
+            }
+            byteEnd = offset;
+            Counters.RecordRuneSliceBytesScanned(byteEnd);
+        }
+        var owned = AwkText.AllocateOwnedBytes(byteEnd - byteStart, MemoryAccounting);
+        AwkText.CopyBytes(source[byteStart..byteEnd], owned, CancellationCheckpoint);
+        var text = byteMode ? AwkText.FromOwnedBytes(owned, Counters, CancellationCheckpoint)
+            : AwkText.FromTrustedOwnedBytes(owned, Counters);
+        return CreateDeferredTextValue(text);
+    }
+
     public void AppendFieldPrint(AwkOutputSink output, int index)
     {
         if (index < 0)

@@ -31,11 +31,31 @@ internal abstract partial class AwkExpression
     private sealed class SynchronousStringBuiltinExpression(AwkBuiltinId id, IReadOnlyList<AwkExpression> arguments,
         int depth, int calls) : AwkSynchronousExpression
     {
+        private readonly int _substringField = id == AwkBuiltinId.Substr &&
+            TryGetLiteralFieldIndex(arguments[0], out var field) && arguments[1] is NumberExpression &&
+            (arguments.Count == 2 || arguments[2] is NumberExpression) ? field : 0;
+
         internal override int SynchronousDepth => depth;
         internal override int SynchronousCallDepth => calls;
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
         {
-            var first = ((AwkSynchronousExpression)arguments[0]).EvaluateSynchronous(context);
+            AwkValue first;
+            if (_substringField > 0 && !context.State.UsesExecutableEngine &&
+                context.State.LintMode == AwkLintMode.Off && context.State.FieldsCannotReportRegexDiagnostics)
+            {
+                EvaluateLiteralFieldIndex(arguments[0], context);
+                if (context.State.TryGetPrintfFieldBytes(_substringField, out var bytes) &&
+                    bytes.Length <= AwkRuntimeMemory.TextRuneCheckpointStride)
+                {
+                    var start = ((AwkSynchronousExpression)arguments[1]).EvaluateSynchronous(context);
+                    var length = arguments.Count == 3
+                        ? ((AwkSynchronousExpression)arguments[2]).EvaluateSynchronous(context) : default;
+                    return context.State.CreateShortFieldSubstring(bytes, start, length, arguments.Count);
+                }
+                first = context.State.GetFieldValue(_substringField);
+            }
+            else
+                first = ((AwkSynchronousExpression)arguments[0]).EvaluateSynchronous(context);
             if (id is AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper)
                 return AwkBuiltins.EvaluateCaseValue(context.State, first, id == AwkBuiltinId.ToUpper);
             var second = ((AwkSynchronousExpression)arguments[1]).EvaluateSynchronous(context);
