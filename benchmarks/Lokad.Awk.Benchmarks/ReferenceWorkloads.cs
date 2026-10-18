@@ -17,7 +17,7 @@ internal static class ReferenceWorkloads
     [
         "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
-        "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "branching-calls", "branching-unary-calls", "string-functions", "case-conversion", "concatenation", "regex-match", "regex-captures"
+        "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "branching-calls", "branching-unary-calls", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
 
@@ -263,6 +263,15 @@ internal static class ReferenceWorkloads
                 fields = 1;
                 Repeat("7\n", "");
                 expected.Append(rows * 73).Append('\n');
+                break;
+            case "field-index":
+                // Literal search on a positive field; Unicode prefix separates byte/scalar positions.
+                program = "{n+=index($2,\"timeout\")} END{print n}";
+                fields = 2;
+                locale = "C.UTF-8";
+                for (var i = 0; i < rows; i++)
+                    input.Append(i % 2 == 0 ? "id déjà-timeout\n" : "id déjà-normal\n");
+                expected.Append(rows * 3).Append('\n');
                 break;
             case "string-functions":
                 program = "{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}";
