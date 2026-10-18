@@ -36,16 +36,11 @@ It covers runtime storage; frontend/compiled ownership is separate. Field buffer
 retained capacity, including spare slots after shrinking `NF`, until that storage is replaced
 or released. Growth admits overlapping old/new buffers before publishing a field mutation.
 
-Source/parser/binder storage uses a coarse frontend charge. Governed compiled reuse retains
-its owner through active executions; disposal stops new executions, waits for users and
-refunds it. Admission is conservative, and minor metadata, process caches and backend
-internals are approximate. These estimates are not a managed-heap cap.
-
-Array storage caches at most one container lookup; replacement/removal refreshes or clears
-it. This adds 32 bytes of minor metadata per execution, under the existing coarse allowance.
-
-Stdout printf can reuse admitted output capacity; format failures discard unpublished bytes.
-Redirection retains staging. Reduced overlapping storage can relax optional memory thresholds.
+Frontend and compiled storage have separate coarse ownership. Governed compiled reuse keeps
+its charge through active executions; disposal stops new executions, waits for users and
+refunds it. Minor metadata, process caches and backend internals are approximate; these
+estimates are not a managed-heap cap. Buffer reuse and avoided copies can change optional
+memory thresholds.
 
 Memory failures preflight before observable mutation. Unrepresentable array memory totals
 fail with the memory-limit diagnostic. Staging admits overlapping old/new
@@ -67,64 +62,20 @@ underlying buffer borrow. Hosts must cooperate with cancellation. Without a supp
 Framework/parser/regex construction can be indivisible; no hard CPU preemption or universal
 cancellation latency is promised. Matching deadlines do not bound regex construction.
 
-## Interpreter preparation and buffers
+## Execution and streaming
 
-Eligible numeric, field, string and logical expressions, scalar actions, bounded `if`/`else` actions
-and `for`/`while`/`do…while` loops reuse synchronous interpreter regions. They preserve logical checkpoints,
-argument/conversion/error order, borrowed numeric field reads and original setters. Preparation stops
-at expression depth 16, four conditional levels and 16 statements across a complete action;
-loops retain their 16-statement bodies and four acyclic function levels. Host/output/flow signals,
-pending/lint work and larger shapes retain ordinary execution; function entry/unwind stack checks remain.
-Immutable preparation belongs to the existing compiled owner. The interpreter remains the default engine.
-Prepared actions retain original dispatch for nested loops and potentially diagnostic captured field modes.
-Small record field lists reuse at most four slots under the existing frame, with private staged publication.
-Retained capacity is included in record admission; ineligible splitting modes and larger buffers are discarded.
-Stored Number scalars can feed prepared global numeric reads and updates directly; other kinds
-retain ordinary value admission and conversion.
-Function frames keep up to two locals inline; reset clears their references. Larger layouts retain pooled arrays.
-The frame-base estimate is 160 bytes plus local-entry estimates; storage changes can move optional memory thresholds.
-Function locals share scalar/array value conversion and retain prepared numeric values/spelling.
-After the Number fast path, established scalar locals use that same value factory directly;
-missing, untyped and array locals retain the general projection and promotion rules.
-Prepared scalar arguments reuse current kinds; value-size admission and long-text cancellation
-remain in ordinary evaluation. Missing locals and aliases retain original resolution.
-Established ordinary global arrays retain their kind after successful access; storage and
-mutation checks remain original. Special arrays and live function contexts retain name resolution.
-Field-key compound updates can reuse an existing key/value lookup. Owned key and numeric left
-value precede RHS evaluation; misses and writes retain their original preflights. Index literals
-use runtime/profile evaluation; borrowed bytes stay within the synchronous lookup.
-Syntax-depth settings above 128 retain unconditional function-entry/unwind suspension.
-Eligible loops and complete scalar actions also reuse known-call metadata for zero through
-four arguments. Single returns and exact `if(c)return a;return b` tails can optionally
-follow one local assignment, retaining original checkpoints (at most three statements). All
-expressions and calls contribute to the existing depth bounds. Multiple arguments use a fixed stack temporary and original
-frames. Local-assignment bodies also admit omitted trailing locals with at most four slots;
-other omitted/extra arguments and larger arities retain ordinary evaluation. Calls keep
-their original executor at VM, lint, pending-output, raised-syntax and stack-safety boundaries;
-assignment prefixes also preserve captured-field diagnostic publication boundaries.
-Field-key array reads with CPU-only indices can join the same bounded expression regions.
-Their original lookup handles missing entries, aliases, special arrays and value snapshots;
-field-diagnostic, depth and pending-index boundaries retain the original fallback.
+The interpreter remains the default. Its bounded synchronous preparation and the opt-in
+executable engine preserve logical checkpoints, stack safety, evaluation order and mutation
+preflights. Preparation and buffer reuse do not enable quotas or reduce host authority checks.
 
-General `index`, `substr`, `tolower` and `toupper` calls evaluate arguments into value locals before
-conversion; other builtins use admitted staging where required. Actual result allocations
-preflight. `printf` publishes its admitted staging buffer atomically; `sprintf` returns owned
-text. Eligible literal field operands can borrow bytes/numbers during synchronous formatting.
-`substr($2,1,2)` and literal-needle `index($2,"text")` can borrow pristine fields up
-to 64 bytes during synchronous evaluation. Substrings return owned text; searches return
-numeric positions. Cached/modified fields and other input shapes retain ordinary evaluation.
-Avoided copies and rounded capacities can change optional memory thresholds.
-Stdout `print` with one through four values uses locals instead of staging arrays; formatting
-remains leased and the complete append preflights before publication. Larger, redirected and
-executable-engine prints retain staging. Each statement flushes queued stdout and diagnostics
-before control flow continues; statements with no queued output skip the empty sink call.
-Two to four literal positive field operands can borrow field slices through synchronous output
-copying. Modified/cached fields retain print formatting; every complete append still preflights.
+Fields split lazily where supported; tight quotas still validate the whole record before
+publishing a prefix. NF or mutation can complete the scan. Classification and rescans remain
+cancellable and charged, so explicit fuel can reject earlier. See
+[record semantics](RECORD_SEMANTICS.md) and [strict UTF-8 policy](UTF8_POLICY.md).
 
-Fields split incrementally where supported; tight quotas still validate the whole record
-before publishing a prefix. NF or mutation can complete the scan. Record classification and
-rescans remain cancellable and charged, so explicit fuel can reject earlier. See
-[record semantics](RECORD_SEMANTICS.md) and [UTF-8 policy](UTF8_POLICY.md).
+Each statement flushes queued stdout and diagnostics before control continues. Output and
+formatting failures discard unpublished bytes; prior committed effects remain. Streaming
+buffers and caches are bounded by their existing capacities and configured limits.
 
 For finite execution memory with caller-owned cancellation:
 

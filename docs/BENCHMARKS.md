@@ -1,37 +1,29 @@
 # Benchmarks
 
-Comparison against GNU awk 5.2.1 across **34 families**. Five rows marked ‡ were measured
-2026-10-18 UTC at Release source `efd5e8767756e71c8ce128b724415d0bea7a58ed`:
-branching functions (one/two arguments), joins, substitution and Unicode processing.
-The other **28 rows retain** measurements from 2026-10-17 UTC at
-`8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this milestone.
-The field-search row marked § and its larger-input comparison were measured
-2026-10-18 UTC at `e6cfcafd893329ed482dbbf1c5bfb9cf61d16a47`,
-with core runtime sources unchanged from `2a6423e`.
+Lokad.Awk versus GNU awk 5.2.1, including complete output consumption. Current large
+aggregation and join take **6.48× / 4.21×** GNU elapsed time and allocate **9.93 / 41.49 MiB**.
+The latest controlled field-search improvement takes **17.52%/19.61% less time** and
+**38.17% fewer managed bytes**, with slower controls disclosed below. These results
+do not establish overall parity or a cumulative speedup.
 
-The latest accepted short-field search change takes **17.52%/19.61% less elapsed
-time** and **38.17% fewer managed bytes** on the large field-search target.
-Controls take longer; their costs, measured sources and full allocation ranges appear
-below. The first table retains its named GNU comparisons. The public
-catalogue has 36 families; two cases still have no fresh GNU ratio.
-The declared 35-family refresh at `9155dff` did not qualify: the GNU long-field case
-exceeded its existing 15-second deadline after warmup. It produced 69 timing rows,
-no allocation phase and no final quietness checks. Those partial figures are diagnostic;
-the first table retains its named measurements. No automatic retry or cumulative-gain claim.
-Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
-
-The current large aggregation and join comparisons were measured 2026-10-18 UTC at
-`5bc8f9dd287727ed321f4ebaba41a29a783b0653`: **6.48× / 4.21×** GNU elapsed,
-allocating **9.93 / 41.49 MiB** per invocation. Their rows are marked † below.
-Only these two large cases were refreshed; medium and other large rows retain their
-named sources. This milestone took 1.73 measured minutes and makes no controlled
-before/after or cumulative speedup claim.
+Lokad includes parsing/compilation through `Awk.TryParse`/`Awk.ExecuteAsync` with an
+application in-memory host. GNU includes process launch, pipe I/O and native file fixtures;
+startup is not subtracted. These compare embedding with CLI execution, rather than isolating
+evaluators. Small cases can be dominated by startup. Interpreter/DotNetCompatibility remain
+defaults; Utf8Regex adoption is postponed.
 
 ## Representative processing
 
-Times are medians for one complete invocation. Lokad.Awk/awk divides Lokad elapsed time by
-GNU elapsed time: 1.00× is parity, higher is slower. Allocations are managed GC MiB/invocation,
-not GNU allocations, retained memory or allowances. Rows run from worst ratio to best.
+Times are invocation medians. Lokad.Awk/awk divides Lokad elapsed by GNU elapsed:
+1.00× is parity; higher is slower. Allocations are managed GC MiB/invocation, not GNU
+allocations, retained memory or allowances. Rows run from worst ratio to best.
+
+Five ‡ rows were measured 2026-10-18 UTC at
+`efd5e8767756e71c8ce128b724415d0bea7a58ed`; **28 rows retain** 2026-10-17 measurements
+at `8a4794947bce4ce7d4785056450d41e3f049701b`. Field search § was measured 2026-10-18
+at `e6cfcafd893329ed482dbbf1c5bfb9cf61d16a47`, whose runtime is unchanged from `2a6423e`.
+These **34 comparisons** are not a fresh complete baseline; the catalogue has 36 families,
+two without a fresh GNU ratio.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -73,24 +65,18 @@ not GNU allocations, retained memory or allowances. Rows run from worst ratio to
 Both implementations use the same [scripts/fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs).
 Most medium cases have 4,096 records; all-fields wide and long-field cases have 256,
 and join has 4,096/file. Early wide filtering reads `$1` on every record and `$3` on one in eight.
-Single-array reads have equal existing/new keys; the new control alternates all-hit reads
-from two lookup tables. Field search runs `index($2,"timeout")` with alternating hits/misses
-and a Unicode prefix, summing scalar positions without per-record output. GNU-marked
-conveniences do not imply full conformance.
-Confirm apparent parity on larger inputs; the retained scale comparisons below are separate evidence.
+Single-array reads have equal existing/new keys; the alternating control uses two all-hit tables.
+Field search sums `index($2,"timeout")` over alternating hits/misses with a Unicode prefix.
+GNU-marked conveniences do not imply full conformance. Confirm apparent parity on larger inputs.
 
 ## Latest controlled change
 
 Measured 2026-10-18 UTC: `e6cfcafd893329ed482dbbf1c5bfb9cf61d16a47`
-→ `5bc8f9dd287727ed321f4ebaba41a29a783b0653`. Existing scripts and in-memory host, default interpreter/policy,
-large scale (65,536 records each), including parsing/compilation and complete output
-consumption. The target sums `index($2,"timeout")` over alternating hits/misses with
-a Unicode prefix. This embedded-only comparison supplies no fresh GNU ratio.
-
-Three warmups/five iterations, two launches/source in both source orders. Times are
-medians of launch medians. Allocations include all five GC observations/source
-(pilot plus four confirmation launches), with
-full ranges when values differ; the exported final launch is not a cohort statistic.
+→ `5bc8f9dd287727ed321f4ebaba41a29a783b0653`, default interpreter/policy,
+65,536 records per case. This embedded-only comparison supplies no fresh GNU ratio.
+Three warmups/five iterations, two launches/source in both source orders; times are
+medians of launch medians. Allocations include **all five GC observations/source**
+(pilot plus four confirmation launches), with ranges where values differ.
 
 | Workload | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
 | --- | --- | ---: |
@@ -98,40 +84,24 @@ full ranges when values differ; the exported final launch is not a cohort statis
 | Unicode length/substr/output control | 62.265→64.585; 62.665→64.286 | 31,909,720→31,909,720 |
 | ASCII string operations control | 44.719→45.483; 44.868→45.441 | 16,089,389 [16,089,387.64–16,089,389.33]→16,089,492 [16,089,491.64–16,089,493.33] |
 
-Field search takes **17.52%/19.61% less elapsed time** and **38.17% fewer managed
-bytes**. All four target launch pairs improve, ranging from 13.94% to 20.89%.
-Unicode takes 3.73%/2.59% longer; ASCII strings take 1.71%/1.28% longer. Individual
-control pairs vary: Unicode ranges from 1.13% to 5.69% longer; ASCII ranges from
-2.59% less time to 5.95% longer. These are measured costs, not a general speedup.
-Their cause is not isolated. No overall or cumulative gain is claimed.
+Field search takes **17.52%/19.61% less elapsed time** and **38.17% fewer managed bytes**.
+All four target launch pairs improve, ranging from 13.94% to 20.89%.
+Unicode takes 3.73%/2.59% longer; ASCII takes 1.71%/1.28% longer. Individual pairs range
+from 1.13% to 5.69% longer for Unicode and 2.59% less to 5.95% longer for ASCII.
+The pilot showed 19.46% less target time but both controls about 5.8% longer; neither
+confirmed order repeated a control loss above 4%. The causes of control costs are not isolated.
 
-Literal-needle `index` calls borrow pristine positive fields up to 64 bytes and return
-numeric positions. They avoid an owned input and field-cache insertion, reusing the
-substring path's metadata and existing case/search logic. The runtime change adds 32
-net lines across four files and one physical counter. Other shapes, cached/modified/
-long fields, lint/diagnostic modes and the executable engine retain ordinary evaluation.
-
-The target and ASCII control each add 104 bytes of temporary preparation scratch.
-Unicode allocations are unchanged. Logical fuel, evaluation/effect order, scalar/byte
-positions, UTF-8, cancellation, value limits and fatal admission/refunds qualify.
-Windows/Linux pass 73,816 tests; native comparisons agree for 110 cases/source plus
-three new goldens. All 27 script/scale/policy rows preserve logical work/effects;
-physical counters verify avoided copies and unchanged controls. The existing 32-row
-counter report is unchanged. Interpreter/regex defaults and package pins remain.
-
-The single pilot showed 19.46% less target time but both controls about 5.8% longer.
-That concern remained in the acceptance decision: another control-order loss above
-4% would reject the candidate. Neither confirmed order repeated it. All pilot and
-confirmation observations remain in local evidence. Quiet gates, source/binary
-identities and measurement-window SSH checks pass; no admission retry, source
-variant, replacement sample or full-baseline refresh was used.
+The change avoids owned text/cache insertion for literal-needle searches on pristine fields
+up to 64 bytes. Other shapes retain ordinary evaluation. Field search and ASCII each add
+104 bytes of cold preparation scratch; Unicode allocations are unchanged. Evaluation order,
+logical fuel, UTF-8, cancellation and admission/refunds qualify; Windows/Linux pass 73,816 tests.
 
 ## Larger-input comparisons
 
-The two † rows use current `5bc8f9d` timing and managed allocations. Other rows retain
-their named sources/dates; they were not refreshed. An allocation dash means no allocation
-measurement is presented for that retained comparison. These runs include source preparation
-and GNU process costs, with exact-output, quiet, identity and SSH qualification.
+The two † rows were measured 2026-10-18 UTC at current runtime
+`5bc8f9dd287727ed321f4ebaba41a29a783b0653`. Other rows retain their named sources/dates;
+an allocation dash means no allocation measurement is presented for that comparison.
+Only aggregation and join were refreshed, taking 1.73 measured minutes.
 
 | Case / input KiB / records | Measured source / date UTC | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -151,40 +121,20 @@ and GNU process costs, with exact-output, quiet, identity and SSH qualification.
 | Long fields / 16,408.00 / 4,096 | 7ad867d / 2026-10-16 | 13.349 | 16.624 | 0.80× | — |
 | Field index search § / 1,120.00 / 65,536 | e6cfcaf / 2026-10-18 | 39.390 | 8.618 | 4.57× | 18.34 |
 
-At `e6cfcaf`, the large field-search baseline allocates **19,229,984 managed bytes**
-(18.34 MiB) per invocation. Both field-search scales use five warmups/nine iterations/one
-timing launch and a separate three-warmup/five-iteration allocation launch. Each scale has
-one GC observation; no allocation range or optimization gain is inferred. All 110 native
-comparisons and the unchanged counter report qualify; Windows/Linux pass 73,771 tests.
-
-Current aggregation/join timing uses five warmups/nine iterations/one launch;
-allocations use a separate three-warmup/five-iteration launch, one GC observation/case.
-All 110 same-source native comparisons, three quiet gates, stable identities and
-measurement-window SSH checks qualify. Existing source CI and counter evidence are reused;
-no runtime, correctness-suite or benchmark-infrastructure changes were needed.
-
-Substantial large-input gaps remain; retained measurements are not fresh results or cumulative gains.
+The retained large field-search baseline allocates **19,229,984 managed bytes** (18.34 MiB).
+Its two scales and current aggregation/join use five warmups/nine iterations/one timing launch,
+plus three warmups/five iterations/one separate allocation launch. Each has one GC observation;
+no allocation range or small-difference confidence is claimed. Exact-output checks, quiet gates,
+stable identities and measurement-window SSH checks qualify. Retained rows are not fresh results.
 
 ## Environment and reproduction
 
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
-BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Timing for the current
-five-row milestone, new field-search baseline and retained 28 rows uses five warmups,
-nine iterations and one launch.
-Current managed allocations use three warmups/five iterations/one launch: one GC observation
-per workload, with no allocation range or small-difference confidence claim.
-Timing and allocation phases have qualified pre/post
-quiet gates, stable source/binary identities and no additional authenticated SSH login.
-CPU admission requires at most 3% median/5% maximum background load. Single-launch variation
-limits small differences. Semantic preflight is reused from the same source and binaries.
-
-
-Lokad includes parsing/compilation through `Awk.TryParse`/`Awk.ExecuteAsync` with an application
-in-memory host. GNU includes process launch and pipe I/O; startup is not subtracted. Both
-consume complete output and check stdout/stderr, exit, length and SHA-256. Fixture setup and
-correctness preflight are outside timing. GNU file fixtures use native files; Lokad uses
-host-mediated in-memory files. These are embedding-versus-CLI costs, not pure evaluator
-timings; small cases can be dominated by startup. Ordinary CI requires no GNU.
+BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. The representative table uses
+five warmups/nine iterations/one timing launch; managed allocations use a separate
+three-warmup/five-iteration launch, one GC observation/workload. Single-launch variation
+limits small comparisons. Fixture setup and semantic preflight are outside timing;
+stdout/stderr, exit, output length and SHA-256 are checked. Ordinary CI requires no GNU.
 
 Build once, verify, then measure the affected workload and up to two contrasting controls:
 
@@ -195,17 +145,14 @@ dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*large*concatenation*' '*WorkloadAllocationBenchmarks*large*projection*' '*WorkloadAllocationBenchmarks*large*string-functions*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
-Use the existing opt-in `--governed-profile` helper for shared-budget costs; it uses the
-512 MiB thread-safe test budget. Other host budgets can have different costs.
+Use existing `--governed-profile` for shared-budget costs with the 512 MiB thread-safe test
+budget; other host budgets can cost differently. Remote measurement requires pre/post quiet
+gates (at most 3% median/5% maximum background CPU), stable binaries and one SSH connection.
+Keep additional logins, transfers and builds outside measurement windows.
 
-For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
-Fresh logins can regenerate the VM login banner and add CPU work. Keep new logins, transfers
-and builds outside these windows; thresholds remain unchanged.
-
-Full Linux workflow: [reference wrapper](../benchmarks/run-reference-linux.sh). The driver
-commands also work on Windows with a suitable GNU executable. Preserve the full correctness suite;
-confirm promising changes once in both source orders. Refresh all families at declared
-milestones (normally five accepted changes), not after each optimization. Record revisions,
-dates/settings and failed quiet gates; do not relabel retained measurements. Keep raw/history
-and BenchmarkDotNet artifacts local. See [runtime limits](RUNTIME_LIMITS.md) and
-[record semantics](RECORD_SEMANTICS.md) for the behavioral boundaries.
+The [Linux reference wrapper](../benchmarks/run-reference-linux.sh) provides the full workflow;
+driver commands also work on Windows with a suitable GNU executable. Preserve the full
+correctness suite and confirm promising changes once in both source orders. Refresh all
+families only at declared milestones. Record revisions/dates/settings and failed gates;
+never relabel retained measurements. Keep raw/history and BenchmarkDotNet artifacts local.
+See [runtime limits](RUNTIME_LIMITS.md) and [record semantics](RECORD_SEMANTICS.md).
