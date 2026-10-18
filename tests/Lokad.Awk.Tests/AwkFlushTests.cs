@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace Lokad.Awk.Tests;
@@ -315,6 +316,52 @@ public sealed class AwkFlushTests
         Assert.Equal(2, host.Commands.Count);
         Assert.Equal(inputFirst ? 1 : 2, host.Writes.Count);
         Assert.Equal(0, host.OpenPipeCount);
+    }
+
+    [Fact]
+    public async Task EmptyPipeTestHostCompletesWithoutTheCallersSynchronizationContext()
+    {
+        var host = new AwkEmptyPipeTestHost(new MockFileSystem());
+        var created = await host.CreatePipeAsync(AwkPipeMode.Pipeline, CancellationToken.None);
+        Assert.True(created.Success);
+        var descriptors = created.Descriptors;
+        var command = new AwkCommandInvocation("consumer", [], [], AwkPath.Root,
+            descriptors.Read, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr);
+        var context = new QueuedSynchronizationContext();
+        var previous = SynchronizationContext.Current;
+        Task<IReadOnlyList<AwkExitCode>> completion;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+            completion = host.RunCommandsAsync([command], CancellationToken.None);
+        }
+        finally { SynchronizationContext.SetSynchronizationContext(previous); }
+        try
+        {
+            Assert.False(completion.IsCompleted);
+            await host.CloseDescriptorAsync(descriptors.Write, CancellationToken.None);
+            var winner = await Task.WhenAny(completion, context.Posted.Task)
+                .WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Same(completion, winner);
+            Assert.Equal(AwkExitCode.Success, Assert.Single(await completion));
+            Assert.Equal(0, host.OpenPipeCount);
+        }
+        finally { context.Drain(); }
+    }
+
+    private sealed class QueuedSynchronizationContext : SynchronizationContext
+    {
+        private readonly ConcurrentQueue<(SendOrPostCallback Callback, object? State)> _pending = new();
+        public TaskCompletionSource Posted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override void Post(SendOrPostCallback callback, object? state)
+        {
+            _pending.Enqueue((callback, state));
+            Posted.TrySetResult();
+        }
+        public void Drain()
+        {
+            while (_pending.TryDequeue(out var work)) work.Callback(work.State);
+        }
     }
 
     private static AwkRedirectedOutput Output(string path, string content,

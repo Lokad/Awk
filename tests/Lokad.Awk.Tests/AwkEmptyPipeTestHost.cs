@@ -21,7 +21,7 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
             if (_pipes.TryGetValue(command.StdIn, out var output))
             {
                 output.ReadOpen = false;
-                results.Add(await output.Completion.Task.WaitAsync(cancellationToken));
+                results.Add(await output.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false));
             }
             else if (_pipes.TryGetValue(command.StdOut, out var input))
             {
