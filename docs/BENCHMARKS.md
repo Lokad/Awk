@@ -9,9 +9,9 @@ prepared arithmetic-call cases.
 The other **31 rows retain** the complete baseline measured 2026-10-17 UTC at
 `8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this extension.
 Core runtime code is identical between these baseline revisions. The latest accepted
-local-assignment/conditional-return composition takes **18.21%/16.11% less time** on a
-normalization/clipping script; source, allocations and controls appear below. The public
-catalogue now has 35 families. Its two newest cases have no fresh GNU ratio yet.
+flat-text estimate simplification takes **5.60%/7.28% less time** on large Unicode
+processing; its separate source, allocations and controls appear below. The public
+catalogue has 35 families. Its two newest cases still have no fresh GNU ratio.
 The declared 35-family refresh at `9155dff` did not qualify: the GNU long-field case
 exceeded its existing 15-second deadline after warmup. It produced 69 timing rows,
 no allocation phase and no final quietness checks. Those partial figures are diagnostic;
@@ -69,42 +69,36 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-18 UTC: `40ad8533507b428d47372c27b0365728e9c12828`
-→ `fd8c4651c00df9694dfeb41f9e887a6bd4ec3f9e`, identical workload/harness, **large scale**. The public
-`local-conditional-text` fixture matches the frozen-source timed fixture. Three warmups,
-five iterations and two launches/source in both source orders; medians of launch medians.
-Allocations use all four GC launch observations/source, with full ranges where they differ.
+Measured 2026-10-18 UTC: `9155dff463fbceedb19b910b1722d97ffa8b4177`
+→ `929937c037fc39927c721ebd727216575be6ade5`, identical scripts/harness, **large scale**.
+Three warmups/five iterations and two launches/source in both source orders; times are
+medians of launch medians. Allocations use all four GC observations/source, including
+the full range where readings differ; the exported final launch is not a cohort statistic.
 
 | Workload / 65,536 records | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
 | --- | --- | ---: |
-| Normalize and conditionally clip text | 96.209→78.686; 91.171→76.482 | 36,474,296 [36,474,296–36,482,496]→36,475,000 |
-| Local-temporary call-loop control | 172.761→170.666; 171.188→168.224 | 10,161,597→10,161,597 |
-| Flat string-operation control | 48.719→47.383; 47.638→46.653 | 16,089,284 [16,089,282–16,089,284]→16,089,284 |
+| Unicode length/substr/output | 75.755→71.510; 76.131→70.588 | 40,822,512→40,822,512 |
+| Column-projection control | 39.232→38.918; 38.441→41.634 | 11,443,027→11,443,016 [11,443,015–11,443,027] |
+| Arithmetic-loop control | 79.370→78.748; 80.131→80.168 | 10,129,712→10,129,712 |
 
-```awk
-function clip(s,n,t) { t=tolower(s); if(length(t)>n)return substr(t,1,n); return t }
-{ v=clip($1,$2); total+=length(v) }
-END { print total }
-```
+The target takes **5.60%/7.28% less elapsed time**; all four launch-pair changes
+are 5.45–8.97%. Projection takes 0.80% less time in one order and **8.31% longer** in
+the other. Arithmetic takes 0.78% less / 0.05% longer.
+These results establish a target improvement, not an overall or cumulative gain. Every
+allocation observation is retained; no managed allocation saving is attributed to the change.
 
-The target takes **18.21%/16.11% less elapsed time**; all four launch-pair changes
-are 14.70–20.57%. Controls: local-temporary-call-loop: +1.21%/+1.73% less elapsed; string-functions: +2.74%/+2.07% less elapsed.
-These results establish a target improvement, not a general or cumulative gain. Allocations
-rise by 704 B/invocation;
-every launch observation is retained. No allocation-savings claim.
-
-The existing prepared-function body now composes an optional local assignment and a guarded
-return/final return. Consolidated selectors/constructors remove 16 net runtime lines from two
-files; no new fields, evaluator, cache or owner. Counters prove 65,536 prepared calls/actions
-and zero argument-buffer rentals. Logical fuel, host, memory and conversion counts match;
-two extra preparation cancellation checks are fixed across all three scales. Original local
-setters, aliases, mutation preflights, fatal refusal, checkpoints and diagnostic/policy/stack
-fallbacks remain. Generated-code component frames are not an inclusive stack bound or savings.
-Full Windows/Linux correctness, native comparisons, negative guards, finite limits and 64
-small-stack cases/source/OS qualify. Interpreter and regex defaults remain unchanged.
+Flat-text estimates now use one direct sum of existing layout constants after the original
+integer header check. The remaining arithmetic is bounded below 7 GiB, removing repeated
+checked-helper composition. Estimated bytes, cache allowances and the large-length refusal
+boundary remain identical. No new field, cache, owner, API, quota or representation.
+Windows/Linux full tests, 107 native cases, 100,014 compiled estimate/refusal outcomes,
+27 script/scale/policy combinations and 32 finite-resource rows qualify; every counter,
+admission/refund, cancellation checkpoint and output matches. Negative boundary tests
+reject an intentionally omitted component. Interpreter and regex defaults remain unchanged.
 
 One pilot and one balanced confirmation used stable identities, qualified quiet gates and
-no extra measurement-window SSH login. This embedded-only comparison supplies no GNU ratio.
+no extra measurement-window SSH login. This embedded-only comparison supplies no fresh
+GNU ratio; the separate full refresh remains unqualified and was not retried.
 
 ## Larger-input comparisons
 
@@ -157,7 +151,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*large*local-conditional-text*' '*WorkloadAllocationBenchmarks*large*local-temporary-call-loop*' '*WorkloadAllocationBenchmarks*large*string-functions*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*large*unicode*' '*WorkloadAllocationBenchmarks*large*projection*' '*WorkloadAllocationBenchmarks*large*arithmetic-loops*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.

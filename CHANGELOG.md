@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Flat UTF-8 text estimates use a direct bounded calculation with unchanged admission values,
+  cache allowances and large-length refusal. This avoids repeated checked-helper calls.
+
 - Functions with one local assignment and a guarded/final return reuse existing interpreter
   preparation. Shared shape detection removes duplicate code while preserving argument order,
   aliases, resource preflights and stack/diagnostic fallbacks.
