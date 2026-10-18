@@ -72,15 +72,15 @@ internal sealed class AwkMemoryAccounting
             return;
 
         var reserved = AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, byteCount);
-        ThrowIfLiveWouldExceedLimit(reserved, CurrentCommittedBytes);
+        var liveBytes = ValidateLiveBytes(reserved, CurrentCommittedBytes);
         var totalReserved = AwkRuntimeMemory.CheckedAdd(TotalReservedBytes, byteCount);
-        ResizeOwner(reserved, CurrentCommittedBytes);
+        ResizeOwner(liveBytes);
         CurrentReservedBytes = reserved;
         TotalReservedBytes = totalReserved;
         ReserveCount++;
         PeakReservedBytes = Math.Max(PeakReservedBytes, CurrentReservedBytes);
-        UpdatePeakLiveBytes();
-        _counters.RecordMemoryReserve(byteCount, LiveBytes);
+        PeakLiveBytes = Math.Max(PeakLiveBytes, liveBytes);
+        _counters.RecordMemoryReserve(byteCount, liveBytes);
     }
 
     public void PreflightAllocation(long byteCount)
@@ -88,7 +88,7 @@ internal sealed class AwkMemoryAccounting
         if (!_enabled || byteCount <= 0)
             return;
 
-        ThrowIfLiveWouldExceedLimit(
+        ValidateLiveBytes(
             AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, byteCount),
             CurrentCommittedBytes);
     }
@@ -115,15 +115,15 @@ internal sealed class AwkMemoryAccounting
 
         var reserved = CurrentReservedBytes - byteCount;
         var committed = AwkRuntimeMemory.CheckedAdd(CurrentCommittedBytes, byteCount);
-        ThrowIfLiveWouldExceedLimit(reserved, committed);
+        var liveBytes = ValidateLiveBytes(reserved, committed);
         var totalCommitted = AwkRuntimeMemory.CheckedAdd(TotalCommittedBytes, byteCount);
         CurrentReservedBytes = reserved;
         CurrentCommittedBytes = committed;
         TotalCommittedBytes = totalCommitted;
         CommitCount++;
         PeakCommittedBytes = Math.Max(PeakCommittedBytes, CurrentCommittedBytes);
-        UpdatePeakLiveBytes();
-        _counters.RecordMemoryCommit(byteCount, LiveBytes);
+        PeakLiveBytes = Math.Max(PeakLiveBytes, liveBytes);
+        _counters.RecordMemoryCommit(byteCount, liveBytes);
     }
 
     public void ReleaseReserved(long byteCount)
@@ -135,7 +135,7 @@ internal sealed class AwkMemoryAccounting
             throw new InvalidOperationException("Cannot release more reserved bytes than are currently reserved.");
 
         TotalReleasedReservedBytes = AwkRuntimeMemory.CheckedAdd(TotalReleasedReservedBytes, byteCount);
-        ResizeOwner(CurrentReservedBytes - byteCount, CurrentCommittedBytes);
+        ResizeOwner(AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes - byteCount, CurrentCommittedBytes));
         ReleaseReservedCount++;
         CurrentReservedBytes -= byteCount;
         _counters.RecordMemoryReleaseReserved(byteCount);
@@ -150,7 +150,7 @@ internal sealed class AwkMemoryAccounting
             throw new InvalidOperationException("Cannot release more committed bytes than are currently committed.");
 
         TotalReleasedCommittedBytes = AwkRuntimeMemory.CheckedAdd(TotalReleasedCommittedBytes, byteCount);
-        ResizeOwner(CurrentReservedBytes, CurrentCommittedBytes - byteCount);
+        ResizeOwner(AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, CurrentCommittedBytes - byteCount));
         ReleaseCommittedCount++;
         CurrentCommittedBytes -= byteCount;
         _counters.RecordMemoryReleaseCommitted(byteCount);
@@ -184,23 +184,18 @@ internal sealed class AwkMemoryAccounting
     public AwkMemoryLease CreateTransientLease() =>
         _enabled ? new AwkMemoryLease(this, 0) : AwkMemoryLease.Disabled;
 
-    private long LiveBytes => AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, CurrentCommittedBytes);
-
-    private void ResizeOwner(long reserved, long committed)
+    private void ResizeOwner(long liveBytes)
     {
-        if (!_owner.TryResizeTracked(AwkRuntimeMemory.CheckedAdd(reserved, committed)))
+        if (!_owner.TryResizeTracked(liveBytes))
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
     }
 
-    private void UpdatePeakLiveBytes()
+    private long ValidateLiveBytes(long reservedBytes, long committedBytes)
     {
-        PeakLiveBytes = Math.Max(PeakLiveBytes, LiveBytes);
-    }
-
-    private void ThrowIfLiveWouldExceedLimit(long reservedBytes, long committedBytes)
-    {
-        if (AwkRuntimeMemory.CheckedAdd(reservedBytes, committedBytes) > _maxOwnedBytes)
+        var liveBytes = AwkRuntimeMemory.CheckedAdd(reservedBytes, committedBytes);
+        if (liveBytes > _maxOwnedBytes)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+        return liveBytes;
     }
 
 }
