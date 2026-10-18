@@ -1,15 +1,18 @@
 # Benchmarks
 
-Comparison against GNU awk 5.2.1 across **33 families**. Five rows marked ‡ were measured
+Comparison against GNU awk 5.2.1 across **34 families**. Five rows marked ‡ were measured
 2026-10-18 UTC at Release source `efd5e8767756e71c8ce128b724415d0bea7a58ed`:
 branching functions (one/two arguments), joins, substitution and Unicode processing.
 The other **28 rows retain** measurements from 2026-10-17 UTC at
 `8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this milestone.
+The field-search row marked § and its larger-input comparison were measured
+2026-10-18 UTC at `e6cfcafd893329ed482dbbf1c5bfb9cf61d16a47`,
+with core runtime sources unchanged from `2a6423e`.
 
 The latest accepted short-field substring change takes **10.96%/10.74% less elapsed
 time** and **21.83% fewer managed bytes** on the large Unicode target. Its measured
 sources, allocation ranges and controls appear below. The public
-catalogue has 35 families; its two newest cases still have no fresh GNU ratio.
+catalogue has 36 families; two cases still have no fresh GNU ratio.
 The declared 35-family refresh at `9155dff` did not qualify: the GNU long-field case
 exceeded its existing 15-second deadline after warmup. It produced 69 timing rows,
 no allocation phase and no final quietness checks. Those partial figures are diagnostic;
@@ -49,6 +52,7 @@ not GNU allocations, retained memory or allowances. Rows run from worst ratio to
 | Loop and numeric arithmetic | 8.00 | 4.945 | 2.915 | 1.70× | 0.72 |
 | Mixed narrow-record processing | 60.00 | 3.653 | 2.208 | 1.65× | 0.80 |
 | Field-key membership | 48.56 | 2.083 | 1.324 | 1.57× | 0.82 |
+| Literal index search in a field § | 70.00 | 2.494 | 1.592 | 1.57× | 1.23 |
 | Filter three fields | 24.00 | 2.134 | 1.542 | 1.38× | 0.71 |
 | Literal field separator | 48.00 | 1.911 | 1.402 | 1.36× | 0.77 |
 | Field loop, 64 fields | 80.00 | 2.459 | 2.183 | 1.13× | 1.08 |
@@ -62,7 +66,9 @@ Both implementations use the same [scripts/fixtures](../benchmarks/Lokad.Awk.Ben
 Most medium cases have 4,096 records; all-fields wide and long-field cases have 256,
 and join has 4,096/file. Early wide filtering reads `$1` on every record and `$3` on one in eight.
 Single-array reads have equal existing/new keys; the new control alternates all-hit reads
-from two lookup tables. GNU-marked conveniences do not imply full conformance.
+from two lookup tables. Field search runs `index($2,"timeout")` with alternating hits/misses
+and a Unicode prefix, summing scalar positions without per-record output. GNU-marked
+conveniences do not imply full conformance.
 Confirm apparent parity on larger inputs; the retained scale comparisons below are separate evidence.
 
 ## Latest controlled change
@@ -133,6 +139,13 @@ GNU process costs, with exact-output, quiet, identity and SSH qualification.
 | Changed case / 9,280.00 / 65,536 | 69c0a34 / 2026-10-16 | 57.330 | 32.246 | 1.78× |
 | Call loop / 128.00 / 65,536 | f52d9f4 / 2026-10-16 | 138.482 | 45.626 | 3.04× |
 | Long fields / 16,408.00 / 4,096 | 7ad867d / 2026-10-16 | 13.349 | 16.624 | 0.80× |
+| Field index search § / 1,120.00 / 65,536 | e6cfcaf / 2026-10-18 | 39.390 | 8.618 | 4.57× |
+
+The current large field-search baseline allocates **19,229,984 managed bytes**
+(18.34 MiB) per invocation. Both field-search scales use five warmups/nine iterations/one
+timing launch and a separate three-warmup/five-iteration allocation launch. Each scale has
+one GC observation; no allocation range or optimization gain is inferred. All 110 native
+comparisons and the unchanged counter report qualify; Windows/Linux pass 73,771 tests.
 
 Substantial large-input gaps remain; retained measurements are not fresh results or cumulative gains.
 
@@ -140,7 +153,8 @@ Substantial large-input gaps remain; retained measurements are not fresh results
 
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
 BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Timing for the current
-five-row milestone and retained 28 rows uses five warmups/nine iterations/one launch.
+five-row milestone, new field-search baseline and retained 28 rows uses five warmups,
+nine iterations and one launch.
 Current managed allocations use three warmups/five iterations/one launch: one GC observation
 per workload, with no allocation range or small-difference confidence claim.
 Timing and allocation phases have qualified pre/post
