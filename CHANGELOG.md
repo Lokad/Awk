@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Literal `substr` calls can borrow short pristine field inputs, avoiding input copies
+  and temporary rune indexes while returning owned text.
+
 - Array memory totals reject arithmetic overflow with the existing memory-limit diagnostic.
 
 - Short completed concatenations avoid pooled argument staging; pending or wider expressions

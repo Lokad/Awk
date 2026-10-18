@@ -106,10 +106,12 @@ Field-key array reads with CPU-only indices can join the same bounded expression
 Their original lookup handles missing entries, aliases, special arrays and value snapshots;
 field-diagnostic, depth and pending-index boundaries retain the original fallback.
 
-`index`, `substr`, `tolower` and `toupper` evaluate arguments into value locals before
+General `index`, `substr`, `tolower` and `toupper` calls evaluate arguments into value locals before
 conversion; other builtins use admitted staging where required. Actual result allocations
 preflight. `printf` publishes its admitted staging buffer atomically; `sprintf` returns owned
 text. Eligible literal field operands can borrow bytes/numbers during synchronous formatting.
+`substr($2,1,2)` and similar calls can borrow pristine fields up to 64 bytes and return
+owned text. Other input shapes retain ordinary evaluation.
 Avoided copies and rounded capacities can change optional memory thresholds.
 Stdout `print` with one through four values uses locals instead of staging arrays; formatting
 remains leased and the complete append preflights before publication. Larger, redirected and

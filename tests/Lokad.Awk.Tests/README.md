@@ -48,6 +48,9 @@ mutation refusal/cancellation and refunds using finite quotas and a shared host 
 `AwkArrayEstimateTests` covers representable/overflow totals with lazy text and verifies
 array replacement preflights and refunds without constructing enormous dictionaries.
 
+`AwkBorrowedSubstringTests` covers short-field substring ownership, ordinary fallbacks,
+UTF-8/byte slicing, fuel, cancellation, mutation refusal and refunds.
+
 `AwkConcatStagingTests` covers small/wide and suspended concatenations, operand ordering,
 prefix lifetime during nested work, cancellation, refused result admission and refunds.
 `AwkConcatAllocationTests` bounds argument-staging allocations after warmup.

@@ -6,8 +6,9 @@ branching functions (one/two arguments), joins, substitution and Unicode process
 The other **28 rows retain** measurements from 2026-10-17 UTC at
 `8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this milestone.
 
-The latest accepted short-concatenation change takes **4.63%/4.40% less elapsed time** on the large
-target. Its measured source, allocation ranges and controls appear below. The public
+The latest accepted short-field substring change takes **10.96%/10.74% less elapsed
+time** and **21.83% fewer managed bytes** on the large Unicode target. Its measured
+sources, allocation ranges and controls appear below. The public
 catalogue has 35 families; its two newest cases still have no fresh GNU ratio.
 The declared 35-family refresh at `9155dff` did not qualify: the GNU long-field case
 exceeded its existing 15-second deadline after warmup. It produced 69 timing rows,
@@ -66,38 +67,48 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-18 UTC: source `fea29e9370c6b968ca3fa1d8bb2c5829d6e50219`
-→ `f51514711533eec5e51c8e6797076d7a742ebef6`. Identical existing scripts/host, default interpreter/policy,
-**large scale** (65,536 records each), including parsing/compilation and complete output
-consumption. The target builds five-part strings from a record and its number. This
-embedded-only comparison supplies no fresh GNU ratio.
+Measured 2026-10-18 UTC: `efd5e8767756e71c8ce128b724415d0bea7a58ed`
+→ `2a6423edf8705c707607f7eaaae816447bd689b6`. Existing scripts and in-memory host, default interpreter/policy,
+large scale (65,536 records each), including parsing/compilation and complete output
+consumption. The Unicode target prints `length($1),substr($2,1,2)`. This embedded-only
+comparison supplies no fresh GNU ratio; the first table retains its explicit revisions.
 
-Three warmups/five iterations and two launches/source in both source orders; times are
-medians of launch medians. Allocations include all four GC observations/source, with full
-ranges when values differ. Bytes are rounded; the exported final launch is not a cohort statistic.
+Three warmups/five iterations, two launches/source in both source orders. Times are
+medians of launch medians. Allocations include all four GC observations/source, with
+full ranges when values differ; the exported final launch is not a cohort statistic.
 
 | Workload | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
 | --- | --- | ---: |
-| Five-part string concatenation | 49.743→47.439; 51.296→49.040 | 22,353,464→22,353,464 |
-| Column projection control | 39.414→38.725; 38.721→38.121 | 11,443,022 [11,443,016–11,443,027]→11,443,027 [11,443,016–11,443,027] |
-| ASCII string operations control | 45.151→45.406; 45.453→45.477 | 16,089,284 [16,089,284–16,089,285]→16,089,284 [16,089,284–16,089,285] |
+| Unicode length/substr/output | 72.147→64.239; 72.655→64.853 | 40,822,512 [40,822,512–40,829,541]→31,909,720 |
+| Column projection control | 38.755→37.887; 39.037→37.747 | 11,443,027 [11,443,016–11,443,027]→11,443,016 |
+| ASCII string operations control | 45.057→45.102; 44.089→45.174 | 16,089,284 [16,089,284–16,089,285]→16,089,388 [16,089,388–16,089,389] |
 
-Concatenation takes **4.63%/4.40% less elapsed time**;
-the four launch-pair reductions range from 3.78% to 5.48%.
-Projection takes 1.75% less /1.55% less time; ASCII operations take 0.56% longer /0.05% longer time.
-All allocation observations are retained above; no overall or cumulative gain is claimed.
+Unicode processing takes **10.96%/10.74% less elapsed time** and **21.83% fewer managed
+bytes**. All four target launch-pair gains are positive, ranging from 5.92% to 15.40%.
+Projection takes 2.24%/3.31% less time; ASCII operations take 0.10%/2.46% longer
+(one launch pair is 4.36% longer). Control allocation changes stay within their allowances.
+No overall or cumulative gain is claimed.
 
-Completed concatenations of up to eight operands use a bounded managed temporary,
-removing per-record pool rent/clear work. Larger expressions and operands requiring the
-asynchronous path retain the existing pool/continuation. The baseline recycled its pooled
-buffers; managed allocations are reported separately. Evaluation/formatting order, UTF-8,
-field snapshots, failure/cancellation, admission preflights and actual-user lifetimes remain.
-Windows/Linux pass 73,719 tests, 107 native comparisons and 36 stack probes/source; all
-27 script/scale/policy rows and 32 counter-report rows agree on existing counters. The
-new argument-rent counter is zero for the short target. Interpreter/regex defaults remain.
+Eligible `substr` calls borrow pristine fields up to 64 bytes with literal numeric
+positions and return owned UTF-8 text. They avoid the whole-field input copy and
+temporary rune index. Larger, modified, cached, pending and executable-engine cases
+retain ordinary evaluation. Fuel, argument order, UTF-8/byte behavior, cancellation,
+mutation preflights and shared-budget refunds remain qualified.
 
-One pilot and one balanced confirmation used stable source/binary identities, qualified
-quiet gates and no additional measurement-window SSH login. The full refresh was not retried.
+The target and ASCII control each add 104 bytes of temporary program-preparation
+scratch; this is included above. One baseline GC observation is 7,029 bytes higher
+than the other three (0.017%); its cause remains unproven after a bounded log audit.
+The full range is retained, and the minimum baseline still gives a 21.83% allocation reduction.
+
+Windows/Linux pass 73,765 tests, 107 native comparisons/source plus two new goldens,
+and 30 stack probes/source. All 27 script/scale/policy rows preserve logical work/effects;
+physical counters verify avoided copies/indexes and existing control paths. The 32
+counter-report rows are unchanged. Interpreter/regex defaults and package pins remain.
+
+One pilot and one balanced confirmation used stable identities, qualified quiet gates
+and no extra measurement-window SSH login. The baseline refused its initial pilot
+admission before any samples; one delayed admission passed. Candidate samples were
+unchanged, and no measured sample was replaced. The full refresh was not retried.
 
 ## Larger-input comparisons
 
