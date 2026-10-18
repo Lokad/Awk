@@ -66,6 +66,10 @@ Compound assignment targets/keys and left values are evaluated before the RHS. I
 RHS effects, including SUBSEP changes, can differ from GNU awk; [assignment operand order](https://www.gnu.org/s/gawk/manual/html_node/Assignment-Ops.html)
 is left to the implementation. The golden corpus preserves Lokad's chosen order.
 
+Concatenation evaluates and formats each operand before the next one. Side effects on
+CONVFMT can therefore differ from GNU awk. Keep these effects in separate statements;
+[concatenation evaluation order is not defined by awk](https://www.gnu.org/software/gawk/manual/html_node/Concatenation.html).
+
 Common printf/sprintf controls, hexadecimal output and GNU positional arguments are supported;
 newer controls remain partial. Formatting preflights complete output. Signed nonfinite values,
 integer range/padding, strtonum, bitwise and time behavior follow qualified golden policies,

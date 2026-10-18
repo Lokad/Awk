@@ -9,8 +9,8 @@ prepared arithmetic-call cases.
 The other **31 rows retain** the complete baseline measured 2026-10-17 UTC at
 `8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this extension.
 Core runtime code is identical between these baseline revisions. The latest accepted
-memory-bookkeeping simplification takes **4.04%/4.60% less time** on large shared-budget
-function calls. Its source, allocation ranges and controls appear below. The public
+short-concatenation change takes **4.63%/4.40% less elapsed time** on the large
+target. Its measured source, allocation ranges and controls appear below. The public
 catalogue has 35 families; its two newest cases still have no fresh GNU ratio.
 The declared 35-family refresh at `9155dff` did not qualify: the GNU long-field case
 exceeded its existing 15-second deadline after warmup. It produced 69 timing rows,
@@ -37,7 +37,7 @@ not GNU allocations, retained memory or allowances. Rows run from worst ratio to
 | ERE boolean matching | 32.00 | 2.664 | 1.287 | 2.07× | 0.75 |
 | Keyed sum / sorted output (GNU) | 24.00 | 2.819 | 1.370 | 2.06× | 0.76 |
 | Loop with two-argument calls | 8.00 | 8.218 | 4.150 | 1.98× | 0.75 |
-| Growing string concatenation | 20.00 | 3.229 | 1.666 | 1.94× | 1.43 |
+| Five-part string concatenation | 20.00 | 3.229 | 1.666 | 1.94× | 1.43 |
 | Loop with unary arithmetic calls | 8.00 | 7.393 | 3.828 | 1.93× | 0.74 |
 | printf | 24.00 | 3.643 | 1.915 | 1.90× | 0.69 |
 | ASCII substr/index/length/casing | 52.00 | 2.976 | 1.569 | 1.90× | 1.08 |
@@ -69,38 +69,38 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-18 UTC: runtime `929937c037fc39927c721ebd727216575be6ade5`
-→ `d6a8e587c75b8e6af90890c46b44e58f4e439aa4`, identical scripts/helper, **large scale**, public one-shot execution.
-The measured helper is now available through the opt-in `--governed-profile` command; its
-source is unchanged from the frozen experiment. Shared cases use the existing thread-safe
-512 MiB test budget. Other host budget implementations can have different costs.
+Measured 2026-10-18 UTC: source `fea29e9370c6b968ca3fa1d8bb2c5829d6e50219`
+→ `f51514711533eec5e51c8e6797076d7a742ebef6`. Identical existing scripts/host, default interpreter/policy,
+**large scale** (65,536 records each), including parsing/compilation and complete output
+consumption. The target builds five-part strings from a record and its number. This
+embedded-only comparison supplies no fresh GNU ratio.
+
 Three warmups/five iterations and two launches/source in both source orders; times are
-medians of launch medians. Allocations use all four GC observations/source, with full
-ranges. The exported final launch is not a cohort statistic; bytes are rounded here.
+medians of launch medians. Allocations include all four GC observations/source, with full
+ranges when values differ. Bytes are rounded; the exported final launch is not a cohort statistic.
 
-| Workload / 65,536 records | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
+| Workload | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
 | --- | --- | ---: |
-| Two-argument loop, shared budget | 180.735→173.437; 182.255→173.866 | 10,152,965→10,152,965 [10,152,965–10,169,365] |
-| Same loop, default-policy control | 131.497→131.044; 131.267→130.896 | 10,151,832→10,151,832 |
-| Column projection, shared-budget control | 56.607→56.735; 54.825→53.984 | 13,540,713 [13,540,710–13,540,715]→13,540,715 [13,540,710–13,540,715] |
+| Five-part string concatenation | 49.743→47.439; 51.296→49.040 | 22,353,464→22,353,464 |
+| Column projection control | 39.414→38.725; 38.721→38.121 | 11,443,022 [11,443,016–11,443,027]→11,443,027 [11,443,016–11,443,027] |
+| ASCII string operations control | 45.151→45.406; 45.453→45.477 | 16,089,284 [16,089,284–16,089,285]→16,089,284 [16,089,284–16,089,285] |
 
-Shared-budget calls take **4.04%/4.60% less elapsed time**; all four launch pairs take
-1.71–7.33% less. Default calls take 0.34%/0.28% less and are effectively flat;
-shared projection takes 0.23% longer /1.53% less. No overall or cumulative gain is claimed.
-The target allocation median is unchanged, but one candidate observation is **16,400 B
-higher** and retained in the range. Source review found no new allocation paths; the
-isolated reading's cause remains unproven. No managed allocation saving is claimed.
+Concatenation takes **4.63%/4.40% less elapsed time**;
+the four launch-pair reductions range from 3.78% to 5.48%.
+Projection takes 1.75% less /1.55% less time; ASCII operations take 0.56% longer /0.05% longer time.
+All allocation observations are retained above; no overall or cumulative gain is claimed.
 
-Reserve/commit processing reuses a validated live-byte total for owner admission, peaks
-and counters, removing repeated checked sums and five net runtime lines. There is no
-new field, type, cache, owner or quota. Windows/Linux full tests, 107 native cases,
-17,164 ledger/owner/error snapshots and 27 script/scale/policy combinations agree exactly.
-Overflow/refusal order, counters, mutation preflights and actual-user refunds are preserved.
-Interpreter and regex defaults are unchanged.
+Completed concatenations of up to eight operands use a bounded managed temporary,
+removing per-record pool rent/clear work. Larger expressions and operands requiring the
+asynchronous path retain the existing pool/continuation. The baseline recycled its pooled
+buffers; managed allocations are reported separately. Evaluation/formatting order, UTF-8,
+field snapshots, failure/cancellation, admission preflights and actual-user lifetimes remain.
+Windows/Linux pass 73,719 tests, 107 native comparisons and 36 stack probes/source; all
+27 script/scale/policy rows and 32 counter-report rows agree on existing counters. The
+new argument-rent counter is zero for the short target. Interpreter/regex defaults remain.
 
-One pilot and one balanced confirmation used stable identities, qualified quiet gates
-and no additional measurement-window SSH login. This embedded-only comparison supplies
-no fresh GNU ratio; the unqualified full refresh was not retried.
+One pilot and one balanced confirmation used stable source/binary identities, qualified
+quiet gates and no additional measurement-window SSH login. The full refresh was not retried.
 
 ## Larger-input comparisons
 
@@ -153,8 +153,11 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --governed-profile --filter '*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*large*concatenation*' '*WorkloadAllocationBenchmarks*large*projection*' '*WorkloadAllocationBenchmarks*large*string-functions*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
+
+Use the existing opt-in `--governed-profile` helper for shared-budget costs; it uses the
+512 MiB thread-safe test budget. Other host budgets can have different costs.
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.
 Fresh logins can regenerate the VM login banner and add CPU work. Keep new logins, transfers

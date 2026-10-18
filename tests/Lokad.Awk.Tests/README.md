@@ -45,6 +45,10 @@ does not authorize a running command to recover from refusal.
 `AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
 mutation refusal/cancellation and refunds using finite quotas and a shared host budget.
 
+`AwkConcatStagingTests` covers small/wide and suspended concatenations, operand ordering,
+prefix lifetime during nested work, cancellation, refused result admission and refunds.
+`AwkConcatAllocationTests` bounds argument-staging allocations after warmup.
+
 ## Benchmarks
 
 `Lokad.Awk.Benchmarks` is not a correctness suite. Benchmark scripts should either reference canonical golden scenarios or document generated workloads, and benchmark smoke checks should not create independent behavior expectations. Use `AwkBenchmarkCounterTests` for deterministic counter invariants that belong in the correctness suite.

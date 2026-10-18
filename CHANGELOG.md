@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Short completed concatenations avoid pooled argument staging; pending or wider expressions
+  retain their existing continuation and buffer ownership.
+
 - Field buffers account for retained capacity through growth and `NF` shrink, with
   replacement storage admitted before mutation. This corrects understated shared-memory demand.
 
