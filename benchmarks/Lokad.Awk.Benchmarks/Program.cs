@@ -8,6 +8,12 @@ using BenchmarkDotNet.Running;
 using Lokad.Awk;
 using Lokad.Awk.Benchmarking;
 
+if (args.Length > 0 && args[0] == "--governed-profile")
+{
+    BenchmarkSwitcher.FromTypes([typeof(GovernedAllocationProfile)]).Run(args.Skip(1).ToArray());
+    return;
+}
+
 if (args.Length == 1 && string.Equals(args[0], "--counter-report", StringComparison.Ordinal))
 {
     await BenchmarkCounterReport.RunAsync(CancellationToken.None).ConfigureAwait(false);

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Memory reservations and commits reuse their validated live-byte totals, removing
+  duplicate checked calculations while preserving admission, counters and refunds.
+
 - Flat UTF-8 text estimates use a direct bounded calculation with unchanged admission values,
   cache allowances and large-length refusal. This avoids repeated checked-helper calls.
 

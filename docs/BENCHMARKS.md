@@ -9,9 +9,9 @@ prepared arithmetic-call cases.
 The other **31 rows retain** the complete baseline measured 2026-10-17 UTC at
 `8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this extension.
 Core runtime code is identical between these baseline revisions. The latest accepted
-flat-text estimate simplification takes **5.60%/7.28% less time** on large Unicode
-processing; its separate source, allocations and controls appear below. The public
-catalogue has 35 families. Its two newest cases still have no fresh GNU ratio.
+memory-bookkeeping simplification takes **4.04%/4.60% less time** on large shared-budget
+function calls. Its source, allocation ranges and controls appear below. The public
+catalogue has 35 families; its two newest cases still have no fresh GNU ratio.
 The declared 35-family refresh at `9155dff` did not qualify: the GNU long-field case
 exceeded its existing 15-second deadline after warmup. It produced 69 timing rows,
 no allocation phase and no final quietness checks. Those partial figures are diagnostic;
@@ -69,41 +69,43 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-18 UTC: `9155dff463fbceedb19b910b1722d97ffa8b4177`
-→ `929937c037fc39927c721ebd727216575be6ade5`, identical scripts/harness, **large scale**.
+Measured 2026-10-18 UTC: runtime `929937c037fc39927c721ebd727216575be6ade5`
+→ `d6a8e587c75b8e6af90890c46b44e58f4e439aa4`, identical scripts/helper, **large scale**, public one-shot execution.
+The measured helper is now available through the opt-in `--governed-profile` command; its
+source is unchanged from the frozen experiment. Shared cases use the existing thread-safe
+512 MiB test budget. Other host budget implementations can have different costs.
 Three warmups/five iterations and two launches/source in both source orders; times are
-medians of launch medians. Allocations use all four GC observations/source, including
-the full range where readings differ; the exported final launch is not a cohort statistic.
+medians of launch medians. Allocations use all four GC observations/source, with full
+ranges. The exported final launch is not a cohort statistic; bytes are rounded here.
 
 | Workload / 65,536 records | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
 | --- | --- | ---: |
-| Unicode length/substr/output | 75.755→71.510; 76.131→70.588 | 40,822,512→40,822,512 |
-| Column-projection control | 39.232→38.918; 38.441→41.634 | 11,443,027→11,443,016 [11,443,015–11,443,027] |
-| Arithmetic-loop control | 79.370→78.748; 80.131→80.168 | 10,129,712→10,129,712 |
+| Two-argument loop, shared budget | 180.735→173.437; 182.255→173.866 | 10,152,965→10,152,965 [10,152,965–10,169,365] |
+| Same loop, default-policy control | 131.497→131.044; 131.267→130.896 | 10,151,832→10,151,832 |
+| Column projection, shared-budget control | 56.607→56.735; 54.825→53.984 | 13,540,713 [13,540,710–13,540,715]→13,540,715 [13,540,710–13,540,715] |
 
-The target takes **5.60%/7.28% less elapsed time**; all four launch-pair changes
-are 5.45–8.97%. Projection takes 0.80% less time in one order and **8.31% longer** in
-the other. Arithmetic takes 0.78% less / 0.05% longer.
-These results establish a target improvement, not an overall or cumulative gain. Every
-allocation observation is retained; no managed allocation saving is attributed to the change.
+Shared-budget calls take **4.04%/4.60% less elapsed time**; all four launch pairs take
+1.71–7.33% less. Default calls take 0.34%/0.28% less and are effectively flat;
+shared projection takes 0.23% longer /1.53% less. No overall or cumulative gain is claimed.
+The target allocation median is unchanged, but one candidate observation is **16,400 B
+higher** and retained in the range. Source review found no new allocation paths; the
+isolated reading's cause remains unproven. No managed allocation saving is claimed.
 
-Flat-text estimates now use one direct sum of existing layout constants after the original
-integer header check. The remaining arithmetic is bounded below 7 GiB, removing repeated
-checked-helper composition. Estimated bytes, cache allowances and the large-length refusal
-boundary remain identical. No new field, cache, owner, API, quota or representation.
-Windows/Linux full tests, 107 native cases, 100,014 compiled estimate/refusal outcomes,
-27 script/scale/policy combinations and 32 finite-resource rows qualify; every counter,
-admission/refund, cancellation checkpoint and output matches. Negative boundary tests
-reject an intentionally omitted component. Interpreter and regex defaults remain unchanged.
+Reserve/commit processing reuses a validated live-byte total for owner admission, peaks
+and counters, removing repeated checked sums and five net runtime lines. There is no
+new field, type, cache, owner or quota. Windows/Linux full tests, 107 native cases,
+17,164 ledger/owner/error snapshots and 27 script/scale/policy combinations agree exactly.
+Overflow/refusal order, counters, mutation preflights and actual-user refunds are preserved.
+Interpreter and regex defaults are unchanged.
 
-One pilot and one balanced confirmation used stable identities, qualified quiet gates and
-no extra measurement-window SSH login. This embedded-only comparison supplies no fresh
-GNU ratio; the separate full refresh remains unqualified and was not retried.
+One pilot and one balanced confirmation used stable identities, qualified quiet gates
+and no additional measurement-window SSH login. This embedded-only comparison supplies
+no fresh GNU ratio; the unqualified full refresh was not retried.
 
 ## Larger-input comparisons
 
 These larger-input comparisons retain their named sources/dates; they were not refreshed
-with the current medium baseline. Managed allocations for the three scoped large workloads
+with the current medium baseline. Managed allocations for the scoped workloads/policies
 appear above; the other large rows received no allocation refresh. These comparisons include source preparation and
 GNU process costs, with exact-output, quiet, identity and SSH qualification.
 
@@ -151,7 +153,7 @@ Build once, verify, then measure the affected workload and up to two contrasting
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*large*unicode*' '*WorkloadAllocationBenchmarks*large*projection*' '*WorkloadAllocationBenchmarks*large*arithmetic-loops*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --governed-profile --filter '*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
 ```
 
 For remote runs, keep one SSH connection open through precheck, measurement and postcheck.

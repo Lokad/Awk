@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
     <ProjectReference Include="..\..\src\Lokad.Awk\Lokad.Awk.csproj" />
+    <Compile Include="..\..\tests\Lokad.Awk.Tests\CooperativeTestBudget.cs" Link="CooperativeTestBudget.cs" />
   </ItemGroup>
 
 </Project>
