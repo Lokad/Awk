@@ -1,10 +1,9 @@
 # Benchmarks
 
-Lokad.Awk versus GNU awk 5.2.1, including complete output consumption. Current large
-aggregation and join take **6.48× / 4.21×** GNU elapsed time and allocate **9.93 / 41.49 MiB**.
-The latest controlled field-search improvement takes **17.52%/19.61% less time** and
-**38.17% fewer managed bytes**, with slower controls disclosed below. These results
-do not establish overall parity or a cumulative speedup.
+Lokad.Awk versus GNU awk 5.2.1, including complete output consumption. The retained
+large aggregation and join baseline takes **6.48× / 4.21×** GNU elapsed time and allocates
+**9.93 / 41.49 MiB** at `5bc8f9d`. The latest focused qualification below compares the
+host regex boundary at `5c4a21a`; it supplies no fresh GNU ratios or overall parity claim.
 
 Lokad includes parsing/compilation through `Awk.TryParse`/`Awk.ExecuteAsync` with an
 application in-memory host. GNU includes process launch, pipe I/O and native file fixtures;
@@ -69,36 +68,50 @@ Single-array reads have equal existing/new keys; the alternating control uses tw
 Field search sums `index($2,"timeout")` over alternating hits/misses with a Unicode prefix.
 GNU-marked conveniences do not imply full conformance. Confirm apparent parity on larger inputs.
 
-## Latest controlled change
+## Latest focused qualification
 
-Measured 2026-10-18 UTC: `e6cfcafd893329ed482dbbf1c5bfb9cf61d16a47`
-→ `5bc8f9dd287727ed321f4ebaba41a29a783b0653`, default interpreter/policy,
-65,536 records per case. This embedded-only comparison supplies no fresh GNU ratio.
-Three warmups/five iterations, two launches/source in both source orders; times are
-medians of launch medians. Allocations include **all five GC observations/source**
-(pilot plus four confirmation launches), with ranges where values differ.
+Measured 2026-10-18 UTC: `5bc8f9dd287727ed321f4ebaba41a29a783b0653`
+→ `5c4a21a77a7279b07c2652bba820383119b1a174`, interpreter/default limits,
+65,536 records per case. This checks the host-supplied regex boundary separately with
+the default .NET engine and optional Utf8Regex 0.2.0 adapter; newer producer adoption
+remains postponed. Both probes use the same internal command parser, executor and
+in-memory host, including parsing and output verification; public policy-wrapper overhead
+is outside this focused comparison. Three warmups/five iterations, two launches/source
+in both source orders; times are medians of launch medians. Allocations include all four GC observations,
+plus the initial pilot for unchanged projection and fallback scripts (five observations).
+Ranges disclose differing readings; these are managed bytes per complete invocation.
 
-| Workload | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
+| Mode / workload | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
 | --- | --- | ---: |
-| Literal field index search | 39.336→32.444; 40.991→32.951 | 19,229,984→11,889,802 [11,889,797.33–11,889,802.00] |
-| Unicode length/substr/output control | 62.265→64.585; 62.665→64.286 | 31,909,720→31,909,720 |
-| ASCII string operations control | 44.719→45.483; 44.868→45.441 | 16,089,389 [16,089,387.64–16,089,389.33]→16,089,492 [16,089,491.64–16,089,493.33] |
+| .NET / Fixed-width boolean match | 36.960→36.574; 36.218→36.622 | 11,014,232→11,014,328 |
+| Adapter / Fixed-width boolean match | 137.306→138.955; 137.590→138.936 | 24,724,744→24,724,928 |
+| .NET / Fixed-width captures | 156.914→159.375; 158.470→157.543 | 166,685,456→166,685,552 |
+| Adapter / Fixed-width captures | 248.518→214.968; 249.698→212.799 | 169,911,012 [169,910,928–169,911,096]→169,911,176 |
+| .NET / End-anchor semantic fallback | 36.974→36.799; 36.112→37.949 | 11,015,240→11,015,336 [11,015,329.85–11,015,336] |
+| Adapter / End-anchor semantic fallback | 36.401→36.767; 36.847→36.454 | 11,015,240→11,015,336 [11,015,329.85–11,015,336] |
+| .NET / Projection control | 38.135→38.551; 38.523→37.988 | 11,442,584 [11,442,584–11,442,595.08]→11,442,680 [11,442,680–11,442,691.08] |
+| Adapter / Projection control | 38.610→37.911; 38.128→38.173 | 11,442,584 [11,442,584–11,442,595.08]→11,442,680 |
 
-Field search takes **17.52%/19.61% less elapsed time** and **38.17% fewer managed bytes**.
-All four target launch pairs improve, ranging from 13.94% to 20.89%.
-Unicode takes 3.73%/2.59% longer; ASCII takes 1.71%/1.28% longer. Individual pairs range
-from 1.13% to 5.69% longer for Unicode and 2.59% less to 5.95% longer for ASCII.
-The pilot showed 19.46% less target time but both controls about 5.8% longer; neither
-confirmed order repeated a control loss above 4%. The causes of control costs are not isolated.
+Boolean matching uses `$0~/^[A-Z]{3}[0-9]{4}/`; captures use
+`match($0,/^([a-z]{3})([0-9]{3})/,m)` with the catalogue's input and output calculation.
+Fixed width and no end anchor let both scripts execute directly through the adapter;
+counter preflight confirms 65,536 matches without fallback or decoded-string matching.
+The fallback row retains the catalogue boolean pattern's end anchor. Original catalogue
+regex fixtures require .NET compatibility, so they alone would not measure direct adapter cost.
 
-The change avoids owned text/cache insertion for literal-needle searches on pristine fields
-up to 64 bytes. Other shapes retain ordinary evaluation. Field search and ASCII each add
-104 bytes of cold preparation scratch; Unicode allocations are unchanged. Evaluation order,
-logical fuel, UTF-8, cancellation and admission/refunds qualify; Windows/Linux pass 73,816 tests.
+Default-engine order changes range from -1.39% to +5.09% elapsed. The default fallback is
+5.09% slower in one order and 0.47% faster in the other. Direct adapter captures take
+13.50%/14.78% less time; boolean matching takes 1.20%/0.98% more. No material regression
+repeats across orders at the predeclared 4% default / 8% adapter threshold. An initial
+single-launch optional fallback reading was 8.88% slower; both confirmed orders are above.
+These measurements do not isolate the cause of control differences or promise a general gain.
+Cold handle/cache metadata accounts for bounded allocation growth; the adapter adds no
+input or capture-text copies. The default remains .NET, even for non-ASCII byte mode.
+Windows/Linux CI passes 73,837 tests per OS, and all 32 same-OS counter-report rows agree.
 
 ## Larger-input comparisons
 
-The two † rows were measured 2026-10-18 UTC at current runtime
+The two † rows were measured 2026-10-18 UTC at retained runtime
 `5bc8f9dd287727ed321f4ebaba41a29a783b0653`. Other rows retain their named sources/dates;
 an allocation dash means no allocation measurement is presented for that comparison.
 Only aggregation and join were refreshed, taking 1.73 measured minutes.
@@ -122,7 +135,7 @@ Only aggregation and join were refreshed, taking 1.73 measured minutes.
 | Field index search § / 1,120.00 / 65,536 | e6cfcaf / 2026-10-18 | 39.390 | 8.618 | 4.57× | 18.34 |
 
 The retained large field-search baseline allocates **19,229,984 managed bytes** (18.34 MiB).
-Its two scales and current aggregation/join use five warmups/nine iterations/one timing launch,
+Its two scales and retained aggregation/join use five warmups/nine iterations/one timing launch,
 plus three warmups/five iterations/one separate allocation launch. Each has one GC observation;
 no allocation range or small-difference confidence is claimed. Exact-output checks, quiet gates,
 stable identities and measurement-window SSH checks qualify. Retained rows are not fresh results.
