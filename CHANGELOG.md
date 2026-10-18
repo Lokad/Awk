@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Literal-needle `index` calls can search short pristine fields without copied input
+  or a retained field value, preserving byte/scalar positions and case rules.
+
 - Literal `substr` calls can borrow short pristine field inputs, avoiding input copies
   and temporary rune indexes while returning owned text.
 

@@ -9,9 +9,10 @@ The field-search row marked § and its larger-input comparison were measured
 2026-10-18 UTC at `e6cfcafd893329ed482dbbf1c5bfb9cf61d16a47`,
 with core runtime sources unchanged from `2a6423e`.
 
-The latest accepted short-field substring change takes **10.96%/10.74% less elapsed
-time** and **21.83% fewer managed bytes** on the large Unicode target. Its measured
-sources, allocation ranges and controls appear below. The public
+The latest accepted short-field search change takes **17.52%/19.61% less elapsed
+time** and **38.17% fewer managed bytes** on the large field-search target.
+Controls take longer; their costs, measured sources and full allocation ranges appear
+below. The first table retains its named GNU comparisons. The public
 catalogue has 36 families; two cases still have no fresh GNU ratio.
 The declared 35-family refresh at `9155dff` did not qualify: the GNU long-field case
 exceeded its existing 15-second deadline after warmup. It produced 69 timing rows,
@@ -73,48 +74,50 @@ Confirm apparent parity on larger inputs; the retained scale comparisons below a
 
 ## Latest controlled change
 
-Measured 2026-10-18 UTC: `efd5e8767756e71c8ce128b724415d0bea7a58ed`
-→ `2a6423edf8705c707607f7eaaae816447bd689b6`. Existing scripts and in-memory host, default interpreter/policy,
+Measured 2026-10-18 UTC: `e6cfcafd893329ed482dbbf1c5bfb9cf61d16a47`
+→ `5bc8f9dd287727ed321f4ebaba41a29a783b0653`. Existing scripts and in-memory host, default interpreter/policy,
 large scale (65,536 records each), including parsing/compilation and complete output
-consumption. The Unicode target prints `length($1),substr($2,1,2)`. This embedded-only
-comparison supplies no fresh GNU ratio; the first table retains its explicit revisions.
+consumption. The target sums `index($2,"timeout")` over alternating hits/misses with
+a Unicode prefix. This embedded-only comparison supplies no fresh GNU ratio.
 
 Three warmups/five iterations, two launches/source in both source orders. Times are
-medians of launch medians. Allocations include all four GC observations/source, with
+medians of launch medians. Allocations include all five GC observations/source
+(pilot plus four confirmation launches), with
 full ranges when values differ; the exported final launch is not a cohort statistic.
 
 | Workload | Median ms, before → after (two source orders) | Allocated bytes, median [range], before → after |
 | --- | --- | ---: |
-| Unicode length/substr/output | 72.147→64.239; 72.655→64.853 | 40,822,512 [40,822,512–40,829,541]→31,909,720 |
-| Column projection control | 38.755→37.887; 39.037→37.747 | 11,443,027 [11,443,016–11,443,027]→11,443,016 |
-| ASCII string operations control | 45.057→45.102; 44.089→45.174 | 16,089,284 [16,089,284–16,089,285]→16,089,388 [16,089,388–16,089,389] |
+| Literal field index search | 39.336→32.444; 40.991→32.951 | 19,229,984→11,889,802 [11,889,797.33–11,889,802.00] |
+| Unicode length/substr/output control | 62.265→64.585; 62.665→64.286 | 31,909,720→31,909,720 |
+| ASCII string operations control | 44.719→45.483; 44.868→45.441 | 16,089,389 [16,089,387.64–16,089,389.33]→16,089,492 [16,089,491.64–16,089,493.33] |
 
-Unicode processing takes **10.96%/10.74% less elapsed time** and **21.83% fewer managed
-bytes**. All four target launch-pair gains are positive, ranging from 5.92% to 15.40%.
-Projection takes 2.24%/3.31% less time; ASCII operations take 0.10%/2.46% longer
-(one launch pair is 4.36% longer). Control allocation changes stay within their allowances.
-No overall or cumulative gain is claimed.
+Field search takes **17.52%/19.61% less elapsed time** and **38.17% fewer managed
+bytes**. All four target launch pairs improve, ranging from 13.94% to 20.89%.
+Unicode takes 3.73%/2.59% longer; ASCII strings take 1.71%/1.28% longer. Individual
+control pairs vary: Unicode ranges from 1.13% to 5.69% longer; ASCII ranges from
+2.59% less time to 5.95% longer. These are measured costs, not a general speedup.
+Their cause is not isolated. No overall or cumulative gain is claimed.
 
-Eligible `substr` calls borrow pristine fields up to 64 bytes with literal numeric
-positions and return owned UTF-8 text. They avoid the whole-field input copy and
-temporary rune index. Larger, modified, cached, pending and executable-engine cases
-retain ordinary evaluation. Fuel, argument order, UTF-8/byte behavior, cancellation,
-mutation preflights and shared-budget refunds remain qualified.
+Literal-needle `index` calls borrow pristine positive fields up to 64 bytes and return
+numeric positions. They avoid an owned input and field-cache insertion, reusing the
+substring path's metadata and existing case/search logic. The runtime change adds 32
+net lines across four files and one physical counter. Other shapes, cached/modified/
+long fields, lint/diagnostic modes and the executable engine retain ordinary evaluation.
 
-The target and ASCII control each add 104 bytes of temporary program-preparation
-scratch; this is included above. One baseline GC observation is 7,029 bytes higher
-than the other three (0.017%); its cause remains unproven after a bounded log audit.
-The full range is retained, and the minimum baseline still gives a 21.83% allocation reduction.
+The target and ASCII control each add 104 bytes of temporary preparation scratch.
+Unicode allocations are unchanged. Logical fuel, evaluation/effect order, scalar/byte
+positions, UTF-8, cancellation, value limits and fatal admission/refunds qualify.
+Windows/Linux pass 73,816 tests; native comparisons agree for 110 cases/source plus
+three new goldens. All 27 script/scale/policy rows preserve logical work/effects;
+physical counters verify avoided copies and unchanged controls. The existing 32-row
+counter report is unchanged. Interpreter/regex defaults and package pins remain.
 
-Windows/Linux pass 73,765 tests, 107 native comparisons/source plus two new goldens,
-and 30 stack probes/source. All 27 script/scale/policy rows preserve logical work/effects;
-physical counters verify avoided copies/indexes and existing control paths. The 32
-counter-report rows are unchanged. Interpreter/regex defaults and package pins remain.
-
-One pilot and one balanced confirmation used stable identities, qualified quiet gates
-and no extra measurement-window SSH login. The baseline refused its initial pilot
-admission before any samples; one delayed admission passed. Candidate samples were
-unchanged, and no measured sample was replaced. The full refresh was not retried.
+The single pilot showed 19.46% less target time but both controls about 5.8% longer.
+That concern remained in the acceptance decision: another control-order loss above
+4% would reject the candidate. Neither confirmed order repeated it. All pilot and
+confirmation observations remain in local evidence. Quiet gates, source/binary
+identities and measurement-window SSH checks pass; no admission retry, source
+variant, replacement sample or full-baseline refresh was used.
 
 ## Larger-input comparisons
 
@@ -141,7 +144,7 @@ GNU process costs, with exact-output, quiet, identity and SSH qualification.
 | Long fields / 16,408.00 / 4,096 | 7ad867d / 2026-10-16 | 13.349 | 16.624 | 0.80× |
 | Field index search § / 1,120.00 / 65,536 | e6cfcaf / 2026-10-18 | 39.390 | 8.618 | 4.57× |
 
-The current large field-search baseline allocates **19,229,984 managed bytes**
+At `e6cfcaf`, the large field-search baseline allocates **19,229,984 managed bytes**
 (18.34 MiB) per invocation. Both field-search scales use five warmups/nine iterations/one
 timing launch and a separate three-warmup/five-iteration allocation launch. Each scale has
 one GC observation; no allocation range or optimization gain is inferred. All 110 native
