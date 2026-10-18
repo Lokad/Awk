@@ -1003,11 +1003,11 @@ internal sealed class AwkVariables
         }
     }
 
-    private static long EstimateArrayBytes(IReadOnlyDictionary<AwkArrayKey, AwkVariableSlot> values)
+    internal static long EstimateArrayBytes(IReadOnlyDictionary<AwkArrayKey, AwkVariableSlot> values)
     {
         var bytes = 0L;
         foreach (var pair in values)
-            bytes += EstimateElementBytes(pair.Key, pair.Value);
+            bytes = AwkRuntimeMemory.CheckedAdd(bytes, EstimateElementBytes(pair.Key, pair.Value));
 
         return bytes;
     }

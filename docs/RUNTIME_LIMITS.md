@@ -47,7 +47,8 @@ it. This adds 32 bytes of minor metadata per execution, under the existing coars
 Stdout printf can reuse admitted output capacity; format failures discard unpublished bytes.
 Redirection retains staging. Reduced overlapping storage can relax optional memory thresholds.
 
-Memory failures preflight before observable mutation. Staging admits overlapping old/new
+Memory failures preflight before observable mutation. Unrepresentable array memory totals
+fail with the memory-limit diagnostic. Staging admits overlapping old/new
 storage, so a final result can fit while its construction peak does not. Earlier state/output
 survives; preflight does not roll back prior script or host effects. Array deletion refunds
 retained keys and values. Byte/memory refusal uses `awk: memory limit exceeded`; other limits

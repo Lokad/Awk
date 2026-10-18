@@ -45,6 +45,9 @@ does not authorize a running command to recover from refusal.
 `AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
 mutation refusal/cancellation and refunds using finite quotas and a shared host budget.
 
+`AwkArrayEstimateTests` covers representable/overflow totals with lazy text and verifies
+array replacement preflights and refunds without constructing enormous dictionaries.
+
 `AwkConcatStagingTests` covers small/wide and suspended concatenations, operand ordering,
 prefix lifetime during nested work, cancellation, refused result admission and refunds.
 `AwkConcatAllocationTests` bounds argument-staging allocations after warmup.

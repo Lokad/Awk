@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Array memory totals reject arithmetic overflow with the existing memory-limit diagnostic.
+
 - Short completed concatenations avoid pooled argument staging; pending or wider expressions
   retain their existing continuation and buffer ownership.
 
