@@ -998,7 +998,25 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(expectedOutput, executable.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(64, interpreter.Counters.ConcatenationBytesCopied);
         Assert.Equal(64, executable.Counters.ConcatenationBytesCopied);
+        Assert.Equal(1, interpreter.Counters.ConcatenationArgumentBufferRents);
+        Assert.Equal(0, executable.Counters.ConcatenationArgumentBufferRents);
         Assert.Equal(0, executable.Counters.VmFallbackCalls);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task ParsedShortConcatenationAvoidsArgumentPool(AwkExecutionEngineKind engine)
+    {
+        var result = await RunAsync(["{s=\"[\" $0 \":\" NR \"]\";total+=length(s)} END{print total}"],
+            "id\nid\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("12\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, result.Counters.ConcatenationArgumentBufferRents);
+        Assert.Equal(12, result.Counters.ConcatenationBytesCopied);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
     [Fact]

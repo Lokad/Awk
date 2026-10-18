@@ -22,25 +22,37 @@ internal abstract partial class AwkExpression
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var formattedParts = ArrayPool<AwkText>.Shared.Rent(_parts.Length);
+            var rented = _parts.Length > 8 ? RentParts(context) : null;
+            // Short completed expressions keep references on the managed stack. Pending
+            // operands transfer the evaluated prefix to the existing continuation owner.
+            Span<AwkText> formattedParts = rented is { } buffer ? buffer.AsSpan() :
+                [AwkText.Empty, AwkText.Empty, AwkText.Empty, AwkText.Empty,
+                 AwkText.Empty, AwkText.Empty, AwkText.Empty, AwkText.Empty];
             try
             {
                 for (var index = 0; index < _parts.Length; index++)
                 {
                     var pending = _parts[index].EvaluateAsync(context);
                     if (!pending.IsCompletedSuccessfully)
-                        return EvaluateRemainingAsync(context, formattedParts, index, pending);
+                    {
+                        if (rented is null)
+                        {
+                            rented = RentParts(context);
+                            formattedParts[..index].CopyTo(rented);
+                        }
+                        return EvaluateRemainingAsync(context, rented, index, pending);
+                    }
 
                     formattedParts[index] = context.State.FormatStringByteText(pending.Result);
                 }
 
                 var result = CreateValue(context, formattedParts);
-                ReturnParts(formattedParts);
+                ReturnParts(rented);
                 return ValueTask.FromResult(result);
             }
             catch
             {
-                ReturnParts(formattedParts);
+                ReturnParts(rented);
                 throw;
             }
 
@@ -69,15 +81,25 @@ internal abstract partial class AwkExpression
             }
         }
 
-        private AwkValue CreateValue(AwkEvaluationContext context, AwkText[] formattedParts) =>
+        private AwkValue CreateValue(AwkEvaluationContext context, ReadOnlySpan<AwkText> formattedParts) =>
             context.State.CreateDeferredTextValue(AwkText.Concat(
-                formattedParts.AsSpan(0, _parts.Length),
+                formattedParts[.._parts.Length],
                 context.State.Counters,
                 context.State.MemoryAccounting,
                 context.State.CancellationCheckpoint));
 
-        private static void ReturnParts(AwkText[] formattedParts) =>
-            ArrayPool<AwkText>.Shared.Return(formattedParts, clearArray: true);
+        private AwkText[] RentParts(AwkEvaluationContext context)
+        {
+            var parts = ArrayPool<AwkText>.Shared.Rent(_parts.Length);
+            context.State.Counters.RecordConcatenationArgumentBufferRent();
+            return parts;
+        }
+
+        private static void ReturnParts(AwkText[]? formattedParts)
+        {
+            if (formattedParts is not null)
+                ArrayPool<AwkText>.Shared.Return(formattedParts, clearArray: true);
+        }
 
         internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
         {
