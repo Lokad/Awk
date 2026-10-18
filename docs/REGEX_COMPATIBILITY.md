@@ -1,14 +1,13 @@
 # AWK Regex Compatibility Matrix
 
-This matrix records the compatibility contract for the byte-native regex adapter rollout.
-The default string compatibility path remains `System.Text.RegularExpressions`, while
-`AwkRegexEngineKind.Utf8Adapter` and byte-mode non-ASCII matching route `AwkText` input through
-`Lokad.Utf8Regex`. `AwkRegexEngineKind.DotNetCompatibility` remains the default engine target.
+This document records Awk pattern semantics and the optional UTF-8 engine boundary.
 
-The former byte-mode non-ASCII hard failure has been removed for valid UTF-8 input. Regex
-matching, `match()`, regex `FS`/`RS`, `patsplit`, `sub`, `gsub`, and `gensub` now have adapter
-coverage in the `AwkText` runtime flow. The .NET string engine remains the compatibility route
-when configured explicitly and for documented UTF-8 adapter pattern gaps.
+The core package uses .NET compatibility by default and has no Utf8Regex dependency.
+Applications select an `IAwkRegexEngine` with `AwkExecutionPolicy.WithRegexEngine`.
+The optional `Lokad.Awk.Utf8Regex` package supplies `AwkUtf8RegexEngine.Instance`, pinned
+to producer 0.2.0; adopting a newer producer remains a separate qualification decision.
+Valid UTF-8 works in byte mode with either choice. The default converts .NET match positions
+to UTF-8 byte coordinates; it no longer selects a producer implicitly for non-ASCII input.
 
 IGNORECASE's effects are enabled only in GNU/default mode. POSIX and traditional modes
 keep the assigned value visible but force case-sensitive regex matching and separators.
@@ -274,26 +273,22 @@ expression back into a direct literal-pattern operand.
 | Timeout/cancellation | Compile/match/replace/enumeration must observe timeout/cancellation | .NET timeout plus runtime cancellation checks | Adapter must expose timeout or bounded execution hooks and preserve cancellation checkpoints |
 | Invalid UTF-8 | Ingress and regex-produced text remain valid UTF-8 | Validate match/capture boundaries before encoding or slicing | Validate backend byte alignment before slicing or copying |
 
-## Candidate Policy
+## Supplying an engine
 
-`Lokad.Utf8Regex` is the first byte-native adapter because the core package is net10.0-oriented,
-span-based, and exposes byte-coordinate matching/enumeration plus replacement/split APIs and
-timeout support. This does not make it semantically equivalent to AWK: the core package follows
-.NET regex semantics, so awk ERE translation remains a required compatibility layer.
+`IAwkRegexEngine.TryCompile` receives the translated pattern, invariant case setting,
+timeout, current checkpoint and borrowed active memory budget. False means unsupported
+syntax and allows the existing .NET semantic fallback. Refused admission must throw
+`AwkRegexAdmissionException`; timeout and cancellation must fail, never request fallback.
 
-`Lokad.Utf8Regex.PythonRe` is not a default candidate: AWK is not Python `re`, and adopting
-Python semantics would add mismatches without evidence. `Lokad.Utf8Regex.Pcre2` remains an
-optional candidate only if a separate golden-corpus comparison shows that PCRE2-style
-translation is closer to GNU awk than the core .NET-style engine.
+Compiled handles consume valid UTF-8 spans synchronously and fill caller-owned capture
+ranges in byte/UTF-16 coordinates. They retain no input, capture span or checkpoint.
+Awk validates published ranges and scalar boundaries. Translation, longest/capture
+selection, replacement and zero-width progression remain in Awk; engines do not replace
+those policies. The application owns the engine; execution caches own compiled handles,
+dispose evicted entries and release remaining handles at cleanup. Cache contents are
+isolated per execution/engine, including runs of the same prepared program.
 
-## Default Policy
-
-`DotNetCompatibility` remains the default regex engine until the adapter has enough release
-evidence to change the default without surprising compatibility shifts. `Utf8Adapter` is the
-stable opt-in byte-native mode, and byte-mode non-ASCII `AwkText` operations route to the adapter
-so byte offsets remain meaningful for valid UTF-8 input.
-
-Current adapter evidence: regex golden cases pass in `Utf8Adapter`; byte-mode valid
+Existing adapter evidence: regex golden cases pass with the optional engine; byte-mode valid
 UTF-8 matching has tests for non-ASCII input, byte `RSTART`/`RLENGTH`, capture array
 `start`/`length`, regex `FS`/`RS`, `patsplit`, separator arrays, `sub`, `gsub`, `gensub`, and
 replacement expansion. Remaining compatibility gaps should be tracked as specific pattern

@@ -136,7 +136,7 @@ public sealed class AwkRangeParagraphTests
     {
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, backend, AwkExecutionEngineKind.Interpreter);
+            new AwkRandomGenerator(), counters, limits, backend, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
     }
 }

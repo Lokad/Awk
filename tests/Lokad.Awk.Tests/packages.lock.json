@@ -105,6 +105,13 @@
           "Lokad.Utf8Regex": "[0.2.0, )"
         }
       },
+      "lokad.awk.utf8regex": {
+        "type": "Project",
+        "dependencies": {
+          "Lokad.Awk": "[0.3.0, )",
+          "Lokad.Utf8Regex": "[0.2.0, )"
+        }
+      },
       "Lokad.Parsing": {
         "type": "CentralTransitive",
         "requested": "[1.1.0, )",

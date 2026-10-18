@@ -91,7 +91,7 @@ internal static class AwkRuntime
                 initialSeparator = AwkFieldSeparatorSpec.Default;
                 break;
             }
-        var state = new AwkRuntimeState(
+        using var state = new AwkRuntimeState(
             initialSeparator,
             cancellationToken,
             runtimeOptions,

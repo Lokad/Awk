@@ -218,7 +218,7 @@ public sealed class AwkSnapshotKeyResourceTests
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(MemoryLimit)
-                .WithMaxIdentifierBytes(16_384), AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter);
+                .WithMaxIdentifierBytes(16_384), AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         state.SetArrayString(AwkArrayName.FromText("PROCINFO"), new AwkArrayKey("sorted_in"), selector);
         if (source == "symbols")

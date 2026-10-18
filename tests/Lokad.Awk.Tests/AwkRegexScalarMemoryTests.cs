@@ -159,6 +159,6 @@ public sealed class AwkRegexScalarMemoryTests
         return new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             static () => { }, AwkRuntimeCounters.Disabled,
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            new AwkRuntimeResourceMonitor(limits, AwkRuntimeCounters.Disabled), governor);
+            new AwkRuntimeResourceMonitor(limits, AwkRuntimeCounters.Disabled), governor, regexEngine: AwkUtf8RegexEngine.Instance);
     }
 }

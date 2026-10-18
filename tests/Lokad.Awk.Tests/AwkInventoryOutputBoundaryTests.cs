@@ -326,7 +326,7 @@ public sealed class AwkInventoryOutputBoundaryTests
     {
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20),
-            AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options);
     }
 }

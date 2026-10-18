@@ -114,7 +114,7 @@ public sealed class AwkRegexDialectMemoryTests
             new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, () => { },
                 AwkRuntimeCounters.Disabled, utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
                 new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault().WithMaxRegexCacheBytes(partition * 5),
-                    AwkRuntimeCounters.Disabled), governor);
+                    AwkRuntimeCounters.Disabled), governor, regexEngine: AwkUtf8RegexEngine.Instance);
         var exact = WithCacheBudget(bytes);
         var cached = exact.Create(new AwkRegexPattern(text));
         Assert.Same(cached, exact.Create(new AwkRegexPattern(text)));
@@ -212,5 +212,5 @@ public sealed class AwkRegexDialectMemoryTests
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint,
             AwkRuntimeCounters.Disabled,
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled), governor);
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled), governor, regexEngine: AwkUtf8RegexEngine.Instance);
 }

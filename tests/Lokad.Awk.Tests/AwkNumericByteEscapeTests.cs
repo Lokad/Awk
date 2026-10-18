@@ -182,10 +182,10 @@ public sealed class AwkNumericByteEscapeTests
         AwkRuntimeLimits limits, AwkMemoryAccounting? governor = null) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             static () => { }, counters, utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            new AwkRuntimeResourceMonitor(limits, counters), governor, (AwkCompatibilityMode)profile);
+            new AwkRuntimeResourceMonitor(limits, counters), governor, (AwkCompatibilityMode)profile, regexEngine: AwkUtf8RegexEngine.Instance);
 
     private static AwkRuntimeOptions Options(AwkRuntimeLimits limits, bool counters) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled, limits,
-            AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
 }

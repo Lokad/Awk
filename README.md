@@ -87,8 +87,10 @@ typed regex values and indirect calls remain unsupported; see the
 [compatibility matrix](docs/COMPATIBILITY_MATRIX.md).
 
 The interpreter remains the default engine. The opt-in executable engine uses explicit interpreter
-fallbacks for unsupported shapes. DotNetCompatibility remains the regex default, with
-documented [backend differences](docs/REGEX_COMPATIBILITY.md); newer Utf8Regex adoption is postponed.
+fallbacks for unsupported shapes. Regex defaults to .NET compatibility, with
+documented [backend differences](docs/REGEX_COMPATIBILITY.md). Applications can supply an
+`IAwkRegexEngine` through `policy.WithRegexEngine(engine)`; the optional `Lokad.Awk.Utf8Regex`
+package provides `AwkUtf8RegexEngine.Instance`. Newer producer adoption remains postponed.
 
 Current representative throughput, GNU comparison and managed allocations are maintained in
 [benchmarks](docs/BENCHMARKS.md). CI builds and tests on Windows and Linux.
@@ -122,4 +124,4 @@ Detailed runtime contracts live in:
 ## Dependencies
 
 - `Lokad.Parsing` for tokenization and parser infrastructure
-- `Lokad.Utf8Regex` for strict UTF-8 regex matching and byte-coordinate adapter paths
+- Regex uses .NET by default; `Lokad.Utf8Regex` is only a dependency of the optional adapter.

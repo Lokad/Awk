@@ -255,7 +255,7 @@ public sealed class AwkParagraphEofTests
         host.EnqueueAwkReadResult(AwkReadResult.FromContent("\n\n\n\n\n\n\n\n"u8.ToArray(), [1, 2, 3, 4, 5, 6, 7], AwkReadCompletion.EndOfFile));
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(12).WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter);
+            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         state.AssignVariableValue(AwkVariableName.FromText("RT"), AwkValue.FromText(AwkText.FromSourceLiteralString("marker")));
@@ -322,5 +322,5 @@ public sealed class AwkParagraphEofTests
     private static AwkRuntimeOptions Options(AwkRuntimeCounters counters, int engine) =>
         new(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
-            AwkRegexEngineKind.Utf8Adapter, (AwkExecutionEngineKind)engine);
+            AwkRegexEngineKind.Utf8Adapter, (AwkExecutionEngineKind)engine, regexEngine: AwkUtf8RegexEngine.Instance);
 }

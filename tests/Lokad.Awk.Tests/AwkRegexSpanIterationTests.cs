@@ -60,5 +60,5 @@ public sealed class AwkRegexSpanIterationTests
         AwkStringUnitMode.Utf8Rune,
         static () => { },
         counters,
-        adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility);
+        adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility, regexEngine: AwkUtf8RegexEngine.Instance);
 }

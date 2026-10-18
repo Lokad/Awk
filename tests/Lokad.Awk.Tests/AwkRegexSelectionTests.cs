@@ -12,7 +12,7 @@ public sealed class AwkRegexSelectionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var sensitivity = AwkRegexCaseSensitivity.CaseSensitive;
         var runtime = new AwkRegexRuntime(() => sensitivity, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, engine);
+            static () => { }, counters, engine, regexEngine: AwkUtf8RegexEngine.Instance);
         const string pattern = "^(SKU)([[:alpha:]]+)([0-9]+)$";
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         var equalText = new string(pattern.ToCharArray());
@@ -207,7 +207,7 @@ public sealed class AwkRegexSelectionTests
             AwkStringUnitMode.Utf8Rune, () =>
             {
                 if (counters.RegexMatches == 1 && ++checksDuringMatch == 2) Thread.Sleep(2100);
-            }, counters, AwkRegexEngineKind.Utf8Adapter);
+            }, counters, AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("(a+)+b|c"));
         var error = Assert.Throws<AwkRuntimeException>(() =>
             runtime.MatchSpan(regex, AwkText.FromString(new string('a', 100_000))));
@@ -225,7 +225,7 @@ public sealed class AwkRegexSelectionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested,
-            counters, AwkRegexEngineKind.Utf8Adapter);
+            counters, AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("a|aa"));
         cancellation.Cancel();
 
@@ -253,5 +253,5 @@ public sealed class AwkRegexSelectionTests
     private static AwkRegexRuntime Runtime(AwkRegexEngineKind engine, AwkRuntimeCounters counters,
         AwkRuntimeLimits limits, AwkStringUnitMode units = AwkStringUnitMode.Utf8Rune) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, units, static () => { }, counters, engine,
-            new AwkRuntimeResourceMonitor(limits, counters));
+            new AwkRuntimeResourceMonitor(limits, counters), regexEngine: AwkUtf8RegexEngine.Instance);
 }

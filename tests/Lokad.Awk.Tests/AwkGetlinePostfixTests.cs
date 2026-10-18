@@ -22,7 +22,7 @@ public sealed class AwkGetlinePostfixTests
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
+            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
 
         if (executable && testCase.ExpectedExitCode != 0)
         {

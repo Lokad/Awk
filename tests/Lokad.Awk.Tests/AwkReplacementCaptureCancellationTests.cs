@@ -231,9 +231,16 @@ public sealed class AwkReplacementCaptureCancellationTests
             if (!utf8)
                 return AwkRegexMatch.FromMatch(new Regex("(a+)").Match(input), input, 0, input.Length,
                     coordinates, AwkRegexCapturePlan.All, AwkRuntimeLimits.Unlimited, counters, governor, checkpoint: callback);
-            var match = new Lokad.Utf8Regex.Utf8Regex("(a+)").MatchDetailedFromUtf16Offset(Encoding.UTF8.GetBytes(input), 0);
-            return AwkRegexMatch.FromUtf8Match(match, coordinates, AwkRegexCapturePlan.All,
-                AwkRuntimeLimits.Unlimited, counters, governor, callback);
+            Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("(a+)", false,
+                TimeSpan.FromSeconds(1), null, static () => { }, out var pattern));
+            using (pattern)
+            {
+                var bytes = Encoding.UTF8.GetBytes(input);
+                Span<AwkRegexCaptureRange> ranges = stackalloc AwkRegexCaptureRange[2];
+                var whole = pattern.Match(bytes, 0, ranges, static () => { });
+                return AwkRegexMatch.FromProvidedMatch(whole, bytes, ranges, AwkRegexSearchOffset.Start,
+                    coordinates, AwkRuntimeLimits.Unlimited, counters, governor, callback);
+            }
         }
         var error = Assert.Throws<OperationCanceledException>(() => { using var match = Build(checkpoint); });
         Assert.Equal(cancellation.Token, error.CancellationToken);
@@ -315,7 +322,7 @@ public sealed class AwkReplacementCaptureCancellationTests
             {
                 if (counters.RegexGroupsMaterialized > 0) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
-            }, counters, engine, new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), governor);
+            }, counters, engine, new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         Assert.Throws<OperationCanceledException>(() =>
         {
@@ -336,7 +343,7 @@ public sealed class AwkReplacementCaptureCancellationTests
         using var cancellation = new CancellationTokenSource();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter));
+                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance));
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var replacement = AwkText.FromString(new string('x', LongText))
             .Concat(AwkText.FromString("&"), counters, state.MemoryAccounting);

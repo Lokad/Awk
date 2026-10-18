@@ -1,7 +1,6 @@
 using System;
 using System.Text;
 using System.Text.RegularExpressions;
-using Utf8RegexEngine = Lokad.Utf8Regex.Utf8Regex;
 
 namespace Lokad.Awk;
 
@@ -72,16 +71,15 @@ internal sealed class AwkRegex
             hasFixedCaseSensitivity, selection, erePattern, checkpoint);
     }
 
-    internal static AwkRegex CreateUtf8(
+    internal static AwkRegex CreateProvided(
         string translatedPattern,
         AwkRegexCaseSensitivity caseSensitivity,
+        IReadOnlyList<string> groupNames,
         bool hasFixedCaseSensitivity = false,
         AwkRegexSelection? selection = null, string? erePattern = null, Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        var compiled = new Utf8RegexEngine(translatedPattern, ResolveOptions(caseSensitivity), MatchTimeout);
-        checkpoint?.Invoke();
-        return new AwkRegex(translatedPattern, AwkRegexBackend.Utf8(caseSensitivity, compiled),
+        return new AwkRegex(translatedPattern, new AwkProvidedRegexBackend(caseSensitivity, groupNames.ToArray()),
             hasFixedCaseSensitivity, selection, erePattern, checkpoint);
     }
 
@@ -446,8 +444,7 @@ internal abstract record AwkRegexBackend(AwkRegexCaseSensitivity SeedCaseSensiti
     public static AwkRegexBackend DotNet(AwkRegexCaseSensitivity caseSensitivity, Regex value) =>
         new AwkDotNetRegexBackend(caseSensitivity, value);
 
-    public static AwkRegexBackend Utf8(AwkRegexCaseSensitivity caseSensitivity, Utf8RegexEngine value) =>
-        new AwkUtf8RegexBackend(caseSensitivity, value);
+    public abstract IReadOnlyList<string> GroupNames { get; }
 }
 
 internal sealed record AwkDotNetRegexBackend : AwkRegexBackend
@@ -461,17 +458,19 @@ internal sealed record AwkDotNetRegexBackend : AwkRegexBackend
     public Regex Value { get; }
 
     public override int GroupCount => Value.GetGroupNumbers().Length;
+
+    public override IReadOnlyList<string> GroupNames => Value.GetGroupNames();
 }
 
-internal sealed record AwkUtf8RegexBackend : AwkRegexBackend
+internal sealed record AwkProvidedRegexBackend : AwkRegexBackend
 {
-    public AwkUtf8RegexBackend(AwkRegexCaseSensitivity seedCaseSensitivity, Utf8RegexEngine value)
+    public AwkProvidedRegexBackend(AwkRegexCaseSensitivity seedCaseSensitivity, string[] groupNames)
         : base(seedCaseSensitivity)
     {
-        Value = value;
+        GroupNames = groupNames;
     }
 
-    public Utf8RegexEngine Value { get; }
+    public override IReadOnlyList<string> GroupNames { get; }
 
-    public override int GroupCount => Value.GetGroupNumbers().Length;
+    public override int GroupCount => GroupNames.Count;
 }

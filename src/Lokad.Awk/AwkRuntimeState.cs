@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkRuntimeState
+internal sealed class AwkRuntimeState : IDisposable
 {
     private static readonly AwkArrayName ArgumentVectorArrayName =
         AwkArrayName.FromText(AwkSpecialVariables.Name(AwkSpecialVariableId.ArgumentVector));
@@ -111,61 +111,70 @@ internal sealed class AwkRuntimeState
             resources,
             MemoryAccounting,
             CompatibilityMode,
-            ReportRegexUnicodeWarning, regexEscapeWarnings);
-        _stringRuntime = new AwkStringRuntime(stringUnitMode, Resources.RecordByteWork, CancellationCheckpoint);
-        _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryAccounting,
-            CompatibilityMode, CancellationCheckpoint);
-        _fieldSplitter = new AwkFieldSplitter(
-            fieldSeparator,
-            _regexRuntime.Create,
-            _regexRuntime.CreateLiteral,
-            EnumerateRegexMatchSpans,
-            ResolveRegexCaseSensitivity,
-            stringUnitMode,
-            ThrowIfCancellationRequested,
-            MemoryAccounting,
-            Counters,
-            Resources.RecordByteWork,
-            CompatibilityMode,
-            _regexRuntime.ResetWarningSite);
-        _recordFields = new AwkRecordFieldRuntime(
-            _fieldSplitter,
-            CreateStringValue,
-            CreateByteTextValue,
-            CreateNumericStringValue,
-            FormatStringByteText,
-            ResolveOutputFieldSeparator,
-            () => ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator).ByteLength == 0
-                ? AwkRecordFieldSplittingMode.Paragraph
-                : AwkRecordFieldSplittingMode.Ordinary,
-            Counters,
-            MemoryAccounting,
-            Limits.MaxFields,
-            Resources.ThrowIfValueBytesExceeded,
-            Resources.RecordByteWork,
-            CancellationCheckpoint);
-        recordFields = _recordFields;
-        _specialVariables = new AwkSpecialVariableDispatcher(
-            _variables,
-            _fieldSplitter,
-            FormatStringByteText,
-            RecordSpecialVariableAssignment,
-            MemoryAccounting,
-            CompatibilityMode,
-            CancellationCheckpoint,
-            ValidateRecordSeparator);
-        specialVariables = _specialVariables;
-        _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables, CancellationCheckpoint);
-        _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
-        _specialVariables.InitializeScalars(fieldSeparator);
-        _recordNumberSlot = _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordNumber));
-        _fileRecordNumberSlot = _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.FileRecordNumber));
-        _ignoreCaseSlot = CompatibilityMode == AwkCompatibilityMode.GnuDefault
-            ? _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.IgnoreCase))
-            : default;
-        _recordSeparatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
-        _recordSeparatorCaseSensitivity = ResolveRegexCaseSensitivity();
-        _variables.CaptureScalarMemoryBaseline();
+            ReportRegexUnicodeWarning, regexEscapeWarnings, runtimeOptions.RegexEngine,
+            runtimeOptions.MemoryOwner.IsEnabled ? runtimeOptions.MemoryOwner.Scope : runtimeOptions.MemoryBudget);
+        try
+        {
+            _stringRuntime = new AwkStringRuntime(stringUnitMode, Resources.RecordByteWork, CancellationCheckpoint);
+            _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryAccounting,
+                CompatibilityMode, CancellationCheckpoint);
+            _fieldSplitter = new AwkFieldSplitter(
+                fieldSeparator,
+                _regexRuntime.Create,
+                _regexRuntime.CreateLiteral,
+                EnumerateRegexMatchSpans,
+                ResolveRegexCaseSensitivity,
+                stringUnitMode,
+                ThrowIfCancellationRequested,
+                MemoryAccounting,
+                Counters,
+                Resources.RecordByteWork,
+                CompatibilityMode,
+                _regexRuntime.ResetWarningSite);
+            _recordFields = new AwkRecordFieldRuntime(
+                _fieldSplitter,
+                CreateStringValue,
+                CreateByteTextValue,
+                CreateNumericStringValue,
+                FormatStringByteText,
+                ResolveOutputFieldSeparator,
+                () => ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator).ByteLength == 0
+                    ? AwkRecordFieldSplittingMode.Paragraph
+                    : AwkRecordFieldSplittingMode.Ordinary,
+                Counters,
+                MemoryAccounting,
+                Limits.MaxFields,
+                Resources.ThrowIfValueBytesExceeded,
+                Resources.RecordByteWork,
+                CancellationCheckpoint);
+            recordFields = _recordFields;
+            _specialVariables = new AwkSpecialVariableDispatcher(
+                _variables,
+                _fieldSplitter,
+                FormatStringByteText,
+                RecordSpecialVariableAssignment,
+                MemoryAccounting,
+                CompatibilityMode,
+                CancellationCheckpoint,
+                ValidateRecordSeparator);
+            specialVariables = _specialVariables;
+            _variableRuntime = new AwkVariableRuntime(_variables, _functions, _specialVariables, CancellationCheckpoint);
+            _arrayRuntime = new AwkArrayRuntime(this, _variables, _variableRuntime, _fieldSplitter);
+            _specialVariables.InitializeScalars(fieldSeparator);
+            _recordNumberSlot = _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordNumber));
+            _fileRecordNumberSlot = _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.FileRecordNumber));
+            _ignoreCaseSlot = CompatibilityMode == AwkCompatibilityMode.GnuDefault
+                ? _variables.GetOrCreateScalarSlot(AwkSpecialVariables.VariableName(AwkSpecialVariableId.IgnoreCase))
+                : default;
+            _recordSeparatorText = ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator);
+            _recordSeparatorCaseSensitivity = ResolveRegexCaseSensitivity();
+            _variables.CaptureScalarMemoryBaseline();
+        }
+        catch
+        {
+            _regexRuntime.Dispose();
+            throw;
+        }
 
         AwkFormatString ResolveFormatVariable(AwkFormattingVariable variable) =>
             new(ResolveSpecialVariableText(AwkFormattingVariableFacts.SpecialVariableId(variable)));
@@ -1314,4 +1323,5 @@ internal sealed class AwkRuntimeState
         AwkEvaluationContext context) =>
         _arrayRuntime.SnapshotKeyValuesAsync(name, context);
 
+    public void Dispose() => _regexRuntime.Dispose();
 }

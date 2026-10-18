@@ -251,7 +251,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
                     throw new OperationCanceledException();
             },
             AwkRuntimeCounters.Disabled,
-            AwkRegexEngineKind.Utf8Adapter);
+            AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("a"));
         var input = AwkText.FromString(new string('a', 32));
         enumerating = true;
@@ -281,7 +281,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             counters,
             AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.Utf8Adapter,
-            AwkExecutionEngineKind.Interpreter);
+            AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
         var input = new string('a', 64);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
@@ -1266,12 +1266,12 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
                 useUtf8Adapter
                     ? AwkRegexEngineKind.Utf8Adapter
                     : AwkRegexEngineKind.DotNetCompatibility,
-                AwkExecutionEngineKind.Interpreter));
+                AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance));
         // Prepare outside the capture-only budget. Runtime scalar preparation has
         // its own admission tests and can require more memory than one match payload.
         var preparation = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled,
-            useUtf8Adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility);
+            useUtf8Adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = preparation.Create(new AwkRegexPattern("."));
         var input = AwkText.FromString(text);
 

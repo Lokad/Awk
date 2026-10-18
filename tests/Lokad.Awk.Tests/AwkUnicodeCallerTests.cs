@@ -199,5 +199,5 @@ public sealed class AwkUnicodeCallerTests
         new AwkRandomGenerator(), counters ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
         limits ?? AwkRuntimeLimits.CreateDefault(),
         utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-        executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
+        executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
 }

@@ -11,15 +11,17 @@ internal sealed class AwkBoundedCache<TKey, TValue>
     private readonly long _maxWeight;
     private readonly Dictionary<TKey, CacheEntry> _entries = [];
     private readonly LinkedList<TKey> _recency = [];
+    private readonly Action<TValue>? _release;
     private long _weight;
 
-    public AwkBoundedCache(int capacity, long maxWeight = long.MaxValue)
+    public AwkBoundedCache(int capacity, long maxWeight = long.MaxValue, Action<TValue>? release = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxWeight);
 
         _capacity = capacity;
         _maxWeight = maxWeight;
+        _release = release;
     }
 
     public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value)
@@ -57,6 +59,7 @@ internal sealed class AwkBoundedCache<TKey, TValue>
             _recency.AddLast(existing.RecencyNode);
             _entries[key] = new CacheEntry(value, existing.RecencyNode, weight);
             _weight = nextWeight;
+            if (_release is not null && !ReferenceEquals(existing.Value, value)) _release(existing.Value);
             return true;
         }
 
@@ -89,8 +92,18 @@ internal sealed class AwkBoundedCache<TKey, TValue>
 
             _recency.Remove(leastRecent);
             _weight -= removed.Weight;
+            _release?.Invoke(removed.Value);
             return true;
         }
+    }
+
+    public void Clear()
+    {
+        if (_release is not null)
+            foreach (var entry in _entries.Values) _release(entry.Value);
+        _entries.Clear();
+        _recency.Clear();
+        _weight = 0;
     }
 
     private readonly record struct CacheEntry(

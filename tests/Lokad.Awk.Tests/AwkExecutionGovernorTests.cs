@@ -128,7 +128,7 @@ public sealed class AwkExecutionGovernorTests
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(3), regexEngine,
-            AwkExecutionEngineKind.Interpreter);
+            AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new AwkRegexPattern("z"));
 

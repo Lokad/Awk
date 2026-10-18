@@ -230,7 +230,7 @@ public sealed class AwkRegexPreparationCancellationTests
                 if (armed && governor.CurrentCommittedBytes > 0 && ++checks == 6) cancellation.Cancel();
                 if (armed) cancellation.Token.ThrowIfCancellationRequested();
             }, counters, utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            new AwkRuntimeResourceMonitor(limits, counters), governor);
+            new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
         var pattern = new AwkRegexPattern(string.Concat(Enumerable.Repeat(@"\x61", 4096)));
         var error = Assert.Throws<OperationCanceledException>(() => runtime.Create(pattern));
         Assert.Equal(cancellation.Token, error.CancellationToken);
@@ -255,14 +255,14 @@ public sealed class AwkRegexPreparationCancellationTests
         {
             if (armed) throw new InvalidOperationException("Construction callback was retained.");
         }
-        var regex = utf8 ? AwkRegex.CreateUtf8("a", AwkRegexCaseSensitivity.CaseSensitive,
-            checkpoint: Checkpoint) : AwkRegex.CreateDotNet("a", AwkRegexCaseSensitivity.CaseSensitive,
+        var regex = utf8 ? AwkRegex.CreateProvided("a", AwkRegexCaseSensitivity.CaseSensitive,
+            ["0"], checkpoint: Checkpoint) : AwkRegex.CreateDotNet("a", AwkRegexCaseSensitivity.CaseSensitive,
             checkpoint: Checkpoint);
         armed = true;
         switch (regex.Backend)
         {
             case AwkDotNetRegexBackend dotnet: Assert.Matches(dotnet.Value, "a"); break;
-            case AwkUtf8RegexBackend bytes: Assert.True(bytes.Value.Match("a"u8).Success); break;
+            case AwkProvidedRegexBackend provided: Assert.Equal(["0"], provided.GroupNames); break;
             default: throw new InvalidOperationException("Unknown backend.");
         }
     }
@@ -334,5 +334,5 @@ public sealed class AwkRegexPreparationCancellationTests
 
     private static AwkRegexRuntime Runtime(bool utf8, AwkRuntimeCounters counters, Action checkpoint) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            checkpoint, counters, utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility);
+            checkpoint, counters, utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility, regexEngine: AwkUtf8RegexEngine.Instance);
 }

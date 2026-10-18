@@ -315,12 +315,7 @@ internal sealed class AwkLongestRegex
     public static AwkLongestRegex Create(AwkRegex source, AwkRegexCaseSensitivity caseSensitivity, Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        var names = source.Backend switch
-        {
-            AwkDotNetRegexBackend dotNet => dotNet.Value.GetGroupNames(),
-            AwkUtf8RegexBackend utf8 => utf8.Value.GetGroupNames(),
-            _ => throw new InvalidOperationException("Unknown regex backend.")
-        };
+        var names = source.Backend.GroupNames;
         var prefixName = UniqueName(names, "LokadPrefix", checkpoint);
         var wholeName = UniqueName(names, "LokadWhole", checkpoint);
         var maximum = source.Selection.MaximumScalars;
@@ -339,7 +334,7 @@ internal sealed class AwkLongestRegex
         checkpoint?.Invoke();
         var regex = new Regex(pattern, AwkRegex.ResolveOptions(caseSensitivity), AwkRegex.MatchTimeout);
         checkpoint?.Invoke();
-        var groups = new int[names.Length];
+        var groups = new int[names.Count];
         for (var index = 0; index < groups.Length; index++)
         {
             if ((index & 63) == 0) checkpoint?.Invoke();
@@ -349,7 +344,7 @@ internal sealed class AwkLongestRegex
         return new AwkLongestRegex(regex, groups);
     }
 
-    private static string UniqueName(string[] names, string candidate, Action? checkpoint)
+    private static string UniqueName(IReadOnlyList<string> names, string candidate, Action? checkpoint)
     {
         while (ContainsName())
             candidate += "_";
@@ -358,7 +353,7 @@ internal sealed class AwkLongestRegex
 
         bool ContainsName()
         {
-            for (var index = 0; index < names.Length; index++)
+            for (var index = 0; index < names.Count; index++)
             {
                 if ((index & 63) == 0) checkpoint?.Invoke();
                 if (AwkRegexConstruction.Equals(names[index], candidate, checkpoint))

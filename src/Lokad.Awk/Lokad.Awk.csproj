@@ -38,12 +38,7 @@
 
   <ItemGroup>
     <PackageReference Include="Lokad.Parsing" />
-    <PackageReference Include="Lokad.Utf8Regex" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
   </ItemGroup>
 
-  <Target Name="EnforceReleasePackageConfiguration" BeforeTargets="GenerateNuspec"
-          Condition="'$(Configuration)' != 'Release' and '$(AllowNonReleasePackage)' != 'true'">
-    <Error Text="NuGet packages must be produced with -c Release. Pass /p:AllowNonReleasePackage=true only for troubleshooting." />
-  </Target>
 </Project>

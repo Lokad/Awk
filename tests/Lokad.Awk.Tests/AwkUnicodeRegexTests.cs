@@ -54,7 +54,7 @@ public sealed class AwkUnicodeRegexTests
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
             new AwkRuntimeResourceMonitor(limits, counters), compatibilityMode: (AwkCompatibilityMode)mode,
-            reportUnicodeWarning: messages.Add);
+            reportUnicodeWarning: messages.Add, regexEngine: AwkUtf8RegexEngine.Instance);
         var first = new AwkRegexPattern(@"\u", warningSite: new object());
         var second = new AwkRegexPattern(@"\u", warningSite: new object());
         var regex = runtime.Create(first);
@@ -92,7 +92,7 @@ public sealed class AwkUnicodeRegexTests
             var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(),
                 utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-                executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
+                executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
             var exit = await compiled.ExecuteAsync(host, deadline.Token, options);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("1\n1\n1\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -142,7 +142,7 @@ public sealed class AwkUnicodeRegexTests
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            new AwkRuntimeResourceMonitor(limits, counters), governor);
+            new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
         for (var i = 0; i < 2; i++)
         {
             var error = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(pattern)));

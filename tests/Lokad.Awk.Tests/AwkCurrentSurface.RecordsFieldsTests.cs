@@ -833,7 +833,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             counters,
             AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.Utf8Adapter,
-            AwkExecutionEngineKind.Interpreter);
+            AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", program),

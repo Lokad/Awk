@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Lokad.Awk/Lokad.Awk.csproj" />
+    <Project Path="src/Lokad.Awk.Utf8Regex/Lokad.Awk.Utf8Regex.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Lokad.Awk.Tests/Lokad.Awk.Tests.csproj" />

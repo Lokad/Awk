@@ -16,6 +16,8 @@ coordinates retain UTF-16 units; regex atoms and published captures must still c
 complete scalars. Byte mode reports UTF-8 byte units, including `RSTART`, `RLENGTH` and
 capture start/length. See [regex compatibility](REGEX_COMPATIBILITY.md) for backend
 selection, longest-match behavior and remaining supplementary-character differences.
+The default .NET engine also handles non-ASCII byte-mode input; an explicitly supplied
+UTF-8 engine receives spans directly, with byte/UTF-16 capture ranges validated before use.
 
 `--posix` overrides byte mode with a warning, independent of option order.
 `FS=""` in byte mode requires ASCII: splitting a multibyte scalar into one-byte fields
@@ -59,7 +61,7 @@ Custom scalar formats preserve their full-precision conversion through a bounded
 requests, formatting fallback and regex adapters. A byte-native claim requires counter
 evidence; it does not imply zero allocation. Governed buffers/caches publish only after
 successful construction. Cancellation remains subject to the
-[memory and cancellation scope](RUNTIME_LIMITS.md#memory-and-cancellation-scope).
+[shared memory and cancellation](RUNTIME_LIMITS.md#shared-memory).
 
 Ordinary field/string-literal comparisons can consume untouched field bytes synchronously,
 without copied text or a cached scalar. Cached/modified fields, case-insensitive/nondecimal

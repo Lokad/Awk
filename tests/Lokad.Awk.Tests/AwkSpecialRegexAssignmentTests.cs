@@ -72,7 +72,7 @@ public sealed class AwkSpecialRegexAssignmentTests
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits,
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
         return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
             new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default);
     }

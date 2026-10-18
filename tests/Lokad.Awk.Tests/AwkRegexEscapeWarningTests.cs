@@ -31,7 +31,7 @@ public sealed class AwkRegexEscapeWarningTests
             var options = new AwkRuntimeOptions(AwkUnixTimestampSeconds.FromSystemClock, TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(),
                 utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-                executionEngineKind: executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
+                executionEngineKind: executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("1\n1\n1\n", host.GetOutput(AwkFileDescriptor.StdOut));

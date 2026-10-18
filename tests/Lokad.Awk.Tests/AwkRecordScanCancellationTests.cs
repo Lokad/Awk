@@ -287,7 +287,7 @@ public sealed class AwkRecordScanCancellationTests
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), (AwkRegexEngineKind)backend,
-            AwkExecutionEngineKind.Interpreter);
+            AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
     }
 

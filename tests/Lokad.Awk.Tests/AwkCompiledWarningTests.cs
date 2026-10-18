@@ -220,7 +220,7 @@ public sealed class AwkCompiledWarningTests
             limits ?? AwkRuntimeLimits.CreateDefault(),
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
             executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter,
-            hostOperationTimeout: hostTimeout);
+            hostOperationTimeout: hostTimeout, regexEngine: AwkUtf8RegexEngine.Instance);
 
     private sealed class WarningHost(string failure) : IAwkHost
     {

@@ -26,7 +26,8 @@ internal sealed record AwkRuntimeOptions
         bool exposeEnvironment = true,
         bool exposeHostErrorDetails = true,
         int maxHostErrorBytes = 4 << 10,
-        IMemoryBudget? memoryBudget = null)
+        IMemoryBudget? memoryBudget = null,
+        IAwkRegexEngine? regexEngine = null)
     {
         var randomGeneratorSnapshot = randomGenerator.Clone();
         CurrentUnixTimeSeconds = currentUnixTimeSeconds;
@@ -49,9 +50,12 @@ internal sealed record AwkRuntimeOptions
         ExposeHostErrorDetails = exposeHostErrorDetails;
         MaxHostErrorBytes = maxHostErrorBytes;
         MemoryBudget = memoryBudget;
+        RegexEngine = regexEngine;
     }
 
     public IMemoryBudget? MemoryBudget { get; init; }
+
+    public IAwkRegexEngine? RegexEngine { get; init; }
 
     public AwkExecutionMemoryOwner MemoryOwner { get; init; } = AwkExecutionMemoryOwner.Disabled;
 
@@ -102,7 +106,7 @@ internal sealed record AwkRuntimeOptions
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.FromPolicy(policy),
-            AwkRegexEngineKind.DotNetCompatibility,
+            policy.RegexEngine is null ? AwkRegexEngineKind.DotNetCompatibility : AwkRegexEngineKind.Utf8Adapter,
             AwkExecutionEngineKind.Interpreter,
             policy.AllowFileRedirections,
             policy.AllowCommandPipes,
@@ -116,5 +120,6 @@ internal sealed record AwkRuntimeOptions
             policy.ExposeEnvironment,
             policy.ExposeHostErrorDetails,
             policy.MaxHostErrorBytes,
-            invocationBudget ?? policy.MemoryBudget);
+            invocationBudget ?? policy.MemoryBudget,
+            policy.RegexEngine);
 }

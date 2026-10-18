@@ -262,7 +262,7 @@ public sealed class AwkSortProjectionMemoryTests
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(Limit),
-            AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         if (format == "wide")
             state.AssignVariableValue(AwkVariableName.FromText("CONVFMT"), AwkValue.FromText(AwkText.FromSourceLiteralString("%8192.2f")));

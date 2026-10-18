@@ -34,7 +34,7 @@ public sealed class AwkGetlineExpressionTests
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
+            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
         var compiled = await AwkExecutor.CompileAsync(host, invocation, CancellationToken.None);
 
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);

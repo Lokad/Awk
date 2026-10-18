@@ -920,7 +920,7 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    public async Task Awk_RegexEnumerationInspectsInputPolicyOnce()
+    public async Task Awk_DefaultRegexEnumerationAvoidsInputPolicyClassification()
     {
         var input = new string('x', 1_000) + "é\n";
         var (exitCode, fileSystem, counters) = await RunAsync(
@@ -930,7 +930,7 @@ public sealed class AwkBenchmarkCounterTests
 
         Assert.Equal(0, exitCode);
         Assert.Equal("2\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(1_001, counters.RegexPolicyInputBytesInspected);
+        Assert.Equal(0, counters.RegexPolicyInputBytesInspected);
         Assert.Equal(1_001, counters.RegexMatches);
     }
 
@@ -1668,5 +1668,5 @@ public sealed class AwkBenchmarkCounterTests
             counters,
             AwkRuntimeLimits.CreateDefault(),
             regexEngineKind,
-            executionEngineKind);
+            executionEngineKind, regexEngine: AwkUtf8RegexEngine.Instance);
 }

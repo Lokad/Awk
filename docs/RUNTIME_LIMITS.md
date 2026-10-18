@@ -62,6 +62,10 @@ underlying buffer borrow. Hosts must cooperate with cancellation. Without a supp
 Framework/parser/regex construction can be indivisible; no hard CPU preemption or universal
 cancellation latency is promised. Matching deadlines do not bound regex construction.
 
+Supplied regex engines borrow the active budget and current checkpoint. Admission refusal
+is fatal; unsupported-pattern fallback is separate. Execution caches own compiled handles
+and dispose them on eviction or cleanup. No regex engine owns the supplied host budget.
+
 ## Execution and streaming
 
 The interpreter remains the default. Its bounded synchronous preparation and the opt-in

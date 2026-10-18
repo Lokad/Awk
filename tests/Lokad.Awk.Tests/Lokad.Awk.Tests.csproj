@@ -11,10 +11,12 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="Lokad.Awk.Utf8Regex" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Lokad.Awk\Lokad.Awk.csproj" />
+    <ProjectReference Include="..\..\src\Lokad.Awk.Utf8Regex\Lokad.Awk.Utf8Regex.csproj" />
   </ItemGroup>
 
   <ItemGroup>

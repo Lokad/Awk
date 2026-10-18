@@ -5,6 +5,16 @@ namespace Lokad.Awk;
 /// <summary>Controls capabilities and resource budgets for one awk execution.</summary>
 public sealed record AwkExecutionPolicy
 {
+    /// <summary>Gets the borrowed application-supplied UTF-8 regex engine, or null for .NET compatibility.</summary>
+    public IAwkRegexEngine? RegexEngine { get; private init; }
+
+    /// <summary>Uses a borrowed regex engine while retaining Awk translation and match-selection rules.</summary>
+    public AwkExecutionPolicy WithRegexEngine(IAwkRegexEngine engine)
+    {
+        ArgumentNullException.ThrowIfNull(engine);
+        return this with { RegexEngine = engine };
+    }
+
     /// <summary>Represents an effectively unlimited numeric budget.</summary>
     public const long Unlimited = long.MaxValue;
 

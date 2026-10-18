@@ -40,7 +40,7 @@ public sealed class AwkRegexProfileTests
         var governor = AwkMemoryAccounting.Create(limits, counters);
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters, engine,
-            new AwkRuntimeResourceMonitor(limits, counters), governor, mode);
+            new AwkRuntimeResourceMonitor(limits, counters), governor, mode, regexEngine: AwkUtf8RegexEngine.Instance);
         var pattern = new AwkRegexPattern(@"\w");
         if (mode == AwkCompatibilityMode.GnuDefault)
         {
@@ -86,5 +86,5 @@ public sealed class AwkRegexProfileTests
         AwkRuntimeLimits limits, AwkRuntimeCounters counters) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             static () => { }, counters, engine, new AwkRuntimeResourceMonitor(limits, counters),
-            compatibilityMode: mode);
+            compatibilityMode: mode, regexEngine: AwkUtf8RegexEngine.Instance);
 }
