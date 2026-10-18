@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Functions with one local assignment and a guarded/final return reuse existing interpreter
+  preparation. Shared shape detection removes duplicate code while preserving argument order,
+  aliases, resource preflights and stack/diagnostic fallbacks.
+
 - Prepared scalar numeric trees and eligible pure `for` loops avoid nested completion
   handling in the interpreter. Execution checkpoints, mutation preflights and function
   stack boundaries remain; host, pending, lint and diagnostic paths retain normal execution.

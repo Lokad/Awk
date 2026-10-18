@@ -15,7 +15,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "local-temporary-call-loop", "projection", "multi-column", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
+        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "branching-calls", "branching-unary-calls", "string-functions", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
@@ -32,6 +32,15 @@ internal static class ReferenceWorkloads
 
     public static ReferenceWorkload Create(string name, string scale)
     {
+        if (name == "local-conditional-text")
+        {
+            var textRows = scale switch { "small" => 16, "medium" => 4096, "large" => 65536, _ => throw new ArgumentException("Unknown scale.") };
+            var normalizedInput = new StringBuilder();
+            for (var i=0;i<textRows;i++) normalizedInput.Append("ID:beta:tail\t").Append(i%2==0?4:32).Append('\n');
+            return new(name,scale,textRows,2,"function clip(s,n,t){t=tolower(s);if(length(t)>n)return substr(t,1,n);return t} {v=clip($1,$2);total+=length(v)} END{print total}",
+                Bytes(normalizedInput.ToString()),[],Bytes((textRows*8).ToString(CultureInfo.InvariantCulture)+"\n"));
+        }
+
         // Same arithmetic/input oracle as the direct-return case; adds an ordinary local temporary.
         if (name == "local-temporary-call-loop") return Create("multi-arg-loop", scale) with
         {
