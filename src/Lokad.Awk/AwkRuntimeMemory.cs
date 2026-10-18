@@ -56,9 +56,11 @@ internal static class AwkRuntimeMemory
         if (byteLength <= 0)
             return 0;
 
-        return CheckedAdd(
-            CheckedAdd(CheckedAdd(AwkTextObjectBytes, ByteArrayObjectBytes), byteLength),
-            EstimateOptionalTextCacheBytes(byteLength));
+        // Preserve the original int header bound; the remaining long sum stays below 7 GiB.
+        var payloadBytes = CheckedAdd(AwkTextObjectBytes + ByteArrayObjectBytes, byteLength);
+        return (long)payloadBytes + StringObjectBytes + ArrayObjectBytes +
+            (long)byteLength * sizeof(char) +
+            ((long)byteLength / TextRuneCheckpointStride + 2) * sizeof(int);
     }
 
     public static long EstimateVariableSlotBytes(AwkVariableSlot slot) =>
