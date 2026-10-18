@@ -5,6 +5,15 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Passing("field-index-keeps-input-before-mutating-needle",
+            ["function needle(){$0=\"next another\";return \"timeout\"} {print index($2,needle()),$2}"],
+            [], "6 another\n", "id déjà-timeout\n");
+        yield return Passing("field-index-keeps-positions-across-getline",
+            ["{a=index($2,\"timeout\");b=index($2,\"\");c=index($9,\"\");getline;print a,b,c,$2;exit}"],
+            [], "6 1 1 replaced\n", "id déjà-timeout\nnext replaced\n");
+        yield return Passing("field-index-keeps-case-and-scalar-positions",
+            ["BEGIN{IGNORECASE=1} {print index($2,\"timeout\"),index($2,\"😀\"),index($2,\"missing\")}"],
+            [], "6 13 0\n", "id Déjà-TIMEOUT😀\n");
         yield return Passing("benchmark-core-field-index",
             ["{n+=index($2,\"timeout\")} END{print n}"],
             [], "6\n", "id déjà-timeout\nid déjà-normal\n");

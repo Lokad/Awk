@@ -471,6 +471,13 @@ internal sealed class AwkRuntimeState
     public int CountStringUnits(AwkText value) =>
         _stringRuntime.CountUnits(value);
 
+    internal AwkValue IndexOfShortField(ReadOnlySpan<byte> source, AwkValue needle)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(source.Length, AwkRuntimeMemory.TextRuneCheckpointStride);
+        Counters.RecordBorrowedFieldIndexSearch();
+        return AwkValue.FromNumber(_stringRuntime.IndexOfUnits(source, FormatStringByteText(needle), IsCaseInsensitive));
+    }
+
     internal AwkValue CreateShortFieldSubstring(ReadOnlySpan<byte> source, AwkValue startValue,
         AwkValue lengthValue, int argumentCount)
     {

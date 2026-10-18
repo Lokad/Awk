@@ -11,6 +11,21 @@ public sealed class AwkBenchmarkCounterTests
     [Theory]
     [InlineData(AwkExecutionEngineKind.Interpreter)]
     [InlineData(AwkExecutionEngineKind.Executable)]
+    internal async Task ParsedFieldIndexBorrowsOnlyTheInterpreterInput(AwkExecutionEngineKind engine)
+    {
+        var result = await RunAsync(["{n+=index($2,\"timeout\")} END{print n}"],
+            "id déjà-timeout\nid déjà-normal\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("6\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.BorrowedFieldIndexSearches);
+        Assert.Equal(0, result.Counters.StringDecodes);
+        Assert.Equal(0, result.Counters.Utf8Encodes);
+    }
+
+    [Theory]
+    [InlineData(AwkExecutionEngineKind.Interpreter)]
+    [InlineData(AwkExecutionEngineKind.Executable)]
     internal async Task ParsedUnicodeSubstringBorrowsOnlyTheInterpreterFieldInput(AwkExecutionEngineKind engine)
     {
         var result = await RunAsync(["{print length($1),substr($2,1,2)}"],

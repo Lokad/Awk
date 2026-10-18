@@ -25,6 +25,13 @@ internal sealed class AwkRuntimeCounters
 
     public long BorrowedFieldSubstrings { get; private set; }
 
+    public long BorrowedFieldIndexSearches { get; private set; }
+
+    public void RecordBorrowedFieldIndexSearch()
+    {
+        if (_enabled) lock (_sync) BorrowedFieldIndexSearches++;
+    }
+
     public void RecordBorrowedFieldSubstring()
     {
         if (_enabled) lock (_sync) BorrowedFieldSubstrings++;
