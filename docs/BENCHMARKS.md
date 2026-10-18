@@ -1,15 +1,12 @@
 # Benchmarks
 
-Current **33-family comparison** against GNU awk 5.2.1. The two branching-function rows
-marked † were measured 2026-10-17 UTC at Release source
-`07647eccd7e00356fed9c22b11418b9fe10164b9`: **4.12× / 3.53×** GNU elapsed time, about
-**0.77 MiB** allocated each. These ordinary multi-statement functions complement the existing
-prepared arithmetic-call cases.
+Comparison against GNU awk 5.2.1 across **33 families**. Five rows marked ‡ were measured
+2026-10-18 UTC at Release source `efd5e8767756e71c8ce128b724415d0bea7a58ed`:
+branching functions (one/two arguments), joins, substitution and Unicode processing.
+The other **28 rows retain** measurements from 2026-10-17 UTC at
+`8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this milestone.
 
-The other **31 rows retain** the complete baseline measured 2026-10-17 UTC at
-`8a4794947bce4ce7d4785056450d41e3f049701b`; they were not refreshed for this extension.
-Core runtime code is identical between these baseline revisions. The latest accepted
-short-concatenation change takes **4.63%/4.40% less elapsed time** on the large
+The latest accepted short-concatenation change takes **4.63%/4.40% less elapsed time** on the large
 target. Its measured source, allocation ranges and controls appear below. The public
 catalogue has 35 families; its two newest cases still have no fresh GNU ratio.
 The declared 35-family refresh at `9155dff` did not qualify: the GNU long-field case
@@ -27,15 +24,15 @@ not GNU allocations, retained memory or allowances. Rows run from worst ratio to
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE capture arrays (GNU) | 28.00 | 35.893 | 8.126 | 4.42× | 16.05 |
-| Branching function, two arguments † | 8.00 | 17.750 | 4.308 | 4.12× | 0.77 |
-| Branching function, one argument † | 8.00 | 14.116 | 4.002 | 3.53× | 0.77 |
-| gsub and output | 56.00 | 5.630 | 2.117 | 2.66× | 3.76 |
-| Two-file membership / join | 77.83 | 6.810 | 2.809 | 2.42× | 3.04 |
-| Unicode length/substr / output | 60.00 | 4.640 | 2.088 | 2.22× | 2.52 |
+| gsub and output ‡ | 56.00 | 5.525 | 2.105 | 2.63× | 3.76 |
+| Two-file membership / join ‡ | 77.83 | 6.586 | 2.793 | 2.36× | 3.04 |
 | Numeric array sort (GNU) | 18.92 | 5.476 | 2.505 | 2.19× | 2.49 |
+| Unicode length/substr / output ‡ | 60.00 | 4.427 | 2.076 | 2.13× | 2.52 |
 | Project three columns / output | 60.00 | 3.310 | 1.583 | 2.09× | 0.76 |
 | ERE boolean matching | 32.00 | 2.664 | 1.287 | 2.07× | 0.75 |
 | Keyed sum / sorted output (GNU) | 24.00 | 2.819 | 1.370 | 2.06× | 0.76 |
+| Branching function, two arguments ‡ | 8.00 | 8.906 | 4.345 | 2.05× | 0.77 |
+| Branching function, one argument ‡ | 8.00 | 7.959 | 4.028 | 1.98× | 0.77 |
 | Loop with two-argument calls | 8.00 | 8.218 | 4.150 | 1.98× | 0.75 |
 | Five-part string concatenation | 20.00 | 3.229 | 1.666 | 1.94× | 1.43 |
 | Loop with unary arithmetic calls | 8.00 | 7.393 | 3.828 | 1.93× | 0.74 |
@@ -131,9 +128,10 @@ Substantial large-input gaps remain; retained measurements are not fresh results
 ## Environment and reproduction
 
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
-BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. The retained complete baseline
-uses five warmups/nine iterations/one launch. The two new medium branching-function rows use
-nine balanced GNU timing pairs and three warmups/five iterations/one allocation launch.
+BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Timing for the current
+five-row milestone and retained 28 rows uses five warmups/nine iterations/one launch.
+Current managed allocations use three warmups/five iterations/one launch: one GC observation
+per workload, with no allocation range or small-difference confidence claim.
 Timing and allocation phases have qualified pre/post
 quiet gates, stable source/binary identities and no additional authenticated SSH login.
 CPU admission requires at most 3% median/5% maximum background load. Single-launch variation
