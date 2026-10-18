@@ -20,6 +20,13 @@ no allocation phase and no final quietness checks. Those partial figures are dia
 the first table retains its named measurements. No automatic retry or cumulative-gain claim.
 Interpreter/DotNetCompatibility remain defaults; Utf8Regex adoption is postponed.
 
+The current large aggregation and join comparisons were measured 2026-10-18 UTC at
+`5bc8f9dd287727ed321f4ebaba41a29a783b0653`: **6.48× / 4.21×** GNU elapsed,
+allocating **9.93 / 41.49 MiB** per invocation. Their rows are marked † below.
+Only these two large cases were refreshed; medium and other large rows retain their
+named sources. This milestone took 1.73 measured minutes and makes no controlled
+before/after or cumulative speedup claim.
+
 ## Representative processing
 
 Times are medians for one complete invocation. Lokad.Awk/awk divides Lokad elapsed time by
@@ -121,34 +128,40 @@ variant, replacement sample or full-baseline refresh was used.
 
 ## Larger-input comparisons
 
-These larger-input comparisons retain their named sources/dates; they were not refreshed
-with the current medium baseline. Managed allocations for the scoped workloads/policies
-appear above; the other large rows received no allocation refresh. These comparisons include source preparation and
-GNU process costs, with exact-output, quiet, identity and SSH qualification.
+The two † rows use current `5bc8f9d` timing and managed allocations. Other rows retain
+their named sources/dates; they were not refreshed. An allocation dash means no allocation
+measurement is presented for that retained comparison. These runs include source preparation
+and GNU process costs, with exact-output, quiet, identity and SSH qualification.
 
-| Case / input KiB / records | Measured source / date UTC | Lokad ms | GNU ms | Lokad.Awk/awk |
-| --- | --- | ---: | ---: | ---: |
-| Keyed aggregation / 384.00 / 65,536 | bb6b432 / 2026-10-17 | 45.786 | 6.337 | 7.22× |
-| Alternating array reads / 344.00 / 65,536 | bb6b432 / 2026-10-17 | 39.003 | 7.629 | 5.11× |
-| printf / 384.00 / 65,536 | 6f408f1 / 2026-10-17 | 58.613 | 13.428 | 4.36× |
-| Two-argument calls / 128.00 / 65,536 | ea3bbe6 / 2026-10-17 | 129.310 | 50.947 | 2.54× |
-| Three-field filter / 384.00 / 65,536 | c90b108 / 2026-10-17 | 33.969 | 8.946 | 3.80× |
-| Nested calls / 128.00 / 65,536 | f7d8b53 / 2026-10-17 | 47.170 | 10.481 | 4.50× |
-| Two-file join / 1,386.30 / 65,536 per file | c9d7c74 / 2026-10-17 | 138.740 | 30.512 | 4.55× |
-| For arithmetic / 128.00 / 65,536 | e4408c3 / 2026-10-17 | 80.618 | 31.328 | 2.57× |
-| ASCII strings / 832.00 / 65,536 | 1c8c9d3 / 2026-10-17 | 45.409 | 9.840 | 4.61× |
-| While arithmetic / 128.00 / 65,536 | d94caaa / 2026-10-17 | 87.786 | 31.020 | 2.83× |
-| Field loop / 1,280.00 / 4,096 | f39d294 / 2026-10-16 | 39.441 | 19.528 | 2.02× |
-| Changed case / 9,280.00 / 65,536 | 69c0a34 / 2026-10-16 | 57.330 | 32.246 | 1.78× |
-| Call loop / 128.00 / 65,536 | f52d9f4 / 2026-10-16 | 138.482 | 45.626 | 3.04× |
-| Long fields / 16,408.00 / 4,096 | 7ad867d / 2026-10-16 | 13.349 | 16.624 | 0.80× |
-| Field index search § / 1,120.00 / 65,536 | e6cfcaf / 2026-10-18 | 39.390 | 8.618 | 4.57× |
+| Case / input KiB / records | Measured source / date UTC | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Keyed aggregation † / 384.00 / 65,536 | 5bc8f9d / 2026-10-18 | 40.916 | 6.314 | 6.48× | 9.93 |
+| Alternating array reads / 344.00 / 65,536 | bb6b432 / 2026-10-17 | 39.003 | 7.629 | 5.11× | — |
+| printf / 384.00 / 65,536 | 6f408f1 / 2026-10-17 | 58.613 | 13.428 | 4.36× | — |
+| Two-argument calls / 128.00 / 65,536 | ea3bbe6 / 2026-10-17 | 129.310 | 50.947 | 2.54× | — |
+| Three-field filter / 384.00 / 65,536 | c90b108 / 2026-10-17 | 33.969 | 8.946 | 3.80× | — |
+| Nested calls / 128.00 / 65,536 | f7d8b53 / 2026-10-17 | 47.170 | 10.481 | 4.50× | — |
+| Two-file join † / 1,386.30 / 65,536 per file | 5bc8f9d / 2026-10-18 | 126.162 | 29.971 | 4.21× | 41.49 |
+| For arithmetic / 128.00 / 65,536 | e4408c3 / 2026-10-17 | 80.618 | 31.328 | 2.57× | — |
+| ASCII strings / 832.00 / 65,536 | 1c8c9d3 / 2026-10-17 | 45.409 | 9.840 | 4.61× | — |
+| While arithmetic / 128.00 / 65,536 | d94caaa / 2026-10-17 | 87.786 | 31.020 | 2.83× | — |
+| Field loop / 1,280.00 / 4,096 | f39d294 / 2026-10-16 | 39.441 | 19.528 | 2.02× | — |
+| Changed case / 9,280.00 / 65,536 | 69c0a34 / 2026-10-16 | 57.330 | 32.246 | 1.78× | — |
+| Call loop / 128.00 / 65,536 | f52d9f4 / 2026-10-16 | 138.482 | 45.626 | 3.04× | — |
+| Long fields / 16,408.00 / 4,096 | 7ad867d / 2026-10-16 | 13.349 | 16.624 | 0.80× | — |
+| Field index search § / 1,120.00 / 65,536 | e6cfcaf / 2026-10-18 | 39.390 | 8.618 | 4.57× | 18.34 |
 
 At `e6cfcaf`, the large field-search baseline allocates **19,229,984 managed bytes**
 (18.34 MiB) per invocation. Both field-search scales use five warmups/nine iterations/one
 timing launch and a separate three-warmup/five-iteration allocation launch. Each scale has
 one GC observation; no allocation range or optimization gain is inferred. All 110 native
 comparisons and the unchanged counter report qualify; Windows/Linux pass 73,771 tests.
+
+Current aggregation/join timing uses five warmups/nine iterations/one launch;
+allocations use a separate three-warmup/five-iteration launch, one GC observation/case.
+All 110 same-source native comparisons, three quiet gates, stable identities and
+measurement-window SSH checks qualify. Existing source CI and counter evidence are reused;
+no runtime, correctness-suite or benchmark-infrastructure changes were needed.
 
 Substantial large-input gaps remain; retained measurements are not fresh results or cumulative gains.
 
