@@ -4,6 +4,9 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FieldProjectionCases()
     {
+        yield return Passing("field-capacity-growth-shrink-and-recomposition",
+            ["{NF=65;print NF,$1,$64,\"[\"$65\"]\";NF=1;print NF,$0;$129=\"z\";print NF,$1,$129}"],
+            [], "65 x x []\n1 x\n129 x z\n", string.Join(' ', Enumerable.Repeat("x", 64)) + "\n");
         var tail = string.Join(" ", Enumerable.Repeat("last", 61));
         yield return Passing("owned-field-prefix-keeps-fs-cached-spelling-and-recomposition",
             ["BEGIN{OFS=\"|\"} {x=$1;FS=\",\";y=$3;print x,y;print NF,$1,$3;NF=3;print $0}"],

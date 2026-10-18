@@ -42,6 +42,9 @@ without retry or fallback, and reuse by later commands after actual cleanup. Low
 memory tests inspect unchanged reservations and refunds after false; that primitive contract
 does not authorize a running command to recover from refusal.
 
+`AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
+mutation refusal/cancellation and refunds using finite quotas and a shared host budget.
+
 ## Benchmarks
 
 `Lokad.Awk.Benchmarks` is not a correctness suite. Benchmark scripts should either reference canonical golden scenarios or document generated workloads, and benchmark smoke checks should not create independent behavior expectations. Use `AwkBenchmarkCounterTests` for deterministic counter invariants that belong in the correctness suite.

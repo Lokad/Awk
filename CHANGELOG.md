@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Field buffers account for retained capacity through growth and `NF` shrink, with
+  replacement storage admitted before mutation. This corrects understated shared-memory demand.
+
 - Memory reservations and commits reuse their validated live-byte totals, removing
   duplicate checked calculations while preserving admission, counters and refunds.
 

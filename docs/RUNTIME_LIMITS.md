@@ -32,7 +32,9 @@ the interfaces; hosts adapt their own governor. Each execution owns a scope and 
 charge for retained storage and major construction peaks. Descriptors carry the active budget
 into nested execution; an invocation's budget takes precedence over the policy budget.
 `MaxExecutionMemoryBytes` is an additional optional quota, not a copied root allowance.
-It covers runtime storage; frontend/compiled ownership is separate.
+It covers runtime storage; frontend/compiled ownership is separate. Field buffers charge
+retained capacity, including spare slots after shrinking `NF`, until that storage is replaced
+or released. Growth admits overlapping old/new buffers before publishing a field mutation.
 
 Source/parser/binder storage uses a coarse frontend charge. Governed compiled reuse retains
 its owner through active executions; disposal stops new executions, waits for users and
