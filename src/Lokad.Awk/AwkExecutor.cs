@@ -202,6 +202,7 @@ internal static class AwkExecutor
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             throw;
         }
         catch (Exception)

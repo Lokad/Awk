@@ -217,8 +217,9 @@ public sealed class AwkOpaquePipeTests
         host.EnqueueAppendExitCode(0);
         Assert.True(Awk.TryParse(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{cmd=\"worker a:b\";print \"pipe\"|cmd;print close(cmd);print \"unreached\"}"), out var awk));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             awk.ExecuteAsync(host, cancellation.Token).WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Contains(new AwkFileDescriptor(81), closed);
         Assert.Equal("", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetAppendedOutput(AwkFileDescriptor.StdErr));

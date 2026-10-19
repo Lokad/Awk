@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Parent failure now cancels owned pipe-command work before cleanup waits, including refused
+  shared admission. Cleanup still awaits actual command completion before releasing borrowed
+  storage. Normal `close()` and command exit statuses are preserved; caller cancellation
+  retains its original token. This adds no deadline or work quota.
+
 - Removed `MaxBuilderBytes`, `MaxRegexCaptureBytes` and their setters. Buffer growth and
   capture storage use shared admission before mutation/publication; checked allocation
   sizes remain enforced. `strftime` now admits its UTF-16 padding, builder growth and

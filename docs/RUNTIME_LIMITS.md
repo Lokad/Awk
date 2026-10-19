@@ -49,6 +49,10 @@ unwinds execution; delivered reads retain their buffer and accounting. Essential
 an uncancelled token and awaits every close and outstanding user before refunding storage.
 A host that ignores cancellation or never completes cleanup can delay completion indefinitely.
 
+Pipe commands share a cancellation scope owned by the existing I/O context. Parent failure
+cancels that work before descriptor cleanup waits; cleanup still awaits actual command
+completion before refunding borrowed storage. Successful close preserves command exit statuses.
+
 The regex contract forwards the current token into compilation and each match, with no
 adapter-owned timeout. The internal Utf8Regex adapter's pinned 0.2.0 producer lacks token-aware
 APIs; checks around producer calls cannot interrupt them. Future producer adoption is separate.

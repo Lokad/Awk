@@ -109,15 +109,13 @@ internal static class AwkRuntime
         }
         catch (AwkRuntimeException exception)
         {
+            io.CancelCommandsForCleanup();
             try
             {
-                await actionExecutor.Output.FlushDiagnosticsAsync(io).ConfigureAwait(false);
+                try { await actionExecutor.Output.FlushDiagnosticsAsync(io).ConfigureAwait(false); }
+                catch (AwkRuntimeException warningFailure) { exception = warningFailure; }
             }
-            catch (AwkRuntimeException warningFailure)
-            {
-                exception = warningFailure;
-            }
-            await CleanupAfterFailureAsync(inputScheduler, io).ConfigureAwait(false);
+            finally { await CleanupAfterFailureAsync(inputScheduler, io).ConfigureAwait(false); }
             var failure = AwkDiagnostics.Runtime(exception);
             runtimeOptions.Counters.RecordHostCall();
             runtimeOptions.Counters.RecordOutputBytes(failure.Message.Length);
@@ -131,6 +129,7 @@ internal static class AwkRuntime
         }
         catch
         {
+            io.CancelCommandsForCleanup();
             await CleanupAfterFailureAsync(inputScheduler, io).ConfigureAwait(false);
             throw;
         }

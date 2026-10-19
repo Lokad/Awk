@@ -350,14 +350,22 @@ internal sealed class AwkIo
         await _descriptors.CloseAllAsync(_host).ConfigureAwait(false);
         _standardInputReader?.Dispose();
         _standardInputReader = null;
+        _host.DisposeCommandCancellation();
     }
+
+    public void CancelCommandsForCleanup() => _host.CancelCommandsForCleanup();
 
     public async Task CloseForCleanupAsync()
     {
-        await _pipes.CloseAllForCleanupAsync().ConfigureAwait(false);
-        await _descriptors.CloseAllForCleanupAsync(_host).ConfigureAwait(false);
-        _standardInputReader?.Dispose();
-        _standardInputReader = null;
+        CancelCommandsForCleanup();
+        try
+        {
+            await _pipes.CloseAllForCleanupAsync().ConfigureAwait(false);
+            await _descriptors.CloseAllForCleanupAsync(_host).ConfigureAwait(false);
+            _standardInputReader?.Dispose();
+            _standardInputReader = null;
+        }
+        finally { _host.DisposeCommandCancellation(); }
     }
 
     public async Task<AwkIoOperationResult> CloseAsync(string path)

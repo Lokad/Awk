@@ -21,6 +21,7 @@ internal sealed class AwkIoHostAdapter(
     bool exposeHostErrorDetails = true,
     int maxHostErrorBytes = 4 << 10)
 {
+    private CancellationTokenSource? _commandCancellation;
 
     // A lookup only inspects already admitted streams; it never opens a host path.
     public AwkPath ResolveExistingPath(string path) =>
@@ -131,7 +132,9 @@ internal sealed class AwkIoHostAdapter(
     {
         // Failure before handoff leaves both new pipe endpoints with the caller.
         resources.RecordHostCall();
-        return CompleteAsync(host.RunCommandsAsync([command], cancellationToken));
+        var commandToken = (_commandCancellation ??=
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)).Token;
+        return CompleteAsync(host.RunCommandsAsync([command], commandToken));
 
         async Task<AwkExitCode> CompleteAsync(Task<IReadOnlyList<AwkExitCode>> operation)
         {
@@ -141,6 +144,18 @@ internal sealed class AwkIoHostAdapter(
                     AwkDiagnosticId.HostIoFailure);
             return exitCodes[0];
         }
+    }
+
+    public void CancelCommandsForCleanup()
+    {
+        try { _commandCancellation?.Cancel(); }
+        catch (AggregateException) { /* Still close descriptors and await users if a callback fails. */ }
+    }
+
+    public void DisposeCommandCancellation()
+    {
+        _commandCancellation?.Dispose();
+        _commandCancellation = null;
     }
 
     public async Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode)
