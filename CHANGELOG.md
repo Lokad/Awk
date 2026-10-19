@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Removed `MaxArrayElements`, `MaxFields`, `MaxSymbols`, `MaxIdentifierBytes` and their
+  setters. Shared memory admission funds collection capacity and payloads before growth;
+  field reads no longer force a full split to enforce a count quota. Deleted array entries
+  refund payloads while retained dictionary backing stays funded until relinquished.
+
 - Parent failure now cancels owned pipe-command work before cleanup waits, including refused
   shared admission. Cleanup still awaits actual command completion before releasing borrowed
   storage. Normal `close()` and command exit statuses are preserved; caller cancellation

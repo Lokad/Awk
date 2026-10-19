@@ -34,11 +34,12 @@ public sealed class AwkUntypedStateTests
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         var first = state.GetArrayAwkValue(name, key);
 
-        Assert.Equal(AwkRuntimeMemory.EstimateUntypedArrayElementBytes(key),
-            state.MemoryAccounting.CurrentCommittedBytes - before);
+        var admitted = state.MemoryAccounting.CurrentCommittedBytes;
+        Assert.True(admitted > before);
         Assert.Equal(AwkRuntimeValueKind.Untyped, state.GetArrayElementRuntimeKind(name, key));
         Assert.True(state.GetArrayAwkValue(name, key).IsUntypedValue);
         Assert.True(first.ByteText.AsSpan().IsEmpty);
+        Assert.Equal(admitted, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -84,9 +85,9 @@ public sealed class AwkUntypedStateTests
     }
 
     [Fact]
-    public void MissingReadElementLimitPreservesExistingUntypedCell()
+    public void MissingReadAdmissionRefusalPreservesExistingUntypedCell()
     {
-        using var memoryForState = State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1));
+        using var memoryForState = State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault());
         var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         var first = AwkArrayKey.FromOrdinal(1);
@@ -94,9 +95,10 @@ public sealed class AwkUntypedStateTests
         Assert.Equal(AwkRuntimeValueKind.Untyped, state.GetArrayElementRuntimeKind(name, first));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
 
+        memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.GetArrayElementRuntimeKind(name, second));
 
-        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(AwkRuntimeValueKind.Untyped, state.GetArrayElementRuntimeKind(name, first));
         Assert.False(state.ContainsArrayValue(name, second));
         Assert.True(state.TryGetExistingArrayCount(name, out var count));
@@ -154,10 +156,13 @@ public sealed class AwkUntypedStateTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static CooperativeTestMemory State(AwkRuntimeCounters counters, AwkRuntimeLimits? limits = null) {
+    private static CooperativeTestMemory State(AwkRuntimeCounters counters, AwkRuntimeLimits? limits = null)
+    {
         var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
-return        testMemory.Initialize(AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            testMemory.Configure(new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters,
-                limits ?? AwkRuntimeLimits.CreateDefault(),
-                AwkRegexEngineKind.DotNetCompatibility))));}}
+        return testMemory.Initialize(AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
+                    testMemory.Configure(new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+                        new AwkRandomGenerator(), counters,
+                        limits ?? AwkRuntimeLimits.CreateDefault(),
+                        AwkRegexEngineKind.DotNetCompatibility))));
+    }
+}

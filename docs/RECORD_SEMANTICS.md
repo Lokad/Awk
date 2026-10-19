@@ -4,7 +4,7 @@ Each admitted record captures FS/FPAT/FIELDWIDTHS, case and paragraph settings; 
 changes affect later records. Assigning `$0`, including `$0=$0`, captures settings again.
 Printing unmodified `$0` needs no splitting. Fields split on demand where supported;
 `NF`, reconstruction or mutation can complete the scan. Other modes/short records use
-full splitting; tight field quotas validate the whole record before publishing a prefix.
+full splitting. Field storage admits capacity before growth and publication.
 
 ## Field modes
 

@@ -28,8 +28,7 @@ public sealed class AwkUnicodeStringTests
     public void UnicodeDiagnosticsRespectFrontendBudget(int mode)
     {
         const string source = "BEGIN{print \"\\u\\ud800\"}";
-        var budget = new AwkFrontendBudget(int.MaxValue, int.MaxValue, 1, int.MaxValue,
-            long.MaxValue, int.MaxValue);
+        var budget = new AwkFrontendBudget(int.MaxValue, int.MaxValue, 1, long.MaxValue, int.MaxValue);
         if ((AwkCompatibilityMode)mode == AwkCompatibilityMode.Posix)
         {
             Assert.Empty(AwkParser.Parse(source, budget, CancellationToken.None,

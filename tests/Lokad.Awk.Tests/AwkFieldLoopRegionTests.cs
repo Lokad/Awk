@@ -19,18 +19,15 @@ public sealed class AwkFieldLoopRegionTests
         }
     }
 
-    [Theory]
-    [InlineData("fields")]
-    [InlineData("unicode")]
-    public async Task FieldAdmissionAndUnicodeMatchOrdinaryExecution(string mode)
+    [Fact]
+    public async Task UnicodeMatchesOrdinaryExecution()
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (mode == "fields") limits = limits.WithMaxFields(1);
-        var record = mode == "memory" ? string.Join(' ', Enumerable.Repeat(new string('x', 4096), 3)) : "é xyz aa";
+        var record = "é xyz aa";
         var prepared = await RunAsync(false, limits, record);
         Assert.Equal(await RunAsync(true, limits, record), prepared with { Loops = 0 });
         Assert.Equal(1, prepared.Loops);
-        Assert.Equal(mode == "unicode", prepared.Error.Length == 0);
+        Assert.Empty(prepared.Error);
     }
 
     [Theory]

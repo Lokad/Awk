@@ -48,10 +48,10 @@ public sealed class AwkProfileNameTests
     [InlineData(1, "SYMTAB")]
     [InlineData(2, "FUNCTAB")]
     [InlineData(2, "SYMTAB")]
-    public void DisabledSpecialArrayNamesRetainOrdinaryMemoryAndElementLimits(int modeValue, string text)
+    public void DisabledSpecialArrayNamesRetainOrdinaryMemoryAdmission(int modeValue, string text)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1);
+        var limits = AwkRuntimeLimits.CreateDefault();
         using var memory = new CooperativeTestMemory(1 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
         var state = memory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options), new(limits, counters), AwkCompatibilityProfile.Default.WithMode((AwkCompatibilityMode)modeValue))).State;
@@ -62,8 +62,9 @@ public sealed class AwkProfileNameTests
         Assert.True(state.MemoryAccounting.CurrentCommittedBytes > before);
         Assert.Equal(AwkRuntimeValueKind.Untyped, state.GetArrayElementRuntimeKind(name, key));
         var admitted = state.MemoryAccounting.CurrentCommittedBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.GetArrayAwkValue(name, AwkArrayKey.FromOrdinal(2)));
-        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.True(state.TryGetExistingArrayCount(name, out var count));
         Assert.Equal(1, count);
         Assert.Equal(admitted, state.MemoryAccounting.CurrentCommittedBytes);

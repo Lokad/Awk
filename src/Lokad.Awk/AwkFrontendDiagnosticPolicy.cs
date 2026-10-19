@@ -45,14 +45,6 @@ internal static class AwkFrontendDiagnosticPolicy
                 }
                 continue;
             }
-            if (tokens[index].Kind == AwkTokenKind.Identifier &&
-                Encoding.UTF8.GetByteCount(tokens[index].TextSpan) > budget.MaxIdentifierBytes)
-            {
-                throw new AwkRuntimeException(
-                    AwkMessages.ErrorIdentifierLimit,
-                    AwkDiagnosticId.RuntimeResourceLimit);
-            }
-
             if (tokens[index].Kind == AwkTokenKind.BadToken)
             {
                 var text = tokens[index].TextSpan;

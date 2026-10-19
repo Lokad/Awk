@@ -6,7 +6,6 @@ namespace Lokad.Awk;
 internal sealed class AwkFieldFrame(
     AwkRuntimeCounters counters,
     AwkMemoryAccounting governor,
-    int maxFields,
     Func<AwkValue, AwkText> formatStringByteText,
         Action? checkpoint = null,
     AwkFieldSplitter? fieldSplitter = null)
@@ -227,7 +226,6 @@ internal sealed class AwkFieldFrame(
         }
 
         EnsureFields(splitFields);
-        ThrowIfFieldCountExceeded(index.Value);
         var fieldIndex = index.Value - 1;
         var oldFieldCount = _fieldTexts.Count;
         var newFieldCount = Math.Max(oldFieldCount, index.Value);
@@ -311,7 +309,6 @@ internal sealed class AwkFieldFrame(
         Func<AwkText, List<AwkFieldText>> splitFields)
     {
         EnsureFields(splitFields);
-        ThrowIfFieldCountExceeded(index.Value);
         if (index.Value <= _fieldTexts.Count)
             return;
 
@@ -357,7 +354,6 @@ internal sealed class AwkFieldFrame(
         Func<AwkText, List<AwkFieldText>> splitFields)
     {
         EnsureFields(splitFields);
-        ThrowIfFieldCountExceeded(count.Value);
         var oldFieldCount = _fieldTexts.Count;
         var newFieldCount = count.Value;
         var newCapacity = PlanFieldCapacity(newFieldCount);
@@ -627,11 +623,9 @@ internal sealed class AwkFieldFrame(
     {
         if (_fieldsAreSplit || (index.IsNamedField && index.Value <= _fieldTexts.Count))
             return;
-        // Prove the complete field count fits before publishing a prefix. Tighter
-        // quotas retain complete validation and its established rejection timing.
         var upperBound = (long)_recordText.ByteLength + 1;
         if (fieldSplitter is null || _recordText.ByteLength < IncrementalRecordBytes ||
-            !index.IsNamedField || upperBound > maxFields ||
+            !index.IsNamedField ||
             index.Value >= upperBound || !AwkFieldSplitter.SupportsIncrementalFields(SplitPlan))
         {
             EnsureFields(splitFields);
@@ -717,7 +711,6 @@ internal sealed class AwkFieldFrame(
         {
             var fieldTexts = reusable is not null && fieldSplitter is not null
                 ? fieldSplitter.SplitRecordFields(_recordText, SplitPlan, reusable) : splitFields(_recordText);
-            ThrowIfFieldCountExceeded(fieldTexts.Count);
             var payloadByteLength = SumFieldPayloadByteLength(fieldTexts);
             var retainedBytes = EstimateRetainedBytes(_recordText, fieldTexts, _fieldValueCache);
             checkpoint?.Invoke();
@@ -902,11 +895,5 @@ internal sealed class AwkFieldFrame(
             AwkRuntimeMemory.CheckedToInt32(AwkRuntimeMemory.CheckedMultiply(
                 separatorLength,
                 Math.Max(0, fieldCount - 1))));
-
-    private void ThrowIfFieldCountExceeded(int count)
-    {
-        if (count > maxFields)
-            throw new AwkRuntimeException(AwkMessages.ErrorArrayElementLimit);
-    }
 
 }

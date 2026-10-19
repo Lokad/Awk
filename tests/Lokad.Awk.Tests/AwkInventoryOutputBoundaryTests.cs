@@ -200,7 +200,7 @@ public sealed class AwkInventoryOutputBoundaryTests
             if (++checks == 3) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var variables = new AwkVariables(4_096, 4_096, 1_024, governor, counters, AwkValue.FromText, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { }, checkpoint: Check);
+        var variables = new AwkVariables(governor, counters, AwkValue.FromText, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { }, checkpoint: Check);
         var names = Enumerable.Range(0, 512).Select(index => AwkVariableName.FromText("v" + index)).ToHashSet();
         var array = AwkArrayName.FromText(symbolTable ? AwkVariables.SymbolTableName : "kept");
         if (symbolTable) variables.InitializeGlobalNames(names);

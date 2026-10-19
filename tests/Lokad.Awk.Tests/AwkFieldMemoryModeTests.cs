@@ -117,11 +117,11 @@ public sealed class AwkFieldMemoryModeTests
         Assert.Equal(0, budget.Reserved);
     }
 
-    private static AwkMemoryAccounting Accounting(int mode,AwkExecutionMemoryOwner owner,AwkRuntimeCounters counters) =>
+    private static AwkMemoryAccounting Accounting(int mode, AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters) =>
         AwkMemoryAccounting.Create(counters, owner);
 
     private static AwkFieldFrame Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, int valueLimit, Action? checkpoint = null) =>
-        new(counters, accounting, 4096, static value => AwkText.FromString(value.AsString()), checkpoint);
+        new(counters, accounting, static value => AwkText.FromString(value.AsString()), checkpoint);
 
     private static List<AwkFieldText> Split(AwkText _) =>
         [AwkFieldText.FromRecordSlice(0, 5), AwkFieldText.FromRecordSlice(6, 4)];

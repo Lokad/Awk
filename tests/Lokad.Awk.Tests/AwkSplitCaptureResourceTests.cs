@@ -34,17 +34,16 @@ public sealed class AwkSplitCaptureResourceTests
         Assert.Equal(1, counters.SeparatorCaptureFallbacks);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
-
     [Theory]
-    [InlineData("a", ",", 1, 1, 0)]
-    [InlineData("a", "", 1, 1, 0)]
-    [InlineData("a ", " ", 1, 1, 1)]
-    [InlineData(" a", " ", 1, 1, 1)]
-    [InlineData(" ", " ", 1, 0, 1)]
-    [InlineData("ab", "", 2, 2, 1)]
-    public void ElementLimitCountsOnlyPublishedEntries(string input, string separator, int limit, int fields, int captures)
+    [InlineData("a", ",", 1, 0)]
+    [InlineData("a", "", 1, 0)]
+    [InlineData("a ", " ", 1, 1)]
+    [InlineData(" a", " ", 1, 1)]
+    [InlineData(" ", " ", 0, 1)]
+    [InlineData("ab", "", 2, 1)]
+    public void ElementLimitCountsOnlyPublishedEntries(string input, string separator, int fields, int captures)
     {
-        var state = Seed(State(AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(limit)));
+        var state = Seed(State(AwkRuntimeLimits.CreateDefault()));
 
         Assert.Equal(fields, Split(state, input, separator));
 
@@ -60,11 +59,16 @@ public sealed class AwkSplitCaptureResourceTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void EitherReplacementElementLimitFailurePreservesBothArrays(bool patsplit)
+    public void ReplacementAdmissionFailurePreservesBothArrays(bool patsplit)
     {
-        var state = Seed(State(AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1)));
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
+            AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+        var state = Seed(memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            CancellationToken.None, memory.Configure(options))).State);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
 
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
             if (patsplit)
@@ -74,7 +78,7 @@ public sealed class AwkSplitCaptureResourceTests
                 Split(state, "a,b", ",");
         });
 
-        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         AssertPreserved(state, before);
     }
 

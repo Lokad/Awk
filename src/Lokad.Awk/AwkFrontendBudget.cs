@@ -9,7 +9,6 @@ internal sealed class AwkFrontendBudget
         int maxSyntaxNestingDepth,
         int maxTokens,
         int maxDiagnostics,
-        int maxIdentifierBytes,
         long maxRegexPatternBytes,
         int maxRegexGroups,
         AwkStringEscapeWarnings? stringEscapeWarnings = null,
@@ -18,7 +17,6 @@ internal sealed class AwkFrontendBudget
         MaxSyntaxNestingDepth = maxSyntaxNestingDepth;
         MaxTokens = maxTokens;
         MaxDiagnostics = maxDiagnostics;
-        MaxIdentifierBytes = maxIdentifierBytes;
         MaxRegexPatternBytes = maxRegexPatternBytes;
         MaxRegexGroups = maxRegexGroups;
         StringEscapeWarnings = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
@@ -36,32 +34,19 @@ internal sealed class AwkFrontendBudget
 
     public int MaxDiagnostics { get; }
 
-    public int MaxIdentifierBytes { get; }
-
     public long MaxRegexPatternBytes { get; }
 
     public int MaxRegexGroups { get; }
 
     public static AwkFrontendBudget Unlimited(int maxSyntaxNestingDepth) =>
         new(
-            maxSyntaxNestingDepth,
-            int.MaxValue,
-            int.MaxValue,
-            int.MaxValue,
-            long.MaxValue,
-            int.MaxValue);
+            maxSyntaxNestingDepth, int.MaxValue, int.MaxValue, long.MaxValue, int.MaxValue);
 
     public static AwkFrontendBudget FromResources(AwkRuntimeResourceMonitor resources, int previousDiagnostics = 0,
         AwkStringEscapeWarnings? stringEscapeWarnings = null,
         AwkRegexEscapeWarnings? regexEscapeWarnings = null,
         AwkFrontendMemory? memory = null) =>
         new(
-            resources.Limits.MaxSyntaxNestingDepth,
-            resources.Limits.MaxFrontendTokens,
-            Math.Max(0, resources.Limits.MaxFrontendDiagnostics - previousDiagnostics),
-            resources.Limits.MaxIdentifierBytes,
-            resources.Limits.MaxRegexPatternBytes,
-            resources.Limits.MaxRegexGroups,
-            stringEscapeWarnings, regexEscapeWarnings)
+            resources.Limits.MaxSyntaxNestingDepth, resources.Limits.MaxFrontendTokens, Math.Max(0, resources.Limits.MaxFrontendDiagnostics - previousDiagnostics), resources.Limits.MaxRegexPatternBytes, resources.Limits.MaxRegexGroups, stringEscapeWarnings, regexEscapeWarnings)
         { Memory = memory ?? AwkFrontendMemory.Disabled };
 }

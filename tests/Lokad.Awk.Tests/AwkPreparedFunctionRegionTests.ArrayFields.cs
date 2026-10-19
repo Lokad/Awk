@@ -146,17 +146,14 @@ public sealed partial class AwkPreparedFunctionRegionTests
         return result;
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task FieldArrayActionMissingRefusalKeepsBothArraysAndScalar(int mode)
+    [Fact]
+    public async Task FieldArrayActionMissingRefusalKeepsBothArraysAndScalar()
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var program = Bind("{total+=a[$1]+b[$1]}");
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var state = State(counters, limits, owner: owner);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var a = AwkArrayName.FromText("a"); var b = AwkArrayName.FromText("b");
@@ -168,9 +165,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetCurrentRecord(record);
         var host = new MockFileSystem(); var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
             await program.MainActions[0].ExecuteAsync(state, io, output));
-        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(4, state.ResolveVariableValue(total).AsNumber());
         Assert.Equal(7, state.GetArrayAwkValue(a, new("hit")).AsNumber());
         Assert.Equal(3, state.GetArrayAwkValue(b, new("hit")).AsNumber());

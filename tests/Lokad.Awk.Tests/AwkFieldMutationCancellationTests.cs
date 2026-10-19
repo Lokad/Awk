@@ -103,14 +103,14 @@ public sealed class AwkFieldMutationCancellationTests
         Assert.Same(previousRecord, frame.RecordAwkText);
         Assert.Equal(allocations, counters.AwkTextAllocations);
         if (cached)
-            Assert.Equal("a", frame.GetFieldValue(new(ManyFields), AlreadySplit, _ => throw new InvalidOperationException("Cached." )).AsString());
+            Assert.Equal("a", frame.GetFieldValue(new(ManyFields), AlreadySplit, _ => throw new InvalidOperationException("Cached.")).AsString());
 
         armed = false;
         frame.AssignFieldCount(new(retained), Separator, AlreadySplit);
         Assert.Equal(retained, frame.GetFieldCount(AlreadySplit));
         if (cached)
         {
-            Assert.Equal("a", frame.GetFieldValue(new(retained), AlreadySplit, _ => throw new InvalidOperationException("Retained cache." )).AsString());
+            Assert.Equal("a", frame.GetFieldValue(new(retained), AlreadySplit, _ => throw new InvalidOperationException("Retained cache.")).AsString());
             Assert.Equal(allocations, counters.AwkTextAllocations);
         }
         Assert.Equal(string.Join("|", Enumerable.Repeat("a", retained)), frame.RecordAwkText.AsString());
@@ -223,7 +223,7 @@ public sealed class AwkFieldMutationCancellationTests
     private static List<AwkFieldText> AlreadySplit(AwkText _) => throw new InvalidOperationException("Already split.");
 
     private static AwkFieldFrame Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
-        new(counters, governor, ManyFields * 2, value => value.ByteText, checkpoint);
+        new(counters, governor, value => value.ByteText, checkpoint);
 
     private static CooperativeTestMemory Governor(AwkRuntimeCounters counters, long budget = 8 << 20) =>
         new CooperativeTestMemory(budget, counters);

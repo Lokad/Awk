@@ -6,8 +6,10 @@ public sealed class AwkFieldCapacityTests
     private static readonly AwkText Space = AwkText.FromSourceLiteralString(" ");
 
     [Theory]
-    [InlineData(1, 65)] [InlineData(2, 65)]
-    [InlineData(1, 4097)] [InlineData(2, 4097)]
+    [InlineData(1, 65)]
+    [InlineData(2, 65)]
+    [InlineData(1, 4097)]
+    [InlineData(2, 4097)]
     public async Task RetainedCapacitySurvivesShrinkUntilStorageIsReplaced(int mode, int count)
     {
         var budget = new CooperativeTestBudget(Limit);
@@ -29,9 +31,9 @@ public sealed class AwkFieldCapacityTests
     public static IEnumerable<object[]> GrowthCases()
     {
         foreach (var mode in new[] { 1, 2 })
-        foreach (var operation in new[] { "field", "count", "reference" })
-        foreach (var target in new[] { 65, 128, 2048 })
-            yield return [mode, operation, target];
+            foreach (var operation in new[] { "field", "count", "reference" })
+                foreach (var target in new[] { 65, 128, 2048 })
+                    yield return [mode, operation, target];
     }
 
     [Theory]
@@ -59,8 +61,8 @@ public sealed class AwkFieldCapacityTests
     public static IEnumerable<object[]> MutationCases()
     {
         foreach (var mode in new[] { 1, 2 })
-        foreach (var operation in new[] { "field", "count", "reference" })
-            yield return [mode, operation];
+            foreach (var operation in new[] { "field", "count", "reference" })
+                yield return [mode, operation];
     }
 
     [Theory]
@@ -173,7 +175,7 @@ public sealed class AwkFieldCapacityTests
 
     private static long Buffer(int capacity) => AwkRuntimeMemory.EstimateFieldTextListBytes(capacity);
 
-    private static AwkMemoryAccounting Accounting(int mode,AwkExecutionMemoryOwner owner,AwkRuntimeCounters counters) =>
+    private static AwkMemoryAccounting Accounting(int mode, AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters) =>
         AwkMemoryAccounting.Create(counters, owner);
 
     private static (AwkFieldFrame Frame, AwkText Record, List<AwkFieldText> Fields) Frame(
@@ -182,7 +184,7 @@ public sealed class AwkFieldCapacityTests
         var record = AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("x", count)));
         var fields = new List<AwkFieldText>();
         for (var i = 0; i < count; i++) fields.Add(AwkFieldText.FromRecordSlice(i * 2, 1));
-        var frame = new AwkFieldFrame(counters, accounting, 16384, value => AwkText.FromString(value.AsString()), checkpoint);
+        var frame = new AwkFieldFrame(counters, accounting, value => AwkText.FromString(value.AsString()), checkpoint);
         frame.SetRecordText(record);
         Assert.Equal(count, frame.GetFieldCount(_ => fields));
         return (frame, record, fields);

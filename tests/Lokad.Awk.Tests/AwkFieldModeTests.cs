@@ -64,17 +64,18 @@ public sealed class AwkFieldModeTests
     [InlineData("FIELDWIDTHS", "")]
     [InlineData("FPAT", ".")]
     [InlineData("RS", "")]
-    public void FullMetadataArrayRejectsTransitionBeforeScalarOrSplitterMutation(string name, string text)
+    public void MetadataAdmissionRefusalRejectsTransitionBeforeScalarOrSplitterMutation(string name, string text)
     {
         using var memoryForState = State(AwkCompatibilityMode.GnuDefault, AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1));
+            AwkRuntimeLimits.CreateDefault());
         var state = memoryForState.State;
         state.SetArrayAwkValue(ProcInfo, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
         var old = state.ResolveVariableValue(AwkVariableName.FromText(name));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
+        memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => Assign(state, name,
             AwkValue.FromText(AwkText.FromSourceLiteralString(text)), false));
-        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(old.ByteText, state.ResolveVariableValue(AwkVariableName.FromText(name)).ByteText);
         Assert.False(state.TryPeekArrayAwkValue(ProcInfo, ModeKey, out _));
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
@@ -128,11 +129,12 @@ public sealed class AwkFieldModeTests
     public void InitialMetadataCapacityFailurePreservesExistingArray()
     {
         using var memoryForState = State(AwkCompatibilityMode.GnuDefault, AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1));
+            AwkRuntimeLimits.CreateDefault());
         var state = memoryForState.State;
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayAwkValue(ProcInfo, key, AwkValue.FromNumber(7));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
+        memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.Throws<AwkRuntimeException>(state.InitializeProcInfo);
         Assert.Equal(7, state.GetArrayAwkValue(ProcInfo, key).AsNumber());
         Assert.False(state.TryPeekArrayAwkValue(ProcInfo, ModeKey, out _));

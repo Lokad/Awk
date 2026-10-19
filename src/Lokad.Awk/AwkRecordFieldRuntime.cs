@@ -11,7 +11,6 @@ internal sealed class AwkRecordFieldRuntime
     private readonly Func<AwkValue, AwkText> _formatStringByteText;
     private readonly Func<AwkText> _resolveOutputFieldSeparator;
     private readonly Func<AwkRecordFieldSplittingMode> _resolveAssignedRecordMode;
-    private readonly int _maxFields;
     private readonly Action? _checkpoint;
     private readonly AwkFieldFrame _frame;
     private readonly Func<AwkText, List<AwkFieldText>> _splitCurrentFields;
@@ -26,7 +25,6 @@ internal sealed class AwkRecordFieldRuntime
         Func<AwkRecordFieldSplittingMode> resolveAssignedRecordMode,
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
-        int maxFields,
                 Action? checkpoint = null)
     {
         _fieldSplitter = fieldSplitter;
@@ -36,9 +34,8 @@ internal sealed class AwkRecordFieldRuntime
         _formatStringByteText = formatStringByteText;
         _resolveOutputFieldSeparator = resolveOutputFieldSeparator;
         _resolveAssignedRecordMode = resolveAssignedRecordMode;
-        _maxFields = maxFields;
         _checkpoint = checkpoint;
-        _frame = new(counters, governor, maxFields,             formatStringByteText, checkpoint, fieldSplitter);
+        _frame = new(counters, governor, formatStringByteText, checkpoint, fieldSplitter);
         // Bind once; the callback reads the current record's immutable split plan.
         _splitCurrentFields = SplitCurrentFields;
     }
@@ -145,7 +142,7 @@ internal sealed class AwkRecordFieldRuntime
         var count = Math.Truncate(value.AsNumber(_checkpoint));
         if (count < 0)
             throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-        if (!double.IsFinite(count) || count > _maxFields)
+        if (!double.IsFinite(count) || count > int.MaxValue)
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
 
         _frame.AssignFieldCount(new AwkFieldCount((int)count), value,

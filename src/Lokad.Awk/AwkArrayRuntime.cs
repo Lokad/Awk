@@ -287,8 +287,6 @@ internal sealed class AwkArrayRuntime
         {
             entryCount = AwkRuntimeMemory.CheckedAdd(entryCount, groups[index].Success ? 3 : 0);
         }
-
-        _variables.PreflightMutableArrayReplacement(entryCount);
         var slots = _variables.CreateMutableArraySlots(entryCount);
         if (entryCount != 0)
         {

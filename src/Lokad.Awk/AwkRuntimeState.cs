@@ -78,21 +78,9 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkSpecialVariableDispatcher? specialVariables = null;
         AwkRecordFieldRuntime? recordFields = null;
         _variables = new AwkVariables(
-            Limits.MaxArrayElements,
-            Limits.MaxSymbols,
-            Limits.MaxIdentifierBytes,
-            MemoryAccounting,
-            Counters,
-            CreateByteTextValue,
-            CreateNumericStringValue,
-            CreateDeferredTextValue,
-            ApplySpecialVariableAssignment,
-            () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
-                .FieldCountValue,
-            () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
-                .PrepareOutputFieldSeparatorAssignment(),
-            CompatibilityMode,
-            CancellationCheckpoint);
+            MemoryAccounting, Counters, CreateByteTextValue, CreateNumericStringValue, CreateDeferredTextValue, ApplySpecialVariableAssignment, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
+                .FieldCountValue, () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
+                .PrepareOutputFieldSeparatorAssignment(), CompatibilityMode, CancellationCheckpoint);
         _functions = new AwkFunctionRuntime(
             Limits.MaxFunctionCallDepth,
             MemoryAccounting,
@@ -129,19 +117,9 @@ internal sealed class AwkRuntimeState : IDisposable
                 CompatibilityMode,
                 _regexRuntime.ResetWarningSite);
             _recordFields = new AwkRecordFieldRuntime(
-                _fieldSplitter,
-                CreateStringValue,
-                CreateByteTextValue,
-                CreateNumericStringValue,
-                FormatStringByteText,
-                ResolveOutputFieldSeparator,
-                () => ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator).ByteLength == 0
+                _fieldSplitter, CreateStringValue, CreateByteTextValue, CreateNumericStringValue, FormatStringByteText, ResolveOutputFieldSeparator, () => ResolveSpecialVariableText(AwkSpecialVariableId.RecordSeparator).ByteLength == 0
                     ? AwkRecordFieldSplittingMode.Paragraph
-                    : AwkRecordFieldSplittingMode.Ordinary,
-                Counters,
-                MemoryAccounting,
-                Limits.MaxFields,
-
+                    : AwkRecordFieldSplittingMode.Ordinary, Counters, MemoryAccounting,
                 CancellationCheckpoint);
             recordFields = _recordFields;
             _specialVariables = new AwkSpecialVariableDispatcher(

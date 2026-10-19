@@ -72,18 +72,6 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum frontend and expression-tree nesting depth.</summary>
     public int MaxSyntaxNestingDepth => Limits.MaxSyntaxNestingDepth;
 
-    /// <summary>Gets the maximum element count of each awk array.</summary>
-    public int MaxArrayElements => Limits.MaxArrayElements;
-
-    /// <summary>Gets the maximum number of record fields.</summary>
-    public int MaxFields => Limits.MaxFields;
-
-    /// <summary>Gets the maximum number of scalar symbols retained by one execution.</summary>
-    public int MaxSymbols => Limits.MaxSymbols;
-
-    /// <summary>Gets the maximum UTF-8 byte length of an awk identifier.</summary>
-    public int MaxIdentifierBytes => Limits.MaxIdentifierBytes;
-
     /// <summary>Gets the maximum UTF-8 byte length of a source or translated regex pattern.</summary>
     public long MaxRegexPatternBytes => Limits.MaxRegexPatternBytes;
 
@@ -220,22 +208,6 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the frontend nesting depth configured.</summary>
     public AwkExecutionPolicy WithMaxSyntaxNestingDepth(int value) =>
         this with { Limits = Limits.WithMaxSyntaxNestingDepth(value) };
-
-    /// <summary>Returns a copy with the per-array element budget configured.</summary>
-    public AwkExecutionPolicy WithMaxArrayElements(int value) =>
-        this with { Limits = Limits.WithMaxArrayElements(value) };
-
-    /// <summary>Returns a copy with the field-count budget configured.</summary>
-    public AwkExecutionPolicy WithMaxFields(int value) =>
-        this with { Limits = Limits.WithMaxFields(value) };
-
-    /// <summary>Returns a copy with the retained scalar-symbol budget configured.</summary>
-    public AwkExecutionPolicy WithMaxSymbols(int value) =>
-        this with { Limits = Limits.WithMaxSymbols(value) };
-
-    /// <summary>Returns a copy with the identifier byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxIdentifierBytes(int value) =>
-        this with { Limits = Limits.WithMaxIdentifierBytes(value) };
 
     /// <summary>Returns a copy with the regex pattern-byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexPatternBytes(long value) =>

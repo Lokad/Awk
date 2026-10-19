@@ -101,12 +101,16 @@ public sealed class AwkPreparedArrayKindTests
     [Fact]
     public void BoundWritesKeepEntryPreflights()
     {
-        var state = State(limits: AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1));
+        using var memory = new CooperativeTestMemory(8 << 20);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
+            CancellationToken.None, memory.Configure(Options()))).State;
+        state.InitializeGlobalReadSlots(1);
         state.SetArrayAwkValue(Array, Key, AwkValue.FromNumber(7), 0);
         var retained = state.MemoryAccounting.CurrentCommittedBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
             state.SetArrayAwkValue(Array, new("new"), AwkValue.FromNumber(9), 0));
-        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(7, state.GetArrayAwkValue(Array, Key, 0).AsNumber());
         Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

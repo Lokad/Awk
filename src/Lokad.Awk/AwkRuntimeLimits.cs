@@ -8,8 +8,6 @@ internal sealed record AwkRuntimeLimits
     public const int CancellationCheckBytes = 4_096;
     public const int DefaultMaxFunctionCallDepth = 1_000;
     public const int DefaultMaxSyntaxNestingDepth = 128;
-    public const int DefaultMaxArrayElements = 1_000_000;
-    public const int DefaultMaxFields = 1_000_000;
     public const int DefaultMaxOutputFiles = 10_000;
     public const int DefaultMaxInputFiles = 10_000;
     public const int DefaultMaxPipes = 1_024;
@@ -30,14 +28,6 @@ internal sealed record AwkRuntimeLimits
     public int MaxFunctionCallDepth { get; private init; } = DefaultMaxFunctionCallDepth;
 
     public int MaxSyntaxNestingDepth { get; private init; } = DefaultMaxSyntaxNestingDepth;
-
-    public int MaxArrayElements { get; private init; } = DefaultMaxArrayElements;
-
-    public int MaxFields { get; private init; } = DefaultMaxFields;
-
-    public int MaxSymbols { get; private init; } = 100_000;
-
-    public int MaxIdentifierBytes { get; private init; } = 64 << 10;
 
     public long MaxRegexPatternBytes { get; private init; } = 8L << 20;
 
@@ -74,10 +64,6 @@ internal sealed record AwkRuntimeLimits
         {
             MaxFunctionCallDepth = 32,
             MaxSyntaxNestingDepth = 64,
-            MaxArrayElements = 100_000,
-            MaxFields = 100_000,
-            MaxSymbols = 10_000,
-            MaxIdentifierBytes = 1 << 10,
             MaxRegexPatternBytes = 64L << 10,
             MaxRegexGroups = 256,
             MaxRegexCacheBytes = 8L << 20,
@@ -105,18 +91,6 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxSyntaxNestingDepth(int value) =>
         this with { MaxSyntaxNestingDepth = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxArrayElements(int value) =>
-        this with { MaxArrayElements = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxFields(int value) =>
-        this with { MaxFields = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxSymbols(int value) =>
-        this with { MaxSymbols = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxIdentifierBytes(int value) =>
-        this with { MaxIdentifierBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxRegexPatternBytes(long value) =>
         this with { MaxRegexPatternBytes = RequirePositive(value) };

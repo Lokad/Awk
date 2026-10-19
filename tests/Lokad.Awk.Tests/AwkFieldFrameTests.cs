@@ -55,7 +55,7 @@ public sealed class AwkFieldFrameTests
     {
         using var memoryForGovernor = new CooperativeTestMemory(500, AwkRuntimeCounters.Disabled);
         var governor = memoryForGovernor.Accounting;
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, value => value.ByteText);
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, value => value.ByteText);
         var priorPlan = CreatePlan(0, ",");
         frame.SetRecordText(AwkText.FromSourceLiteralString("keep"), priorPlan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -85,7 +85,7 @@ public sealed class AwkFieldFrameTests
     {
         using var memoryForGovernor = new CooperativeTestMemory(4_096, AwkRuntimeCounters.Disabled);
         var governor = memoryForGovernor.Accounting;
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, value => value.ByteText);
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, value => value.ByteText);
         var plan = CreatePlan(mode, new string('x', 200));
         frame.SetRecordText(AwkText.FromSourceLiteralString("keep"), plan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -102,27 +102,6 @@ public sealed class AwkFieldFrameTests
         Assert.Equal(string.Empty, frame.RecordAwkText.AsString());
     }
 
-    [Fact]
-    public void AwkFieldFrame_FieldLimitFailurePreservesLazyPlanForRetry()
-    {
-        using var memoryForGovernor = new CooperativeTestMemory(4_096, AwkRuntimeCounters.Disabled);
-        var governor = memoryForGovernor.Accounting;
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1, value => value.ByteText);
-        var plan = CreatePlan(0, ",");
-        frame.SetRecordText(AwkText.FromSourceLiteralString("a,b"), plan);
-        var committedBefore = governor.CurrentCommittedBytes;
-
-        var exception = Assert.Throws<AwkRuntimeException>(() => frame.GetFieldCount(_ =>
-            [AwkFieldText.FromRecordSlice(0, 1), AwkFieldText.FromRecordSlice(2, 1)]));
-
-        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal(plan, frame.SplitPlan);
-        Assert.Equal("a,b", frame.RecordAwkText.AsString());
-        Assert.Equal(committedBefore, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(1, frame.GetFieldCount(_ => [AwkFieldText.FromRecordSlice(0, 3)]));
-    }
-
     private static AwkRecordSplitPlan CreatePlan(int mode, string pattern)
     {
         var text = AwkText.FromSourceLiteralString(pattern);
@@ -137,7 +116,7 @@ public sealed class AwkFieldFrameTests
 
     private static AwkFieldFrame CreateFrame(AwkRuntimeCounters counters) =>
         new(
-            counters, CreateAccounting(counters), maxFields: 1_000, value => value.ByteText);
+            counters, CreateAccounting(counters), value => value.ByteText);
 
     private static AwkMemoryAccounting CreateAccounting(AwkRuntimeCounters counters) =>
         AwkMemoryAccounting.Disabled;

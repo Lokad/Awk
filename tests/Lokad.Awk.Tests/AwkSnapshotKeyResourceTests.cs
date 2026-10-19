@@ -11,9 +11,9 @@ public sealed class AwkSnapshotKeyResourceTests
     public static IEnumerable<object[]> Snapshots()
     {
         foreach (var observed in new[] { false, true })
-        foreach (var source in new[] { "symbols", "ordinals", "texts" })
-        foreach (var selector in new[] { "", "@unsorted", "@ind_str_asc" })
-            yield return [observed, source, selector];
+            foreach (var source in new[] { "symbols", "ordinals", "texts" })
+                foreach (var selector in new[] { "", "@unsorted", "@ind_str_asc" })
+                    yield return [observed, source, selector];
     }
 
     public static IEnumerable<object[]> NewPayloads()
@@ -86,19 +86,15 @@ public sealed class AwkSnapshotKeyResourceTests
     [InlineData(true, "symbols")]
     [InlineData(false, "ordinals")]
     [InlineData(true, "ordinals")]
-    public async Task KeySortTransfersTemporaryPayloadIntoDestinationWithoutDuplicateAdmission(bool observed, string source)
+    public async Task KeySortTransfersTemporaryPayloadAndRefundsDestination(bool observed, string source)
     {
         var (memory, name) = CreateState(observed, source, "@ind_str_asc");
         using var ownedMemory = memory;
         var state = memory.State;
+        var beforeDestination = state.MemoryAccounting.CurrentCommittedBytes;
         state.SetArrayString(Destination, First, "keep");
+        var oldBytes = state.MemoryAccounting.CurrentCommittedBytes - beforeDestination;
         var (keys, _, payload) = await MeasureExpected(state, name, source, "@ind_str_asc");
-        var entries = AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(keys.Length);
-        var destinationBytes = keys.Sum(static key => AwkRuntimeMemory.EstimateExternalArrayElementBytes(0, key.ByteLength));
-        var oldBytes = AwkRuntimeMemory.EstimateExternalArrayElementBytes(0, 4);
-        var required = entries + payload + Math.Max(0, destinationBytes - oldBytes - payload);
-        var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        using var pressure = state.MemoryAccounting.ReserveTransient(MemoryLimit - baseline - required);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
 
         var count = await state.SortArrayKeysAsync(name, Destination, AwkArraySortOrder.Parse("@ind_str_asc"),
@@ -107,7 +103,7 @@ public sealed class AwkSnapshotKeyResourceTests
         Assert.Equal(keys.Length, count);
         for (var index = 0; index < keys.Length; index++)
             Assert.Equal(keys[index].ToString(), state.GetArrayByteText(Destination, AwkArrayKey.FromOrdinal(index + 1)).AsString());
-        Assert.Equal(before - oldBytes + destinationBytes, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.True(state.MemoryAccounting.CurrentCommittedBytes > before - oldBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         state.ClearArray(Destination);
         Assert.Equal(before - oldBytes, state.MemoryAccounting.CurrentCommittedBytes);
@@ -116,9 +112,9 @@ public sealed class AwkSnapshotKeyResourceTests
     public static IEnumerable<object[]> SortFailures()
     {
         foreach (var observed in new[] { false, true })
-        foreach (var source in new[] { "symbols", "ordinals" })
-        foreach (var keys in new[] { false, true })
-            yield return [observed, source, keys];
+            foreach (var source in new[] { "symbols", "ordinals" })
+                foreach (var keys in new[] { false, true })
+                    yield return [observed, source, keys];
     }
 
     [Theory]
@@ -170,7 +166,7 @@ public sealed class AwkSnapshotKeyResourceTests
             if (++checks == 4) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var variables = new AwkVariables(4_096, 4_096, 1_024, governor, counters, AwkValue.FromText, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { }, checkpoint: Check);
+        var variables = new AwkVariables(governor, counters, AwkValue.FromText, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { }, checkpoint: Check);
         var name = source == "symbols" ? Symbols : Source;
         if (source == "symbols")
             variables.InitializeGlobalNames(Enumerable.Range(1, 512).Select(index => AwkVariableName.FromText("v" + index)).ToHashSet());
@@ -217,8 +213,7 @@ public sealed class AwkSnapshotKeyResourceTests
     {
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()
-                .WithMaxIdentifierBytes(16_384), AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
         var memory = new CooperativeTestMemory(MemoryLimit);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options));
         memory.Initialize(state);

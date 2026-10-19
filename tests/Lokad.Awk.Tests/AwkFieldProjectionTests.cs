@@ -43,28 +43,6 @@ public sealed partial class AwkFieldProjectionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task OwnedExpressionRetainsTightFieldQuotaBeforePublishing(bool dynamicIndex)
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxFields(2), AwkRegexEngineKind.DotNetCompatibility);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
-        var source = AwkText.FromString("one two " + new string('x', 160));
-        state.SetCurrentRecord(source);
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var field = dynamicIndex ? AwkExpression.FieldIndex(AwkExpression.Number("1", 1)) : AwkExpression.FieldIndex(1);
-        var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await field.EvaluateAsync(new(state)));
-        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, counters.FieldsMaterialized);
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Same(source, state.CurrentRecordByteText);
-        state.SetCurrentRecord(AwkText.FromString("ok next"));
-        Assert.Equal("ok"u8.ToArray(), (await field.EvaluateAsync(new(state))).ByteText.AsSpan().ToArray());
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
     public void DirectProjectionCopiesBeforeBorrowedRecordMutationAndAvoidsFieldValues(bool finite)
     {
         using var memoryForState = State(finite);

@@ -292,7 +292,7 @@ public sealed class AwkFieldCancellationTests
     }
 
     private static AwkFieldFrame Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
-        new(counters, governor, LongScan, value => value.ByteText, checkpoint);
+        new(counters, governor, value => value.ByteText, checkpoint);
 
     private static CooperativeTestMemory Governor(AwkRuntimeCounters counters) =>
         new CooperativeTestMemory(8 << 20, counters);

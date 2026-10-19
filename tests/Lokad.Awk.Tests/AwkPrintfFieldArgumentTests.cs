@@ -10,21 +10,6 @@ public sealed class AwkPrintfFieldArgumentTests
     }
 
     [Theory]
-    [InlineData("fields")]
-    [InlineData("unused")]
-    public async Task AllFieldsPreflightBeforeAnyObservableOutput(string refusal)
-    {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxFields(1);
-        var format = refusal == "unused" ? "unused" : "%s:%04d\\n";
-        var borrowed = await RunAsync(false, limits, format);
-        Assert.Equal(await RunAsync(true, limits, format), borrowed);
-        Assert.Equal(2, borrowed.Exit);
-        Assert.Equal("", borrowed.Output);
-        Assert.DoesNotContain("Exception", borrowed.Error);
-        Assert.Contains("limit exceeded", borrowed.Error);
-    }
-
-    [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]

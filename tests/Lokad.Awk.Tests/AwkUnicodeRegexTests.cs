@@ -30,8 +30,7 @@ public sealed class AwkUnicodeRegexTests
         }
         Assert.Equal(Warning, parse.Warnings[0].Message);
         Assert.Equal("awk: warning: invalid `\\u' escape sequence\n", parse.Warnings[1].Message);
-        var budget = new AwkFrontendBudget(int.MaxValue, int.MaxValue, 1, int.MaxValue,
-            long.MaxValue, int.MaxValue);
+        var budget = new AwkFrontendBudget(int.MaxValue, int.MaxValue, 1, long.MaxValue, int.MaxValue);
         var error = Assert.Throws<AwkRuntimeException>(() => AwkParser.Parse(source, budget,
             CancellationToken.None, profile));
         Assert.Equal(AwkDiagnosticId.RuntimeResourceLimit, error.Id);

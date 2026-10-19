@@ -5,12 +5,11 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkFieldCountValueTests
 {
     [Theory]
-    [InlineData(4.8, "awk: memory limit exceeded\n")]
     [InlineData(1e30, "awk: memory limit exceeded\n")]
     [InlineData(-1.8, "awk: negative field index\n")]
     public void FailedCountAssignmentPreservesValueRecordAndMemory(double value, string diagnostic)
     {
-        using var memory = State(AwkRuntimeLimits.CreateDefault().WithMaxFields(3));
+        using var memory = State(AwkRuntimeLimits.CreateDefault());
         var state = memory.State;
         state.SetCurrentRecord(AwkText.FromString("a b c"));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldCount, AwkValue.FromText("02.8"));
@@ -89,7 +88,8 @@ public sealed class AwkFieldCountValueTests
         Assert.Equal("a ", state.CurrentRecordByteText.AsString());
     }
 
-    private static CooperativeTestMemory State(AwkRuntimeLimits limits) {
+    private static CooperativeTestMemory State(AwkRuntimeLimits limits)
+    {
         var memory = new CooperativeTestMemory(1 << 20);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             memory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,

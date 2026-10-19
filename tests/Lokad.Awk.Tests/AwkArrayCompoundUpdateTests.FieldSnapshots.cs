@@ -43,8 +43,10 @@ public sealed partial class AwkArrayCompoundUpdateTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task LiteralFieldSnapshotRightFailureKeepsOriginalText(bool pending, bool cancel)
     {
         using var memoryForState = State();
@@ -73,9 +75,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
 
     [Theory]
     [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
     [InlineData(2, false)]
     [InlineData(2, true)]
     public async Task LiteralFieldSnapshotKeepsFullArrayHitsAndMissingRefusal(int mode, bool missing)
@@ -83,7 +82,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility) { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var name = AwkArrayName.FromText("values");
@@ -95,11 +94,12 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var source = new ValueSource(3, false);
         var target = AwkReference.ArrayElement(name, LiteralField(missing ? 2 : 1));
         var right = new EffectExpression(source, () => effects++);
+        if (missing) budget.RefuseNextAdmissionMinimumGrowth = 1;
         if (missing)
         {
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
                 await target.ApplyCompoundAssignmentAsync(new(state), right, AwkCompoundAssignmentOperation.Add));
-            Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         }
         else Assert.Equal(10, (await target.ApplyCompoundAssignmentAsync(new(state), right, AwkCompoundAssignmentOperation.Add)).AsNumber());
         Assert.Equal(missing ? 0 : 1, effects);

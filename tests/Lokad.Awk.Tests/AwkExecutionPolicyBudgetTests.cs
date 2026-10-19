@@ -9,10 +9,6 @@ public sealed class AwkExecutionPolicyBudgetTests
     {
                 { "MaxFunctionCallDepth", 1000, 32 },
         { "MaxSyntaxNestingDepth", 128, 64 },
-        { "MaxArrayElements", 1_000_000, 100_000 },
-        { "MaxFields", 1_000_000, 100_000 },
-        { "MaxSymbols", 100_000, 10_000 },
-        { "MaxIdentifierBytes", 64 << 10, 1 << 10 },
         { "MaxRegexPatternBytes", 8L << 20, 64L << 10 },
         { "MaxRegexGroups", 10_000, 256 },
         { "MaxRegexCacheBytes", 64L << 20, 8L << 20 },

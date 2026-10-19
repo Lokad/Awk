@@ -31,8 +31,12 @@ public sealed class AwkIncrementalFieldTests
     }
 
     [Theory]
-    [InlineData(0, " ")] [InlineData(1, " ")] [InlineData(2, " ")]
-    [InlineData(0, "|")] [InlineData(1, "|")] [InlineData(2, "|")]
+    [InlineData(0, " ")]
+    [InlineData(1, " ")]
+    [InlineData(2, " ")]
+    [InlineData(0, "|")]
+    [InlineData(1, "|")]
+    [InlineData(2, "|")]
     public async Task ReusedBuffersKeepCapturedSeparatorsAndMutationSnapshots(int mode, string separator)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -61,8 +65,12 @@ public sealed class AwkIncrementalFieldTests
     }
 
     [Theory]
-    [InlineData(0, " ")] [InlineData(1, " ")] [InlineData(2, " ")]
-    [InlineData(0, "|")] [InlineData(1, "|")] [InlineData(2, "|")]
+    [InlineData(0, " ")]
+    [InlineData(1, " ")]
+    [InlineData(2, " ")]
+    [InlineData(0, "|")]
+    [InlineData(1, "|")]
+    [InlineData(2, "|")]
     public async Task SmallFieldListsReuseAcrossRecordsAndRefundOnReset(int mode, string separator)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -94,39 +102,9 @@ public sealed class AwkIncrementalFieldTests
     }
 
     [Theory]
-    [InlineData(0, " ")] [InlineData(1, " ")] [InlineData(2, " ")]
-    [InlineData(0, "|")] [InlineData(1, "|")] [InlineData(2, "|")]
-    public async Task ReusedFieldListQuotaFailureCannotPublishAPrefix(int mode, string separator)
-    {
-        var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(mode, owner, counters);
-        var (frame, splitter) = Frame(accounting, counters, separator, maxFields: 2);
-        frame.SetRecordText(AwkText.FromSourceLiteralString("one" + separator + "two"), splitter.CaptureRecordPlan());
-        Assert.Equal("one", Read(frame, splitter, 1));
-        var source = AwkText.FromSourceLiteralString(string.Join(separator, Enumerable.Repeat("bad", 6)));
-        frame.SetRecordText(source, splitter.CaptureRecordPlan());
-        var plan = frame.SplitPlan;
-        var committed = accounting.CurrentCommittedBytes;
-        for (var repeat = 0; repeat < 2; repeat++)
-        {
-            var error = Assert.Throws<AwkRuntimeException>(() => Read(frame, splitter, 1));
-            Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.Equal(2, counters.FieldsMaterialized);
-            Assert.Equal(0, counters.FieldListBufferReuses);
-            Assert.Same(source, frame.RecordAwkText);
-            Assert.Equal(plan, frame.SplitPlan);
-            Assert.Equal(committed, accounting.CurrentCommittedBytes);
-            Assert.Equal(0, accounting.CurrentReservedBytes);
-        }
-        frame.ResetRecord();
-        Assert.Equal(0, accounting.CurrentCommittedBytes);
-        Assert.Equal(0, budget.Reserved);
-    }
-
-    [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
     public async Task ReusedFieldListCancellationClearsUnpublishedDescriptors(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -156,7 +134,9 @@ public sealed class AwkIncrementalFieldTests
     }
 
     [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
     public async Task LargeFieldListsAreDiscardedBeforeSmallReuse(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -317,37 +297,13 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(0, budget.Reserved);
     }
 
-    [Theory]
-    [InlineData(" ")]
-    [InlineData("|")]
-    public void FieldQuotaStillRejectsTheFirstReadBeforePublishingAPrefix(string separator)
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForAccounting = new CooperativeTestMemory(8 << 20, counters);
-        var accounting = memoryForAccounting.Accounting;
-        var (frame, splitter) = Frame(accounting, counters, separator, maxFields: 2);
-        var record = AwkText.FromSourceLiteralString(string.Join(separator, new[] { "one", "two", new string('x', 160) }));
-        frame.SetRecordText(record, splitter.CaptureRecordPlan());
-        var committed = accounting.CurrentCommittedBytes;
-        var plan = frame.SplitPlan;
-        var error = Assert.Throws<AwkRuntimeException>(() => Read(frame, splitter, 1));
-        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, counters.FieldsMaterialized);
-        Assert.Equal(plan, frame.SplitPlan);
-        Assert.Same(record, frame.RecordAwkText);
-        Assert.Equal(committed, accounting.CurrentCommittedBytes);
-        Assert.Equal(0, accounting.CurrentReservedBytes);
-        frame.ResetRecord();
-        Assert.Equal(0, accounting.CurrentCommittedBytes);
-    }
-
     private static string Read(AwkFieldFrame frame, AwkFieldSplitter splitter, int index)
     {
         Assert.True(frame.TryGetUnmaterializedFieldBytes(new(index), line => splitter.SplitRecordFields(line, frame.SplitPlan), out var bytes));
         return AwkUtf8Codec.Decode(bytes);
     }
 
-    private static AwkMemoryAccounting Accounting(int mode,AwkExecutionMemoryOwner owner,AwkRuntimeCounters counters) =>
+    private static AwkMemoryAccounting Accounting(int mode, AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters) =>
         AwkMemoryAccounting.Create(counters, owner);
 
     private static (AwkFieldFrame, AwkFieldSplitter) Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, string separator, int maxFields = 1 << 20, Action? checkpoint = null)
@@ -356,7 +312,7 @@ public sealed class AwkIncrementalFieldTests
         var monitor = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
         var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, check, counters, AwkRegexEngineKind.DotNetCompatibility, monitor, accounting);
         var splitter = new AwkFieldSplitter(AwkFieldSeparatorSpec.FromText(separator), regex.Create, regex.CreateLiteral, regex.EnumerateMatchSpans, () => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, check, accounting, counters);
-        var frame = new AwkFieldFrame(counters, accounting, maxFields, value => value.ByteText, check, splitter);
+        var frame = new AwkFieldFrame(counters, accounting, value => value.ByteText, check, splitter);
         return (frame, splitter);
     }
 }

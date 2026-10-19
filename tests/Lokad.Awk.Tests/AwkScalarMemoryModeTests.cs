@@ -98,7 +98,5 @@ public sealed class AwkScalarMemoryModeTests
 
     private static AwkVariables CreateVariables(AwkMemoryAccounting accounting, AwkRuntimeCounters counters,
         Action<string, AwkValue> assign, Func<int> fieldCount, Action prepareOfs) =>
-        new(2, 100, 100, accounting, counters,
-            static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text),
-            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), assign,             () => AwkValue.FromNumber(fieldCount()), prepareOfs);
+        new(accounting, counters, static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), assign, () => AwkValue.FromNumber(fieldCount()), prepareOfs);
 }

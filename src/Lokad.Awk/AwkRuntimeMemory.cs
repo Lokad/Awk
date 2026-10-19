@@ -82,6 +82,13 @@ internal static class AwkRuntimeMemory
             SymbolMetadataBytes,
             CheckedAdd(StringObjectBytes, CheckedMultiply(characterCount, sizeof(char))));
 
+    // Charge retained dictionary capacity, including empty slots left by deletion.
+    // The existing coarse entry estimate covers buckets/entries and small headers.
+    public static long EstimateArrayBackingBytes(int capacity) => CheckedMultiply(ArrayEntryBytes, capacity);
+
+    public static long EstimateArrayElementPayloadBytes(AwkArrayKey key, AwkVariableSlot slot) =>
+        CheckedAdd(key.RetainedTextMemoryBytes, EstimateVariableSlotBytes(slot));
+
     public static long EstimateArrayElementBytes(AwkArrayKey key, AwkVariableSlot slot) =>
         CheckedAdd(
             CheckedAdd(ArrayEntryBytes, key.RetainedTextMemoryBytes),

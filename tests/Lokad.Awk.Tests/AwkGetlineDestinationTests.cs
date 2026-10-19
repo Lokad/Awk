@@ -10,8 +10,6 @@ public sealed class AwkGetlineDestinationTests
     public async Task DestinationAdmissionFailurePrecedesOpeningTheInput(bool field, bool memory)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        limits = memory ? limits :
-            field ? limits.WithMaxFields(2) : limits.WithMaxArrayElements(1);
         var options = CreateOptions(limits, AwkRuntimeCounters.Disabled);
         using var ownedMemory = new CooperativeTestMemory(1 << 20);
         var state = ownedMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, ownedMemory.Configure(options))).State;
@@ -30,13 +28,13 @@ public sealed class AwkGetlineDestinationTests
         var context = new AwkEvaluationContext(state, output, io);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
 
-        if (memory) ownedMemory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
+        ownedMemory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => AwkGetlineRuntime.ExecuteAsync(
             AwkGetlineTarget.ReferenceTarget(reference),
             AwkGetlineSource.Redirection(AwkExpression.Literal("data")),
             context, new AwkExecutionContext(output, io), AwkPendingDiagnosticPolicy.Preserve).AsTask());
 
-        Assert.Equal(memory ? "awk: memory limit exceeded\n" : "awk: array element limit exceeded\n",
+        Assert.Equal("awk: memory limit exceeded\n",
             AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, host.ReadOpenCount);
         Assert.Equal(0, host.OpenFileCount);

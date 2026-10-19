@@ -4,14 +4,13 @@ public sealed class AwkBorrowedArrayReadTests
 {
     [Theory]
     [InlineData(0)]
-    [InlineData(1)]
     [InlineData(2)]
     public async Task HitsAvoidCopiesAndMissesRetainOwnedKeysAfterRecordReuse(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(mode, owner, counters);
+        var state = State(owner, counters);
         var name = AwkArrayName.FromText("a");
         var hit = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, hit, AwkValue.FromNumber(7));
@@ -35,23 +34,22 @@ public sealed class AwkBorrowedArrayReadTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
     [InlineData(2)]
-    public async Task FullArrayAllowsHitsAndRefusesMissingReadBeforeAddingAnElement(int mode)
+    public async Task HitsSucceedAndMissingReadRefusalLeavesArrayUnchanged(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(mode, owner, counters, 1);
+        var state = State(owner, counters);
         var name = AwkArrayName.FromText("a");
         var key = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
         var record = AwkText.FromSourceLiteralString("hit missing");
         state.SetCurrentRecord(record);
         Assert.Equal(7, state.GetArrayFieldValue(name, 1).AsNumber());
+        budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.GetArrayFieldValue(name, 2));
-        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(7, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
         Assert.Same(record, state.CurrentRecordByteText);
@@ -64,9 +62,7 @@ public sealed class AwkBorrowedArrayReadTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForAccounting = new CooperativeTestMemory(1024, counters);
         var accounting = memoryForAccounting.Accounting;
-        var variables = new AwkVariables(2, 100, 100, accounting, counters,
-            AwkValue.FromText, static text => AwkValue.FromNumericString(text),
-            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), static (_, _) => { });
+        var variables = new AwkVariables(accounting, counters, AwkValue.FromText, static text => AwkValue.FromNumericString(text), static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), static (_, _) => { });
         var name = AwkArrayName.FromText("a");
         Assert.False(variables.TryGetExistingArrayValue(name, "missing"u8, out _));
         Assert.False(variables.ContainsArray(name));
@@ -95,14 +91,13 @@ public sealed class AwkBorrowedArrayReadTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(1)]
     [InlineData(2)]
     public async Task TargetKeysReuseHitsAndCopyMissesBeforeRecordReuse(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(mode, owner, counters);
+        var state = State(owner, counters);
         var name = AwkArrayName.FromText("a");
         var hit = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, hit, AwkValue.FromNumber(7));
@@ -126,14 +121,12 @@ public sealed class AwkBorrowedArrayReadTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
     [InlineData(2)]
-    public async Task TargetHitUpdatesFullArrayAndMissingAdmissionPrecedesRightEffects(int mode)
+    public async Task TargetHitUpdatesAndMissingAdmissionPrecedesRightEffects(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
-        var state = State(mode, owner, AwkRuntimeCounters.CreateEnabled(), 1);
+        var state = State(owner, AwkRuntimeCounters.CreateEnabled());
         var name = AwkArrayName.FromText("a");
         var key = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
@@ -145,9 +138,10 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal(8, (await Target(1).ApplyIncrementAsync(context)).AsNumber());
         var count = AwkVariableName.FromText("count");
         state.AssignVariableValue(count, AwkValue.FromNumber(0));
+        budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await Target(2).ApplyCompoundAssignmentAsync(
             context, AwkExpression.PreIncrement(AwkReference.Scalar(count)), AwkCompoundAssignmentOperation.Add));
-        Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, state.ResolveVariableValue(count).AsNumber());
         Assert.Equal(8, state.GetArrayAwkValue(name, key).AsNumber());
         Assert.False(state.ContainsArrayValue(name, new AwkArrayKey("missing")));
@@ -155,9 +149,9 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static AwkRuntimeState State(int mode,AwkExecutionMemoryOwner owner,AwkRuntimeCounters counters,int maxElements = 100)
+    private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters)
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(maxElements);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
             limits, AwkRegexEngineKind.DotNetCompatibility)
         { MemoryOwner = owner };
