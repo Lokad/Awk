@@ -109,7 +109,8 @@ internal sealed class AwkRuntimeState : IDisposable
             MemoryAccounting,
             CompatibilityMode,
             ReportRegexUnicodeWarning, regexEscapeWarnings, runtimeOptions.RegexEngine,
-            runtimeOptions.MemoryOwner.IsEnabled ? runtimeOptions.MemoryOwner.Scope : runtimeOptions.MemoryBudget);
+            runtimeOptions.MemoryOwner.IsEnabled ? runtimeOptions.MemoryOwner.Scope : runtimeOptions.MemoryBudget,
+            cancellationToken);
         try
         {
             _stringRuntime = new AwkStringRuntime(stringUnitMode, CancellationCheckpoint);

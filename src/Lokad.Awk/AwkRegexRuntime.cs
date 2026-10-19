@@ -12,6 +12,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     private readonly Func<AwkRegexCaseSensitivity> _resolveCaseSensitivity;
     private readonly AwkStringUnitMode _stringUnitMode;
     private readonly Action _throwIfCancellationRequested;
+    private readonly CancellationToken _cancellationToken;
     private readonly AwkRuntimeCounters _counters;
     private readonly AwkRuntimeResourceMonitor _resources;
     private readonly AwkRegexEngineKind _engineKind;
@@ -32,14 +33,15 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         Action throwIfCancellationRequested,
         AwkRuntimeCounters counters,
         AwkRegexEngineKind engineKind,
-        IAwkRegexEngine? regexEngine = null)
+        IAwkRegexEngine? regexEngine = null,
+        CancellationToken cancellationToken = default)
         : this(
             resolveCaseSensitivity,
             stringUnitMode,
             throwIfCancellationRequested,
             counters,
             engineKind,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), regexEngine: regexEngine)
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), regexEngine: regexEngine, cancellationToken: cancellationToken)
     {
     }
 
@@ -55,12 +57,14 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         Action<string>? reportUnicodeWarning = null,
         AwkRegexEscapeWarnings? regexEscapeWarnings = null,
         IAwkRegexEngine? regexEngine = null,
-        IMemoryBudget? memoryBudget = null)
+        IMemoryBudget? memoryBudget = null,
+        CancellationToken cancellationToken = default)
     {
         if (engineKind == AwkRegexEngineKind.Utf8Adapter) ArgumentNullException.ThrowIfNull(regexEngine);
         _resolveCaseSensitivity = resolveCaseSensitivity;
         _stringUnitMode = stringUnitMode;
         _throwIfCancellationRequested = throwIfCancellationRequested;
+        _cancellationToken = cancellationToken;
         _counters = counters;
         _engineKind = engineKind;
         _providedEngine = engineKind == AwkRegexEngineKind.Utf8Adapter ? regexEngine : null;
@@ -199,15 +203,13 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             using var lease = ResolveProvidedRegex(regex.Pattern, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
             if (lease.Pattern is not { } compiled) return IsMatch(regex, input, forceDotNet: true);
             _resources.RecordRegexMatch();
-            return compiled.IsMatch(input.AsSpan(_throwIfCancellationRequested), _throwIfCancellationRequested);
+            var result = compiled.IsMatch(input.AsSpan(_throwIfCancellationRequested), _cancellationToken);
+            _throwIfCancellationRequested();
+            return result;
         }
         catch (AwkRegexAdmissionException)
         {
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
         }
     }
 

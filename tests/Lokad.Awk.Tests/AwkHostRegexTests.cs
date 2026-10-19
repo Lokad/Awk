@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 
 namespace Lokad.Awk.Tests;
 
@@ -52,9 +51,7 @@ public sealed class AwkHostRegexTests
     [Theory]
     [InlineData(Behavior.RefuseCompile, "awk: memory limit exceeded\n")]
     [InlineData(Behavior.RefuseMatch, "awk: memory limit exceeded\n")]
-    [InlineData(Behavior.TimeoutCompile, "awk: regular expression match timed out\n")]
-    [InlineData(Behavior.TimeoutMatch, "awk: regular expression match timed out\n")]
-    public async Task RefusalAndTimeoutFailWithoutFallbackOrLaterEffects(Behavior behavior, string diagnostic)
+    public async Task RefusalFailsWithoutFallbackOrLaterEffects(Behavior behavior, string diagnostic)
     {
         var engine = new RecordingEngine(behavior);
         var budget = new CooperativeTestBudget(1 << 20);
@@ -103,7 +100,7 @@ public sealed class AwkHostRegexTests
     public async Task CancellationDisposesPatternsAndPreservesCallerCancellation()
     {
         using var cancellation = new CancellationTokenSource();
-        var engine = new RecordingEngine { BeforeMatch = cancellation.Cancel };
+        var engine = new RecordingEngine { BeforeMatch = _ => cancellation.Cancel() };
         var host = new MockFileSystem();
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             Tool("BEGIN{print \"before\";r=\"a\";print (\"a\"~r)}").ExecuteAsync(host,
@@ -146,12 +143,60 @@ public sealed class AwkHostRegexTests
         Assert.All(first.Patterns, pattern => Assert.True(pattern.Disposed));
     }
 
+    [Theory]
+    [InlineData("compile", false)] [InlineData("compile", true)]
+    [InlineData("boolean", false)] [InlineData("boolean", true)]
+    [InlineData("captures", false)] [InlineData("captures", true)]
+    public async Task PublicExecutionForwardsCancellationIntoEveryEngineOperation(string stage, bool governed)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var entered = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var budget = new CooperativeTestBudget(1 << 20);
+        void Cooperate(CancellationToken token)
+        {
+            Assert.True(token.CanBeCanceled);
+            entered.TrySetResult(token);
+            if (!token.WaitHandle.WaitOne(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("The test did not release its cooperative engine.");
+            token.ThrowIfCancellationRequested();
+        }
+        var engine = new RecordingEngine
+        {
+            BeforeCompile = stage == "compile" ? Cooperate : null,
+            BeforeMatch = stage == "compile" ? null : Cooperate
+        };
+        var host = new MockFileSystem();
+        var script = stage == "captures" ? "BEGIN{print \"before\";r=\"(a)\";print match(\"a\",r,captures);print \"after\"}"
+            : "BEGIN{print \"before\";r=\"a\";print (\"a\"~r);print \"after\"}";
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(engine);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var execution = Task.Run(() => Tool(script).ExecuteAsync(host, policy, cancellation.Token));
+        try
+        {
+            var received = await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(received.IsCancellationRequested);
+            Assert.False(execution.IsCompleted);
+            cancellation.Cancel();
+            var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(cancellation.Token, error.CancellationToken);
+            Assert.True(received.IsCancellationRequested);
+            Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Empty(host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.All(engine.Patterns, pattern => Assert.True(pattern.Disposed));
+            Assert.Equal(0, budget.Reserved);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            try { await execution; } catch (OperationCanceledException) { }
+        }
+    }
+
     private static Awk Tool(string source) => AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
 
     public enum Behavior
     {
-        Normal, Unsupported, RefuseCompile, RefuseMatch, TimeoutCompile, TimeoutMatch,
-        BadByteRange, BadUtf16Range, SplitScalar
+        Normal, Unsupported, RefuseCompile, RefuseMatch, BadByteRange, BadUtf16Range, SplitScalar
     }
 
     private sealed class RecordingEngine(Behavior behavior = Behavior.Normal) : IAwkRegexEngine, IDisposable
@@ -160,12 +205,14 @@ public sealed class AwkHostRegexTests
         public bool Disposed { get; private set; }
         public bool BudgetSupplied { get; private set; }
         public bool SawEvictionBeforeCompletion { get; private set; }
-        public Action? BeforeMatch { get; init; }
+        public Action<CancellationToken>? BeforeMatch { get; init; }
+        public Action<CancellationToken>? BeforeCompile { get; init; }
         public List<Pattern> Patterns { get; } = [];
 
-        public bool TryCompile(string pattern, bool ignoreCase, TimeSpan timeout, IMemoryBudget? memoryBudget,
-            Action checkpoint, [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern)
+        public bool TryCompile(string pattern, bool ignoreCase, IMemoryBudget? memoryBudget,
+            CancellationToken token, [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern)
         {
+            BeforeCompile?.Invoke(token);
             Compiles++;
             BudgetSupplied |= memoryBudget is not null;
             SawEvictionBeforeCompletion |= Patterns.Any(pattern => pattern.Disposed);
@@ -175,10 +222,8 @@ public sealed class AwkHostRegexTests
                 Assert.False(memoryBudget.TryReserve(1L << 40, out _));
                 throw new AwkRegexAdmissionException();
             }
-            if (behavior == Behavior.TimeoutCompile) throw new RegexMatchTimeoutException();
             if (behavior == Behavior.Unsupported) { compiledPattern = null; return false; }
-            if (!AwkUtf8RegexEngine.Instance.TryCompile(pattern, ignoreCase, timeout,
-                    memoryBudget, checkpoint, out var inner))
+            if (!AwkUtf8RegexEngine.Instance.TryCompile(pattern, ignoreCase, memoryBudget, token, out var inner))
             { compiledPattern = null; return false; }
             var result = new Pattern(inner, behavior, BeforeMatch);
             Patterns.Add(result);
@@ -189,32 +234,31 @@ public sealed class AwkHostRegexTests
         public void Dispose() => Disposed = true;
     }
 
-    private sealed class Pattern(IAwkCompiledRegex inner, Behavior behavior, Action? beforeMatch) : IAwkCompiledRegex
+    private sealed class Pattern(IAwkCompiledRegex inner, Behavior behavior, Action<CancellationToken>? beforeMatch) : IAwkCompiledRegex
     {
         public bool Disposed { get; private set; }
         public int GroupCount => inner.GroupCount;
         public IReadOnlyList<string> GroupNames => inner.GroupNames;
 
-        private void Before(Action checkpoint)
+        private void Before(CancellationToken token)
         {
             ObjectDisposedException.ThrowIf(Disposed, this);
-            beforeMatch?.Invoke();
-            checkpoint();
+            beforeMatch?.Invoke(token);
+            token.ThrowIfCancellationRequested();
             if (behavior == Behavior.RefuseMatch) throw new AwkRegexAdmissionException();
-            if (behavior == Behavior.TimeoutMatch) throw new RegexMatchTimeoutException();
         }
 
-        public bool IsMatch(ReadOnlySpan<byte> input, Action checkpoint)
+        public bool IsMatch(ReadOnlySpan<byte> input, CancellationToken token)
         {
-            Before(checkpoint);
-            return inner.IsMatch(input, checkpoint);
+            Before(token);
+            return inner.IsMatch(input, token);
         }
 
         public AwkRegexCaptureRange Match(ReadOnlySpan<byte> input, int startInUtf16,
-            Span<AwkRegexCaptureRange> captures, Action checkpoint)
+            Span<AwkRegexCaptureRange> captures, CancellationToken token)
         {
-            Before(checkpoint);
-            var result = inner.Match(input, startInUtf16, captures, checkpoint);
+            Before(token);
+            var result = inner.Match(input, startInUtf16, captures, token);
             result = behavior switch
             {
                 Behavior.BadByteRange => result with { ByteIndex = input.Length + 1 },

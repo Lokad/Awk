@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `IAwkRegexEngine.TryCompile`, `IAwkCompiledRegex.IsMatch` and `Match` now receive the
+  current `CancellationToken`, replacing callback checkpoints; `TryCompile` no longer takes
+  a match timeout. Engine implementers must use each operation's token rather than retaining
+  a compile token. The internal adapter has no separate deadline and stays pinned to
+  Utf8Regex 0.2.0, which supports boundary checks but no in-flight token polling. Core remains
+  independent. Default .NET regex and semantic fallbacks keep their fixed timeout protection.
+
 - Removed `CommandTimeout`, `HostOperationTimeout`, `CleanupTimeout`, `ExecutionTimeout`
   and their `With...` methods. Use the caller cancellation token, with a caller-owned
   `CancellationTokenSource.CancelAfter` for deadlines. Cancellation propagates after cleanup;

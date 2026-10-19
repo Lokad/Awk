@@ -16,7 +16,10 @@ var policy = AwkExecutionPolicy.CreateDefault()
 Awk retains pattern translation, longest-match/capture selection, replacement, UTF-8
 boundary validation and resource policy. Compiled handles belong to execution caches;
 the application owns the stateless supplied engine. Input spans stay synchronous.
-Cancellation currently checks around producer calls and during capture copying; it cannot
-interrupt the producer calls themselves. In-flight cooperative cancellation is planned.
+Every operation receives the current cancellation token; cached handles retain no operation
+token. The adapter has no independent match timeout. Pinned producer 0.2.0 has no token-aware
+APIs, so cancellation checks surround its calls and run during capture copying; they cannot
+interrupt work inside a producer call. A future cooperative producer can use the same contract
+after separate qualification. No producer upgrade is required by the core package.
 See [regex engines](../../docs/REGEX.md) for integration and cancellation status, and
 [compatibility](../../docs/COMPATIBILITY.md#regex-semantics) for AWK semantics.

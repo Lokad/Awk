@@ -49,11 +49,11 @@ unwinds execution; delivered reads retain their buffer and accounting. Essential
 an uncancelled token and awaits every close and outstanding user before refunding storage.
 A host that ignores cancellation or never completes cleanup can delay completion indefinitely.
 
-The internal Utf8Regex adapter currently checks around producer calls rather than inside
-them. Forwarding cancellation and removing its separate timeout contract are planned;
-see [regex engines](REGEX.md#cooperative-cancellation). Awk-owned POSIX matching polls
-cancellation. The default .NET backend cannot poll that token internally and currently
-uses a fixed match timeout; that backend limitation is separate from adapter policy.
+The regex contract forwards the current token into compilation and each match, with no
+adapter-owned timeout. The internal Utf8Regex adapter's pinned0.2.0 producer lacks token-aware
+APIs; checks around producer calls cannot interrupt them. Future producer adoption is separate.
+Awk-owned POSIX matching polls cancellation. The default .NET backend retains its existing
+fixed timeout because it cannot poll the token internally. See [regex engines](REGEX.md).
 
 ## Remaining protections
 

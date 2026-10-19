@@ -237,12 +237,12 @@ public sealed class AwkReplacementCaptureCancellationTests
                 return AwkRegexMatch.FromMatch(new Regex("(a+)").Match(input), input, 0, input.Length,
                     coordinates, AwkRegexCapturePlan.All, AwkRuntimeLimits.Unlimited, counters, governor, checkpoint: callback);
             Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("(a+)", false,
-                TimeSpan.FromSeconds(1), null, static () => { }, out var pattern));
+                null, CancellationToken.None, out var pattern));
             using (pattern)
             {
                 var bytes = Encoding.UTF8.GetBytes(input);
                 Span<AwkRegexCaptureRange> ranges = stackalloc AwkRegexCaptureRange[2];
-                var whole = pattern.Match(bytes, 0, ranges, static () => { });
+                var whole = pattern.Match(bytes, 0, ranges, CancellationToken.None);
                 return AwkRegexMatch.FromProvidedMatch(whole, bytes, ranges, AwkRegexSearchOffset.Start,
                     coordinates, AwkRuntimeLimits.Unlimited, counters, governor, callback);
             }

@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace Lokad.Awk;
 
 internal sealed partial class AwkRegexRuntime
@@ -28,7 +26,7 @@ internal sealed partial class AwkRegexRuntime
         {
             _throwIfCancellationRequested();
             var supported = engine.TryCompile(pattern, sensitivity == AwkRegexCaseSensitivity.IgnoreCase,
-                AwkRegex.MatchTimeout, _providedMemoryBudget, _throwIfCancellationRequested, out compiled);
+                _providedMemoryBudget, _cancellationToken, out compiled);
             if (supported)
             {
                 if (compiled is null || compiled.GroupCount < 1 || compiled.GroupNames.Count != compiled.GroupCount ||
@@ -47,11 +45,6 @@ internal sealed partial class AwkRegexRuntime
         {
             compiled?.Dispose();
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            compiled?.Dispose();
-            throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
         }
         catch
         {
@@ -74,7 +67,8 @@ internal sealed partial class AwkRegexRuntime
                 return MatchSpan(regex, input, offset, CaptureDotNetInputContext(input));
             _resources.RecordRegexMatch();
             var bytes = input.AsSpan(_throwIfCancellationRequested);
-            var whole = compiled.Match(bytes, offset.Utf16Index, [], _throwIfCancellationRequested);
+            var whole = compiled.Match(bytes, offset.Utf16Index, [], _cancellationToken);
+            _throwIfCancellationRequested();
             if (!whole.Success) return AwkRegexMatchSpan.NoMatch;
             AwkRegexMatch.ValidateProvidedRanges(bytes, whole, [], offset, _memoryAccounting, _throwIfCancellationRequested);
             return AwkRegexMatchSpan.Match(whole.ByteIndex, whole.ByteLength, whole.Utf16Index, whole.Utf16Length);
@@ -82,10 +76,6 @@ internal sealed partial class AwkRegexRuntime
         catch (AwkRegexAdmissionException)
         {
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
         }
     }
 
@@ -106,7 +96,8 @@ internal sealed partial class AwkRegexRuntime
                 ? stackalloc AwkRegexCaptureRange[count] : new AwkRegexCaptureRange[count];
             _resources.RecordRegexMatch();
             var bytes = input.AsSpan(_throwIfCancellationRequested);
-            var whole = compiled.Match(bytes, offset.Utf16Index, ranges, _throwIfCancellationRequested);
+            var whole = compiled.Match(bytes, offset.Utf16Index, ranges, _cancellationToken);
+            _throwIfCancellationRequested();
             if (!whole.Success)
             {
                 matchSpan = AwkRegexMatchSpan.NoMatch;
@@ -121,10 +112,6 @@ internal sealed partial class AwkRegexRuntime
         catch (AwkRegexAdmissionException)
         {
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
         }
     }
 
