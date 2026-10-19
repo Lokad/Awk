@@ -32,8 +32,8 @@ an escape-produced backslash is content, not another source escape.
 
 Source strings, options and consumed assignment operands follow their profile. Include
 filenames are raw paths. Regex text crosses a separate ERE interpretation pass; see
-[regex compatibility](REGEX_COMPATIBILITY.md) and the
-[escape contract](COMPATIBILITY_CONTRACT.md#source-string-escapes).
+[regex semantics](COMPATIBILITY.md#regex-patterns) and the
+[escape contract](COMPATIBILITY.md#source-string-escapes).
 
 ## Representation and conversions
 
@@ -50,7 +50,7 @@ guarantee. Runtime counters provide evidence for individual paths.
 
 The default .NET regex engine also handles non-ASCII byte-mode text. A host-supplied
 `IAwkRegexEngine` receives valid UTF-8 spans directly; Awk validates its byte/UTF-16
-ranges and retains match-selection and replacement policy. The optional Utf8Regex adapter
+ranges and retains match-selection and replacement policy. The internal [Utf8Regex adapter](REGEX.md)
 does not change ingress or string units. Newer producer adoption remains postponed.
 
 Admission completes before text publication. Memory ownership, actual-user refunds and

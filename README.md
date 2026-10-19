@@ -62,10 +62,10 @@ runtime, IO, regex, memory, and host-operation budgets. `CreateDefault()` preser
 compatibility surface. The `--sandbox` command-line option independently disables file and command
 redirections; it does not replace host-side path and descriptor policy.
 
-Pass a caller cancellation token or configure `WithExecutionTimeout`. Ordinary finite-memory execution can use
-`AwkExecutionPolicy.CreateDefault().WithMaxExecutionMemoryBytes(64L << 20)`; restricted execution
-already has finite memory and a 30-second cooperative deadline. Some long builtin/backend calls still have coarse
-cancellation boundaries; see the runtime-limit contract for their current limits.
+Pass a caller cancellation token and use `WithMemoryBudget` for shared host-governed admission.
+Released 0.3.0 also has legacy per-execution byte quotas and separate deadline settings;
+their removal is planned. Some long builtin/backend calls still have coarse cancellation
+boundaries; see [resource control](docs/RUNTIME_LIMITS.md) for current behavior and the intended ownership.
 
 See [docs/SECURITY.md](docs/SECURITY.md) before executing awk supplied by an untrusted party.
 
@@ -89,13 +89,13 @@ Lokad.Awk qualifies ordinary valid-UTF-8 text processing: patterns, expressions,
 functions, flat arrays, records/fields, getline and formatting. This is a supported core with
 selected GNU conveniences, not full POSIX/GNU conformance. CSV, nested arrays, system(), namespaces,
 typed regex values and indirect calls remain unsupported; see the
-[compatibility matrix](docs/COMPATIBILITY_MATRIX.md).
+[compatibility guide](docs/COMPATIBILITY.md).
 
 The interpreter is the only execution engine, including its synchronous/prepared paths.
 Regex defaults to .NET compatibility, with
-documented [backend differences](docs/REGEX_COMPATIBILITY.md). Applications can supply an
+documented [regex semantics](docs/COMPATIBILITY.md#regex-semantics). Applications can supply an
 `IAwkRegexEngine` through `policy.WithRegexEngine(engine)`. The repository's
-`Lokad.Awk.Utf8Regex` adapter is for internal qualification and is not distributed as a
+[`Lokad.Awk.Utf8Regex` adapter](docs/REGEX.md) is for internal qualification and is not distributed as a
 NuGet package. Newer producer adoption remains postponed.
 
 Current representative throughput, GNU comparison and managed allocations are maintained in
@@ -122,10 +122,9 @@ Detailed runtime contracts live in:
 - [docs/UTF8_POLICY.md](docs/UTF8_POLICY.md)
 - [docs/RUNTIME_LIMITS.md](docs/RUNTIME_LIMITS.md)
 - [docs/SECURITY.md](docs/SECURITY.md)
-- [docs/COMPATIBILITY_CONTRACT.md](docs/COMPATIBILITY_CONTRACT.md)
-- [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)
+- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
 - [docs/RECORD_SEMANTICS.md](docs/RECORD_SEMANTICS.md)
-- [docs/REGEX_COMPATIBILITY.md](docs/REGEX_COMPATIBILITY.md)
+- [docs/REGEX.md](docs/REGEX.md)
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
 
 ## Dependencies

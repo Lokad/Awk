@@ -8,7 +8,7 @@ unmarked rows retain measurements at
 [`5c4a21a`](https://github.com/Lokad/Awk/commit/5c4a21a77a7279b07c2652bba820383119b1a174).
 All use the interpreter, .NET regex and default limits (UTC time zone), with no supplied
 shared memory budget and complete output consumption. Retained rows have not been rerun
-on the newer source. The optional Utf8Regex adapter is outside this baseline; newer adoption
+on the newer source. The internal Utf8Regex adapter is outside this baseline; newer adoption
 remains postponed.
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** divides Lokad elapsed

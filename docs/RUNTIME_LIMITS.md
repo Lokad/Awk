@@ -1,82 +1,66 @@
-# Runtime limits
+# Runtime resource control
 
-Pass an immutable `AwkExecutionPolicy` to `Awk.ExecuteAsync`. `CreateDefault()` supports
-ordinary compatibility; `CreateRestricted()` supplies tighter budgets and fewer host
-capabilities. Public execution uses the interpreter; regex defaults to .NET and can be
-supplied by the host. Refine a preset with its `With...` methods.
+The intended ownership is simple: the host's shared governor admits memory, and the caller's
+cancellation controls how long work may continue. `IAwkHost` controls effects. The released
+0.3.0 API still has additional byte quotas and timeout settings; their removal is planned,
+not implemented by this documentation update. See the [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs)
+for the current API and [migration notes](../CHANGELOG.md#030---2026-10-19) for changes already shipped.
 
-| Budget | Default | Restricted |
-| --- | --- | --- |
-| Function depth / syntax depth | 1,000 / 128 | 32 / 64 |
-| Execution-memory quota | Unlimited | 64 MiB |
-| Record / value / builder bytes | Unlimited / unlimited / 64 MiB | 8 MiB each |
-| Runtime input / output bytes | Unlimited | 64 MiB / 16 MiB |
-| Fields / entries per array | 1,000,000 | 100,000 |
-| .NET regex match timeout | 2 seconds | 2 seconds |
-| Host-operation / command deadline | 5 minutes | 10 seconds |
-| Aggregate cleanup deadline | 30 seconds | 5 seconds |
-| Whole-execution deadline | Caller-owned | 30 seconds, cooperative |
-
-CPU execution uses caller cancellation or `WithExecutionTimeout`. There are no execution-step,
-host-call, record-count, regex-operation/compilation, sorting or separator-scan work quotas.
-Counters are observational. Remaining storage, frontend and open-resource bounds are listed in the
-[public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs).
-
-Version 0.3.0 removes the former work-quota settings and `WithMax...` methods; see the
-[migration notes](../CHANGELOG.md#030---2026-10-19). Use a caller cancellation token or
-`WithExecutionTimeout` for cooperative whole-execution control. `WithCommandTimeout` governs
-pipe-command waits, `WithHostOperationTimeout` other host-operation waits, and
-`WithCleanupTimeout` aggregate cleanup. None forcibly terminates a host operation.
-
-## Shared memory
+## Shared memory admission
 
 `WithMemoryBudget(IMemoryBudget)` borrows an application-owned shared allowance through
 Awk's local interfaces. A budget carried by the invocation takes precedence and follows
-nested command descriptors. Awk owns child scopes and reservations, never the supplied
-budget. Each major frontend, compiled-program and runtime owner admits retained storage
-and construction peaks; the optional execution-memory quota is an additional runtime cap.
+nested command descriptors. Awk owns its child scopes and reservations, never the supplied
+budget. Scopes share the root allowance; they do not receive independent limits.
 
-Accounting is conservative and approximate, not a managed-heap cap: minor metadata,
-process caches and backend internals are not measured exactly. Retained capacity stays
-charged, including spare field slots after shrinking `NF`. Replacement/growth admits
-overlapping old/new storage before mutation; a final result can fit while its peak does not.
+Major frontend, compiled-program and runtime owners admit retained capacity and temporary
+growth peaks before allocation or mutation. Estimates are deliberately coarse, not a heap
+cap or an attempt to track every object. Replacement can require both old and new capacity.
+Streaming accounts for live storage, not cumulative bytes processed.
 
-**Any refused admission fails the command**, including the initial reservation. Awk stops
-execution with `awk: memory limit exceeded` and nonzero status. It does not retry, wait,
-spill, evict retained storage or select another algorithm/engine to recover. Refusal is
-distinct from cancellation, actual `OutOfMemoryException` and unsupported-regex fallback.
-Other resource failures retain their specific awk diagnostics without CLR exception text.
+**Any refused admission fails the command**, even for optional cache storage. No retry,
+waiting for memory, spilling, eviction or algorithm change recovers from refusal. Earlier
+effects remain committed. Unused admission is released on failed allocation.
 
-Mutation preflights protect arrays, fields, records, captures and output. Earlier committed
-script/host effects remain. Released storage is refunded after actual users finish; a timed-out
-or canceled wait does not end a host's buffer borrow. With a shared budget, cleanup waits for
-those users. Retained compiled storage stays charged through active executions; disposal
-prevents new users and refunds after existing users finish. A later command can reuse allowance.
-
-Supplied regex engines borrow the active budget. Existing bounded execution caches own
-compiled handles and dispose them on eviction/cleanup; routine eviction is separate from
-fatal refusal. Engines must not turn admission refusal into unsupported-pattern fallback.
-
-## Cancellation, streaming and publication
-
-Cancellation checkpoints remain active with counters disabled. Caller cancellation
-propagates; `WithExecutionTimeout` expiry is an awk failure. Host and cleanup deadlines bound
-waiting, not hard termination. Awk-owned POSIX construction/matching polls cancellation without a separate stopwatch
-deadline. .NET regex calls retain a timeout because they cannot poll that token internally;
-supplied engines retain their timeout contract. Some framework/parser calls are indivisible. No universal cancellation latency or CPU cap is promised.
-
-Fields split on demand where supported. Tight field quotas still validate the whole record
-before publishing a prefix; `NF` and mutation can finish splitting. Streaming buffers and caches
-retain bounded capacities/configured limits. Each statement flushes queued stdout/diagnostics;
-formatting/output failures discard unpublished bytes and preserve prior committed effects.
-
-For a finite runtime-memory quota with caller-owned cancellation:
+Refund follows actual ownership: pending host reads/writes/commands keep borrowed storage
+funded until they finish. Cancellation alone does not end that lifetime. Reused compiled
+storage stays charged through active executions; disposal prevents new users and refunds
+after existing users finish. Routine bounded-cache eviction is distinct from refusal recovery.
 
 ```csharp
-var policy = AwkExecutionPolicy.CreateDefault()
-    .WithMaxExecutionMemoryBytes(64L << 20);
+// memoryBudget and cancellationToken belong to the embedding application.
+var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(memoryBudget);
 var exitCode = await awk.ExecuteAsync(host, policy, cancellationToken);
 ```
 
+## Cancellation and cleanup
+
+Checkpoints remain active with observational counters disabled. Caller cancellation
+propagates after cleanup. It requests that runtime, host and regex work stop; it does not
+forcibly terminate work or authorize early refunds. A non-cooperating host can delay completion.
+
+Version 0.3.0 also has `ExecutionTimeout`, `CommandTimeout`, `HostOperationTimeout` and
+`CleanupTimeout` with corresponding `With...` methods. They currently create distinct deadline
+behavior. The planned cleanup removes these parallel controls in favor of caller/host-owned
+cancellation, including cleanup waiting, without abandoning outstanding users.
+
+The internal Utf8Regex adapter currently checks around producer calls rather than inside
+them. Forwarding cancellation and removing its separate timeout contract are planned;
+see [regex engines](REGEX.md#cooperative-cancellation). Awk-owned POSIX matching polls
+cancellation. The default .NET backend cannot poll that token internally and currently
+uses a fixed match timeout; that backend limitation is separate from adapter policy.
+
+## Remaining protections and planned deletion
+
+Managed recursion/syntax-depth protection, strict UTF-8, host authorization, mutation
+preflights, representable allocation sizes, open-resource bounds and bounded streaming/caches
+remain necessary. There are no fuel, host-call, record-count, regex-work or sorting-work quotas.
+
+The next simplification removes `MaxExecutionMemoryBytes`, `MaxRecordBytes`, `MaxValueBytes`,
+`MaxInputBytes` and `MaxOutputBytes`, their setters and enforcement. Their storage concerns
+belong to shared admission; cumulative I/O is not a memory charge. With no supplied budget,
+Awk must not silently invent a governor. Hosts using the restricted preset must supply the
+shared budget and cancellation needed for their workload when these legacy controls are removed.
+
 See [host containment](SECURITY.md), [UTF-8 policy](UTF8_POLICY.md) and
-[record semantics](RECORD_SEMANTICS.md) for the related contracts.
+[record semantics](RECORD_SEMANTICS.md) for the independent guarantees.

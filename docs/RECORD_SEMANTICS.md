@@ -25,7 +25,7 @@ Main input and every getline source use current RS. Changing RS preserves unread
 buffered bytes. Empty regex separator matches are ignored without losing skipped data.
 POSIX RS uses its first UTF-8 byte; non-ASCII matches consume a complete scalar with
 that leading byte. GNU single-byte RS is literal/case-sensitive. Other regex/case rules
-are in [regex compatibility](REGEX_COMPATIBILITY.md).
+are in [regex semantics](COMPATIBILITY.md#regex-matches-and-replacements).
 
 With `RS=""`, leading blank lines are skipped and two or more newlines separate
 paragraphs. A final single newline is removed from `$0` and retained in GNU RT;

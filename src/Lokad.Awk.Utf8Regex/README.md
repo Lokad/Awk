@@ -16,4 +16,7 @@ var policy = AwkExecutionPolicy.CreateDefault()
 Awk retains pattern translation, longest-match/capture selection, replacement, UTF-8
 boundary validation and resource policy. Compiled handles belong to execution caches;
 the application owns the stateless supplied engine. Input spans stay synchronous.
-See the repository's regex compatibility document for qualified behavior and limitations.
+Cancellation currently checks around producer calls and during capture copying; it cannot
+interrupt the producer calls themselves. In-flight cooperative cancellation is planned.
+See [regex engines](../../docs/REGEX.md) for integration and cancellation status, and
+[compatibility](../../docs/COMPATIBILITY.md#regex-semantics) for AWK semantics.
