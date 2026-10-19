@@ -283,15 +283,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var dotNetMatch = Regex.Match(input, "(?<=(\u00e9))x", RegexOptions.CultureInvariant);
 
         using var leasedMatch = AwkRegexMatch.FromMatch(
-            dotNetMatch,
-            input,
-            byteIndex: 2,
-            byteLength: 1,
-            AwkRegexCoordinatePolicy.Byte,
-            AwkRegexCapturePlan.All,
-            AwkRuntimeLimits.Unlimited,
-            counters,
-            AwkMemoryAccounting.Disabled);
+            dotNetMatch, input, byteIndex: 2, byteLength: 1, AwkRegexCoordinatePolicy.Byte, AwkRegexCapturePlan.All, counters, AwkMemoryAccounting.Disabled);
         var match = leasedMatch.Match;
 
         Assert.True(match.Success);
@@ -390,7 +382,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4),
+            AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.Utf8Adapter,
 regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);

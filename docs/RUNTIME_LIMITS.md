@@ -1,10 +1,10 @@
 # Runtime resource control
 
-The intended ownership is simple: the host's shared governor admits memory, and the caller's
-cancellation controls how long work may continue. `IAwkHost` controls effects. This branch has removed duplicate execution-memory, record/value-size and cumulative I/O
-quotas for the next release. Released 0.3.0 still has those settings. Other storage caps remain pending cleanup; the four Awk-owned deadline settings are also
-removed on this branch. See the [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs)
-for the current API and [migration notes](../CHANGELOG.md#030---2026-10-19) for changes already shipped.
+The host's shared governor admits memory, caller cancellation controls duration, and
+`IAwkHost` controls effects. This branch removes duplicate execution-memory, record/value,
+builder/capture and cumulative I/O ceilings, plus Awk-owned deadlines. Collection/frontend
+caps remain pending cleanup. Released 0.3.0 retains its older API; see the [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs)
+and [migration notes](../CHANGELOG.md#unreleased) for the next release.
 
 ## Shared memory admission
 
@@ -50,7 +50,7 @@ an uncancelled token and awaits every close and outstanding user before refundin
 A host that ignores cancellation or never completes cleanup can delay completion indefinitely.
 
 The regex contract forwards the current token into compilation and each match, with no
-adapter-owned timeout. The internal Utf8Regex adapter's pinned0.2.0 producer lacks token-aware
+adapter-owned timeout. The internal Utf8Regex adapter's pinned 0.2.0 producer lacks token-aware
 APIs; checks around producer calls cannot interrupt them. Future producer adoption is separate.
 Awk-owned POSIX matching polls cancellation. The default .NET backend retains its existing
 fixed timeout because it cannot poll the token internally. See [regex engines](REGEX.md).
@@ -62,7 +62,8 @@ preflights, representable allocation sizes, open-resource bounds and bounded str
 remain necessary. There are no fuel, host-call, record-count, regex-work or sorting-work quotas.
 
 Removed for the next release: `MaxExecutionMemoryBytes`, `MaxRecordBytes`, `MaxValueBytes`,
-`MaxInputBytes`, `MaxOutputBytes`, their setters and enforcement. Their storage concerns
+`MaxInputBytes`, `MaxOutputBytes`, `MaxBuilderBytes`, `MaxRegexCaptureBytes`, their setters
+and enforcement. Their storage concerns
 belong to shared admission; cumulative I/O is not a memory charge. With no supplied budget,
 Awk must not silently invent a governor. Hosts using the restricted preset must supply the
 shared budget and cancellation needed for their workload when upgrading from 0.3.0.

@@ -296,7 +296,7 @@ internal sealed class AwkArrayRuntime
             var capacity = AwkRuntimeMemory.CheckedAdd(
                 AwkRuntimeMemory.CheckedAdd(AwkArrayKey.FromOrdinal(groups.Count - 1).ByteLength, separator.ByteLength),
                 MatchLengthCaptureKeyPart.ByteLength);
-            using var builder = new AwkUtf8Builder(_state.Limits, _state.MemoryAccounting, capacity);
+            using var builder = new AwkUtf8Builder(_state.MemoryAccounting, capacity);
 
             AwkArrayKey MetadataKey(AwkArrayKey ordinal, AwkText part)
             {

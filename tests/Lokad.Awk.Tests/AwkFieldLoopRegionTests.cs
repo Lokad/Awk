@@ -20,7 +20,8 @@ public sealed class AwkFieldLoopRegionTests
     }
 
     [Theory]
-    [InlineData("fields")]  [InlineData("unicode")]
+    [InlineData("fields")]
+    [InlineData("unicode")]
     public async Task FieldAdmissionAndUnicodeMatchOrdinaryExecution(string mode)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -33,7 +34,8 @@ public sealed class AwkFieldLoopRegionTests
     }
 
     [Theory]
-    [InlineData("pending")] [InlineData("lint")]
+    [InlineData("pending")]
+    [InlineData("lint")]
     public async Task OutputAndLintRetainOrdinaryLoopBoundaries(string mode)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -41,7 +43,8 @@ public sealed class AwkFieldLoopRegionTests
     }
 
     [Theory]
-    [InlineData(14, true)] [InlineData(15, false)]
+    [InlineData(14, true)]
+    [InlineData(15, false)]
     public void FieldPreparationKeepsTheExistingSixteenNodeDepthBound(int depth, bool eligible)
     {
         AwkExpression index = AwkExpression.Number("1", 1);
@@ -59,8 +62,10 @@ public sealed class AwkFieldLoopRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
     public async Task PendingFieldIndicesRemainOrdinaryAndNeverReplay(bool compare, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
@@ -83,7 +88,7 @@ public sealed class AwkFieldLoopRegionTests
             AwkStatement.PostIncrement(reference), [AwkStatement.CompoundAssignment(AwkReference.PreparedGlobalScalar(total, 1),
                 value, AwkCompoundAssignmentOperation.Add)]);
         var host = new MockFileSystem(); var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var run = loop.ExecuteAsync(new(state, output, io)).AsTask();
         try
         {
@@ -128,7 +133,7 @@ public sealed class AwkFieldLoopRegionTests
         Assert.True(lowered.Succeeded);
         var statement = Assert.Single(lowered.Value);
         var host = new MockFileSystem(); var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         var error = "";
         try { await statement.ExecuteAsync(new(state, output, io)); }

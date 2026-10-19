@@ -94,7 +94,7 @@ internal abstract partial class AwkStatement
                     return;
                 }
 
-                using var builder = new AwkUtf8Builder(state.Limits, state.MemoryAccounting);
+                using var builder = new AwkUtf8Builder(state.MemoryAccounting);
                 builder.Append(segments.Segments, state.CancellationCheckpoint);
                 await EmitOutputAsync(output, io, target, builder.AsMemory()).ConfigureAwait(false);
             }
@@ -128,7 +128,7 @@ internal abstract partial class AwkStatement
                     var fields = new AwkPrintfFieldArguments(_fieldIndices, state);
                     if (!resolvedTarget.HasValue && execution.Output.TryFormatPrintf(formatText, fields, state))
                         return AwkStatementFlow.Continue;
-                    formatted = new AwkUtf8Builder(state.Limits, state.MemoryAccounting, capacity: 0);
+                    formatted = new AwkUtf8Builder(state.MemoryAccounting, capacity: 0);
                     AwkFormattingRuntime.FormatPrintfToBuilder(formatted, formatText, fields, state);
                 }
                 else
@@ -141,7 +141,7 @@ internal abstract partial class AwkStatement
                     var values = new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state);
                     if (!resolvedTarget.HasValue && execution.Output.TryFormatPrintf(formatText, values, state))
                         return AwkStatementFlow.Continue;
-                    formatted = new AwkUtf8Builder(state.Limits, state.MemoryAccounting, capacity: 0);
+                    formatted = new AwkUtf8Builder(state.MemoryAccounting, capacity: 0);
                     AwkFormattingRuntime.FormatPrintfToBuilder(formatted, formatText, values, state);
                 }
                 state.ThrowIfCancellationRequested();

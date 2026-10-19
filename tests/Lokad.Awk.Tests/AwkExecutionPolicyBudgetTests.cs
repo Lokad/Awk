@@ -13,8 +13,6 @@ public sealed class AwkExecutionPolicyBudgetTests
         { "MaxFields", 1_000_000, 100_000 },
         { "MaxSymbols", 100_000, 10_000 },
         { "MaxIdentifierBytes", 64 << 10, 1 << 10 },
-        { "MaxBuilderBytes", 64 << 20, 8 << 20 },
-        { "MaxRegexCaptureBytes", long.MaxValue, 8L << 20 },
         { "MaxRegexPatternBytes", 8L << 20, 64L << 10 },
         { "MaxRegexGroups", 10_000, 256 },
         { "MaxRegexCacheBytes", 64L << 20, 8L << 20 },

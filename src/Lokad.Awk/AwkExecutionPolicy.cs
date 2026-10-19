@@ -84,12 +84,6 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum UTF-8 byte length of an awk identifier.</summary>
     public int MaxIdentifierBytes => Limits.MaxIdentifierBytes;
 
-    /// <summary>Gets the maximum size of a governed runtime builder.</summary>
-    public int MaxBuilderBytes => Limits.MaxBuilderBytes;
-
-    /// <summary>Gets the maximum retained bytes in one regex capture result.</summary>
-    public long MaxRegexCaptureBytes => Limits.MaxRegexCaptureBytes;
-
     /// <summary>Gets the maximum UTF-8 byte length of a source or translated regex pattern.</summary>
     public long MaxRegexPatternBytes => Limits.MaxRegexPatternBytes;
 
@@ -242,14 +236,6 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the identifier byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxIdentifierBytes(int value) =>
         this with { Limits = Limits.WithMaxIdentifierBytes(value) };
-
-    /// <summary>Returns a copy with the governed-builder byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxBuilderBytes(int value) =>
-        this with { Limits = Limits.WithMaxBuilderBytes(value) };
-
-    /// <summary>Returns a copy with the regex-capture byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxRegexCaptureBytes(long value) =>
-        this with { Limits = Limits.WithMaxRegexCaptureBytes(value) };
 
     /// <summary>Returns a copy with the regex pattern-byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexPatternBytes(long value) =>

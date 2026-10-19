@@ -91,12 +91,12 @@ public sealed class AwkRegexScratchMemoryTests
         using var memoryForGovernor = Governor(1 << 20);
         var governor = memoryForGovernor.Accounting;
         var plan = AwkGensubReplacementPlan.Rent(text, governor: governor);
-        using var builder = new AwkUtf8Builder(canceled ? AwkRuntimeLimits.CreateDefault()
-            : AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4), governor, 0);
+        using var builder = new AwkUtf8Builder(governor, 0);
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         try
         {
+            if (!canceled) memoryForGovernor.Budget.RefuseNextAdmissionMinimumGrowth = 1;
             if (canceled)
                 Assert.Throws<OperationCanceledException>(() => plan.Append(Match(), builder, () =>
                 {
@@ -259,9 +259,7 @@ public sealed class AwkRegexScratchMemoryTests
     {
         const string input = "\U0001f600";
         var map = new[] { 0 }.Concat(Enumerable.Repeat(1, groups - 1)).ToArray();
-        return AwkRegexMatch.FromMatch(new Regex("(\U0001f600)").Match(input), input, 0, 4,
-            AwkRegexCoordinatePolicy.Byte, AwkRegexCapturePlan.All, AwkRuntimeLimits.Unlimited,
-            counters, governor, map, checkpoint);
+        return AwkRegexMatch.FromMatch(new Regex("(\U0001f600)").Match(input), input, 0, 4, AwkRegexCoordinatePolicy.Byte, AwkRegexCapturePlan.All, counters, governor, map, checkpoint);
     }
 
     private static AwkRegexMatch Match() => new(true, 0, 1, 0, 1, AwkText.FromString("H"),

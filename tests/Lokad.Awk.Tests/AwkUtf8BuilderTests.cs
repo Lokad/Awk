@@ -8,9 +8,7 @@ public sealed class AwkUtf8BuilderTests
     public void AwkUtf8Builder_AppendsAndMaterializesExactAwkText()
     {
         using var builder = new AwkUtf8Builder(
-            AwkRuntimeLimits.CreateDefault(),
-            AwkMemoryAccounting.Disabled,
-            capacity: 2);
+            AwkMemoryAccounting.Disabled, capacity: 2);
 
         builder.Append("caf"u8);
         builder.Append(AwkText.FromString("\u00e9"));
@@ -23,14 +21,14 @@ public sealed class AwkUtf8BuilderTests
     }
 
     [Fact]
-    public void AwkUtf8Builder_MaxLengthFailureDoesNotMutateContent()
+    public void AwkUtf8Builder_RefusedGrowthDoesNotMutateContent()
     {
+        using var memory = new CooperativeTestMemory(1 << 20);
         using var builder = new AwkUtf8Builder(
-            AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4),
-            AwkMemoryAccounting.Disabled,
-            capacity: 4);
+            memory.Accounting, capacity: 4);
 
         builder.Append("abcd"u8);
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var exception = Assert.Throws<AwkRuntimeException>(() => builder.Append((byte)'e'));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
@@ -41,13 +39,13 @@ public sealed class AwkUtf8BuilderTests
     [Fact]
     public void AwkUtf8Builder_TextSequencePreflightsBeforeMutatingContent()
     {
+        using var memory = new CooperativeTestMemory(1 << 20);
         using var builder = new AwkUtf8Builder(
-            AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4),
-            AwkMemoryAccounting.Disabled,
-            capacity: 4);
+            memory.Accounting, capacity: 4);
         builder.Append("a"u8);
         AwkText[] values = [AwkText.FromString("bc"), AwkText.FromString("de")];
 
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var exception = Assert.Throws<AwkRuntimeException>(() => builder.Append(values));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
@@ -59,10 +57,7 @@ public sealed class AwkUtf8BuilderTests
     public void AwkUtf8Builder_ReservedPrefixSupportsBorrowedRegexViews()
     {
         using var builder = AwkUtf8Builder.CreateWithReservedPrefix(
-            AwkRuntimeLimits.CreateDefault(),
-            AwkMemoryAccounting.Disabled,
-            capacity: 2,
-            prefix: 0x01);
+            AwkMemoryAccounting.Disabled, capacity: 2, prefix: 0x01);
         builder.Append("abc"u8);
 
         var inputStart = builder.BorrowAsAwkText(AwkUtf8BorrowRange.Content);
@@ -83,13 +78,12 @@ public sealed class AwkUtf8BuilderTests
     [Fact]
     public void AwkUtf8Builder_UsesGovernorReserveCommitRelease()
     {
-        var limits = AwkRuntimeLimits.CreateDefault()
-            .WithMaxBuilderBytes(64);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(64, counters);
         var governor = memoryForGovernor.Accounting;
 
-        using (var builder = new AwkUtf8Builder(limits, governor, capacity: 4))
+        using (var builder = new AwkUtf8Builder(governor, capacity: 4))
         {
             Assert.Equal(4, governor.CurrentCommittedBytes);
             builder.Append("abcde"u8);
@@ -104,11 +98,10 @@ public sealed class AwkUtf8BuilderTests
     [Fact]
     public void AwkUtf8Builder_GovernedAllocationFailureDoesNotMutateContent()
     {
-        var limits = AwkRuntimeLimits.CreateDefault()
-            .WithMaxBuilderBytes(64);
+        var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(10, AwkRuntimeCounters.Disabled);
         var governor = memoryForGovernor.Accounting;
-        using var builder = new AwkUtf8Builder(limits, governor, capacity: 4);
+        using var builder = new AwkUtf8Builder(governor, capacity: 4);
         builder.Append("abcd"u8);
 
         var exception = Assert.Throws<AwkRuntimeException>(() => builder.Append((byte)'e'));
@@ -123,12 +116,11 @@ public sealed class AwkUtf8BuilderTests
     [Fact]
     public void AwkUtf8Builder_MaterializationPreflightsBeforeCreatingOwnedText()
     {
-        var limits = AwkRuntimeLimits.CreateDefault()
-            .WithMaxBuilderBytes(64);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(7, counters);
         var governor = memoryForGovernor.Accounting;
-        using var builder = new AwkUtf8Builder(limits, governor, capacity: 4);
+        using var builder = new AwkUtf8Builder(governor, capacity: 4);
         builder.Append("abcd"u8);
         var baselineTextAllocations = counters.AwkTextAllocations;
 

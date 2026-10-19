@@ -54,7 +54,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("missing"));
         _ = state.GetFieldValue(1); // Ensure the refused growth belongs to the array read.
         var host = new MockFileSystem(); var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
             await program.MainActions[0].ExecuteAsync(state, io, output));
@@ -91,7 +91,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetArrayAwkValue(AwkArrayName.FromText("b"), new("hit"), AwkValue.FromNumber(3));
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         await program.MainActions[0].ExecuteAsync(state, io, output);
         Assert.Equal(10, state.ResolveVariableValue(AwkVariableName.FromText("total")).AsNumber());
@@ -136,7 +136,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.AssignVariableValue(total, AwkValue.FromNumber(4));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(missing ? "missing" : "hit"));
         var host = new MockFileSystem(); var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var error = "";
         try { await action.ExecuteAsync(state, io, output); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
@@ -167,7 +167,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var record = AwkText.FromSourceLiteralString("missing");
         state.SetCurrentRecord(record);
         var host = new MockFileSystem(); var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
             await program.MainActions[0].ExecuteAsync(state, io, output));
         Assert.Equal("awk: array element limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));

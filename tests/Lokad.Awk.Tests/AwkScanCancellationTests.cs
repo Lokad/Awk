@@ -179,8 +179,7 @@ public sealed class AwkScanCancellationTests
         using var cancellation = new CancellationTokenSource();
 
         Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
-            format, new EmptyPrintfArguments(), PrintfMissingArgumentPolicy.Throw,
-            limits, counters, governor, checkpoint: CancelDuringScan(cancellation)));
+            format, new EmptyPrintfArguments(), PrintfMissingArgumentPolicy.Throw, counters, governor, checkpoint: CancelDuringScan(cancellation)));
 
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
@@ -194,13 +193,15 @@ public sealed class AwkScanCancellationTests
         public bool IsNumeric(int index) => throw new ArgumentOutOfRangeException(nameof(index));
     }
 
-    private static CooperativeTestMemory CreateState(CancellationToken token) {
+    private static CooperativeTestMemory CreateState(CancellationToken token)
+    {
         var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
-return        testMemory.Initialize(AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token,
-            testMemory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-                AwkRuntimeLimits.CreateDefault(),
-                AwkRegexEngineKind.DotNetCompatibility))));}
+        return testMemory.Initialize(AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token,
+                    testMemory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+                        new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
+                        AwkRuntimeLimits.CreateDefault(),
+                        AwkRegexEngineKind.DotNetCompatibility))));
+    }
     private sealed class CancelAfterValueExpression(CancellationTokenSource cancellation, AwkValue value) : AwkExpression
     {
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)

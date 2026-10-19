@@ -110,10 +110,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             // SOH stays outside the record bytes and the regex search window. Including it after
             // compaction keeps ^ anchored to the descriptor start rather than the compacted tail.
             var buffer = AwkUtf8Builder.CreateWithReservedPrefix(
-                _state.Limits,
-                _state.MemoryAccounting,
-                Math.Max(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, tail.Content.Length),
-                0x01);
+                _state.MemoryAccounting, Math.Max(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, tail.Content.Length), 0x01);
             try
             {
                 buffer.Append(tail.Content.Span, _state.CancellationCheckpoint);

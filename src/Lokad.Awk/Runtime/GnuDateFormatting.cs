@@ -8,56 +8,81 @@ internal static class GnuDateFormatting
 {
     private static readonly CultureInfo Culture = CultureInfo.InvariantCulture;
 
-    public static string Format(DateTimeOffset value, string format, int maxOutputLength = int.MaxValue)
+    public static string Format(DateTimeOffset value, string format,
+        AwkMemoryPeakAdmission admission = default, Action? checkpoint = null)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(maxOutputLength);
         var builder = new StringBuilder();
+        var admittedBytes = 0L;
+        PreflightAppend(0);
+
+        void PreflightAppend(int characters, int temporaryCharacters = 64)
+        {
+            checkpoint?.Invoke();
+            var length = AwkRuntimeMemory.CheckedAdd(builder.Length, characters);
+            var capacity = builder.Capacity;
+            var grows = length > capacity;
+            if (grows)
+                capacity = (int)Math.Min(int.MaxValue / sizeof(char), Math.Max(length, (long)capacity * 2));
+            // UTF-16 builder growth, directive/padding scratch, final string and directive text.
+            // The caller retains this existing peak lease through UTF-8 result construction.
+            if (Math.Max(Math.Max(length, capacity), temporaryCharacters) > Array.MaxLength / sizeof(char))
+                throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+            var ownedCharacters = 2L * capacity + 2L * temporaryCharacters + format.Length;
+            if (grows) ownedCharacters += builder.Capacity;
+            var bytes = AwkRuntimeMemory.CheckedAdd(192, AwkRuntimeMemory.CheckedMultiply(ownedCharacters, sizeof(char)));
+            if (bytes > admittedBytes)
+            {
+                admission.Resize(bytes);
+                admittedBytes = bytes;
+            }
+            if (grows) builder.EnsureCapacity(capacity);
+        }
 
         for (var index = 0; index < format.Length; index++)
         {
+            checkpoint?.Invoke();
             var ch = format[index];
             if (ch != '%')
             {
-                ThrowIfAppendWouldExceedLimit(builder.Length, 1, maxOutputLength);
+                PreflightAppend(1);
                 builder.Append(ch);
                 continue;
             }
 
             if (index + 1 >= format.Length)
             {
-                ThrowIfAppendWouldExceedLimit(builder.Length, 1, maxOutputLength);
+                PreflightAppend(1);
                 builder.Append('%');
                 continue;
             }
 
             index++;
             var directiveStart = index;
-            if (!TryReadDirective(format, directiveStart, ref index, maxOutputLength, out var directive))
+            if (!TryReadDirective(format, directiveStart, ref index, checkpoint, out var directive))
             {
-                ThrowIfAppendWouldExceedLimit(
-                    builder.Length,
-                    format.Length - directiveStart + 1,
-                    maxOutputLength);
+                PreflightAppend(format.Length - directiveStart + 1);
                 builder.Append('%');
                 builder.Append(format.AsSpan(directiveStart));
                 break;
             }
 
+            PreflightAppend(0, Math.Max(64, directive.Padding == GnuDatePadding.None ? 0 : directive.Width.Value));
             var text = ApplyCaseConversion(
-                FormatDirective(value, directive, maxOutputLength),
+                FormatDirective(value, directive),
                 directive.CaseConversion);
             text = ApplyPadding(text, directive.Padding, directive.Width);
-            ThrowIfAppendWouldExceedLimit(builder.Length, text.Length, maxOutputLength);
+            PreflightAppend(text.Length, text.Length);
             builder.Append(text);
         }
 
+        checkpoint?.Invoke();
         return builder.ToString();
 
         static bool TryReadDirective(
             string format,
             int directiveStart,
             ref int index,
-            int maxOutputLength,
+            Action? checkpoint,
             out GnuDateDirective directive)
         {
             var padding = GnuDatePadding.Default;
@@ -65,6 +90,7 @@ internal static class GnuDateFormatting
 
             while (index < format.Length)
             {
+                checkpoint?.Invoke();
                 switch (format[index])
                 {
                     case '-':
@@ -95,16 +121,18 @@ internal static class GnuDateFormatting
             var colonCount = 0;
             while (index < format.Length && format[index] == ':')
             {
-                colonCount++;
+                checkpoint?.Invoke();
+                colonCount = AwkRuntimeMemory.CheckedAdd(colonCount, 1);
                 index++;
             }
 
             var width = 0;
             while (index < format.Length && char.IsDigit(format[index]))
             {
+                checkpoint?.Invoke();
                 var digit = format[index] - '0';
-                if (width > maxOutputLength / 10 ||
-                    (width == maxOutputLength / 10 && digit > maxOutputLength % 10))
+                if (width > int.MaxValue / 10 ||
+                    (width == int.MaxValue / 10 && digit > int.MaxValue % 10))
                     throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
 
                 width = width * 10 + digit;
@@ -132,8 +160,7 @@ internal static class GnuDateFormatting
 
         static string FormatDirective(
             DateTimeOffset value,
-            GnuDateDirective directive,
-            int maxOutputLength)
+            GnuDateDirective directive)
         {
             if (directive.ColonCount.Value > 0 && directive.Specifier != 'z')
             {
@@ -153,25 +180,25 @@ internal static class GnuDateFormatting
                 'N' => FormatNanoseconds(value),
                 'p' => value.ToString("tt", Culture),
                 'P' => value.ToString("tt", Culture).ToLowerInvariant(),
-                'r' => Format(value, "%I:%M:%S %p", maxOutputLength),
-                'R' => Format(value, "%H:%M", maxOutputLength),
+                'r' => Format(value, "%I:%M:%S %p"),
+                'R' => Format(value, "%H:%M"),
                 's' => value.ToUnixTimeSeconds().ToString(Culture),
                 'S' => value.ToString("ss", Culture),
-                'T' => Format(value, "%H:%M:%S", maxOutputLength),
-                'X' => Format(value, "%H:%M:%S", maxOutputLength),
-                '+' => Format(value, "%a %b %e %H:%M:%S %Z %Y", maxOutputLength),
+                'T' => Format(value, "%H:%M:%S"),
+                'X' => Format(value, "%H:%M:%S"),
+                '+' => Format(value, "%a %b %e %H:%M:%S %Z %Y"),
                 'z' => FormatOffset(value.Offset, directive.ColonCount),
                 'Z' => value.Offset == TimeSpan.Zero ? "UTC" : FormatOffsetWithColonCount(value.Offset, 1),
                 'a' => value.ToString("ddd", Culture),
                 'A' => value.ToString("dddd", Culture),
                 'b' => value.ToString("MMM", Culture),
                 'B' => value.ToString("MMMM", Culture),
-                'c' => Format(value, "%a %b %e %H:%M:%S %Y", maxOutputLength),
+                'c' => Format(value, "%a %b %e %H:%M:%S %Y"),
                 'C' => (value.Year / 100).ToString(Culture).PadLeft(2, '0'),
                 'd' => value.ToString("dd", Culture),
-                'D' => Format(value, "%m/%d/%y", maxOutputLength),
+                'D' => Format(value, "%m/%d/%y"),
                 'e' => value.Day.ToString(Culture).PadLeft(2, ' '),
-                'F' => Format(value, "%Y-%m-%d", maxOutputLength),
+                'F' => Format(value, "%Y-%m-%d"),
                 'g' => (ISOWeek.GetYear(value.DateTime) % 100).ToString(Culture).PadLeft(2, '0'),
                 'G' => ISOWeek.GetYear(value.DateTime).ToString(Culture),
                 'h' => value.ToString("MMM", Culture),
@@ -274,12 +301,6 @@ internal static class GnuDateFormatting
                 return new string(chars);
             }
         }
-    }
-
-    private static void ThrowIfAppendWouldExceedLimit(int currentLength, int appendLength, int limit)
-    {
-        if (appendLength > limit - currentLength)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
     }
 
     private static string FormatOffset(TimeSpan offset, GnuDateColonCount colonCount)

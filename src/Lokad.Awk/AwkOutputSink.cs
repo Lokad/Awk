@@ -14,12 +14,11 @@ internal sealed class AwkOutputSink : IDisposable
     private long _diagnosticMessageBytes;
 
     public AwkOutputSink(
-        AwkRuntimeLimits limits,
         AwkMemoryAccounting governor,
         AwkRuntimeCounters counters,
         Action? checkpoint = null)
     {
-        _standardOutput = new AwkUtf8Builder(limits, governor);
+        _standardOutput = new AwkUtf8Builder(governor);
         _governor = governor;
         _checkpoint = checkpoint;
         counters.RecordOutputSinkCreation();

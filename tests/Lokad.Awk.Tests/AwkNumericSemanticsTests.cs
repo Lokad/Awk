@@ -90,7 +90,7 @@ public sealed class AwkNumericSemanticsTests
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(limit, AwkRuntimeCounters.Disabled);
         var governor = memoryForGovernor.Accounting;
-        using var sink = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
+        using var sink = new AwkOutputSink(governor, AwkRuntimeCounters.Disabled);
         for (var index = 0; index < initialCount; index++)
             sink.ReportDiagnostic(Warning(message));
         var admittedBytes = governor.CurrentCommittedBytes;
@@ -123,7 +123,7 @@ public sealed class AwkNumericSemanticsTests
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(limit, AwkRuntimeCounters.Disabled);
         var governor = memoryForGovernor.Accounting;
-        using var sink = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
+        using var sink = new AwkOutputSink(governor, AwkRuntimeCounters.Disabled);
         for (var index = 0; index <= initialCount; index++)
             sink.ReportDiagnostic(Warning(message));
         Assert.Equal(outputBuffer + newBuffer + (initialCount + 1) * messageBytes, governor.CurrentCommittedBytes);
@@ -149,7 +149,7 @@ public sealed class AwkNumericSemanticsTests
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20, AwkRuntimeCounters.Disabled);
         var governor = memoryForGovernor.Accounting;
-        using var sink = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
+        using var sink = new AwkOutputSink(governor, AwkRuntimeCounters.Disabled);
         sink.ReportDiagnostic(Warning("awk: warning: first\n"));
         sink.ReportDiagnostic(Warning("awk: warning: second\n"));
         var host = new MockFileSystem { AfterAppend = () => throw new InvalidOperationException("private host detail") };

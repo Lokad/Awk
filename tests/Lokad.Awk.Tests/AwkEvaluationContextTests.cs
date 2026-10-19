@@ -13,8 +13,8 @@ public sealed class AwkEvaluationContextTests
         var state = memoryForState.State;
         var firstIo = CreateIo(state);
         var secondIo = CreateIo(state);
-        using var firstOutput = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
-        using var secondOutput = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
+        using var firstOutput = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var secondOutput = new AwkOutputSink(state.MemoryAccounting, state.Counters);
         AwkEvaluationContext context;
         using (state.PushExecutionContext(firstOutput, firstIo))
         {

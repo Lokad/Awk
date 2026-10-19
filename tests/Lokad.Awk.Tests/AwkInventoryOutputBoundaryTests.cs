@@ -9,9 +9,9 @@ public sealed class AwkInventoryOutputBoundaryTests
     public static IEnumerable<object[]> OutputCopies()
     {
         foreach (var observed in new[] { false, true })
-        foreach (var kind in new[] { "text", "parts", "bytes" })
-        foreach (var rope in new[] { false, true })
-            yield return [observed, kind, rope];
+            foreach (var kind in new[] { "text", "parts", "bytes" })
+                foreach (var rope in new[] { false, true })
+                    yield return [observed, kind, rope];
     }
 
     [Theory]
@@ -31,7 +31,7 @@ public sealed class AwkInventoryOutputBoundaryTests
             if (++checks == 6) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        using var output = new AwkOutputSink(limits, governor, counters, Check);
+        using var output = new AwkOutputSink(governor, counters, Check);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var text = rope
             ? AwkText.FromString(new string('a', Large / 2)).Concat(AwkText.FromString(new string('b', Large / 2)), AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled)
@@ -68,7 +68,7 @@ public sealed class AwkInventoryOutputBoundaryTests
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(1_024, counters);
         var governor = memoryForGovernor.Accounting;
-        using var output = new AwkOutputSink(limits, governor, counters, static () => { });
+        using var output = new AwkOutputSink(governor, counters, static () => { });
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var committed = governor.CurrentCommittedBytes;
         var text = AwkText.FromString(new string('a', Large));
@@ -107,8 +107,8 @@ public sealed class AwkInventoryOutputBoundaryTests
     public static IEnumerable<object[]> Inventories()
     {
         foreach (var source in new[] { "globals", "scalars", "arrays", "duplicate-scalars", "duplicate-arrays" })
-        foreach (var operation in new[] { "count", "keys", "values" })
-            yield return [source, operation];
+            foreach (var operation in new[] { "count", "keys", "values" })
+                yield return [source, operation];
     }
 
     [Theory]

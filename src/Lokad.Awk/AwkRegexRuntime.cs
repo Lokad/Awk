@@ -224,7 +224,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             input,
             governor,
             capturePlan,
-            AwkRuntimeLimits.Unlimited,
             AwkRegexSearchOffset.Start,
             out _);
     }
@@ -232,14 +231,12 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     public AwkLeasedRegexMatch MatchCaptureValue(
         AwkRegex regex,
         AwkText input,
-        AwkMemoryAccounting governor,
-        long maxCaptureBytes) =>
+        AwkMemoryAccounting governor) =>
         MatchValue(
             regex,
             input,
             governor,
             AwkRegexCapturePlan.All,
-            maxCaptureBytes,
             AwkRegexSearchOffset.Start,
             out _);
 
@@ -248,7 +245,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         AwkText input,
         AwkMemoryAccounting governor,
         AwkRegexCapturePlan capturePlan,
-        long maxCaptureBytes,
         AwkRegexSearchOffset searchOffset,
         out AwkRegexMatchSpan matchSpan)
     {
@@ -258,7 +254,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             input,
             governor,
             capturePlan,
-            maxCaptureBytes,
             searchOffset,
             inputContext,
             out matchSpan);
@@ -269,7 +264,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         AwkText input,
         AwkMemoryAccounting governor,
         AwkRegexCapturePlan capturePlan,
-        long maxCaptureBytes,
         AwkRegexSearchOffset searchOffset,
         AwkRegexInputContext inputContext,
         out AwkRegexMatchSpan matchSpan)
@@ -291,8 +285,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
                 }
                 matchSpan = CreateMatchSpan(text, selected.Index, selected.Length, searchOffset);
                 return AwkRegexMatch.FromCaptures(new(selected, text), text, matchSpan.ByteIndex,
-                    matchSpan.ByteLength, inputContext.ExecutionPolicy.CoordinatePolicy, capturePlan,
-                    maxCaptureBytes, _counters, governor, _throwIfCancellationRequested);
+                    matchSpan.ByteLength, inputContext.ExecutionPolicy.CoordinatePolicy, capturePlan, _counters, governor, _throwIfCancellationRequested);
             }
             var match = Match(regex, text, searchOffset.Utf16Index);
             if (!match.Success)
@@ -309,14 +302,13 @@ internal sealed partial class AwkRegexRuntime : IDisposable
                 matchSpan.ByteLength,
                 inputContext.ExecutionPolicy.CoordinatePolicy,
                 capturePlan,
-                maxCaptureBytes,
                 _counters,
                 governor,
                 match.Groups,
                 _throwIfCancellationRequested);
         }
 
-        return MatchProvidedValue(regex, input, governor, capturePlan, maxCaptureBytes, searchOffset, out matchSpan);
+        return MatchProvidedValue(regex, input, governor, capturePlan, searchOffset, out matchSpan);
     }
 
     public AwkRegexMatchSpan MatchSpan(AwkRegex regex, AwkText input) =>
@@ -740,7 +732,6 @@ internal sealed class AwkRegexMatchEnumerator : IDisposable
             _input,
             _governor,
             _capturePlan,
-            AwkRuntimeLimits.Unlimited,
             _nextOffset,
             _inputContext,
             out var matchSpan);

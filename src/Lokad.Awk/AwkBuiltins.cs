@@ -204,13 +204,7 @@ internal static partial class AwkBuiltins
 
             var formatText = context.GetString(0);
             return context.State.CreateByteTextValue(AwkFormattingRuntime.FormatPrintfStrictByteText(
-                formatText,
-                new AwkBuiltinContextPrintfArguments(context, startIndex: 1),
-                context.State.Limits,
-                context.State.Counters,
-                context.State.MemoryAccounting,
-                context.State.CompatibilityMode,
-                context.State.CancellationCheckpoint));
+                formatText, new AwkBuiltinContextPrintfArguments(context, startIndex: 1), context.State.Counters, context.State.MemoryAccounting, context.State.CompatibilityMode, context.State.CancellationCheckpoint));
         }
         static AwkValue EvaluateSystem(AwkBuiltinContext context)
         {
@@ -556,12 +550,13 @@ internal static partial class AwkBuiltins
                 string format,
                 AwkUnixTimestampSeconds timestamp,
                 TimeZoneInfo timeZone,
-                int maxOutputLength)
+                AwkMemoryPeakAdmission admission,
+                Action checkpoint)
             {
                 var value = TimeZoneInfo.ConvertTime(
                     DateTimeOffset.FromUnixTimeSeconds(timestamp.Value),
                     timeZone);
-                return GnuDateFormatting.Format(value, format, maxOutputLength);
+                return GnuDateFormatting.Format(value, format, admission, checkpoint);
             }
 
             if (context.ArgumentCount > 3)
@@ -581,9 +576,9 @@ internal static partial class AwkBuiltins
                 : context.State.TimeZone;
             try
             {
-                var maxOutputLength = context.State.Limits.MaxBuilderBytes;
+                using var admission = context.State.MemoryAccounting.ReserveAllocationPeak(128);
                 return context.State.CreateStringValue(
-                    FormatTime(format, timestamp, timeZone, maxOutputLength));
+                    FormatTime(format, timestamp, timeZone, admission, context.State.CancellationCheckpoint));
             }
             catch (ArgumentOutOfRangeException)
             {

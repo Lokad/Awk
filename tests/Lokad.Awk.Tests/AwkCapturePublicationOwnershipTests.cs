@@ -28,17 +28,15 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
     }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void BuilderFailureKeepsPreviousArrayAndReleasesScratch(bool finite)
+    [Fact]
+    public void RefusedPublicationKeepsPreviousArrayAndReleasesScratch()
     {
-        using var memoryForState = State(finite, builderLimit: 7);
+        using var memoryForState = State(true);
         var state = memoryForState.State;
         state.SetArrayString(Target, new AwkArrayKey("kept"), "old");
         using var match = Match(state);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
+        memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.ReplaceMatchCaptureArray(Target, match));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("old", state.GetArrayByteText(Target, new AwkArrayKey("kept")).AsString());
@@ -109,11 +107,11 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         return new(match, state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateRegexMatchBytes(groups.Length, retained)), retained);
     }
 
-    private static CooperativeTestMemory State(bool finite, int builderLimit = 1 << 20, CancellationToken token = default)
+    private static CooperativeTestMemory State(bool finite, CancellationToken token = default)
     {
 
         var testMemory = new CooperativeTestMemory(1 << 20, enabled: finite && (long)(1 << 20) != long.MaxValue);
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(builderLimit);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, limits,
             AwkRegexEngineKind.DotNetCompatibility);

@@ -24,7 +24,7 @@ public sealed class AwkRegexSelectionTests
             foreach (var ignoreCase in new[] { false, true })
             {
                 sensitivity = ignoreCase ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive;
-                using var match = runtime.MatchCaptureValue(regex, input, AwkMemoryAccounting.Disabled, AwkRuntimeLimits.Unlimited);
+                using var match = runtime.MatchCaptureValue(regex, input, AwkMemoryAccounting.Disabled);
                 Assert.Equal(ignoreCase, match.Match.Success);
                 if (ignoreCase)
                 {
@@ -98,15 +98,14 @@ public sealed class AwkRegexSelectionTests
         AwkRegexEngineKind engine, AwkStringUnitMode units)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault()
-            .WithMaxRegexCaptureBytes(16);
+        var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(4096, counters);
         var governor = memoryForGovernor.Accounting;
         var runtime = Runtime(engine, counters, limits, units);
         var regex = runtime.Create(new AwkRegexPattern("(😀|😀😀)"));
         var input = AwkText.FromString(new string('z', 2000) + "😀😀", counters);
 
-        using (var leased = runtime.MatchCaptureValue(regex, input, governor, 16))
+        using (var leased = runtime.MatchCaptureValue(regex, input, governor))
         {
             var match = leased.Match;
             Assert.Equal(2, match.Groups.Count);
@@ -136,8 +135,9 @@ public sealed class AwkRegexSelectionTests
         var runtime = Runtime(engine, counters, limits);
         var regex = runtime.Create(new AwkRegexPattern("(a|aa)"));
 
+        memoryForGovernor.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
-            runtime.MatchCaptureValue(regex, AwkText.FromString("aaa"), governor, 3));
+            runtime.MatchCaptureValue(regex, AwkText.FromString("aaa"), governor));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, governor.CurrentReservedBytes);

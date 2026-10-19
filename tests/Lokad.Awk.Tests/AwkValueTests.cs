@@ -81,10 +81,7 @@ public sealed class AwkValueTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var governor = AwkMemoryAccounting.Disabled;
         var formatter = new AwkFormattingRuntime(
-            static _ => new AwkFormatString(AwkText.FromSourceLiteralString("%.6g")),
-            AwkRuntimeLimits.CreateDefault(),
-            counters,
-            governor);
+            static _ => new AwkFormatString(AwkText.FromSourceLiteralString("%.6g")), counters, governor);
 
         var text = formatter.FormatStringByteText(AwkValue.FromNumber(123));
 
@@ -103,10 +100,7 @@ public sealed class AwkValueTests
         var governor = AwkMemoryAccounting.Disabled;
         var defaultFormat = new AwkFormatString(AwkText.FromSourceLiteralString("%.6g"));
         var formatter = new AwkFormattingRuntime(
-            _ => defaultFormat,
-            AwkRuntimeLimits.CreateDefault(),
-            counters,
-            governor);
+            _ => defaultFormat, counters, governor);
 
         var oneThird = formatter.FormatPrintByteText(AwkValue.FromNumber(1.0 / 3));
         var exponent = formatter.FormatPrintByteText(AwkValue.FromNumber(1_234_567.5));

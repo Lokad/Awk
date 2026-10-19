@@ -7,8 +7,8 @@ public sealed class AwkTextCancellationTests
     public static IEnumerable<object[]> Utf8IngressInvalidEdges()
     {
         foreach (var prefix in new[] { 0, 4095, 4096, 4097, 8191 })
-        foreach (var suffix in new[] { "80", "C0AF", "EDA080", "F4908080", "E282", "F0288CBC" })
-            yield return [prefix, suffix];
+            foreach (var suffix in new[] { "80", "C0AF", "EDA080", "F4908080", "E282", "F0288CBC" })
+                yield return [prefix, suffix];
     }
 
     [Theory]
@@ -278,7 +278,7 @@ public sealed class AwkTextCancellationTests
             if (armed && counters.StringDecodes == 2) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
         };
-        var formatter = new AwkFormattingRuntime(_ => current, limits, counters, AwkMemoryAccounting.Disabled, checkpoint: checkpoint);
+        var formatter = new AwkFormattingRuntime(_ => current, counters, AwkMemoryAccounting.Disabled, checkpoint: checkpoint);
         AwkText Format() => output ? formatter.FormatPrintByteText(AwkValue.FromNumber(1.25)) : formatter.FormatStringByteText(AwkValue.FromNumber(1.25));
         Assert.Equal("1.2", Format().AsString());
         current = new AwkFormatString(AwkText.FromString("%.3f"));
@@ -300,7 +300,7 @@ public sealed class AwkTextCancellationTests
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
         var governor = memoryForGovernor.Accounting;
-        using (var builder = new AwkUtf8Builder(limits, governor))
+        using (var builder = new AwkUtf8Builder(governor))
         {
             builder.Append("kept"u8);
             using var cancellation = new CancellationTokenSource();

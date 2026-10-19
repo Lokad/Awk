@@ -171,9 +171,7 @@ internal static class AwkRegexSubstitution
 
             state.ThrowIfCancellationRequested();
             using var occurrenceBuilder = new AwkUtf8Builder(
-                state.Limits,
-                state.MemoryAccounting,
-                initialCapacity);
+                state.MemoryAccounting, initialCapacity);
             var matchIndex = matchReplacement.GetByteIndex(in match);
             var matchLength = matchReplacement.GetByteLength(in match);
             occurrenceBuilder.Append(input.AsSpan(state.CancellationCheckpoint)[..matchIndex], state.CancellationCheckpoint);
@@ -184,9 +182,7 @@ internal static class AwkRegexSubstitution
         }
 
         using var builder = new AwkUtf8Builder(
-            state.Limits,
-            state.MemoryAccounting,
-            initialCapacity);
+            state.MemoryAccounting, initialCapacity);
         var position = 0;
         replacementCount = 0;
         do

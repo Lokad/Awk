@@ -80,14 +80,14 @@ internal sealed partial class AwkRegexRuntime
     }
 
     private AwkLeasedRegexMatch MatchProvidedValue(AwkRegex regex, AwkText input, AwkMemoryAccounting governor,
-        AwkRegexCapturePlan capturePlan, long maxCaptureBytes, AwkRegexSearchOffset offset,
+        AwkRegexCapturePlan capturePlan, AwkRegexSearchOffset offset,
         out AwkRegexMatchSpan matchSpan)
     {
         try
         {
             using var lease = ResolveProvidedRegex(regex.Pattern, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
             if (lease.Pattern is not { } compiled)
-                return MatchValue(regex, input, governor, capturePlan, maxCaptureBytes, offset,
+                return MatchValue(regex, input, governor, capturePlan, offset,
                     CaptureDotNetInputContext(input), out matchSpan);
             var count = capturePlan.SelectGroupCount(compiled.GroupCount);
             using var scratch = governor.ReserveTransient(count <= 32 ? 0 :
@@ -104,8 +104,7 @@ internal sealed partial class AwkRegexRuntime
                 return AwkLeasedRegexMatch.NoMatch;
             }
             var result = AwkRegexMatch.FromProvidedMatch(whole, bytes, ranges, offset,
-                _stringUnitMode == AwkStringUnitMode.Byte ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Utf16,
-                maxCaptureBytes, _counters, governor, _throwIfCancellationRequested);
+                _stringUnitMode == AwkStringUnitMode.Byte ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Utf16, _counters, governor, _throwIfCancellationRequested);
             matchSpan = AwkRegexMatchSpan.Match(whole.ByteIndex, whole.ByteLength, whole.Utf16Index, whole.Utf16Length);
             return result;
         }

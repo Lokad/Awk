@@ -40,8 +40,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public void LocalAssignmentReturnBoundsIncludeBothExpressions(bool returned, bool calls)
     {
         var name = AwkFunctionName.FromText("step");
@@ -76,7 +78,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.AssignVariable(fs, " ");
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         try
         {
@@ -92,7 +94,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task LocalAssignmentReturnPendingArgumentKeepsCaller(bool cancel)
     {
         var functions = Bind("function step(x,t){t=x+2;return t} BEGIN{}").Functions;
@@ -104,7 +107,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.PushFunctionFrame(new([x]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var pending = functions[AwkFunctionName.FromText("step")].InvokeAsync(
             [new PendingOperand(completion.Task)], new(state, output, io)).AsTask();
@@ -132,9 +135,12 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData(1, 0, true)] [InlineData(2, 1, true)]
-    [InlineData(4, 1, true)] [InlineData(5, 1, false)]
-    [InlineData(2, 3, false)] [InlineData(2, 2, true)]
+    [InlineData(1, 0, true)]
+    [InlineData(2, 1, true)]
+    [InlineData(4, 1, true)]
+    [InlineData(5, 1, false)]
+    [InlineData(2, 3, false)]
+    [InlineData(2, 2, true)]
     public void LocalAssignmentReturnCallsBoundOmittedLocalsAndExtraArguments(int slots, int arguments, bool expected)
     {
         var parameters = string.Join(",", Enumerable.Range(0, slots).Select(i => i == 0 ? "x" : "p" + i));
@@ -159,7 +165,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.PushFunctionFrame(new([x]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(42))]);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var frameBytes = AwkRuntimeMemory.EstimateFunctionFrameBytes() + AwkRuntimeMemory.EstimateFunctionLocalSlotBytes(
             AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(AwkValue.FromNumber(1))));
         var fill = budget.Limit - state.MemoryAccounting.CurrentCommittedBytes - frameBytes;

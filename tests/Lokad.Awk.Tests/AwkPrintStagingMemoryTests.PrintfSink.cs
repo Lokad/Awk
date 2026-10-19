@@ -7,7 +7,7 @@ public sealed partial class AwkPrintStagingMemoryTests
     {
         using var memoryForState = State(observed: true, "default");
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
         var host = new MockFileSystem();
         var io = Io(state, host);
         var statement = AwkStatement.Printf(AwkExpression.Literal("%s:%d"), [AwkExpression.Literal("payload")]);
@@ -30,8 +30,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     {
         using var memoryForState = State(observed: true, "default");
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
-        using var empty = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
+        using var empty = new AwkOutputSink(state.MemoryAccounting, state.Counters);
         var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("kept")), state.Counters);
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
         Assert.True(output.TryFormatPrintf("%s", arguments, state));
@@ -52,7 +52,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         using var cancellation = new CancellationTokenSource();
         using var memoryForState = State(observed: true, "default", cancellation.Token);
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters);
         var arguments = new CancelingPrintfArguments(cancellation);
         var error = Assert.ThrowsAny<OperationCanceledException>(() => output.TryFormatPrintf("prefix:%s", arguments, state));
         Assert.Equal(cancellation.Token, error.CancellationToken);

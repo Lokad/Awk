@@ -52,18 +52,16 @@ internal readonly partial record struct AwkRegexMatch
         int byteLength,
         AwkRegexCoordinatePolicy coordinatePolicy,
         AwkRegexCapturePlan capturePlan,
-        long maxCaptureBytes,
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
         int[]? groupMap = null,
         Action? checkpoint = null) =>
         FromCaptures(new AwkRegexCaptureView(match, input, groupMap), input, byteIndex, byteLength,
-            coordinatePolicy, capturePlan, maxCaptureBytes, counters, governor, checkpoint);
+            coordinatePolicy, capturePlan, counters, governor, checkpoint);
 
     internal static AwkLeasedRegexMatch FromCaptures(
         AwkRegexCaptureView selected, string input, int byteIndex, int byteLength,
-        AwkRegexCoordinatePolicy coordinatePolicy, AwkRegexCapturePlan capturePlan,
-        long maxCaptureBytes, AwkRuntimeCounters counters, AwkMemoryAccounting governor,
+        AwkRegexCoordinatePolicy coordinatePolicy, AwkRegexCapturePlan capturePlan, AwkRuntimeCounters counters, AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
         const int MaxStackBoundaryCount = 128;
@@ -78,24 +76,20 @@ internal readonly partial record struct AwkRegexMatch
             unchecked((int)packed);
 
         static long MeasureRetainedTextMemory(
-            long maxCaptureBytes,
             AwkRegexCaptureView groups,
             int groupCount,
             Action? checkpoint)
         {
-            var captureBytes = 0L;
+
             var retainedTextBytes = 0L;
             for (var index = 0; index < groupCount; index++)
             {
                 var byteCount = GetUtf8ByteCount(groups[index].ValueSpan, checkpoint);
-                captureBytes = AwkRuntimeMemory.CheckedAdd(
-                    captureBytes,
-                    byteCount);
+
                 retainedTextBytes = AwkRuntimeMemory.CheckedAdd(
                     retainedTextBytes,
                     AwkRuntimeMemory.EstimateTextBytes(byteCount));
-                if (maxCaptureBytes != AwkRuntimeLimits.Unlimited && captureBytes > maxCaptureBytes)
-                    throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+
             }
 
             return retainedTextBytes;
@@ -163,9 +157,9 @@ internal readonly partial record struct AwkRegexMatch
                 AwkRegexScalarBoundary.ThrowIfSplit(input, group.Index, group.Length);
         }
 
-        var retainedTextMemoryBytes = !governor.IsEnabled && maxCaptureBytes == AwkRuntimeLimits.Unlimited
+        var retainedTextMemoryBytes = !governor.IsEnabled
             ? 0
-            : MeasureRetainedTextMemory(maxCaptureBytes, selected, groupCount, checkpoint);
+            : MeasureRetainedTextMemory(selected, groupCount, checkpoint);
         var matchLease = governor.ReserveTransient(AwkRuntimeMemory.EstimateRegexMatchBytes(
             groupCount,
             retainedTextMemoryBytes));

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Removed `MaxBuilderBytes`, `MaxRegexCaptureBytes` and their setters. Buffer growth and
+  capture storage use shared admission before mutation/publication; checked allocation
+  sizes remain enforced. `strftime` now admits its UTF-16 padding, builder growth and
+  conversion overlap before allocating large temporary strings.
+
 - `IAwkRegexEngine.TryCompile`, `IAwkCompiledRegex.IsMatch` and `Match` now receive the
   current `CancellationToken`, replacing callback checkpoints; `TryCompile` no longer takes
   a match timeout. Engine implementers must use each operation's token rather than retaining

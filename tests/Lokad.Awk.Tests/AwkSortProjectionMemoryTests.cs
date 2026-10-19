@@ -10,9 +10,9 @@ public sealed class AwkSortProjectionMemoryTests
     public static IEnumerable<object[]> Projections()
     {
         foreach (var observed in new[] { false, true })
-        foreach (var format in new[] { "default", "integer", "wide" })
-        foreach (var selector in new[] { "@val_str_asc", "@val_str_desc" })
-            yield return [observed, format, selector];
+            foreach (var format in new[] { "default", "integer", "wide" })
+                foreach (var selector in new[] { "@val_str_asc", "@val_str_desc" })
+                    yield return [observed, format, selector];
     }
 
     [Theory]
@@ -74,9 +74,9 @@ public sealed class AwkSortProjectionMemoryTests
     public static IEnumerable<object[]> Ties()
     {
         foreach (var observed in new[] { false, true })
-        foreach (var format in new[] { "default", "wide" })
-        foreach (var selector in new[] { "@val_num_asc", "@val_num_desc" })
-            yield return [observed, format, selector];
+            foreach (var format in new[] { "default", "wide" })
+                foreach (var selector in new[] { "@val_num_asc", "@val_num_desc" })
+                    yield return [observed, format, selector];
     }
 
     [Theory]
@@ -136,9 +136,9 @@ public sealed class AwkSortProjectionMemoryTests
     public static IEnumerable<object[]> Nonfinite()
     {
         foreach (var observed in new[] { false, true })
-        foreach (var format in new[] { "default", "wide" })
-        foreach (var selector in new[] { "@val_str_asc", "@val_str_desc" })
-            yield return [observed, format, selector];
+            foreach (var format in new[] { "default", "wide" })
+                foreach (var selector in new[] { "@val_str_asc", "@val_str_desc" })
+                    yield return [observed, format, selector];
     }
 
     [Theory]
@@ -241,9 +241,7 @@ public sealed class AwkSortProjectionMemoryTests
         using (var lease = state.MemoryAccounting.CreateTransientLease())
         {
             var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
-                "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty), counters),
-                PrintfMissingArgumentPolicy.Throw, state.Resources.Limits, counters, state.MemoryAccounting,
-                checkpoint: Checkpoint, retainedTextLease: lease));
+                "%20000s", new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.Empty), counters), PrintfMissingArgumentPolicy.Throw, counters, state.MemoryAccounting, checkpoint: Checkpoint, retainedTextLease: lease));
             Assert.Equal(cancellation.Token, failure.CancellationToken);
             Assert.Equal(duringCopy ? 3 : 1, copyCalls);
             Assert.Equal(baseline + AwkRuntimeMemory.EstimateTextBytes(20_000), state.MemoryAccounting.CurrentCommittedBytes);

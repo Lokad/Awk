@@ -10,11 +10,14 @@ public sealed partial class AwkFieldProjectionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task FieldListPrintCopiesBeforeTheRecordBorrowCanChange(bool finite)
     {
-        var (state, counters) = State(finite);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var memoryForState = State(finite);
+        var state = memoryForState.State;
+        var counters = state.Counters;
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var bytes = "before 007 café"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
         var io = new AwkIo(new MockFileSystem(), AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
@@ -32,11 +35,14 @@ public sealed partial class AwkFieldProjectionTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void FieldListCopyCancellationDoesNotPublishAPrefix(bool finite)
     {
-        var (state, counters) = State(finite);
-        using var builder = new AwkUtf8Builder(state.Limits, state.MemoryAccounting);
+        using var memoryForState = State(finite);
+        var state = memoryForState.State;
+        var counters = state.Counters;
+        using var builder = new AwkUtf8Builder(state.MemoryAccounting);
         builder.Append("keep"u8);
         var record = AwkText.FromSourceLiteralString(new string('x', 32_768));
         using var cancellation = new CancellationTokenSource();

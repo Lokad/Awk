@@ -3,12 +3,13 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPrintStagingMemoryTests
 {
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task SingleOwnedValueUsesAdmittedOutputWithoutStagingHeadroom(bool observed)
     {
         using var memoryForState = State(observed, "default");
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline);
@@ -22,13 +23,15 @@ public sealed partial class AwkPrintStagingMemoryTests
     }
 
     [Theory]
-    [InlineData(false, "default")] [InlineData(true, "default")]
-    [InlineData(false, "wide")] [InlineData(true, "wide")]
+    [InlineData(false, "default")]
+    [InlineData(true, "default")]
+    [InlineData(false, "wide")]
+    [InlineData(true, "wide")]
     public async Task SingleNumericPrintReleasesFormattingAfterCopyingToOwnedOutput(bool observed, string format)
     {
         using var memoryForState = State(observed, format);
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         var io = Io(state, new MockFileSystem());
         if (format == "wide")
         {
@@ -44,12 +47,13 @@ public sealed partial class AwkPrintStagingMemoryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void SinglePrintFormattingRefusalKeepsPriorOutputAndReleasesTemporaryDemand(bool observed)
     {
         using var memoryForState = State(observed, "default");
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes - 1);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -61,13 +65,14 @@ public sealed partial class AwkPrintStagingMemoryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task SinglePrintWaitsForItsOperandOnceAndDoesNotPublishAfterCancellation(bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         using var memoryForState = State(true, "default", cancellation.Token);
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         var io = Io(state, new MockFileSystem(), cancellation.Token);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -246,10 +246,11 @@ public sealed class AwkParagraphEofTests
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent("\n\n\n\n\n\n\n\n"u8.ToArray(), [1, 2, 3, 4, 5, 6, 7], AwkReadCompletion.MoreData));
         host.EnqueueAwkReadResult(AwkReadResult.FromContent("\n\n\n\n\n\n\n\n"u8.ToArray(), [1, 2, 3, 4, 5, 6, 7], AwkReadCompletion.EndOfFile));
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(12);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options))).State;
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         state.AssignVariableValue(AwkVariableName.FromText("RT"), AwkValue.FromText(AwkText.FromSourceLiteralString("marker")));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
@@ -258,6 +259,7 @@ public sealed class AwkParagraphEofTests
         var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn), AwkParagraphLeaderPolicy.Retain);
 
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => cursor.ReadAsync().AsTask());
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));

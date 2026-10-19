@@ -3,14 +3,17 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkPrintStagingMemoryTests
 {
     [Theory]
-    [InlineData(false, 2)] [InlineData(true, 2)]
-    [InlineData(false, 3)] [InlineData(true, 3)]
-    [InlineData(false, 4)] [InlineData(true, 4)]
+    [InlineData(false, 2)]
+    [InlineData(true, 2)]
+    [InlineData(false, 3)]
+    [InlineData(true, 3)]
+    [InlineData(false, 4)]
+    [InlineData(true, 4)]
     public async Task SmallOwnedPrintUsesAdmittedOutputWithoutStagingHeadroom(bool observed, int count)
     {
         using var memoryForState = State(observed, "default");
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
         var io = Io(state, new MockFileSystem());
@@ -24,12 +27,13 @@ public sealed partial class AwkPrintStagingMemoryTests
     }
 
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task SmallPrintGrowthRefusalKeepsEarlierOutput(bool observed)
     {
         using var memoryForState = State(observed, "default");
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         var earlier = new string('p', 60_000);
         output.Append(AwkText.FromSourceLiteralString(earlier));
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes - 131_071);
@@ -46,14 +50,20 @@ public sealed partial class AwkPrintStagingMemoryTests
     }
 
     [Theory]
-    [InlineData(0, false)] [InlineData(1, false)] [InlineData(2, false)] [InlineData(3, false)]
-    [InlineData(0, true)] [InlineData(1, true)] [InlineData(2, true)] [InlineData(3, true)]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(3, false)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    [InlineData(2, true)]
+    [InlineData(3, true)]
     public async Task SmallPrintWaitsForEachOperandOnceBeforePublishing(int pendingIndex, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
         using var memoryForState = State(true, "default", cancellation.Token);
         var state = memoryForState.State;
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
+        using var output = new AwkOutputSink(state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         var io = Io(state, new MockFileSystem(), cancellation.Token);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);

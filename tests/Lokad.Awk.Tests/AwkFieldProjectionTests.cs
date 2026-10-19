@@ -9,8 +9,12 @@ public sealed partial class AwkFieldProjectionTests
     [InlineData(true, true)]
     public async Task OwnedExpressionsUsePrefixBoundsAndChargeCompletionWork(bool dynamicIndex, bool finite)
     {
-        var (state, counters) = State(finite);
-        var (eager, eagerCounters) = State(finite);
+        using var memoryForState = State(finite);
+        var state = memoryForState.State;
+        var counters = state.Counters;
+        using var memoryForEager = State(finite);
+        var eager = memoryForEager.State;
+        var eagerCounters = eager.Counters;
         var source = AwkText.FromString("0007 worker café " + string.Join(" ", Enumerable.Repeat("tail", 61)));
         state.SetCurrentRecord(source);
         eager.SetCurrentRecord(source);
@@ -63,8 +67,10 @@ public sealed partial class AwkFieldProjectionTests
     [InlineData(true)]
     public void DirectProjectionCopiesBeforeBorrowedRecordMutationAndAvoidsFieldValues(bool finite)
     {
-        var (state, counters) = State(finite);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var memoryForState = State(finite);
+        var state = memoryForState.State;
+        var counters = state.Counters;
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var bytes = "first second"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
         _ = state.FieldCount;
@@ -82,22 +88,25 @@ public sealed partial class AwkFieldProjectionTests
         Assert.Equal("first\nnext\n", output.ToString());
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void FailedCombinedAppendDoesNotPublishTheFieldBeforeItsTerminator(bool finite)
+    [Fact]
+    public void FailedCombinedAppendDoesNotPublishTheFieldBeforeItsTerminator()
     {
-        var (state, counters) = State(finite, builderLimit: 8);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
-        output.Append(AwkText.FromString("keep"));
+        using var memoryForState = State(true);
+        var state = memoryForState.State;
+        var counters = state.Counters;
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
+        var prefix = new string('k', AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity - 4);
+        output.Append(AwkText.FromString(prefix));
         state.SetCurrentRecord(AwkText.FromString("1234"));
+        _ = state.FieldCount;
+        _ = state.ResolveSpecialVariableValue(AwkSpecialVariableId.OutputRecordSeparator);
+        memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.Throws<AwkRuntimeException>(() => state.AppendFieldPrint(output, 1));
-        Assert.Equal("keep", output.ToString());
+        Assert.Equal(prefix, output.ToString());
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         state.SetCurrentRecord(AwkText.FromString("ok"));
         state.AppendFieldPrint(output, 1);
-        Assert.Equal("keepok\n", output.ToString());
+        Assert.Equal(prefix + "ok\n", output.ToString());
     }
 
     [Theory]
@@ -105,8 +114,10 @@ public sealed partial class AwkFieldProjectionTests
     [InlineData(true)]
     public void CachedNumericFieldsUsePrintFormattingAndUnicodeSlicesRemainRaw(bool finite)
     {
-        var (state, counters) = State(finite);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var memoryForState = State(finite);
+        var state = memoryForState.State;
+        var counters = state.Counters;
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         state.SetCurrentRecord(AwkText.FromString("café 😀"));
         state.AppendFieldPrint(output, 1);
         state.AppendFieldPrint(output, 2);
@@ -123,7 +134,7 @@ public sealed partial class AwkFieldProjectionTests
     {
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
-        using var builder = new AwkUtf8Builder(AwkRuntimeLimits.CreateDefault(), AwkMemoryAccounting.Disabled);
+        using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled);
         builder.Append("keep"u8);
         Assert.Throws<OperationCanceledException>(() => builder.Append(new byte[16_384], AwkText.FromString("end"), () =>
         {
@@ -134,11 +145,12 @@ public sealed partial class AwkFieldProjectionTests
         Assert.Equal(4, builder.Length);
     }
 
-    private static (AwkRuntimeState, AwkRuntimeCounters) State(bool finite, int builderLimit = int.MaxValue)
+    private static CooperativeTestMemory State(bool finite)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(builderLimit);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
-        return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options), counters);
+        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: finite);
+        return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options)));
     }
 }

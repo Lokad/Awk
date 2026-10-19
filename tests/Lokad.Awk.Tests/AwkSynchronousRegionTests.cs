@@ -84,7 +84,7 @@ public sealed partial class AwkSynchronousRegionTests
         var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), operand);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var loop = Loop(body, iterations: 1, whileLoop: whileLoop);
         var pending = loop.ExecuteAsync(new AwkEvaluationContext(state, output, io)).AsTask();
         Assert.False(pending.IsCompleted);
@@ -129,7 +129,7 @@ public sealed partial class AwkSynchronousRegionTests
         var loop = Loop(forceLegacy ? new ForwardingStatement(body) : body, whileLoop: whileLoop);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         cancellation.Cancel();
         var pending = loop.ExecuteAsync(new AwkEvaluationContext(state, output, io));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await pending);
@@ -195,7 +195,7 @@ public sealed partial class AwkSynchronousRegionTests
         var statement = AwkStatement.If(new([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]), [AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), operand)]);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var pending = new AwkAction(null, [statement]).ExecuteAsync(state, io, output).AsTask();
         Assert.False(pending.IsCompleted);
         Assert.True(state.TryGetExecutionContext(out _));
@@ -277,7 +277,7 @@ public sealed partial class AwkSynchronousRegionTests
         var action = new AwkAction(null, [forceLegacy ? new ForwardingStatement(statement) : statement]);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var error = "";
         try
         {
@@ -309,7 +309,7 @@ public sealed partial class AwkSynchronousRegionTests
         var loop = Loop(forceLegacy ? new ForwardingStatement(body) : body, whileLoop: whileLoop, doWhileLoop: doWhileLoop);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
-        using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         if (pendingOutput) output.Append(AwkText.FromSourceLiteralString("prior"));
         var error = "";
         try { await loop.ExecuteAsync(new AwkEvaluationContext(state, output, io)); }

@@ -16,7 +16,6 @@ internal static class PrintfEvaluation
         string format,
         TArguments arguments,
         PrintfMissingArgumentPolicy missingArgumentPolicy,
-        AwkRuntimeLimits limits,
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
@@ -30,10 +29,9 @@ internal static class PrintfEvaluation
             return AwkText.Empty;
         }
 
-        using var builder = new AwkUtf8Builder(limits, governor, capacity: 0);
-        FormatToBuilder(builder, format, arguments, missingArgumentPolicy, limits, counters, governor,
-            compatibilityMode, checkpoint);
-        var output = new PrintfByteOutput(builder, limits, counters, checkpoint, retainedTextLease);
+        using var builder = new AwkUtf8Builder(governor, capacity: 0);
+        FormatToBuilder(builder, format, arguments, missingArgumentPolicy, counters, governor, compatibilityMode, checkpoint);
+        var output = new PrintfByteOutput(builder, counters, checkpoint, retainedTextLease);
         var result = output.ToAwkText();
         checkpoint?.Invoke();
         return result;
@@ -44,7 +42,6 @@ internal static class PrintfEvaluation
         string format,
         TArguments arguments,
         PrintfMissingArgumentPolicy missingArgumentPolicy,
-        AwkRuntimeLimits limits,
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
@@ -57,7 +54,7 @@ internal static class PrintfEvaluation
             checkpoint?.Invoke();
             return;
         }
-        var output = new PrintfByteOutput(builder, limits, counters, checkpoint, null);
+        var output = new PrintfByteOutput(builder, counters, checkpoint, null);
         var argumentCursor = new PrintfArgumentCursor<TArguments>(arguments, missingArgumentPolicy, format, counters, governor, checkpoint);
 
         long nextCheckpoint = 0;
@@ -637,7 +634,6 @@ internal static class PrintfEvaluation
 
     private readonly struct PrintfByteOutput
     {
-        private readonly AwkRuntimeLimits _limits;
         private readonly AwkRuntimeCounters _counters;
         private readonly AwkUtf8Builder _builder;
         private readonly Action? _checkpoint;
@@ -645,13 +641,11 @@ internal static class PrintfEvaluation
 
         public PrintfByteOutput(
             AwkUtf8Builder builder,
-            AwkRuntimeLimits limits,
             AwkRuntimeCounters counters,
             Action? checkpoint, AwkMemoryLease? retainedTextLease)
         {
             _checkpoint = checkpoint;
             _retainedTextLease = retainedTextLease;
-            _limits = limits;
             _counters = counters;
             _builder = builder;
         }
@@ -659,13 +653,11 @@ internal static class PrintfEvaluation
         public void Append(AwkText text)
         {
             var bytes = text.AsSpan(_checkpoint);
-            PreflightAdditionalBytes(bytes.Length);
             _builder.Append(bytes, _checkpoint);
         }
 
         public void Append(ReadOnlySpan<byte> bytes)
         {
-            PreflightAdditionalBytes(bytes.Length);
             _builder.Append(bytes, _checkpoint);
         }
 
@@ -676,10 +668,8 @@ internal static class PrintfEvaluation
             var longText = text.Length >= AwkRuntimeLimits.CancellationCheckBytes;
             if (longText)
                 _checkpoint?.Invoke();
-            var byteCount = AwkUtf8Codec.GetEncodedByteCount(text);
             if (longText)
                 _checkpoint?.Invoke();
-            PreflightAdditionalBytes(byteCount);
             _builder.AppendUtf8(text);
             if (longText)
                 _checkpoint?.Invoke();
@@ -695,7 +685,6 @@ internal static class PrintfEvaluation
 
         public void AppendAscii(byte value)
         {
-            PreflightAdditionalBytes(1);
             _builder.Append(value);
         }
 
@@ -707,7 +696,6 @@ internal static class PrintfEvaluation
             var longPadding = count >= AwkRuntimeLimits.CancellationCheckBytes;
             if (longPadding)
                 _checkpoint?.Invoke();
-            PreflightAdditionalBytes(count);
             _builder.Append((byte)value, count);
             if (longPadding)
                 _checkpoint?.Invoke();
@@ -718,11 +706,7 @@ internal static class PrintfEvaluation
             if (byteCount <= 0)
                 return;
 
-            var nextLength = AwkRuntimeMemory.CheckedAdd(_builder.Length, byteCount);
-            if (nextLength > _limits.MaxBuilderBytes)
-            {
-                throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-            }
+            _builder.EnsureCapacity(AwkRuntimeMemory.CheckedAdd(_builder.Length, byteCount));
         }
 
         public AwkText ToAwkText()

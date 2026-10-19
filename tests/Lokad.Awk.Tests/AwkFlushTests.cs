@@ -23,7 +23,7 @@ public sealed class AwkFlushTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var state = State(limits, counters);
         var io = Io(host, limits, state);
-        using var output = new AwkOutputSink(limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var seen = false;
         const string warning = "awk: warning: block marker\n";
         var stdout = payload is "stdout" or "both" ? "payload\n" : "";
@@ -68,7 +68,7 @@ public sealed class AwkFlushTests
             Options(limits, counters));
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static () => []);
-        using var output = new AwkOutputSink(limits, state.MemoryAccounting, counters);
+        using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var continued = false;
         AwkStatement[] statements =
         [
@@ -239,7 +239,7 @@ public sealed class AwkFlushTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memory = new CooperativeTestMemory(maximum);
         var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(Options(limits, counters)))).State;
-        using var sink = new AwkOutputSink(limits, state.MemoryAccounting, counters);
+        using var sink = new AwkOutputSink(state.MemoryAccounting, counters);
         var host = new MockFileSystem();
         var io = Io(host, limits, state);
         var execution = new AwkExecutionContext(sink, io);

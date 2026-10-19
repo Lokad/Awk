@@ -67,25 +67,23 @@ internal readonly partial record struct AwkRegexMatch
 
     internal static AwkLeasedRegexMatch FromProvidedMatch(AwkRegexCaptureRange whole, ReadOnlySpan<byte> input,
         ReadOnlySpan<AwkRegexCaptureRange> captures, AwkRegexSearchOffset offset,
-        AwkRegexCoordinatePolicy coordinatePolicy,
-        long maxCaptureBytes, AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint)
+        AwkRegexCoordinatePolicy coordinatePolicy, AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint)
     {
         ValidateProvidedRanges(input, whole, captures, offset, governor, checkpoint);
         var retainedBytes = 0L;
-        if (governor.IsEnabled || maxCaptureBytes != AwkRuntimeLimits.Unlimited)
+        if (governor.IsEnabled)
         {
-            var captureBytes = 0L;
+
             foreach (var capture in captures)
             {
                 checkpoint();
                 if (capture.Success)
                 {
-                    captureBytes = AwkRuntimeMemory.CheckedAdd(captureBytes, capture.ByteLength);
+
                     retainedBytes = AwkRuntimeMemory.CheckedAdd(retainedBytes,
                         AwkRuntimeMemory.EstimateTextBytes(capture.ByteLength));
                 }
-                if (maxCaptureBytes != AwkRuntimeLimits.Unlimited && captureBytes > maxCaptureBytes)
-                    throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
+
             }
         }
         var lease = governor.ReserveTransient(AwkRuntimeMemory.EstimateRegexMatchBytes(captures.Length, retainedBytes));

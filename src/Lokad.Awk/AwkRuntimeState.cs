@@ -114,8 +114,7 @@ internal sealed class AwkRuntimeState : IDisposable
         try
         {
             _stringRuntime = new AwkStringRuntime(stringUnitMode, CancellationCheckpoint);
-            _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryAccounting,
-                CompatibilityMode, CancellationCheckpoint);
+            _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Counters, MemoryAccounting, CompatibilityMode, CancellationCheckpoint);
             _fieldSplitter = new AwkFieldSplitter(
                 fieldSeparator,
                 _regexRuntime.Create,
@@ -1063,9 +1062,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         var separator = ResolveSubscriptSeparatorText();
         using var builder = new AwkUtf8Builder(
-            Limits,
-            MemoryAccounting,
-            first.ByteLength + separator.ByteLength + second.ByteLength);
+            MemoryAccounting, first.ByteLength + separator.ByteLength + second.ByteLength);
         first.AppendTo(builder, CancellationCheckpoint);
         builder.Append(separator, CancellationCheckpoint);
         builder.Append(second, CancellationCheckpoint);
@@ -1097,7 +1094,7 @@ internal sealed class AwkRuntimeState : IDisposable
         _regexRuntime.MatchValue(regex, input, MemoryAccounting, capturePlan);
 
     public AwkLeasedRegexMatch MatchRegexCaptureValue(AwkRegex regex, AwkText input) =>
-        _regexRuntime.MatchCaptureValue(regex, input, MemoryAccounting, Limits.MaxRegexCaptureBytes);
+        _regexRuntime.MatchCaptureValue(regex, input, MemoryAccounting);
 
     public AwkRegexMatchPosition MatchRegexPosition(AwkRegex regex, AwkText input) =>
         _regexRuntime.MatchPosition(regex, input);

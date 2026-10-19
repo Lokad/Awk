@@ -14,12 +14,12 @@ public sealed class AwkPrintfAdmissionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
-        using (var builder = new AwkUtf8Builder(limits, accounting, capacity: 16))
+        using (var builder = new AwkUtf8Builder(accounting, capacity: 16))
         using (var pressure = accounting.ReserveTransient(limit - accounting.CurrentCommittedBytes))
         {
             var committed = accounting.CurrentCommittedBytes;
             var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("payload")), counters);
-            PrintfEvaluation.FormatToBuilder(builder, "%8s", arguments, PrintfMissingArgumentPolicy.Throw, limits, counters, accounting);
+            PrintfEvaluation.FormatToBuilder(builder, "%8s", arguments, PrintfMissingArgumentPolicy.Throw, counters, accounting);
             Assert.Equal(" payload"u8.ToArray(), builder.AsSpan().ToArray());
             Assert.Equal(committed, accounting.CurrentCommittedBytes);
             Assert.Equal(0, accounting.CurrentReservedBytes);
@@ -38,23 +38,21 @@ public sealed class AwkPrintfAdmissionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
-        using (var builder = new AwkUtf8Builder(limits, accounting, capacity: 16))
+        using (var builder = new AwkUtf8Builder(accounting, capacity: 16))
         {
             builder.Append("kept"u8);
             var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("payload")), counters);
             using (var pressure = accounting.ReserveTransient(limit - accounting.CurrentCommittedBytes))
             {
                 var committed = accounting.CurrentCommittedBytes;
-                var error = Assert.Throws<AwkRuntimeException>(() => PrintfEvaluation.FormatToBuilder(builder,
-                    "%32s", arguments, PrintfMissingArgumentPolicy.Throw, limits, counters, accounting));
+                var error = Assert.Throws<AwkRuntimeException>(() => PrintfEvaluation.FormatToBuilder(builder, "%32s", arguments, PrintfMissingArgumentPolicy.Throw, counters, accounting));
                 Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
                 Assert.Equal("kept"u8.ToArray(), builder.AsSpan().ToArray());
                 Assert.Equal(committed, accounting.CurrentCommittedBytes);
                 Assert.Equal(0, accounting.CurrentReservedBytes);
             }
             builder.Clear();
-            PrintfEvaluation.FormatToBuilder(builder, "%32s", arguments, PrintfMissingArgumentPolicy.Throw,
-                limits, counters, accounting);
+            PrintfEvaluation.FormatToBuilder(builder, "%32s", arguments, PrintfMissingArgumentPolicy.Throw, counters, accounting);
             Assert.Equal(AwkUtf8Codec.Encode(new string(' ', 25) + "payload").ToArray(), builder.AsSpan().ToArray());
         }
         Assert.Equal(0, accounting.CurrentCommittedBytes);
