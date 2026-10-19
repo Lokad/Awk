@@ -37,9 +37,7 @@ jobs:
       - name: Test Release
         run: dotnet test Lokad.Awk.slnx -c Release --no-build --no-restore --logger trx --results-directory TestResults
       - name: Pack Release
-        run: |
-          dotnet pack src/Lokad.Awk/Lokad.Awk.csproj -c Release --no-build --no-restore
-          dotnet pack src/Lokad.Awk.Utf8Regex/Lokad.Awk.Utf8Regex.csproj -c Release --no-build --no-restore
+        run: dotnet pack src/Lokad.Awk/Lokad.Awk.csproj -c Release --no-build --no-restore
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7.0.2

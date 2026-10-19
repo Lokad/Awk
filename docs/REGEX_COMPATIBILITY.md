@@ -5,9 +5,10 @@ The default engine is .NET compatibility, including non-ASCII byte mode. Core ha
 Lokad.Utf8Regex runtime dependency. Applications can supply an `IAwkRegexEngine` through
 `AwkExecutionPolicy.WithRegexEngine`; unsupported patterns retain the .NET fallback.
 
-The optional `Lokad.Awk.Utf8Regex` adapter uses producer 0.2.0. Newer producer adoption
-is postponed and does not block independent core work or releases. Selecting the adapter
-does not promise that every pattern runs byte-native.
+The internal `Lokad.Awk.Utf8Regex` adapter uses producer 0.2.0 for repository qualification;
+it is not distributed as a NuGet package. Newer producer adoption is postponed and does
+not block independent core work or releases. Selecting an engine does not promise that
+every pattern runs byte-native.
 
 ## Patterns and profiles
 
@@ -85,10 +86,9 @@ fresh history, including reused prepared programs; rejected diagnostics do not c
 
 ```csharp
 using Lokad.Awk;
-using Lokad.Awk.Utf8Regex;
 
-var policy = AwkExecutionPolicy.CreateDefault()
-    .WithRegexEngine(AwkUtf8RegexEngine.Instance);
+static AwkExecutionPolicy WithApplicationEngine(IAwkRegexEngine engine) =>
+    AwkExecutionPolicy.CreateDefault().WithRegexEngine(engine);
 ```
 
 For a custom engine, implement the [AWK-specific contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs):

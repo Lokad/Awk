@@ -1,7 +1,8 @@
 # Lokad.Awk.Utf8Regex
 
-Optional UTF-8 regex adapter for Lokad.Awk, using pinned Lokad.Utf8Regex 0.2.0.
-The core Awk package runs independently with .NET regex compatibility.
+Internal UTF-8 regex adapter for Lokad.Awk qualification, using pinned Lokad.Utf8Regex 0.2.0.
+This project is non-packable and is not distributed as a NuGet package. Repository tests
+reference the project directly. The core Awk package runs independently with .NET regex compatibility.
 
 ```csharp
 using Lokad.Awk;

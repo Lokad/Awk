@@ -78,7 +78,7 @@ buffers use coarse estimates; admission can conservatively refuse before executi
 See [runtime limits](docs/RUNTIME_LIMITS.md) for ownership and accounting scope.
 
 Release notes and removed work-quota APIs are listed in [CHANGELOG.md](CHANGELOG.md#030---2026-10-19).
-Both packages use version 0.3.0, assembly/file versions 0.3.0.0 and informational version
+The Lokad.Awk package uses version 0.3.0, assembly/file versions 0.3.0.0 and informational version
 `0.3.0+<source commit>`. Package dependencies and SourceLink identify the qualified source;
 the release tag `v0.3.0` must identify that same commit. Before 1.0, minor releases may remove
 public APIs as explicitly described in their release notes.
@@ -94,8 +94,9 @@ typed regex values and indirect calls remain unsupported; see the
 The interpreter is the only execution engine, including its synchronous/prepared paths.
 Regex defaults to .NET compatibility, with
 documented [backend differences](docs/REGEX_COMPATIBILITY.md). Applications can supply an
-`IAwkRegexEngine` through `policy.WithRegexEngine(engine)`; the optional `Lokad.Awk.Utf8Regex`
-package provides `AwkUtf8RegexEngine.Instance`. Newer producer adoption remains postponed.
+`IAwkRegexEngine` through `policy.WithRegexEngine(engine)`. The repository's
+`Lokad.Awk.Utf8Regex` adapter is for internal qualification and is not distributed as a
+NuGet package. Newer producer adoption remains postponed.
 
 Current representative throughput, GNU comparison and managed allocations are maintained in
 [benchmarks](docs/BENCHMARKS.md). CI builds and tests on Windows and Linux.
@@ -130,4 +131,4 @@ Detailed runtime contracts live in:
 ## Dependencies
 
 - `Lokad.Parsing` for tokenization and parser infrastructure
-- Regex uses .NET by default; `Lokad.Utf8Regex` is only a dependency of the optional adapter.
+- Regex uses .NET by default; `Lokad.Utf8Regex` is only a dependency of the internal adapter.

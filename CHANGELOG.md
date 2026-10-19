@@ -2,6 +2,8 @@
 
 ## 0.3.0 - 2026-10-19
 
+- Only Lokad.Awk is distributed as a NuGet package. The Utf8Regex adapter remains an
+  internal, non-packable project; hosts can supply their own `IAwkRegexEngine`.
 - Fixed `close()` and targeted `fflush()` on open command pipes whose opaque command text
   contains colons, backslashes, wildcards or quoted arguments. File-path validation,
   latest-opening selection and command exit statuses are preserved. Output-pipe flush

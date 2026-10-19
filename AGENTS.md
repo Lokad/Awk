@@ -15,6 +15,8 @@ or environment dependencies.
 
 - Restore/build/test: `dotnet test .\Lokad.Awk.slnx`
 - Package build checks: `dotnet build .\src\Lokad.Awk\Lokad.Awk.csproj -c Release`
+- Only `src/Lokad.Awk` produces a NuGet package. The Utf8Regex adapter, tests and benchmarks
+  are internal, non-packable projects; keep them out of release artifacts.
 - Runtime-counter evidence: `dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benchmarks.csproj -- --counter-report`
 - Full benchmarks are opt-in and local-environment dependent. Do not commit `BenchmarkDotNet.Artifacts/`.
 
