@@ -1,79 +1,57 @@
 # UTF-8 policy
 
-Awk-visible text is valid UTF-8. Source files, input records, `getline` data and other
-host byte payloads are validated before publication. Invalid input fails with
-`awk: invalid UTF-8 input`, emitted as UTF-8 with a trailing newline.
-
-Locale values do not select another codec. `LC_ALL=C` and `--characters-as-bytes` do
-not admit arbitrary raw bytes. Managed API values such as arguments, environment and
-paths arrive as .NET strings and are strictly encoded when converted to Awk text;
-their original process bytes cannot be recovered or validated by this API.
+Awk-visible text is valid UTF-8. Source, records, `getline` and host byte payloads are
+validated before publication. Invalid input fails with `awk: invalid UTF-8 input`
+and a trailing newline. Locale values and byte mode do not permit arbitrary raw bytes.
+Arguments, paths and environment arrive as .NET strings and are strictly encoded;
+the API cannot recover their original process bytes.
 
 ## Units and boundaries
 
-Ordinary string length/index/substr operations count Unicode scalars. Normal-mode regex
-coordinates retain UTF-16 units; regex atoms and published captures must still cover
-complete scalars. Byte mode reports UTF-8 byte units, including `RSTART`, `RLENGTH` and
-capture start/length. See [regex compatibility](REGEX_COMPATIBILITY.md) for backend
-selection, longest-match behavior and remaining supplementary-character differences.
-The default .NET engine also handles non-ASCII byte-mode input; an explicitly supplied
-UTF-8 engine receives spans directly, with byte/UTF-16 capture ranges validated before use.
-
-`--posix` overrides byte mode with a warning, independent of option order.
-`FS=""` in byte mode requires ASCII: splitting a multibyte scalar into one-byte fields
-would violate the text invariant. `FIELDWIDTHS` counts scalars normally and bytes in
-byte mode; widths/skips that split a scalar are rejected. A backend match splitting
+Ordinary `length`, `index` and `substr` count Unicode scalars. Regex positions retain
+UTF-16 code-unit compatibility in normal mode. `--characters-as-bytes` changes string
+and regex coordinates, including capture metadata, to UTF-8 bytes. All produced text
+and observable regex ranges must still end on complete scalar boundaries. Splitting
 a scalar fails with `awk: regular expression splits a Unicode character`.
+
+`--posix` overrides byte mode with a warning, in either option order. Byte-mode `FS=""`
+requires ASCII. `FIELDWIDTHS` counts scalars normally and bytes in byte mode; a width
+or skip cannot split a scalar. See [record semantics](RECORD_SEMANTICS.md).
 
 ## Escapes
 
-Octal escapes consume up to three digits and wrap to a byte; hexadecimal escapes consume
-up to two digits outside POSIX mode. Adjacent numeric bytes forming UTF-8 decode together:
-`"\303\251"` is é. Malformed/incomplete numeric byte runs retain U+00xx mappings, so
-`"\377"` is ÿ. Separate values, Unicode escapes and ordinary characters do not merge runs.
+Octal escapes consume up to three digits and wrap to a byte; hexadecimal escapes
+consume up to two digits outside POSIX mode. Adjacent numeric bytes decode together
+when they form UTF-8: `"\303\251"` is é. Malformed or incomplete runs use U+00xx
+mappings, so `"\377"` is ÿ. Separate values and ordinary/Unicode characters do not merge runs.
 
 GNU-style lowercase `\u` accepts one to eight hex digits in default/traditional mode.
-Invalid scalars become `?` with a warning; missing digits keep `u` and warn. Uppercase
-`\U` is unknown. POSIX string escapes retain plain `u`/`x` for `\u`/`\x`.
-Decoding is single-pass: an escape-produced backslash is ordinary content.
-Options, consumed assignment operands and source strings follow their declared profile;
-include filenames are raw paths, not decoded string expressions. Regex escape preparation
-has a separate ERE interpretation pass. Detailed warning/profile behavior remains in the
-[compatibility contract](COMPATIBILITY_CONTRACT.md#source-string-escapes) and regex contract.
+Invalid scalars become `?` with a warning; missing digits retain `u` and warn. Uppercase
+`\U` is unknown. POSIX strings retain plain `u`/`x` for `\u`/`\x`. Decoding is single-pass;
+an escape-produced backslash is content, not another source escape.
 
-## Execution representation
+Source strings, options and consumed assignment operands follow their profile. Include
+filenames are raw paths. Regex text crosses a separate ERE interpretation pass; see
+[regex compatibility](REGEX_COMPATIBILITY.md) and the
+[escape contract](COMPATIBILITY_CONTRACT.md#source-string-escapes).
 
-`AwkText` stores UTF-8 bytes; record/field processing, ordinary comparisons and numeric
-scanning stay byte-native. Field-key lookups consume borrowed bytes synchronously;
-updates can retain an existing owned dictionary key, while new keys copy their bytes.
-Borrowed spans remain synchronous and never survive host suspension. Invariant scalar folding
-is used for case-insensitive string operations; byte mode folds ASCII only. Numbers use
-invariant-culture binary64 semantics.
+## Representation and conversions
 
-Regex preparation/backends, format syntax, general width/precision and character formatting,
-date formatting and non-ASCII casing have explicit string boundaries. Plain `%s` arguments
-can stay in UTF-8 through the existing builder; numeric/CONVFMT conversion is unchanged.
-Statement `printf` emits staged bytes without copying an intermediate `AwkText` result;
-formatting completes before publication, and host appends borrow stable admitted storage. Literal field arguments can also use synchronous borrowed
-bytes/numbers; eager field checks remain, and formatted output is owned before host suspension.
-Dynamic operands and values needing materialization retain their ordinary path.
-Custom scalar formats preserve their full-precision conversion through a bounded temporary. Counters distinguish decode/encode work, cached `AsString`
-requests, formatting fallback and regex adapters. A byte-native claim requires counter
-evidence; it does not imply zero allocation. Governed buffers/caches publish only after
-successful construction. Cancellation remains subject to the
-[shared memory and cancellation](RUNTIME_LIMITS.md#shared-memory).
+Records, fields, ordinary comparisons, numeric scanning and eligible array-key lookups
+operate on UTF-8 bytes. Borrowed spans stay within synchronous operations; retained
+array keys and values own their storage. Case-insensitive string operations use invariant
+scalar folding without normalization or multi-scalar expansion; byte mode folds ASCII only.
+Numbers use invariant-culture binary64.
 
-Ordinary field/string-literal comparisons can consume untouched field bytes synchronously,
-without copied text or a cached scalar. Cached/modified fields, case-insensitive/nondecimal
-comparison and `$0` use ordinary value evaluation; borrowed spans never outlive the comparison.
+Documented string boundaries include regex preparation and the default .NET matcher,
+format parsing and general formatting, dates, non-ASCII casing and special-name lookup.
+Some ordinary formatting and field reads avoid conversions; this is not a zero-allocation
+guarantee. Runtime counters provide evidence for individual paths.
 
-Bounded interpreter loops and pure return expressions reuse the same NF, field-length and
-field/literal readers, preserving existing admission and field/index checkpoints.
+The default .NET regex engine also handles non-ASCII byte-mode text. A host-supplied
+`IAwkRegexEngine` receives valid UTF-8 spans directly; Awk validates its byte/UTF-16
+ranges and retains match-selection and replacement policy. The optional Utf8Regex adapter
+does not change ingress or string units. Newer producer adoption remains postponed.
 
-Numeric-only field reads can parse borrowed bytes synchronously; cached/modified fields
-and `$0` retain ordinary values. No borrowed span escapes numeric conversion.
-
-Single-field array membership and existing-value reads can look up borrowed bytes
-synchronously, without copying field text or retaining the span. Missing reads use owned
-keys before insertion; cached/modified fields and `$0` keep ordinary key evaluation.
-Stored keys own their bytes. SYMTAB retains its UTF-8-to-.NET-string boundary.
+Admission completes before text publication. Memory ownership, actual-user refunds and
+cancellation limits are described in [runtime limits](RUNTIME_LIMITS.md).

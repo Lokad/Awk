@@ -1,52 +1,43 @@
 # Security and host containment
 
-Lokad.Awk runs managed code and routes all files, descriptors, environment data and
-commands through the embedding application's `IAwkHost`. Awk code has no direct .NET
-filesystem, process, console, networking, reflection or native-loading capability.
-The host and its dependencies remain trusted; this boundary is not an OS sandbox.
+Lokad.Awk executes managed code with all I/O supplied by `IAwkHost`. Awk programs have
+no direct filesystem, process, console, networking, reflection or native-loading access.
+The host, parser and selected regex engine are trusted implementation code; this is
+an embedding boundary, not an OS sandbox.
 
-## Configure authority
+## Authority
 
-Use `AwkExecutionPolicy.CreateRestricted()` for untrusted scripts. It disables
-script-created redirections and pipes, `@include` and changed `ARGV` input paths;
-hides environment and host-error details; fixes time to the Unix epoch/UTC; and
-applies finite data/memory budgets, host deadlines and a cooperative 30-second deadline.
+Start untrusted scripts with `AwkExecutionPolicy.CreateRestricted()`. It disables
+script-created redirections, command pipes, `@include` and changed `ARGV` input paths;
+hides invocation environment and host-error details; fixes time to Unix epoch/UTC;
+and supplies finite data/memory budgets and a cooperative 30-second execution deadline.
 Explicit invocation inputs remain available through the host.
 
-`--sandbox` only disables file/command redirections. It does not replace the restricted
-preset or host policy. `AccessiblePathRoot` checks canonical virtual paths lexically;
-a filesystem host must enforce its own root, including symlinks, reparse points and races.
-Standard `/dev/*` paths refer to supplied descriptors, not ambient operating-system files.
+`--sandbox` only disables file and command redirections. `AccessiblePathRoot` checks
+canonical virtual paths lexically; a filesystem host must enforce its own root against
+symlinks, reparse points and races. Supported `/dev/*` aliases name supplied descriptors.
 
-## Implement the host boundary
+One-way pipes require policy and host permission. The runtime passes opaque command
+text to the host; it does not invoke a shell. Hosts own command allowlists, argument
+parsing, environment and process limits. `system()`, coprocesses, network special files
+and native extensions are unsupported.
 
-Return structured missing, unsupported, failure and exit results. Unexpected host/framework
-exceptions become generic awk diagnostics without CLR exception text. Caller cancellation
-propagates to the application as cancellation. Follow the read-buffer lifetime and outcome
-contract in the [embedding guide](../README.md#embedding).
+## Resources and host responsibilities
 
-With a shared memory budget, cleanup awaits actual host users before refunding their
-storage. Hosts must cooperate with cancellation; a deadline ends a wait but does not
-prove that the underlying task has stopped using buffers.
+Use structured host outcomes and honor the [buffer lifetime contract](../README.md#embedding).
+Unexpected host exceptions become generic awk diagnostics; caller cancellation propagates
+as cancellation. Policy/resource failures return awk diagnostics and a nonzero exit status.
+Mutation preflights preserve earlier committed state/output, rather than rolling back a command.
 
-One-way pipes require both policy and host permission. Their complete command text is
-passed as an opaque command identity; the runtime does not tokenize or invoke a shell.
-A host should resolve allowed commands, build arguments without shell parsing, control
-working directory/environment and bound execution/output. `system()`, coprocesses,
-network special files and dynamic/native extensions are unsupported.
+Neither preset has implicit execution fuel. Default execution needs caller cancellation
+or an owned deadline. Shared memory admission is immediate: any refusal fails the command;
+Awk does not retry, wait, spill or change algorithms to recover. Accounting is conservative
+and approximate, not a process-heap cap. See [runtime limits](RUNTIME_LIMITS.md).
 
-## Bound resource use
+Cancellation is cooperative. Host/cleanup deadlines bound waiting, not forced termination
+or the effects of an uncooperative host. Governed storage remains charged until actual
+pending host users finish. Use process/container limits when hard isolation is required.
 
-Both presets have no implicit execution fuel. Supply caller cancellation or an owned
-deadline, and choose memory/data limits appropriate to the workload. Mutation preflights
-preserve prior state/output when resource admission fails. See [runtime limits](RUNTIME_LIMITS.md).
-
-Memory is a conservative logical runtime budget, not a total-process heap cap.
-Cancellation is cooperative: dependency calls can finish before it is observed, and a
-timed-out host task can continue effects if the host ignores cancellation. Host and cleanup
-deadlines bound awaiting, not forced termination. Use OS process/container limits when
-untrusted workloads require hard availability guarantees.
-
-Ingress stays [strict UTF-8](UTF8_POLICY.md). The library disables unsafe C#; parser and
-regex dependencies remain part of the trusted implementation and require qualification
-when updated.
+Ingress remains [strict UTF-8](UTF8_POLICY.md). Core Awk disables unsafe C# and has no
+Utf8Regex runtime dependency. Applications selecting an optional regex engine also own
+its trust and dependency qualification; core releases do not require that engine's release.

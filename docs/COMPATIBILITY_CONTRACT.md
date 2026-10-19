@@ -1,133 +1,119 @@
 # Compatibility contract
 
-Lokad.Awk targets ordinary awk processing over valid UTF-8, with host-mediated effects.
-The [compatibility matrix](COMPATIBILITY_MATRIX.md) identifies supported, partial and
-excluded behavior; neither accepted flags nor passing rejection tests imply full conformance.
-The [golden corpus](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs) owns observable behavior.
+Lokad.Awk supports ordinary awk text processing inside .NET, with valid UTF-8,
+host-controlled effects and predictable resource admission. The
+[matrix](COMPATIBILITY_MATRIX.md) defines the supported surface; this is not full
+POSIX/GNU conformance. The interpreter and .NET regex remain defaults.
 
 ## Compatibility profiles and names
 
-GNU/default mode enables selected GNU functions, input phases and special variables.
-POSIX/traditional profiles disable extension behavior; disabled soft names can become
-ordinary variables or functions. Built-ins enabled by the profile cannot be parameters.
-User calls require adjacency to `(`; built-ins allow intervening space. Powers associate
-right and bind before unary signs; POSIX rejects `**`/`**=`. Invalid statement/assignment
-shapes are diagnosed before execution, including unreachable code.
-General GNU lint coverage remains partial. See the [profile goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.ProfileNames.cs).
+Default/GNU mode enables selected GNU functions, input phases and special variables.
+POSIX/traditional modes disable extensions and special-variable effects; disabled soft
+names can become ordinary names. User calls require adjacency to `(`; built-ins allow
+space. Powers associate right and bind before unary signs; POSIX rejects `**`/`**=`.
+Invalid grammar and assignment targets are diagnosed even in unreachable code.
+General GNU lint remains partial.
 
 ## Command-line compatibility aliases
 
-Optimization and interval flags are accepted aliases: they do not select an engine or
-change optimization/regex policy. Numeric-locale flags retain invariant decimal parsing
-and formatting. Supplied locale values remain environment data, not codec/culture selectors.
-POSIX overrides byte units with a warning regardless of option order. Admitted option/source
-warnings precede runtime effects and are emitted once per compiled execution. See the
-[option goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.OptionCompatibility.cs).
+Optimization/interval flags are aliases, not engine or regex-policy selectors.
+Numeric-locale flags retain invariant parsing/formatting. Locale values remain host
+environment data, not codec/culture selectors. POSIX overrides byte mode with a warning
+in either option order. Admitted invocation warnings precede runtime effects.
 
-## Command assignments and includes
-
-`-v`/`-F` apply before execution using the final profile and original option order.
-Assignment operands apply when the input scheduler reaches them, including inside `getline`
-from a function; they target globals. BEGIN exit can skip later operands. Source options,
-include ordering and dynamic input paths follow the declared host capabilities.
-Include filenames are raw quoted paths, not string expressions. No direct filesystem lookup.
+`-v`/`-F` apply before execution in original option order under the final profile.
+Assignment operands apply when the input scheduler reaches them, including through
+`getline` in a function, and target globals. BEGIN exit can skip later operands.
+Sources/includes and dynamic input paths require host/policy permission.
+`TryParse` recognizes the command invocation; source parsing and binding occur during execution.
 
 ## Source string escapes
 
-Source, options and consumed operands use profile-aware, single-pass escape decoding.
-[UTF-8 policy](UTF8_POLICY.md#escapes) defines numeric-byte and Unicode escapes;
-[regex compatibility](REGEX_COMPATIBILITY.md) defines the separate ERE pass. Warnings
-retain source locations and invocation-wide histories, including unreachable source.
-Returned compiled artifacts retain warnings and emit them through each execution's host.
-
-## Fields and records
-
-FS, FPAT, FIELDWIDTHS, RS, field/NF mutation, input phases and getline are described in
-[record semantics](RECORD_SEMANTICS.md). A literal one-character separator is case-sensitive;
-regex separators honor the captured case policy. `split`'s direct `/ /` separator is a
-literal space, while string `" "` uses whitespace rules; other direct one-character regex
-arguments follow the declared GNU 5.4 literal rule. Grouping evaluates a regex as an expression.
+Source strings, options and consumed operands use profile-aware, single-pass decoding;
+include filenames are raw quoted paths. [UTF-8 policy](UTF8_POLICY.md#escapes) defines
+numeric-byte/Unicode escapes; [regex compatibility](REGEX_COMPATIBILITY.md) defines the
+separate ERE pass. Warning histories and locations are execution-local, including
+lexical warnings from unreachable source; reusing a prepared program does not share history.
 
 ## Values, numbers and formatting
 
-Numbers use invariant-culture binary64. Whole-input numeric-string classification differs
-from arithmetic prefix conversion; numeric scans use ASCII C whitespace. NaN equality
-and ordered comparisons are false; inequality is true. NaN is true as a condition. Ordinary
-strings retain string truth/comparison rules. No arbitrary-precision execution.
+Numbers are invariant-culture binary64. Whole-string numeric classification differs from
+arithmetic prefix conversion, whose whitespace is ASCII C whitespace. Numeric fields
+retain their spelling/origin. NaN equality and ordered comparisons are false, inequality
+is true, and NaN is true as a condition. Ordinary strings retain string truth/comparison.
 
-Numeric fields and strings retain their origins/spelling. Missing ordinary array reads
-create untyped entries; membership does not. Untouched arguments can be forwarded as array
-aliases; scalar assignment/return copies values without sharing type cells. Bare arrays pass
-by alias; grouped variable arguments impose scalar context and reject arrays.
-`length` honors function scope: scalar or missing parameters shadow globals, and array
-parameters use their actual alias, including when forwarded through another function.
+Missing ordinary array reads create untyped entries; membership does not. Arrays pass
+by alias, including forwarded missing parameters. Scalar assignments/returns copy values.
+Grouped arguments impose scalar context and reject arrays. Function parameters shadow
+globals, including for `length` and forwarded array aliases.
 
-Compound assignment targets/keys and left values are evaluated before the RHS. Interfering
-RHS effects, including SUBSEP changes, can differ from GNU awk; [assignment operand order](https://www.gnu.org/s/gawk/manual/html_node/Assignment-Ops.html)
-is left to the implementation. The golden corpus preserves Lokad's chosen order.
+Assignment targets/keys and old compound values are evaluated before the RHS. Concatenation
+formats each operand before evaluating the next. Side effects on targets, SUBSEP or CONVFMT
+can therefore differ from GNU awk; keep order-sensitive effects in separate statements.
+Numeric OFS/ORS use current CONVFMT; use string separators to preserve assigned spelling.
 
-Concatenation evaluates and formats each operand before the next one. Side effects on
-CONVFMT can therefore differ from GNU awk. Keep these effects in separate statements;
-[concatenation evaluation order is not defined by awk](https://www.gnu.org/software/gawk/manual/html_node/Concatenation.html).
+Common printf/sprintf conversions, hexadecimal output and GNU positional arguments work;
+newer controls remain unsupported as listed in the matrix. Formatting preflights publication.
+Bitwise, calendar and nonfinite/range behavior follow the golden contract, not every libc
+quirk. Time comes from the policy's clock/zone, with system/local defaults and epoch/UTC
+in the restricted preset.
 
-Common printf/sprintf controls, hexadecimal output and GNU positional arguments are supported;
-newer controls remain partial. Formatting preflights complete output. Signed nonfinite values,
-integer range/padding, strtonum, bitwise and time behavior follow qualified golden policies,
-not every platform's native libc quirks. Time uses the policy clock/zone, not environment lookup.
-Numeric OFS/ORS are formatted with the current CONVFMT; GNU can retain their assigned spelling.
-Use string separators when that spelling matters across implementations.
-See [numeric](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.NumericSemantics.cs),
-[formatting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FormattingSyntax.cs) and
-[calendar](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.CalendarNormalization.cs) cases.
+Case-insensitive strings use invariant scalar folding (ASCII in byte mode), without
+normalization or multi-scalar expansion. Array keys remain case-sensitive. Sorting uses
+a total order with original-byte/index tie-breaks; mixed keys and Unicode folding can
+differ from GNU. Regex folding has a separate [contract](REGEX_COMPATIBILITY.md).
 
 ## Special array reads
 
-Absent SYMTAB/FUNCTAB reads diagnose misuse; membership remains non-mutating. Declared
-globals are visible before use; function parameters and SYMTAB itself are excluded.
-Valid SYMTAB writes may create governed dynamic names and invoke the ordinary special-variable
-setters. These are explicit GNU differences. FUNCTAB metadata remains read-only; array-valued
-SYMTAB reads support introspection/aliases but diagnose scalar conversion. See
-[special-array](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SpecialArrayReads.cs) and
-[untyped-value](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.UntypedState.cs) goldens.
+SYMTAB/FUNCTAB missing reads diagnose misuse; membership does not mutate. Declared globals
+are visible before use, excluding function parameters and SYMTAB itself. Valid SYMTAB writes
+can create governed names and invoke ordinary special-variable setters. Array-valued reads
+permit aliases/introspection but reject scalar conversion. FUNCTAB metadata is read-only.
+These are qualified behaviors with explicit GNU differences.
 
-Case-insensitive text uses invariant scalar folding (ASCII only in byte mode), without
-normalization or multi-scalar expansion. Array keys stay case-sensitive. Sorting has a
-separate total order, with original-byte/index tie-breaks. Numeric-sort ties with mixed
-ordinal/text keys and Unicode folding can differ from GNU 5.2.1; these are classified
-limitations, not exact agreement. Regex folding also has documented edge differences.
+## Fields and records
+
+Captured FS/FPAT/FIELDWIDTHS and case settings, lazy fields, NF/reconstruction, RS/RT and
+input phases are defined in [record semantics](RECORD_SEMANTICS.md). Literal one-character
+FS is case-sensitive. Direct `split(...,/ /)` uses a literal space; string `" "` uses
+whitespace rules. Other direct one-character regex separators use literal splitting.
+A grouped regex is a scalar expression, not a direct pattern argument.
 
 ## Host I/O and getline
 
-All source, input, output and one-way pipe effects cross `IAwkHost`. Open/read/pipe results
-distinguish unsupported, failure and success; successful reads distinguish MoreData from
-EOF. MoreData must contain bytes. Line offsets are snapshotted; content stays borrowed until
-the next read starts on that descriptor or it closes. Other descriptors have independent lifetimes.
+All source, input, output and one-way pipes cross `IAwkHost`. Successful reads distinguish
+MoreData from EOF; MoreData contains bytes. Line offsets are snapshotted, while content
+remains borrowed until the next read starts on that descriptor or it closes. Append buffers
+remain valid until the host task completes. Other descriptors have independent lifetimes.
 
-Main-input failures are fatal. Redirected getline I/O failures return -1 and set enabled ERRNO;
-success/EOF preserve prior ERRNO. Policy denial, unsupported capability, resource failure and
-invalid UTF-8 remain fatal. Getline captures its source and resolves its destination before
-reading, even at EOF; index effects and missing-location admission can occur without a value
-assignment. Direct postfix field destinations are rejected; use `getline $(i++)` for index mutation.
+Redirected getline I/O failures return -1 and set enabled ERRNO; success/EOF preserve ERRNO.
+Policy denial, unsupported capabilities, resource failure and invalid UTF-8 are fatal.
+Getline resolves its source/destination before reading, even at EOF: index effects and
+missing-location admission can occur without a value assignment. Direct postfix field
+destinations are rejected; use `getline $(i++)` for explicit index mutation.
 
-Flush/close use logical streams and host outcomes. Diagnostics preserve prior committed output
-and do not expose CLR exception text. Caller cancellation propagates after bounded cleanup;
-owned deadlines are awk failures. See [embedding](../README.md#embedding),
+Flush/close follow logical-stream and host outcomes. Failures preserve prior committed output
+without exposing CLR exception text. Caller cancellation propagates after cleanup; owned
+deadlines produce awk failures. See [embedding](../README.md#embedding),
 [security](SECURITY.md) and [runtime limits](RUNTIME_LIMITS.md).
 
 ## Main input directories
 
-Unhandled host open/read failures are fatal in every profile, including directory operands:
-prior stdout survives, later operands stop and no stdin fallback occurs. BEGINFILE can explicitly
-recover with nextfile; redirected getline remains recoverable. The runtime neither infers file
-kinds from error text nor implements GNU's automatic directory skipping.
+Unhandled main-input open/read failures, including directories, are fatal in every profile:
+later operands stop and there is no stdin fallback. BEGINFILE can explicitly recover with
+nextfile; redirected getline remains recoverable. Awk does not infer file kinds from error
+text or reproduce GNU's automatic directory skipping.
 
 ## Unsupported capabilities
 
-CSV, nested arrays, system(), namespaces, typed regex and indirect calls are deferred.
-Native loading, coprocesses, network special files, arbitrary raw bytes and ambient locale
-execution are excluded. See the matrix for exact boundaries. Native crashes/corruption are
-classified reference bugs, not semantics to reproduce or successful equivalence cases.
+CSV, nested arrays, system(), namespaces, typed regex and indirect calls are deferred,
+subject to concrete script demand. Native loading, coprocesses, network special files,
+arbitrary raw bytes, ambient locale execution and arbitrary precision are excluded.
 
-The public surface stays small: invocation parsing, async execution, typed exits and
-application-owned hosts/descriptors/paths/results. The interpreter remains the default;
-VM/backend/governor internals do not expand the public host contract.
+The public boundary comprises invocations, async execution, host outcomes, resource policy
+and AWK-specific memory/regex contracts. The executable engine and prepared-program
+machinery remain internal/opt-in. Core has no Utf8Regex runtime dependency; the optional
+adapter and newer producer adoption are independent qualification decisions.
+
+The [golden corpus](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs) owns observable behavior.
+Reference crashes and classified version/backend differences are not semantics to reproduce.

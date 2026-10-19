@@ -86,7 +86,7 @@ selected GNU conveniences, not full POSIX/GNU conformance. CSV, nested arrays, s
 typed regex values and indirect calls remain unsupported; see the
 [compatibility matrix](docs/COMPATIBILITY_MATRIX.md).
 
-The interpreter remains the default engine. The opt-in executable engine uses explicit interpreter
+The interpreter remains the default engine. The internal, opt-in executable backend uses explicit interpreter
 fallbacks for unsupported shapes. Regex defaults to .NET compatibility, with
 documented [backend differences](docs/REGEX_COMPATIBILITY.md). Applications can supply an
 `IAwkRegexEngine` through `policy.WithRegexEngine(engine)`; the optional `Lokad.Awk.Utf8Regex`
@@ -118,6 +118,7 @@ Detailed runtime contracts live in:
 - [docs/SECURITY.md](docs/SECURITY.md)
 - [docs/COMPATIBILITY_CONTRACT.md](docs/COMPATIBILITY_CONTRACT.md)
 - [docs/COMPATIBILITY_MATRIX.md](docs/COMPATIBILITY_MATRIX.md)
+- [docs/RECORD_SEMANTICS.md](docs/RECORD_SEMANTICS.md)
 - [docs/REGEX_COMPATIBILITY.md](docs/REGEX_COMPATIBILITY.md)
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
 
