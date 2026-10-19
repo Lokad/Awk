@@ -2,8 +2,8 @@
 
 The intended ownership is simple: the host's shared governor admits memory, and the caller's
 cancellation controls how long work may continue. `IAwkHost` controls effects. This branch has removed duplicate execution-memory, record/value-size and cumulative I/O
-quotas for the next release. Released 0.3.0 still has those settings. Other storage caps and
-separate timeout settings remain pending cleanup. See the [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs)
+quotas for the next release. Released 0.3.0 still has those settings. Other storage caps remain pending cleanup; the four Awk-owned deadline settings are also
+removed on this branch. See the [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs)
 for the current API and [migration notes](../CHANGELOG.md#030---2026-10-19) for changes already shipped.
 
 ## Shared memory admission
@@ -39,10 +39,15 @@ Checkpoints remain active with observational counters disabled. Caller cancellat
 propagates after cleanup. It requests that runtime, host and regex work stop; it does not
 forcibly terminate work or authorize early refunds. A non-cooperating host can delay completion.
 
-Version 0.3.0 also has `ExecutionTimeout`, `CommandTimeout`, `HostOperationTimeout` and
-`CleanupTimeout` with corresponding `With...` methods. They currently create distinct deadline
-behavior. The planned cleanup removes these parallel controls in favor of caller/host-owned
-cancellation, including cleanup waiting, without abandoning outstanding users.
+Removed for the next release: `ExecutionTimeout`, `CommandTimeout`, `HostOperationTimeout`,
+`CleanupTimeout` and their `With...` methods. Use a caller-owned `CancellationTokenSource`
+with `CancelAfter` when a deadline is needed. Cancellation propagates as cancellation,
+without a separate Awk timeout diagnostic.
+
+Awk awaits actual host completion. Acquired descriptors are registered before cancellation
+unwinds execution; delivered reads retain their buffer and accounting. Essential cleanup uses
+an uncancelled token and awaits every close and outstanding user before refunding storage.
+A host that ignores cancellation or never completes cleanup can delay completion indefinitely.
 
 The internal Utf8Regex adapter currently checks around producer calls rather than inside
 them. Forwarding cancellation and removing its separate timeout contract are planned;

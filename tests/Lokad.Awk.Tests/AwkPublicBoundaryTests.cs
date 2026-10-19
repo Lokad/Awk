@@ -345,25 +345,6 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
-    public async Task AwkExecutionPolicy_HostOperationTimeoutBoundsUncooperativeReads()
-    {
-        var pendingRead = new TaskCompletionSource<AwkReadResult>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var host = new MockFileSystem
-        {
-            ReadLinesAsyncOverride = (_, _, _) => pendingRead.Task
-        };
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print}"));
-        var policy = AwkExecutionPolicy.CreateDefault()
-            .WithHostOperationTimeout(TimeSpan.FromMilliseconds(10));
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal("awk: host operation timed out\n", host.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
     public async Task AwkExecutionPolicy_RestrictedPresetDeniesFileRedirections()
     {
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
@@ -504,22 +485,6 @@ public sealed class AwkPublicBoundaryTests
             "awk: execution failed without exposing host exception details\n",
             host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.DoesNotContain("sensitive", host.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
-    public async Task AwkExecutionPolicy_ExecutionTimeoutReturnsAwkDiagnostic()
-    {
-        var host = new MockFileSystem();
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
-            "awk",
-            "BEGIN{while(1){x++}}"));
-        var policy = AwkExecutionPolicy.CreateDefault()
-            .WithExecutionTimeout(TimeSpan.FromMilliseconds(10));
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal("awk: execution timed out\n", host.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Fact]

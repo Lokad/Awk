@@ -59,12 +59,13 @@ public sealed class AwkPrintfFieldArgumentTests
             if (cancel)
             {
                 cancellation.Cancel();
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+                Assert.False(run.IsCompleted);
                 Assert.True(budget.Reserved > 0);
                 Assert.Equal(expected, System.Text.Encoding.UTF8.GetString(host.Bytes.Span));
             }
             host.Release.TrySetResult(AwkExitCode.Success);
-            if (!cancel) Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+            if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(10)));
+            else Assert.Equal(AwkStatementFlow.Continue, await run.WaitAsync(TimeSpan.FromSeconds(10)));
         }
         finally
         {

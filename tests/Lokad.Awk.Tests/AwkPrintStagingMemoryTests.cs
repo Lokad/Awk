@@ -342,16 +342,11 @@ public sealed partial class AwkPrintStagingMemoryTests
 
     [Theory]
     [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)]
-    public async Task TimedOutOutputRetainsBorrowedBytesAndSharedAdmissionUntilHostCompletion(int printCount)
+    public async Task CanceledOutputRetainsBorrowedBytesAndSharedAdmissionUntilHostCompletion(int printCount)
     {
         var budget = new CooperativeTestBudget(Limit);
         var host = new PendingWriteHost { IgnoreCancellation = true, HoldStandardOutput = printCount != 0 };
-        var diagnostic = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        host.Inner.AfterAppend = () =>
-        {
-            if (host.Inner.GetOutput(AwkFileDescriptor.StdErr).Contains("host operation timed out", StringComparison.Ordinal))
-                diagnostic.TrySetResult();
-        };
+        using var cancellation = new CancellationTokenSource();
         var source = printCount switch
         {
             1 => "BEGIN{s=sprintf(\"%04096d\",7);print s}",
@@ -361,9 +356,8 @@ public sealed partial class AwkPrintStagingMemoryTests
             _ => "BEGIN{printf \"%04096d\",7 > \"result\"}"
         };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget)
-            .WithHostOperationTimeout(TimeSpan.FromMilliseconds(10));
-        var pending = tool.ExecuteAsync(host, policy, CancellationToken.None);
+        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget);
+        var pending = tool.ExecuteAsync(host, policy, cancellation.Token);
         var ending = printCount switch { 3 => "7 café\n", 2 => "7 8\n", 1 => "7\n", _ => "7" };
         var expected = AwkUtf8Codec.Encode(new string('0', 4095) + ending).ToArray();
         try
@@ -371,7 +365,7 @@ public sealed partial class AwkPrintStagingMemoryTests
             await host.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             var held = budget.Reserved;
             Assert.True(held >= expected.Length);
-            await diagnostic.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            cancellation.Cancel();
             Assert.False(pending.IsCompleted);
             Assert.Equal(0, budget.ScopesDisposed);
             Assert.True(budget.Reserved >= held);
@@ -381,9 +375,10 @@ public sealed partial class AwkPrintStagingMemoryTests
             Assert.Equal(expected, host.Borrowed.ToArray());
         }
         finally { host.Allow.TrySetResult(); }
-        Assert.Equal(2, (await pending.WaitAsync(TimeSpan.FromSeconds(10))).Value);
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(expected, host.Consumed);
-        Assert.Equal("awk: host operation timed out\n", host.Inner.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(string.Empty, host.Inner.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(1, budget.ScopesDisposed);
     }

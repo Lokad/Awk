@@ -26,6 +26,10 @@ public sealed class TestOperationVisitor : IAwkHost
 
     public Action? BeforeAppend { get; set; }
 
+    public Action? AfterOpenFile { get; set; }
+
+    public Action? AfterCreatePipe { get; set; }
+
     public Func<IReadOnlyList<AwkCommandInvocation>, CancellationToken, Task<IReadOnlyList<AwkExitCode>>>?
         RunCommandsOverride { get; set; }
 
@@ -48,6 +52,7 @@ public sealed class TestOperationVisitor : IAwkHost
     {
         cancellationToken.ThrowIfCancellationRequested();
         var operation = Dequeue<TestHostOperation.CreatePipe>("pipe descriptors");
+        AfterCreatePipe?.Invoke();
         return Task.FromResult(operation.Result);
     }
 
@@ -89,6 +94,7 @@ public sealed class TestOperationVisitor : IAwkHost
     {
         cancellationToken.ThrowIfCancellationRequested();
         var operation = Dequeue<TestHostOperation.OpenFile>("open file descriptors");
+        AfterOpenFile?.Invoke();
         return Task.FromResult(AwkOpenedFile.Opened(operation.Descriptor));
     }
 

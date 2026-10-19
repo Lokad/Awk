@@ -61,7 +61,7 @@ internal static class AwkRuntime
                 : Array.Empty<AwkEnvironmentVariable>());
         state.InitializeProcInfo();
         state.InitializeFunctions(program.Functions);
-        var cleanupDeadline = new AwkCleanupDeadline(runtimeOptions.CleanupTimeout);
+
         var io = new AwkIo(
             host,
             runtimeArguments.CurrentDirectory,
@@ -77,13 +77,9 @@ internal static class AwkRuntime
             runtimeOptions.AllowFileRedirections,
             runtimeOptions.AllowCommandPipes,
             runtimeOptions.AccessiblePathRoot,
-            runtimeOptions.CommandTimeout,
-            runtimeOptions.CleanupTimeout,
             runtimeOptions.ForwardCommandEnvironment,
-            runtimeOptions.HostOperationTimeout,
             runtimeOptions.ExposeHostErrorDetails,
-            runtimeOptions.MaxHostErrorBytes,
-            cleanupDeadline);
+            runtimeOptions.MaxHostErrorBytes);
         using var actionExecutor = new AwkRuntimeActionExecutor(program, state);
         var inputScheduler = new AwkInputScheduler(
             host,
@@ -93,12 +89,9 @@ internal static class AwkRuntime
             io,
             cancellationToken,
             runtimeOptions.AccessiblePathRoot,
-            runtimeOptions.CleanupTimeout,
             runtimeOptions.AllowDynamicMainInputPaths,
-            runtimeOptions.HostOperationTimeout,
             runtimeOptions.ExposeHostErrorDetails,
-            runtimeOptions.MaxHostErrorBytes,
-            cleanupDeadline);
+            runtimeOptions.MaxHostErrorBytes);
         io.BindMainInputReader(inputScheduler);
         using var execution = state.PushExecutionContext(actionExecutor.Output, io);
         try
@@ -130,7 +123,6 @@ internal static class AwkRuntime
             runtimeOptions.Counters.RecordOutputBytes(failure.Message.Length);
             var appendStatus = await AwkHostBoundaryPolicy.AwaitAsync(
                     host.AppendAsync(stdio.StdErr, failure.Message, cancellationToken),
-                    runtimeOptions.HostOperationTimeout,
                     cancellationToken)
                 .ConfigureAwait(false);
             return appendStatus.Succeeded

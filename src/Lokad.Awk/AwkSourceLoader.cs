@@ -12,10 +12,8 @@ internal static partial class AwkSourceLoader
         AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken,
         AwkPath? accessiblePathRoot = null,
-        TimeSpan? cleanupTimeout = null,
         bool allowSourceIncludes = true,
         bool exposeEnvironment = true,
-        TimeSpan? hostOperationTimeout = null,
         bool exposeHostErrorDetails = true,
         int maxHostErrorBytes = 4 << 10,
         AwkFrontendMemory? memory = null)
@@ -23,10 +21,8 @@ internal static partial class AwkSourceLoader
         var plan = AwkSourceLoadPlan.FromInvocation(
             invocation,
             accessiblePathRoot,
-            cleanupTimeout,
             allowSourceIncludes,
             exposeEnvironment,
-            hostOperationTimeout,
             exposeHostErrorDetails,
             maxHostErrorBytes,
             memory);

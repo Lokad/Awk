@@ -12,7 +12,6 @@ internal sealed class AsyncLineReader
     private readonly int _maxLineCount;
     private readonly AwkRuntimeResourceMonitor _resources;
     private readonly bool _countAsRuntimeInput;
-    private readonly TimeSpan _hostOperationTimeout;
     private readonly bool _exposeHostErrorDetails;
     private readonly int _maxHostErrorBytes;
     private ReadOnlyMemory<byte> _content;
@@ -28,7 +27,6 @@ internal sealed class AsyncLineReader
         int maxLineCount,
         AwkRuntimeResourceMonitor resources,
         bool countAsRuntimeInput = false,
-        TimeSpan? hostOperationTimeout = null,
         bool exposeHostErrorDetails = true,
         int maxHostErrorBytes = 4 << 10)
     {
@@ -42,7 +40,7 @@ internal sealed class AsyncLineReader
         _maxLineCount = maxLineCount;
         _resources = resources;
         _countAsRuntimeInput = countAsRuntimeInput;
-        _hostOperationTimeout = hostOperationTimeout ?? TimeSpan.FromMinutes(5);
+
         _exposeHostErrorDetails = exposeHostErrorDetails;
         _maxHostErrorBytes = maxHostErrorBytes;
         _content = ReadOnlyMemory<byte>.Empty;
@@ -59,10 +57,7 @@ internal sealed class AsyncLineReader
             }
 
             _resources.RecordHostCall();
-            var result = await AwkHostBoundaryPolicy.AwaitAsync(
-                    _host.ReadLinesAsync(_descriptor, _maxLineCount, _cancellationToken),
-                    _hostOperationTimeout,
-                    _cancellationToken)
+            var result = await _host.ReadLinesAsync(_descriptor, _maxLineCount, _cancellationToken)
                 .ConfigureAwait(false);
             if (result.Failed)
             {

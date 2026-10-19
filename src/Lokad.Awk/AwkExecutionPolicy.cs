@@ -66,18 +66,6 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the local time zone observed by time-related awk builtins.</summary>
     public TimeZoneInfo TimeZone { get; private init; } = TimeZoneInfo.Local;
 
-    /// <summary>Gets the maximum duration allowed for a host command requested by a pipe.</summary>
-    public TimeSpan CommandTimeout { get; private init; } = TimeSpan.FromMinutes(5);
-
-    /// <summary>Gets the maximum duration allowed for one ordinary host operation.</summary>
-    public TimeSpan HostOperationTimeout { get; private init; } = TimeSpan.FromMinutes(5);
-
-    /// <summary>Gets the optional cooperative wall-time limit for the complete awk execution.</summary>
-    public TimeSpan? ExecutionTimeout { get; private init; }
-
-    /// <summary>Gets the aggregate deadline for best-effort cleanup calls in one execution phase.</summary>
-    public TimeSpan CleanupTimeout { get; private init; } = TimeSpan.FromSeconds(30);
-
     /// <summary>Gets the maximum active awk function-call depth.</summary>
     public int MaxFunctionCallDepth => Limits.MaxFunctionCallDepth;
 
@@ -175,10 +163,6 @@ public sealed record AwkExecutionPolicy
             ExposeHostErrorDetails = false,
             TimeProvider = AwkFixedTimeProvider.UnixEpoch,
             TimeZone = TimeZoneInfo.Utc,
-            CommandTimeout = TimeSpan.FromSeconds(10),
-            HostOperationTimeout = TimeSpan.FromSeconds(10),
-            ExecutionTimeout = TimeSpan.FromSeconds(30),
-            CleanupTimeout = TimeSpan.FromSeconds(5),
             MaxArguments = 1_024,
             MaxArgumentBytes = 4L << 20,
             MaxEnvironmentEntries = 1_024,
@@ -234,22 +218,6 @@ public sealed record AwkExecutionPolicy
         ArgumentNullException.ThrowIfNull(timeZone);
         return this with { TimeZone = timeZone };
     }
-
-    /// <summary>Returns a copy with the command completion timeout configured.</summary>
-    public AwkExecutionPolicy WithCommandTimeout(TimeSpan timeout) =>
-        this with { CommandTimeout = RequirePositive(timeout) };
-
-    /// <summary>Returns a copy with the ordinary host-operation timeout configured.</summary>
-    public AwkExecutionPolicy WithHostOperationTimeout(TimeSpan timeout) =>
-        this with { HostOperationTimeout = RequirePositive(timeout) };
-
-    /// <summary>Returns a copy with the cooperative execution timeout configured.</summary>
-    public AwkExecutionPolicy WithExecutionTimeout(TimeSpan timeout) =>
-        this with { ExecutionTimeout = RequirePositive(timeout) };
-
-    /// <summary>Returns a copy with the cleanup host-call timeout configured.</summary>
-    public AwkExecutionPolicy WithCleanupTimeout(TimeSpan timeout) =>
-        this with { CleanupTimeout = RequirePositive(timeout) };
 
     /// <summary>Returns a copy with the awk function-call depth configured.</summary>
     public AwkExecutionPolicy WithMaxFunctionCallDepth(int value) =>
@@ -359,13 +327,6 @@ public sealed record AwkExecutionPolicy
     public AwkExecutionPolicy WithMaxIncludeFiles(int value) =>
         this with { Limits = Limits.WithMaxIncludeFiles(value) };
 
-    private static TimeSpan RequirePositive(TimeSpan value)
-    {
-        if (value <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(value));
-
-        return value;
-    }
 }
 
 internal sealed class AwkFixedTimeProvider : TimeProvider

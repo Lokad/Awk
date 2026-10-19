@@ -60,55 +60,7 @@ public sealed class Awk
     {
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(policy);
-        return policy.ExecutionTimeout is { } timeout
-            ? ExecuteWithTimeoutAsync(host, policy, timeout, cancellationToken)
-            : AwkExecutor.ExecuteAsync(
-                host,
-                AwkCommandParser.Parse(_command, policy),
-                cancellationToken,
-                AwkRuntimeOptions.Create(policy, _command.MemoryBudget));
-    }
-
-    private async Task<AwkExitCode> ExecuteWithTimeoutAsync(
-        IAwkHost host,
-        AwkExecutionPolicy policy,
-        TimeSpan timeout,
-        CancellationToken cancellationToken)
-    {
-        using var timeoutSource = new CancellationTokenSource(timeout);
-        using var executionSource = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken,
-            timeoutSource.Token);
-        try
-        {
-            var invocation = AwkCommandParser.Parse(_command, policy);
-            return await AwkExecutor.ExecuteAsync(
-                    host,
-                    invocation,
-                    executionSource.Token,
-                    AwkRuntimeOptions.Create(policy, _command.MemoryBudget))
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-            when (!cancellationToken.IsCancellationRequested && timeoutSource.IsCancellationRequested)
-        {
-            try
-            {
-                _ = await AwkHostBoundaryPolicy.AwaitAsync(
-                        host.AppendAsync(
-                            _command.StdErr,
-                            AwkMessages.ErrorExecutionTimeout,
-                            cancellationToken),
-                        policy.HostOperationTimeout,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception)
-            {
-                // A host failure while reporting the timeout cannot expose host exception details.
-            }
-
-            return AwkExitCode.FatalError;
-        }
+        return AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(_command, policy),
+            cancellationToken, AwkRuntimeOptions.Create(policy, _command.MemoryBudget));
     }
 }

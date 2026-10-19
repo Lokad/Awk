@@ -51,20 +51,55 @@ bool observed, bool delayed)
             catch (OperationCanceledException) { }
         }
     }
-
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task OwnedDeadlineKeepsFriendlyDiagnostics(bool restricted)
+    [InlineData("source", false)] [InlineData("source", true)]
+    [InlineData("main", false)] [InlineData("main", true)]
+    [InlineData("input", false)] [InlineData("input", true)]
+    [InlineData("output", false)] [InlineData("output", true)]
+    [InlineData("input-pipe", false)] [InlineData("input-pipe", true)]
+    [InlineData("output-pipe", false)] [InlineData("output-pipe", true)]
+    public async Task CancellationOnAcquisitionClosesEveryAcquiredDescriptor(string kind, bool governed)
     {
-        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault()).WithExecutionTimeout(TimeSpan.FromMilliseconds(50));
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{while(1){x++}}"));
-        var host = new MockFileSystem();
-        using var watchdog = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var exit = await Task.Run(() => tool.ExecuteAsync(host, policy, watchdog.Token)).WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(AwkExitCode.FatalError, exit);
-        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: execution timed out\n", host.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(0, host.OpenFileCount);
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(1 << 20);
+        var closed = new List<AwkFileDescriptor>();
+        var host = new TestOperationVisitor([])
+        {
+            AfterOpenFile = cancellation.Cancel,
+            AfterCreatePipe = cancellation.Cancel,
+            CloseDescriptorOverride = (descriptor, token) =>
+            {
+                Assert.False(token.CanBeCanceled);
+                closed.Add(descriptor);
+                return Task.FromResult(AwkOperationStatus.Success);
+            }
+        };
+        var pipe = kind.EndsWith("-pipe", StringComparison.Ordinal);
+        if (pipe) host.EnqueueAwkPipeDescriptors(new(new(100), new(101)));
+        else host.EnqueueOpenAwkFileDescriptor(100);
+        string[] arguments = kind switch
+        {
+            "source" => ["-f", "/script.awk"],
+            "main" => ["{print}", "/data"],
+            "input" => ["BEGIN{getline x<\"/data\"}"],
+            "output" => ["BEGIN{print \"x\">\"/out\"}"],
+            "input-pipe" => ["BEGIN{\"worker a:b\"|getline x}"],
+            _ => ["BEGIN{print \"x\"|\"worker a:b\"}"]
+        };
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments));
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tool.ExecuteAsync(host, policy, cancellation.Token));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(pipe ? 2 : 1, closed.Count);
+        Assert.Equal(closed.Count, closed.Distinct().Count());
+        Assert.Contains(new AwkFileDescriptor(100), closed);
+        if (pipe) Assert.Contains(new AwkFileDescriptor(101), closed);
+        Assert.Empty(host.CommandInvocations);
+        Assert.Empty(host.ReadLineBatchLineCounts);
+        Assert.Empty(host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, budget.Reserved);
     }
+
 }

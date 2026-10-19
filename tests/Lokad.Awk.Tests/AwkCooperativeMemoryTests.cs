@@ -303,29 +303,23 @@ public sealed class AwkCooperativeMemoryTests
     }
 
     [Fact]
-    public async Task TimedOutReadKeepsItsScopeUntilTheUnderlyingTaskCompletes()
+    public async Task CanceledReadKeepsItsScopeUntilTheUnderlyingTaskCompletes()
     {
         var budget = new CooperativeTestBudget(1 << 20);
         var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var diagnostic = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource();
         var host = new MockFileSystem
         {
             ReadLinesAsyncOverride = (_, _, _) => { started.TrySetResult(); return pending.Task; }
         };
-        host.AfterAppend = () =>
-        {
-            if (host.GetOutput(AwkFileDescriptor.StdErr).Contains("host operation timed out", StringComparison.Ordinal))
-                diagnostic.TrySetResult();
-        };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget)
-            .WithHostOperationTimeout(TimeSpan.FromMilliseconds(10));
-        var execution = tool.ExecuteAsync(host, policy, CancellationToken.None);
+        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget);
+        var execution = tool.ExecuteAsync(host, policy, cancellation.Token);
         try
         {
             await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            await diagnostic.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            cancellation.Cancel();
             Assert.False(execution.IsCompleted);
             Assert.True(budget.Reserved > 0);
             Assert.Equal(0, budget.ScopesDisposed);
@@ -334,10 +328,11 @@ public sealed class AwkCooperativeMemoryTests
         {
             pending.TrySetResult(AwkReadResult.EndOfFile);
         }
-        Assert.Equal(2, (await execution).Value);
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(1, budget.ScopesDisposed);
-        Assert.Equal("awk: host operation timed out\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Fact]

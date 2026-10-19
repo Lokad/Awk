@@ -63,9 +63,10 @@ compatibility surface. The `--sandbox` command-line option independently disable
 redirections; it does not replace host-side path and descriptor policy.
 
 Pass a caller cancellation token and use `WithMemoryBudget` for shared host-governed admission.
-The next release removes the legacy execution-memory, record/value-size and cumulative I/O
-quotas; supply the shared budget explicitly. Separate deadline settings remain pending cleanup. Some long builtin/backend calls still have coarse cancellation
-boundaries; see [resource control](docs/RUNTIME_LIMITS.md) for current behavior and the intended ownership.
+This branch removes legacy execution-memory, record/value-size and cumulative I/O quotas,
+and the four separate Awk deadline settings. Hosts supply shared admission and caller-owned
+deadline cancellation explicitly. Some long builtin/backend calls still have coarse cancellation
+boundaries; see [resource control](docs/RUNTIME_LIMITS.md).
 
 See [docs/SECURITY.md](docs/SECURITY.md) before executing awk supplied by an untrusted party.
 
@@ -73,7 +74,7 @@ See [docs/SECURITY.md](docs/SECURITY.md) before executing awk supplied by an unt
 shared allowance. Implement the local budget interfaces as an adapter over your host's governor;
 Awk disposes only its own child scope. Nested command descriptors carry the active budget,
 which takes precedence over the policy budget. Governed cleanup waits for actual host users
-before refunding storage, including after timeout or cancellation. Source copies and parser
+before refunding storage, including after cancellation. Source copies and parser
 buffers use coarse estimates; admission can conservatively refuse before execution.
 See [runtime limits](docs/RUNTIME_LIMITS.md) for ownership and accounting scope.
 

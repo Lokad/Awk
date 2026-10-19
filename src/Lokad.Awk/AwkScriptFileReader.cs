@@ -103,8 +103,7 @@ internal static class AwkScriptFileReader
                 try
                 {
                     resources.RecordCleanupHostCall();
-                    await plan.CleanupDeadline.AwaitAsync(
-                        host.CloseDescriptorAsync(descriptor, CancellationToken.None)).ConfigureAwait(false);
+                    await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
                 }
                 catch (Exception)
                 {
@@ -113,10 +112,7 @@ internal static class AwkScriptFileReader
             }
 
             resources.RecordHostCall();
-            var opened = await AwkHostBoundaryPolicy.AwaitAsync(
-                    host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken),
-                    plan.HostOperationTimeout,
-                    cancellationToken)
+            var opened = await host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken)
                 .ConfigureAwait(false);
             if (opened.Missing)
                 return AwkScriptTextReadResult.MissingText;
@@ -150,10 +146,7 @@ internal static class AwkScriptFileReader
             try
             {
                 resources.RecordHostCall();
-                var closed = await AwkHostBoundaryPolicy.AwaitAsync(
-                        host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None),
-                        plan.CloseOperationTimeout,
-                        CancellationToken.None)
+                var closed = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
                     .ConfigureAwait(false);
                 if (closed != AwkOperationStatus.Success &&
                     readResult is not AwkScriptTextReadResult.Failed)
@@ -196,7 +189,6 @@ internal static class AwkScriptFileReader
                         cancellationToken,
                         int.MaxValue,
                         resources,
-                        hostOperationTimeout: plan.HostOperationTimeout,
                         exposeHostErrorDetails: plan.ExposeHostErrorDetails,
                         maxHostErrorBytes: plan.MaxHostErrorBytes);
                     while (await reader.TryBufferLineAsync().ConfigureAwait(false))

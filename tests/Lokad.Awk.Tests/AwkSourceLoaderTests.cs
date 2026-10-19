@@ -10,33 +10,42 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkSourceLoaderTests
 {
     [Fact]
-    public async Task Awk_SourceDescriptorCloseUsesPolicyCleanupTimeout()
+    public async Task CanceledSourceLoadingAwaitsTheActualCloseBeforeRefund()
     {
-        var pendingClose = new TaskCompletionSource<AwkOperationStatus>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(1 << 20);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pendingClose = new TaskCompletionSource<AwkOperationStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var closeCount = 0;
         var host = new TestOperationVisitor([])
         {
-            CloseDescriptorOverride = (_, _) => pendingClose.Task
+            CloseDescriptorOverride = (_, token) =>
+            {
+                Assert.False(token.CanBeCanceled);
+                closeCount++;
+                entered.TrySetResult();
+                return pendingClose.Task;
+            }
         };
         host.EnqueueOpenAwkFileDescriptor(100);
-        host.EnqueueAwkReadResult(AwkReadResult.FromContent(
-            AwkUtf8Codec.Encode("BEGIN{print 1}\n"),
-            [],
-            AwkReadCompletion.EndOfFile));
-        host.EnqueueAppendExitCode(0);
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
-            "awk",
-            "-f",
-            "/script.awk"));
-        var policy = AwkExecutionPolicy.CreateDefault()
-            .WithCleanupTimeout(TimeSpan.FromMilliseconds(10));
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(
-            "awk: host operation timed out\n",
-            host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        host.EnqueueAwkReadResult(AwkReadResult.FromContent("BEGIN{print 1}\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/script.awk"));
+        var execution = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            cancellation.Cancel();
+            Assert.False(execution.IsCompleted);
+            Assert.True(budget.Reserved > 0);
+            Assert.Equal(0, budget.ScopesDisposed);
+        }
+        finally { pendingClose.TrySetResult(AwkOperationStatus.Success); }
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(1, closeCount);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Empty(host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+        Assert.Empty(host.GetAppendedOutput(AwkFileDescriptor.StdErr));
     }
 
     [Fact]

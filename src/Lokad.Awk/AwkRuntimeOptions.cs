@@ -16,12 +16,9 @@ internal sealed record AwkRuntimeOptions
         bool allowFileRedirections = true,
         bool allowCommandPipes = true,
         AwkPath? accessiblePathRoot = null,
-        TimeSpan? commandTimeout = null,
-        TimeSpan? cleanupTimeout = null,
         bool forwardCommandEnvironment = true,
         bool allowSourceIncludes = true,
         bool allowDynamicMainInputPaths = true,
-        TimeSpan? hostOperationTimeout = null,
         bool exposeEnvironment = true,
         bool exposeHostErrorDetails = true,
         int maxHostErrorBytes = 4 << 10,
@@ -38,12 +35,11 @@ internal sealed record AwkRuntimeOptions
         AllowFileRedirections = allowFileRedirections;
         AllowCommandPipes = allowCommandPipes;
         AccessiblePathRoot = accessiblePathRoot;
-        CommandTimeout = commandTimeout ?? TimeSpan.FromMinutes(5);
-        CleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
+
         ForwardCommandEnvironment = forwardCommandEnvironment;
         AllowSourceIncludes = allowSourceIncludes;
         AllowDynamicMainInputPaths = allowDynamicMainInputPaths;
-        HostOperationTimeout = hostOperationTimeout ?? TimeSpan.FromMinutes(5);
+
         ExposeEnvironment = exposeEnvironment;
         ExposeHostErrorDetails = exposeHostErrorDetails;
         MaxHostErrorBytes = maxHostErrorBytes;
@@ -75,17 +71,11 @@ internal sealed record AwkRuntimeOptions
 
     public AwkPath? AccessiblePathRoot { get; }
 
-    public TimeSpan CommandTimeout { get; }
-
-    public TimeSpan CleanupTimeout { get; }
-
     public bool ForwardCommandEnvironment { get; }
 
     public bool AllowSourceIncludes { get; }
 
     public bool AllowDynamicMainInputPaths { get; }
-
-    public TimeSpan HostOperationTimeout { get; }
 
     public bool ExposeEnvironment { get; }
 
@@ -106,12 +96,9 @@ internal sealed record AwkRuntimeOptions
             policy.AllowFileRedirections,
             policy.AllowCommandPipes,
             policy.AccessiblePathRoot,
-            policy.CommandTimeout,
-            policy.CleanupTimeout,
             policy.ForwardCommandEnvironment,
             policy.AllowSourceIncludes,
             policy.AllowDynamicMainInputPaths,
-            policy.HostOperationTimeout,
             policy.ExposeEnvironment,
             policy.ExposeHostErrorDetails,
             policy.MaxHostErrorBytes,

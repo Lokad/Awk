@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Removed `CommandTimeout`, `HostOperationTimeout`, `CleanupTimeout`, `ExecutionTimeout`
+  and their `With...` methods. Use the caller cancellation token, with a caller-owned
+  `CancellationTokenSource.CancelAfter` for deadlines. Cancellation propagates after cleanup;
+  Awk no longer emits separate command/host/execution timeout diagnostics. Essential cleanup
+  uses an uncancelled token and awaits actual completion. A non-cooperating host can delay
+  completion indefinitely; buffers remain funded while borrowed.
+
 - Removed `MaxExecutionMemoryBytes`, `MaxRecordBytes`, `MaxValueBytes`, `MaxInputBytes`,
   `MaxOutputBytes` and their `WithMax...` methods. The restricted preset no longer supplies
   an execution memory allowance or cumulative I/O limits. Hosts supply shared admission

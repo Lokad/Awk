@@ -26,66 +26,44 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
     }
 
     [Fact]
-    public async Task Awk_CommandHostCallHasIndependentTimeout()
+    public async Task CleanupAwaitsEveryDescriptorWithAnUncancelledToken()
     {
-        var pendingCommand = new TaskCompletionSource<IReadOnlyList<AwkExitCode>>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var completions = new[] {
+            new TaskCompletionSource<AwkOperationStatus>(TaskCreationOptions.RunContinuationsAsynchronously),
+            new TaskCompletionSource<AwkOperationStatus>(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var tokens = new List<CancellationToken>();
+        var closed = new List<AwkFileDescriptor>();
         var host = new TestOperationVisitor([])
         {
-            RunCommandsOverride = (_, _) => pendingCommand.Task
+            CloseDescriptorOverride = (descriptor, token) =>
+            {
+                tokens.Add(token);
+                closed.Add(descriptor);
+                return completions[descriptor.Id - 82].Task;
+            }
         };
         var limits = AwkRuntimeLimits.CreateDefault();
-        var adapter = new AwkIoHostAdapter(
-            host,
-            AwkPath.Root,
-            AwkFileDescriptor.StdIn,
-            AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr,
-            CancellationToken.None,
-            static () => [],
-            AwkRuntimeCounters.Disabled,
-            new AwkRuntimeResourceMonitor(limits, AwkRuntimeCounters.Disabled),
-            commandTimeout: TimeSpan.FromMilliseconds(10));
-        var command = AwkCommandInvocation.CreateWithStandardDescriptors(
-            "never-finishes",
-            [],
-            []);
-
-        var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
-            () => adapter.RunCommandAsync(command));
-
-        Assert.Equal("awk: command pipe timed out\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-    }
-
-    [Fact]
-    public async Task Awk_CleanupDescriptorsShareOneAggregateDeadline()
-    {
-        var pendingClose = new TaskCompletionSource<AwkOperationStatus>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var host = new TestOperationVisitor([])
+        var adapter = new AwkIoHostAdapter(host, AwkPath.Root, AwkFileDescriptor.StdIn,
+            AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, cancellation.Token, static () => [],
+            AwkRuntimeCounters.Disabled, new(limits, AwkRuntimeCounters.Disabled));
+        for (var index = 0; index < completions.Length; index++)
         {
-            CloseDescriptorOverride = (_, _) => pendingClose.Task
-        };
-        var limits = AwkRuntimeLimits.CreateDefault();
-        var adapter = new AwkIoHostAdapter(
-            host,
-            AwkPath.Root,
-            AwkFileDescriptor.StdIn,
-            AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr,
-            CancellationToken.None,
-            static () => [],
-            AwkRuntimeCounters.Disabled,
-            new AwkRuntimeResourceMonitor(limits, AwkRuntimeCounters.Disabled),
-            cleanupTimeout: TimeSpan.FromMilliseconds(10));
-
-        await adapter.CloseDescriptorForCleanupAsync(new AwkFileDescriptor(82));
-        await Task.Delay(20);
-
-        var secondClose = adapter.CloseDescriptorForCleanupAsync(new AwkFileDescriptor(83));
-
-        Assert.True(secondClose.IsCompletedSuccessfully);
-        await secondClose;
+            var closing = adapter.CloseDescriptorForCleanupAsync(new(82 + index));
+            try
+            {
+                Assert.False(closing.IsCompleted);
+                Assert.False(tokens[index].CanBeCanceled);
+            }
+            finally
+            {
+                completions[index].TrySetResult(AwkOperationStatus.Success);
+                await closing;
+            }
+        }
+        Assert.Equal(new[] { new AwkFileDescriptor(82), new AwkFileDescriptor(83) }, closed);
     }
 
     [Fact]

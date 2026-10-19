@@ -71,8 +71,6 @@ public sealed class AwkCompiledWarningTests
     [Theory]
     [InlineData(0, "cancel")]
     [InlineData(1, "cancel")]
-    [InlineData(0, "timeout")]
-    [InlineData(1, "timeout")]
     [InlineData(0, "reject")]
     [InlineData(1, "reject")]
     [InlineData(0, "throw")]
@@ -83,15 +81,13 @@ public sealed class AwkCompiledWarningTests
         var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{print \"\\q\"}");
         var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), command, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = Options(false, counters,
-            hostTimeout: failure == "timeout" ? TimeSpan.FromMilliseconds(100) : TimeSpan.FromSeconds(5));
+        var options = Options(false, counters);
         using var cancellation = new CancellationTokenSource();
         var run = entry switch
         {
             0 => AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), cancellation.Token, options),
             _ => compiled.ExecuteAsync(host, cancellation.Token, options)
         };
-        // Allow a busy CI runner to schedule continuations; the host timeout above stays short.
         var observationTimeout = TimeSpan.FromSeconds(30);
         try
         {
@@ -108,7 +104,6 @@ public sealed class AwkCompiledWarningTests
             Assert.Equal(string.Empty, host.Files.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(failure switch
             {
-                "timeout" => "awk: host operation timed out\n",
                 "throw" => "awk: execution failed without exposing host exception details\n",
                 _ => string.Empty
             }, host.Files.GetOutput(AwkFileDescriptor.StdErr));
@@ -172,11 +167,11 @@ public sealed class AwkCompiledWarningTests
     }
 
     private static AwkRuntimeOptions Options(bool utf8, AwkRuntimeCounters counters,
-        AwkRuntimeLimits? limits = null, TimeSpan? hostTimeout = null) =>
+        AwkRuntimeLimits? limits = null) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
             limits ?? AwkRuntimeLimits.CreateDefault(),
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            hostOperationTimeout: hostTimeout, regexEngine: AwkUtf8RegexEngine.Instance);
+            regexEngine: AwkUtf8RegexEngine.Instance);
 
     private sealed class WarningHost(string failure) : IAwkHost
     {

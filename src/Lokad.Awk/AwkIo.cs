@@ -41,13 +41,9 @@ internal sealed class AwkIo
         bool allowFileRedirections = true,
         bool allowCommandPipes = true,
         AwkPath? accessiblePathRoot = null,
-        TimeSpan? commandTimeout = null,
-        TimeSpan? cleanupTimeout = null,
         bool forwardCommandEnvironment = true,
-        TimeSpan? hostOperationTimeout = null,
         bool exposeHostErrorDetails = true,
-        int maxHostErrorBytes = 4 << 10,
-        AwkCleanupDeadline? cleanupDeadline = null)
+        int maxHostErrorBytes = 4 << 10)
     {
         _host = new AwkIoHostAdapter(
             host,
@@ -60,13 +56,9 @@ internal sealed class AwkIo
             counters,
             state.Resources,
             accessiblePathRoot,
-            commandTimeout,
-            cleanupTimeout,
             forwardCommandEnvironment,
-            hostOperationTimeout,
             exposeHostErrorDetails,
-            maxHostErrorBytes,
-            cleanupDeadline);
+            maxHostErrorBytes);
         _maxOutputFiles = limits.MaxOutputFiles;
         _maxInputFiles = limits.MaxInputFiles;
         _sandbox = sandbox;
@@ -77,7 +69,6 @@ internal sealed class AwkIo
             host,
             cancellationToken,
             state.Resources,
-            hostOperationTimeout,
             exposeHostErrorDetails,
             maxHostErrorBytes);
         _pipes = new AwkPipeRuntime(

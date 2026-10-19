@@ -131,7 +131,7 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         _disposed = true;
         try
         {
-            // A timeout ends a wait, not the host's use of borrowed memory.
+            // Cancellation does not end the host's use of borrowed memory.
             try { _cancellation?.Cancel(); }
             catch (AggregateException) { /* Still await storage users if a host cancellation callback fails. */ }
             if (_hostTasks.Count > 0)

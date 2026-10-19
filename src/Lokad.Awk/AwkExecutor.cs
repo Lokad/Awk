@@ -39,8 +39,12 @@ internal static class AwkExecutor
         AwkRuntimeOptions runtimeOptions, AwkProgramResolution? compiledResolution)
     {
         if (runtimeOptions.MemoryBudget is null)
-            return await ExecuteBodyAsync(host, invocation, cancellationToken, runtimeOptions,
+        {
+            var result = await ExecuteBodyAsync(host, invocation, cancellationToken, runtimeOptions,
                 compiledResolution).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return result;
+        }
 
         AwkExecutionMemoryOwner owner;
         try
@@ -53,9 +57,21 @@ internal static class AwkExecutor
                 .ConfigureAwait(false);
         }
         await using (owner.ConfigureAwait(false))
-            return await ExecuteBodyAsync(new AwkBudgetHost(host, owner), invocation,
-                owner.Token(cancellationToken), runtimeOptions with { MemoryOwner = owner },
-                compiledResolution).ConfigureAwait(false);
+        {
+            try
+            {
+                var result = await ExecuteBodyAsync(new AwkBudgetHost(host, owner), invocation,
+                    owner.Token(cancellationToken), runtimeOptions with { MemoryOwner = owner },
+                    compiledResolution).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                return result;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                throw;
+            }
+        }
     }
 
     private static async Task<AwkExitCode> ExecuteBodyAsync(
@@ -78,7 +94,6 @@ internal static class AwkExecutor
             resources.RecordOutputBytes(content.Length);
             var status = await AwkHostBoundaryPolicy.AwaitAsync(
                     host.AppendAsync(descriptor, content, cancellationToken),
-                    runtimeOptions.HostOperationTimeout,
                     cancellationToken)
                 .ConfigureAwait(false);
             return status.Succeeded
@@ -137,10 +152,8 @@ internal static class AwkExecutor
                     stringEscapeWarnings,
                     regexEscapeWarnings,
                     runtimeOptions.AccessiblePathRoot,
-                    runtimeOptions.CleanupTimeout,
                     runtimeOptions.AllowSourceIncludes,
                     runtimeOptions.ExposeEnvironment,
-                    runtimeOptions.HostOperationTimeout,
                     runtimeOptions.ExposeHostErrorDetails,
                     runtimeOptions.MaxHostErrorBytes,
                     cancellationToken,
@@ -200,7 +213,6 @@ internal static class AwkExecutor
                             invocation.Stdio.StdErr,
                             AwkMessages.ErrorUnexpectedFailure,
                             cancellationToken),
-                        runtimeOptions.HostOperationTimeout,
                         cancellationToken)
                     .ConfigureAwait(false);
                 return AwkDiagnostics.FatalExitCode;
@@ -222,8 +234,7 @@ internal static class AwkExecutor
         try
         {
             var status = await AwkHostBoundaryPolicy.AwaitAsync(
-                    host.AppendAsync(invocation.Stdio.StdErr, failure.Message, cancellationToken),
-                    options.HostOperationTimeout, cancellationToken)
+                    host.AppendAsync(invocation.Stdio.StdErr, failure.Message, cancellationToken), cancellationToken)
                 .ConfigureAwait(false);
             return status.Succeeded ? failure.ExitCode : AwkDiagnostics.FatalExitCode;
         }
@@ -287,10 +298,8 @@ internal static class AwkExecutor
                 stringEscapeWarnings,
                 regexEscapeWarnings,
                 runtimeOptions.AccessiblePathRoot,
-                runtimeOptions.CleanupTimeout,
                 runtimeOptions.AllowSourceIncludes,
                 runtimeOptions.ExposeEnvironment,
-                runtimeOptions.HostOperationTimeout,
                 runtimeOptions.ExposeHostErrorDetails,
                 runtimeOptions.MaxHostErrorBytes,
                 cancellationToken,
@@ -316,10 +325,8 @@ internal static class AwkExecutor
         AwkStringEscapeWarnings stringEscapeWarnings,
         AwkRegexEscapeWarnings regexEscapeWarnings,
         AwkPath? accessiblePathRoot,
-        TimeSpan cleanupTimeout,
         bool allowSourceIncludes,
         bool exposeEnvironment,
-        TimeSpan hostOperationTimeout,
         bool exposeHostErrorDetails,
         int maxHostErrorBytes,
         CancellationToken cancellationToken,
@@ -331,10 +338,8 @@ internal static class AwkExecutor
                 resources,
                 cancellationToken,
                 accessiblePathRoot,
-                cleanupTimeout,
                 allowSourceIncludes,
                 exposeEnvironment,
-                hostOperationTimeout,
                 exposeHostErrorDetails,
                 maxHostErrorBytes,
                 memory)

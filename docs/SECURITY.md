@@ -10,10 +10,11 @@ an embedding boundary, not an OS sandbox.
 Start untrusted scripts with `AwkExecutionPolicy.CreateRestricted()`. It disables
 script-created redirections, command pipes, `@include` and changed `ARGV` input paths;
 hides invocation environment and host-error details; fixes time to Unix epoch/UTC;
-and supplies structural/resource bounds and a cooperative 30-second execution deadline.
+and supplies structural/resource bounds.
 Explicit invocation inputs remain available through the host.
 Execution-memory, record/value-size and cumulative I/O quotas have been removed for the next
-release; hosts supply a shared memory budget. Separate deadline controls remain pending cleanup. See [resource control](RUNTIME_LIMITS.md).
+release, along with separate deadline controls. Hosts supply shared admission and caller-owned
+deadline cancellation. See [resource control](RUNTIME_LIMITS.md).
 
 `--sandbox` only disables file and command redirections. `AccessiblePathRoot` checks
 canonical virtual paths lexically; a filesystem host must enforce its own root against
@@ -31,14 +32,14 @@ Unexpected host exceptions become generic awk diagnostics; caller cancellation p
 as cancellation. Policy/resource failures return awk diagnostics and a nonzero exit status.
 Mutation preflights preserve earlier committed state/output, rather than rolling back a command.
 
-CPU execution uses caller cancellation or a cooperative whole-execution deadline.
+CPU execution uses caller cancellation, including deadlines scheduled by the caller.
 Shared memory admission is immediate: any refusal fails the command;
 Awk does not retry, wait, spill or change algorithms to recover. Accounting is conservative
 and approximate, not a process-heap cap. See [runtime limits](RUNTIME_LIMITS.md).
 
-Cancellation is cooperative. Host/cleanup deadlines bound waiting, not forced termination
-or the effects of an uncooperative host. Governed storage remains charged until actual
-pending host users finish. Use process/container limits when hard isolation is required.
+Cancellation is cooperative; it cannot forcibly terminate an uncooperative host. Essential
+cleanup uses an uncancelled token, attempts every acquired descriptor and awaits actual users.
+Governed storage remains charged until pending host users finish. Use process/container limits when hard isolation is required.
 
 Ingress remains [strict UTF-8](UTF8_POLICY.md). Core Awk disables unsafe C# and has no
 Utf8Regex runtime dependency. Applications selecting an optional regex engine also own

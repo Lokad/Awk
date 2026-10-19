@@ -9,7 +9,6 @@ internal sealed class AwkRecordDescriptorReader
     private readonly IAwkHost _host;
     private readonly CancellationToken _cancellationToken;
     private readonly AwkRuntimeResourceMonitor _resources;
-    private readonly TimeSpan _hostOperationTimeout;
     private readonly bool _exposeHostErrorDetails;
     private readonly int _maxHostErrorBytes;
 
@@ -17,14 +16,13 @@ internal sealed class AwkRecordDescriptorReader
         IAwkHost host,
         CancellationToken cancellationToken,
         AwkRuntimeResourceMonitor resources,
-        TimeSpan? hostOperationTimeout = null,
         bool exposeHostErrorDetails = true,
         int maxHostErrorBytes = 4 << 10)
     {
         _host = host;
         _cancellationToken = cancellationToken;
         _resources = resources;
-        _hostOperationTimeout = hostOperationTimeout ?? TimeSpan.FromMinutes(5);
+
         _exposeHostErrorDetails = exposeHostErrorDetails;
         _maxHostErrorBytes = maxHostErrorBytes;
     }
@@ -37,17 +35,13 @@ internal sealed class AwkRecordDescriptorReader
             AwkIo.InputReadBatchLineCount,
             _resources,
             countAsRuntimeInput: true,
-            hostOperationTimeout: _hostOperationTimeout,
             exposeHostErrorDetails: _exposeHostErrorDetails,
             maxHostErrorBytes: _maxHostErrorBytes);
 
     public async Task<AwkRecordReadBatch> ReadNextBatchAsync(AwkFileDescriptor descriptor)
     {
         _resources.RecordHostCall();
-        var result = await AwkHostBoundaryPolicy.AwaitAsync(
-                _host.ReadLinesAsync(descriptor, AwkIo.InputReadBatchLineCount, _cancellationToken),
-                _hostOperationTimeout,
-                _cancellationToken)
+        var result = await _host.ReadLinesAsync(descriptor, AwkIo.InputReadBatchLineCount, _cancellationToken)
             .ConfigureAwait(false);
         if (result.Failed)
         {

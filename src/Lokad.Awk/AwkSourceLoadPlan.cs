@@ -10,12 +10,9 @@ internal sealed class AwkSourceLoadPlan
     private readonly IReadOnlyList<string> _awkPathEntries;
     private readonly AwkPath _currentDirectory;
     private readonly AwkPath? _accessiblePathRoot;
-    private readonly TimeSpan _cleanupTimeout;
     private readonly bool _allowSourceIncludes;
-    private readonly TimeSpan _hostOperationTimeout;
     private readonly bool _exposeHostErrorDetails;
     private readonly int _maxHostErrorBytes;
-    private readonly AwkCleanupDeadline _cleanupDeadline;
     private readonly AwkCompatibilityMode _compatibilityMode;
     private readonly HashSet<AwkSourceIdentity> _includedIdentities = [];
     private readonly Dictionary<AwkPath, AwkScriptTextReadResult> _scriptTextByPath = [];
@@ -25,10 +22,8 @@ internal sealed class AwkSourceLoadPlan
         IReadOnlyList<AwkEnvironmentVariable> environment,
         AwkPath currentDirectory,
         AwkPath? accessiblePathRoot,
-        TimeSpan? cleanupTimeout,
         bool allowSourceIncludes,
         bool exposeEnvironment,
-        TimeSpan? hostOperationTimeout,
         bool exposeHostErrorDetails,
         int maxHostErrorBytes,
         AwkCompatibilityMode compatibilityMode,
@@ -65,12 +60,12 @@ internal sealed class AwkSourceLoadPlan
         _awkPathEntries = exposeEnvironment ? ParseAwkPathEntries(environment) : [];
         _currentDirectory = currentDirectory;
         _accessiblePathRoot = accessiblePathRoot;
-        _cleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(30);
+
         _allowSourceIncludes = allowSourceIncludes;
-        _hostOperationTimeout = hostOperationTimeout ?? TimeSpan.FromMinutes(5);
+
         _exposeHostErrorDetails = exposeHostErrorDetails;
         _maxHostErrorBytes = maxHostErrorBytes;
-        _cleanupDeadline = new AwkCleanupDeadline(_cleanupTimeout);
+
         _compatibilityMode = compatibilityMode;
     }
 
@@ -79,17 +74,8 @@ internal sealed class AwkSourceLoadPlan
 
     public IReadOnlyList<string> AwkPathEntries => _awkPathEntries;
 
-    public TimeSpan CleanupTimeout => _cleanupTimeout;
-
     public bool AllowSourceIncludes => _allowSourceIncludes;
     public AwkCompatibilityMode CompatibilityMode => _compatibilityMode;
-
-    public TimeSpan HostOperationTimeout => _hostOperationTimeout;
-
-    public TimeSpan CloseOperationTimeout =>
-        _hostOperationTimeout <= _cleanupTimeout ? _hostOperationTimeout : _cleanupTimeout;
-
-    public AwkCleanupDeadline CleanupDeadline => _cleanupDeadline;
 
     public bool ExposeHostErrorDetails => _exposeHostErrorDetails;
 
@@ -101,10 +87,8 @@ internal sealed class AwkSourceLoadPlan
     public static AwkSourceLoadPlan FromInvocation(
         AwkInvocation invocation,
         AwkPath? accessiblePathRoot = null,
-        TimeSpan? cleanupTimeout = null,
         bool allowSourceIncludes = true,
         bool exposeEnvironment = true,
-        TimeSpan? hostOperationTimeout = null,
         bool exposeHostErrorDetails = true,
         int maxHostErrorBytes = 4 << 10,
         AwkFrontendMemory? memory = null) =>
@@ -113,10 +97,8 @@ internal sealed class AwkSourceLoadPlan
             invocation.RuntimeArgumentsPlan.Environment,
             invocation.RuntimeArgumentsPlan.CurrentDirectory,
             accessiblePathRoot,
-            cleanupTimeout,
             allowSourceIncludes,
             exposeEnvironment,
-            hostOperationTimeout,
             exposeHostErrorDetails,
             maxHostErrorBytes,
             invocation.ExecutionOptions.CompatibilityProfile.Mode,

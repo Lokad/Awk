@@ -197,32 +197,6 @@ public sealed class AwkOpaquePipeTests
     }
 
     [Fact]
-    public async Task OwnedCommandDeadlineAtOpaquePipeCloseStillCleansUp()
-    {
-        var host = new TestOperationVisitor([]);
-        var closed = new List<AwkFileDescriptor>();
-        host.EnqueueAwkPipeDescriptors(new(new(80), new(81)));
-        host.RunCommandsOverride = async (_, token) =>
-        {
-            await Task.Delay(Timeout.InfiniteTimeSpan, token);
-            return [];
-        };
-        host.CloseDescriptorOverride = (descriptor, _) =>
-        {
-            closed.Add(descriptor);
-            return Task.FromResult(AwkOperationStatus.Success);
-        };
-        host.EnqueueAppendExitCode(0);
-        host.EnqueueAppendExitCode(0);
-        var policy = AwkExecutionPolicy.CreateDefault().WithCommandTimeout(TimeSpan.FromMilliseconds(50));
-        var exit = await Run(host, "BEGIN{cmd=\"worker a:b\";print \"pipe\"|cmd;print close(cmd);print \"unreached\"}", policy);
-        Assert.Equal(2, exit.Value);
-        Assert.Contains(new AwkFileDescriptor(81), closed);
-        Assert.Equal("", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: command pipe timed out\n", host.GetAppendedOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
     public async Task CancellationAtOpaquePipeCloseStillCleansUp()
     {
         using var cancellation = new CancellationTokenSource();

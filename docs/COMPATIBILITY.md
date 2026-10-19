@@ -200,7 +200,7 @@ quotes. Same-name streams select the latest opening. Output-pipe fflush succeeds
 closing/awaiting the command; input-only fflush warns and returns -1. close returns the
 command status. Flush/close follow logical-stream and host outcomes. Failures preserve
 committed output without exposing CLR exception text. Caller cancellation propagates after
-cleanup; owned deadlines produce awk failures. See [embedding](../README.md#embedding),
+cleanup; hosts schedule deadlines through caller cancellation. See [embedding](../README.md#embedding),
 [security](SECURITY.md) and [runtime limits](RUNTIME_LIMITS.md).
 
 ## Main input directories
