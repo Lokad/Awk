@@ -63,6 +63,28 @@ public sealed class AwkInvocationAdmissionTests
         Assert.Equal(0, budget.Reserved);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CancellationDuringAdmissionDiagnosticPreservesCallerCancellation(bool initialReservation)
+    {
+        var budget = new CooperativeTestBudget(1 << 20)
+        {
+            RefuseNextAdmissionMinimumGrowth = initialReservation ? 0 : 1
+        };
+        using var cancellation = new CancellationTokenSource();
+        var host = new MockFileSystem { AfterAppend = cancellation.Cancel };
+        var awk = AwkTestHarness.ParseAwk(Command(["BEGIN{print 1}"], [], budget));
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            awk.ExecuteAsync(host, cancellation.Token));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
+    }
+
     private static AwkCommandInvocation Command(IReadOnlyList<string> arguments,
         IReadOnlyList<AwkEnvironmentVariable> environment, IMemoryBudget? budget) =>
         new("awk", arguments, environment, AwkPath.Root,

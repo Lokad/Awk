@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Caller cancellation still propagates when it arrives while an admission-failure
+  diagnostic is being written, including failure to create the execution reservation.
+
 - Removed argument-count/byte and environment-count/byte quotas and their setters. Command
   preparation now runs under the existing execution/frontend owner and cancellation, admitting
   Awk-owned lists, snapshots, option/path copies and `AWKPATH` splitting before allocation.

@@ -242,6 +242,7 @@ internal static class AwkExecutor
         }
         catch (Exception)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             return AwkDiagnostics.FatalExitCode;
         }
     }
