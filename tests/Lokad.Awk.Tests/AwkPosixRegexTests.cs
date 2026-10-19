@@ -6,8 +6,8 @@ public sealed class AwkPosixRegexTests
     public void CancellationDuringProgramConstructionReleasesWorkspace()
     {
         using var cancellation = new CancellationTokenSource();
-        var accounting = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(64L << 20));
+        using var memoryForAccounting = new CooperativeTestMemory(64L << 20, AwkRuntimeCounters.Disabled);
+        var accounting = memoryForAccounting.Accounting;
         var compiling = false;
         var checks = 0;
         void CheckCancellation()
@@ -32,8 +32,8 @@ public sealed class AwkPosixRegexTests
         Assert.True(AwkPosixRegex.TryCreate("(a|aa)*b", AwkRegexCaseSensitivity.CaseSensitive,
             AwkMemoryAccounting.Disabled, static () => { }, static () => { }, out var program));
         using var cancellation = new CancellationTokenSource();
-        var accounting = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20));
+        using var memoryForAccounting = new CooperativeTestMemory(1 << 20, AwkRuntimeCounters.Disabled);
+        var accounting = memoryForAccounting.Accounting;
         var checks = 0;
         void CheckCancellation()
         {
@@ -51,7 +51,8 @@ public sealed class AwkPosixRegexTests
     [Fact]
     public void DeepGroupsCompileWithoutRecursiveParserOrCompilerCalls()
     {
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4 << 20));
+        using var memoryForGovernor = new CooperativeTestMemory(4 << 20, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
         var compilations = 0;
         var pattern = new string('(', 2048) + "a" + new string(')', 2048);
         Assert.True(AwkPosixRegex.TryCreate(pattern, AwkRegexCaseSensitivity.CaseSensitive,
@@ -67,7 +68,8 @@ public sealed class AwkPosixRegexTests
     [InlineData("((a){1000000}){1000000}")]
     public void ExpandedIntervalsFailBeforeAllocatingImpossiblePrograms(string pattern)
     {
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096));
+        using var memoryForGovernor = new CooperativeTestMemory(4096, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
         var compilations = 0;
         var error = Assert.Throws<AwkRuntimeException>(() =>
             AwkPosixRegex.TryCreate(pattern, AwkRegexCaseSensitivity.CaseSensitive,
@@ -87,7 +89,8 @@ public sealed class AwkPosixRegexTests
     [InlineData("[a-z-[ae]]+")]
     public void BackendExtensionsKeepTheirExistingEngine(string pattern)
     {
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1));
+        using var memoryForGovernor = new CooperativeTestMemory(1, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
         Assert.False(AwkPosixRegex.TryCreate(pattern, AwkRegexCaseSensitivity.CaseSensitive,
             governor, static () => throw new InvalidOperationException("Unexpected compilation"), static () => { }, out _));
     }
@@ -112,8 +115,9 @@ public sealed class AwkPosixRegexTests
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8192);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(8192, counters);
+        var governor = memoryForGovernor.Accounting;
         var checks = 0;
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, () =>
@@ -132,7 +136,8 @@ public sealed class AwkPosixRegexTests
     [Fact]
     public void WholeMatchWorkspaceFailurePreflightsBeforeReservation()
     {
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1));
+        using var memoryForGovernor = new CooperativeTestMemory(1, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
         Assert.True(AwkPosixRegex.TryCreate("(a|aa)", AwkRegexCaseSensitivity.CaseSensitive,
             AwkMemoryAccounting.Disabled, static () => { }, static () => { }, out var program));
         var error = Assert.Throws<AwkRuntimeException>(() => program.Match("aaa", 0, 0, governor, static () => { }));

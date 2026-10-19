@@ -34,7 +34,8 @@ public sealed class AwkSynchronousStringTests
     public async Task PendingBuiltinArgumentIsEvaluatedOnceBeforeAssignment()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters);
+        using var memoryForState = State(counters);
+        var state = memoryForState.State;
         var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var source = new PendingOperand(completion.Task);
         var expression = Builtin("substr", source, AwkExpression.Number("2", 2), AwkExpression.Number("2", 2));
@@ -56,7 +57,8 @@ public sealed class AwkSynchronousStringTests
     private static async Task<Result> RunAction(bool legacy)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters);
+        using var memoryForState = State(counters);
+        var state = memoryForState.State;
         var s = AwkVariableName.FromText("s"); var total = AwkVariableName.FromText("total");
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("id:beta:tail"));
         AwkExpression Number(string text, int value) => legacy ? new LegacyNumber(text, value) : AwkExpression.Number(text, value);
@@ -81,13 +83,15 @@ public sealed class AwkSynchronousStringTests
         return result;
     }
 
-    private static AwkRuntimeState State(AwkRuntimeCounters counters)
+    private static CooperativeTestMemory State(AwkRuntimeCounters counters)
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         state.InitializeGlobalReadSlots(2);
-        return state;
+        return testMemory.Initialize(() => state);
     }
 
     private sealed class LegacyNumber(string text, int value) : AwkExpression

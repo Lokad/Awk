@@ -45,10 +45,10 @@ public sealed class AwkFieldCacheReuseTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (finite) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        using var memory = new CooperativeTestMemory(64L << 20, enabled: finite);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options));
         var record = AwkText.FromString("text\ttext\ttext");
         for (var row = 0; row < 100; row++) state.SetCurrentRecord(record);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;

@@ -13,7 +13,8 @@ public sealed class AwkSortingResourceTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         const int memoryLimit = 1 << 20;
-        var state = CreateState(counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(memoryLimit));
+        using var memory = CreateState(counters, AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
         var source = AwkArrayName.FromText("source");
         var destination = AwkArrayName.FromText("destination");
         var first = AwkArrayKey.FromOrdinal(1);
@@ -37,7 +38,8 @@ public sealed class AwkSortingResourceTests
     public async Task UnsortedTraversalUsesOnlyTheGovernedKeySnapshot()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = CreateState(counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20));
+        using var memory = CreateState(counters, AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
         var name = AwkArrayName.FromText("values");
         for (var index = 1; index <= 32; index++)
             state.SetArrayAwkValue(name, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
@@ -59,7 +61,8 @@ public sealed class AwkSortingResourceTests
     public void DefaultNanFormattingStaysByteNativeAndPreservesSign(bool negative)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = CreateState(counters, AwkRuntimeLimits.CreateDefault());
+        using var memory = CreateState(counters, AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
         var value = AwkValue.FromNumber(Math.CopySign(double.NaN, negative ? -1 : 1));
         var text = state.FormatStringByteText(value);
         Assert.True(text.AsSpan().SequenceEqual(negative ? "-nan"u8 : "+nan"u8));
@@ -68,8 +71,10 @@ public sealed class AwkSortingResourceTests
         Assert.Equal(1, counters.AwkTextAllocations);
     }
 
-    private static AwkRuntimeState CreateState(AwkRuntimeCounters counters, AwkRuntimeLimits limits) =>
-        AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility));
+    private static CooperativeTestMemory CreateState(AwkRuntimeCounters counters, AwkRuntimeLimits limits) {
+        var memory = new CooperativeTestMemory(1 << 20);
+        return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
+            memory.Configure(new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility))));
+    }
 }

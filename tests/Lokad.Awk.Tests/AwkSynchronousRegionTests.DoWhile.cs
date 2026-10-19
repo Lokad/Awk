@@ -49,7 +49,8 @@ public sealed partial class AwkSynchronousRegionTests
     public async Task DoWhilePendingBodyIsNotReplayedOrPublishedEarly(bool cancel)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters);
+        using var memoryForState = State(counters);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -87,7 +88,8 @@ public sealed partial class AwkSynchronousRegionTests
     public async Task DoWhilePendingConditionObservesFirstBodyOnce(bool cancel)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters);
+        using var memoryForState = State(counters);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -125,7 +127,8 @@ public sealed partial class AwkSynchronousRegionTests
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, cancellation.Token);
+        using var memoryForState = State(counters, cancellation.Token);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), AwkExpression.Number("9", 9));
@@ -147,7 +150,8 @@ public sealed partial class AwkSynchronousRegionTests
     public async Task DoWhileBodyBoundKeepsMandatoryFirstIteration(int count, int expectedPrepared)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters);
+        using var memoryForState = State(counters);
+        var state = memoryForState.State;
         var io = Io(state, new MockFileSystem(), counters);
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
         var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("0", 0))]]);

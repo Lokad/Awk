@@ -59,14 +59,15 @@ public sealed class AwkRecordRetryTests
         var input = Encoding.UTF8.GetBytes(first + newline + "ok" + newline);
         var firstLineLength = Encoding.UTF8.GetByteCount(first + newline);
         var host = Host(input, [firstLineLength]);
-        var state = State(enabled, backend);
+        using var memoryForState = State(enabled, backend);
+        var state = memoryForState.State;
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
         Assign(state, "RT", "kept");
         var reader = Reader(state, host);
         var lineReader = reader.CreateLineReader(AwkFileDescriptor.StdIn);
         using var cursor = new AwkRecordCursor(state, reader, lineReader);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = ReserveLeaving(state, Encoding.UTF8.GetByteCount(first) - 1);
+        var pressure = ReserveLeaving(memoryForState, Encoding.UTF8.GetByteCount(first) - 1);
 
         await MemoryFailure(cursor);
 
@@ -88,45 +89,21 @@ public sealed class AwkRecordRetryTests
     }
 
     [Theory]
-    [MemberData(nameof(LimitModes))]
-    public async Task RecordAndValueCapsRejectTheSameBufferedLineOnEveryRetry(bool enabled, int backend, string kind)
-    {
-        var first = kind == "value" ? new string('a', 65) : "first";
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        limits = kind == "value" ? limits.WithMaxValueBytes(64) : limits.WithMaxRecordBytes(4);
-        var host = Host(Encoding.UTF8.GetBytes(first + "\nok\n"), [first.Length + 1]);
-        var state = State(enabled, backend, limits);
-        var reader = Reader(state, host);
-        var lineReader = reader.CreateLineReader(AwkFileDescriptor.StdIn);
-        using var cursor = new AwkRecordCursor(state, reader, lineReader);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
-
-        await MemoryFailure(cursor);
-        await MemoryFailure(cursor);
-
-        Assert.Equal(first + "\n", Encoding.UTF8.GetString(lineReader.PeekLine().Span));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Single(host.ReadLineBatchLineCounts);
-        Assert.Equal(0, state.RecordNumber);
-        Assert.Equal(0, state.FileRecordNumber);
-    }
-
-    [Theory]
     [MemberData(nameof(NewlineModes))]
     public async Task BufferedModeAdmissionFailurePreservesTheLineReaderTail(
         bool enabled, int backend, string newline, string first)
     {
         var tail = first + newline;
         var host = Host(Encoding.UTF8.GetBytes("seed" + newline + tail), [4 + newline.Length]);
-        var state = State(enabled, backend);
+        using var memoryForState = State(enabled, backend);
+        var state = memoryForState.State;
         var reader = Reader(state, host);
         var lineReader = reader.CreateLineReader(AwkFileDescriptor.StdIn);
         using var cursor = new AwkRecordCursor(state, reader, lineReader);
         Assert.Equal("seed", (await cursor.ReadAsync()).RecordText.AsString());
         Assign(state, "RS", ":");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = ReserveLeaving(state, 0);
+        var pressure = ReserveLeaving(memoryForState, 0);
 
         await MemoryFailure(cursor);
         await MemoryFailure(cursor);
@@ -153,13 +130,14 @@ public sealed class AwkRecordRetryTests
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(batch, [],
             eof ? AwkReadCompletion.EndOfFile : AwkReadCompletion.MoreData));
         if (!eof) host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
-        var state = State(enabled, backend);
+        using var memoryForState = State(enabled, backend);
+        var state = memoryForState.State;
         Assign(state, "RS", ":");
         var reader = Reader(state, host);
         using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn));
         Assert.Equal("ok", (await cursor.ReadAsync()).RecordText.AsString());
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = ReserveLeaving(state, 1024);
+        var pressure = ReserveLeaving(memoryForState, 1024);
 
         await MemoryFailure(cursor);
         Assert.Equal(2, host.ReadLineBatchLineCounts.Count);
@@ -192,13 +170,14 @@ public sealed class AwkRecordRetryTests
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent("ok:aa"u8.ToArray(), [], AwkReadCompletion.MoreData));
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(Encoding.UTF8.GetBytes(new string('b', 800)), [], AwkReadCompletion.EndOfFile));
-        var state = State(enabled, backend);
+        using var memoryForState = State(enabled, backend);
+        var state = memoryForState.State;
         Assign(state, "RS", ":");
         var reader = Reader(state, host);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn));
         Assert.Equal("ok", (await cursor.ReadAsync()).RecordText.AsString());
-        var pressure = ReserveLeaving(state, 1024);
+        var pressure = ReserveLeaving(memoryForState, 1024);
         await MemoryFailure(cursor);
         cursor.Dispose();
         cursor.Dispose();
@@ -224,7 +203,8 @@ public sealed class AwkRecordRetryTests
         }
         else
             host.EnqueueAwkReadResult(AwkReadResult.FromContent(Encoding.UTF8.GetBytes("seed:" + unread), [], AwkReadCompletion.EndOfFile));
-        var state = State(enabled, backend);
+        using var memoryForState = State(enabled, backend);
+        var state = memoryForState.State;
         Assign(state, "RS", ":");
         var reader = Reader(state, host);
         using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn),
@@ -234,7 +214,7 @@ public sealed class AwkRecordRetryTests
         Assign(state, "RT", "old");
         Assign(state, "RS", "");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = ReserveLeaving(state, 4);
+        var pressure = ReserveLeaving(memoryForState, 4);
         await MemoryFailure(cursor);
         await MemoryFailure(cursor);
 
@@ -275,9 +255,9 @@ public sealed class AwkRecordRetryTests
                 return AwkReadResult.FromContent("first\nok\n"u8.ToArray(), [6], AwkReadCompletion.EndOfFile);
             }
         };
-        var limits = finite ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20)
-            : AwkRuntimeLimits.CreateDefault();
-        var state = State(enabled, backend, limits, cancellation.Token);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForState = State(enabled, backend, limits, cancellation.Token, memoryEnabled: finite);
+        var state = memoryForState.State;
         var reader = new AwkRecordDescriptorReader(host, cancellation.Token, state.Resources);
         var lineReader = reader.CreateLineReader(AwkFileDescriptor.StdIn);
         using var cursor = new AwkRecordCursor(state, reader, lineReader);
@@ -291,7 +271,10 @@ public sealed class AwkRecordRetryTests
         Assert.Equal(1, reads);
         // A fresh execution can consume the reader's already buffered EOF batch
         // without calling its canceled host boundary again.
-        var fresh = State(enabled, backend, limits);
+        using var memoryForFresh = State(enabled, backend, limits);
+        // A fresh execution can consume the reader's already buffered EOF batch
+        // without calling its canceled host boundary again.
+        var fresh = memoryForFresh.State;
         using var retry = new AwkRecordCursor(fresh, reader, lineReader);
         Assert.Equal("first", (await retry.ReadAsync()).RecordText.AsString());
         Assert.Equal("ok", (await retry.ReadAsync()).RecordText.AsString());
@@ -317,9 +300,9 @@ public sealed class AwkRecordRetryTests
                 return AwkReadResult.FromContent("bb:tail"u8.ToArray(), [], AwkReadCompletion.EndOfFile);
             }
         };
-        var limits = finite ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20)
-            : AwkRuntimeLimits.CreateDefault();
-        var state = State(enabled, backend, limits, cancellation.Token);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForState = State(enabled, backend, limits, cancellation.Token, memoryEnabled: finite);
+        var state = memoryForState.State;
         Assign(state, "RS", ":");
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("kept"));
         var reader = new AwkRecordDescriptorReader(host, cancellation.Token, state.Resources);
@@ -340,14 +323,16 @@ public sealed class AwkRecordRetryTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static AwkRuntimeState State(bool enabled, int backend, AwkRuntimeLimits? requested = null,
-        CancellationToken cancellationToken = default)
+    private static CooperativeTestMemory State(bool enabled, int backend, AwkRuntimeLimits? requested = null,
+        CancellationToken cancellationToken = default, bool memoryEnabled = true)
     {
-        var limits = requested ?? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: memoryEnabled);
+        var limits = requested ?? AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), enabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
             limits, (AwkRegexEngineKind)backend, regexEngine: AwkUtf8RegexEngine.Instance);
-        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken, options);
+        return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken, testMemory.Configure(options)));
     }
 
     private static TestOperationVisitor Host(byte[] input, int[] offsets)
@@ -363,10 +348,11 @@ public sealed class AwkRecordRetryTests
     private static void Assign(AwkRuntimeState state, string name, string value) =>
         state.AssignVariableValue(AwkVariableName.FromText(name), AwkValue.FromText(AwkText.FromSourceLiteralString(value)));
 
-    private static long ReserveLeaving(AwkRuntimeState state, long available)
+    private static long ReserveLeaving(CooperativeTestMemory memory, long available)
     {
+        var state = memory.State;
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        var pressure = state.Limits.MaxExecutionMemoryBytes - state.MemoryAccounting.CurrentCommittedBytes - available;
+        var pressure = memory.Budget.Limit - state.MemoryAccounting.CurrentCommittedBytes - available;
         state.MemoryAccounting.Reserve(pressure);
         return pressure;
     }

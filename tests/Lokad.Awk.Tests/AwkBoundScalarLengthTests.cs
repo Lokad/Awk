@@ -5,7 +5,8 @@ public sealed class AwkBoundScalarLengthTests
     [Fact]
     public async Task BoundReadsKeepCurrentValuesAndRequireMatchingNames()
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("s");
         var array = AwkArrayName.FromText("a");
         state.AssignPreparedGlobalValue(name, 0, AwkValue.FromText("abc"));
@@ -33,7 +34,8 @@ public sealed class AwkBoundScalarLengthTests
     [Fact]
     public async Task FirstMissingReadKeepsNormalResolutionBeforeBinding()
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("missing");
         var expression = AwkExpression.Length(AwkExpression.PreparedGlobalVariable(name, 0),
             AwkOptionalIdentifier.Some(name.Identifier));
@@ -46,40 +48,15 @@ public sealed class AwkBoundScalarLengthTests
         Assert.Equal(1, state.Counters.BoundScalarLengths);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ValueAdmissionStillPrecedesTargetMutation(bool bound)
+    private static CooperativeTestMemory State(AwkRuntimeLimits? limits = null)
     {
-        var state = State(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(3));
-        var name = AwkVariableName.FromText("x");
-        var target = AwkVariableName.FromText("target");
-        state.AssignVariableValue(name, AwkValue.FromNumber(1));
-        state.AssignVariableValue(target, AwkValue.FromNumber(7));
-        if (bound) _ = state.ResolvePreparedGlobalValue(name, 0);
-        state.AssignVariableValue(name, AwkValue.FromNumericString("12345"));
-        var length = AwkExpression.Length(AwkExpression.PreparedGlobalVariable(name, 0),
-            AwkOptionalIdentifier.Some(name.Identifier));
-        var assignment = AwkExpression.Assignment(AwkReference.Scalar(target), length);
-        var values = state.Counters.ValuesCreated;
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-            await assignment.EvaluateAsync(new(state)));
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-        Assert.Equal(bound ? 1 : 0, state.Counters.BoundScalarLengths);
-        Assert.Equal(values, state.Counters.ValuesCreated);
-        Assert.Equal(7, state.ResolveVariableValue(target).AsNumber());
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
 
-    private static AwkRuntimeState State(AwkRuntimeLimits? limits = null)
-    {
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: (long)(1 << 20) != long.MaxValue);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()).WithMaxExecutionMemoryBytes(1 << 20),
+            AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()),
             AwkRegexEngineKind.DotNetCompatibility);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         state.InitializeGlobalReadSlots(2);
-        return state;
+        return testMemory.Initialize(() => state);
     }
 }

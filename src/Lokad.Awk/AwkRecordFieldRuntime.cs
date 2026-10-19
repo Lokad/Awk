@@ -27,7 +27,6 @@ internal sealed class AwkRecordFieldRuntime
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
         int maxFields,
-        Action<long> throwIfValueBytesExceeded,
                 Action? checkpoint = null)
     {
         _fieldSplitter = fieldSplitter;
@@ -39,8 +38,7 @@ internal sealed class AwkRecordFieldRuntime
         _resolveAssignedRecordMode = resolveAssignedRecordMode;
         _maxFields = maxFields;
         _checkpoint = checkpoint;
-        _frame = new(counters, governor, maxFields, throwIfValueBytesExceeded,
-            formatStringByteText, checkpoint, fieldSplitter);
+        _frame = new(counters, governor, maxFields,             formatStringByteText, checkpoint, fieldSplitter);
         // Bind once; the callback reads the current record's immutable split plan.
         _splitCurrentFields = SplitCurrentFields;
     }

@@ -9,7 +9,7 @@ public sealed class AwkBorrowedArrayReadTests
     public async Task HitsAvoidCopiesAndMissesRetainOwnedKeysAfterRecordReuse(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = State(mode, owner, counters);
         var name = AwkArrayName.FromText("a");
@@ -41,7 +41,7 @@ public sealed class AwkBorrowedArrayReadTests
     public async Task FullArrayAllowsHitsAndRefusesMissingReadBeforeAddingAnElement(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = State(mode, owner, counters, 1);
         var name = AwkArrayName.FromText("a");
@@ -62,10 +62,11 @@ public sealed class AwkBorrowedArrayReadTests
     public void MissingBorrowedLookupDoesNotCreateAnArrayOrCommitStorage()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024), counters);
+        using var memoryForAccounting = new CooperativeTestMemory(1024, counters);
+        var accounting = memoryForAccounting.Accounting;
         var variables = new AwkVariables(2, 100, 100, accounting, counters,
             AwkValue.FromText, static text => AwkValue.FromNumericString(text),
-            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), static (_, _) => { }, static _ => { });
+            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), static (_, _) => { });
         var name = AwkArrayName.FromText("a");
         Assert.False(variables.TryGetExistingArrayValue(name, "missing"u8, out _));
         Assert.False(variables.ContainsArray(name));
@@ -99,7 +100,7 @@ public sealed class AwkBorrowedArrayReadTests
     public async Task TargetKeysReuseHitsAndCopyMissesBeforeRecordReuse(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = State(mode, owner, counters);
         var name = AwkArrayName.FromText("a");
@@ -131,7 +132,7 @@ public sealed class AwkBorrowedArrayReadTests
     public async Task TargetHitUpdatesFullArrayAndMissingAdmissionPrecedesRightEffects(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var state = State(mode, owner, AwkRuntimeCounters.CreateEnabled(), 1);
         var name = AwkArrayName.FromText("a");
         var key = new AwkArrayKey("hit");
@@ -154,10 +155,9 @@ public sealed class AwkBorrowedArrayReadTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static AwkRuntimeState State(int mode, AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters, int maxElements = 100)
+    private static AwkRuntimeState State(int mode,AwkExecutionMemoryOwner owner,AwkRuntimeCounters counters,int maxElements = 100)
     {
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(maxElements);
-        if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(8 << 20);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
             limits, AwkRegexEngineKind.DotNetCompatibility)
         { MemoryOwner = owner };

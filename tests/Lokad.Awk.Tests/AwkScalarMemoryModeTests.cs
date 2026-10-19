@@ -9,11 +9,10 @@ public sealed class AwkScalarMemoryModeTests
     public async Task UpdatesPreserveComputedNfOfsPreparationAndRefunds(int mode)
     {
         var budget = new CooperativeTestBudget(20_000);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
-        var limits = mode == 1 ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(20_000)
-            : AwkRuntimeLimits.CreateDefault();
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(limits, counters, owner);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         Assert.Equal(mode != 0, accounting.IsEnabled);
         var fieldCount = 3;
         var assignments = 0;
@@ -57,10 +56,9 @@ public sealed class AwkScalarMemoryModeTests
     public async Task FailedOfsPreparationPreservesValueAndAdmission(int mode)
     {
         var budget = new CooperativeTestBudget(20_000);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
-        var limits = mode == 1 ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(20_000)
-            : AwkRuntimeLimits.CreateDefault();
-        var accounting = AwkMemoryAccounting.Create(limits, AwkRuntimeCounters.Disabled, owner);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
         var error = new AwkRuntimeException("preparation rejected"u8.ToArray());
         var preparations = 0;
         var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled, static (_, _) => { },
@@ -76,17 +74,13 @@ public sealed class AwkScalarMemoryModeTests
         Assert.Equal(0, accounting.CurrentReservedBytes);
         Assert.Equal(0, budget.Reserved);
     }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SharedOnlyOrFiniteRefusalPrecedesOfsPreparation(bool sharedOnly)
+    [Fact]
+    public async Task SharedOnlyOrFiniteRefusalPrecedesOfsPreparation()
     {
         var budget = new CooperativeTestBudget(1024);
-        await using var owner = AwkExecutionMemoryOwner.Create(sharedOnly ? budget : null, CancellationToken.None);
-        var limits = sharedOnly ? AwkRuntimeLimits.CreateDefault()
-            : AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024);
-        var accounting = AwkMemoryAccounting.Create(limits, AwkRuntimeCounters.Disabled, owner);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
         Assert.True(accounting.IsEnabled);
         var preparations = 0;
         var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled, static (_, _) => { },
@@ -106,6 +100,5 @@ public sealed class AwkScalarMemoryModeTests
         Action<string, AwkValue> assign, Func<int> fieldCount, Action prepareOfs) =>
         new(2, 100, 100, accounting, counters,
             static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text),
-            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), assign, static _ => { },
-            () => AwkValue.FromNumber(fieldCount()), prepareOfs);
+            static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), assign,             () => AwkValue.FromNumber(fieldCount()), prepareOfs);
 }

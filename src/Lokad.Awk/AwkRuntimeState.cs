@@ -65,7 +65,7 @@ internal sealed class AwkRuntimeState : IDisposable
         Counters = runtimeOptions.Counters;
         Limits = runtimeOptions.Limits;
         Resources = resources;
-        MemoryAccounting = AwkMemoryAccounting.Create(Limits, Counters, runtimeOptions.MemoryOwner);
+        MemoryAccounting = AwkMemoryAccounting.Create(Counters, runtimeOptions.MemoryOwner);
         CompatibilityMode = compatibilityProfile.Mode;
         _stringEscapeWarnings = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
         LintMode = compatibilityProfile.LintMode;
@@ -87,7 +87,6 @@ internal sealed class AwkRuntimeState : IDisposable
             CreateNumericStringValue,
             CreateDeferredTextValue,
             ApplySpecialVariableAssignment,
-            Resources.ThrowIfValueBytesExceeded,
             () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
                 .FieldCountValue,
             () => (recordFields ?? throw new InvalidOperationException("Record fields are not initialized."))
@@ -142,7 +141,6 @@ internal sealed class AwkRuntimeState : IDisposable
                 Counters,
                 MemoryAccounting,
                 Limits.MaxFields,
-                Resources.ThrowIfValueBytesExceeded,
 
                 CancellationCheckpoint);
             recordFields = _recordFields;
@@ -264,28 +262,24 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkValue CreateStringValue(string text)
     {
-        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(text));
         Counters.RecordValueCreated();
         return AwkValue.FromText(AwkText.FromString(text, Counters, MemoryAccounting, CancellationCheckpoint), NumberParsingMode, CancellationCheckpoint);
     }
 
     public AwkValue CreateByteTextValue(AwkText text)
     {
-        Resources.ThrowIfValueBytesExceeded(text.ByteLength);
         Counters.RecordValueCreated();
         return AwkValue.FromText(text, NumberParsingMode, CancellationCheckpoint);
     }
 
     public AwkValue CreateDeferredTextValue(AwkText text)
     {
-        Resources.ThrowIfValueBytesExceeded(text.ByteLength);
         Counters.RecordValueCreated();
         return AwkValue.FromDeferredText(text, NumberParsingMode);
     }
 
     public AwkValue CreateNumericStringValue(string text)
     {
-        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(text));
         Counters.RecordValueCreated();
         return AwkValue.FromNumericString(
             AwkText.FromString(text, Counters, MemoryAccounting, CancellationCheckpoint),
@@ -294,7 +288,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkValue CreateNumericStringValue(AwkText text)
     {
-        Resources.ThrowIfValueBytesExceeded(text.ByteLength);
         Counters.RecordValueCreated();
         return AwkValue.FromNumericString(text, NumberParsingMode, CancellationCheckpoint);
     }
@@ -322,9 +315,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void Checkpoint() =>
         Resources.Checkpoint(_cancellationToken);
-
-    public void ThrowIfRecordBytesExceeded(AwkText record) =>
-        Resources.ThrowIfRecordBytesExceeded(record.ByteLength);
 
     public void InitializeArguments(IReadOnlyList<string> arguments)
     {
@@ -806,13 +796,11 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void AssignVariable(AwkIdentifier identifier, string value)
     {
-        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
         _variableRuntime.AssignVariable(identifier, value);
     }
 
     public void AssignVariable(AwkVariableName name, string value)
     {
-        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
         _variableRuntime.AssignVariable(name, value);
     }
 
@@ -833,7 +821,6 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (assignment.Source == AwkVariableAssignmentSource.FieldSeparatorOption)
         {
-            Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(assignment.Value));
             AssignSpecialVariableValue(AwkSpecialVariableId.FieldSeparator,
                 CreateByteTextValue(AwkText.FromString(assignment.Value, Counters, MemoryAccounting, CancellationCheckpoint)));
             return;
@@ -872,7 +859,6 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkVariableName name,
         string value)
     {
-        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
         _variableRuntime.AssignFunctionLocal(slotId, name, value);
     }
 
@@ -967,7 +953,6 @@ internal sealed class AwkRuntimeState : IDisposable
     public AwkMemoryMutationAdmission PreflightCurrentRecordAdmission(
         AwkText record, AwkRecordTerminator terminator, AwkRecordFieldSplittingMode mode)
     {
-        Resources.ThrowIfValueBytesExceeded(record.ByteLength);
         var terminatorGrowth = EstimateRecordTerminatorMemoryGrowth(terminator);
         if (MemoryAccounting.IsEnabled)
         {
@@ -981,7 +966,6 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         if (!AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.RecordTerminator, CompatibilityMode))
             return 0;
-        Resources.ThrowIfValueBytesExceeded(terminator.ByteText.ByteLength);
         if (!MemoryAccounting.IsEnabled)
         {
             ThrowIfCancellationRequested();
@@ -1039,7 +1023,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void SetCurrentRecord(AwkText line)
     {
-        Resources.ThrowIfValueBytesExceeded(line.ByteLength);
         _recordFields.SetCurrentRecord(line);
     }
 
@@ -1057,7 +1040,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void AssignField(int index, string value)
     {
-        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
         _recordFields.AssignField(index, value);
     }
 
@@ -1249,7 +1231,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value)
     {
-        Resources.ThrowIfValueBytesExceeded(Encoding.UTF8.GetByteCount(value));
         _arrayRuntime.SetString(name, index, value);
     }
 

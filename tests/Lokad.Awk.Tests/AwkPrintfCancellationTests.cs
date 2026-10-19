@@ -17,8 +17,9 @@ public sealed class AwkPrintfCancellationTests
             _ => "%*" + new string('0', count) + "1$s"
         };
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
+        var governor = memoryForGovernor.Accounting;
         PrintfDirective Read(string format, Action checkpoint)
         {
             var cursor = new PrintfArgumentCursor<TestArguments>(new TestArguments("x", 1),
@@ -71,8 +72,9 @@ public sealed class AwkPrintfCancellationTests
             _ => throw new ArgumentOutOfRangeException(nameof(conversion))
         };
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var readingValue = false;
         var callsDuringValue = 0;
@@ -115,8 +117,9 @@ public sealed class AwkPrintfCancellationTests
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
+        var governor = memoryForGovernor.Accounting;
         var arguments = new TestArguments("x", 65, onNumber: cancellation.Cancel, numeric: true);
         var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
             "prefix" + conversion, arguments, PrintfMissingArgumentPolicy.Throw, limits, counters, governor,
@@ -134,8 +137,9 @@ public sealed class AwkPrintfCancellationTests
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
+        var governor = memoryForGovernor.Accounting;
         var arguments = new TestArguments("界", 0, onString: cancellation.Cancel);
         var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
             "prefix" + conversion, arguments, PrintfMissingArgumentPolicy.Throw, limits, counters, governor,
@@ -155,8 +159,9 @@ public sealed class AwkPrintfCancellationTests
     {
         const string format = "prefix%20000s";
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
+        var governor = memoryForGovernor.Accounting;
         var total = 0;
         var encodesAtCheckpoint = new List<long>();
         TestArguments Arguments()
@@ -174,7 +179,8 @@ public sealed class AwkPrintfCancellationTests
                 encodesAtCheckpoint.Add(counters.Utf8Encodes);
             }).RuneLength);
         counters = AwkRuntimeCounters.CreateEnabled();
-        governor = AwkMemoryAccounting.Create(limits, counters);
+        using var secondMemory = new CooperativeTestMemory(1 << 20, counters);
+        governor = secondMemory.Accounting;
         var cancelAt = afterCopy ? total : encodesAtCheckpoint.FindLastIndex(static encodes => encodes == 0) + 1;
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
@@ -211,9 +217,10 @@ public sealed class AwkPrintfCancellationTests
     public void FormattingCheckpointsPreserveAdmission(bool observed)
     {
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var resources = new AwkRuntimeResourceMonitor(limits, counters);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
+        var governor = memoryForGovernor.Accounting;
         resources.Checkpoint();
         var output = AwkFormattingRuntime.FormatPrintfStrictByteText("%" + new string('0', 24_000) + "1$s", new TestArguments("界", 0), limits, counters, governor, checkpoint: () => resources.ThrowIfCancellationRequested(CancellationToken.None));
         Assert.Equal("界", output.AsString());

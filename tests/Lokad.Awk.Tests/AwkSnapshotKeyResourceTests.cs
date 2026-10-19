@@ -30,7 +30,9 @@ public sealed class AwkSnapshotKeyResourceTests
     [MemberData(nameof(Snapshots))]
     public async Task SnapshotHoldsItsNewKeyPayloadUntilDisposalAndAcceptsExactAdmission(bool observed, string source, string selector)
     {
-        var (state, name) = CreateState(observed, source, selector);
+        var (memory, name) = CreateState(observed, source, selector);
+        using var ownedMemory = memory;
+        var state = memory.State;
         var (keys, containers, payload) = await MeasureExpected(state, name, source, selector);
         var required = AwkRuntimeMemory.CheckedAdd(containers, payload);
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
@@ -52,7 +54,9 @@ public sealed class AwkSnapshotKeyResourceTests
     [MemberData(nameof(NewPayloads))]
     public async Task NewKeyPayloadShortfallFailsBeforeSnapshotAllocationAndAllowsRetry(bool observed, string source, string selector)
     {
-        var (state, name) = CreateState(observed, source, selector);
+        var (memory, name) = CreateState(observed, source, selector);
+        using var ownedMemory = memory;
+        var state = memory.State;
         var (keys, containers, payload) = await MeasureExpected(state, name, source, selector);
         Assert.True(payload > 0);
         var required = containers + payload;
@@ -84,7 +88,9 @@ public sealed class AwkSnapshotKeyResourceTests
     [InlineData(true, "ordinals")]
     public async Task KeySortTransfersTemporaryPayloadIntoDestinationWithoutDuplicateAdmission(bool observed, string source)
     {
-        var (state, name) = CreateState(observed, source, "@ind_str_asc");
+        var (memory, name) = CreateState(observed, source, "@ind_str_asc");
+        using var ownedMemory = memory;
+        var state = memory.State;
         state.SetArrayString(Destination, First, "keep");
         var (keys, _, payload) = await MeasureExpected(state, name, source, "@ind_str_asc");
         var entries = AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(keys.Length);
@@ -119,7 +125,9 @@ public sealed class AwkSnapshotKeyResourceTests
     [MemberData(nameof(SortFailures))]
     public async Task SortPayloadAdmissionFailurePreservesSourceAndDestination(bool observed, string source, bool keys)
     {
-        var (state, name) = CreateState(observed, source, "@ind_str_asc");
+        var (memory, name) = CreateState(observed, source, "@ind_str_asc");
+        using var ownedMemory = memory;
+        var state = memory.State;
         state.SetArrayString(Destination, First, "keep");
         var (original, _, payload) = await MeasureExpected(state, name, source, "@ind_str_asc");
         var required = AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(original.Length) + payload;
@@ -151,7 +159,8 @@ public sealed class AwkSnapshotKeyResourceTests
     public void SnapshotMeasurementCancelsBeforeEncodingKeysAndAllowsRetry(bool observed, string source)
     {
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(MemoryLimit), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(MemoryLimit, counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var checks = 0;
@@ -161,7 +170,7 @@ public sealed class AwkSnapshotKeyResourceTests
             if (++checks == 4) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var variables = new AwkVariables(4_096, 4_096, 1_024, governor, counters, AwkValue.FromText, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { }, _ => { }, checkpoint: Check);
+        var variables = new AwkVariables(4_096, 4_096, 1_024, governor, counters, AwkValue.FromText, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { }, checkpoint: Check);
         var name = source == "symbols" ? Symbols : Source;
         if (source == "symbols")
             variables.InitializeGlobalNames(Enumerable.Range(1, 512).Select(index => AwkVariableName.FromText("v" + index)).ToHashSet());
@@ -204,23 +213,25 @@ public sealed class AwkSnapshotKeyResourceTests
         return (keys, containers, payload);
     }
 
-    private static (AwkRuntimeState State, AwkArrayName Name) CreateState(bool observed, string source, string selector)
+    private static (CooperativeTestMemory Memory, AwkArrayName Name) CreateState(bool observed, string source, string selector)
     {
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(MemoryLimit)
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()
                 .WithMaxIdentifierBytes(16_384), AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var memory = new CooperativeTestMemory(MemoryLimit);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options));
+        memory.Initialize(state);
         state.SetArrayString(AwkArrayName.FromText("PROCINFO"), new AwkArrayKey("sorted_in"), selector);
         if (source == "symbols")
         {
             state.InitializeGlobalNames(Enumerable.Range(0, 8).Select(index =>
                 AwkVariableName.FromText("v" + index + new string('a', 8_192))).ToHashSet());
-            return (state, Symbols);
+            return (memory, Symbols);
         }
         for (var index = 1; index <= 32; index++)
             state.SetArrayAwkValue(Source, source == "ordinals" ? AwkArrayKey.FromOrdinal(index) : new AwkArrayKey("v" + index),
                 AwkValue.FromNumber(33 - index));
-        return (state, Source);
+        return (memory, Source);
     }
 }

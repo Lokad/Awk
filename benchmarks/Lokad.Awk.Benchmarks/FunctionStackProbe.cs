@@ -83,12 +83,12 @@ internal static class FunctionStackProbe
         else
             compiled = await AwkExecutor.CompileAsync(host, invocation, cancellation.Token).ConfigureAwait(false);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(64L << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         // The recursive caller can retain 1,000 frames while the prepared chain adds four.
         if (shape is "prepared-chain" or "prepared-async" or "prepared-field-chain" or "prepared-field-async" or "prepared-four-chain" or "prepared-four-async") limits = limits.WithMaxFunctionCallDepth(1004);
         if (shape == "raised-syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
+            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility) with { MemoryBudget = new Lokad.Awk.Tests.CooperativeTestBudget(64L << 20) };
         var completion = new TaskCompletionSource<AwkExitCode>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {

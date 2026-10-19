@@ -15,7 +15,8 @@ public sealed class AwkSpecialRegexAssignmentTests
     public void BothPreparedVariantsAreReusedAcrossSameValueAndCaseChanges(string variable, bool throughSymbolTable, bool utf8)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(utf8, counters);
+        using var memoryForState = State(utf8, counters);
+        var state = memoryForState.State;
         state.InitializeProcInfo();
         var value = AwkValue.FromText(AwkText.FromSourceLiteralString("[ab]+"));
         Assign(state, variable, value, throughSymbolTable);
@@ -38,15 +39,16 @@ public sealed class AwkSpecialRegexAssignmentTests
             state.AssignVariableValue(AwkVariableName.FromText(variable), value);
     }
 
-    private static AwkRuntimeState State(bool utf8, AwkRuntimeCounters counters)
+    private static CooperativeTestMemory State(bool utf8, AwkRuntimeCounters counters)
     {
-        var limits = AwkRuntimeLimits.CreateDefault()
-            .WithMaxExecutionMemoryBytes(1 << 20);
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits,
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
 regexEngine: AwkUtf8RegexEngine.Instance);
-        return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
-            new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default);
+        return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
+            new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default));
     }
 }

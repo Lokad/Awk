@@ -14,8 +14,10 @@ public sealed class AwkPreparedNumericUpdateTests
     public async Task PreparedUpdatesPreserveLegacyNumericResultsAndAccounting(bool decrement, bool post, bool vector)
     {
         var name = AwkVariableName.FromText("value");
-        var prepared = State();
-        var legacy = State();
+        using var memoryForPrepared = State();
+        var prepared = memoryForPrepared.State;
+        using var memoryForLegacy = State();
+        var legacy = memoryForLegacy.State;
         foreach (var state in new[] { prepared, legacy })
         {
             if (vector) state.InitializeGlobalReadSlots(1);
@@ -39,7 +41,8 @@ public sealed class AwkPreparedNumericUpdateTests
     [Fact]
     public async Task FailedFirstUpdateDoesNotAdmitOrBindTheScalar()
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         state.InitializeGlobalReadSlots(1);
         var name = AwkVariableName.FromText("missing");
         var target = AwkReference.PreparedGlobalScalar(name, 0);
@@ -59,7 +62,8 @@ public sealed class AwkPreparedNumericUpdateTests
     [Fact]
     public void ArrayTypeFailurePreservesElementsAndAdmission()
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         state.InitializeGlobalReadSlots(1);
         var name = AwkVariableName.FromText("values");
         var array = new AwkArrayName(name.Identifier);
@@ -78,7 +82,8 @@ public sealed class AwkPreparedNumericUpdateTests
     public void LongInputCancellationPrecedesMutation()
     {
         using var cancellation = new CancellationTokenSource();
-        var state = State(cancellation.Token);
+        using var memoryForState = State(cancellation.Token);
+        var state = memoryForState.State;
         state.InitializeGlobalReadSlots(1);
         var name = AwkVariableName.FromText("value");
         state.AssignVariable(name, "1" + new string('0', 8000));
@@ -100,12 +105,14 @@ public sealed class AwkPreparedNumericUpdateTests
             _ => target.ApplyIncrementAsync(new AwkEvaluationContext(state))
         };
 
-    private static AwkRuntimeState State(CancellationToken token = default)
+    private static CooperativeTestMemory State(CancellationToken token = default)
     {
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
+            AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.DotNetCompatibility);
-        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options);
+        return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, testMemory.Configure(options)));
     }
 }

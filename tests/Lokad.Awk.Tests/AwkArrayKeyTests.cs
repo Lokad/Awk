@@ -84,9 +84,8 @@ public sealed class AwkArrayKeyTests
     public void AwkArrayKey_OrdinalMaterializationUsesRuntimeAccounting()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024),
-            counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1024, counters);
+        var governor = memoryForGovernor.Accounting;
         var baselineAllocations = counters.AwkTextAllocations;
         var baselineBytes = counters.AwkTextPayloadBytes;
 

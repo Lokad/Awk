@@ -219,8 +219,9 @@ public sealed class AwkRegexPreparationCancellationTests
     public void CancelingLeasedDecodingReleasesScratchBeforeRetry(bool utf8)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         var armed = true;

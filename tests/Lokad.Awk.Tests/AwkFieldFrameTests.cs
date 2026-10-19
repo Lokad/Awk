@@ -53,9 +53,9 @@ public sealed class AwkFieldFrameTests
     [InlineData(2, true)]
     public void AwkFieldFrame_RecordPlanMemoryFailurePreservesRecordAndPriorPlan(int mode, bool assignValue)
     {
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(500));
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { }, value => value.ByteText);
+        using var memoryForGovernor = new CooperativeTestMemory(500, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, value => value.ByteText);
         var priorPlan = CreatePlan(0, ",");
         frame.SetRecordText(AwkText.FromSourceLiteralString("keep"), priorPlan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -83,9 +83,9 @@ public sealed class AwkFieldFrameTests
     [InlineData(2)]
     public void AwkFieldFrame_MaterializationReleasesRetainedPlan(int mode)
     {
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4_096));
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { }, value => value.ByteText);
+        using var memoryForGovernor = new CooperativeTestMemory(4_096, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, value => value.ByteText);
         var plan = CreatePlan(mode, new string('x', 200));
         frame.SetRecordText(AwkText.FromSourceLiteralString("keep"), plan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -105,9 +105,9 @@ public sealed class AwkFieldFrameTests
     [Fact]
     public void AwkFieldFrame_FieldLimitFailurePreservesLazyPlanForRetry()
     {
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4_096));
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1, _ => { }, value => value.ByteText);
+        using var memoryForGovernor = new CooperativeTestMemory(4_096, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1, value => value.ByteText);
         var plan = CreatePlan(0, ",");
         frame.SetRecordText(AwkText.FromSourceLiteralString("a,b"), plan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -137,9 +137,9 @@ public sealed class AwkFieldFrameTests
 
     private static AwkFieldFrame CreateFrame(AwkRuntimeCounters counters) =>
         new(
-            counters, CreateAccounting(counters), maxFields: 1_000, _ => { }, value => value.ByteText);
+            counters, CreateAccounting(counters), maxFields: 1_000, value => value.ByteText);
 
     private static AwkMemoryAccounting CreateAccounting(AwkRuntimeCounters counters) =>
-        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters);
+        AwkMemoryAccounting.Disabled;
 
 }

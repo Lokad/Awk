@@ -27,7 +27,8 @@ public sealed class AwkUntypedStateTests
     public void MissingElementReadChargesOneCellAndStaysByteNative()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters);
+        using var memoryForState = State(counters);
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         var key = AwkArrayKey.FromOrdinal(1);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -48,7 +49,8 @@ public sealed class AwkUntypedStateTests
     public void MissingReadMemoryFailurePreservesArrayAndAliasTyping(bool alias)
     {
         const int limit = 1 << 20;
-        var state = State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(limit));
+        using var memoryForState = State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault());
+        var state = memoryForState.State;
         var source = AwkVariableName.FromText("source");
         var parameter = AwkVariableName.FromText("parameter");
         if (alias)
@@ -84,7 +86,8 @@ public sealed class AwkUntypedStateTests
     [Fact]
     public void MissingReadElementLimitPreservesExistingUntypedCell()
     {
-        var state = State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1));
+        using var memoryForState = State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1));
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         var first = AwkArrayKey.FromOrdinal(1);
         var second = AwkArrayKey.FromOrdinal(2);
@@ -106,7 +109,8 @@ public sealed class AwkUntypedStateTests
     public void ParameterAssignmentFailurePreservesOriginAndFrameMemory()
     {
         const int limit = 1 << 20;
-        var state = State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(limit));
+        using var memoryForState = State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault());
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         var key = AwkArrayKey.FromOrdinal(1);
         var origin = state.GetArrayAwkValue(name, key);
@@ -135,7 +139,8 @@ public sealed class AwkUntypedStateTests
     public void UntouchedGlobalArgumentFailureDoesNotCreateSymbolMetadata()
     {
         const int limit = 1 << 20;
-        var state = State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(limit));
+        using var memoryForState = State(AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault());
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("fresh");
         using var pressure = state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.CurrentCommittedBytes);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -149,10 +154,10 @@ public sealed class AwkUntypedStateTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static AwkRuntimeState State(AwkRuntimeCounters counters, AwkRuntimeLimits? limits = null) =>
-        AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+    private static CooperativeTestMemory State(AwkRuntimeCounters counters, AwkRuntimeLimits? limits = null) {
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+return        testMemory.Initialize(AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
+            testMemory.Configure(new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters,
-                limits ?? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
-                AwkRegexEngineKind.DotNetCompatibility));
-}
+                limits ?? AwkRuntimeLimits.CreateDefault(),
+                AwkRegexEngineKind.DotNetCompatibility))));}}

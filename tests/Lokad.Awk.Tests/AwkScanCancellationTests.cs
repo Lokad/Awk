@@ -96,8 +96,8 @@ public sealed class AwkScanCancellationTests
     public void InterruptedRuneIndexReleasesReservationAndCanBeRebuilt()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
+        var governor = memoryForGovernor.Accounting;
         var text = AwkText.FromString(new string('\u754c', LongScan));
         using var cancellation = new CancellationTokenSource();
         Assert.Throws<OperationCanceledException>(() =>
@@ -122,7 +122,8 @@ public sealed class AwkScanCancellationTests
     public async Task BuiltinsObserveCancellationAfterArgumentEvaluation(string name)
     {
         using var cancellation = new CancellationTokenSource();
-        var state = CreateState(cancellation.Token);
+        using var memoryForState = CreateState(cancellation.Token);
+        var state = memoryForState.State;
         var value = AwkValue.FromDeferredText(
             AwkText.FromString(name is "tolower" or "toupper" ? new string('a', LongScan) : new string('0', LongScan)),
             AwkNumberParsingMode.Decimal);
@@ -143,7 +144,8 @@ public sealed class AwkScanCancellationTests
     public void RuntimeClassificationChecksCancellationBeforeAssignment(bool input)
     {
         using var cancellation = new CancellationTokenSource();
-        var state = CreateState(cancellation.Token);
+        using var memoryForState = CreateState(cancellation.Token);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("kept");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var source = AwkText.FromString(new string('0', LongScan) + "1");
@@ -170,8 +172,9 @@ public sealed class AwkScanCancellationTests
     public void FormatScanningChecksAfterAScalarCrossesTheChunkBoundary()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(32 << 10);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(32 << 10, counters);
+        var governor = memoryForGovernor.Accounting;
         var format = new string('a', 4095) + "\ud83d\ude00a";
         using var cancellation = new CancellationTokenSource();
 
@@ -191,13 +194,13 @@ public sealed class AwkScanCancellationTests
         public bool IsNumeric(int index) => throw new ArgumentOutOfRangeException(nameof(index));
     }
 
-    private static AwkRuntimeState CreateState(CancellationToken token) =>
-        AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token,
-            new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+    private static CooperativeTestMemory CreateState(CancellationToken token) {
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+return        testMemory.Initialize(AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token,
+            testMemory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-                AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
-                AwkRegexEngineKind.DotNetCompatibility));
-
+                AwkRuntimeLimits.CreateDefault(),
+                AwkRegexEngineKind.DotNetCompatibility))));}
     private sealed class CancelAfterValueExpression(CancellationTokenSource cancellation, AwkValue value) : AwkExpression
     {
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)

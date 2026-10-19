@@ -320,77 +320,6 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
-    [Fact]
-    public async Task Awk_OutputByteLimitFailsBeforeWritingStandardOutput()
-    {
-        var options = CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxOutputBytes(4));
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation("awk", "BEGIN{print \"abcde\"}"),
-            CancellationToken.None);
-        var fileSystem = new MockFileSystem();
-
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
-    public async Task Awk_ValueByteLimitFailsBeforeStringAssignmentTakesEffect()
-    {
-        var options = CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(4));
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation("awk", "BEGIN{x=\"ok\"; x=x \"abcd\"; print x}"),
-            CancellationToken.None);
-        var fileSystem = new MockFileSystem();
-
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
-    public void Awk_ValueByteLimitFailsBeforeFieldAssignmentTakesEffect()
-    {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(4);
-        var state = AwkTestHarness.CreateRuntimeState(
-            AwkFieldSeparatorSpec.Default,
-            CancellationToken.None,
-            CreateOptions(limits));
-        state.SetCurrentRecord(AwkText.FromString("a b", state.Counters, state.MemoryAccounting));
-
-        var exception = Assert.Throws<AwkRuntimeException>(
-            () => state.AssignField(2, "value"));
-
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal("a b", state.CurrentRecordByteText.AsString(state.Counters));
-        Assert.Equal("b", state.GetFieldValue(2).AsString());
-    }
-
-    [Fact]
-    public async Task Awk_ValueByteLimitRejectsPrintfPaddingBeforeBuilderGrowth()
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(4);
-        var options = CreateOptions(limits, counters);
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation("awk", "BEGIN{x=sprintf(\"%10000s\", \"x\"); print x}"),
-            CancellationToken.None);
-        var fileSystem = new MockFileSystem();
-
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
     public static TheoryData<string, string, int> GovernedAwkTextAllocationCases => new()
     {
         {
@@ -438,8 +367,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(maxExecutionMemoryBytes),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility) with { MemoryBudget = new CooperativeTestBudget(maxExecutionMemoryBytes) };
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", program),
@@ -452,39 +381,6 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
-    public async Task Awk_RecordByteLimitFailsBeforeProcessingHugeRecord()
-    {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxRecordBytes(4);
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation("awk", "{print NR; print $0}", "/file.txt"),
-            CancellationToken.None);
-
-        var baselineCounters = AwkRuntimeCounters.CreateEnabled();
-        var baselineFileSystem = new MockFileSystem();
-        baselineFileSystem.AddFile("/file.txt", string.Empty);
-        var baselineExitCode = await compiled.ExecuteAsync(
-            baselineFileSystem,
-            CancellationToken.None,
-            CreateOptions(limits, baselineCounters));
-
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var fileSystem = new MockFileSystem();
-        fileSystem.AddFile("/file.txt", "abcde\n");
-
-        var exitCode = await compiled.ExecuteAsync(
-            fileSystem,
-            CancellationToken.None,
-            CreateOptions(limits, counters));
-
-        Assert.Equal(AwkExitCode.Success, baselineExitCode);
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(baselineCounters.AwkTextPayloadBytes, counters.AwkTextPayloadBytes);
     }
 
     [Fact]
@@ -542,23 +438,6 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: array element limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
-    public async Task Awk_GsubExpansionLimitFailsBeforeAssigningReplacement()
-    {
-        var options = CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(5));
-        var compiled = await AwkExecutor.CompileAsync(
-            new MockFileSystem(),
-            BuildInvocation("awk", "BEGIN{x=\"aa\"; gsub(\"a\", \"bbb\", x); print x}"),
-            CancellationToken.None);
-        var fileSystem = new MockFileSystem();
-
-        var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: memory limit exceeded\n", fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Fact]
@@ -623,7 +502,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
     [Fact]
     public async Task Awk_RegexCaptureMemoryLimitFailsBeforeChangingMatchState()
     {
-        var state = CreateStateWithMemoryLimit(1_000);
+        using var memoryForState = CreateStateWithMemoryLimit(1_000);
+        var state = memoryForState.State;
         var arrayName = AwkArrayName.FromText("a");
         state.SetArrayString(arrayName, AwkArrayKey.FromOrdinal(1), "keep");
         SetMatchState(state, start: 41, length: 42);
@@ -764,21 +644,24 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(600),
+            AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.DotNetCompatibility);
-        var state = AwkTestHarness.CreateRuntimeState(
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
-            options);
+            memory.Configure(options))).State;
 
         state.SetArrayString(arrayName, new AwkArrayKey("k"), "v");
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var exception = Assert.Throws<AwkRuntimeException>(
             () => state.SetArrayString(arrayName, new AwkArrayKey("long"), "value"));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.False(state.ContainsArrayValue(arrayName, new AwkArrayKey("long")));
         Assert.Equal(
-            AwkRuntimeMemory.EstimateArrayElementBytes(new AwkArrayKey("k"), AwkVariableSlot.FromText("v")),
+            before,
             state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -793,7 +676,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024),
+            AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
@@ -814,7 +697,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(900);
+        using var memoryForState = CreateStateWithMemoryLimit(900);
+        var state = memoryForState.State;
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
@@ -835,7 +719,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
     {
         var arrayName = AwkArrayName.FromText("a");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(800);
+        using var memoryForState = CreateStateWithMemoryLimit(800);
+        var state = memoryForState.State;
         state.SetArrayString(arrayName, ordinalOne, "keep");
 
         var exception = Assert.Throws<AwkRuntimeException>(
@@ -856,7 +741,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(1_200);
+        using var memoryForState = CreateStateWithMemoryLimit(1_200);
+        var state = memoryForState.State;
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
@@ -877,7 +763,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         var sourceArrayName = AwkArrayName.FromText("source");
         var destinationArrayName = AwkArrayName.FromText("destination");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(1_200);
+        using var memoryForState = CreateStateWithMemoryLimit(1_200);
+        var state = memoryForState.State;
         state.SetArrayString(sourceArrayName, new AwkArrayKey("k"), "v");
         state.SetArrayString(destinationArrayName, ordinalOne, "keep");
 
@@ -898,7 +785,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         var fieldArrayName = AwkArrayName.FromText("fields");
         var separatorArrayName = AwkArrayName.FromText("separators");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(1_000);
+        using var memoryForState = CreateStateWithMemoryLimit(1_000);
+        var state = memoryForState.State;
         state.SetArrayString(fieldArrayName, ordinalOne, "keep-field");
         state.SetArrayString(separatorArrayName, ordinalOne, "keep-separator");
 
@@ -921,7 +809,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         var fieldArrayName = AwkArrayName.FromText("fields");
         var separatorArrayName = AwkArrayName.FromText("separators");
         var ordinalOne = new AwkArrayKey("1");
-        var state = CreateStateWithMemoryLimit(1_000);
+        using var memoryForState = CreateStateWithMemoryLimit(1_000);
+        var state = memoryForState.State;
         state.SetArrayString(fieldArrayName, ordinalOne, "keep-field");
         state.SetArrayString(separatorArrayName, ordinalOne, "keep-separator");
 
@@ -941,7 +830,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
     [Fact]
     public void Awk_FieldSplitMemoryLimitFailsBeforeMaterializingFields()
     {
-        var state = CreateStateWithMemoryLimit(600);
+        using var memoryForState = CreateStateWithMemoryLimit(600);
+        var state = memoryForState.State;
         var record = new string('x', 100);
         state.SetCurrentRecord(AwkText.FromString(record, state.Counters, state.MemoryAccounting));
 
@@ -958,7 +848,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         var requiredBytes = AwkRuntimeMemory.EstimateRegexMatchBytes(
             groupCount: 1,
             retainedTextBytes: AwkRuntimeMemory.EstimateTextBytes(byteLength: 1));
-        var state = CreateStateWithMemoryLimit(checked((int)requiredBytes));
+        using var memoryForState = CreateStateWithMemoryLimit(checked((int)requiredBytes));
+        var state = memoryForState.State;
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("aaaa");
 
@@ -985,7 +876,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         var requiredBytes = AwkRuntimeMemory.EstimateRegexMatchBytes(
             groupCount: 1,
             retainedTextBytes: AwkRuntimeMemory.EstimateTextBytes(byteLength: 1));
-        var state = CreateStateWithMemoryLimit(checked((int)requiredBytes));
+        using var memoryForState = CreateStateWithMemoryLimit(checked((int)requiredBytes));
+        var state = memoryForState.State;
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("aaaa");
 
@@ -1008,22 +900,20 @@ regexEngine: AwkUtf8RegexEngine.Instance);
     [InlineData(true, "😀")]
     public void Awk_RegexFirstMatchMemoryLimitIncludesGroupPayload(bool useUtf8Adapter, string text)
     {
-        var requiredBytes = AwkRuntimeMemory.EstimateRegexMatchBytes(
-            groupCount: 1,
-            retainedTextBytes: AwkRuntimeMemory.EstimateTextBytes(byteLength: AwkUtf8Codec.Encode(text).Length));
-        var state = AwkTestHarness.CreateRuntimeState(
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
-            new AwkRuntimeOptions(
+            memory.Configure(new AwkRuntimeOptions(
                 () => new AwkUnixTimestampSeconds(0),
                 TimeZoneInfo.Utc,
                 new AwkRandomGenerator(),
                 AwkRuntimeCounters.Disabled,
-                AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(checked((int)requiredBytes - 1)),
+                AwkRuntimeLimits.CreateDefault(),
                 useUtf8Adapter
                     ? AwkRegexEngineKind.Utf8Adapter
                     : AwkRegexEngineKind.DotNetCompatibility,
-regexEngine: AwkUtf8RegexEngine.Instance));
+regexEngine: AwkUtf8RegexEngine.Instance)))).State;
         // Prepare outside the capture-only budget. Runtime scalar preparation has
         // its own admission tests and can require more memory than one match payload.
         var preparation = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
@@ -1032,18 +922,21 @@ regexEngine: AwkUtf8RegexEngine.Instance));
         var regex = preparation.Create(new AwkRegexPattern("."));
         var input = AwkText.FromString(text);
 
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var exception = Assert.Throws<AwkRuntimeException>(() =>
             state.MatchRegexValue(regex, input, AwkRegexCapturePlan.All));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
     public void Awk_SubFirstReplacementMemoryLimitDoesNotReserveEnumerationList()
     {
-        var state = CreateStateWithMemoryLimit(300);
+        using var memoryForState = CreateStateWithMemoryLimit(300);
+        var state = memoryForState.State;
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("aaaa");
 
@@ -1065,8 +958,9 @@ regexEngine: AwkUtf8RegexEngine.Instance));
     [Fact]
     public async Task Awk_StandardOutputFlushAvoidsCopyingBuffer()
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(300);
-        var governor = AwkMemoryAccounting.Create(limits);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(300, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
         using var output = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
         output.Append(AwkText.FromString(new string('x', 80)));
         var fileSystem = new MockFileSystem();
@@ -1099,8 +993,8 @@ regexEngine: AwkUtf8RegexEngine.Instance));
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(2_500),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault(),
+            AwkRegexEngineKind.DotNetCompatibility) with { MemoryBudget = new CooperativeTestBudget(1 << 20) };
         var content = new string('x', 80);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
@@ -1112,7 +1006,7 @@ regexEngine: AwkUtf8RegexEngine.Instance));
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(content + "\n", fileSystem.ReadFile("/out.txt"));
-        Assert.InRange(counters.MemoryPeakLiveBytes, 1, 2_500);
+        Assert.True(counters.MemoryPeakLiveBytes > 0);
     }
 
     [Fact]
@@ -1124,14 +1018,17 @@ regexEngine: AwkUtf8RegexEngine.Instance));
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(500),
+            AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.DotNetCompatibility);
-        var state = AwkTestHarness.CreateRuntimeState(
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
-            options);
+            memory.Configure(options))).State;
         state.AssignVariable(variableName, "keep");
 
+        var before = state.MemoryAccounting.CurrentCommittedBytes;
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var exception = Assert.Throws<AwkRuntimeException>(
             () => state.AssignVariable(variableName, new string('v', 400)));
 
@@ -1144,7 +1041,8 @@ regexEngine: AwkUtf8RegexEngine.Instance));
     public void Awk_FunctionLocalMemoryLimitFailsBeforeReplacingValue()
     {
         var variableName = AwkVariableName.FromText("x");
-        var state = CreateStateWithMemoryLimit(500);
+        using var memoryForState = CreateStateWithMemoryLimit(500);
+        var state = memoryForState.State;
         state.PushFunctionFrame(
             new AwkFunctionLocalLayout([variableName]),
             [AwkFunctionArgument.Scalar(AwkValue.FromText("keep"))]);
@@ -1172,7 +1070,8 @@ regexEngine: AwkUtf8RegexEngine.Instance));
     public void Awk_ConcatenationTreeMemoryLimitFailsBeforeReplacingVariable()
     {
         var variableName = AwkVariableName.FromText("value");
-        var state = CreateStateWithMemoryLimit(50_000);
+        using var memoryForState = CreateStateWithMemoryLimit(50_000);
+        var state = memoryForState.State;
         state.AssignVariable(variableName, "keep");
         var segment = AwkText.FromString("x", state.Counters, state.MemoryAccounting);
         var concatenated = segment;
@@ -1199,7 +1098,8 @@ regexEngine: AwkUtf8RegexEngine.Instance));
     {
         var localName = AwkVariableName.FromText("a");
         var arrayName = new AwkArrayName(localName.Identifier);
-        var state = CreateStateWithMemoryLimit(1_024);
+        using var memoryForState = CreateStateWithMemoryLimit(1_024);
+        var state = memoryForState.State;
         state.PushFunctionFrame(new AwkFunctionLocalLayout([localName]), []);
 
         state.SetArrayAwkValue(arrayName, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
@@ -1216,7 +1116,8 @@ regexEngine: AwkUtf8RegexEngine.Instance));
     [Fact]
     public void Awk_CurrentRecordMemoryLimitFailsBeforeReplacingValue()
     {
-        var state = CreateStateWithMemoryLimit(200);
+        using var memoryForState = CreateStateWithMemoryLimit(200);
+        var state = memoryForState.State;
         state.SetCurrentRecord(AwkText.FromString("keep", state.Counters, state.MemoryAccounting));
 
         var exception = Assert.Throws<AwkRuntimeException>(
@@ -1230,7 +1131,8 @@ regexEngine: AwkUtf8RegexEngine.Instance));
     [Fact]
     public void Awk_FieldAssignmentMemoryLimitFailsBeforeRecomposingRecord()
     {
-        var state = CreateStateWithMemoryLimit(650);
+        using var memoryForState = CreateStateWithMemoryLimit(650);
+        var state = memoryForState.State;
         state.SetCurrentRecord(AwkText.FromString("a b", state.Counters, state.MemoryAccounting));
         Assert.Equal(2, state.FieldCount);
 
@@ -1247,7 +1149,9 @@ regexEngine: AwkUtf8RegexEngine.Instance));
     public void Awk_FieldCountMemoryLimitFailsBeforeExpandingFields()
     {
         // Admit the original field's value-type buffer while rejecting 30 fields.
-        var state = CreateStateWithMemoryLimit(500);
+        using var memoryForState = CreateStateWithMemoryLimit(500);
+        // Admit the original field's value-type buffer while rejecting 30 fields.
+        var state = memoryForState.State;
         state.SetCurrentRecord(AwkText.FromString("a", state.Counters, state.MemoryAccounting));
 
         var exception = Assert.Throws<AwkRuntimeException>(() => state.AssignFieldCount(30));
@@ -1263,7 +1167,8 @@ regexEngine: AwkUtf8RegexEngine.Instance));
     [InlineData(true)]
     public async Task Awk_RecordPlanMemoryFailurePrecedesCounterAndTerminatorMutation(bool paragraph)
     {
-        var state = CreateStateWithMemoryLimit(2_000);
+        using var memoryForState = CreateStateWithMemoryLimit(1 << 20);
+        var state = memoryForState.State;
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("keep"));
         Assert.Equal(1, state.FieldCount);
         state.RecordNumber = 4;
@@ -1275,6 +1180,7 @@ regexEngine: AwkUtf8RegexEngine.Instance));
         var processor = new AwkRecordProcessor(state);
         var actionEntered = false;
 
+        memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var exception = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
         {
             var record = AwkText.FromSourceLiteralString("new");
@@ -1303,48 +1209,12 @@ regexEngine: AwkUtf8RegexEngine.Instance));
     }
 
     [Fact]
-    public void Awk_TerminatorValueLimitPrecedesInputCounterMutation()
-    {
-        var state = AwkTestHarness.CreateRuntimeState(
-            AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(4)));
-        state.RecordNumber = 4;
-        state.FileRecordNumber = 3;
-        state.SetRecordTerminator(AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(",")));
-
-        var exception = Assert.Throws<AwkRuntimeException>(() => state.AdvanceMainInputRecord(
-            AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString("large"))));
-
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal(4, state.RecordNumber);
-        Assert.Equal(3, state.FileRecordNumber);
-        Assert.Equal(",", state.ResolveSpecialVariableText(AwkSpecialVariableId.RecordTerminator).AsString());
-    }
-
-    [Fact]
-    public void Awk_FileNameValueLimitPrecedesFileBoundaryRecordReset()
-    {
-        var state = AwkTestHarness.CreateRuntimeState(
-            AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            CreateOptions(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(4)));
-        state.SetCurrentRecord(AwkText.FromSourceLiteralString("keep"));
-        state.FileRecordNumber = 3;
-        state.AssignSpecialVariableValue(AwkSpecialVariableId.FileName, AwkValue.FromText("old"));
-
-        var exception = Assert.Throws<AwkRuntimeException>(() => state.BeginInputFile(
-            AwkText.FromSourceLiteralString("large"), new AwkArgvIndex(1)));
-
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-        Assert.Equal("keep", state.CurrentRecordByteText.AsString());
-        Assert.Equal(3, state.FileRecordNumber);
-        Assert.Equal("old", state.ResolveSpecialVariableText(AwkSpecialVariableId.FileName).AsString());
-    }
-
-    [Fact]
     public void Awk_SubstitutionFieldReferenceMemoryLimitFailsBeforeExtendingFields()
     {
         // Admit the original field's value-type buffer while rejecting 30 fields.
-        var state = CreateStateWithMemoryLimit(500);
+        using var memoryForState = CreateStateWithMemoryLimit(500);
+        // Admit the original field's value-type buffer while rejecting 30 fields.
+        var state = memoryForState.State;
         state.SetCurrentRecord(AwkText.FromString("a", state.Counters, state.MemoryAccounting));
         Assert.Equal(1, state.FieldCount);
 
@@ -1375,11 +1245,7 @@ regexEngine: AwkUtf8RegexEngine.Instance));
             TimeSpan.FromSeconds(AwkRuntimeLimits.DefaultRegexMatchTimeoutSeconds), AwkRegex.MatchTimeout);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxFunctionCallDepth, limits.MaxFunctionCallDepth);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth, limits.MaxSyntaxNestingDepth);
-        Assert.Equal(AwkRuntimeLimits.Unlimited, limits.MaxRecordBytes);
-        Assert.Equal(AwkRuntimeLimits.Unlimited, limits.MaxValueBytes);
-        Assert.Equal(AwkRuntimeLimits.Unlimited, limits.MaxOutputBytes);
         Assert.Equal(AwkRuntimeLimits.Unlimited, limits.MaxRegexCaptureBytes);
-        Assert.Equal(AwkRuntimeLimits.Unlimited, limits.MaxExecutionMemoryBytes);
     }
 
     [Fact]
@@ -1464,8 +1330,8 @@ regexEngine: AwkUtf8RegexEngine.Instance));
     [Fact]
     public void Awk_MemoryAccountingFailsBeforeMutatingState()
     {
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(10));
+        using var memoryForGovernor = new CooperativeTestMemory(10, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
 
         governor.Reserve(6);
         governor.CommitReserved(4);
@@ -1480,8 +1346,8 @@ regexEngine: AwkUtf8RegexEngine.Instance));
     [Fact]
     public void Awk_MemoryAccountingTracksReleaseCounters()
     {
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(16));
+        using var memoryForGovernor = new CooperativeTestMemory(16, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
 
         governor.Reserve(10);
         governor.CommitReserved(6);
@@ -1615,15 +1481,15 @@ regexEngine: AwkUtf8RegexEngine.Instance));
             limits,
             AwkRegexEngineKind.DotNetCompatibility);
 
-    private static AwkRuntimeState CreateStateWithMemoryLimit(int maxExecutionMemoryBytes) =>
-        AwkTestHarness.CreateRuntimeState(
+    private static CooperativeTestMemory CreateStateWithMemoryLimit(int maxExecutionMemoryBytes) {
+        var testMemory = new CooperativeTestMemory(maxExecutionMemoryBytes, enabled: (long)(maxExecutionMemoryBytes) != long.MaxValue);
+return        testMemory.Initialize(AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
-            new AwkRuntimeOptions(
+            testMemory.Configure(new AwkRuntimeOptions(
                 () => new AwkUnixTimestampSeconds(0),
                 TimeZoneInfo.Utc,
                 new AwkRandomGenerator(),
                 AwkRuntimeCounters.Disabled,
-                AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(maxExecutionMemoryBytes),
-                AwkRegexEngineKind.DotNetCompatibility));
-}
+                AwkRuntimeLimits.CreateDefault(),
+                AwkRegexEngineKind.DotNetCompatibility))));}}

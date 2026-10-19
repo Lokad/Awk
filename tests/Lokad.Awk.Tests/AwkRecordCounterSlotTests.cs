@@ -13,7 +13,8 @@ public sealed class AwkRecordCounterSlotTests
     [MemberData(nameof(CounterProfiles))]
     public void InputAdvancementRetainsLocalSpecialNamesAndRestoresGlobalAccess(int modeValue, bool fileCounter)
     {
-        var state = CreateState((AwkCompatibilityMode)modeValue, 1 << 20);
+        using var memoryForState = CreateState((AwkCompatibilityMode)modeValue, 1 << 20);
+        var state = memoryForState.State;
         var special = fileCounter ? AwkSpecialVariableId.FileRecordNumber : AwkSpecialVariableId.RecordNumber;
         var name = AwkSpecialVariables.VariableName(special);
         var global = state.GetOrCreateGlobalScalarSlot(name);
@@ -40,7 +41,8 @@ public sealed class AwkRecordCounterSlotTests
     [MemberData(nameof(CounterProfiles))]
     public void CounterReplacementPreflightsBeforeChangingTheSharedValue(int modeValue, bool fileCounter)
     {
-        var state = CreateState((AwkCompatibilityMode)modeValue, 128);
+        using var memoryForState = CreateState((AwkCompatibilityMode)modeValue, 128);
+        var state = memoryForState.State;
         var special = fileCounter ? AwkSpecialVariableId.FileRecordNumber : AwkSpecialVariableId.RecordNumber;
         var global = state.GetOrCreateGlobalScalarSlot(AwkSpecialVariables.VariableName(special));
         state.AssignSpecialVariableValue(special, AwkValue.FromNumber(7));
@@ -85,7 +87,8 @@ public sealed class AwkRecordCounterSlotTests
     [InlineData(AwkCompatibilityMode.Traditional)]
     internal void TerminatorUpdatesPreserveProfileAndLocalNameBehavior(AwkCompatibilityMode mode)
     {
-        var state = CreateState(mode, 1 << 20);
+        using var memoryForState = CreateState(mode, 1 << 20);
+        var state = memoryForState.State;
         var name = AwkSpecialVariables.VariableName(AwkSpecialVariableId.RecordTerminator);
         state.AssignVariableValue(name, AwkValue.FromText("seed"));
         var decodes = state.Counters.StringDecodes;
@@ -117,15 +120,17 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static AwkRuntimeState CreateState(AwkCompatibilityMode mode, long memory)
+    private static CooperativeTestMemory CreateState(AwkCompatibilityMode mode, long memory)
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(memory);
+
+        var testMemory = new CooperativeTestMemory(memory, enabled: true && (long)(memory) != long.MaxValue);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits,
             AwkRegexEngineKind.DotNetCompatibility);
-        return new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
+        return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
             new AwkRuntimeResourceMonitor(limits, counters, CancellationToken.None),
-            AwkCompatibilityProfile.Default.WithMode(mode));
+            AwkCompatibilityProfile.Default.WithMode(mode)));
     }
 }

@@ -75,7 +75,8 @@ public sealed class AwkFieldCancellationTests
     public void CanceledFieldWidthPreparationLeavesThePreviousPlanUntouched(bool estimate)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters);
+        using var memoryForGovernor = Governor(counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var cancel = CancelOnCheck(cancellation, 6);
@@ -125,7 +126,8 @@ public sealed class AwkFieldCancellationTests
         var separator = AwkFieldSeparatorSpec.FromText(scenario == "literal" ? "," : scenario == "characters" ? "" : " ");
         var text = AwkText.FromString(source);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters);
+        using var memoryForGovernor = Governor(counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var check = scenario switch
@@ -162,7 +164,8 @@ public sealed class AwkFieldCancellationTests
     public void SplitterCallersCheckBeforeHiddenMaterialization(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters);
+        using var memoryForGovernor = Governor(counters);
+        var governor = memoryForGovernor.Accounting;
         var source = AwkText.FromString(new string(operation == "widths" ? '0' : 'a', LongScan))
             .Concat(AwkText.FromString("1"), counters, governor);
         using var cancellation = new CancellationTokenSource();
@@ -189,7 +192,8 @@ public sealed class AwkFieldCancellationTests
     public void FieldWidthRuneTraversalAndParagraphScanningObserveCancellation(bool paragraph)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters);
+        using var memoryForGovernor = Governor(counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var cancel = CancelOnCheck(cancellation, 4);
@@ -213,7 +217,8 @@ public sealed class AwkFieldCancellationTests
     public void CanceledSplitPayloadSummationPreservesLazyFieldsMemoryAndPlan()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters);
+        using var memoryForGovernor = Governor(counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var cancel = CancelOnCheck(cancellation, 2);
@@ -240,7 +245,8 @@ public sealed class AwkFieldCancellationTests
     public void CanceledRecordCopyPreservesDirtyFieldsAndReleasesTransientMemory()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters);
+        using var memoryForGovernor = Governor(counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var cancel = CancelOnCheck(cancellation, 9);
@@ -262,7 +268,8 @@ public sealed class AwkFieldCancellationTests
     public void InterruptedFieldSliceCopyDoesNotPopulateTheValueCache()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters);
+        using var memoryForGovernor = Governor(counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var cancel = CancelOnCheck(cancellation, 4);
@@ -285,10 +292,10 @@ public sealed class AwkFieldCancellationTests
     }
 
     private static AwkFieldFrame Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
-        new(counters, governor, LongScan, _ => { }, value => value.ByteText, checkpoint);
+        new(counters, governor, LongScan, value => value.ByteText, checkpoint);
 
-    private static AwkMemoryAccounting Governor(AwkRuntimeCounters counters) =>
-        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), counters);
+    private static CooperativeTestMemory Governor(AwkRuntimeCounters counters) =>
+        new CooperativeTestMemory(8 << 20, counters);
 
     private static AwkFieldSplitter Splitter(Action checkpoint, AwkRuntimeCounters counters, AwkMemoryAccounting governor, AwkRuntimeResourceMonitor? resources = null)
     {

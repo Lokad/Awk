@@ -35,7 +35,8 @@ public sealed class AwkBorrowedMembershipTests
     public void AlternateCreationOwnsItsBytesAndChecksAdmissionBeforeCopying()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(128), counters);
+        using var memoryForAccounting = new CooperativeTestMemory(128, counters);
+        var accounting = memoryForAccounting.Accounting;
         IAlternateEqualityComparer<ReadOnlySpan<byte>, AwkArrayKey> comparer = AwkArrayKeyComparer.ForRuntime(null, counters, accounting);
         var bytes = "keep"u8.ToArray();
         var key = comparer.Create(bytes);
@@ -74,9 +75,9 @@ public sealed class AwkBorrowedMembershipTests
     public async Task MembershipDoesNotAddElementsOrChargesAndRetainedKeysSurviveRecordChanges(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = mode == 1 ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20) : AwkRuntimeLimits.CreateDefault();
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
             limits, AwkRegexEngineKind.DotNetCompatibility)
         { MemoryOwner = owner };

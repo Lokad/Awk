@@ -8,7 +8,8 @@ public sealed class AwkSynchronousPredicateTests
     public async Task LogicalFieldIndicesKeepBorrowedNumericReads(bool length)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters);
+        using var memoryForState = State(counters);
+        var state = memoryForState.State;
         var bytes = "2 needle"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
         var before = counters.AwkTextAllocations;
@@ -48,7 +49,8 @@ public sealed class AwkSynchronousPredicateTests
     [InlineData(true, true, 0)]
     public async Task SynchronousLogicalOperandsKeepShortCircuitOrder(bool or, bool left, int expectedEntries)
     {
-        var state = State(AwkRuntimeCounters.CreateEnabled());
+        using var memoryForState = State(AwkRuntimeCounters.CreateEnabled());
+        var state = memoryForState.State;
         var right = new EffectOperand();
         var first = AwkExpression.Number(left ? "1" : "0", left ? 1 : 0);
         var expression = or ? AwkExpression.LogicalOr(first, right) : AwkExpression.LogicalAnd(first, right);
@@ -60,7 +62,8 @@ public sealed class AwkSynchronousPredicateTests
     [Fact]
     public async Task PendingLogicalOperandUsesTheOriginalSingleEvaluationPath()
     {
-        var state = State(AwkRuntimeCounters.CreateEnabled());
+        using var memoryForState = State(AwkRuntimeCounters.CreateEnabled());
+        var state = memoryForState.State;
         var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var right = new PendingOperand(completion.Task);
         var expression = AwkExpression.LogicalAnd(AwkExpression.Number("1", 1), right);
@@ -85,7 +88,8 @@ public sealed class AwkSynchronousPredicateTests
     private static async Task<Result> Run(bool legacy, bool found)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters);
+        using var memoryForState = State(counters);
+        var state = memoryForState.State;
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(found ? "A 9" : "B 9"));
         AwkExpression Field(int index) => AwkExpression.FieldIndex(legacy ? new LegacyNumber(index) :
             AwkExpression.Number(index.ToString(System.Globalization.CultureInfo.InvariantCulture), index));
@@ -99,10 +103,12 @@ public sealed class AwkSynchronousPredicateTests
         return new(result, error, counters.SynchronousExpressionRuns, counters.FieldsMaterialized, counters.AwkTextAllocations, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static AwkRuntimeState State(AwkRuntimeCounters counters)
+    private static CooperativeTestMemory State(AwkRuntimeCounters counters)
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility));
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility))));
     }
     private sealed class LegacyNumber(int index) : AwkExpression
     {

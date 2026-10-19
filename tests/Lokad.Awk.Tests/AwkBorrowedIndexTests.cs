@@ -9,7 +9,7 @@ public sealed class AwkBorrowedIndexTests
     public async Task SearchDoesNotRetainFieldBytesOrPopulateValueCache(int mode)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using (var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None))
+        await using (var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None))
         {
             var state = State(mode, owner);
             var bytes = "id déjà-timeout"u8.ToArray();
@@ -75,7 +75,7 @@ public sealed class AwkBorrowedIndexTests
     public async Task ExistingFieldCapacityNeedsNoSearchAdmissionButUnparsedFieldsDo(int mode, bool parsed)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using (var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None))
+        await using (var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None))
         {
             var state = State(mode, owner);
             var record = AwkText.FromSourceLiteralString("id déjà-timeout");
@@ -98,23 +98,6 @@ public sealed class AwkBorrowedIndexTests
         Assert.Equal(0, budget.Reserved);
     }
 
-    [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public async Task ValueLimitsRejectRecordsAndNeedlesBeforeSearch(bool oversizedNeedle)
-    {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(7);
-        var state = State(0, AwkExecutionMemoryOwner.Disabled, limits: limits);
-        var expression = Call(AwkExpression.Literal(oversizedNeedle ? "résumé" : "x"));
-        var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-        {
-            state.SetCurrentRecord(AwkText.FromSourceLiteralString(oversizedNeedle ? "id abc" : "id résumé"));
-            await expression.EvaluateAsync(new(state));
-        });
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, state.Counters.BorrowedFieldIndexSearches);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
-
     [Fact]
     public async Task CancellationDoesNotStartSearch()
     {
@@ -134,12 +117,9 @@ public sealed class AwkBorrowedIndexTests
             [AwkExpression.FieldIndex(AwkExpression.Number("2", 2)), needle ?? AwkExpression.Literal("timeout")]);
     }
 
-    private static AwkRuntimeState State(int mode, AwkExecutionMemoryOwner owner,
-        CancellationToken token = default, bool bytes = false,
-        bool lint = false, bool regex = false, AwkRuntimeLimits? limits = null)
+    private static AwkRuntimeState State(int mode,AwkExecutionMemoryOwner owner,CancellationToken token = default,bool bytes = false,bool lint = false,bool regex = false,AwkRuntimeLimits? limits = null)
     {
         limits ??= AwkRuntimeLimits.CreateDefault();
-        if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(Limit);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility)
         { MemoryOwner = owner };

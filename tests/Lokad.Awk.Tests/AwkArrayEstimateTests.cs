@@ -46,25 +46,21 @@ public sealed class AwkArrayEstimateTests
         Assert.Equal(2 * (64 + 24) + key.RetainedTextMemoryBytes + text.EstimatedRetainedMemoryBytes,
             AwkVariables.EstimateArrayBytes(slots));
     }
-
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task ReplacementPreservesAdmissionAtomicityAndRefunds(bool sharedOnly, bool refuse)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReplacementPreservesAdmissionAtomicityAndRefunds(bool refuse)
     {
         var budget = new CooperativeTestBudget(8192);
-        await using var owner = AwkExecutionMemoryOwner.Create(sharedOnly ? budget : null, CancellationToken.None);
-        var limits = sharedOnly ? AwkRuntimeLimits.CreateDefault()
-            : AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8192);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(limits, counters, owner);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         var variables = new AwkVariables(2, 100, 100, accounting, counters,
             static text => AwkValue.FromText(text),
             static text => AwkValue.FromNumericString(text),
             static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal),
-            static (_, _) => { }, static _ => { });
+            static (_, _) => { });
         var name = AwkArrayName.FromText("a");
         var key = AwkArrayKey.FromOrdinal(1);
         variables.SetArrayValue(name, key, AwkValue.FromNumber(42));

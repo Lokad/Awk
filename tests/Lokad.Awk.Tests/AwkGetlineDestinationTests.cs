@@ -10,10 +10,11 @@ public sealed class AwkGetlineDestinationTests
     public async Task DestinationAdmissionFailurePrecedesOpeningTheInput(bool field, bool memory)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        limits = memory ? limits.WithMaxExecutionMemoryBytes(500) :
+        limits = memory ? limits :
             field ? limits.WithMaxFields(2) : limits.WithMaxArrayElements(1);
         var options = CreateOptions(limits, AwkRuntimeCounters.Disabled);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        using var ownedMemory = new CooperativeTestMemory(1 << 20);
+        var state = ownedMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, ownedMemory.Configure(options))).State;
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed"));
         Assert.Equal(1, state.FieldCount);
         var array = new AwkArrayName(AwkVariableName.FromText("a").Identifier);
@@ -29,6 +30,7 @@ public sealed class AwkGetlineDestinationTests
         var context = new AwkEvaluationContext(state, output, io);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
 
+        if (memory) ownedMemory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(() => AwkGetlineRuntime.ExecuteAsync(
             AwkGetlineTarget.ReferenceTarget(reference),
             AwkGetlineSource.Redirection(AwkExpression.Literal("data")),

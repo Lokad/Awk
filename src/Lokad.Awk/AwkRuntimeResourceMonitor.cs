@@ -8,8 +8,6 @@ internal sealed class AwkRuntimeResourceMonitor
     private readonly AwkRuntimeLimits _limits;
     private readonly AwkRuntimeCounters _counters;
     private readonly CancellationToken _cancellationToken;
-    private long _outputBytes;
-    private long _inputBytes;
     private long _sourceBytes;
     private long _expandedSourceBytes;
     private int _includeFiles;
@@ -52,15 +50,6 @@ internal sealed class AwkRuntimeResourceMonitor
 
     public void RecordInputBytes(long byteCount)
     {
-        if (byteCount > 0 && _limits.MaxInputBytes != AwkRuntimeLimits.Unlimited)
-        {
-            var next = AwkRuntimeMemory.CheckedAdd(_inputBytes, byteCount);
-            if (next > _limits.MaxInputBytes)
-                throw new AwkRuntimeException(AwkMessages.ErrorInputByteLimit, AwkDiagnosticId.RuntimeResourceLimit);
-
-            _inputBytes = next;
-        }
-
         _counters.RecordBytesRead(byteCount);
     }
 
@@ -74,15 +63,6 @@ internal sealed class AwkRuntimeResourceMonitor
     {
         if (byteCount <= 0)
             return;
-
-        if (_limits.MaxOutputBytes != AwkRuntimeLimits.Unlimited)
-        {
-            var next = AwkRuntimeMemory.CheckedAdd(_outputBytes, byteCount);
-            if (next > _limits.MaxOutputBytes)
-                throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-
-            _outputBytes = next;
-        }
 
         _counters.RecordOutputBytes(byteCount);
     }
@@ -144,16 +124,5 @@ internal sealed class AwkRuntimeResourceMonitor
         _includeFiles = next;
     }
 
-    public void ThrowIfRecordBytesExceeded(long byteCount) =>
-        ThrowIfExceeded(byteCount, _limits.MaxRecordBytes);
-
-    public void ThrowIfValueBytesExceeded(long byteCount) =>
-        ThrowIfExceeded(byteCount, _limits.MaxValueBytes);
-
-    private static void ThrowIfExceeded(long byteCount, long limit)
-    {
-        if (limit != AwkRuntimeLimits.Unlimited && byteCount > limit)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-    }
 
 }

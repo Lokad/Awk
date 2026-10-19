@@ -1,9 +1,9 @@
 # Runtime resource control
 
 The intended ownership is simple: the host's shared governor admits memory, and the caller's
-cancellation controls how long work may continue. `IAwkHost` controls effects. The released
-0.3.0 API still has additional byte quotas and timeout settings; their removal is planned,
-not implemented by this documentation update. See the [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs)
+cancellation controls how long work may continue. `IAwkHost` controls effects. This branch has removed duplicate execution-memory, record/value-size and cumulative I/O
+quotas for the next release. Released 0.3.0 still has those settings. Other storage caps and
+separate timeout settings remain pending cleanup. See the [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs)
 for the current API and [migration notes](../CHANGELOG.md#030---2026-10-19) for changes already shipped.
 
 ## Shared memory admission
@@ -50,17 +50,17 @@ see [regex engines](REGEX.md#cooperative-cancellation). Awk-owned POSIX matching
 cancellation. The default .NET backend cannot poll that token internally and currently
 uses a fixed match timeout; that backend limitation is separate from adapter policy.
 
-## Remaining protections and planned deletion
+## Remaining protections
 
 Managed recursion/syntax-depth protection, strict UTF-8, host authorization, mutation
 preflights, representable allocation sizes, open-resource bounds and bounded streaming/caches
 remain necessary. There are no fuel, host-call, record-count, regex-work or sorting-work quotas.
 
-The next simplification removes `MaxExecutionMemoryBytes`, `MaxRecordBytes`, `MaxValueBytes`,
-`MaxInputBytes` and `MaxOutputBytes`, their setters and enforcement. Their storage concerns
+Removed for the next release: `MaxExecutionMemoryBytes`, `MaxRecordBytes`, `MaxValueBytes`,
+`MaxInputBytes`, `MaxOutputBytes`, their setters and enforcement. Their storage concerns
 belong to shared admission; cumulative I/O is not a memory charge. With no supplied budget,
 Awk must not silently invent a governor. Hosts using the restricted preset must supply the
-shared budget and cancellation needed for their workload when these legacy controls are removed.
+shared budget and cancellation needed for their workload when upgrading from 0.3.0.
 
 See [host containment](SECURITY.md), [UTF-8 policy](UTF8_POLICY.md) and
 [record semantics](RECORD_SEMANTICS.md) for the independent guarantees.

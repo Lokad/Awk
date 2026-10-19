@@ -15,7 +15,8 @@ public sealed class AwkFieldMutationCancellationTests
     public void CanceledGrowthPreservesFieldsCountValueRecordAndMemory(string operation, int target)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters);
+        using var memoryForGovernor = Governor(counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var executionToken = cancellation.Token;
         var armed = false;
@@ -67,7 +68,8 @@ public sealed class AwkFieldMutationCancellationTests
     {
         const int retained = 8_193;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters);
+        using var memoryForGovernor = Governor(counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var checks = 0;
@@ -123,7 +125,8 @@ public sealed class AwkFieldMutationCancellationTests
     public void BoundedMutationChecksBeforeChangingLiveState(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters);
+        using var memoryForGovernor = Governor(counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var frame = Frame(counters, governor, cancellation.Token.ThrowIfCancellationRequested);
         Initialize(frame, 2);
@@ -150,7 +153,8 @@ public sealed class AwkFieldMutationCancellationTests
         var budget = AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.EstimateFieldTextListBytes(ManyFields),
             2 * AwkRuntimeMemory.EstimateTextBytes(record) + 1_024);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters, budget);
+        using var memoryForGovernor = Governor(counters, budget);
+        var governor = memoryForGovernor.Accounting;
         var frame = Frame(counters, governor, () => { });
         Initialize(frame, original);
         var committed = governor.CurrentCommittedBytes;
@@ -174,7 +178,8 @@ public sealed class AwkFieldMutationCancellationTests
     public void SuccessfulGrowthTransfersTheStagingChargeExactlyOnce(string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = Governor(counters);
+        using var memoryForGovernor = Governor(counters);
+        var governor = memoryForGovernor.Accounting;
         var frame = Frame(counters, governor, () => { });
         Initialize(frame, 2);
         var committed = governor.CurrentCommittedBytes;
@@ -218,9 +223,9 @@ public sealed class AwkFieldMutationCancellationTests
     private static List<AwkFieldText> AlreadySplit(AwkText _) => throw new InvalidOperationException("Already split.");
 
     private static AwkFieldFrame Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
-        new(counters, governor, ManyFields * 2, _ => { }, value => value.ByteText, checkpoint);
+        new(counters, governor, ManyFields * 2, value => value.ByteText, checkpoint);
 
-    private static AwkMemoryAccounting Governor(AwkRuntimeCounters counters, long budget = 8 << 20) =>
-        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(budget), counters);
+    private static CooperativeTestMemory Governor(AwkRuntimeCounters counters, long budget = 8 << 20) =>
+        new CooperativeTestMemory(budget, counters);
 
 }

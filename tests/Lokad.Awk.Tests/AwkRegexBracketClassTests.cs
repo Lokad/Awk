@@ -14,7 +14,7 @@ public sealed class AwkRegexBracketClassTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var governor = AwkMemoryAccounting.Disabled;
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             static () => { }, counters, engine, new AwkRuntimeResourceMonitor(limits, counters), governor, mode, regexEngine: AwkUtf8RegexEngine.Instance);
         for (var run = 0; run < 2; run++)
@@ -62,7 +62,8 @@ public sealed class AwkRegexBracketClassTests
     [InlineData(true)]
     public void OrdinaryClassesNeedNoScopeStorage(bool invalid)
     {
-        var governor = Governor(1);
+        using var memoryForGovernor = Governor(1);
+        var governor = memoryForGovernor.Accounting;
         using var lease = governor.CreateTransientLease();
         if (invalid)
             Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate("[[:absent:]]", lease: lease));
@@ -77,13 +78,15 @@ public sealed class AwkRegexBracketClassTests
     {
         var pattern = "(?x)(a)[[:" + (invalid ? "absent" : "digit") + ":]]";
         var bytes = AwkRuntimeMemory.EstimateRegexBracketModeArrayBytes((pattern.Length + 7) / 8);
-        var shortGovernor = Governor(bytes - 1);
+        using var memoryForShortGovernor = Governor(bytes - 1);
+        var shortGovernor = memoryForShortGovernor.Accounting;
         using (var lease = shortGovernor.CreateTransientLease())
         {
             var failure = Assert.Throws<AwkRuntimeException>(() => AwkRegexBracketClasses.Validate(pattern, lease: lease));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         }
-        var governor = Governor(bytes + 11);
+        using var memoryForGovernor = Governor(bytes + 11);
+        var governor = memoryForGovernor.Accounting;
         using var retained = governor.ReserveTransient(11);
         if (invalid)
             Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate(pattern, lease: retained));
@@ -98,7 +101,8 @@ public sealed class AwkRegexBracketClassTests
     [InlineData(true)]
     public void CancellationAfterScopeAdmissionReleasesOnlyScopeStorage(bool afterAllocation)
     {
-        var governor = Governor(4096);
+        using var memoryForGovernor = Governor(4096);
+        var governor = memoryForGovernor.Accounting;
         using var retained = governor.ReserveTransient(11);
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
@@ -165,6 +169,6 @@ public sealed class AwkRegexBracketClassTests
         Assert.Equal(2, counters.RegexCompiles);
     }
 
-    private static AwkMemoryAccounting Governor(long bytes) =>
-        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
+    private static CooperativeTestMemory Governor(long bytes) =>
+        new CooperativeTestMemory(bytes, AwkRuntimeCounters.Disabled);
 }

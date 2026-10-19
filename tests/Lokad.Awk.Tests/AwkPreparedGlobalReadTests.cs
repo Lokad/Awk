@@ -20,7 +20,9 @@ public sealed class AwkPreparedGlobalReadTests
     [Fact]
     public void SlotVectorIsAdmittedWithoutCreatingScalarsAndFirstReadStaysLazy()
     {
-        var (state, counters) = State(CancellationToken.None);
+        using var memory = State(CancellationToken.None);
+        var state = memory.State;
+        var counters = state.Counters;
         var name = AwkVariableName.FromText("missing");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.Equal(4, Unsafe.SizeOf<int>());
@@ -43,7 +45,8 @@ public sealed class AwkPreparedGlobalReadTests
     public void FailedVectorAdmissionPublishesNothing()
     {
         const int limit = 1 << 20;
-        var (state, _) = State(CancellationToken.None);
+        using var memory = State(CancellationToken.None);
+        var state = memory.State;
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         using (var pressure = state.MemoryAccounting.ReserveTransient(limit - before))
         {
@@ -60,7 +63,8 @@ public sealed class AwkPreparedGlobalReadTests
     public void CanceledVectorPreparationDoesNotChargeOrPublish()
     {
         using var cancellation = new CancellationTokenSource();
-        var (state, _) = State(cancellation.Token);
+        using var memory = State(cancellation.Token);
+        var state = memory.State;
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
         Assert.Throws<OperationCanceledException>(() => state.InitializeGlobalReadSlots(3));
@@ -71,7 +75,8 @@ public sealed class AwkPreparedGlobalReadTests
     [Fact]
     public void ArrayReadFailureDoesNotCacheAReplacementScalar()
     {
-        var (state, _) = State(CancellationToken.None);
+        using var memory = State(CancellationToken.None);
+        var state = memory.State;
         var name = AwkVariableName.FromText("values");
         var array = new AwkArrayName(name.Identifier);
         state.SetArrayString(array, AwkArrayKey.FromOrdinal(1), "kept");
@@ -118,12 +123,13 @@ public sealed class AwkPreparedGlobalReadTests
         await RunAsync("y 7\nx 9\n", "9 9 7\n", false);
     }
 
-    private static (AwkRuntimeState State, AwkRuntimeCounters Counters) State(CancellationToken token)
+    private static CooperativeTestMemory State(CancellationToken token)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.DotNetCompatibility);
-        return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options), counters);
+        var memory = new CooperativeTestMemory(1 << 20, counters);
+        return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, memory.Configure(options)));
     }
 }

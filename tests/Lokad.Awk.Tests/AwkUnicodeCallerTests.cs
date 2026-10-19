@@ -44,7 +44,7 @@ public sealed class AwkUnicodeCallerTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task OptionWarningAdmissionPrecedesSourceAndInputIo(bool compiledEntry)
+    public async Task AdmissionFailurePreservesOptionWarningsWithoutInputIo(bool compiledEntry)
     {
         var source = new MockFileSystem();
         source.AddFile("/caller.awk", "{print}");
@@ -53,13 +53,13 @@ public sealed class AwkUnicodeCallerTests
         var host = new MockFileSystem();
         host.AddFile("/caller.awk", "{print}");
         host.AddFile("/data", "unread\n");
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxOutputBytes(AwkUtf8Codec.Encode(Warning).Length - 1);
-        var options = Options(false, limits);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var options = Options(false, limits) with { MemoryBudget = new CooperativeTestBudget(0) };
         var exit = compiledEntry ? await compiled.ExecuteAsync(host, CancellationToken.None, options)
             : await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), CancellationToken.None, options);
         Assert.Equal(AwkExitCode.FatalError, exit);
         Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: memory limit exceeded\n",
+        Assert.Equal("awk: warning: no hex digits in `\\u' escape sequence\nawk: memory limit exceeded\n",
             host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.ReadOpenCount);
         Assert.Equal(0, host.OpenFileCount);
@@ -123,39 +123,18 @@ public sealed class AwkUnicodeCallerTests
     [InlineData(true)]
     public void OperandDecodeBufferPreflightsBeforeReplacingTheVariable(bool counters)
     {
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            Options(false, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters));
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
+            memory.Configure(Options(false, AwkRuntimeLimits.CreateDefault(), counters)))).State;
         var name = AwkIdentifier.FromTrustedName("v");
         state.AssignVariableFromExternalText(name, "keep");
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var assignment = AwkVariableAssignment.InputArgument(name, @"\u0041" + new string('a', 1 << 18));
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.AssignVariableFromExternalText(assignment));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal("keep", state.FormatStringByteText(state.ResolveVariableValue(new AwkVariableName(name))).AsString(state.Counters));
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
-
-    [Theory]
-    [InlineData(4, false)]
-    [InlineData(4, true)]
-    public void OperandValueLimitMeasuresTheDecodedUtf8Scalar(int limit, bool counters)
-    {
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            Options(false, AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(limit), counters));
-        var name = AwkIdentifier.FromTrustedName("v");
-        state.AssignVariableFromExternalText(name, "old");
-        var assignment = AwkVariableAssignment.InputArgument(name, @"\u1f600");
-        if (limit == 3)
-        {
-            Assert.Throws<AwkRuntimeException>(() => state.AssignVariableFromExternalText(assignment));
-            Assert.Equal("old", state.FormatStringByteText(state.ResolveVariableValue(new AwkVariableName(name))).AsString(state.Counters));
-        }
-        else
-        {
-            state.AssignVariableFromExternalText(assignment);
-            Assert.Equal("\U0001f600", state.FormatStringByteText(state.ResolveVariableValue(new AwkVariableName(name))).AsString(state.Counters));
-        }
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 

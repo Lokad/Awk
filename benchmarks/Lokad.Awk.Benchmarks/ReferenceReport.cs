@@ -126,12 +126,8 @@ internal static class ReferenceReport
         {
             Preset = "AwkExecutionPolicy.CreateDefault; interpreter; DotNetCompatibility; TimeZone=UTC",
             limits.MaxFunctionCallDepth,
-            limits.MaxExecutionMemoryBytes,
             limits.MaxArrayElements,
             limits.MaxFields,
-            limits.MaxInputBytes,
-            limits.MaxOutputBytes,
-            limits.MaxRecordBytes,
             InvocationTimeoutSeconds = ReferenceExecution.InvocationTimeout.TotalSeconds,
             DriverOutputBytes = 64L << 20,
             DriverErrorBytes = 64 << 10

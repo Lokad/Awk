@@ -8,7 +8,8 @@ public sealed class AwkIgnoreCaseSlotTests
     [InlineData(2)]
     public void ReadsFollowAssignmentsAndLocalFrames(int modeValue)
     {
-        var state=State((AwkCompatibilityMode)modeValue);
+        using var memoryForState = State((AwkCompatibilityMode)modeValue);
+        var state=memoryForState.State;
         var name=AwkSpecialVariables.VariableName(AwkSpecialVariableId.IgnoreCase);
         state.AssignSpecialVariableValue(AwkSpecialVariableId.IgnoreCase,AwkValue.FromNumber(1));
         var global=state.GetOrCreateGlobalScalarSlot(name);
@@ -38,17 +39,20 @@ public sealed class AwkIgnoreCaseSlotTests
     [InlineData(2)]
     public void NonGnuConstructionDoesNotAdmitIgnoreCase(int modeValue)
     {
-        var state=State((AwkCompatibilityMode)modeValue);
+        using var memoryForState = State((AwkCompatibilityMode)modeValue);
+        var state=memoryForState.State;
         Assert.False(state.HasScalar(AwkSpecialVariables.VariableName(AwkSpecialVariableId.IgnoreCase)));
     }
 
-    private static AwkRuntimeState State(AwkCompatibilityMode mode)
+    private static CooperativeTestMemory State(AwkCompatibilityMode mode)
     {
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, limits, AwkRegexEngineKind.DotNetCompatibility);
-        return new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
-            new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default.WithMode(mode));
+        return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
+            new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default.WithMode(mode)));
     }
 }

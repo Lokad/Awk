@@ -8,7 +8,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [InlineData(false, 4)] [InlineData(true, 4)]
     public async Task SmallOwnedPrintUsesAdmittedOutputWithoutStagingHeadroom(bool observed, int count)
     {
-        var state = State(observed, "default");
+        using var memoryForState = State(observed, "default");
+        var state = memoryForState.State;
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("prior:"));
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - state.MemoryAccounting.CurrentCommittedBytes);
@@ -26,7 +27,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [InlineData(false)] [InlineData(true)]
     public async Task SmallPrintGrowthRefusalKeepsEarlierOutput(bool observed)
     {
-        var state = State(observed, "default");
+        using var memoryForState = State(observed, "default");
+        var state = memoryForState.State;
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         var earlier = new string('p', 60_000);
         output.Append(AwkText.FromSourceLiteralString(earlier));
@@ -49,7 +51,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     public async Task SmallPrintWaitsForEachOperandOnceBeforePublishing(int pendingIndex, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
-        var state = State(true, "default", cancellation.Token);
+        using var memoryForState = State(true, "default", cancellation.Token);
+        var state = memoryForState.State;
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         var io = Io(state, new MockFileSystem(), cancellation.Token);
         var before = state.MemoryAccounting.CurrentCommittedBytes;

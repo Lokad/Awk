@@ -14,7 +14,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     public void LiteralPreparationRejectsUnadmittedOutputAndAllowsRetry(bool utf8, string shape)
     {
         var text = shape == "large" ? new string('.', 8192) : shape;
-        var governor = Governor(1);
+        using var memoryForGovernor = Governor(1);
+        var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = Runtime(utf8, governor, counters);
         for (var attempt = 0; attempt < 2; attempt++)
@@ -25,7 +26,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
             Assert.Equal(0, governor.CurrentReservedBytes);
             Assert.Equal(0, counters.RegexCompiles);
         }
-        var admitted = Governor(1 << 24);
+        using var memoryForAdmitted = Governor(1 << 24);
+        var admitted = memoryForAdmitted.Accounting;
         var retry = Runtime(utf8, admitted, counters);
         var regex = retry.CreateLiteral(new AwkRegexLiteralText(text));
         Assert.Same(regex, retry.CreateLiteral(new AwkRegexLiteralText(text)));
@@ -38,7 +40,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     public void WarningHistoryGrowthCancelsDuringCopyBeforeReportingAndPreservesOldEntries()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 24), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         var armed = false;
@@ -95,7 +98,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         var expected = System.Text.RegularExpressions.Regex.Escape(text);
         var bytes = ReferenceEquals(text, expected) ? 0 : 24L + 2L * expected.Length;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 24), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+        var governor = memoryForGovernor.Accounting;
         using (var resultText = governor.CreateTransientLease())
         {
             var actual = AwkRegexConstruction.EscapeLiteral(text, () => { }, governor, resultText);
@@ -108,12 +112,14 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         var peak = counters.MemoryPeakLiveBytes;
         // A uniform twice-input bound would reject this valid exact-budget literal.
         if (shape == "sparse") Assert.Equal(34, peak);
-        var exact = Governor(Math.Max(1, peak));
+        using var memoryForExact = Governor(Math.Max(1, peak));
+        var exact = memoryForExact.Accounting;
         using (var resultText = exact.CreateTransientLease())
             Assert.Equal(expected, AwkRegexConstruction.EscapeLiteral(text, () => { }, exact, resultText));
         Assert.Equal(0, exact.CurrentCommittedBytes);
         if (peak == 0) return;
-        var shortGovernor = Governor(peak - 1);
+        using var memoryForShortGovernor = Governor(peak - 1);
+        var shortGovernor = memoryForShortGovernor.Accounting;
         using var rejected = shortGovernor.CreateTransientLease();
         var error = Assert.Throws<AwkRuntimeException>(() =>
             AwkRegexConstruction.EscapeLiteral(text, () => { }, shortGovernor, rejected));
@@ -128,7 +134,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     public void LiteralCacheCancellationReleasesAdmissionWithoutPublishing(bool utf8)
     {
         const long bytes = 28; // Regex.Escape(".") returns two UTF-16 units.
-        var probeGovernor = Governor(1 << 20);
+        using var memoryForProbeGovernor = Governor(1 << 20);
+        var probeGovernor = memoryForProbeGovernor.Accounting;
         var heldChecks = 0;
         _ = Runtime(utf8, probeGovernor, AwkRuntimeCounters.Disabled, () =>
         {
@@ -136,7 +143,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         }).CreateLiteral(new AwkRegexLiteralText("."));
         Assert.True(heldChecks > 0);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = true;
         var checks = 0;
@@ -165,7 +173,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         var text = new string('.', 8192);
         var bytes = 24L + 4L * text.Length;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 24), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         using (var resultText = governor.CreateTransientLease())
@@ -194,11 +203,13 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         var sites = Enumerable.Range(0, 4).Select(_ => new object()).ToArray();
         var target = new object();
         var probeCounters = AwkRuntimeCounters.CreateEnabled();
-        var probeGovernor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), probeCounters);
+        using var memoryForProbeGovernor = new CooperativeTestMemory(1 << 20, probeCounters);
+        var probeGovernor = memoryForProbeGovernor.Accounting;
         var probe = new AwkRegexUnicodeWarnings(probeGovernor, AwkCompatibilityMode.GnuDefault, _ => { }, () => { });
         foreach (var site in sites.Append(target))
             probe.Report(new AwkRegexPattern(@"\u", warningSite: site), AwkRegexCaseSensitivity.CaseSensitive);
-        var governor = Governor(probeCounters.MemoryPeakLiveBytes - 1);
+        using var memoryForGovernor = Governor(probeCounters.MemoryPeakLiveBytes - 1);
+        var governor = memoryForGovernor.Accounting;
         var reports = 0;
         var history = new AwkRegexUnicodeWarnings(governor, AwkCompatibilityMode.GnuDefault, _ => reports++, () => { });
         foreach (var site in sites)
@@ -227,7 +238,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     [InlineData(2)]
     public void WarningProfileHistoryRetainsCaseAndResetContracts(int profile)
     {
-        var governor = Governor(1 << 20);
+        using var memoryForGovernor = Governor(1 << 20);
+        var governor = memoryForGovernor.Accounting;
         var reports = 0;
         var history = new AwkRegexUnicodeWarnings(governor, (AwkCompatibilityMode)profile, _ => reports++, () => { });
         var site = new object();
@@ -252,8 +264,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         Assert.Equal(0, governor.CurrentReservedBytes);
     }
 
-    private static AwkMemoryAccounting Governor(long bytes) =>
-        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
+    private static CooperativeTestMemory Governor(long bytes) =>
+        new CooperativeTestMemory(bytes, AwkRuntimeCounters.Disabled);
 
     private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryAccounting governor, AwkRuntimeCounters counters,
         Action? checkpoint = null) =>

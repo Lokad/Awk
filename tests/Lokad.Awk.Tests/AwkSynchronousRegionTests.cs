@@ -75,7 +75,8 @@ public sealed partial class AwkSynchronousRegionTests
     public async Task PendingBodyIsNotReplayedOrPublishedEarly(bool whileLoop)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters);
+        using var memoryForState = State(counters);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -120,7 +121,8 @@ public sealed partial class AwkSynchronousRegionTests
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, cancellation.Token);
+        using var memoryForState = State(counters, cancellation.Token);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), AwkExpression.Number("9", 9));
@@ -184,7 +186,8 @@ public sealed partial class AwkSynchronousRegionTests
     public async Task PendingConditionalBodyKeepsContextUntilItsActualCompletion(bool cancel)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters);
+        using var memoryForState = State(counters);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -251,7 +254,8 @@ public sealed partial class AwkSynchronousRegionTests
     private static async Task<ConditionalResult> RunConditional(bool forceLegacy, int boundary = 0, bool failMemory = false)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, lint: boundary == 1);
+        using var memoryForState = State(counters, lint: boundary == 1);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         var indexName = AwkVariableName.FromText("i");
         state.AssignVariableValue(name, AwkValue.FromNumber(0));
@@ -295,7 +299,8 @@ public sealed partial class AwkSynchronousRegionTests
     private static async Task<Result> RunLoop(bool forceLegacy, bool pendingOutput, bool whileLoop = false, bool lint = false, bool failMemory = false, bool doWhileLoop = false)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, lint: lint);
+        using var memoryForState = State(counters, lint: lint);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var value = AwkExpression.Modulo(AwkExpression.Add(AwkExpression.Multiply(
@@ -356,14 +361,16 @@ public sealed partial class AwkSynchronousRegionTests
             AwkStatement.PostIncrement(reference), [body]);
     }
 
-    private static AwkRuntimeState State(AwkRuntimeCounters counters, CancellationToken token = default, bool lint = false)
+    private static CooperativeTestMemory State(AwkRuntimeCounters counters, CancellationToken token = default, bool lint = false)
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
-        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, token, options, new AwkRuntimeResourceMonitor(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint ? AwkLintMode.Normal : AwkLintMode.Off));
+        var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, token, testMemory.Configure(options), new AwkRuntimeResourceMonitor(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint ? AwkLintMode.Normal : AwkLintMode.Off));
         state.InitializeGlobalReadSlots(2);
         state.AssignVariableValue(AwkVariableName.FromText("i"), AwkValue.FromNumber(0));
-        return state;
+        return testMemory.Initialize(() => state);
     }
 
     private static AwkIo Io(AwkRuntimeState state, MockFileSystem host, AwkRuntimeCounters counters) =>

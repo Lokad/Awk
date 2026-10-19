@@ -7,7 +7,7 @@ public sealed class AwkFieldLoopRegionTests
     [Fact]
     public async Task CompleteFieldLoopPreservesState()
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(2 << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var prepared = await RunAsync(false, limits);
         var ordinary = await RunAsync(true, limits);
         Assert.Equal(ordinary, prepared with { Loops = 0 });
@@ -20,10 +20,10 @@ public sealed class AwkFieldLoopRegionTests
     }
 
     [Theory]
-    [InlineData("fields")] [InlineData("memory")] [InlineData("unicode")]
+    [InlineData("fields")]  [InlineData("unicode")]
     public async Task FieldAdmissionAndUnicodeMatchOrdinaryExecution(string mode)
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(mode == "memory" ? 64 << 10 : 2 << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         if (mode == "fields") limits = limits.WithMaxFields(1);
         var record = mode == "memory" ? string.Join(' ', Enumerable.Repeat(new string('x', 4096), 3)) : "é xyz aa";
         var prepared = await RunAsync(false, limits, record);
@@ -36,7 +36,7 @@ public sealed class AwkFieldLoopRegionTests
     [InlineData("pending")] [InlineData("lint")]
     public async Task OutputAndLintRetainOrdinaryLoopBoundaries(string mode)
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(2 << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         Assert.Equal(await RunAsync(true, limits, boundary: mode), await RunAsync(false, limits, boundary: mode));
     }
 

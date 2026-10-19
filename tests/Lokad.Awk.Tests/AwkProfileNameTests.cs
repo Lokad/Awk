@@ -51,8 +51,10 @@ public sealed class AwkProfileNameTests
     public void DisabledSpecialArrayNamesRetainOrdinaryMemoryAndElementLimits(int modeValue, string text)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20).WithMaxArrayElements(1);
-        var state = State((AwkCompatibilityMode)modeValue, counters, limits);
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1);
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
+        var state = memory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options), new(limits, counters), AwkCompatibilityProfile.Default.WithMode((AwkCompatibilityMode)modeValue))).State;
         var name = AwkArrayName.FromText(text);
         var key = AwkArrayKey.FromOrdinal(1);
         var before = state.MemoryAccounting.CurrentCommittedBytes;

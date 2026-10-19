@@ -10,24 +10,6 @@ public sealed partial class AwkFieldProjectionTests
     }
 
     [Theory]
-    [InlineData("fields")] [InlineData("builder")] [InlineData("value")]
-    public async Task FieldListPrintKeepsQuotaFailureBeforeOutput(string quota)
-    {
-        var limits = quota switch
-        {
-            "fields" => AwkRuntimeLimits.CreateDefault().WithMaxFields(2),
-            "builder" => AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(8),
-            _ => AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(3)
-        };
-        var borrowed = await RunPrintAsync(false, limits);
-        Assert.Equal(await RunPrintAsync(true, limits), borrowed);
-        Assert.Equal(2, borrowed.Exit);
-        Assert.Equal("", borrowed.Output);
-        Assert.DoesNotContain("Exception", borrowed.Error);
-        Assert.Contains("limit exceeded", borrowed.Error);
-    }
-
-    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task FieldListPrintCopiesBeforeTheRecordBorrowCanChange(bool finite)
     {

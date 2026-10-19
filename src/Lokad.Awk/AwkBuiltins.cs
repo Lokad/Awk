@@ -581,11 +581,7 @@ internal static partial class AwkBuiltins
                 : context.State.TimeZone;
             try
             {
-                var maxOutputLength = context.State.Limits.MaxValueBytes == AwkRuntimeLimits.Unlimited
-                    ? context.State.Limits.MaxBuilderBytes
-                    : (int)Math.Min(
-                        context.State.Limits.MaxValueBytes,
-                        context.State.Limits.MaxBuilderBytes);
+                var maxOutputLength = context.State.Limits.MaxBuilderBytes;
                 return context.State.CreateStringValue(
                     FormatTime(format, timestamp, timeZone, maxOutputLength));
             }

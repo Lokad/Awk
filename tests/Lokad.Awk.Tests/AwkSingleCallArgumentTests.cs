@@ -5,7 +5,8 @@ public sealed class AwkSingleCallArgumentTests
     [Fact]
     public async Task PendingArgumentRunsInCallerAndCallerFrameIsRestored()
     {
-        var state = State(10);
+        using var memoryForState = State(10);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         var layout = new AwkFunctionLocalLayout([name]);
         var function = new AwkUserFunction(AwkFunctionName.FromText("inner"), layout, []);
@@ -42,7 +43,8 @@ public sealed class AwkSingleCallArgumentTests
     [Fact]
     public async Task FrameDepthRefusalOccursAfterArgumentWithoutMutatingCaller()
     {
-        var state = State(1);
+        using var memoryForState = State(1);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         var layout = new AwkFunctionLocalLayout([name]);
         var function = new AwkUserFunction(AwkFunctionName.FromText("inner"), layout, []);
@@ -78,12 +80,13 @@ public sealed class AwkSingleCallArgumentTests
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => evaluate(context);
     }
 
-    private static AwkRuntimeState State(int depth)
+    private static CooperativeTestMemory State(int depth)
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(depth)
-            .WithMaxExecutionMemoryBytes(1 << 20);
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(depth);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility);
-        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options)));
     }
 }

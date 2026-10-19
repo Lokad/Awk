@@ -76,7 +76,7 @@ bool utf8, bool readFailure)
             var appends = 0;
             host.AfterAppend = () => appends++;
             var counters = enabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-            var limits = AwkRuntimeLimits.CreateDefault().WithMaxOutputBytes(1);
+            var limits = AwkRuntimeLimits.CreateDefault();
             var options = Options(utf8, counters, limits);
 
             var exit = await ExecuteAsync(host, "BEGIN{code=(getline v<\"data\");exit(code!=-1)}", options);

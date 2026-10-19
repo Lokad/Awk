@@ -129,19 +129,6 @@ public sealed class AwkPreparedArrayKindTests
         Assert.Equal(3, state.ResolveVariableValue(Variable).AsNumber());
     }
 
-    [Fact]
-    public void FailedValueReadDoesNotPublishBinding()
-    {
-        var state = State(limits: AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(3));
-        state.SetArrayAwkValue(Array, Key, AwkValue.FromNumericString("12345"));
-        var retained = state.MemoryAccounting.CurrentCommittedBytes;
-        var error = Assert.Throws<AwkRuntimeException>(() => state.GetArrayAwkValue(Array, Key, 0));
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.False(state.TryUseBoundGlobalArray(0));
-        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
-
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -194,7 +181,7 @@ public sealed class AwkPreparedArrayKindTests
 
     private static AwkRuntimeOptions Options(AwkRuntimeLimits? limits = null) =>
         new(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            (limits ?? AwkRuntimeLimits.CreateDefault()).WithMaxExecutionMemoryBytes(1 << 20),
+            (limits ?? AwkRuntimeLimits.CreateDefault()),
             AwkRegexEngineKind.DotNetCompatibility);
 
     private static AwkRuntimeState State(bool slots = true, AwkRuntimeLimits? limits = null)

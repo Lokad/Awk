@@ -12,7 +12,8 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
     [InlineData(true)]
     public void SeparatorChangesAndOptionalGroupsKeepCurrentKeys(bool finite)
     {
-        var state = State(finite);
+        using var memoryForState = State(finite);
+        var state = memoryForState.State;
         foreach (var separator in new[] { "\u001c", "", "é😀", "different" })
         {
             state.AssignVariableValue(AwkVariableName.FromText("SUBSEP"), AwkValue.FromText(separator));
@@ -33,7 +34,8 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
     [InlineData(true)]
     public void BuilderFailureKeepsPreviousArrayAndReleasesScratch(bool finite)
     {
-        var state = State(finite, builderLimit: 7);
+        using var memoryForState = State(finite, builderLimit: 7);
+        var state = memoryForState.State;
         state.SetArrayString(Target, new AwkArrayKey("kept"), "old");
         using var match = Match(state);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -50,7 +52,8 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
     public void EmptyCaptureSetNeedsNoKeyBuilderAdmission()
     {
         const int limit = 1 << 20;
-        var state = State(true);
+        using var memoryForState = State(true);
+        var state = memoryForState.State;
         state.SetArrayString(Target, new AwkArrayKey("kept"), "old");
         using var pressure = state.MemoryAccounting.ReserveTransient(limit - state.MemoryAccounting.CurrentCommittedBytes);
         state.ReplaceMatchCaptureArray(Target, AwkLeasedRegexMatch.NoMatch);
@@ -63,7 +66,8 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
     public void CanceledLongKeyConstructionKeepsPreviousArray()
     {
         using var cancellation = new CancellationTokenSource();
-        var state = State(true, token: cancellation.Token);
+        using var memoryForState = State(true, token: cancellation.Token);
+        var state = memoryForState.State;
         state.AssignVariableValue(AwkVariableName.FromText("SUBSEP"), AwkValue.FromText(new string('s', 8192)));
         state.SetArrayString(Target, new AwkArrayKey("kept"), "old");
         using var match = Match(state);
@@ -81,7 +85,8 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
     [InlineData(true)]
     public void RepeatedFailedMatchesKeepAllocationBounded(bool finite)
     {
-        var state = State(finite);
+        using var memoryForState = State(finite);
+        var state = memoryForState.State;
         for (var index = 0; index < 100; index++)
             state.ReplaceMatchCaptureArray(Target, AwkLeasedRegexMatch.NoMatch);
         var before = GC.GetAllocatedBytesForCurrentThread();
@@ -104,14 +109,15 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         return new(match, state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateRegexMatchBytes(groups.Length, retained)), retained);
     }
 
-    private static AwkRuntimeState State(bool finite, int builderLimit = 1 << 20, CancellationToken token = default)
+    private static CooperativeTestMemory State(bool finite, int builderLimit = 1 << 20, CancellationToken token = default)
     {
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: finite && (long)(1 << 20) != long.MaxValue);
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(builderLimit);
-        if (finite) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, limits,
             AwkRegexEngineKind.DotNetCompatibility);
-        return new(AwkFieldSeparatorSpec.Default, token, options,
-            new AwkRuntimeResourceMonitor(limits, AwkRuntimeCounters.Disabled), AwkCompatibilityProfile.Default);
+        return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, token, testMemory.Configure(options),
+            new AwkRuntimeResourceMonitor(limits, AwkRuntimeCounters.Disabled), AwkCompatibilityProfile.Default));
     }
 }

@@ -2,85 +2,61 @@ using System;
 
 namespace Lokad.Awk;
 
-// Own-storage estimates and an optional execution quota; the host owns the shared allowance.
+// Own-storage estimates; admission belongs exclusively to the host's shared allowance.
 internal sealed class AwkMemoryAccounting
 {
-    private readonly bool _enabled;
-    private readonly long _maxOwnedBytes;
     private readonly AwkRuntimeCounters _counters;
     private readonly AwkExecutionMemoryOwner _owner;
 
-    private AwkMemoryAccounting(bool enabled, long maxOwnedBytes, AwkRuntimeCounters counters,
+    private AwkMemoryAccounting(AwkRuntimeCounters counters,
         AwkExecutionMemoryOwner owner)
     {
-        _enabled = enabled;
-        _maxOwnedBytes = maxOwnedBytes;
         _counters = counters;
         _owner = owner;
     }
 
     public static AwkMemoryAccounting Disabled { get; } =
-        new(enabled: false, AwkRuntimeLimits.Unlimited, AwkRuntimeCounters.Disabled, AwkExecutionMemoryOwner.Disabled);
+        new(AwkRuntimeCounters.Disabled, AwkExecutionMemoryOwner.Disabled);
 
-    public bool IsEnabled => _enabled;
+    public bool IsEnabled => _owner.IsEnabled;
 
     public long CurrentReservedBytes { get; private set; }
 
     public long CurrentCommittedBytes { get; private set; }
 
-    public static AwkMemoryAccounting Create(AwkRuntimeLimits limits)
-    {
-        return Create(limits, AwkRuntimeCounters.Disabled);
-    }
-
-    public static AwkMemoryAccounting Create(AwkRuntimeLimits limits, AwkRuntimeCounters counters) =>
-        Create(limits, counters, AwkExecutionMemoryOwner.Disabled);
-
-    public static AwkMemoryAccounting Create(AwkRuntimeLimits limits, AwkRuntimeCounters counters,
+    public static AwkMemoryAccounting Create(AwkRuntimeCounters counters,
         AwkExecutionMemoryOwner owner)
     {
-        return limits.MaxExecutionMemoryBytes == AwkRuntimeLimits.Unlimited && !owner.IsEnabled
+        return !owner.IsEnabled
             ? Disabled
-            : new AwkMemoryAccounting(enabled: true, limits.MaxExecutionMemoryBytes, counters, owner);
+            : new AwkMemoryAccounting(counters, owner);
     }
 
     public void Reserve(long byteCount)
     {
-        if (!_enabled || byteCount <= 0)
+        if (!IsEnabled || byteCount <= 0)
             return;
 
         var reserved = AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, byteCount);
-        var liveBytes = ValidateLiveBytes(reserved, CurrentCommittedBytes);
+        var liveBytes = AwkRuntimeMemory.CheckedAdd(reserved, CurrentCommittedBytes);
         ResizeOwner(liveBytes);
         CurrentReservedBytes = reserved;
         _counters.RecordMemoryLiveBytes(liveBytes);
     }
 
-    public void PreflightAllocation(long byteCount)
-    {
-        if (!_enabled || byteCount <= 0)
-            return;
-
-        ValidateLiveBytes(
-            AwkRuntimeMemory.CheckedAdd(CurrentReservedBytes, byteCount),
-            CurrentCommittedBytes);
-    }
-
     public AwkMemoryPeakAdmission ReserveAllocationPeak(long byteCount)
     {
-        PreflightAllocation(byteCount);
         return _owner.ReservePeak(byteCount);
     }
 
     public AwkMemoryMutationAdmission AdmitMutation(long byteCount)
     {
-        PreflightAllocation(byteCount);
         return _owner.AdmitMutation(byteCount);
     }
 
     public void CommitReserved(long byteCount)
     {
-        if (!_enabled || byteCount <= 0)
+        if (!IsEnabled || byteCount <= 0)
             return;
 
         if (byteCount > CurrentReservedBytes)
@@ -88,14 +64,13 @@ internal sealed class AwkMemoryAccounting
 
         var reserved = CurrentReservedBytes - byteCount;
         var committed = AwkRuntimeMemory.CheckedAdd(CurrentCommittedBytes, byteCount);
-        ValidateLiveBytes(reserved, committed);
         CurrentReservedBytes = reserved;
         CurrentCommittedBytes = committed;
     }
 
     public void ReleaseReserved(long byteCount)
     {
-        if (!_enabled || byteCount <= 0)
+        if (!IsEnabled || byteCount <= 0)
             return;
 
         if (byteCount > CurrentReservedBytes)
@@ -107,7 +82,7 @@ internal sealed class AwkMemoryAccounting
 
     public void ReleaseCommitted(long byteCount)
     {
-        if (!_enabled || byteCount <= 0)
+        if (!IsEnabled || byteCount <= 0)
             return;
 
         if (byteCount > CurrentCommittedBytes)
@@ -119,7 +94,7 @@ internal sealed class AwkMemoryAccounting
 
     public AwkMemoryLease ReserveTransient(long byteCount)
     {
-        if (!_enabled || byteCount <= 0)
+        if (!IsEnabled || byteCount <= 0)
             return AwkMemoryLease.Disabled;
 
         ReserveAndCommit(byteCount);
@@ -143,7 +118,7 @@ internal sealed class AwkMemoryAccounting
     }
 
     public AwkMemoryLease CreateTransientLease() =>
-        _enabled ? new AwkMemoryLease(this, 0) : AwkMemoryLease.Disabled;
+        IsEnabled ? new AwkMemoryLease(this, 0) : AwkMemoryLease.Disabled;
 
     private void ResizeOwner(long liveBytes)
     {
@@ -151,13 +126,6 @@ internal sealed class AwkMemoryAccounting
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
     }
 
-    private long ValidateLiveBytes(long reservedBytes, long committedBytes)
-    {
-        var liveBytes = AwkRuntimeMemory.CheckedAdd(reservedBytes, committedBytes);
-        if (liveBytes > _maxOwnedBytes)
-            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
-        return liveBytes;
-    }
 
 }
 

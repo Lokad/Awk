@@ -8,6 +8,7 @@ internal sealed class CooperativeTestBudget(long limit) : IMemoryBudget
     private readonly long _limit = limit;
     private readonly object _gate = new();
     private long _reserved;
+    public long Limit => _limit;
     public long Reserved { get { lock (_gate) return _reserved; } }
     public long Peak { get; private set; }
     public int ScopesCreated { get; private set; }

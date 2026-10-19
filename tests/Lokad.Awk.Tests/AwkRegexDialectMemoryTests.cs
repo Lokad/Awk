@@ -7,13 +7,15 @@ public sealed class AwkRegexDialectMemoryTests
     [InlineData(true)]
     public void QuotedUnmatchedRightParenthesisRequiresAdmittedTranslation(bool utf8)
     {
-        var governor = Governor(1);
+        using var memoryForGovernor = Governor(1);
+        var governor = memoryForGovernor.Accounting;
         var runtime = Runtime(utf8, governor, () => { });
         var error = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(")")));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        var admitted = Governor(1 << 24);
+        using var memoryForAdmitted = Governor(1 << 24);
+        var admitted = memoryForAdmitted.Accounting;
         var retry = Runtime(utf8, admitted, () => { });
         var regex = retry.Create(new AwkRegexPattern(")"));
         Assert.True(retry.IsMatch(regex, AwkText.FromString(")")));
@@ -27,7 +29,8 @@ public sealed class AwkRegexDialectMemoryTests
     public void DecodedEreStaysAdmittedThroughFinalWrapperPublication(bool utf8)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 24), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+        var governor = memoryForGovernor.Accounting;
         long heldAtLastCheck = -1;
         var runtime = Runtime(utf8, governor, () => heldAtLastCheck = governor.CurrentCommittedBytes);
         var regex = runtime.Create(new AwkRegexPattern(@"\q"));
@@ -45,14 +48,16 @@ public sealed class AwkRegexDialectMemoryTests
         const string pattern = @"[\p{L}]";
         var requiredNodes = 2L;
         var oldBudget = 256L + 128L * pattern.Length + 256L + 224L * requiredNodes;
-        var governor = Governor(oldBudget);
+        using var memoryForGovernor = Governor(oldBudget);
+        var governor = memoryForGovernor.Accounting;
         var sensitivity = ignoreCase ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive;
         var error = Assert.Throws<AwkRuntimeException>(() =>
             AwkPosixRegex.TryCreate(pattern, sensitivity, governor, () => { }, () => { }, out _));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        var retry = Governor(1 << 24);
+        using var memoryForRetry = Governor(1 << 24);
+        var retry = memoryForRetry.Accounting;
         Assert.True(AwkPosixRegex.TryCreate(pattern, sensitivity, retry, () => { }, () => { }, out var program));
         Assert.NotNull(program);
         Assert.Equal(0, retry.CurrentCommittedBytes);
@@ -76,7 +81,8 @@ public sealed class AwkRegexDialectMemoryTests
         var mode = (AwkCompatibilityMode)profile;
         var expected = AwkRegex.TranslatePattern(pattern, mode, () => { });
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 24), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+        var governor = memoryForGovernor.Accounting;
         using (var results = governor.CreateTransientLease())
         {
             results.ReserveAdditional(43);
@@ -86,10 +92,12 @@ public sealed class AwkRegexDialectMemoryTests
         }
         Assert.Equal(0, governor.CurrentCommittedBytes);
         var required = counters.MemoryPeakLiveBytes - 43;
-        var exact = Governor(required);
+        using var memoryForExact = Governor(required);
+        var exact = memoryForExact.Accounting;
         Assert.Equal(expected, AwkRegex.TranslatePattern(pattern, mode, () => { }, governor: exact));
         Assert.Equal(0, exact.CurrentCommittedBytes);
-        var shortGovernor = Governor(required - 1);
+        using var memoryForShortGovernor = Governor(required - 1);
+        var shortGovernor = memoryForShortGovernor.Accounting;
         var error = Assert.Throws<AwkRuntimeException>(() =>
             AwkRegex.TranslatePattern(pattern, mode, () => { }, governor: shortGovernor));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
@@ -104,7 +112,8 @@ public sealed class AwkRegexDialectMemoryTests
     {
         const string text = @"\x61.";
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 24), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+        var governor = memoryForGovernor.Accounting;
         var probe = Runtime(utf8, governor, () => { }).Create(new AwkRegexPattern(text));
         Assert.NotSame(text, probe.ErePattern);
         Assert.NotSame(probe.Pattern, probe.ErePattern);
@@ -128,7 +137,8 @@ public sealed class AwkRegexDialectMemoryTests
     [Fact]
     public void LeaseMoveKeepsOneLiveChargeAndReleasesEachOwnerExactlyOnce()
     {
-        var governor = Governor(64);
+        using var memoryForGovernor = Governor(64);
+        var governor = memoryForGovernor.Accounting;
         using var retained = governor.CreateTransientLease();
         using (var scratch = governor.ReserveTransient(64))
         {
@@ -144,9 +154,11 @@ public sealed class AwkRegexDialectMemoryTests
     [Fact]
     public void InvalidLeaseMovePreservesBothOwners()
     {
-        var governor = Governor(64);
+        using var memoryForGovernor = Governor(64);
+        var governor = memoryForGovernor.Accounting;
         using var source = governor.ReserveTransient(64);
-        using var foreign = Governor(100).CreateTransientLease();
+        using var foreignMemory = Governor(100);
+        using var foreign = foreignMemory.Accounting.CreateTransientLease();
         Assert.Throws<InvalidOperationException>(() => source.MoveTo(foreign, 24));
         using var target = governor.CreateTransientLease();
         Assert.Throws<InvalidOperationException>(() => source.MoveTo(target, 65));
@@ -164,7 +176,8 @@ public sealed class AwkRegexDialectMemoryTests
         var pattern = new string('a', 8192);
         if (shape == "bracket") pattern = "[" + pattern + "]";
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 24), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         var error = Assert.Throws<OperationCanceledException>(() =>
@@ -184,7 +197,8 @@ public sealed class AwkRegexDialectMemoryTests
     {
         const string pattern = @"[\p{L}]";
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 24), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+        var governor = memoryForGovernor.Accounting;
         var sensitivity = ignoreCase ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive;
         using (var results = governor.CreateTransientLease())
         {
@@ -201,8 +215,8 @@ public sealed class AwkRegexDialectMemoryTests
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }
 
-    private static AwkMemoryAccounting Governor(long bytes) =>
-        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
+    private static CooperativeTestMemory Governor(long bytes) =>
+        new CooperativeTestMemory(bytes, AwkRuntimeCounters.Disabled);
 
     private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryAccounting governor, Action checkpoint) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint,

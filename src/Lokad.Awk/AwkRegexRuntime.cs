@@ -66,7 +66,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         _providedEngine = engineKind == AwkRegexEngineKind.Utf8Adapter ? regexEngine : null;
         _providedMemoryBudget = memoryBudget;
         _resources = resources;
-        _memoryAccounting = memoryAccounting ?? AwkMemoryAccounting.Create(resources.Limits, counters);
+        _memoryAccounting = memoryAccounting ?? AwkMemoryAccounting.Disabled;
         _compatibilityMode = compatibilityMode;
         _unicodeWarnings = new AwkRegexUnicodeWarnings(_memoryAccounting, compatibilityMode,
             reportUnicodeWarning, throwIfCancellationRequested, regexEscapeWarnings);

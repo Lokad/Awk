@@ -719,8 +719,7 @@ internal static class PrintfEvaluation
                 return;
 
             var nextLength = AwkRuntimeMemory.CheckedAdd(_builder.Length, byteCount);
-            if (nextLength > _limits.MaxBuilderBytes ||
-                _limits.MaxValueBytes != AwkRuntimeLimits.Unlimited && nextLength > _limits.MaxValueBytes)
+            if (nextLength > _limits.MaxBuilderBytes)
             {
                 throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
             }

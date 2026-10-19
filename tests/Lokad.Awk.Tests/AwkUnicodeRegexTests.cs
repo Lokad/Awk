@@ -105,7 +105,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
     [Fact]
     public void WarningHistoryMemoryPreflightPreservesPreviousEntry()
     {
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096));
+        using var memoryForGovernor = new CooperativeTestMemory(4096, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
         var messages = new List<string>();
         var history = new AwkRegexUnicodeWarnings(governor, AwkCompatibilityMode.GnuDefault,
             messages.Add, static () => { });
@@ -133,9 +134,9 @@ regexEngine: AwkUtf8RegexEngine.Instance);
     public void DecodeBufferAdmissionFailsBeforeCompilationOrCacheRetention(bool utf8)
     {
         const string pattern = @"\u0041";
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(
-            AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1);
-        var governor = AwkMemoryAccounting.Create(limits);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
@@ -157,7 +158,8 @@ regexEngine: AwkUtf8RegexEngine.Instance);
     [InlineData(true)]
     public void WarningCallbackFailureReleasesReservationAndAllowsRetry(bool grow)
     {
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(16384));
+        using var memoryForGovernor = new CooperativeTestMemory(16384, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
         var calls = 0;
         var fail = false;
         var history = new AwkRegexUnicodeWarnings(governor, AwkCompatibilityMode.GnuDefault,

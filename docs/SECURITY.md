@@ -10,10 +10,10 @@ an embedding boundary, not an OS sandbox.
 Start untrusted scripts with `AwkExecutionPolicy.CreateRestricted()`. It disables
 script-created redirections, command pipes, `@include` and changed `ARGV` input paths;
 hides invocation environment and host-error details; fixes time to Unix epoch/UTC;
-and, in released 0.3.0, supplies finite data/memory budgets and a cooperative 30-second execution deadline.
+and supplies structural/resource bounds and a cooperative 30-second execution deadline.
 Explicit invocation inputs remain available through the host.
-These duplicate quota/deadline controls are planned for removal; hosts should supply a shared
-memory budget and caller cancellation. See [resource control](RUNTIME_LIMITS.md).
+Execution-memory, record/value-size and cumulative I/O quotas have been removed for the next
+release; hosts supply a shared memory budget. Separate deadline controls remain pending cleanup. See [resource control](RUNTIME_LIMITS.md).
 
 `--sandbox` only disables file and command redirections. `AccessiblePathRoot` checks
 canonical virtual paths lexically; a filesystem host must enforce its own root against

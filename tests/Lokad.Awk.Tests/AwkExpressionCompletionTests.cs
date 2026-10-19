@@ -504,7 +504,7 @@ public sealed class AwkExpressionCompletionTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.DotNetCompatibility);
         return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options), counters);
     }

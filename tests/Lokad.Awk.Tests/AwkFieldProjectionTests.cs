@@ -42,7 +42,7 @@ public sealed partial class AwkFieldProjectionTests
     public async Task OwnedExpressionRetainsTightFieldQuotaBeforePublishing(bool dynamicIndex)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxFields(2).WithMaxExecutionMemoryBytes(1 << 20), AwkRegexEngineKind.DotNetCompatibility);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxFields(2), AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var source = AwkText.FromString("one two " + new string('x', 160));
         state.SetCurrentRecord(source);
@@ -138,7 +138,6 @@ public sealed partial class AwkFieldProjectionTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(builderLimit);
-        if (finite) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
         return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options), counters);
     }

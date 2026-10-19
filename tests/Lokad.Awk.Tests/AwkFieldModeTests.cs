@@ -12,7 +12,8 @@ public sealed class AwkFieldModeTests
     public void FieldModeInitializationHonorsProfileWithoutDecoding(int profile)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State((AwkCompatibilityMode)profile, counters);
+        using var memoryForState = State((AwkCompatibilityMode)profile, counters);
+        var state = memoryForState.State;
         state.InitializeProcInfo();
         Assert.Equal(profile == 0, state.TryPeekArrayAwkValue(ProcInfo, ModeKey, out var value));
         if (profile == 0)
@@ -33,7 +34,8 @@ public sealed class AwkFieldModeTests
     public void CombinedMemoryPreflightPreservesScalarMetadataAndFutureSplitting(
         string name, string text, bool throughSymbolTable)
     {
-        var measured = PreparedState();
+        using var memoryForMeasured = PreparedState();
+        var measured = memoryForMeasured.State;
         var value = AwkValue.FromText(AwkText.FromSourceLiteralString(text));
         _ = measured.ResolveVariableValue(AwkVariableName.FromText(name));
         var before = measured.MemoryAccounting.CurrentCommittedBytes;
@@ -41,10 +43,11 @@ public sealed class AwkFieldModeTests
         var growth = measured.MemoryAccounting.CurrentCommittedBytes - before;
         Assert.True(growth > 0);
 
-        var state = PreparedState();
+        using var memoryForState = PreparedState();
+        var state = memoryForState.State;
         var oldValue = state.ResolveVariableValue(AwkVariableName.FromText(name));
         before = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = state.Limits.MaxExecutionMemoryBytes - before - growth + 1;
+        var pressure = memoryForState.Budget.Limit - before - growth + 1;
         state.MemoryAccounting.Reserve(pressure);
         var error = Assert.Throws<AwkRuntimeException>(() => Assign(state, name, value, throughSymbolTable));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
@@ -63,8 +66,9 @@ public sealed class AwkFieldModeTests
     [InlineData("RS", "")]
     public void FullMetadataArrayRejectsTransitionBeforeScalarOrSplitterMutation(string name, string text)
     {
-        var state = State(AwkCompatibilityMode.GnuDefault, AwkRuntimeCounters.Disabled,
+        using var memoryForState = State(AwkCompatibilityMode.GnuDefault, AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1));
+        var state = memoryForState.State;
         state.SetArrayAwkValue(ProcInfo, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
         var old = state.ResolveVariableValue(AwkVariableName.FromText(name));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -86,7 +90,8 @@ public sealed class AwkFieldModeTests
     [InlineData("FS", "[a", "awk: invalid regular expression\n")]
     public void InvalidSplittingAssignmentPreservesState(string name, string text, string diagnostic)
     {
-        var state = PreparedState();
+        using var memoryForState = PreparedState();
+        var state = memoryForState.State;
         var old = state.ResolveVariableValue(AwkVariableName.FromText(name));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         var error = Assert.Throws<AwkRuntimeException>(() => Assign(state, name,
@@ -104,7 +109,8 @@ public sealed class AwkFieldModeTests
     public void MetadataAndFixedWidthsStayByteNativeAndReleaseUnusedBufferCharge()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(AwkCompatibilityMode.GnuDefault, counters);
+        using var memoryForState = State(AwkCompatibilityMode.GnuDefault, counters);
+        var state = memoryForState.State;
         state.InitializeProcInfo();
         Assign(state, "FIELDWIDTHS", AwkValue.FromText(AwkText.FromSourceLiteralString("1 *")), false);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("abc"));
@@ -121,31 +127,15 @@ public sealed class AwkFieldModeTests
     [Fact]
     public void InitialMetadataCapacityFailurePreservesExistingArray()
     {
-        var state = State(AwkCompatibilityMode.GnuDefault, AwkRuntimeCounters.Disabled,
+        using var memoryForState = State(AwkCompatibilityMode.GnuDefault, AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1));
+        var state = memoryForState.State;
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayAwkValue(ProcInfo, key, AwkValue.FromNumber(7));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.Throws<AwkRuntimeException>(state.InitializeProcInfo);
         Assert.Equal(7, state.GetArrayAwkValue(ProcInfo, key).AsNumber());
         Assert.False(state.TryPeekArrayAwkValue(ProcInfo, ModeKey, out _));
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
-
-    [Fact]
-    public void ModeMetadataHonorsValueByteLimitBeforeMutation()
-    {
-        var state = State(AwkCompatibilityMode.GnuDefault, AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(9));
-        state.InitializeProcInfo();
-        var old = state.ResolveSpecialVariableText(AwkSpecialVariableId.FieldWidths);
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var error = Assert.Throws<AwkRuntimeException>(() => Assign(state, "FIELDWIDTHS",
-            AwkValue.FromText(AwkText.FromSourceLiteralString("1")), false));
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(old, state.ResolveSpecialVariableText(AwkSpecialVariableId.FieldWidths));
-        Assert.True(state.GetArrayAwkValue(ProcInfo, ModeKey).ByteText.EqualsAscii("FS"));
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -159,22 +149,25 @@ public sealed class AwkFieldModeTests
             state.AssignVariableValue(AwkVariableName.FromText(name), value);
     }
 
-    private static AwkRuntimeState PreparedState()
+    private static CooperativeTestMemory PreparedState()
     {
-        var state = State(AwkCompatibilityMode.GnuDefault, AwkRuntimeCounters.Disabled);
+        var memoryForState = State(AwkCompatibilityMode.GnuDefault, AwkRuntimeCounters.Disabled);
+        var state = memoryForState.State;
         state.InitializeProcInfo();
         Assign(state, "FPAT", AwkValue.FromText(AwkText.FromSourceLiteralString(".")), false);
         Assign(state, "FS", AwkValue.FromText(AwkText.FromSourceLiteralString(" ")), false);
-        return state;
+        return memoryForState;
     }
 
-    private static AwkRuntimeState State(AwkCompatibilityMode mode, AwkRuntimeCounters counters,
+    private static CooperativeTestMemory State(AwkCompatibilityMode mode, AwkRuntimeCounters counters,
         AwkRuntimeLimits? limits = null)
     {
-        var resolvedLimits = (limits ?? AwkRuntimeLimits.CreateDefault()).WithMaxExecutionMemoryBytes(1 << 20);
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: (long)(1 << 20) != long.MaxValue);
+        var resolvedLimits = (limits ?? AwkRuntimeLimits.CreateDefault());
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, resolvedLimits, AwkRegexEngineKind.DotNetCompatibility);
-        return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
-            new AwkRuntimeResourceMonitor(resolvedLimits, counters), AwkCompatibilityProfile.Default.WithMode(mode));
+        return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
+            new AwkRuntimeResourceMonitor(resolvedLimits, counters), AwkCompatibilityProfile.Default.WithMode(mode)));
     }
 }

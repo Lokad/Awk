@@ -42,23 +42,22 @@ public sealed class AwkUnicodeStringTests
         Assert.Equal("awk: frontend diagnostic limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
     }
 
-    public static IEnumerable<object[]> ValueByteLimits()
+    public static IEnumerable<object[]> UnicodeModes()
     {
 
         foreach (var utf8 in new[] { false, true })
             foreach (var counters in new[] { false, true })
-                foreach (var limit in new[] { 3, 4 })
-                    yield return [utf8, counters, limit];
+                yield return [utf8, counters];
     }
 
     [Theory]
-    [MemberData(nameof(ValueByteLimits))]
-    public async Task SupplementaryLiteralUsesFourUtf8Bytes(bool utf8, bool enabled, int limit)
+    [MemberData(nameof(UnicodeModes))]
+    public async Task SupplementaryLiteralUsesFourUtf8Bytes(bool utf8, bool enabled)
     {
         const string source = "BEGIN{print 1;v=\"\\u1f600\";printf \"%s\",v;exit}";
         var counters = enabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(limit),
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
 regexEngine: AwkUtf8RegexEngine.Instance);
         var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
@@ -67,9 +66,9 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         var host = new MockFileSystem();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var exit = await compiled.ExecuteAsync(host, deadline.Token, options);
-        Assert.Equal(limit == 4 ? AwkExitCode.Success : AwkExitCode.FatalError, exit);
-        Assert.Equal(limit == 4 ? "1\n\U0001f600" : "1\n", host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(limit == 4 ? string.Empty : "awk: memory limit exceeded\n",
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("1\n\U0001f600", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(string.Empty,
             host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.OpenFileCount);
     }

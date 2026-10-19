@@ -12,9 +12,8 @@ public sealed class AwkPrintfAdmissionTests
         var budget = new CooperativeTestBudget(limit);
         await using var owner = AwkExecutionMemoryOwner.Create(mode == 0 ? null : budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = mode == 1 ? AwkRuntimeLimits.CreateDefault()
-            : AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(limit);
-        var accounting = AwkMemoryAccounting.Create(limits, counters, owner);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         using (var builder = new AwkUtf8Builder(limits, accounting, capacity: 16))
         using (var pressure = accounting.ReserveTransient(limit - accounting.CurrentCommittedBytes))
         {
@@ -30,20 +29,15 @@ public sealed class AwkPrintfAdmissionTests
         Assert.Equal(0, accounting.CurrentCommittedBytes);
         Assert.Equal(0, budget.Reserved);
     }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task ActualGrowthStillRefusesBeforeMutationAndRefundsForRetry(int mode)
+    [Fact]
+    public async Task ActualGrowthStillRefusesBeforeMutationAndRefundsForRetry()
     {
         const int limit = 1024;
         var budget = new CooperativeTestBudget(limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 0 ? null : budget, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = mode == 1 ? AwkRuntimeLimits.CreateDefault()
-            : AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(limit);
-        var accounting = AwkMemoryAccounting.Create(limits, counters, owner);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         using (var builder = new AwkUtf8Builder(limits, accounting, capacity: 16))
         {
             builder.Append("kept"u8);
@@ -65,21 +59,6 @@ public sealed class AwkPrintfAdmissionTests
         }
         Assert.Equal(0, accounting.CurrentCommittedBytes);
         Assert.Equal(0, budget.Reserved);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ValueAndBuilderLimitsPrecedeArgumentConversion(bool valueLimit)
-    {
-        var limits = valueLimit ? AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(8)
-            : AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(8);
-        using var builder = new AwkUtf8Builder(limits, AwkMemoryAccounting.Disabled, capacity: 0);
-        var arguments = new UnreachableArguments();
-        var error = Assert.Throws<AwkRuntimeException>(() => PrintfEvaluation.FormatToBuilder(builder, "%9s", arguments,
-            PrintfMissingArgumentPolicy.Throw, limits, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled));
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, builder.Length);
     }
 
     private sealed class UnreachableArguments : IPrintfArguments

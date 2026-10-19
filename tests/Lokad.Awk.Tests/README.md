@@ -43,7 +43,7 @@ memory tests inspect unchanged reservations and refunds after false; that primit
 does not authorize a running command to recover from refusal.
 
 `AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
-mutation refusal/cancellation and refunds using finite quotas and a shared host budget.
+mutation refusal/cancellation and refunds using a shared host budget.
 
 `AwkArrayEstimateTests` covers representable/overflow totals with lazy text and verifies
 array replacement preflights and refunds without constructing enormous dictionaries.

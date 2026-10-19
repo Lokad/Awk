@@ -9,7 +9,8 @@ public sealed class AwkEvaluationContextTests
     [InlineData(true, true)]
     public async Task ExplicitBindingsAreSnapshotsWhileAmbientBindingsFollowScopes(bool explicitBindings, bool finite)
     {
-        var state = CreateState(finite);
+        using var memoryForState = CreateState(finite);
+        var state = memoryForState.State;
         var firstIo = CreateIo(state);
         var secondIo = CreateIo(state);
         using var firstOutput = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
@@ -52,7 +53,8 @@ public sealed class AwkEvaluationContextTests
     [InlineData(true)]
     public void StateOnlyContextWithoutAnActiveScopeRemainsEmpty(bool finite)
     {
-        var state = CreateState(finite);
+        using var memoryForState = CreateState(finite);
+        var state = memoryForState.State;
         var context = new AwkEvaluationContext(state);
         Assert.Same(state, context.State);
         Assert.False(context.TryGetExecutionContext(out _));
@@ -75,14 +77,15 @@ public sealed class AwkEvaluationContextTests
         throw new InvalidOperationException("Expected a live test execution context.");
     }
 
-    private static AwkRuntimeState CreateState(bool finite)
+    private static CooperativeTestMemory CreateState(bool finite)
     {
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: finite && (long)(1 << 20) != long.MaxValue);
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (finite) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), limits,
             AwkRegexEngineKind.DotNetCompatibility);
-        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options)));
     }
 
     private static AwkIo CreateIo(AwkRuntimeState state) =>

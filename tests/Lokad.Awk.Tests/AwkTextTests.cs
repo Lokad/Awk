@@ -119,9 +119,8 @@ public sealed class AwkTextTests
     public void AwkText_GovernedAllocationsCoverConcatAndSlices()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(64),
-            counters);
+        using var memoryForGovernor = new CooperativeTestMemory(64, counters);
+        var governor = memoryForGovernor.Accounting;
         var source = AwkText.FromString("café", counters, governor);
         var suffix = AwkText.FromString("!", counters, governor);
 
@@ -132,27 +131,11 @@ public sealed class AwkTextTests
     }
 
     [Fact]
-    public void AwkText_GovernedAllocationFailsBeforeOversizedConcat()
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(6),
-            counters);
-        var left = AwkText.FromString("abc", counters, governor);
-        var right = AwkText.FromString("defg", counters, governor);
-
-        var exception = Assert.Throws<AwkRuntimeException>(() => left.Concat(right, counters, governor));
-
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
-    }
-
-    [Fact]
     public void AwkText_GovernedCopyFailsBeforeCreatingText()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(3),
-            counters);
+        using var memoryForGovernor = new CooperativeTestMemory(3, counters);
+        var governor = memoryForGovernor.Accounting;
 
         var exception = Assert.Throws<AwkRuntimeException>(() =>
             AwkText.CopyTrustedBytes("abcd"u8, counters, governor));
@@ -167,9 +150,8 @@ public sealed class AwkTextTests
     public void AwkText_GovernedRuneIndexFailsBeforeAllocation()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4),
-            counters);
+        using var memoryForGovernor = new CooperativeTestMemory(4, counters);
+        var governor = memoryForGovernor.Accounting;
         var source = AwkText.FromString(new string('\u00e9', 128));
 
         var exception = Assert.Throws<AwkRuntimeException>(

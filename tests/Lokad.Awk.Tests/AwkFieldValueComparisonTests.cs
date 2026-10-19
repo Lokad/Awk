@@ -9,7 +9,9 @@ public sealed class AwkFieldValueComparisonTests
     [InlineData(true)]
     public void TextComparisonDoesNotRetainBorrowedFieldAndNumericComparisonKeepsClassification(bool finite)
     {
-        var (state, counters) = State(finite);
+        using var memory = State(finite);
+        var state = memory.State;
+        var counters = state.Counters;
         var bytes = "k old"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
         _ = state.FieldCount;
@@ -30,7 +32,8 @@ public sealed class AwkFieldValueComparisonTests
     [Fact]
     public void ComparisonRefusalPreservesRecordAndAdmission()
     {
-        var (state, _) = State(true);
+        using var memory = State(true);
+        var state = memory.State;
         state.SetCurrentRecord(AwkText.FromString("k old"));
         using var held = state.MemoryAccounting.ReserveTransient((1 << 20) - state.MemoryAccounting.CurrentCommittedBytes - 16);
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
@@ -46,7 +49,8 @@ public sealed class AwkFieldValueComparisonTests
     public void CancellationPreservesSplitRecordAndAdmission()
     {
         using var cancellation = new CancellationTokenSource();
-        var (state, _) = State(true, cancellation: cancellation.Token);
+        using var memory = State(true, cancellation: cancellation.Token);
+        var state = memory.State;
         var text = new string('a', 16_384);
         state.SetCurrentRecord(AwkText.FromString("k " + text));
         _ = state.FieldCount;
@@ -68,7 +72,8 @@ public sealed class AwkFieldValueComparisonTests
     [InlineData(true, true, true)]
     public async Task PendingOperandsFinishInOrderAndAreConsumedOnce(bool pendingLeft, bool pendingIndex, bool condition)
     {
-        var (state, _) = State(true);
+        using var memory = State(true);
+        var state = memory.State;
         state.SetCurrentRecord(AwkText.FromString("k old"));
         var left = new ValueSource(AwkValue.FromText("old"), pendingLeft);
         var index = new ValueSource(AwkValue.FromNumber(2), pendingIndex);
@@ -101,7 +106,9 @@ public sealed class AwkFieldValueComparisonTests
     [InlineData(true, true)]
     public async Task FailedIndexDoesNotSplitOrPublishTheField(bool canceled, bool condition)
     {
-        var (state, counters) = State(true);
+        using var memory = State(true);
+        var state = memory.State;
+        var counters = state.Counters;
         state.SetCurrentRecord(AwkText.FromString("k old"));
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var index = new ValueSource(AwkValue.FromNumber(2), true);
@@ -158,14 +165,14 @@ public sealed class AwkFieldValueComparisonTests
         }
     }
 
-    private static (AwkRuntimeState, AwkRuntimeCounters) State(bool finite,
-        int valueLimit = int.MaxValue, CancellationToken cancellation = default)
+    private static CooperativeTestMemory State(bool finite,
+        CancellationToken cancellation = default)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(valueLimit);
-        if (finite) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
-        return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation, options), counters);
+        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: finite);
+        return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation, memory.Configure(options)));
     }
 }

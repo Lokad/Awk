@@ -143,7 +143,7 @@ public sealed class AwkDirectStringBuiltinTests
     public async Task ActualResultRefusalPreservesTargetAndRefundsForRetry(bool shared, string name)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using (var owner = AwkExecutionMemoryOwner.Create(shared ? budget : null, CancellationToken.None))
+        await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
         {
             var state = State(shared, owner);
             var target = AwkVariableName.FromText("target");
@@ -178,10 +178,9 @@ public sealed class AwkDirectStringBuiltinTests
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => evaluate();
     }
 
-    private static AwkRuntimeState State(bool shared, AwkExecutionMemoryOwner owner)
+    private static AwkRuntimeState State(bool shared,AwkExecutionMemoryOwner owner)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (!shared) limits = limits.WithMaxExecutionMemoryBytes(Limit);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility)
         { MemoryOwner = owner };

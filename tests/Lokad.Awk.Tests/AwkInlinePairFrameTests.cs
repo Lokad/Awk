@@ -111,11 +111,10 @@ public sealed class AwkInlinePairFrameTests
         return weak;
     }
 
-    private static AwkMemoryAccounting Accounting(int mode, AwkExecutionMemoryOwner owner)
+    private static AwkMemoryAccounting Accounting(int mode,AwkExecutionMemoryOwner owner)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
-        return AwkMemoryAccounting.Create(limits, AwkRuntimeCounters.Disabled, owner);
+        return AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
     }
 
     private static AwkFunctionCallStack Stack(AwkMemoryAccounting accounting) =>

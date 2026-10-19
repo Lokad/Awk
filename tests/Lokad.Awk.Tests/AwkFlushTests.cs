@@ -20,7 +20,7 @@ public sealed class AwkFlushTests
         var appends = 0;
         host.AfterAppend = () => appends++;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var state = State(limits, counters);
         var io = Io(host, limits, state);
         using var output = new AwkOutputSink(limits, state.MemoryAccounting, counters);
@@ -63,7 +63,7 @@ public sealed class AwkFlushTests
         var host = new PendingStatementHost();
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token,
             Options(limits, counters));
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
@@ -212,25 +212,6 @@ public sealed class AwkFlushTests
         Assert.True(failures >= 2);
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task WarningOutputLimitFailsBeforeTheFlushResultIsPrinted(
-bool statement, bool countersEnabled)
-    {
-        const string warning = "awk: warning: fflush: `missing' is not an open file, pipe or co-process\n";
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxOutputBytes(7 + Encoding.UTF8.GetByteCount(warning) - 1);
-        var counters = countersEnabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var files = new MockFileSystem();
-        var call = statement ? "fflush(\"missing\")" : "print fflush(\"missing\")";
-        var exit = await Run(files, "BEGIN{print \"before\";" + call + ";print \"after\"}", limits, counters);
-        Assert.Equal(2, exit.Value);
-        Assert.Equal("before\n", files.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: memory limit exceeded\n", files.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
     [Fact]
     public async Task WarningHostExceptionDoesNotRepeatTheWarning()
     {
@@ -254,9 +235,10 @@ bool statement, bool countersEnabled)
     public async Task WarningMemoryPreflightPreservesErrnoAndReleasesItsAdmission()
     {
         const long maximum = 1 << 20;
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(maximum);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(limits, counters);
+        using var memory = new CooperativeTestMemory(maximum);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(Options(limits, counters)))).State;
         using var sink = new AwkOutputSink(limits, state.MemoryAccounting, counters);
         var host = new MockFileSystem();
         var io = Io(host, limits, state);

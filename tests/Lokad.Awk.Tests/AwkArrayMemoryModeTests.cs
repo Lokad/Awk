@@ -63,11 +63,10 @@ public sealed class AwkArrayMemoryModeTests
     {
         var budget = new CooperativeTestBudget(20_000);
         await using var owner = AwkExecutionMemoryOwner.Create(
-            mode == 2 ? budget : null, CancellationToken.None);
-        var limits = mode == 1 ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(20_000)
-            : AwkRuntimeLimits.CreateDefault();
+            mode != 0 ? budget : null, CancellationToken.None);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(limits, counters, owner);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         Assert.Equal(mode != 0, accounting.IsEnabled);
         var variables = CreateVariables(accounting, counters);
         var name = AwkArrayName.FromText("a");
@@ -97,20 +96,16 @@ public sealed class AwkArrayMemoryModeTests
             Assert.Equal(0, budget.Reserved);
         }
     }
-
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task DeletionRefundsStoredKeyInBothRepresentationDirections(bool sharedOnly, bool storedAsText)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeletionRefundsStoredKeyInBothRepresentationDirections(bool storedAsText)
     {
         var budget = new CooperativeTestBudget(1024);
         await using var owner = AwkExecutionMemoryOwner.Create(
-            sharedOnly ? budget : null, CancellationToken.None);
-        var limits = sharedOnly ? AwkRuntimeLimits.CreateDefault()
-            : AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024);
-        var accounting = AwkMemoryAccounting.Create(limits, AwkRuntimeCounters.Disabled, owner);
+            budget, CancellationToken.None);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
         var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled);
         var name = AwkArrayName.FromText("a");
         var textKey = new AwkArrayKey("1");
@@ -127,20 +122,16 @@ public sealed class AwkArrayMemoryModeTests
             Assert.Equal(0, budget.Reserved);
         }
     }
-
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task SharedOnlyOrFiniteQuotaRefusesBeforeInsertOrUpdate(bool sharedOnly, bool update)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SharedOnlyOrFiniteQuotaRefusesBeforeInsertOrUpdate(bool update)
     {
         var budget = new CooperativeTestBudget(1024);
         await using var owner = AwkExecutionMemoryOwner.Create(
-            sharedOnly ? budget : null, CancellationToken.None);
-        var limits = sharedOnly ? AwkRuntimeLimits.CreateDefault()
-            : AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024);
-        var accounting = AwkMemoryAccounting.Create(limits, AwkRuntimeCounters.Disabled, owner);
+            budget, CancellationToken.None);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
         Assert.True(accounting.IsEnabled);
         var variables = CreateVariables(accounting, AwkRuntimeCounters.Disabled);
         var name = AwkArrayName.FromText("a");
@@ -166,5 +157,5 @@ public sealed class AwkArrayMemoryModeTests
             static text => AwkValue.FromText(text),
             static text => AwkValue.FromNumericString(text),
             static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal),
-            static (_, _) => { }, static _ => { }, checkpoint: checkpoint);
+            static (_, _) => { }, checkpoint: checkpoint);
 }

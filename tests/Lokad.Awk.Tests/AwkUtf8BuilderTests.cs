@@ -84,10 +84,10 @@ public sealed class AwkUtf8BuilderTests
     public void AwkUtf8Builder_UsesGovernorReserveCommitRelease()
     {
         var limits = AwkRuntimeLimits.CreateDefault()
-            .WithMaxBuilderBytes(64)
-            .WithMaxExecutionMemoryBytes(64);
+            .WithMaxBuilderBytes(64);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(64, counters);
+        var governor = memoryForGovernor.Accounting;
 
         using (var builder = new AwkUtf8Builder(limits, governor, capacity: 4))
         {
@@ -105,9 +105,9 @@ public sealed class AwkUtf8BuilderTests
     public void AwkUtf8Builder_GovernedAllocationFailureDoesNotMutateContent()
     {
         var limits = AwkRuntimeLimits.CreateDefault()
-            .WithMaxBuilderBytes(64)
-            .WithMaxExecutionMemoryBytes(10);
-        var governor = AwkMemoryAccounting.Create(limits);
+            .WithMaxBuilderBytes(64);
+        using var memoryForGovernor = new CooperativeTestMemory(10, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
         using var builder = new AwkUtf8Builder(limits, governor, capacity: 4);
         builder.Append("abcd"u8);
 
@@ -124,10 +124,10 @@ public sealed class AwkUtf8BuilderTests
     public void AwkUtf8Builder_MaterializationPreflightsBeforeCreatingOwnedText()
     {
         var limits = AwkRuntimeLimits.CreateDefault()
-            .WithMaxBuilderBytes(64)
-            .WithMaxExecutionMemoryBytes(7);
+            .WithMaxBuilderBytes(64);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(7, counters);
+        var governor = memoryForGovernor.Accounting;
         using var builder = new AwkUtf8Builder(limits, governor, capacity: 4);
         builder.Append("abcd"u8);
         var baselineTextAllocations = counters.AwkTextAllocations;

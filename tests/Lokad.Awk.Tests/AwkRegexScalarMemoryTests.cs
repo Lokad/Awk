@@ -17,7 +17,8 @@ public sealed class AwkRegexScalarMemoryTests
     [InlineData(true, "[à]")]
     public void RuntimeRejectsUnadmittedScalarPreparationAndAllowsFreshRetry(bool utf8, string pattern)
     {
-        var governor = Governor(1);
+        using var memoryForGovernor = Governor(1);
+        var governor = memoryForGovernor.Accounting;
         var runtime = Runtime(utf8, governor);
         for (var attempt = 0; attempt < 2; attempt++)
         {
@@ -26,7 +27,8 @@ public sealed class AwkRegexScalarMemoryTests
             Assert.Equal(0, governor.CurrentCommittedBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);
         }
-        var admitted = Governor(1 << 24);
+        using var memoryForAdmitted = Governor(1 << 24);
+        var admitted = memoryForAdmitted.Accounting;
         var retry = Runtime(utf8, admitted);
         var regex = retry.Create(new AwkRegexPattern(pattern));
         Assert.Same(regex, retry.Create(new AwkRegexPattern(pattern)));
@@ -53,7 +55,8 @@ public sealed class AwkRegexScalarMemoryTests
     {
         var expected = AwkRegexScalarPattern.Translate(pattern);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 24), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+        var governor = memoryForGovernor.Accounting;
         using (var resultText = governor.CreateTransientLease())
         {
             resultText.ReserveAdditional(43);
@@ -67,10 +70,12 @@ public sealed class AwkRegexScalarMemoryTests
         // Warm/cold metadata uses the same conservative admission, so an exact
         // peak budget succeeds and a one-byte-short budget fails before publication.
         var peak = counters.MemoryPeakLiveBytes - 43;
-        var exact = Governor(peak);
+        using var memoryForExact = Governor(peak);
+        var exact = memoryForExact.Accounting;
         Assert.Equal(expected, AwkRegexScalarPattern.Translate(pattern, () => { }, exact));
         Assert.Equal(0, exact.CurrentCommittedBytes);
-        var shortGovernor = Governor(peak - 1);
+        using var memoryForShortGovernor = Governor(peak - 1);
+        var shortGovernor = memoryForShortGovernor.Accounting;
         Assert.Throws<AwkRuntimeException>(() =>
             AwkRegexScalarPattern.Translate(pattern, () => { }, shortGovernor));
         Assert.Equal(0, shortGovernor.CurrentCommittedBytes);
@@ -90,7 +95,8 @@ public sealed class AwkRegexScalarMemoryTests
                 var pattern = ".[" + (negated ? "^" : "") + @"\p{" + category +
                     "}\U00010001-\U00010801\U00010400-\U00010FFE\U00010000-\U0010FFFF]$()";
                 var counters = AwkRuntimeCounters.CreateEnabled();
-                var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 24), counters);
+                using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+                var governor = memoryForGovernor.Accounting;
                 Assert.Equal(AwkRegexScalarPattern.Translate(pattern),
                     AwkRegexScalarPattern.Translate(pattern, () => { }, governor));
                 Assert.Equal(0, governor.CurrentCommittedBytes);
@@ -103,7 +109,8 @@ public sealed class AwkRegexScalarMemoryTests
     public void PlainPatternAndDisabledGovernorDoNotAdmitScalarBuffers()
     {
         var pattern = new string('a', 16384);
-        var governor = Governor(1);
+        using var memoryForGovernor = Governor(1);
+        var governor = memoryForGovernor.Accounting;
         Assert.Same(pattern, AwkRegexScalarPattern.Translate(pattern, () => { }, governor));
         Assert.Equal(AwkRegexScalarPattern.Translate(@"\p{L}."),
             AwkRegexScalarPattern.Translate(@"\p{L}.", () => { }, AwkMemoryAccounting.Disabled));
@@ -115,7 +122,8 @@ public sealed class AwkRegexScalarMemoryTests
     public void CancellationReleasesOwnAdmissionAndPreservesBorrowedText(string pattern)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 24), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
+        var governor = memoryForGovernor.Accounting;
         using var resultText = governor.CreateTransientLease();
         resultText.ReserveAdditional(43);
         using var cancellation = new CancellationTokenSource();
@@ -150,8 +158,8 @@ public sealed class AwkRegexScalarMemoryTests
         Assert.True(ranges.Zip(ranges.Skip(1), (left, right) => left.First <= right.First).All(value => value));
     }
 
-    private static AwkMemoryAccounting Governor(long bytes) =>
-        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
+    private static CooperativeTestMemory Governor(long bytes) =>
+        new CooperativeTestMemory(bytes, AwkRuntimeCounters.Disabled);
 
     private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryAccounting governor)
     {

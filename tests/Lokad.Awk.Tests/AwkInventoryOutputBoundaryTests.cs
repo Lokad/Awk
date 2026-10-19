@@ -19,8 +19,9 @@ public sealed class AwkInventoryOutputBoundaryTests
     public void InterruptedOutputAppendPreservesEarlierBytesAndAllowsRetry(bool observed, string kind, bool rope)
     {
         var counters = Counters(observed);
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(8 << 20, counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var checks = 0;
@@ -64,8 +65,9 @@ public sealed class AwkInventoryOutputBoundaryTests
     public void OutputMemoryFailurePreservesEarlierBytes(bool observed, string kind)
     {
         var counters = Counters(observed);
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1_024);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(1_024, counters);
+        var governor = memoryForGovernor.Accounting;
         using var output = new AwkOutputSink(limits, governor, counters, static () => { });
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var committed = governor.CurrentCommittedBytes;
@@ -87,7 +89,8 @@ public sealed class AwkInventoryOutputBoundaryTests
     {
         using var cancellation = new CancellationTokenSource();
         var counters = Counters(observed);
-        var state = State(counters, cancellation.Token);
+        using var memoryForState = State(counters, cancellation.Token);
+        var state = memoryForState.State;
         var program = new AwkProgram([], [], [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
         using var executor = new AwkRuntimeActionExecutor(program, state);
         executor.Output.Append(AwkText.FromSourceLiteralString("kept:"));
@@ -186,7 +189,8 @@ public sealed class AwkInventoryOutputBoundaryTests
     public void VariableSnapshotsPassTheirCheckpointAndPreserveStorage(bool symbolTable, string operation)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(8 << 20, counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var checks = 0;
@@ -196,7 +200,7 @@ public sealed class AwkInventoryOutputBoundaryTests
             if (++checks == 3) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var variables = new AwkVariables(4_096, 4_096, 1_024, governor, counters, AwkValue.FromText, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { }, _ => { }, checkpoint: Check);
+        var variables = new AwkVariables(4_096, 4_096, 1_024, governor, counters, AwkValue.FromText, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { }, checkpoint: Check);
         var names = Enumerable.Range(0, 512).Select(index => AwkVariableName.FromText("v" + index)).ToHashSet();
         var array = AwkArrayName.FromText(symbolTable ? AwkVariables.SymbolTableName : "kept");
         if (symbolTable) variables.InitializeGlobalNames(names);
@@ -250,7 +254,8 @@ public sealed class AwkInventoryOutputBoundaryTests
     public async Task CachedAsciiSeparatorsCreateNoTerminatorTexts(bool observed, string separator)
     {
         var counters = Counters(observed);
-        var state = State(counters, CancellationToken.None);
+        using var memoryForState = State(counters, CancellationToken.None);
+        var state = memoryForState.State;
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(Array.Empty<byte>(), [], AwkReadCompletion.EndOfFile));
         var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
@@ -311,11 +316,13 @@ public sealed class AwkInventoryOutputBoundaryTests
     private static AwkRuntimeCounters Counters(bool observed) =>
         observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
 
-    private static AwkRuntimeState State(AwkRuntimeCounters counters, CancellationToken token)
+    private static CooperativeTestMemory State(AwkRuntimeCounters counters, CancellationToken token)
     {
+
+        var testMemory = new CooperativeTestMemory(8 << 20, enabled: true && (long)(8 << 20) != long.MaxValue);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20),
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
-        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options);
+        return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, testMemory.Configure(options)));
     }
 }

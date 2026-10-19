@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Removed `MaxExecutionMemoryBytes`, `MaxRecordBytes`, `MaxValueBytes`, `MaxInputBytes`,
+  `MaxOutputBytes` and their `WithMax...` methods. The restricted preset no longer supplies
+  an execution memory allowance or cumulative I/O limits. Hosts supply shared admission
+  through `WithMemoryBudget`; no supplied budget means no private aggregate memory cap.
+  Retained capacity and growth overlap still preflight before mutation. Long streams are
+  charged for live storage, not cumulative bytes processed.
+
 ## 0.3.0 - 2026-10-19
 
 Published on [NuGet](https://www.nuget.org/packages/Lokad.Awk/0.3.0) from source

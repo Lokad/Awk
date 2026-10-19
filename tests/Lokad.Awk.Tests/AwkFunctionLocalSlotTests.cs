@@ -9,8 +9,9 @@ public sealed class AwkFunctionLocalSlotTests
     [Fact]
     public void GlobalBindingScopeRetainsChargesPhysicalDepthAndNestedBindings()
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var memory = AwkMemoryAccounting.Create(limits, AwkRuntimeCounters.Disabled);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForMemory = new CooperativeTestMemory(1 << 20, AwkRuntimeCounters.Disabled);
+        var memory = memoryForMemory.Accounting;
         var stack = new AwkFunctionCallStack(2, memory, static slot => slot.ToValue(
             static text => AwkValue.FromText(text), static text => AwkValue.FromNumericString(text),
             static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)));
@@ -334,7 +335,7 @@ public sealed class AwkFunctionLocalSlotTests
     private static AwkFunctionCallStack CreateCallStack(AwkRuntimeCounters counters) =>
         new(
             maxFunctionCallDepth: 8,
-            AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters),
+            AwkMemoryAccounting.Disabled,
             static slot => slot.ToValue(static text => AwkValue.FromText(text),
                 static text => AwkValue.FromNumericString(text),
                 static text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal)));

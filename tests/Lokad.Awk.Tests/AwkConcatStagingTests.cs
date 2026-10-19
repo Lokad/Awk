@@ -145,10 +145,9 @@ public sealed class AwkConcatStagingTests
     private static string Expected(int arity) => string.Concat(Enumerable.Range(0, arity).Select(index => $"é{index}"));
     private static AwkExecutionMemoryOwner Owner(int mode, CooperativeTestBudget budget) =>
         mode == 2 ? AwkExecutionMemoryOwner.Create(budget, CancellationToken.None) : AwkExecutionMemoryOwner.Disabled;
-    private static AwkRuntimeState State(int mode, AwkExecutionMemoryOwner owner)
+    private static AwkRuntimeState State(int mode,AwkExecutionMemoryOwner owner)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), limits,
             AwkRegexEngineKind.DotNetCompatibility)

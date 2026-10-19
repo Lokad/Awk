@@ -32,14 +32,6 @@ internal sealed record AwkRuntimeLimits
 
     public int MaxSyntaxNestingDepth { get; private init; } = DefaultMaxSyntaxNestingDepth;
 
-    public long MaxRecordBytes { get; private init; } = Unlimited;
-
-    public long MaxInputBytes { get; private init; } = Unlimited;
-
-    public long MaxValueBytes { get; private init; } = Unlimited;
-
-    public long MaxOutputBytes { get; private init; } = Unlimited;
-
     public int MaxArrayElements { get; private init; } = DefaultMaxArrayElements;
 
     public int MaxFields { get; private init; } = DefaultMaxFields;
@@ -57,8 +49,6 @@ internal sealed record AwkRuntimeLimits
     public int MaxRegexGroups { get; private init; } = 10_000;
 
     public long MaxRegexCacheBytes { get; private init; } = 64L << 20;
-
-    public long MaxExecutionMemoryBytes { get; private init; } = Unlimited;
 
     public int MaxOutputFiles { get; private init; } = DefaultMaxOutputFiles;
 
@@ -89,10 +79,6 @@ internal sealed record AwkRuntimeLimits
         {
             MaxFunctionCallDepth = 32,
             MaxSyntaxNestingDepth = 64,
-            MaxRecordBytes = 8L << 20,
-            MaxInputBytes = 64L << 20,
-            MaxValueBytes = 8L << 20,
-            MaxOutputBytes = 16L << 20,
             MaxArrayElements = 100_000,
             MaxFields = 100_000,
             MaxSymbols = 10_000,
@@ -102,7 +88,6 @@ internal sealed record AwkRuntimeLimits
             MaxRegexPatternBytes = 64L << 10,
             MaxRegexGroups = 256,
             MaxRegexCacheBytes = 8L << 20,
-            MaxExecutionMemoryBytes = 64L << 20,
             MaxOutputFiles = 64,
             MaxInputFiles = 64,
             MaxPipes = 8,
@@ -127,18 +112,6 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxSyntaxNestingDepth(int value) =>
         this with { MaxSyntaxNestingDepth = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxRecordBytes(long value) =>
-        this with { MaxRecordBytes = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxInputBytes(long value) =>
-        this with { MaxInputBytes = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxValueBytes(long value) =>
-        this with { MaxValueBytes = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxOutputBytes(long value) =>
-        this with { MaxOutputBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxArrayElements(int value) =>
         this with { MaxArrayElements = RequirePositive(value) };
@@ -166,9 +139,6 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxRegexCacheBytes(long value) =>
         this with { MaxRegexCacheBytes = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxExecutionMemoryBytes(long value) =>
-        this with { MaxExecutionMemoryBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxOutputFiles(int value) =>
         this with { MaxOutputFiles = RequirePositive(value) };

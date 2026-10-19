@@ -78,8 +78,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     return AwkInputRecordResult.EndOfFile;
 
                 var line = AwkRecordLine.SplitDefaultNewline(reader.PeekLine());
-                _state.Resources.ThrowIfRecordBytesExceeded(line.RecordBytes.Length);
-                _state.Resources.ThrowIfValueBytesExceeded(line.RecordBytes.Length);
                 var record = AwkText.CopyHostBytes(
                     line.RecordBytes.Span,
                     _state.Counters,

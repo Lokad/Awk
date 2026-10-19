@@ -80,7 +80,6 @@ internal sealed class AwkFieldSplitter(
     public List<AwkFieldWidth> PrepareFieldWidths(AwkText value)
     {
         var count = AwkFieldWidthsParser.Parse(value.AsSpan(throwIfCancellationRequested), null, throwIfCancellationRequested);
-        memoryAccounting.PreflightAllocation(AwkRuntimeMemory.EstimateFieldWidthListBytes(count));
         var widths = new List<AwkFieldWidth>(count);
         AwkFieldWidthsParser.Parse(value.AsSpan(throwIfCancellationRequested), widths, throwIfCancellationRequested);
         return widths;

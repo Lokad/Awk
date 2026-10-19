@@ -40,7 +40,8 @@ public sealed class AwkRangeParagraphTests
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(
             input.AsMemory(boundary), [], AwkReadCompletion.EndOfFile));
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, AwkRegexEngineKind.Utf8Adapter);
+        using var memoryForState = State(counters, AwkRegexEngineKind.Utf8Adapter);
+        var state = memoryForState.State;
         Assign(state, "RS", "");
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         using var cursor = new AwkRecordCursor(state, descriptorReader,
@@ -68,14 +69,15 @@ public sealed class AwkRangeParagraphTests
     public void LazyParagraphFieldsRetryAfterMemoryFailureUsingTheirCapturedSeparator(int backend)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, (AwkRegexEngineKind)backend);
+        using var memoryForState = State(counters, (AwkRegexEngineKind)backend);
+        var state = memoryForState.State;
         Assign(state, "RS", "");
         Assign(state, "FS", "é");
         state.SetRecordFieldSplittingMode(AwkRecordFieldSplittingMode.Paragraph);
         var record = AwkText.FromSourceLiteralString("a\nbéx");
         state.SetCurrentRecord(record);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = state.Limits.MaxExecutionMemoryBytes - before;
+        var pressure = memoryForState.Budget.Limit - before;
         state.MemoryAccounting.Reserve(pressure);
 
         var error = Assert.Throws<AwkRuntimeException>(() => state.FieldCount);
@@ -99,7 +101,8 @@ public sealed class AwkRangeParagraphTests
     {
         var host = new TestOperationVisitor([]);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, AwkRegexEngineKind.Utf8Adapter);
+        using var memoryForState = State(counters, AwkRegexEngineKind.Utf8Adapter);
+        var state = memoryForState.State;
         Assign(state, "RS", "");
         // The first read ends a separator run when it encounters x; x and its final
         // CRLF remain in the EOF buffer for the second read and its allocation check.
@@ -110,7 +113,7 @@ public sealed class AwkRangeParagraphTests
             descriptorReader.CreateLineReader(AwkFileDescriptor.StdIn));
         _ = await cursor.ReadAsync();
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = state.Limits.MaxExecutionMemoryBytes - before - 2;
+        var pressure = memoryForState.Budget.Limit - before - 2;
         state.MemoryAccounting.Reserve(pressure);
 
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await cursor.ReadAsync());
@@ -132,11 +135,13 @@ public sealed class AwkRangeParagraphTests
         state.AssignVariableValue(AwkVariableName.FromText(name),
             AwkValue.FromText(AwkText.FromSourceLiteralString(text)));
 
-    private static AwkRuntimeState State(AwkRuntimeCounters counters, AwkRegexEngineKind backend)
+    private static CooperativeTestMemory State(AwkRuntimeCounters counters, AwkRegexEngineKind backend)
     {
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, backend, regexEngine: AwkUtf8RegexEngine.Instance);
-        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options)));
     }
 }

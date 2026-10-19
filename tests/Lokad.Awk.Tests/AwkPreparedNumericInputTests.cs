@@ -7,7 +7,8 @@ public sealed class AwkPreparedNumericInputTests
     [InlineData(true)]
     public void LocalArgumentTypeProbeDoesNotReadOrAdmitTheValue(bool numericInput)
     {
-        var state = CreateState(maxValueBytes: 3);
+        using var memoryForState = CreateState();
+        var state = memoryForState.State;
         var value = numericInput ? AwkValue.FromNumericString("12345") : AwkValue.FromText("12345");
         using var frame = Store(state, value, 2);
         var created = state.Counters.ValuesCreated;
@@ -15,10 +16,6 @@ public sealed class AwkPreparedNumericInputTests
         Assert.True(state.HasPreparedLocalScalarArgument(new AwkFunctionLocalSlotId(0)));
         Assert.Equal(1, state.Counters.BoundLocalScalarArguments);
         Assert.Equal(created, state.Counters.ValuesCreated);
-        var error = Assert.Throws<AwkRuntimeException>(() => Read(state, 2));
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(created, state.Counters.ValuesCreated);
-        Assert.Equal(0, state.Counters.PreparedNumericSlotReads);
         Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -35,7 +32,8 @@ public sealed class AwkPreparedNumericInputTests
     [InlineData("1.5 ", 1.5, 2)]
     public void StoredInputPreservesTextClassificationAndReadAccounting(string source, double number, int storage)
     {
-        var state = CreateState();
+        using var memoryForState = CreateState();
+        var state = memoryForState.State;
         var text = AwkText.FromSourceLiteralString(source);
         var input = state.CreateNumericStringValue(text);
         using var frame = Store(state, input, storage);
@@ -63,7 +61,8 @@ public sealed class AwkPreparedNumericInputTests
     [InlineData(true, 2)]
     public void ModeSensitiveInputStillUsesTheReadingMode(bool nonDecimal, int storage)
     {
-        var state = CreateState(nonDecimal: nonDecimal);
+        using var memoryForState = CreateState(nonDecimal: nonDecimal);
+        var state = memoryForState.State;
         var originalMode = nonDecimal ? AwkNumberParsingMode.Decimal : AwkNumberParsingMode.NonDecimalData;
         using var frame = Store(state, AwkValue.FromNumericString("010", originalMode), storage);
         var result = Read(state, storage);
@@ -79,7 +78,8 @@ public sealed class AwkPreparedNumericInputTests
     [InlineData(2)]
     public void MissingHexExponentRemainsDeferredUntilNumericConversion(int storage)
     {
-        var state = CreateState(nonDecimal: true);
+        using var memoryForState = CreateState(nonDecimal: true);
+        var state = memoryForState.State;
         var input = state.CreateNumericStringValue("0x1.5");
         using var frame = Store(state, input, storage);
         var result = Read(state, storage);
@@ -94,7 +94,8 @@ public sealed class AwkPreparedNumericInputTests
     public void LongStoredInputStillObservesCancellationOnRead(int storage)
     {
         using var cancellation = new CancellationTokenSource();
-        var state = CreateState(cancellationToken: cancellation.Token);
+        using var memoryForState = CreateState(cancellationToken: cancellation.Token);
+        var state = memoryForState.State;
         var input = state.CreateNumericStringValue("1" + new string('0', 8000));
         using var frame = Store(state, input, storage);
         var retained = state.MemoryAccounting.CurrentCommittedBytes;
@@ -109,29 +110,13 @@ public sealed class AwkPreparedNumericInputTests
     [Fact]
     public void RejectedStoredInputPreservesTheOldElementAndCharge()
     {
-        var state = CreateState(maxMemoryBytes: 512);
+        using var memoryForState = CreateState(maxMemoryBytes: 512);
+        var state = memoryForState.State;
         Store(state, state.CreateNumericStringValue("123"), storage: 1);
         var retained = state.MemoryAccounting.CurrentCommittedBytes;
         var oversized = AwkValue.FromNumericString("1" + new string('0', 2000));
         Assert.Throws<AwkRuntimeException>(() => Store(state, oversized, storage: 1));
         Assert.Equal(123, Read(state, storage: 1).AsNumber());
-        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void StoredInputStillPreflightsValueSizeBeforeReadAccounting(int storage)
-    {
-        var state = CreateState(maxValueBytes: 3);
-        using var frame = Store(state, AwkValue.FromNumericString("12345"), storage);
-        var retained = state.MemoryAccounting.CurrentCommittedBytes;
-        var created = state.Counters.ValuesCreated;
-        Assert.Throws<AwkRuntimeException>(() => Read(state, storage));
-        Assert.Equal(created, state.Counters.ValuesCreated);
-        Assert.Equal(0, state.Counters.PreparedNumericSlotReads);
         Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -161,15 +146,17 @@ public sealed class AwkPreparedNumericInputTests
         public void Dispose() => state?.PopFunctionFrame();
     }
 
-    private static AwkRuntimeState CreateState(bool nonDecimal = false, CancellationToken cancellationToken = default,
-        long maxValueBytes = AwkRuntimeLimits.Unlimited, long maxMemoryBytes = 1 << 20)
+    private static CooperativeTestMemory CreateState(bool nonDecimal = false, CancellationToken cancellationToken = default,
+        long maxMemoryBytes = 1 << 20)
     {
+
+        var testMemory = new CooperativeTestMemory(maxMemoryBytes, enabled: true && (long)(maxMemoryBytes) != long.MaxValue);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(maxMemoryBytes).WithMaxValueBytes(maxValueBytes);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
-        return new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken, options,
+        return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken, testMemory.Configure(options),
             new AwkRuntimeResourceMonitor(limits, counters, cancellationToken),
-            new AwkCompatibilityProfile(AwkCompatibilityMode.GnuDefault, AwkStringUnitMode.Utf8Rune, nonDecimal, AwkLintMode.Off));
+            new AwkCompatibilityProfile(AwkCompatibilityMode.GnuDefault, AwkStringUnitMode.Utf8Rune, nonDecimal, AwkLintMode.Off)));
     }
 }

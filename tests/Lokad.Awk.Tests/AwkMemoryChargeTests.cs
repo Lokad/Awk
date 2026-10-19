@@ -6,8 +6,8 @@ public sealed class AwkMemoryChargeTests
     public void RejectedImmediateChargePreservesExistingAdmissionAndCounters()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(128), counters);
+        using var memoryForGovernor = new CooperativeTestMemory(128, counters);
+        var governor = memoryForGovernor.Accounting;
         using var existing = governor.ReserveTransient(40);
         var error = Assert.Throws<AwkRuntimeException>(() => governor.ReserveAndCommit(89));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
@@ -24,7 +24,8 @@ public sealed class AwkMemoryChargeTests
     [Fact]
     public void LeaseGrowthFailureKeepsPriorChargeAndReleasesItExactlyOnce()
     {
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(100));
+        using var memoryForGovernor = new CooperativeTestMemory(100, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
         using var lease = governor.CreateTransientLease();
         lease.ReserveAdditional(40);
         Assert.Throws<AwkRuntimeException>(() => lease.ReserveAdditional(61));

@@ -9,10 +9,6 @@ public sealed class AwkExecutionPolicyBudgetTests
     {
                 { "MaxFunctionCallDepth", 1000, 32 },
         { "MaxSyntaxNestingDepth", 128, 64 },
-        { "MaxRecordBytes", long.MaxValue, 8L << 20 },
-        { "MaxInputBytes", long.MaxValue, 64L << 20 },
-        { "MaxValueBytes", long.MaxValue, 8L << 20 },
-        { "MaxOutputBytes", long.MaxValue, 16L << 20 },
         { "MaxArrayElements", 1_000_000, 100_000 },
         { "MaxFields", 1_000_000, 100_000 },
         { "MaxSymbols", 100_000, 10_000 },
@@ -22,7 +18,6 @@ public sealed class AwkExecutionPolicyBudgetTests
         { "MaxRegexPatternBytes", 8L << 20, 64L << 10 },
         { "MaxRegexGroups", 10_000, 256 },
         { "MaxRegexCacheBytes", 64L << 20, 8L << 20 },
-        { "MaxExecutionMemoryBytes", long.MaxValue, 64L << 20 },
         { "MaxOutputFiles", 10_000, 64 },
         { "MaxInputFiles", 10_000, 64 },
         { "MaxPipes", 1024, 8 },
@@ -85,13 +80,13 @@ public sealed class AwkExecutionPolicyBudgetTests
     [Fact]
     public void RuntimeAdaptationReusesBudgetsAndPreservesPublicRecordSemantics()
     {
-        var policy = AwkExecutionPolicy.CreateRestricted().WithMaxOutputBytes(123);
-        var capabilities = policy.WithCommandPipes(true).WithMaxArgumentBytes(456);
+        var policy = AwkExecutionPolicy.CreateRestricted().WithMaxPipes(123);
+        var capabilities = policy.WithCommandPipes(true).WithMaxHostErrorBytes(456);
         Assert.Same(policy.Limits, AwkRuntimeLimits.FromPolicy(policy));
         Assert.Same(policy.Limits, capabilities.Limits);
-        Assert.Equal(policy, capabilities.WithCommandPipes(false).WithMaxArgumentBytes(policy.MaxArgumentBytes));
+        Assert.Equal(policy, capabilities.WithCommandPipes(false).WithMaxHostErrorBytes(policy.MaxHostErrorBytes));
         Assert.Equal(policy.GetHashCode(), (policy with { }).GetHashCode());
-        Assert.Contains("MaxOutputBytes = 123", policy.ToString());
+        Assert.Contains("MaxPipes = 123", policy.ToString());
         Assert.DoesNotContain("Limits =", policy.ToString());
     }
 

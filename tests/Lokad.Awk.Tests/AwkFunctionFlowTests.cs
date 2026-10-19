@@ -16,7 +16,7 @@ public sealed class AwkFunctionFlowTests
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(32768)
+        var limits = AwkRuntimeLimits.CreateDefault()
             .WithMaxFunctionCallDepth(2);
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
@@ -69,7 +69,7 @@ public sealed class AwkFunctionFlowTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(32768).WithMaxFunctionCallDepth(2),
+            AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(2),
             AwkRegexEngineKind.DotNetCompatibility);
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(0, exit.Value);

@@ -79,7 +79,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     {
         var program = Bind("{total+=a[$1]+b[$(1+0)]}");
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
         var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
@@ -126,8 +126,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var action = ordinary ? new AwkAction(null, statements.Select(s => (AwkStatement)new OrdinaryStatement(s)).ToArray())
             : program.MainActions[0];
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var state = State(counters, 0 == 0 ? limits : limits);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var state = State(counters, limits);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var a = AwkArrayName.FromText("a"); var b = AwkArrayName.FromText("b");
         state.SetArrayAwkValue(a, new("hit"), AwkValue.FromNumber(7));
@@ -153,11 +153,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
     public async Task FieldArrayActionMissingRefusalKeepsBothArraysAndScalar(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var program = Bind("{total+=a[$1]+b[$1]}");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1);
-        if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var state = State(counters, limits, owner: owner);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var a = AwkArrayName.FromText("a"); var b = AwkArrayName.FromText("b");
@@ -194,7 +193,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var expression = AwkExpression.ArrayElement(name, AwkArrayIndex.Simple(AwkExpression.FieldIndex(operand)));
         Assert.Equal(0, Assert.IsAssignableFrom<AwkSynchronousExpression>(expression).SynchronousDepth);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20));
+        var state = State(counters, AwkRuntimeLimits.CreateDefault());
         state.SetArrayAwkValue(name, new("old"), AwkValue.FromNumber(7));
         state.SetArrayAwkValue(name, new("new"), AwkValue.FromNumber(9));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("old"));

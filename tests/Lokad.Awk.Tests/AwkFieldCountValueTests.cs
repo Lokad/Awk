@@ -10,7 +10,8 @@ public sealed class AwkFieldCountValueTests
     [InlineData(-1.8, "awk: negative field index\n")]
     public void FailedCountAssignmentPreservesValueRecordAndMemory(double value, string diagnostic)
     {
-        var state = State(AwkRuntimeLimits.CreateDefault().WithMaxFields(3).WithMaxExecutionMemoryBytes(4096));
+        using var memory = State(AwkRuntimeLimits.CreateDefault().WithMaxFields(3));
+        var state = memory.State;
         state.SetCurrentRecord(AwkText.FromString("a b c"));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.FieldCount, AwkValue.FromText("02.8"));
         Assert.Equal("a b", state.CurrentRecordByteText.AsString());
@@ -30,11 +31,13 @@ public sealed class AwkFieldCountValueTests
     [Fact]
     public void FailedTextRetentionDoesNotTruncateTheRecord()
     {
-        var state = State(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1024));
+        using var memory = State(AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
         state.SetCurrentRecord(AwkText.FromString("a b"));
         Assert.Equal(2, state.FieldCount);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
 
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.AssignSpecialVariableValue(
             AwkSpecialVariableId.FieldCount, AwkValue.FromText(new string('x', 1000))));
 
@@ -48,7 +51,8 @@ public sealed class AwkFieldCountValueTests
     [Fact]
     public void RetainedFieldCountTextSurvivesRecompositionAndIsReleasedAtReset()
     {
-        var state = State(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096));
+        using var memory = State(AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
         var assigned = AwkValue.FromText("foo");
         var fileName = AwkText.FromString("next");
         state.BeginInputFile(fileName, new AwkArgvIndex(1));
@@ -68,7 +72,8 @@ public sealed class AwkFieldCountValueTests
     [Fact]
     public void GenericNamesAndGlobalSlotsShareTheComputedFieldCount()
     {
-        var state = State(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096));
+        using var memory = State(AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
         var name = AwkVariableName.FromText("NF");
         state.SetCurrentRecord(AwkText.FromString("a b c"));
         state.AssignVariableValue(name, AwkValue.FromText("01.8"));
@@ -84,9 +89,11 @@ public sealed class AwkFieldCountValueTests
         Assert.Equal("a ", state.CurrentRecordByteText.AsString());
     }
 
-    private static AwkRuntimeState State(AwkRuntimeLimits limits) =>
-        AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+    private static CooperativeTestMemory State(AwkRuntimeLimits limits) {
+        var memory = new CooperativeTestMemory(1 << 20);
+        return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
+            memory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, limits,
-                AwkRegexEngineKind.DotNetCompatibility));
+                AwkRegexEngineKind.DotNetCompatibility))));
+    }
 }

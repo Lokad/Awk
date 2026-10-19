@@ -5,7 +5,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [Fact]
     public async Task LatePrintfFailureClearsUnpublishedSinkBytes()
     {
-        var state = State(observed: true, "default");
+        using var memoryForState = State(observed: true, "default");
+        var state = memoryForState.State;
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
         var host = new MockFileSystem();
         var io = Io(state, host);
@@ -27,7 +28,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [Fact]
     public void PrintfSinkUsesAdmittedCapacityAndClearsPartialGrowthRefusal()
     {
-        var state = State(observed: true, "default");
+        using var memoryForState = State(observed: true, "default");
+        var state = memoryForState.State;
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
         using var empty = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
         var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("kept")), state.Counters);
@@ -48,7 +50,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     public void PartialPrintfCancellationClearsUnpublishedSinkBytes()
     {
         using var cancellation = new CancellationTokenSource();
-        var state = State(observed: true, "default", cancellation.Token);
+        using var memoryForState = State(observed: true, "default", cancellation.Token);
+        var state = memoryForState.State;
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
         var arguments = new CancelingPrintfArguments(cancellation);
         var error = Assert.ThrowsAny<OperationCanceledException>(() => output.TryFormatPrintf("prefix:%s", arguments, state));

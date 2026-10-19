@@ -9,7 +9,8 @@ public sealed class AwkPreparedCompoundUpdateTests
     [InlineData(true)]
     public async Task PlainAssignmentWaitsForRightAndConsumesOnce(bool pending)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
         state.AssignVariable(name, "007");
         var source = new ValueSource(3, pending);
@@ -36,7 +37,8 @@ public sealed class AwkPreparedCompoundUpdateTests
     [InlineData(true, true)]
     public async Task PlainRightFailurePreservesTheTarget(bool pending, bool canceled)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
         state.AssignVariable(name, "007");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -64,7 +66,8 @@ public sealed class AwkPreparedCompoundUpdateTests
     [Fact]
     public async Task PlainFirstAdmissionFailureDoesNotBindTheTarget()
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("missing");
         var reference = AwkReference.PreparedGlobalScalar(name, 0);
         var source = new ValueSource(3, pending: false);
@@ -99,7 +102,8 @@ public sealed class AwkPreparedCompoundUpdateTests
     [InlineData(5, 343, true)]
     public async Task CapturesLeftValueBeforeRightEffectsAndConsumesOnce(int operation, double expected, bool pending)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
         state.AssignVariable(name, "007");
         var source = new ValueSource(3, pending);
@@ -128,7 +132,8 @@ public sealed class AwkPreparedCompoundUpdateTests
     [InlineData(true, true)]
     public async Task RightFailurePreservesTheTarget(bool pending, bool canceled)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
         state.AssignVariable(name, "007");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -156,7 +161,8 @@ public sealed class AwkPreparedCompoundUpdateTests
     [InlineData(true)]
     public async Task DivisionFailureDoesNotPublishTheResult(bool pending)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
         state.AssignVariable(name, "007");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -175,7 +181,8 @@ public sealed class AwkPreparedCompoundUpdateTests
     [Fact]
     public async Task FailedFirstAdmissionStopsRightEvaluationAndDoesNotBind()
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("missing");
         var target = AwkReference.PreparedGlobalScalar(name, 0);
         var source = new ValueSource(3, pending: false);
@@ -197,7 +204,8 @@ public sealed class AwkPreparedCompoundUpdateTests
     [Fact]
     public void ArrayTypeErrorStopsRightEvaluationWithoutMutation()
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("values");
         var array = new AwkArrayName(name.Identifier);
         var key = AwkArrayKey.FromOrdinal(1);
@@ -252,14 +260,16 @@ public sealed class AwkPreparedCompoundUpdateTests
         }
     }
 
-    private static AwkRuntimeState State()
+    private static CooperativeTestMemory State()
     {
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
+            AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.DotNetCompatibility);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         state.InitializeGlobalReadSlots(1);
-        return state;
+        return testMemory.Initialize(() => state);
     }
 }

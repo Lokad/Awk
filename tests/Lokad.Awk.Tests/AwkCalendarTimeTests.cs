@@ -77,7 +77,10 @@ public sealed class AwkCalendarTimeTests
     public void AmbiguousOffsetBufferIsGovernedAndReleasedOnFailure()
     {
         const int limit = 1 << 20;
-        var state = State(Zone(false), limits: AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(limit));
+        using var memory = new CooperativeTestMemory(limit);
+        var options = new AwkRuntimeOptions(static () => new(0), Zone(false), new AwkRandomGenerator(),
+            AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options))).State;
         var text = AwkText.FromString("2020 10 1 1 30 0");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         Assert.Equal(1601512200, state.MakeCalendarTime(text, false));

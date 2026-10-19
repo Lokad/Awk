@@ -21,7 +21,8 @@ public sealed class AwkRegexScratchMemoryTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var bytes = AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(parts);
-        var governor = Governor(Math.Max(1, bytes), counters);
+        using var memoryForGovernor = Governor(Math.Max(1, bytes), counters);
+        var governor = memoryForGovernor.Accounting;
         using (var plan = AwkGensubReplacementPlan.Rent(AwkText.FromString(replacement), governor: governor))
         {
             Assert.Equal(groups, plan.CapturePlan.SelectGroupCount(10));
@@ -40,7 +41,8 @@ public sealed class AwkRegexScratchMemoryTests
     public void GensubRejectsInsufficientPartMemoryWithoutAReservation(string shape)
     {
         var (text, parts) = Replacement(shape);
-        var governor = Governor(AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(parts) - 1);
+        using var memoryForGovernor = Governor(AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(parts) - 1);
+        var governor = memoryForGovernor.Accounting;
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
             using var plan = AwkGensubReplacementPlan.Rent(text, governor: governor);
@@ -59,7 +61,8 @@ public sealed class AwkRegexScratchMemoryTests
     {
         var (text, parts) = Replacement(shape);
         var expected = AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(parts);
-        var governor = Governor(expected);
+        using var memoryForGovernor = Governor(expected);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         Assert.Throws<OperationCanceledException>(() =>
@@ -85,7 +88,8 @@ public sealed class AwkRegexScratchMemoryTests
     public void FailedGensubAppendKeepsOnlyThePlanLeaseUntilItIsDisposed(bool canceled)
     {
         var text = AwkText.FromString(new string('a', 16_384));
-        var governor = Governor(1 << 20);
+        using var memoryForGovernor = Governor(1 << 20);
+        var governor = memoryForGovernor.Accounting;
         var plan = AwkGensubReplacementPlan.Rent(text, governor: governor);
         using var builder = new AwkUtf8Builder(canceled ? AwkRuntimeLimits.CreateDefault()
             : AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(4), governor, 0);
@@ -123,7 +127,7 @@ public sealed class AwkRegexScratchMemoryTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8192),
+                new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
                 AwkRegexEngineKind.DotNetCompatibility));
         var input = AwkText.FromString("x");
         var regex = state.CreateRegex(new AwkRegexPattern(missingOccurrence ? "(x)" : "z"));
@@ -147,7 +151,8 @@ public sealed class AwkRegexScratchMemoryTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var (retained, scratch) = CaptureBytes(groups);
-        var governor = Governor(retained + scratch - (reject ? 1 : 0), counters);
+        using var memoryForGovernor = Governor(retained + scratch - (reject ? 1 : 0), counters);
+        var governor = memoryForGovernor.Accounting;
         if (reject)
         {
             var error = Assert.Throws<AwkRuntimeException>(() => { using var result = Capture(groups, governor, counters); });
@@ -181,7 +186,8 @@ public sealed class AwkRegexScratchMemoryTests
         const int groups = 65;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var (retained, scratch) = CaptureBytes(groups);
-        var governor = Governor(retained + scratch, counters);
+        using var memoryForGovernor = Governor(retained + scratch, counters);
+        var governor = memoryForGovernor.Accounting;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         Assert.Throws<OperationCanceledException>(() =>
@@ -228,7 +234,8 @@ public sealed class AwkRegexScratchMemoryTests
     {
         var (retained, scratch) = CaptureBytes(65);
         var counters = observe ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var governor = Governor(retained + scratch - 1, counters);
+        using var memoryForGovernor = Governor(retained + scratch - 1, counters);
+        var governor = memoryForGovernor.Accounting;
         var error = Assert.Throws<AwkRuntimeException>(() => { using var result = Capture(65, governor, counters); });
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, governor.CurrentCommittedBytes);
@@ -260,7 +267,6 @@ public sealed class AwkRegexScratchMemoryTests
     private static AwkRegexMatch Match() => new(true, 0, 1, 0, 1, AwkText.FromString("H"),
         [new(true, 0, 1, AwkText.FromString("H")), new(true, 0, 1, AwkText.FromString("G"))]);
 
-    private static AwkMemoryAccounting Governor(long budget, AwkRuntimeCounters? counters = null) =>
-        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(budget),
-            counters ?? AwkRuntimeCounters.Disabled);
+    private static CooperativeTestMemory Governor(long budget, AwkRuntimeCounters? counters = null) =>
+        new CooperativeTestMemory(budget, counters ?? AwkRuntimeCounters.Disabled);
 }

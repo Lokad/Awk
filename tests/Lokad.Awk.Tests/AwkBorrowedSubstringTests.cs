@@ -10,7 +10,7 @@ public sealed class AwkBorrowedSubstringTests
     public async Task PristineSmallFieldProducesOwnedResult(int mode, bool whole)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using (var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None))
+        await using (var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None))
         {
             var state = State(mode, owner);
             var bytes = "key résumé"u8.ToArray();
@@ -78,7 +78,7 @@ public sealed class AwkBorrowedSubstringTests
     public async Task ResourceFailureKeepsAssignmentAndInput(int mode)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using (var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None))
+        await using (var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None))
         {
             var state = State(mode, owner);
             var record = AwkText.FromSourceLiteralString("key résumé");
@@ -126,11 +126,9 @@ public sealed class AwkBorrowedSubstringTests
             : [field, first, AwkExpression.Number(length.ToString(System.Globalization.CultureInfo.InvariantCulture), length)]);
     }
 
-    private static AwkRuntimeState State(int mode, AwkExecutionMemoryOwner owner,
-        CancellationToken token = default, bool bytes = false, AwkRuntimeLimits? limits = null)
+    private static AwkRuntimeState State(int mode,AwkExecutionMemoryOwner owner,CancellationToken token = default,bool bytes = false,AwkRuntimeLimits? limits = null)
     {
         limits ??= AwkRuntimeLimits.CreateDefault();
-        if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(Limit);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility)
         { MemoryOwner = owner };

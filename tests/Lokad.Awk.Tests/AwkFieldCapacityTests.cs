@@ -11,7 +11,7 @@ public sealed class AwkFieldCapacityTests
     public async Task RetainedCapacitySurvivesShrinkUntilStorageIsReplaced(int mode, int count)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = Accounting(mode, owner, counters);
         var (frame, record, fields) = Frame(accounting, counters, count);
@@ -39,7 +39,7 @@ public sealed class AwkFieldCapacityTests
     public async Task EveryGrowthRouteChargesPlannedCapacity(int mode, string operation, int target)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = Accounting(mode, owner, counters);
         var (frame, record, _) = Frame(accounting, counters, 64);
@@ -68,7 +68,7 @@ public sealed class AwkFieldCapacityTests
     public async Task RefusedCapacityGrowthPreservesTheRecordAndBackingStorage(int mode, string operation)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = Accounting(mode, owner, counters);
         var (frame, record, fields) = Frame(accounting, counters, 64);
@@ -103,7 +103,7 @@ public sealed class AwkFieldCapacityTests
     public async Task CanceledCapacityGrowthCannotPublishAPrefix(int mode, string operation)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = Accounting(mode, owner, counters);
         using var cancellation = new CancellationTokenSource();
@@ -137,7 +137,7 @@ public sealed class AwkFieldCapacityTests
     public async Task SpareCapacityIsKeptAndChargedWithoutReplacingTheList(int mode, string operation)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = Accounting(mode, owner, counters);
         var (frame, record, fields) = Frame(accounting, counters, 65);
@@ -156,7 +156,7 @@ public sealed class AwkFieldCapacityTests
     public async Task RepeatedGrowthAdmitsOnlyGeometricBuffersAndZeroNfKeepsCapacityUntilRecomposition(int mode)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = Accounting(mode, owner, counters);
         var (frame, record, _) = Frame(accounting, counters, 1);
@@ -173,9 +173,8 @@ public sealed class AwkFieldCapacityTests
 
     private static long Buffer(int capacity) => AwkRuntimeMemory.EstimateFieldTextListBytes(capacity);
 
-    private static AwkMemoryAccounting Accounting(int mode, AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters) =>
-        AwkMemoryAccounting.Create(mode == 1 ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(Limit)
-            : AwkRuntimeLimits.CreateDefault(), counters, owner);
+    private static AwkMemoryAccounting Accounting(int mode,AwkExecutionMemoryOwner owner,AwkRuntimeCounters counters) =>
+        AwkMemoryAccounting.Create(counters, owner);
 
     private static (AwkFieldFrame Frame, AwkText Record, List<AwkFieldText> Fields) Frame(
         AwkMemoryAccounting accounting, AwkRuntimeCounters counters, int count, Action? checkpoint = null)
@@ -183,7 +182,7 @@ public sealed class AwkFieldCapacityTests
         var record = AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("x", count)));
         var fields = new List<AwkFieldText>();
         for (var i = 0; i < count; i++) fields.Add(AwkFieldText.FromRecordSlice(i * 2, 1));
-        var frame = new AwkFieldFrame(counters, accounting, 16384, _ => { }, value => AwkText.FromString(value.AsString()), checkpoint);
+        var frame = new AwkFieldFrame(counters, accounting, 16384, value => AwkText.FromString(value.AsString()), checkpoint);
         frame.SetRecordText(record);
         Assert.Equal(count, frame.GetFieldCount(_ => fields));
         return (frame, record, fields);

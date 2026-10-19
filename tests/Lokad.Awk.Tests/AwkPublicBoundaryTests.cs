@@ -14,7 +14,7 @@ public sealed class AwkPublicBoundaryTests
     {
         var compatible = AwkExecutionPolicy.CreateDefault();
         var restricted = AwkExecutionPolicy.CreateRestricted();
-        var customized = restricted.WithCommandPipes(true).WithMaxOutputBytes(42);
+        var customized = restricted.WithCommandPipes(true).WithMaxPipes(42);
         var rooted = compatible.WithAccessiblePathRoot(new AwkPath("/jail"));
 
         Assert.True(compatible.AllowCommandPipes);
@@ -25,12 +25,10 @@ public sealed class AwkPublicBoundaryTests
         Assert.False(restricted.AllowDynamicMainInputPaths);
         Assert.False(restricted.ExposeEnvironment);
         Assert.False(restricted.ExposeHostErrorDetails);
-        Assert.Equal(42, customized.MaxOutputBytes);
+        Assert.Equal(42, customized.MaxPipes);
         Assert.True(customized.AllowCommandPipes);
         Assert.False(restricted.AllowCommandPipes);
-        Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxInputBytes);
         Assert.Equal(32, restricted.MaxFunctionCallDepth);
-        Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxExecutionMemoryBytes);
         Assert.Equal("/jail", Assert.IsType<AwkPath>(rooted.AccessiblePathRoot).Path);
     }
 
@@ -227,20 +225,6 @@ public sealed class AwkPublicBoundaryTests
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal("awk: array element limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
-    public async Task AwkExecutionPolicy_InputByteLimitAppliesAcrossRuntimeReads()
-    {
-        var host = new MockFileSystem();
-        host.SetStandardInput("one\ntwo\n");
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxInputBytes(3);
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal("awk: input byte limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Fact]
@@ -499,24 +483,6 @@ public sealed class AwkPublicBoundaryTests
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("0\n1970-01-01 00:00:00\n", host.GetOutput(AwkFileDescriptor.StdOut));
-    }
-
-    [Theory]
-    [InlineData("%2147483647Y")]
-    [InlineData("%999999999999999999999Y")]
-    public async Task AwkExecutionPolicy_StrftimeWidthPreflightsBeforeAllocation(string format)
-    {
-        var host = new MockFileSystem();
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
-            "awk",
-            $"BEGIN{{print strftime(\"{format}\", 0, 1)}}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxValueBytes(64);
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Fact]

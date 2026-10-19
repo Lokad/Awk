@@ -10,7 +10,8 @@ public sealed class AwkBuiltinArgumentMemoryTests
     [InlineData(2)]
     public async Task StagingEvaluatesOnceInOrderAcrossSuspension(int pendingIndex)
     {
-        var state = State(observed: true, CancellationToken.None);
+        using var memoryForState = State(observed: true, CancellationToken.None);
+        var state = memoryForState.State;
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         var entries = new List<int>();
         var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -47,7 +48,8 @@ public sealed class AwkBuiltinArgumentMemoryTests
     [InlineData(true)]
     public async Task BuiltinArgumentCapacityShortfallPrecedesMutationAndAllowsRetry(bool observed)
     {
-        var state = State(observed, CancellationToken.None);
+        using var memoryForState = State(observed, CancellationToken.None);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("count");
         state.AssignVariableValue(name, AwkValue.FromNumber(0));
         Assert.True(AwkBuiltins.TryGetCallable("sqrt", out var builtin));
@@ -77,7 +79,8 @@ public sealed class AwkBuiltinArgumentMemoryTests
     public async Task BuiltinArgumentsRemainChargedWhileAnOperandIsPending(bool observed, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
-        var state = State(observed, cancellation.Token);
+        using var memoryForState = State(observed, cancellation.Token);
+        var state = memoryForState.State;
         var operand = new PendingOperand(cancellation.Token);
         Assert.True(AwkBuiltins.TryGetCallable("sqrt", out var builtin));
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
@@ -126,12 +129,14 @@ public sealed class AwkBuiltinArgumentMemoryTests
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => evaluate();
     }
 
-    private static AwkRuntimeState State(bool observed, CancellationToken token)
+    private static CooperativeTestMemory State(bool observed, CancellationToken token)
     {
+
+        var testMemory = new CooperativeTestMemory(Limit, enabled: (long)(Limit) != long.MaxValue);
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(Limit),
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
-        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options);
+        return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, testMemory.Configure(options)));
     }
 }

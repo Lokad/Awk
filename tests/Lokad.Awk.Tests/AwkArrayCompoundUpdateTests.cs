@@ -22,7 +22,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
     [InlineData(5, 343, true)]
     public async Task CapturesLeftValueBeforeRightEffectsAndConsumesOnce(int operation, double expected, bool pending)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         state.SetArrayAwkValue(name, Key, AwkValue.FromText("007"));
         var source = new ValueSource(3, pending);
@@ -51,7 +52,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
     [InlineData(true, true)]
     public async Task RightFailurePreservesTheTarget(bool pending, bool canceled)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         state.SetArrayAwkValue(name, Key, AwkValue.FromText("007"));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -79,7 +81,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
     [InlineData(true)]
     public async Task DivisionFailureDoesNotPublishTheResult(bool pending)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         state.SetArrayAwkValue(name, Key, AwkValue.FromText("007"));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -102,7 +105,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
     [InlineData(true, true)]
     public async Task KeyFinishesBeforeRightEffectsAndIsConsumedOnce(bool keyPending, bool rightPending)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         var key = AwkArrayKey.FromOrdinal(1);
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
@@ -144,7 +148,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
     [InlineData(true, true)]
     public async Task KeyFailureStopsRightEvaluation(bool pending, bool canceled)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         state.SetArrayAwkValue(name, Key, AwkValue.FromNumber(7));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -173,7 +178,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
     [Fact]
     public async Task FailedFirstAdmissionStopsRightEvaluationAndDoesNotPublish()
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("missing");
         var target = AwkReference.ArrayElement(name, Index);
         var source = new ValueSource(3, pending: false);
@@ -201,7 +207,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
     [InlineData(true, true)]
     public async Task BorrowedFieldTargetSurvivesPendingIndexRightDeletionAndRecordReuse(bool keyPending, bool rightPending)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
@@ -278,10 +285,12 @@ public sealed partial class AwkArrayCompoundUpdateTests
         }
     }
 
-    private static AwkRuntimeState State()
+    private static CooperativeTestMemory State()
     {
-        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), AwkRegexEngineKind.DotNetCompatibility);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
-        return state;
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: (long)(1 << 20) != long.MaxValue);
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
+        return testMemory.Initialize(() => state);
     }
 }

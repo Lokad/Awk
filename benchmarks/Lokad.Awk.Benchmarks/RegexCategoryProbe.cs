@@ -1,3 +1,4 @@
+using Lokad.Awk.Tests;
 using System.Diagnostics;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -16,7 +17,9 @@ internal static class RegexCategoryProbe
         if (IsPublished()) throw new InvalidOperationException("Category probe must start cold.");
         if (mode is "limit" or "growth" or "cancel")
         {
-            var governor = CreateAccounting(mode == "limit" ? 44 : mode == "growth" ? 8192 : 16L << 20);
+            await using var owner = AwkExecutionMemoryOwner.Create(new CooperativeTestBudget(
+                mode == "limit" ? 44 : mode == "growth" ? 8192 : 16L << 20), CancellationToken.None);
+            var governor = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
             using var borrowed = governor.CreateTransientLease();
             borrowed.ReserveAdditional(43);
             using var cancellation = new CancellationTokenSource();
@@ -50,7 +53,7 @@ internal static class RegexCategoryProbe
         }
         if (mode != "timing") throw new ArgumentException("Usage: --regex-category-probe timing|limit|growth|cancel|concurrent");
         // Exercise translation/JIT paths without constructing category metadata.
-        _ = AwkRegexScalarPattern.Translate(".[A]$()", () => { }, CreateAccounting(16L << 20));
+        _ = AwkRegexScalarPattern.Translate(".[A]$()", () => { }, AwkMemoryAccounting.Disabled);
         if (IsPublished()) throw new InvalidOperationException("Probe warmup populated category metadata.");
         var cold = Measure();
         var warm = Measure();
@@ -62,7 +65,14 @@ internal static class RegexCategoryProbe
     private static Measurement Measure()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(16L << 20), counters);
+        var owner = AwkExecutionMemoryOwner.Create(new CooperativeTestBudget(16L << 20), CancellationToken.None);
+        try { return MeasureOwned(counters, owner); }
+        finally { owner.DisposeAsync().GetAwaiter().GetResult(); }
+    }
+
+    private static Measurement MeasureOwned(AwkRuntimeCounters counters, AwkExecutionMemoryOwner owner)
+    {
+        var governor = AwkMemoryAccounting.Create(counters, owner);
         var watch = new Stopwatch();
         var before = GC.GetAllocatedBytesForCurrentThread();
         watch.Start();
@@ -75,8 +85,6 @@ internal static class RegexCategoryProbe
             Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(translated))));
     }
 
-    private static AwkMemoryAccounting CreateAccounting(long bytes) =>
-        AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(bytes));
 
     private static bool IsPublished()
     {

@@ -19,7 +19,8 @@ public sealed class AwkSortProjectionMemoryTests
     [MemberData(nameof(Projections))]
     public async Task StringValueSnapshotHoldsFormattedProjectionTextUntilDisposal(bool observed, string format, string selector)
     {
-        var state = State(observed, format, selector);
+        using var memoryForState = State(observed, format, selector);
+        var state = memoryForState.State;
         var expected = Values(state, format, 32);
         var payload = expected.Sum(static value => AwkRuntimeMemory.EstimateTextBytes(value.Text.ByteLength));
         var containers = SnapshotContainers(expected.Length);
@@ -46,7 +47,8 @@ public sealed class AwkSortProjectionMemoryTests
     [MemberData(nameof(Projections))]
     public async Task ProjectionShortfallReleasesStagingAndPreservesStorage(bool observed, string format, string selector)
     {
-        var state = State(observed, format, selector);
+        using var memoryForState = State(observed, format, selector);
+        var state = memoryForState.State;
         var expected = Values(state, format, 32);
         var payload = expected.Sum(static value => AwkRuntimeMemory.EstimateTextBytes(value.Text.ByteLength));
         var containers = SnapshotContainers(expected.Length);
@@ -81,7 +83,8 @@ public sealed class AwkSortProjectionMemoryTests
     [MemberData(nameof(Ties))]
     public async Task NumericTieShortfallPreservesStorageAndReleasesComparisonText(bool observed, string format, string selector)
     {
-        var state = State(observed, format, selector);
+        using var memoryForState = State(observed, format, selector);
+        var state = memoryForState.State;
         var left = new AwkArrayKey("a");
         var right = new AwkArrayKey("b");
         state.SetArrayAwkValue(Source, left, AwkValue.FromNumber(1.25));
@@ -111,7 +114,8 @@ public sealed class AwkSortProjectionMemoryTests
     [MemberData(nameof(Ties))]
     public async Task NumericTieTextReleasesBeforeReturningTheSnapshot(bool observed, string format, string selector)
     {
-        var state = State(observed, format, selector);
+        using var memoryForState = State(observed, format, selector);
+        var state = memoryForState.State;
         state.SetArrayAwkValue(Source, new AwkArrayKey("a"), AwkValue.FromNumber(1.25));
         state.SetArrayAwkValue(Source, new AwkArrayKey("b"), AwkValue.FromNumber(1.25));
         var payload = AwkRuntimeMemory.EstimateTextBytes(state.FormatStringByteText(AwkValue.FromNumber(1.25)).ByteLength) * 2;
@@ -141,7 +145,8 @@ public sealed class AwkSortProjectionMemoryTests
     [MemberData(nameof(Nonfinite))]
     public async Task ValueSortFailurePreservesDestinationAndSuccessTransfersOnlyNonfiniteText(bool observed, string format, string selector)
     {
-        var state = State(observed, format, selector);
+        using var memoryForState = State(observed, format, selector);
+        var state = memoryForState.State;
         state.SetArrayString(Destination, First, "keep");
         var numbers = new[] { 1.25, double.PositiveInfinity, double.NegativeInfinity, double.NaN };
         var expected = numbers.Select((number, index) =>
@@ -198,7 +203,8 @@ public sealed class AwkSortProjectionMemoryTests
     [InlineData(true)]
     public async Task StringSortingReusesAlreadyOwnedValueTextAtItsExactBudget(bool observed)
     {
-        var state = State(observed, "default", "@val_str_asc");
+        using var memoryForState = State(observed, "default", "@val_str_asc");
+        var state = memoryForState.State;
         state.SetArrayString(Source, new AwkArrayKey("a"), new string('x', 16_000));
         state.SetArrayString(Source, new AwkArrayKey("b"), new string('y', 16_000));
         var containers = SnapshotContainers(2);
@@ -220,7 +226,8 @@ public sealed class AwkSortProjectionMemoryTests
     [InlineData(true, true)]
     public void LeasedPrintfResultCopyObservesCancellationAndReleasesBothOwners(bool observed, bool duringCopy)
     {
-        var state = State(observed, "default", "@val_str_asc");
+        using var memoryForState = State(observed, "default", "@val_str_asc");
+        var state = memoryForState.State;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var cancellation = new CancellationTokenSource();
@@ -257,16 +264,18 @@ public sealed class AwkSortProjectionMemoryTests
     private static long SnapshotContainers(int count) =>
         AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count) + AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count);
 
-    private static AwkRuntimeState State(bool observed, string format, string selector)
+    private static CooperativeTestMemory State(bool observed, string format, string selector)
     {
+
+        var testMemory = new CooperativeTestMemory(Limit, enabled: true && (long)(Limit) != long.MaxValue);
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(Limit),
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         if (format == "wide")
             state.AssignVariableValue(AwkVariableName.FromText("CONVFMT"), AwkValue.FromText(AwkText.FromSourceLiteralString("%8192.2f")));
         state.SetArrayString(AwkArrayName.FromText("PROCINFO"), new AwkArrayKey("sorted_in"), selector);
-        return state;
+        return testMemory.Initialize(() => state);
     }
 }

@@ -10,7 +10,8 @@ public sealed class AwkNumericFieldResourceTests
     public void NumericAssignmentDoesNotFormatOrAllocateText(string initialFormat)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(AwkRuntimeLimits.CreateDefault(), counters);
+        using var memory = State(AwkRuntimeLimits.CreateDefault(), counters);
+        var state = memory.State;
         SetFormat(state, initialFormat);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("a b"));
         var allocations = counters.AwkTextAllocations;
@@ -38,10 +39,12 @@ public sealed class AwkNumericFieldResourceTests
     [InlineData(true)]
     public void ConversionByteLimitFailurePreservesNumericFieldsAndAllowsRetry(bool changeSeparator)
     {
-        var state = State(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(16));
+        using var memory = State(AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
         Prepare(state, "%.20f");
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
 
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
             if (changeSeparator)
@@ -64,11 +67,13 @@ public sealed class AwkNumericFieldResourceTests
     [InlineData(true)]
     public void CombinedNumericFieldByteLimitFailurePreservesBothFields(bool changeSeparator)
     {
-        var state = State(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(16));
+        using var memory = State(AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
         Prepare(state, "%.8f");
         state.AssignFieldValue(2, AwkValue.FromNumber(2.75));
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
 
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
             if (changeSeparator)
@@ -90,10 +95,12 @@ public sealed class AwkNumericFieldResourceTests
     [InlineData(true)]
     public void ConversionMemoryLimitFailureReleasesAllTemporaryCharges(bool changeSeparator)
     {
-        var state = State(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(2_000));
+        using var memory = State(AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
         Prepare(state, "%.200f");
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
 
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
             if (changeSeparator)
@@ -112,11 +119,13 @@ public sealed class AwkNumericFieldResourceTests
     [Fact]
     public void SeparatorGrowthIsReservedBeforeNumericRecordConversion()
     {
-        var state = State(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(2_000));
+        using var memory = State(AwkRuntimeLimits.CreateDefault());
+        var state = memory.State;
         Prepare(state, "%.80f");
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var separator = AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 120)));
 
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() => state.AssignSpecialVariableValue(
             AwkSpecialVariableId.OutputFieldSeparator, separator));
 
@@ -131,7 +140,8 @@ public sealed class AwkNumericFieldResourceTests
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(AwkRuntimeLimits.CreateDefault(), counters, cancellation.Token);
+        using var memory = State(AwkRuntimeLimits.CreateDefault(), counters, cancellation.Token);
+        var state = memory.State;
         Prepare(state, "%.4f");
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
@@ -170,10 +180,12 @@ public sealed class AwkNumericFieldResourceTests
         state.AssignSpecialVariableValue(AwkSpecialVariableId.ConversionFormat,
             AwkValue.FromText(AwkText.FromSourceLiteralString(format)));
 
-    private static AwkRuntimeState State(AwkRuntimeLimits limits, AwkRuntimeCounters? counters = null,
-        CancellationToken cancellationToken = default) =>
-        AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken,
-            new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+    private static CooperativeTestMemory State(AwkRuntimeLimits limits, AwkRuntimeCounters? counters = null,
+        CancellationToken cancellationToken = default) {
+        var memory = new CooperativeTestMemory(1 << 20);
+        return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken,
+            memory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters ?? AwkRuntimeCounters.Disabled, limits,
-                AwkRegexEngineKind.DotNetCompatibility));
+                AwkRegexEngineKind.DotNetCompatibility))));
+    }
 }

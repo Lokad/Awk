@@ -7,7 +7,8 @@ public sealed class AwkPreparedNumberReadTests
     [InlineData(true)]
     public void OnlyBoundNumberSlotsUseTheCurrentNumericValue(bool slots)
     {
-        var state = State(slots: slots);
+        using var memoryForState = State(slots: slots);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         var reference = AwkResolvedReference.PreparedGlobalScalar(name, 0);
         Assert.Equal(0, reference.EvaluateNumber(state));
@@ -25,32 +26,11 @@ public sealed class AwkPreparedNumberReadTests
         Assert.Equal(slots ? 2 : 0, state.Counters.NumericGlobalReads);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void NumericStringsRetainValueAdmissionBeforeBinding(bool bound)
-    {
-        var state = State(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(3));
-        var name = AwkVariableName.FromText("x");
-        state.AssignVariableValue(name, AwkValue.FromNumber(1));
-        if (bound) _ = state.ResolvePreparedGlobalValue(name, 0);
-        state.AssignVariableValue(name, AwkValue.FromNumericString("12345"));
-        var reference = AwkResolvedReference.PreparedGlobalScalar(name, 0);
-        var values = state.Counters.ValuesCreated;
-        var retained = state.MemoryAccounting.CurrentCommittedBytes;
-        var failure = Assert.Throws<AwkRuntimeException>(() => reference.EvaluateNumber(state));
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-        Assert.Equal(bound, state.HasBoundGlobalScalar(0));
-        Assert.Equal(0, state.Counters.NumericGlobalReads);
-        Assert.Equal(values, state.Counters.ValuesCreated);
-        Assert.Equal(retained, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
-
     [Fact]
     public void ComputedFieldCountRetainsItsLiveValueAfterBinding()
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var reference = AwkResolvedReference.PreparedGlobalScalar(AwkVariableName.FromText("NF"), 0);
         state.SetCurrentRecord(AwkText.FromString("old tail"));
         Assert.Equal(2, reference.EvaluateNumber(state));
@@ -63,7 +43,8 @@ public sealed class AwkPreparedNumberReadTests
     [Fact]
     public void OtherReferenceKindsUseTheOriginalValueConversion()
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var scalar = AwkResolvedReference.Scalar(AwkVariableName.FromText("x"));
         scalar.AssignValue(state, AwkValue.FromNumericString("007"));
         Assert.Equal(7, scalar.EvaluateNumber(state));
@@ -75,13 +56,15 @@ public sealed class AwkPreparedNumberReadTests
         Assert.Equal(0, state.Counters.NumericGlobalReads);
     }
 
-    private static AwkRuntimeState State(AwkRuntimeLimits? limits = null, bool slots = true)
+    private static CooperativeTestMemory State(AwkRuntimeLimits? limits = null, bool slots = true)
     {
+
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()).WithMaxExecutionMemoryBytes(1 << 20),
+            AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()),
             AwkRegexEngineKind.DotNetCompatibility);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         if (slots) state.InitializeGlobalReadSlots(1);
-        return state;
+        return testMemory.Initialize(() => state);
     }
 }

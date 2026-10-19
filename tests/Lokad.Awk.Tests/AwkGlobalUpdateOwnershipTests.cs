@@ -13,7 +13,8 @@ public sealed class AwkGlobalUpdateOwnershipTests
     [InlineData(true)]
     public async Task FirstAssignmentWaitsForRhsAndFailedAdmissionCreatesNothing(bool vector)
     {
-        var state = State(vector);
+        using var memoryForState = State(vector);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
         var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var expression = AwkExpression.Assignment(Reference(name), new PendingExpression(source.Task));
@@ -40,7 +41,8 @@ public sealed class AwkGlobalUpdateOwnershipTests
     [InlineData(true)]
     public async Task CompoundReadPrecedesPendingRhsAndSymbolTableEffects(bool vector)
     {
-        var state = State(vector);
+        using var memoryForState = State(vector);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var reference = Reference(name);
@@ -61,7 +63,8 @@ public sealed class AwkGlobalUpdateOwnershipTests
     [InlineData(true)]
     public async Task FailedExistingSlotWriteRetainsValueAndCharge(bool vector)
     {
-        var state = State(vector);
+        using var memoryForState = State(vector);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
         var reference = Reference(name);
         var context = new AwkEvaluationContext(state);
@@ -90,7 +93,8 @@ public sealed class AwkGlobalUpdateOwnershipTests
     [InlineData(true)]
     public async Task ArrayAdmissionBeforeFirstUseRetainsArrayAndRejectsUpdates(bool vector)
     {
-        var state = State(vector);
+        using var memoryForState = State(vector);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
         var reference = Reference(name);
         var array = new AwkArrayName(name.Identifier);
@@ -110,7 +114,8 @@ public sealed class AwkGlobalUpdateOwnershipTests
     [Fact]
     public async Task LoweredLocalStaysLocalWithGlobalSlotsPresent()
     {
-        var state = State(true);
+        using var memoryForState = State(true);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
         var reference = Reference(name, local: true);
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
@@ -130,7 +135,8 @@ public sealed class AwkGlobalUpdateOwnershipTests
     [Fact]
     public async Task CompoundReadPromotesUntypedOriginBeforeCanceledRhs()
     {
-        var state = State(true);
+        using var memoryForState = State(true);
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("value");
         Assert.True(state.TryResolveArrayArgument(name, out _));
         Assert.False(state.HasScalar(name));
@@ -186,13 +192,15 @@ public sealed class AwkGlobalUpdateOwnershipTests
         return result.Reference;
     }
 
-    private static AwkRuntimeState State(bool vector)
+    private static CooperativeTestMemory State(bool vector)
     {
+
+        var testMemory = new CooperativeTestMemory(Limit, enabled: (long)(Limit) != long.MaxValue);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(Limit), AwkRegexEngineKind.DotNetCompatibility);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+            AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         if (vector) state.InitializeGlobalReadSlots(1);
-        return state;
+        return testMemory.Initialize(() => state);
     }
 
     private sealed class PendingExpression(Task<AwkValue> value) : AwkExpression

@@ -41,7 +41,8 @@ public sealed class AwkRecordScanCancellationTests
         var bytes = Encoding.UTF8.GetBytes(input);
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(bytes, [], AwkReadCompletion.EndOfFile));
-        var state = State(observed, backend);
+        using var memoryForState = State(observed, backend);
+        var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         var armed = false;
@@ -106,7 +107,8 @@ public sealed class AwkRecordScanCancellationTests
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(first, [], AwkReadCompletion.MoreData));
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(second, [], AwkReadCompletion.EndOfFile));
-        var state = State(observed, backend);
+        using var memoryForState = State(observed, backend);
+        var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         var armed = false;
@@ -168,7 +170,8 @@ public sealed class AwkRecordScanCancellationTests
         var bytes = Encoding.UTF8.GetBytes("left" + delimiter + "right" + delimiter);
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(bytes, [], AwkReadCompletion.EndOfFile));
-        var state = State(observed, backend);
+        using var memoryForState = State(observed, backend);
+        var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         var armed = false;
@@ -208,7 +211,8 @@ public sealed class AwkRecordScanCancellationTests
         var bytes = Encoding.UTF8.GetBytes(prefix + "|valueznextz");
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(bytes, [], AwkReadCompletion.EndOfFile));
-        var state = State(observed, backend);
+        using var memoryForState = State(observed, backend);
+        var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
         var armed = false;
@@ -262,7 +266,8 @@ public sealed class AwkRecordScanCancellationTests
         var bytes = Encoding.UTF8.GetBytes(prefix + separator + "next" + separator);
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(bytes, [], AwkReadCompletion.EndOfFile));
-        var state = State(observed, backend);
+        using var memoryForState = State(observed, backend);
+        var state = memoryForState.State;
         Assign(state, "RS", separator);
         var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn));
@@ -279,13 +284,15 @@ public sealed class AwkRecordScanCancellationTests
         Assert.Single(host.ReadLineBatchLineCounts);
     }
 
-    private static AwkRuntimeState State(bool observed, int backend)
+    private static CooperativeTestMemory State(bool observed, int backend)
     {
+
+        var testMemory = new CooperativeTestMemory(8 << 20, enabled: true && (long)(8 << 20) != long.MaxValue);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), (AwkRegexEngineKind)backend,
+            AwkRuntimeLimits.CreateDefault(), (AwkRegexEngineKind)backend,
 regexEngine: AwkUtf8RegexEngine.Instance);
-        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options)));
     }
 
     private static void Assign(AwkRuntimeState state, string name, string value) =>

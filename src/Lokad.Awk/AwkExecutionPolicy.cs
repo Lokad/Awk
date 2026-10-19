@@ -84,18 +84,6 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum frontend and expression-tree nesting depth.</summary>
     public int MaxSyntaxNestingDepth => Limits.MaxSyntaxNestingDepth;
 
-    /// <summary>Gets the maximum size of one input record in UTF-8 bytes.</summary>
-    public long MaxRecordBytes => Limits.MaxRecordBytes;
-
-    /// <summary>Gets the maximum aggregate bytes read from runtime input descriptors.</summary>
-    public long MaxInputBytes => Limits.MaxInputBytes;
-
-    /// <summary>Gets the maximum size of one runtime value in UTF-8 bytes.</summary>
-    public long MaxValueBytes => Limits.MaxValueBytes;
-
-    /// <summary>Gets the maximum total number of bytes appended to host descriptors.</summary>
-    public long MaxOutputBytes => Limits.MaxOutputBytes;
-
     /// <summary>Gets the maximum element count of each awk array.</summary>
     public int MaxArrayElements => Limits.MaxArrayElements;
 
@@ -122,9 +110,6 @@ public sealed record AwkExecutionPolicy
 
     /// <summary>Gets the maximum estimated bytes retained across regex caches.</summary>
     public long MaxRegexCacheBytes => Limits.MaxRegexCacheBytes;
-
-    /// <summary>Gets the maximum estimated aggregate retained execution memory.</summary>
-    public long MaxExecutionMemoryBytes => Limits.MaxExecutionMemoryBytes;
 
     /// <summary>Gets the maximum concurrently open output redirections.</summary>
     public int MaxOutputFiles => Limits.MaxOutputFiles;
@@ -274,22 +259,6 @@ public sealed record AwkExecutionPolicy
     public AwkExecutionPolicy WithMaxSyntaxNestingDepth(int value) =>
         this with { Limits = Limits.WithMaxSyntaxNestingDepth(value) };
 
-    /// <summary>Returns a copy with the per-record byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxRecordBytes(long value) =>
-        this with { Limits = Limits.WithMaxRecordBytes(value) };
-
-    /// <summary>Returns a copy with the aggregate runtime-input byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxInputBytes(long value) =>
-        this with { Limits = Limits.WithMaxInputBytes(value) };
-
-    /// <summary>Returns a copy with the per-value byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxValueBytes(long value) =>
-        this with { Limits = Limits.WithMaxValueBytes(value) };
-
-    /// <summary>Returns a copy with the total output-byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxOutputBytes(long value) =>
-        this with { Limits = Limits.WithMaxOutputBytes(value) };
-
     /// <summary>Returns a copy with the per-array element budget configured.</summary>
     public AwkExecutionPolicy WithMaxArrayElements(int value) =>
         this with { Limits = Limits.WithMaxArrayElements(value) };
@@ -325,10 +294,6 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the retained regex-cache byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexCacheBytes(long value) =>
         this with { Limits = Limits.WithMaxRegexCacheBytes(value) };
-
-    /// <summary>Returns a copy with the aggregate retained-memory budget configured.</summary>
-    public AwkExecutionPolicy WithMaxExecutionMemoryBytes(long value) =>
-        this with { Limits = Limits.WithMaxExecutionMemoryBytes(value) };
 
     /// <summary>Returns a copy with the open output-file budget configured.</summary>
     public AwkExecutionPolicy WithMaxOutputFiles(int value) =>

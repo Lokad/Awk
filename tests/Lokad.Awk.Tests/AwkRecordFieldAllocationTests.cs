@@ -43,10 +43,9 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (finiteMemory)
-            limits = limits.WithMaxExecutionMemoryBytes(4_096);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
-        var frame = new AwkFieldFrame(counters, governor, 1_000, _ => { }, value => value.ByteText);
+        using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: finiteMemory);
+        var governor = memory.Accounting;
+        var frame = new AwkFieldFrame(counters, governor, 1_000, value => value.ByteText);
         var record = AwkText.FromString("alpha beta");
         List<AwkFieldText> fields =
         [AwkFieldText.FromRecordSlice(0, 5), AwkFieldText.FromRecordSlice(6, 4)];
@@ -122,8 +121,9 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
     public void GovernedSmallFieldCacheRemainsChargedAndAvoidsPerRecordDictionaryAllocation()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4_096), counters);
-        var frame = new AwkFieldFrame(counters, accounting, 1_000, _ => { }, value => value.ByteText);
+        using var memoryForAccounting = new CooperativeTestMemory(4_096, counters);
+        var accounting = memoryForAccounting.Accounting;
+        var frame = new AwkFieldFrame(counters, accounting, 1_000, value => value.ByteText);
         var record = AwkText.FromSourceLiteralString("row");
         List<AwkFieldText> fields = [AwkFieldText.Empty];
         Func<AwkText, List<AwkFieldText>> split = _ => fields;
@@ -157,8 +157,8 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
     {
         var budget = new CooperativeTestBudget(4_096);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var accounting = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled, owner);
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, accounting, 1_000, _ => { }, value => value.ByteText);
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, accounting, 1_000, value => value.ByteText);
         List<AwkFieldText> fields = [AwkFieldText.FromRecordSlice(0, 3)];
         Func<AwkText, List<AwkFieldText>> split = _ => fields;
         frame.SetRecordText(AwkText.FromSourceLiteralString("one"));

@@ -98,9 +98,10 @@ public sealed class AwkRegexSelectionTests
         AwkRegexEngineKind engine, AwkStringUnitMode units)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096)
+        var limits = AwkRuntimeLimits.CreateDefault()
             .WithMaxRegexCaptureBytes(16);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(4096, counters);
+        var governor = memoryForGovernor.Accounting;
         var runtime = Runtime(engine, counters, limits, units);
         var regex = runtime.Create(new AwkRegexPattern("(😀|😀😀)"));
         var input = AwkText.FromString(new string('z', 2000) + "😀😀", counters);
@@ -129,8 +130,9 @@ public sealed class AwkRegexSelectionTests
     internal void CaptureFailurePreflightsAllPublicGroups(AwkRegexEngineKind engine)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4096);
-        var governor = AwkMemoryAccounting.Create(limits, counters);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(4096, counters);
+        var governor = memoryForGovernor.Accounting;
         var runtime = Runtime(engine, counters, limits);
         var regex = runtime.Create(new AwkRegexPattern("(a|aa)"));
 

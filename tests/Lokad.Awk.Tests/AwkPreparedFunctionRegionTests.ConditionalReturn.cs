@@ -131,17 +131,15 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.False(state.IsInsideFunction);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
-
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
-    public async Task ConditionalReturnRefusalPreservesCallerAndRefunds(bool governed, bool branch)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConditionalReturnRefusalPreservesCallerAndRefunds(bool branch)
     {
         var budget = new CooperativeTestBudget(2L << 20);
-        await using var owner = governed ? AwkExecutionMemoryOwner.Create(budget, CancellationToken.None)
-            : AwkExecutionMemoryOwner.Disabled;
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), owner: owner);
+        var state = State(counters, AwkRuntimeLimits.CreateDefault(), owner: owner);
         var functions = Bind("function inc(x){return x+1} function choose(x){if(x)return inc(x);return inc(x)+1} BEGIN{}").Functions;
         state.InitializeFunctions(functions);
         var x = AwkVariableName.FromText("x");
@@ -151,7 +149,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
         var frameBytes = AwkRuntimeMemory.EstimateFunctionFrameBytes() + AwkRuntimeMemory.EstimateFunctionLocalSlotBytes(
             AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(AwkValue.FromNumber(1))));
-        var fill = state.Limits.MaxExecutionMemoryBytes - state.MemoryAccounting.CurrentCommittedBytes - frameBytes;
+        var fill = budget.Limit - state.MemoryAccounting.CurrentCommittedBytes - frameBytes;
         state.MemoryAccounting.ReserveAndCommit(fill);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         try

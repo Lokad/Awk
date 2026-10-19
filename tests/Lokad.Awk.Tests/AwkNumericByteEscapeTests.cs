@@ -66,9 +66,9 @@ public sealed class AwkNumericByteEscapeTests
     public void NumericRegexBufferRejectsBothAttemptsWithoutCachePublication(int profile, bool utf8)
     {
         const string pattern = @"\360\237\230\200";
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(
-            AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1);
-        var governor = AwkMemoryAccounting.Create(limits);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        using var memoryForGovernor = new CooperativeTestMemory(AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1, AwkRuntimeCounters.Disabled);
+        var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = Runtime(profile, utf8, counters, limits, governor);
         for (var attempt = 0; attempt < 2; attempt++)
@@ -84,45 +84,19 @@ public sealed class AwkNumericByteEscapeTests
     }
 
     [Theory]
-    [InlineData(3, false)]
-    [InlineData(3, true)]
-    [InlineData(4, false)]
-    [InlineData(4, true)]
-    public void OperandValueLimitMeasuresDecodedBytesBeforeReplacingTheVariable(int limit, bool counters)
-    {
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            Options(AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(limit), counters));
-        var name = AwkIdentifier.FromTrustedName("v");
-        state.AssignVariableFromExternalText(name, "old");
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var assignment = AwkVariableAssignment.InputArgument(name, @"\360\237\230\200");
-        if (limit == 3)
-        {
-            var failure = Assert.Throws<AwkRuntimeException>(() => state.AssignVariableFromExternalText(assignment));
-            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
-            Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-            Assert.Equal("old", state.FormatStringByteText(state.ResolveVariableValue(new AwkVariableName(name))).AsString(state.Counters));
-        }
-        else
-        {
-            state.AssignVariableFromExternalText(assignment);
-            Assert.Equal("😀", state.FormatStringByteText(state.ResolveVariableValue(new AwkVariableName(name))).AsString(state.Counters));
-        }
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
-
-    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void OperandDecodeBufferPreflightsBeforeReplacingTheVariable(bool counters)
     {
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            Options(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters));
+        using var memory = new CooperativeTestMemory(1 << 20);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
+            memory.Configure(Options(AwkRuntimeLimits.CreateDefault(), counters)))).State;
         var name = AwkIdentifier.FromTrustedName("v");
         state.AssignVariableFromExternalText(name, "keep");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         var assignment = AwkVariableAssignment.InputArgument(name,
             @"\303\251" + new string('a', 1 << 18));
+        memory.Budget.RefuseNextAdmissionMinimumGrowth = 1;
         Assert.Throws<AwkRuntimeException>(() => state.AssignVariableFromExternalText(assignment));
         Assert.Equal("keep", state.FormatStringByteText(state.ResolveVariableValue(new AwkVariableName(name))).AsString(state.Counters));
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);

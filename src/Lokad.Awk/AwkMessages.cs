@@ -116,8 +116,6 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: output file limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorMemoryLimit =
         AwkUtf8Codec.Encode("awk: memory limit exceeded\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorInputByteLimit =
-        AwkUtf8Codec.Encode("awk: input byte limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInputFileLimit =
         AwkUtf8Codec.Encode("awk: input file limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorPipeLimit =

@@ -71,7 +71,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     public void Awk_RegexRuntimeEnumeratesMatchSpansWithoutValueText()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters);
+        var governor = AwkMemoryAccounting.Disabled;
         var runtime = new AwkRegexRuntime(
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
@@ -138,7 +138,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         bool splitCaptureOnly)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters);
+        var governor = AwkMemoryAccounting.Disabled;
         var runtime = new AwkRegexRuntime(
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
@@ -352,7 +352,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
     public void Awk_DeletionHeavySubstitutionDoesNotReserveInputSizedOutput()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(512);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,

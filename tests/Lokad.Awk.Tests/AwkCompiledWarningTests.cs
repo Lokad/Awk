@@ -46,13 +46,13 @@ public sealed class AwkCompiledWarningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task WarningsShareOutputAdmissionWithExecution(bool countersEnabled)
+    public async Task AdmissionFailurePreservesAlreadyEmittedWarnings(bool countersEnabled)
     {
         var host = new MockFileSystem();
         host.AddFile("/data", "unread\n");
         var counters = countersEnabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxOutputBytes(AwkUtf8Codec.Encode(Warning).Length - 1);
-        var options = Options(false, counters, limits);
+        var limits = AwkRuntimeLimits.CreateDefault();
+        var options = Options(false, counters, limits) with { MemoryBudget = new CooperativeTestBudget(0) };
         var compiled = await AwkExecutor.CompileAsync(host,
             AwkTestHarness.BuildInvocation("awk", "BEGIN{unused=\"\\q\";getline v<\"/data\";print v}"),
             CancellationToken.None);
@@ -61,7 +61,7 @@ public sealed class AwkCompiledWarningTests
 
         Assert.Equal(AwkExitCode.FatalError, exit);
         Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal("awk: memory limit exceeded\n",
+        Assert.Equal(Warning + "awk: memory limit exceeded\n",
             host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.ReadOpenCount);
         Assert.Equal(0, host.OpenFileCount);

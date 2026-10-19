@@ -17,7 +17,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [MemberData(nameof(Formats))]
     public void PrintSegmentsHoldTheirArrayAndNewNumericTextUntilDisposal(bool observed, string format)
     {
-        var state = State(observed, format);
+        using var memoryForState = State(observed, format);
+        var state = memoryForState.State;
         var values = Numbers(format);
         var text = values.Select(state.FormatPrintByteText).ToArray();
         var payload = text.Sum(static value => AwkRuntimeMemory.EstimateTextBytes(value.ByteLength));
@@ -40,7 +41,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [MemberData(nameof(Formats))]
     public void SegmentShortfallReleasesStagingAndAllowsRetry(bool observed, string format)
     {
-        var state = State(observed, format);
+        using var memoryForState = State(observed, format);
+        var state = memoryForState.State;
         var values = Numbers(format);
         var payload = values.Sum(value => AwkRuntimeMemory.EstimateTextBytes(state.FormatPrintByteText(value).ByteLength));
         var required = SegmentBytes(values.Length) + payload + (format == "wide" ? 8_192 : 0);
@@ -63,7 +65,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [InlineData(true)]
     public void AlreadyOwnedTextNeedsOnlySegmentCapacity(bool observed)
     {
-        var state = State(observed, "default");
+        using var memoryForState = State(observed, "default");
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("stored");
         state.AssignVariableValue(name, AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 16_000))));
         var value = state.ResolveVariableValue(name);
@@ -86,7 +89,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [InlineData(true, true)]
     public async Task ArgumentCapacityFailurePrecedesOperandMutationAndOutput(bool observed, bool printf)
     {
-        var state = State(observed, "default");
+        using var memoryForState = State(observed, "default");
+        var state = memoryForState.State;
         var name = AwkVariableName.FromText("count");
         state.AssignVariableValue(name, AwkValue.FromNumber(0));
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
@@ -117,7 +121,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [InlineData(true, true)]
     public async Task RedirectedOutputKeepsFormattingChargedDuringTheHostWrite(bool observed, bool printf)
     {
-        var state = State(observed, "default");
+        using var memoryForState = State(observed, "default");
+        var state = memoryForState.State;
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         var host = new PendingWriteHost();
         host.Allow.TrySetResult();
@@ -156,7 +161,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [InlineData(true, 2)]
     public void NumericSeparatorsStayChargedAndUnusedOfsIsNotFormatted(bool observed, int count)
     {
-        var state = State(observed, "default");
+        using var memoryForState = State(observed, "default");
+        var state = memoryForState.State;
         var ofs = AwkValue.FromNumber(1.25);
         var ors = AwkValue.FromNumber(2.25);
         var values = Enumerable.Repeat(AwkValue.FromText(AwkText.FromSourceLiteralString("x")), count).ToArray();
@@ -186,7 +192,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     public async Task FormattingStorageSurvivesAPendingHostWriteAndReleasesOnCompletionOrCancellation(bool observed, bool printf, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
-        var state = State(observed, "default", cancellation.Token);
+        using var memoryForState = State(observed, "default", cancellation.Token);
+        var state = memoryForState.State;
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var host = new PendingWriteHost();
@@ -241,7 +248,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [InlineData(true, true)]
     public async Task OutputGrowthFailurePreservesEarlierBytesAndReleasesAllStaging(bool observed, bool printf)
     {
-        var state = State(observed, "default");
+        using var memoryForState = State(observed, "default");
+        var state = memoryForState.State;
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters, state.CancellationCheckpoint);
         var earlier = new string('k', 60_000);
         output.Append(AwkText.FromSourceLiteralString(earlier));
@@ -267,7 +275,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [InlineData(true)]
     public void UnleasedPrintfResultCopiesCheckDuringCopying(bool observed)
     {
-        var state = State(observed, "default");
+        using var memoryForState = State(observed, "default");
+        var state = memoryForState.State;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var cancellation = new CancellationTokenSource();
@@ -292,7 +301,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     public void CanceledTextOnlyStagingDoesNotAllocateOrPublishSegments(bool observed)
     {
         using var cancellation = new CancellationTokenSource();
-        var state = State(observed, "default", cancellation.Token);
+        using var memoryForState = State(observed, "default", cancellation.Token);
+        var state = memoryForState.State;
         var values = Enumerable.Repeat(AwkValue.FromText(AwkText.FromSourceLiteralString("kept")), 4_096).ToArray();
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         cancellation.Cancel();
@@ -310,7 +320,8 @@ public sealed partial class AwkPrintStagingMemoryTests
     [InlineData(true)]
     public async Task LateFormatFailurePreservesPriorOutputAndRefundsUnpublishedStaging(bool redirected)
     {
-        var state = State(observed: true, "default");
+        using var memoryForState = State(observed: true, "default");
+        var state = memoryForState.State;
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, state.Counters);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var host = new MockFileSystem();
@@ -429,15 +440,17 @@ public sealed partial class AwkPrintStagingMemoryTests
         new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
             token, state.Counters, state.Limits, state, static () => []);
 
-    private static AwkRuntimeState State(bool observed, string format, CancellationToken token = default)
+    private static CooperativeTestMemory State(bool observed, string format, CancellationToken token = default)
     {
+
+        var testMemory = new CooperativeTestMemory(Limit, enabled: true && (long)(Limit) != long.MaxValue);
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(Limit),
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options);
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, testMemory.Configure(options));
         if (format == "wide") state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFormat,
             AwkValue.FromText(AwkText.FromSourceLiteralString("%8192.2f")));
-        return state;
+        return testMemory.Initialize(() => state);
     }
 }

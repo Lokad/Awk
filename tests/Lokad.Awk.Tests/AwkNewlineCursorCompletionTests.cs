@@ -15,11 +15,11 @@ public sealed class AwkNewlineCursorCompletionTests
     public async Task DefaultNewlinePreservesReadyPendingCompletionAndConsumption(bool pending, bool finite, int outcome)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = finite ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20)
-            : AwkRuntimeLimits.CreateDefault();
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        using var memory = new CooperativeTestMemory(8 << 20, enabled: finite);
+        var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options))).State;
         Assert.Equal(finite, state.MemoryAccounting.IsEnabled);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
         var initialRecord = state.CurrentRecordByteText;

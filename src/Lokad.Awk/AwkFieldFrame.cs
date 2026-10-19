@@ -7,7 +7,6 @@ internal sealed class AwkFieldFrame(
     AwkRuntimeCounters counters,
     AwkMemoryAccounting governor,
     int maxFields,
-    Action<long> throwIfValueBytesExceeded,
     Func<AwkValue, AwkText> formatStringByteText,
         Action? checkpoint = null,
     AwkFieldSplitter? fieldSplitter = null)
@@ -153,7 +152,6 @@ internal sealed class AwkFieldFrame(
         }
 
         length = field.ByteLength();
-        throwIfValueBytesExceeded(length);
         return true;
     }
 
@@ -169,8 +167,6 @@ internal sealed class AwkFieldFrame(
         var field = _fieldTexts[fieldIndex];
         if (_fieldValueCache.ContainsKey(fieldIndex) || field.Kind == AwkFieldTextKind.Owned)
             return false;
-
-        throwIfValueBytesExceeded(field.ByteLength());
         bytes = field.AsSpan(_recordText, checkpoint);
         return true;
     }
@@ -600,7 +596,6 @@ internal sealed class AwkFieldFrame(
                 }
             }
             var byteLength = EstimateComposedRecordByteLength(_recompositionSeparator.ByteLength, fields.Count, payloadByteLength);
-            throwIfValueBytesExceeded(byteLength);
             var fieldTexts = CreateRecordSlices(_recompositionSeparator.ByteLength, fields);
             var newRetainedBytes = EstimateRetainedBytes(
                 AwkRuntimeMemory.EstimateTextBytes(byteLength), fieldTexts, _fieldValueCache, _fieldCountValue);
@@ -768,7 +763,6 @@ internal sealed class AwkFieldFrame(
 
     private AwkMemoryPeakAdmission PreflightRecomposition(long newRetainedBytes, int recordByteLength)
     {
-        throwIfValueBytesExceeded(recordByteLength);
         if (!governor.IsEnabled)
             return default;
         var retainedIncrease = Math.Max(0, newRetainedBytes - _retainedMemoryBytes);

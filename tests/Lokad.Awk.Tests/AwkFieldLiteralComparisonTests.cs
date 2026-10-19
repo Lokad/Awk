@@ -7,7 +7,9 @@ public sealed class AwkFieldLiteralComparisonTests
     [InlineData(true)]
     public void ComparisonConsumesBorrowedBytesWithoutCachingOrRetainingThem(bool finite)
     {
-        var (state, counters) = State(finite);
+        using var memory = State(finite);
+        var state = memory.State;
+        var counters = state.Counters;
         var bytes = "first second"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
         _ = state.FieldCount;
@@ -22,27 +24,11 @@ public sealed class AwkFieldLiteralComparisonTests
     }
 
     [Fact]
-    public void LiteralByteRefusalPreservesRecordAndReleasesTemporaryAdmission()
-    {
-        var (state, counters) = State(true, valueLimit: 3);
-        state.SetCurrentRecord(AwkText.FromString("ok"));
-        _ = state.FieldCount;
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        var literal = AwkText.FromString("long");
-        Assert.Throws<AwkRuntimeException>(() => state.CompareFieldLiteral(1, literal, AwkComparison.Equal));
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Equal("ok", state.CurrentRecordByteText.AsString());
-        Assert.Equal(0, counters.DeferredComparisonLiterals);
-        Assert.True(state.CompareFieldLiteral(1, AwkText.FromString("ok"), AwkComparison.Equal));
-        Assert.Equal(1, counters.DeferredComparisonLiterals);
-    }
-
-    [Fact]
     public void CallerCancellationPreservesAlreadySplitRecordAndAdmission()
     {
         using var cancellation = new CancellationTokenSource();
-        var (state, _) = State(true, cancellation: cancellation.Token);
+        using var memory = State(true, cancellation: cancellation.Token);
+        var state = memory.State;
         var text = new string('a', 16_384) + " tail";
         state.SetCurrentRecord(AwkText.FromString(text));
         _ = state.FieldCount;
@@ -62,7 +48,9 @@ public sealed class AwkFieldLiteralComparisonTests
     [InlineData(AwkRuntimeLimits.CancellationCheckBytes + 1)]
     public void LiteralAdmissionAndThresholdPreserveValueWork(int length)
     {
-        var (state, counters) = State(true);
+        using var memory = State(true);
+        var state = memory.State;
+        var counters = state.Counters;
         state.SetCurrentRecord(AwkText.FromString("x"));
         _ = state.FieldCount;
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
@@ -75,15 +63,14 @@ public sealed class AwkFieldLiteralComparisonTests
         Assert.Equal("x", state.CurrentRecordByteText.AsString());
     }
 
-    private static (AwkRuntimeState, AwkRuntimeCounters) State(bool finite,
-        int valueLimit = int.MaxValue, CancellationToken cancellation = default)
+    private static CooperativeTestMemory State(bool finite,
+        CancellationToken cancellation = default)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(valueLimit);
-        if (finite)
-            limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
-        return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation, options), counters);
+        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: finite);
+        return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation, memory.Configure(options)));
     }
 }

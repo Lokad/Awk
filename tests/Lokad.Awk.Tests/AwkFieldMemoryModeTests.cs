@@ -14,7 +14,7 @@ public sealed class AwkFieldMemoryModeTests
     public async Task ReadThenMutateGrowShrinkAndResetPreservePayloadAndRefunds(int mode, bool staged)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = Accounting(mode, owner, counters);
         Assert.Equal(mode != 0, accounting.IsEnabled);
@@ -49,10 +49,10 @@ public sealed class AwkFieldMemoryModeTests
     [InlineData(1, true)]
     [InlineData(2, false)]
     [InlineData(2, true)]
-    public async Task ValueLimitRefusalAfterReadPreservesFieldsAndRecord(int mode, bool count)
+    public async Task SharedRefusalAfterReadPreservesFieldsAndRecord(int mode, bool count)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = Accounting(mode, owner, counters);
         var frame = Frame(accounting, counters, 16);
@@ -61,6 +61,7 @@ public sealed class AwkFieldMemoryModeTests
         var record = frame.RecordAwkText;
         var committed = accounting.CurrentCommittedBytes;
         var materialized = counters.FieldsMaterialized;
+        budget.RefuseNextAdmissionMinimumGrowth = 1;
         var error = Assert.Throws<AwkRuntimeException>(() =>
         {
             if (count)
@@ -88,7 +89,7 @@ public sealed class AwkFieldMemoryModeTests
     public async Task CanceledFieldCreationDoesNotPublishCacheAndCanRetry(int mode)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = Accounting(mode, owner, counters);
         using var cancellation = new CancellationTokenSource();
@@ -116,16 +117,11 @@ public sealed class AwkFieldMemoryModeTests
         Assert.Equal(0, budget.Reserved);
     }
 
-    private static AwkMemoryAccounting Accounting(int mode, AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters) =>
-        AwkMemoryAccounting.Create(mode == 1 ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20)
-            : AwkRuntimeLimits.CreateDefault(), counters, owner);
+    private static AwkMemoryAccounting Accounting(int mode,AwkExecutionMemoryOwner owner,AwkRuntimeCounters counters) =>
+        AwkMemoryAccounting.Create(counters, owner);
 
     private static AwkFieldFrame Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, int valueLimit, Action? checkpoint = null) =>
-        new(counters, accounting, 4096, bytes =>
-        {
-            if (bytes > valueLimit)
-                throw new AwkRuntimeException(Lokad.Awk.AwkMessages.ErrorMemoryLimit);
-        }, static value => AwkText.FromString(value.AsString()), checkpoint);
+        new(counters, accounting, 4096, static value => AwkText.FromString(value.AsString()), checkpoint);
 
     private static List<AwkFieldText> Split(AwkText _) =>
         [AwkFieldText.FromRecordSlice(0, 5), AwkFieldText.FromRecordSlice(6, 4)];

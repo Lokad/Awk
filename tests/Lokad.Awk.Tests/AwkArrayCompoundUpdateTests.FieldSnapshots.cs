@@ -10,7 +10,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
     [InlineData(true)]
     public async Task LiteralFieldSnapshotSurvivesPendingRightAndRecordReuse(bool pending)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
@@ -46,7 +47,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
     [InlineData(true, false)] [InlineData(true, true)]
     public async Task LiteralFieldSnapshotRightFailureKeepsOriginalText(bool pending, bool cancel)
     {
-        var state = State();
+        using var memoryForState = State();
+        var state = memoryForState.State;
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
         state.SetArrayAwkValue(name, key, AwkValue.FromText("007"));
@@ -79,10 +81,9 @@ public sealed partial class AwkArrayCompoundUpdateTests
     public async Task LiteralFieldSnapshotKeepsFullArrayHitsAndMissingRefusal(int mode, bool missing)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 2 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1);
-        if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility) { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var name = AwkArrayName.FromText("values");
@@ -129,7 +130,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
     private static async Task<FieldTargetResult> RunFieldTarget(bool original, bool missing)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+        var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var name = AwkArrayName.FromText("values");
@@ -173,7 +174,8 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var results = new List<(double Value, string Error)>();
         foreach (var original in new[] { false, true })
         {
-            var state = State();
+            using var memoryForState = State();
+            var state = memoryForState.State;
             var name = AwkArrayName.FromText("values");
             const string record = "hit hit hit hit hit hit hit hit";
             var key = new AwkArrayKey(number == 0 ? record : "hit");

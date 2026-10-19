@@ -349,7 +349,6 @@ internal sealed class AwkText : IEquatable<AwkText>
             return this;
 
         var length = AwkRuntimeMemory.CheckedAdd(ByteLength, other.ByteLength);
-        governor.PreflightAllocation(length);
         counters.RecordValueCreated();
         return new AwkText(
             SnapshotBorrowedText(this, counters, governor, checkpoint),
@@ -408,8 +407,6 @@ internal sealed class AwkText : IEquatable<AwkText>
             return firstNonEmptyPart ??
                 throw new InvalidOperationException("A non-empty concatenation must retain its only part.");
         }
-
-        governor.PreflightAllocation(totalLength);
         if (nonEmptyPartCount == 2)
         {
             if (firstNonEmptyPart is null || secondNonEmptyPart is null)
