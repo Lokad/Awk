@@ -68,25 +68,9 @@ public sealed class AwkCalendarTimeTests
         var state = State(TimeZoneInfo.Utc, counters);
         var text = AwkText.FromString(new string(' ', 4096) + "1970 13 1 0 0 0");
         Assert.Equal(31536000, state.MakeCalendarTime(text, true));
-        Assert.Equal(2, counters.ExecutionSteps);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.StringInteropFallbacks);
         Assert.Equal(0, counters.AwkTextAllocations);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void OversizedWhitespaceCannotBypassExecutionAllowance(bool enabled)
-    {
-        var counters = enabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var state = State(TimeZoneInfo.Utc, counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(2));
-        var text = AwkText.FromString(new string(' ', 12_000) + "1970 1 1 0 0 0");
-        var error = Assert.Throws<AwkRuntimeException>(() => state.MakeCalendarTime(text, true));
-        Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        if (enabled)
-            Assert.Equal(2, counters.ExecutionSteps);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
     [Fact]
@@ -113,7 +97,7 @@ public sealed class AwkCalendarTimeTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token,
             new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(),
-                AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter));
+                AwkRegexEngineKind.DotNetCompatibility));
         Assert.Throws<OperationCanceledException>(() => state.MakeCalendarTime(AwkText.FromString("1970 1 1 0 0 0"), true));
     }
 
@@ -130,6 +114,5 @@ public sealed class AwkCalendarTimeTests
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), zone,
                 new AwkRandomGenerator(), counters ?? AwkRuntimeCounters.Disabled,
-                limits ?? AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility,
-                AwkExecutionEngineKind.Interpreter));
+                limits ?? AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility));
 }

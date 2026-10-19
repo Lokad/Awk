@@ -26,7 +26,6 @@
 // SUCH DAMAGE.
 //
 
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -234,21 +233,11 @@ internal sealed class AwkPosixRegex
         result = null;
         if (!IsEligible(pattern, checkCancellation)) return false;
         checkCancellation();
-        var start = Stopwatch.GetTimestamp();
-        var deadline = (long)(AwkRegex.MatchTimeout.TotalSeconds * Stopwatch.Frequency);
         var work = 0;
         void Checkpoint()
         {
             if ((++work & 1023) != 0) return;
             checkCancellation();
-            if (Stopwatch.GetTimestamp() - start > deadline)
-                throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
-        }
-        void CheckPreparation()
-        {
-            checkCancellation();
-            if (Stopwatch.GetTimestamp() - start > deadline)
-                throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
         }
         using var ownedResults = resultLease is null ? governor.CreateTransientLease() : AwkMemoryLease.Disabled;
         var retained = resultLease ?? ownedResults;
@@ -264,8 +253,8 @@ internal sealed class AwkPosixRegex
         var compilationBytes = AwkRuntimeMemory.CheckedAdd(256, AwkRuntimeMemory.CheckedMultiply(nodes, 224));
         using var compilationMemory = governor.ReserveTransient(compilationBytes);
         result = new(tree, parser.Groups, sensitivity == AwkRegexCaseSensitivity.IgnoreCase, pattern,
-            new(governor, retained, Checkpoint, CheckPreparation));
-        CheckPreparation();
+            new(governor, retained, Checkpoint, checkCancellation));
+        checkCancellation();
         parsingMemory.MoveTo(retained, parsingBytes);
         compilationMemory.MoveTo(retained, compilationBytes);
         return true;
@@ -389,8 +378,14 @@ internal sealed class AwkPosixRegex
                 Repeat(tree.Children[0], tree.Minimum, tree.Maximum, depth, context);
                 break;
             default:
-                var op = tree.Kind switch { Kind.Literal => Op.Literal, Kind.Dot => Op.Dot,
-                    Kind.Class => Op.Class, Kind.Assertion => Op.Assertion, _ => Op.Jump };
+                var op = tree.Kind switch
+                {
+                    Kind.Literal => Op.Literal,
+                    Kind.Dot => Op.Dot,
+                    Kind.Class => Op.Class,
+                    Kind.Assertion => Op.Assertion,
+                    _ => Op.Jump
+                };
                 var atom = Add(op, depth);
                 _nodes[atom].Text = tree.Text;
                 if (op == Op.Class || op == Op.Literal && _ignoreCase || op == Op.Assertion)
@@ -475,8 +470,6 @@ internal sealed class AwkPosixRegex
         ArgumentNullException.ThrowIfNull(checkCancellation);
         AwkRegexScalarBoundary.ThrowIfSplit(text, startAt, 0);
         checkCancellation();
-        var timestamp = Stopwatch.GetTimestamp();
-        var deadline = (long)(AwkRegex.MatchTimeout.TotalSeconds * Stopwatch.Frequency);
         var count = _nodes.Count;
         var depth = _maximumDepth;
         var capturesAt = 1 + depth;
@@ -517,8 +510,6 @@ internal sealed class AwkPosixRegex
                 {
                     if ((++work & 1023) != 0) return;
                     checkCancellation();
-                    if (Stopwatch.GetTimestamp() - timestamp > deadline)
-                        throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
                 }
                 void Offer(int target, int[] source, int sourceRow, int baseDepth,
                     int additions = 0, int one = 0, int two = 0, int three = 0,
@@ -536,7 +527,7 @@ internal sealed class AwkPosixRegex
                             var value = i < baseDepth ? source[sourceRow + 1 + i] :
                                 i == baseDepth ? one : i == baseDepth + 1 ? two : three;
                             // Unsigned ranks put participation above absence and prefer fewer repeat iterations.
-                        comparison = unchecked((uint)value).CompareTo(unchecked((uint)storage[destination + 1 + i]));
+                            comparison = unchecked((uint)value).CompareTo(unchecked((uint)storage[destination + 1 + i]));
                         }
                         if (comparison <= 0) return;
                     }

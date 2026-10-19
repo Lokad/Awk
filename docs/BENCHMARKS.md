@@ -1,10 +1,11 @@
 # Benchmarks
 
-Current runtime versus GNU awk 5.2.1, measured **2026-10-19 UTC** at
+Retained baseline versus GNU awk 5.2.1, measured **2026-10-19 UTC** at
 [`5c4a21a`](https://github.com/Lokad/Awk/commit/5c4a21a77a7279b07c2652bba820383119b1a174). All rows use that source,
-the default interpreter, .NET regex and default limits (UTC time zone), with no supplied
+the interpreter, .NET regex and default limits (UTC time zone), with no supplied
 shared memory budget and complete output consumption. The optional Utf8Regex adapter is
-outside this baseline; newer producer adoption remains postponed.
+outside this baseline; newer producer adoption remains postponed. The subsequent engine/quota
+simplification has not been timed; these retained figures are not a fresh measurement of that change.
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** divides Lokad elapsed
 by GNU elapsed: 1.00× is parity; higher is slower. Allocations are managed GC MiB per

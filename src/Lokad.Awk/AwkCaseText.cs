@@ -10,12 +10,12 @@ internal static class AwkCaseText
         ReadOnlySpan<byte> left,
         ReadOnlySpan<byte> right,
         AwkStringUnitMode unitMode,
-        Action<int>? recordByteWork)
+        Action? checkpoint)
     {
-        var work = new ScanWork(recordByteWork);
+        var work = new ScanCheckpoint(checkpoint);
         while (!left.IsEmpty && !right.IsEmpty)
         {
-            work.Admit(8);
+            work.Check();
             var leftValue = ReadFolded(ref left, unitMode);
             var rightValue = ReadFolded(ref right, unitMode);
             if (leftValue != rightValue)
@@ -28,12 +28,12 @@ internal static class AwkCaseText
         ReadOnlySpan<byte> source,
         ReadOnlySpan<byte> value,
         AwkStringUnitMode unitMode,
-        Action<int>? recordByteWork)
+        Action? checkpoint)
     {
         if (value.IsEmpty)
             return 0;
 
-        var work = new ScanWork(recordByteWork);
+        var work = new ScanCheckpoint(checkpoint);
         var position = 0;
         while (!source.IsEmpty)
         {
@@ -41,14 +41,14 @@ internal static class AwkCaseText
             var remainingValue = value;
             while (!candidate.IsEmpty && !remainingValue.IsEmpty)
             {
-                work.Admit(8);
+                work.Check();
                 if (ReadFolded(ref candidate, unitMode) != ReadFolded(ref remainingValue, unitMode))
                     break;
                 if (remainingValue.IsEmpty)
                     return position;
             }
 
-            work.Admit(4);
+            work.Check();
             var before = source.Length;
             ReadFolded(ref source, unitMode);
             position += before - source.Length;
@@ -71,18 +71,14 @@ internal static class AwkCaseText
         return Rune.ToLowerInvariant(scalar).Value;
     }
 
-    private struct ScanWork(Action<int>? recordByteWork)
+    private struct ScanCheckpoint(Action? checkpoint)
     {
-        private int _remaining;
+        private int _characters;
 
-        public void Admit(int maximumBytes)
+        public void Check()
         {
-            if (_remaining < maximumBytes)
-            {
-                recordByteWork?.Invoke(AwkExecutionGovernor.WorkChunkBytes);
-                _remaining += AwkExecutionGovernor.WorkChunkBytes;
-            }
-            _remaining -= maximumBytes;
+            if ((_characters++ & 255) == 0)
+                checkpoint?.Invoke();
         }
     }
 }

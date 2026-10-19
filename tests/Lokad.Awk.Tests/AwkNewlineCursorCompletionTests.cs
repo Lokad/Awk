@@ -18,8 +18,7 @@ public sealed class AwkNewlineCursorCompletionTests
         var limits = finite ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20)
             : AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         Assert.Equal(finite, state.MemoryAccounting.IsEnabled);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));

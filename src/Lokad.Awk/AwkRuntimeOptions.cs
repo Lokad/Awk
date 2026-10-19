@@ -13,7 +13,6 @@ internal sealed record AwkRuntimeOptions
         AwkRuntimeCounters counters,
         AwkRuntimeLimits limits,
         AwkRegexEngineKind regexEngineKind,
-        AwkExecutionEngineKind executionEngineKind,
         bool allowFileRedirections = true,
         bool allowCommandPipes = true,
         AwkPath? accessiblePathRoot = null,
@@ -36,7 +35,6 @@ internal sealed record AwkRuntimeOptions
         Counters = counters;
         Limits = limits;
         RegexEngineKind = regexEngineKind;
-        ExecutionEngineKind = executionEngineKind;
         AllowFileRedirections = allowFileRedirections;
         AllowCommandPipes = allowCommandPipes;
         AccessiblePathRoot = accessiblePathRoot;
@@ -70,8 +68,6 @@ internal sealed record AwkRuntimeOptions
     public AwkRuntimeLimits Limits { get; }
 
     public AwkRegexEngineKind RegexEngineKind { get; }
-
-    public AwkExecutionEngineKind ExecutionEngineKind { get; }
 
     public bool AllowFileRedirections { get; }
 
@@ -107,7 +103,6 @@ internal sealed record AwkRuntimeOptions
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.FromPolicy(policy),
             policy.RegexEngine is null ? AwkRegexEngineKind.DotNetCompatibility : AwkRegexEngineKind.Utf8Adapter,
-            AwkExecutionEngineKind.Interpreter,
             policy.AllowFileRedirections,
             policy.AllowCommandPipes,
             policy.AccessiblePathRoot,

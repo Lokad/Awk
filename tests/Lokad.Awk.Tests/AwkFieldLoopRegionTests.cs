@@ -4,18 +4,14 @@ public sealed class AwkFieldLoopRegionTests
 {
     private const string Script = "{for(i=1;i<=NF;i++){nonempty+=($i!=\"\");chars+=length($i)}}";
 
-    [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(5)]
-    [InlineData(8)] [InlineData(12)] [InlineData(20)] [InlineData(40)] [InlineData(80)] [InlineData(160)]
-    public async Task CompleteFieldLoopKeepsExactFuelAndPartialState(int fuel)
+    [Fact]
+    public async Task CompleteFieldLoopPreservesState()
     {
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(2 << 20);
-        if (fuel > 0) limits = limits.WithMaxExecutionSteps(fuel);
         var prepared = await RunAsync(false, limits);
         var ordinary = await RunAsync(true, limits);
         Assert.Equal(ordinary, prepared with { Loops = 0 });
         Assert.Equal(1, prepared.Loops);
-        if (fuel == 0 || fuel >= 160)
         {
             Assert.Equal(3, prepared.Nonempty);
             Assert.Equal(7, prepared.Chars);
@@ -115,8 +111,7 @@ public sealed class AwkFieldLoopRegionTests
         }
     }
 
-    private static async Task<Result> RunAsync(bool ordinary, AwkRuntimeLimits limits,
-        string record = "aa b cdef", string boundary = "")
+    private static async Task<Result> RunAsync(bool ordinary, AwkRuntimeLimits limits, string record = "aa b cdef", string boundary = "")
     {
         var budget = new CooperativeTestBudget(2 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
@@ -139,22 +134,15 @@ public sealed class AwkFieldLoopRegionTests
         try { await statement.ExecuteAsync(new(state, output, io)); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        var result = new Result(state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(),
-            state.ResolveVariableValue(AwkVariableName.FromText("nonempty")).AsNumber(),
-            state.ResolveVariableValue(AwkVariableName.FromText("chars")).AsNumber(), counters.ExecutionSteps,
-            counters.MemoryPeakLiveBytes, counters.SynchronousLoopRuns, counters.FieldsMaterialized,
-            host.GetOutput(AwkFileDescriptor.StdOut), error);
+        var result = new Result(state.ResolveVariableValue(AwkVariableName.FromText("i")).AsNumber(), state.ResolveVariableValue(AwkVariableName.FromText("nonempty")).AsNumber(), state.ResolveVariableValue(AwkVariableName.FromText("chars")).AsNumber(), counters.MemoryPeakLiveBytes, counters.SynchronousLoopRuns, counters.FieldsMaterialized, host.GetOutput(AwkFileDescriptor.StdOut), error);
         await io.CloseAsync(); output.Dispose(); await owner.DisposeAsync(); Assert.Equal(0, budget.Reserved);
         return result;
     }
 
-    private static AwkRuntimeState State(AwkRuntimeCounters counters, AwkRuntimeLimits limits,
-        AwkExecutionMemoryOwner owner, CancellationToken token = default, AwkLintMode lint = AwkLintMode.Off)
+    private static AwkRuntimeState State(AwkRuntimeCounters counters, AwkRuntimeLimits limits, AwkExecutionMemoryOwner owner, CancellationToken token = default, AwkLintMode lint = AwkLintMode.Off)
     {
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits, AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter) { MemoryOwner = owner };
-        return new(AwkFieldSeparatorSpec.Default, token, options, new(limits, counters, token),
-            AwkCompatibilityProfile.Default.WithLintMode(lint));
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility) { MemoryOwner = owner };
+        return new(AwkFieldSeparatorSpec.Default, token, options, new(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint));
     }
 
     private static AwkIo Io(AwkRuntimeState state, MockFileSystem host, AwkRuntimeCounters counters) =>
@@ -167,6 +155,5 @@ public sealed class AwkFieldLoopRegionTests
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) { Entries++; return new(value); }
     }
 
-    private readonly record struct Result(double Index, double Nonempty, double Chars, long Steps, long Peak,
-        long Loops, long Descriptors, string Output, string Error);
+    private readonly record struct Result(double Index, double Nonempty, double Chars, long Peak, long Loops, long Descriptors, string Output, string Error);
 }

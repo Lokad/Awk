@@ -9,8 +9,7 @@ internal sealed class AwkFieldFrame(
     int maxFields,
     Action<long> throwIfValueBytesExceeded,
     Func<AwkValue, AwkText> formatStringByteText,
-    Action<int> recordByteWork,
-    Action? checkpoint = null,
+        Action? checkpoint = null,
     AwkFieldSplitter? fieldSplitter = null)
 {
     private const int MutationCheckpointFields = 1024;
@@ -147,8 +146,8 @@ internal sealed class AwkFieldFrame(
         if (!byteMode && field.Kind == AwkFieldTextKind.RecordSlice)
         {
             // The text caches this fact: repeated length reads cannot rescan the record.
-            var ascii = _recordText.IsAscii(out var inspectedBytes, checkpoint);
-            recordByteWork(inspectedBytes);
+            var ascii = _recordText.IsAscii(out _, checkpoint);
+            checkpoint?.Invoke();
             if (!ascii)
                 return false;
         }
@@ -587,9 +586,9 @@ internal sealed class AwkFieldFrame(
                     var field = _fieldTexts[index];
                     if (_fieldValueCache.TryGetValue(index, out var value) && value.IsNumberValue)
                     {
-                        recordByteWork(0);
+                        checkpoint?.Invoke();
                         var text = formatStringByteText(value);
-                        recordByteWork(text.ByteLength);
+                        checkpoint?.Invoke();
                         var bytes = text.EstimatedRetainedMemoryBytes;
                         var next = AwkRuntimeMemory.CheckedAdd(formattedBytes, bytes);
                         governor.ReserveAndCommit(bytes);
@@ -648,9 +647,7 @@ internal sealed class AwkFieldFrame(
         if (previousCount == 0)
         {
             counters.RecordFieldSplit();
-            // Preserve the conservative logical work charge; descriptor counters
-            // independently report the work avoided by partial splitting.
-            recordByteWork(_recordText.ByteLength);
+            checkpoint?.Invoke();
         }
         var stagingBytes = governor.IsEnabled
             ? AwkRuntimeMemory.CheckedMultiply(AwkRuntimeMemory.EstimateFieldTextListBytes(index.Value), 2)

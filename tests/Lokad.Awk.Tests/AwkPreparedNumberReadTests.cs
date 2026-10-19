@@ -79,7 +79,7 @@ public sealed class AwkPreparedNumberReadTests
     {
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()).WithMaxExecutionMemoryBytes(1 << 20),
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         if (slots) state.InitializeGlobalReadSlots(1);
         return state;

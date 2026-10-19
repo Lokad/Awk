@@ -33,12 +33,10 @@ public sealed class AwkBuiltinArgumentMemoryTests
         var pending = builtin.EvaluateAsync(arguments, new(state)).AsTask();
         Assert.False(pending.IsCompleted);
         Assert.Equal(Enumerable.Range(0, pendingIndex + 1), entries);
-        Assert.Equal(pendingIndex + 1, state.Counters.ExecutionSteps);
         Assert.Equal(0, evaluations);
         Assert.Equal(baseline + AwkRuntimeMemory.EstimateAwkValueArrayBytes(3), state.MemoryAccounting.CurrentCommittedBytes);
         completion.SetResult(AwkValue.FromNumber(pendingIndex + 7));
         Assert.Equal(24, (await pending).AsNumber());
-        Assert.Equal(3, state.Counters.ExecutionSteps);
         Assert.Equal(1, evaluations);
         Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -133,7 +131,7 @@ public sealed class AwkBuiltinArgumentMemoryTests
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(Limit),
-            AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options);
     }
 }

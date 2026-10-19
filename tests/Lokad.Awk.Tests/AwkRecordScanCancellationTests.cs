@@ -4,7 +4,7 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkRecordScanCancellationTests
 {
-    private const int LongScan = AwkExecutionGovernor.WorkChunkBytes * 16;
+    private const int LongScan = AwkRuntimeLimits.CancellationCheckBytes * 16;
 
     public static IEnumerable<object[]> Modes()
     {
@@ -54,14 +54,12 @@ public sealed class AwkRecordScanCancellationTests
 
         Assign(state, "RS", initial);
         var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
-        using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn),
-            scanCheckpoint: Check);
+        using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn), scanCheckpoint: Check);
         Assert.Equal("first", (await cursor.ReadAsync()).RecordText.AsString());
         Assign(state, "RS", selected);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
         Assign(state, "RT", "kept");
         var scanned = state.Counters.RecordSeparatorBytesScanned;
-        var charged = state.Counters.ExecutionSteps;
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         armed = true;
 
@@ -72,7 +70,6 @@ public sealed class AwkRecordScanCancellationTests
         armed = false;
         Assert.Equal(8, checks);
         Assert.Equal(scanned, state.Counters.RecordSeparatorBytesScanned);
-        Assert.Equal(charged, state.Counters.ExecutionSteps);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal("seed fields", state.CurrentRecordByteText.AsString());
@@ -251,9 +248,9 @@ public sealed class AwkRecordScanCancellationTests
     public static IEnumerable<object[]> LiteralBoundaries()
     {
         foreach (var mode in Modes())
-        foreach (var offset in new[] { AwkExecutionGovernor.WorkChunkBytes - 1,
-            AwkExecutionGovernor.WorkChunkBytes, AwkExecutionGovernor.WorkChunkBytes + 1 })
-            yield return [mode[0], mode[1], offset];
+            foreach (var offset in new[] { AwkRuntimeLimits.CancellationCheckBytes - 1,
+            AwkRuntimeLimits.CancellationCheckBytes, AwkRuntimeLimits.CancellationCheckBytes + 1 })
+                yield return [mode[0], mode[1], offset];
     }
 
     [Theory]
@@ -287,7 +284,7 @@ public sealed class AwkRecordScanCancellationTests
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), (AwkRegexEngineKind)backend,
-            AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+regexEngine: AwkUtf8RegexEngine.Instance);
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
     }
 

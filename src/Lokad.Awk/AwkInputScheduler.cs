@@ -57,8 +57,7 @@ internal sealed class AwkInputScheduler(
             var record = await input.Cursor.ReadAsync().ConfigureAwait(false);
             if (record.HasRecord)
             {
-                state.Resources.RecordInputRecord();
-                state.RecordExecutionStep();
+                state.Checkpoint();
                 return record;
             }
 
@@ -76,7 +75,7 @@ internal sealed class AwkInputScheduler(
         {
             while (_nextArgvIndex < state.MainInputArgumentCount)
             {
-                state.RecordExecutionStep();
+                state.Checkpoint();
                 var argumentIndex = new AwkArgvIndex((int)_nextArgvIndex++);
                 if (!state.TryGetArgumentVectorByteText(argumentIndex, out var argumentText) ||
                     argumentText.ByteLength == 0)

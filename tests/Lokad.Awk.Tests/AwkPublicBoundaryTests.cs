@@ -29,15 +29,6 @@ public sealed class AwkPublicBoundaryTests
         Assert.True(customized.AllowCommandPipes);
         Assert.False(restricted.AllowCommandPipes);
         Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxInputBytes);
-        Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxRecords);
-        Assert.Equal(0, compatible.MaxExecutionSteps);
-        Assert.Equal(compatible.MaxExecutionSteps, restricted.MaxExecutionSteps);
-        Assert.Equal(100_000, compatible.MaxHostCalls);
-        Assert.Equal(compatible.MaxHostCalls, restricted.MaxHostCalls);
-        Assert.Equal(AwkExecutionPolicy.Unlimited, compatible.MaxRegexOperations);
-        Assert.Equal(compatible.MaxRegexOperations, restricted.MaxRegexOperations);
-        Assert.Equal(AwkExecutionPolicy.Unlimited, restricted.MaxSortComparisons);
-        Assert.Equal(AwkExecutionPolicy.Unlimited, restricted.MaxRegexRecordSeparatorBytesScanned);
         Assert.Equal(32, restricted.MaxFunctionCallDepth);
         Assert.NotEqual(AwkExecutionPolicy.Unlimited, restricted.MaxExecutionMemoryBytes);
         Assert.Equal("/jail", Assert.IsType<AwkPath>(rooted.AccessiblePathRoot).Path);
@@ -174,23 +165,6 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
-    public async Task AwkExecutionPolicy_RegexCompilationLimitIncludesSourceLiterals()
-    {
-        var host = new MockFileSystem();
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
-            "awk",
-            "BEGIN{print \"a\" ~ /a/}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxRegexCompilations(1);
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(
-            "awk: regular expression compilation limit exceeded\n",
-            host.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
     public async Task AwkExecutionPolicy_DynamicSymtabNamesRespectSymbolLimit()
     {
         var host = new MockFileSystem();
@@ -256,20 +230,6 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
-    public async Task AwkExecutionPolicy_RecordLimitChargesEmptyActions()
-    {
-        var host = new MockFileSystem();
-        host.SetStandardInput("one\ntwo\n");
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxRecords(1);
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal("awk: input record limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
     public async Task AwkExecutionPolicy_InputByteLimitAppliesAcrossRuntimeReads()
     {
         var host = new MockFileSystem();
@@ -281,41 +241,6 @@ public sealed class AwkPublicBoundaryTests
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal("awk: input byte limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
-    public async Task AwkExecutionPolicy_RegexOperationLimitChargesCachedMatches()
-    {
-        var host = new MockFileSystem();
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
-            "awk",
-            "BEGIN{print \"a\" ~ /a/; print \"b\" ~ /b/}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxRegexOperations(1);
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal("1\n", host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(
-            "awk: regular expression operation limit exceeded\n",
-            host.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
-    public async Task AwkExecutionPolicy_SortComparisonLimitInterruptsBuiltinSorts()
-    {
-        var host = new MockFileSystem();
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
-            "awk",
-            "BEGIN{a[1]=3;a[2]=2;a[3]=1;asort(a)}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxSortComparisons(1);
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(
-            "awk: array sort comparison limit exceeded\n",
-            host.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Fact]

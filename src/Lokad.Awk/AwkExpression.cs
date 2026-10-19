@@ -27,14 +27,14 @@ internal abstract partial class AwkExpression
     {
         index = 0;
         return expression is DynamicFieldIndexExpression { IndexExpression: NumberExpression number } &&
-            number.TryGetExecutableIntegerConstant(out index) && index > 0;
+            number.TryGetIntegerConstant(out index) && index > 0;
     }
 
     internal static void EvaluateLiteralFieldIndex(AwkExpression expression, AwkEvaluationContext context)
     {
         if (expression is not DynamicFieldIndexExpression field)
             throw new InvalidOperationException("Prepared literal field expression is required.");
-        context.State.RecordExecutionStep();
+        context.State.Checkpoint();
         // Preparation admits only portable numeric literals; preserve their original evaluation/checkpoint.
         field.IndexExpression.EvaluateAsync(context).GetAwaiter().GetResult();
     }
@@ -123,7 +123,7 @@ internal abstract partial class AwkExpression
     public static AwkExpression Compare(AwkExpression left, AwkExpression right, AwkComparison comparison) =>
         left is DynamicFieldIndexExpression field && right is LiteralExpression literal &&
         literal.RegexPatternOrigin == AwkRegexPatternOrigin.Runtime
-            ? new FieldLiteralComparisonExpression(left, field.IndexExpression, literal, comparison)
+            ? new FieldLiteralComparisonExpression(field.IndexExpression, literal, comparison)
             : right is DynamicFieldIndexExpression rightField
                 ? new FieldValueComparisonExpression(left, rightField, comparison)
                 : TryGetSynchronousPair(left, right, out var syncLeft, out var syncRight)
@@ -264,7 +264,7 @@ internal abstract partial class AwkExpression
 
     public ValueTask<AwkValue> EvaluateAsync(AwkEvaluationContext context)
     {
-        context.State.RecordExecutionStep();
+        context.State.Checkpoint();
         return EvaluateCoreAsync(context);
     }
 
@@ -296,28 +296,14 @@ internal abstract partial class AwkExpression
         return false;
     }
 
-    /// <summary>Evaluates this expression after the shared execution-step and cancellation checks have run.</summary>
+    /// <summary>Evaluates this expression after the cancellation checks have run.</summary>
     protected abstract ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context);
 
-    /// <summary>Emits a value when the executable engine supports this complete expression shape.</summary>
-    /// <returns><see langword="true"/> only when the value was emitted and compiler stack state was updated.</returns>
-    internal virtual bool TryEmitExecutableValue(AwkExecutableCompiler compiler) => false;
-
-    /// <summary>Returns a compile-time integer only when evaluating this expression has no observable effects.</summary>
-    internal virtual bool TryGetExecutableIntegerConstant(out int value)
+    /// <summary>Returns an integer literal only when its value is independent of the compatibility profile.</summary>
+    internal virtual bool TryGetIntegerConstant(out int value)
     {
         value = 0;
         return false;
-    }
-
-    /// <summary>Emits this expression as a statement, including discarding its resulting value.</summary>
-    /// <returns><see langword="true"/> only when the complete statement behavior was emitted.</returns>
-    internal virtual bool TryEmitExecutableStatement(AwkExecutableCompiler compiler)
-    {
-        compiler.EmitExpressionOrFallback(this);
-        compiler.Emit(AwkOpcode.Pop);
-        compiler.Pop();
-        return true;
     }
 
     /// <summary>Returns the scalar variable name only when this expression is exactly a variable reference.</summary>

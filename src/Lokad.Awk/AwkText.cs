@@ -78,7 +78,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             if (offset >= nextCheckpoint)
             {
                 checkpoint?.Invoke();
-                nextCheckpoint = (long)offset + AwkExecutionGovernor.WorkChunkBytes;
+                nextCheckpoint = (long)offset + AwkRuntimeLimits.CancellationCheckBytes;
             }
             if (Rune.DecodeFromUtf8(bytes[offset..], out _, out var consumed) != OperationStatus.Done)
                 throw new InvalidOperationException("AwkText contains invalid UTF-8.");
@@ -308,7 +308,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         for (var offset = 0; offset < commonLength;)
         {
             checkpoint();
-            var length = Math.Min(AwkExecutionGovernor.WorkChunkBytes, commonLength - offset);
+            var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, commonLength - offset);
             var comparison = left.Slice(offset, length).SequenceCompareTo(right.Slice(offset, length));
             if (comparison != 0)
                 return comparison;
@@ -326,7 +326,7 @@ internal sealed class AwkText : IEquatable<AwkText>
 
         for (var index = 0; index < span.Length; index++)
         {
-            if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+            if ((index & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
                 checkpoint?.Invoke();
             if (value[index] > 0x7F || span[index] != (byte)value[index])
                 return false;
@@ -556,7 +556,7 @@ internal sealed class AwkText : IEquatable<AwkText>
                 if (byteOffset >= nextCheckpoint)
                 {
                     checkpoint?.Invoke();
-                    nextCheckpoint = (long)byteOffset + AwkExecutionGovernor.WorkChunkBytes;
+                    nextCheckpoint = (long)byteOffset + AwkRuntimeLimits.CancellationCheckBytes;
                 }
                 var status = Rune.DecodeFromUtf8(span[byteOffset..], out _, out var consumed);
                 if (status != OperationStatus.Done)
@@ -688,7 +688,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         var span = AsSpan(checkpoint);
         for (var index = 0; index < span.Length; index++)
         {
-            if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+            if ((index & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
                 checkpoint?.Invoke();
             if (span[index] <= 0x7F)
                 continue;
@@ -931,8 +931,8 @@ internal sealed class AwkText : IEquatable<AwkText>
             if (offset >= nextCheckpoint)
             {
                 checkpoint?.Invoke();
-                nextCheckpoint = (long)offset + AwkExecutionGovernor.WorkChunkBytes;
-                var length = Math.Min(remaining.Length, AwkExecutionGovernor.WorkChunkBytes);
+                nextCheckpoint = (long)offset + AwkRuntimeLimits.CancellationCheckBytes;
+                var length = Math.Min(remaining.Length, AwkRuntimeLimits.CancellationCheckBytes);
                 if (Ascii.IsValid(remaining[..length]))
                 {
                     remaining = remaining[length..];
@@ -964,7 +964,7 @@ internal sealed class AwkText : IEquatable<AwkText>
             for (var offset = 0; offset < source.Length;)
             {
                 checkpoint();
-                var length = Math.Min(AwkExecutionGovernor.WorkChunkBytes, source.Length - offset);
+                var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, source.Length - offset);
                 source.Slice(offset, length).CopyTo(destination.Slice(offset, length));
                 offset += length;
             }

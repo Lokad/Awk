@@ -13,7 +13,7 @@ source locations, warning admission and pending/failed host appends.
 
 `AwkFrontendMemoryTests` covers shared source/parser admission and owned compiled-artifact
 lifetimes. Governed internal compilation needs a caller budget that survives artifact reuse;
-dispose the artifact after its users finish. Warning/executable views borrow that lifetime.
+dispose the artifact after its users finish. Warning views borrow that lifetime.
 
 Failing golden cases must assert the awk exit code, exact stderr, expected stdout preservation, and no CLR exception leakage through `AwkTestHarness.AssertFriendlyAwkFailure`.
 
@@ -49,10 +49,10 @@ mutation refusal/cancellation and refunds using finite quotas and a shared host 
 array replacement preflights and refunds without constructing enormous dictionaries.
 
 `AwkBorrowedIndexTests` covers short-field search without retained input, byte/scalar
-positions, case rules, fallback boundaries, admission/refunds, cancellation and fuel.
+positions, case rules, fallback boundaries, admission/refunds, cancellation.
 
 `AwkBorrowedSubstringTests` covers short-field substring ownership, ordinary fallbacks,
-UTF-8/byte slicing, fuel, cancellation, mutation refusal and refunds.
+UTF-8/byte slicing, cancellation, mutation refusal and refunds.
 
 `AwkConcatStagingTests` covers small/wide and suspended concatenations, operand ordering,
 prefix lifetime during nested work, cancellation, refused result admission and refunds.

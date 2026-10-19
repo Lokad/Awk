@@ -14,7 +14,6 @@ public sealed class AwkHostRegexTests
         var custom = original.WithRegexEngine(engine);
         Assert.Null(original.RegexEngine);
         Assert.Same(engine, custom.RegexEngine);
-        Assert.Equal(AwkExecutionEngineKind.Interpreter, AwkRuntimeOptions.Create(custom).ExecutionEngineKind);
         Assert.DoesNotContain(typeof(Awk).Assembly.GetReferencedAssemblies(),
             assembly => assembly.Name == "Lokad.Utf8Regex");
         Assert.Equal(24, Unsafe.SizeOf<AwkRegexCaptureRange>());
@@ -89,7 +88,7 @@ public sealed class AwkHostRegexTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits, AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: engine);
+            limits, AwkRegexEngineKind.Utf8Adapter, regexEngine: engine);
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new("(é)"));
         var committed = state.MemoryAccounting.CurrentCommittedBytes;

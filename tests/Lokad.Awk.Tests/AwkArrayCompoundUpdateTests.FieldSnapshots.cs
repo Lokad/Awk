@@ -70,9 +70,12 @@ public sealed partial class AwkArrayCompoundUpdateTests
     }
 
     [Theory]
-    [InlineData(0, false)] [InlineData(0, true)]
-    [InlineData(1, false)] [InlineData(1, true)]
-    [InlineData(2, false)] [InlineData(2, true)]
+    [InlineData(0, false)]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    [InlineData(2, true)]
     public async Task LiteralFieldSnapshotKeepsFullArrayHitsAndMissingRefusal(int mode, bool missing)
     {
         var budget = new CooperativeTestBudget(8 << 20);
@@ -80,8 +83,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(1);
         if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
-        var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits, AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter) { MemoryOwner = owner };
+        var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility) { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
@@ -113,25 +115,22 @@ public sealed partial class AwkArrayCompoundUpdateTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task LiteralFieldSnapshotMatchesOriginalAtEveryFuelBoundary(bool missing)
+    public async Task LiteralFieldSnapshotMatchesOriginal(bool missing)
     {
-        for (var fuel = 0; fuel <= 40; fuel++)
         {
-            var fast = await RunFieldTarget(false, missing, fuel);
-            var original = await RunFieldTarget(true, missing, fuel);
+            var fast = await RunFieldTarget(false, missing);
+            var original = await RunFieldTarget(true, missing);
             Assert.Equal(original, fast with { Snapshots = original.Snapshots });
-            if (fuel == 0) Assert.Equal(missing ? 0 : 1, fast.Snapshots);
+            Assert.Equal(missing ? 0 : 1, fast.Snapshots);
             Assert.Equal(0, original.Snapshots);
         }
     }
 
-    private static async Task<FieldTargetResult> RunFieldTarget(bool original, bool missing, int fuel)
+    private static async Task<FieldTargetResult> RunFieldTarget(bool original, bool missing)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        if (fuel > 0) limits = limits.WithMaxExecutionSteps(fuel);
-        var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits, AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var name = AwkArrayName.FromText("values");
         var key = new AwkArrayKey("hit");
@@ -149,8 +148,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
         var exists = state.TryPeekArrayAwkValue(name, new AwkArrayKey(missing ? "missing" : "hit"), out var value);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        return new(exists, exists ? value.AsNumber() : 0, effects, counters.ExecutionSteps,
-            counters.MemoryPeakLiveBytes, counters.BorrowedFieldTargetSnapshots, error);
+        return new(exists, exists ? value.AsNumber() : 0, effects, counters.MemoryPeakLiveBytes, counters.BorrowedFieldTargetSnapshots, error);
     }
 
     private sealed record ForwardingFieldTarget(AwkArrayIndex Inner) : AwkArrayIndex
@@ -160,15 +158,19 @@ public sealed partial class AwkArrayCompoundUpdateTests
             Inner.ResolveTargetKeyAsync(context, array);
     }
 
-    private readonly record struct FieldTargetResult(bool Exists, double Value, int Effects, long Steps,
-        long Peak, long Snapshots, string Error);
+    private readonly record struct FieldTargetResult(bool Exists, double Value, int Effects, long Peak, long Snapshots, string Error);
 
     [Theory]
-    [InlineData("1.5", 1.5)] [InlineData("1e0", 1)] [InlineData("01", 1)]
-    [InlineData("0x1", 1)] [InlineData("010", 8)] [InlineData("0", 0)] [InlineData("-1", -1)]
+    [InlineData("1.5", 1.5)]
+    [InlineData("1e0", 1)]
+    [InlineData("01", 1)]
+    [InlineData("0x1", 1)]
+    [InlineData("010", 8)]
+    [InlineData("0", 0)]
+    [InlineData("-1", -1)]
     public async Task NumericFieldTargetIndicesKeepRuntimeEvaluation(string text, double number)
     {
-        var results = new List<(double Value, string Error, long Steps)>();
+        var results = new List<(double Value, string Error)>();
         foreach (var original in new[] { false, true })
         {
             var state = State();
@@ -185,7 +187,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
                     .ApplyCompoundAssignmentAsync(new(state), AwkExpression.Number("3", 3), AwkCompoundAssignmentOperation.Add);
             }
             catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
-            results.Add((state.GetArrayAwkValue(name, key).AsNumber(), error, state.Counters.ExecutionSteps));
+            results.Add((state.GetArrayAwkValue(name, key).AsNumber(), error));
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         Assert.Equal(results[1], results[0]);

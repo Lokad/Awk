@@ -7,7 +7,7 @@ public sealed class AwkMemoryAccountingTransitionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ReservationTransfersKeepLivePeaksAndCumulativeCounters(bool shared)
+    public async Task ReservationTransfersKeepLiveUsageAndFundTheOwner(bool shared)
     {
         var budget = new CooperativeTestBudget(100);
         await using var owner = AwkExecutionMemoryOwner.Create(shared ? budget : null, CancellationToken.None);
@@ -16,29 +16,15 @@ public sealed class AwkMemoryAccountingTransitionTests
         ledger.Reserve(40);
         Assert.Equal(40, ledger.CurrentReservedBytes);
         Assert.Equal(0, ledger.CurrentCommittedBytes);
-        Assert.Equal(40, ledger.PeakLiveBytes);
         ledger.CommitReserved(10);
         Assert.Equal(30, ledger.CurrentReservedBytes);
         Assert.Equal(10, ledger.CurrentCommittedBytes);
-        Assert.Equal(40, ledger.PeakLiveBytes);
         ledger.Reserve(30);
-        Assert.Equal(70, ledger.PeakLiveBytes);
         ledger.CommitReserved(50);
         ledger.ReleaseReserved(5);
         ledger.ReleaseCommitted(30);
         Assert.Equal(5, ledger.CurrentReservedBytes);
         Assert.Equal(30, ledger.CurrentCommittedBytes);
-        Assert.Equal(60, ledger.PeakReservedBytes);
-        Assert.Equal(60, ledger.PeakCommittedBytes);
-        Assert.Equal(70, ledger.PeakLiveBytes);
-        Assert.Equal(70, ledger.TotalReservedBytes);
-        Assert.Equal(60, ledger.TotalCommittedBytes);
-        Assert.Equal(5, ledger.TotalReleasedReservedBytes);
-        Assert.Equal(30, ledger.TotalReleasedCommittedBytes);
-        Assert.Equal(2, counters.MemoryReserveCalls);
-        Assert.Equal(2, counters.MemoryCommitCalls);
-        Assert.Equal(70, counters.MemoryReservedBytes);
-        Assert.Equal(60, counters.MemoryCommittedBytes);
         Assert.Equal(70, counters.MemoryPeakLiveBytes);
         Assert.Equal(shared ? 35 : 0, budget.Reserved);
     }
@@ -79,26 +65,6 @@ public sealed class AwkMemoryAccountingTransitionTests
         Assert.Equal(40, budget.Reserved);
         Assert.Equal(1, budget.Refusals);
         Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task HistoricalByteOverflowFailsBeforeNewHostAdmission(bool shared)
-    {
-        var budget = new CooperativeTestBudget(long.MaxValue);
-        await using var owner = AwkExecutionMemoryOwner.Create(shared ? budget : null, CancellationToken.None);
-        var ledger = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(long.MaxValue - 1),
-            AwkRuntimeCounters.CreateEnabled(), owner);
-        ledger.Reserve(long.MaxValue - 1);
-        ledger.CommitReserved(long.MaxValue - 1);
-        ledger.ReleaseCommitted(long.MaxValue - 1);
-        var before = Snapshot(ledger);
-        budget.RefuseNextAdmissionMinimumGrowth = 1;
-        AssertMemory(() => ledger.Reserve(3));
-        Assert.Equal(before, Snapshot(ledger));
-        Assert.Equal(0, budget.Reserved);
-        Assert.Equal(0, budget.Refusals);
     }
 
     [Fact]

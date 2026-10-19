@@ -35,10 +35,6 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: regular expression pattern limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorRegexGroupLimit =
         AwkUtf8Codec.Encode("awk: regular expression group limit exceeded\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorRegexCompilationLimit =
-        AwkUtf8Codec.Encode("awk: regular expression compilation limit exceeded\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorRegexRecordSeparatorScanLimit =
-        AwkUtf8Codec.Encode("awk: regular expression record separator scan limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorNotEnoughPrintfArguments =
         AwkUtf8Codec.Encode("awk: not enough arguments to satisfy format string\n");
     internal static readonly ReadOnlyMemory<byte> ErrorPrintfMixedArguments =
@@ -118,20 +114,10 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: identifier byte limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorOutputFileLimit =
         AwkUtf8Codec.Encode("awk: output file limit exceeded\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorHostCallLimit =
-        AwkUtf8Codec.Encode("awk: host call limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorMemoryLimit =
         AwkUtf8Codec.Encode("awk: memory limit exceeded\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorExecutionStepLimit =
-        AwkUtf8Codec.Encode("awk: execution step limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInputByteLimit =
         AwkUtf8Codec.Encode("awk: input byte limit exceeded\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorRecordLimit =
-        AwkUtf8Codec.Encode("awk: input record limit exceeded\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorRegexOperationLimit =
-        AwkUtf8Codec.Encode("awk: regular expression operation limit exceeded\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorSortComparisonLimit =
-        AwkUtf8Codec.Encode("awk: array sort comparison limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInputFileLimit =
         AwkUtf8Codec.Encode("awk: input file limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorPipeLimit =

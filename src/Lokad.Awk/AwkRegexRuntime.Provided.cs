@@ -72,7 +72,7 @@ internal sealed partial class AwkRegexRuntime
             using var lease = ResolveProvidedRegex(regex.Pattern, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
             if (lease.Pattern is not { } compiled)
                 return MatchSpan(regex, input, offset, CaptureDotNetInputContext(input));
-            _resources.RecordRegexOperation(input.ByteLength - offset.ByteIndex);
+            _resources.RecordRegexMatch();
             var bytes = input.AsSpan(_throwIfCancellationRequested);
             var whole = compiled.Match(bytes, offset.Utf16Index, [], _throwIfCancellationRequested);
             if (!whole.Success) return AwkRegexMatchSpan.NoMatch;
@@ -104,7 +104,7 @@ internal sealed partial class AwkRegexRuntime
                 AwkRuntimeMemory.EstimateRegexCaptureRangeArrayBytes(count));
             Span<AwkRegexCaptureRange> ranges = count <= 32
                 ? stackalloc AwkRegexCaptureRange[count] : new AwkRegexCaptureRange[count];
-            _resources.RecordRegexOperation(input.ByteLength - offset.ByteIndex);
+            _resources.RecordRegexMatch();
             var bytes = input.AsSpan(_throwIfCancellationRequested);
             var whole = compiled.Match(bytes, offset.Utf16Index, ranges, _throwIfCancellationRequested);
             if (!whole.Success)

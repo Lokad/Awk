@@ -177,7 +177,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             try
             {
                 _counters.RecordRegexStringAdapterMatch();
-                _resources.RecordRegexOperation(input.ByteLength);
+                _resources.RecordRegexMatch();
                 return ResolveDotNetRegex(regex).IsMatch(text);
             }
             catch (RegexMatchTimeoutException)
@@ -198,7 +198,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         {
             using var lease = ResolveProvidedRegex(regex.Pattern, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
             if (lease.Pattern is not { } compiled) return IsMatch(regex, input, forceDotNet: true);
-            _resources.RecordRegexOperation(input.ByteLength);
+            _resources.RecordRegexMatch();
             return compiled.IsMatch(input.AsSpan(_throwIfCancellationRequested), _throwIfCancellationRequested);
         }
         catch (AwkRegexAdmissionException)
@@ -281,7 +281,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
                 TryResolvePosixRegex(regex, governor, out var program))
             {
                 using var selected = MatchPosix(program, text, searchOffset.Utf16Index,
-                    input.ByteLength - searchOffset.ByteIndex, capturePlan.SelectGroupCount(program.GroupCount), governor);
+                    capturePlan.SelectGroupCount(program.GroupCount), governor);
                 if (!selected.Success)
                 {
                     matchSpan = AwkRegexMatchSpan.NoMatch;
@@ -292,7 +292,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
                     matchSpan.ByteLength, inputContext.ExecutionPolicy.CoordinatePolicy, capturePlan,
                     maxCaptureBytes, _counters, governor, _throwIfCancellationRequested);
             }
-            var match = Match(regex, text, searchOffset.Utf16Index, input.ByteLength - searchOffset.ByteIndex);
+            var match = Match(regex, text, searchOffset.Utf16Index);
             if (!match.Success)
             {
                 matchSpan = AwkRegexMatchSpan.NoMatch;
@@ -350,11 +350,11 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             if (regex.Selection.RequiresLongest && TryResolvePosixRegex(regex, _memoryAccounting, out var program))
             {
                 using var selected = MatchPosix(program, text, searchOffset.Utf16Index,
-                    input.ByteLength - searchOffset.ByteIndex, 0, _memoryAccounting);
+                    0, _memoryAccounting);
                 return selected.Success ? CreateMatchSpan(text, selected.Index, selected.Length, searchOffset)
                     : AwkRegexMatchSpan.NoMatch;
             }
-            var match = Match(regex, text, searchOffset.Utf16Index, input.ByteLength - searchOffset.ByteIndex);
+            var match = Match(regex, text, searchOffset.Utf16Index);
             return match.Success
                 ? CreateMatchSpan(text, match, searchOffset)
                 : AwkRegexMatchSpan.NoMatch;
@@ -418,13 +418,13 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         }
     }
 
-    private AwkDotNetMatch Match(AwkRegex regex, string input, int startAt, int inputBytes)
+    private AwkDotNetMatch Match(AwkRegex regex, string input, int startAt)
     {
         _throwIfCancellationRequested();
         try
         {
             _counters.RecordRegexStringAdapterMatch();
-            _resources.RecordRegexOperation(inputBytes);
+            _resources.RecordRegexMatch();
             if (regex.Selection.RequiresLongest)
             {
                 var selected = ResolveLongestRegex(regex);
@@ -517,11 +517,11 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     }
 
     private AwkPosixMatch MatchPosix(AwkPosixRegex program, string input, int startAt,
-        int inputBytes, int groupCount, AwkMemoryAccounting governor)
+        int groupCount, AwkMemoryAccounting governor)
     {
         _throwIfCancellationRequested();
         _counters.RecordRegexStringAdapterMatch();
-        _resources.RecordRegexOperation(inputBytes);
+        _resources.RecordRegexMatch();
         try { return program.Match(input, startAt, groupCount, governor, _throwIfCancellationRequested); }
         catch (RegexMatchTimeoutException)
         {

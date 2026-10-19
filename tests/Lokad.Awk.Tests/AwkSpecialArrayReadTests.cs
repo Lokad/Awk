@@ -71,5 +71,5 @@ public sealed class AwkSpecialArrayReadTests
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
-                AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter));
+                AwkRegexEngineKind.DotNetCompatibility));
 }

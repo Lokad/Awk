@@ -47,8 +47,7 @@ public sealed class AwkFieldCacheReuseTests
         var limits = AwkRuntimeLimits.CreateDefault();
         if (finite) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var record = AwkText.FromString("text\ttext\ttext");
         for (var row = 0; row < 100; row++) state.SetCurrentRecord(record);

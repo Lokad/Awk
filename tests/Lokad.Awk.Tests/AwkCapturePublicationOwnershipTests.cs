@@ -110,7 +110,7 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
         if (finite) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, limits,
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         return new(AwkFieldSeparatorSpec.Default, token, options,
             new AwkRuntimeResourceMonitor(limits, AwkRuntimeCounters.Disabled), AwkCompatibilityProfile.Default);
     }

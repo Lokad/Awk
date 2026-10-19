@@ -85,7 +85,7 @@ internal readonly struct AwkValue
     {
         // Preserve bounded initialization and post-cancellation inspection reads.
         // Long text must check before lazy materialization, then within parsing.
-        var span = text.AsSpan(text.ByteLength >= AwkExecutionGovernor.WorkChunkBytes ? checkpoint : null);
+        var span = text.AsSpan(text.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ? checkpoint : null);
         var parsed = AwkNumberParser.Parse(span, mode, checkpoint);
         // Text may still be printed or sliced. GNU diagnoses this only when numeric conversion/type is requested.
         if (parsed.Status == AwkNumberParseStatus.MissingHexExponent)

@@ -8,96 +8,84 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedFieldIndexBorrowsOnlyTheInterpreterInput(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedFieldIndexBorrowsOnlyTheInterpreterInput()
     {
         var result = await RunAsync(["{n+=index($2,\"timeout\")} END{print n}"],
-            "id déjà-timeout\nid déjà-normal\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+            "id déjà-timeout\nid déjà-normal\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("6\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.BorrowedFieldIndexSearches);
+        Assert.Equal(2, result.Counters.BorrowedFieldIndexSearches);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedUnicodeSubstringBorrowsOnlyTheInterpreterFieldInput(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedUnicodeSubstringBorrowsOnlyTheInterpreterFieldInput()
     {
         var result = await RunAsync(["{print length($1),substr($2,1,2)}"],
-            "café résumé\ny é😀z\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+            "café résumé\ny é😀z\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("4 ré\n1 é😀\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.BorrowedFieldSubstrings);
+        Assert.Equal(2, result.Counters.BorrowedFieldSubstrings);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedLocalConditionalFunctionsComposeExistingPreparedBody(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedLocalConditionalFunctionsComposeExistingPreparedBody()
     {
         var result = await RunAsync(
             ["function clip(s,n,t){t=tolower(s);if(length(t)>n)return substr(t,1,n);return t} {v=clip($1,$2);total+=length(v)} END{print total}"],
-            "ID:beta:tail 4\nID:beta:tail 32\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+            "ID:beta:tail 4\nID:beta:tail 32\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("16\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousFunctionRuns);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 0 : 2, result.Counters.FunctionArgumentBufferRents);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousActionRuns);
+        Assert.Equal(2, result.Counters.SynchronousFunctionRuns);
+        Assert.Equal(0, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(2, result.Counters.SynchronousActionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedLocalAssignmentReturnsPrepareCallsAndOmittedLocalSlots(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedLocalAssignmentReturnsPrepareCallsAndOmittedLocalSlots()
     {
         var result = await RunAsync(
             ["function step(x,a,t){t=(x*3+a)%101;return t} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}"],
-            "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+            "7\n7\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 16 : 0, result.Counters.SynchronousFunctionRuns);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 0 : 16, result.Counters.FunctionArgumentBufferRents);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousLoopRuns);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousActionRuns);
+        Assert.Equal(16, result.Counters.SynchronousFunctionRuns);
+        Assert.Equal(0, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(2, result.Counters.SynchronousLoopRuns);
+        Assert.Equal(2, result.Counters.SynchronousActionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedFieldArrayReadsUseExistingBoundedAction(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedFieldArrayReadsUseExistingBoundedAction()
     {
         var result = await RunAsync(["BEGIN{a[\"café\"]=7;b[\"café\"]=3} {n+=a[$1]+b[$1]} END{print n,length(a),length(b)}"],
-            "café\nmissing\ncafé\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+            "café\nmissing\ncafé\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("20 2 2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 3 : 0, result.Counters.SynchronousActionRuns);
+        Assert.Equal(3, result.Counters.SynchronousActionRuns);
         Assert.Equal(3, result.Counters.FieldsMaterialized);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedFieldCompoundTargetsReuseTheExistingKeyAndValue(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedFieldCompoundTargetsReuseTheExistingKeyAndValue()
     {
         var result = await RunAsync(["BEGIN{a[\"k\"]=7} {a[$1]+=$2} END{print a[\"k\"],a[\"café\"],length(a)}"],
-            "k 3\ncafé 2\nk 4\ncafé 5\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+            "k 3\ncafé 2\nk 4\ncafé 5\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("14 7 2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -107,48 +95,40 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter, false)]
-    [InlineData(AwkExecutionEngineKind.Executable, false)]
-    [InlineData(AwkExecutionEngineKind.Interpreter, true)]
-    [InlineData(AwkExecutionEngineKind.Executable, true)]
-    internal async Task ParsedBranchingCallsUsePreparedBodiesWithOrdinaryFallback(AwkExecutionEngineKind engine, bool unary)
+    [InlineData(false)]
+    [InlineData(true)]
+    internal async Task ParsedBranchingCallsUsePreparedBodiesWithOrdinaryFallback(bool unary)
     {
         var source = unary
             ? "function step(x){if(x<50)return (x*3+1)%101;return (x+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}"
             : "function step(x,a){if(x<50)return (x*3+a)%101;return (x+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
         var result = await RunAsync([source],
-            "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+            "7\n7\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(unary ? "146\n" : "182\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(unary || engine == AwkExecutionEngineKind.Interpreter ? 0 : 16,
+        Assert.Equal(unary || true ? 0 : 16,
             result.Counters.FunctionArgumentBufferRents);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 16 : 0, result.Counters.SynchronousFunctionRuns);
+        Assert.Equal(16, result.Counters.SynchronousFunctionRuns);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedDoWhileArithmeticUsesBoundedLoopKernel(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedDoWhileArithmeticUsesBoundedLoopKernel()
     {
         var result = await RunAsync(["{x=$1;i=0;do{x=(x*3+1)%101;i++}while(i<8);total+=x} END{print total}"],
-            "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+            "7\n7\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(2, result.Counters.SynchronousDoWhileLoopRuns);
-        if (engine == AwkExecutionEngineKind.Executable)
-            Assert.True(result.Counters.VmFallbackCalls > 0);
         Assert.Equal(2, result.Counters.RecordsRead);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedFileActionsKeepPhysicalCallerDepthAndNestedLocals(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedFileActionsKeepPhysicalCallerDepthAndNestedLocals()
     {
         const string source = "function helper(x){print \"helper\",x;return x+1} function readNext(x){getline line;print \"caller\",x} BEGIN{readNext(\"local\")} BEGINFILE{print \"file\",x;print \"nested\",helper(2)}";
-        var result = await RunAsync([source], "record\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        var result = await RunAsync([source], "record\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("file \nhelper 2\nnested 3\ncaller local\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -157,45 +137,38 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(1, result.Counters.RecordsRead);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedArrayReadsReuseTheirStorageContainer(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedArrayReadsReuseTheirStorageContainer()
     {
         var result = await RunAsync(["BEGIN{a[1]=7;a[2]=8}{s+=a[$1]}END{print s}"], "1\n2\n1\n2\n",
-            AwkRegexEngineKind.DotNetCompatibility, engine);
+            AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("30\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(result.Counters.ArrayContainerCacheHits >= 4);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedPrintfFormatsIntoItsEmptySink(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedPrintfFormatsIntoItsEmptySink()
     {
         var result = await RunAsync(["{printf \"%s:%04d\\n\",$1,$2}"], "a 7\nb 8\n",
-            AwkRegexEngineKind.DotNetCompatibility, engine);
+            AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("a:0007\nb:0008\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(2, result.Counters.PrintfSinkFormats);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedPairCallsReuseInlineFrames(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedPairCallsReuseInlineFrames()
     {
         const string source = "function step(x,a){return (x*3+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}";
-        var result = await RunAsync([source], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        var result = await RunAsync([source], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("186\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(16, result.Counters.InlineFunctionFrames);
-        if (engine == AwkExecutionEngineKind.Interpreter)
-            Assert.Equal(0, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(0, result.Counters.FunctionArgumentBufferRents);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
@@ -204,8 +177,7 @@ public sealed class AwkBenchmarkCounterTests
     public async Task ParsedMixedActionsSkipOnlyEmptyStatementFlushes()
     {
         const string source = "{a[$1]=$2;n++;print n} END{print n}";
-        var result = await RunAsync([source], "a 1\nb 2\n", AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+        var result = await RunAsync([source], "a 1\nb 2\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("1\n2\n2\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -214,37 +186,33 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter, false)]
-    [InlineData(AwkExecutionEngineKind.Executable, false)]
-    [InlineData(AwkExecutionEngineKind.Interpreter, true)]
-    [InlineData(AwkExecutionEngineKind.Executable, true)]
-    internal async Task ParsedWhileArithmeticReusesBoundedLoopKernel(AwkExecutionEngineKind engine, bool emptyFor)
+    [InlineData(false)]
+    [InlineData(true)]
+    internal async Task ParsedWhileArithmeticReusesBoundedLoopKernel(bool emptyFor)
     {
         var source = emptyFor
             ? "{x=$1;i=0;for(;i<8;){x=(x*3+1)%101;i++}total+=x} END{print total}"
             : "{x=$1;i=0;while(i<8){x=(x*3+1)%101;i++}total+=x} END{print total}";
-        var result = await RunAsync([source], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        var result = await RunAsync([source], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(2, result.Counters.SynchronousLoopRuns);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousActionRuns);
+        Assert.Equal(2, result.Counters.SynchronousActionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedForArithmeticUsesPreparedTopLevelAction(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedForArithmeticUsesPreparedTopLevelAction()
     {
         const string source = "{x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=x} END{print total}";
-        var result = await RunAsync([source], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        var result = await RunAsync([source], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(2, result.Counters.SynchronousLoopRuns);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousActionRuns);
+        Assert.Equal(2, result.Counters.SynchronousActionRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
@@ -256,22 +224,19 @@ public sealed class AwkBenchmarkCounterTests
     [InlineData("BEGIN{i=0;while(i<2){print i;i++}}", "0\n1\n")]
     internal async Task ParsedWhileFlowAndOutputKeepOrdinaryExecution(string source, string expected)
     {
-        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expected, result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, result.Counters.SynchronousLoopRuns);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedNestedCallsReusePreparedNumericInput(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedNestedCallsReusePreparedNumericInput()
     {
         const string source = "function inc(x){return x+1} function twice(x){return inc(inc(x))} {total+=twice($1)} END{print total}";
         var result = await RunAsync([source], "7\n7\n7\n7\n",
-            AwkRegexEngineKind.DotNetCompatibility, engine);
+            AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("36\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -279,21 +244,19 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(8, result.Counters.ScalarLocalValueReads);
         Assert.Equal(12, result.Counters.InlineFunctionFrames);
         Assert.Equal(3, result.Counters.FieldListBufferReuses);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 4 : 0,
+        Assert.Equal(4,
             result.Counters.BoundLocalScalarArguments);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
         Assert.Equal(0, result.Counters.FunctionStackSuspensions);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedMixedFunctionLayoutsRecycleWithoutStaleLocals(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedMixedFunctionLayoutsRecycleWithoutStaleLocals()
     {
         const string source = "function one(x){return ++x} function zero(){return 3} function two(x,y){return x+y} " +
             "BEGIN{print one(7),zero(),two(5,6),one()}";
-        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility, engine);
+        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("8 3 11 1\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -305,7 +268,7 @@ public sealed class AwkBenchmarkCounterTests
     {
         const string source = "{if($1==\"A\"&&$2==\"B\"){x+=1;if($3==\"C\")y+=2;else y+=3}else x+=4} END{print x,y}";
         var result = await RunAsync([source], "A B C\nA B D\nA Z C\n",
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("6 5\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -327,7 +290,7 @@ public sealed class AwkBenchmarkCounterTests
             host.AddFile("/left", "k1\tv1\nk2\tv2\n");
             host.AddFile("/right", run == 0 ? "k1\tv1\nk2\tchanged\n" : "k1\tv1\nk2\tv2\n");
             var counters = AwkRuntimeCounters.CreateEnabled();
-            var options = CreateOptions(counters, AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            var options = CreateOptions(counters, AwkRegexEngineKind.DotNetCompatibility);
             var result = await program.ExecuteAsync(host, CancellationToken.None, options);
             Assert.Equal(0, result.Value);
             Assert.Equal(run == 0 ? "1\n" : "0\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -342,7 +305,7 @@ public sealed class AwkBenchmarkCounterTests
     {
         const string source = "{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}";
         var result = await RunAsync([source], "id:beta:tail\nid:beta:tail\n",
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("24\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -351,63 +314,55 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task MultiColumnPrintingHasByteNativeCounterEvidence(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task MultiColumnPrintingHasByteNativeCounterEvidence()
     {
         const string source = "{print $1,$3,$2}";
         var result = await RunAsync([source], "sku\tvalue\ttail\nsku\tvalue\ttail\nsku\tvalue\ttail\n",
-            AwkRegexEngineKind.DotNetCompatibility, engine);
+            AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("sku tail value\nsku tail value\nsku tail value\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(3, result.Counters.RecordsRead);
         Assert.Equal(9, result.Counters.FieldsMaterialized);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 3 : 12, result.Counters.AwkTextAllocations);
+        Assert.Equal(3, result.Counters.AwkTextAllocations);
         Assert.Equal(0, result.Counters.SmallValuePrintRuns);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 3 : 0, result.Counters.FieldListPrintRuns);
+        Assert.Equal(3, result.Counters.FieldListPrintRuns);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task SingleStdoutValuesAvoidStagingArrays(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task SingleStdoutValuesAvoidStagingArrays()
     {
         const string source = "BEGIN{a[1]=7;print a[1];print \"café\";print 2.5}";
-        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility, engine);
+        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("7\ncafé\n2.5\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 3 : 0, result.Counters.SingleValuePrintRuns);
+        Assert.Equal(3, result.Counters.SingleValuePrintRuns);
         Assert.Equal(0, result.Counters.Utf8Encodes);
         Assert.Equal(0, result.Counters.StringDecodes);
     }
 
     [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter, false)]
-    [InlineData(AwkExecutionEngineKind.Executable, false)]
-    [InlineData(AwkExecutionEngineKind.Interpreter, true)]
-    [InlineData(AwkExecutionEngineKind.Executable, true)]
-    internal async Task CompleteCallLoopsAvoidPooledArgumentTransport(AwkExecutionEngineKind engine, bool multiple)
+    [InlineData(false)]
+    [InlineData(true)]
+    internal async Task CompleteCallLoopsAvoidPooledArgumentTransport(bool multiple)
     {
         var script = multiple
             ? "function step(x,a){return (x*3+a)%101} {x=$1;for(i=0;i<8;i++)x=step(x,i);total+=x} END{print total}"
             : "function step(x){return (x*3+1)%101} {x=$1;for(i=0;i<8;i++)x=step(x);total+=x} END{print total}";
-        var result = await RunAsync([script], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        var result = await RunAsync([script], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(multiple ? "186\n" : "40\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousLoopRuns);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter || !multiple ? 0 : 16, result.Counters.FunctionArgumentBufferRents);
+        Assert.Equal(2, result.Counters.SynchronousLoopRuns);
+        Assert.Equal(true || !multiple ? 0 : 16, result.Counters.FunctionArgumentBufferRents);
         Assert.Equal(multiple ? 30 : 14, result.Counters.NumericLocalReads);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 16 : 0, result.Counters.SynchronousFunctionRuns);
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? multiple ? 32 : 16 : 0,
-            result.Counters.BoundScalarArguments);
-        if (engine == AwkExecutionEngineKind.Interpreter)
-            Assert.Equal(multiple ? 338 : 322, result.Counters.ExecutionSteps);
+        Assert.Equal(16, result.Counters.SynchronousFunctionRuns);
+        Assert.Equal(multiple ? 32 : 16, result.Counters.BoundScalarArguments);
+        { }
         Assert.Equal(0, result.Counters.FunctionStackSuspensions);
     }
 
@@ -415,25 +370,22 @@ public sealed class AwkBenchmarkCounterTests
     public async Task BoundScalarArgumentsKeepUnboundAliasesAndReadSpelling()
     {
         const string source = "function second(a,x){return x} function id(x){return x} BEGIN{r=second(a,1)} BEGIN{print r;a[\"k\"]=7} BEGIN{r=second(a,2)} BEGIN{print r,a[\"k\"];s=\"007\"} BEGIN{r=id(s);t=id(s)} BEGIN{print r,t,s==7;s=9} BEGIN{r=id(s)} END{print r}";
-        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+        var result = await RunAsync([source], "", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("1\n2 7\n007 007 0\n9\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(3, result.Counters.BoundScalarArguments);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task PureScalarActionsUsePreparedCallsOnlyInTheInterpreter(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task PureScalarActionsUsePreparedCallsOnlyInTheInterpreter()
     {
         const string script = "function inc(x){return x+1} function twice(x){return inc(inc(x))} {total+=twice($1)} END{print total}";
-        var result = await RunAsync([script], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        var result = await RunAsync([script], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("18\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 2 : 0, result.Counters.SynchronousActionRuns);
+        Assert.Equal(2, result.Counters.SynchronousActionRuns);
         Assert.Equal(0, result.Counters.FunctionStackSuspensions);
     }
 
@@ -445,7 +397,7 @@ public sealed class AwkBenchmarkCounterTests
         var script = sprintf ? "{s=sprintf(\"%+06d:%06i\",$1,$2);print s}"
             : "{printf \"%+06d:%06i\\n\",$1,$2}";
         var result = await RunAsync([script], "7 -7\n12 0\n",
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("+00007:-00007\n+00012:000000\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -458,7 +410,7 @@ public sealed class AwkBenchmarkCounterTests
     public async Task MultiFieldFilterUsesTheExistingBoundedCpuTree()
     {
         var result = await RunAsync(["$1==\"A\"&&$2==\"B\"&&$3==\"C\"{n++} END{print n+0}"],
-            "A B C\nA B D\nD B C\n", AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            "A B C\nA B D\nD B C\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("1\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -472,7 +424,7 @@ public sealed class AwkBenchmarkCounterTests
     public async Task CompleteStringActionsUseBoundedSynchronousSubtrees()
     {
         var result = await RunAsync(["{s=substr($0,4,4);total+=length(s)+index($0,\"beta\")+length(tolower(s))} END{print total}"],
-            "id:beta:tail\nid:beta:tail\n", AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            "id:beta:tail\nid:beta:tail\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("24\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -485,7 +437,7 @@ public sealed class AwkBenchmarkCounterTests
     public async Task CompleteFieldLoopsUseTheExistingSynchronousRegion()
     {
         var result = await RunAsync(["{for(i=1;i<=NF;i++){nonempty+=($i!=\"\");chars+=length($i)}} END{print nonempty,chars}"],
-            "aa b\né xyz\n", AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            "aa b\né xyz\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("4 7\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -494,16 +446,12 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, result.Counters.StringDecodes);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task PurePrintfFieldsBorrowBytesAndNumbersBeforeOwnedOutput(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task PurePrintfFieldsBorrowBytesAndNumbersBeforeOwnedOutput()
     {
         const string input = "sku 7\nother 8\n";
-        var borrowed = await RunAsync(["-v", "i=1", "-v", "j=2", "{printf \"%s:%04d\\n\",$1,$2}"], input,
-            AwkRegexEngineKind.DotNetCompatibility, engine);
-        var owned = await RunAsync(["-v", "i=1", "-v", "j=2", "{printf \"%s:%04d\\n\",$i,$j}"], input,
-            AwkRegexEngineKind.DotNetCompatibility, engine);
+        var borrowed = await RunAsync(["-v", "i=1", "-v", "j=2", "{printf \"%s:%04d\\n\",$1,$2}"], input, AwkRegexEngineKind.DotNetCompatibility);
+        var owned = await RunAsync(["-v", "i=1", "-v", "j=2", "{printf \"%s:%04d\\n\",$i,$j}"], input, AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, borrowed.ExitCode);
         Assert.Equal(owned.ExitCode, borrowed.ExitCode);
         Assert.Equal("sku:0007\nother:0008\n", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -512,21 +460,18 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(4, owned.Counters.AwkTextAllocations - borrowed.Counters.AwkTextAllocations);
         Assert.Equal(10, owned.Counters.AwkTextPayloadBytes - borrowed.Counters.AwkTextPayloadBytes);
         Assert.Equal(owned.Counters.FieldsMaterialized, borrowed.Counters.FieldsMaterialized);
-        Assert.Equal(owned.Counters.ExecutionSteps, borrowed.Counters.ExecutionSteps);
         Assert.Equal(owned.Counters.Utf8Encodes, borrowed.Counters.Utf8Encodes);
         Assert.Equal(owned.Counters.StringDecodes, borrowed.Counters.StringDecodes);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task PrintfBorrowsStagingInsteadOfAllocatingAnOwnedResult(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task PrintfBorrowsStagingInsteadOfAllocatingAnOwnedResult()
     {
         const string input = "sku\t7\nsku\t8\n";
         var direct = await RunAsync(["-v", "i=1", "-v", "j=2", "BEGIN{ORS=\"\"}{printf \"%s:%04d\\n\",$i,$j}"], input,
-            AwkRegexEngineKind.DotNetCompatibility, engine);
+            AwkRegexEngineKind.DotNetCompatibility);
         var owned = await RunAsync(["-v", "i=1", "-v", "j=2", "BEGIN{ORS=\"\"}{print sprintf(\"%s:%04d\\n\",$i,$j)}"], input,
-            AwkRegexEngineKind.DotNetCompatibility, engine);
+            AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, direct.ExitCode);
         Assert.Equal(0, owned.ExitCode);
         Assert.Equal("sku:0007\nsku:0008\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -545,8 +490,7 @@ public sealed class AwkBenchmarkCounterTests
     [InlineData("function inc(x){return x+1} {x=$1;for(i=0;i<8;i++)x=(x*3+1)%101;total+=inc(inc(x))} END{print total}", "44\n")]
     public async Task PureForAndNumericReturnBodiesUsePreparedSynchronousRegions(string script, string expected)
     {
-        var result = await RunAsync([script], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+        var result = await RunAsync([script], "7\n7\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expected, result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -566,11 +510,9 @@ public sealed class AwkBenchmarkCounterTests
     {
         var input = "hit payload\nhit other\n" + (miss ? "missing value\n" : "");
         var script = "BEGIN{a[\"hit\"]=7}{" + mutation + "}END{print a[\"hit\"],length(a)}";
-        var direct = await RunAsync([script], input, AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+        var direct = await RunAsync([script], input, AwkRegexEngineKind.DotNetCompatibility);
         var ownedScript = "BEGIN{a[\"hit\"]=7}{v=$1;" + mutation.Replace("$1", "v", StringComparison.Ordinal) + "}END{print a[\"hit\"],length(a)}";
-        var owned = await RunAsync([ownedScript], input, AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+        var owned = await RunAsync([ownedScript], input, AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, direct.ExitCode);
         Assert.Equal(0, owned.ExitCode);
         Assert.Equal(miss ? "9 2\n" : "9 1\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -588,9 +530,9 @@ public sealed class AwkBenchmarkCounterTests
     {
         var input = "hit payload\nhit other\n" + (miss ? "missing value\n" : "");
         var borrowed = await RunAsync(["BEGIN{a[\"hit\"]=7}{sum+=a[$1]}END{print sum,length(a)}"], input,
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         var owned = await RunAsync(["BEGIN{a[\"hit\"]=7}{v=$1;sum+=a[v]}END{print sum,length(a)}"], input,
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, borrowed.ExitCode);
         Assert.Equal(0, owned.ExitCode);
         Assert.Equal(miss ? "14 2\n" : "14 1\n", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -606,9 +548,9 @@ public sealed class AwkBenchmarkCounterTests
     {
         const string input = "hit payload\nmiss payload\nhit other\n";
         var borrowed = await RunAsync(["BEGIN{lookup[\"hit\"]=1} ($1 in lookup){n++} END{print n+0}"], input,
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         var owned = await RunAsync(["BEGIN{lookup[\"hit\"]=1} {v=$1;if(v in lookup)n++} END{print n+0}"], input,
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, borrowed.ExitCode);
         Assert.Equal(0, owned.ExitCode);
         Assert.Equal("2\n", borrowed.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -620,34 +562,30 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(3, borrowed.Counters.FieldSplits);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task WideEarlyFilteringPreparesOnlyTheReachedFields(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task WideEarlyFilteringPreparesOnlyTheReachedFields()
     {
         var tail = string.Join(" ", Enumerable.Repeat("tail", 61));
         var input = string.Concat(Enumerable.Repeat("INFO worker ignored " + tail + "\n", 7)) +
             "ERROR worker payload " + tail + "\n";
         var result = await RunAsync(["$1==\"ERROR\"{print $3}"], input,
-            AwkRegexEngineKind.DotNetCompatibility, engine);
+            AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("payload\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(8, result.Counters.FieldSplits);
         // The optional VM's field opcode still reads NF before loading a field.
-        Assert.Equal(engine == AwkExecutionEngineKind.Interpreter ? 10 : 512, result.Counters.FieldsMaterialized);
+        Assert.Equal(10, result.Counters.FieldsMaterialized);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task OrdinalArrayKeysKeepMixedTextLookupsByteNative(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task OrdinalArrayKeysKeepMixedTextLookupsByteNative()
     {
         var result = await RunAsync(
             ["BEGIN{a[0]=7;a[-1]=8;a[2147483647]=9;a[-2147483648]=10;a[\"01\"]=11;print a[\"0\"],a[\"-1\"],a[\"2147483647\"],a[\"-2147483648\"],a[1]+0,a[\"01\"],length(a)}"],
-            "", AwkRegexEngineKind.DotNetCompatibility, engine);
+            "", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("7 8 9 10 0 11 6\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -656,17 +594,15 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter, false)]
-    [InlineData(AwkExecutionEngineKind.Interpreter, true)]
-    [InlineData(AwkExecutionEngineKind.Executable, false)]
-    [InlineData(AwkExecutionEngineKind.Executable, true)]
-    internal async Task PlainPrintfTextAvoidsArgumentStringBridges(AwkExecutionEngineKind engine, bool sprintf)
+    [InlineData(false)]
+    [InlineData(true)]
+    internal async Task PlainPrintfTextAvoidsArgumentStringBridges(bool sprintf)
     {
         string Script(bool width) => sprintf
             ? "{printf \"%s\",sprintf(\"<%" + (width ? "1" : "") + "s>|%" + (width ? "1" : "") + "s\\n\",$1,$2)}"
             : "{printf \"<%" + (width ? "1" : "") + "s>|%" + (width ? "1" : "") + "s\\n\",$1,$2}";
-        var direct = await RunAsync([Script(false)], "café 😀\n", AwkRegexEngineKind.DotNetCompatibility, engine);
-        var general = await RunAsync([Script(true)], "café 😀\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+        var direct = await RunAsync([Script(false)], "café 😀\n", AwkRegexEngineKind.DotNetCompatibility);
+        var general = await RunAsync([Script(true)], "café 😀\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, direct.ExitCode);
         Assert.Equal(0, general.ExitCode);
         Assert.Equal("<café>|😀\n", direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -675,7 +611,6 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("", general.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(2, general.Counters.StringDecodes - direct.Counters.StringDecodes);
         Assert.Equal(2, general.Counters.FormattingStringInteropInputs - direct.Counters.FormattingStringInteropInputs);
-        Assert.Equal(general.Counters.ExecutionSteps, direct.Counters.ExecutionSteps);
         Assert.Equal(general.Counters.OutputBytes, direct.Counters.OutputBytes);
         Assert.Equal(general.Counters.Utf8Encodes, direct.Counters.Utf8Encodes);
     }
@@ -716,12 +651,9 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.Utf8Adapter)]
-    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.Utf8Adapter)]
-    internal async Task Awk_UnicodeCallersPreserveRuntimeTextBoundaries(AwkExecutionEngineKind engine,
-        AwkRegexEngineKind backend)
+    [InlineData(AwkRegexEngineKind.DotNetCompatibility)]
+    [InlineData(AwkRegexEngineKind.Utf8Adapter)]
+    internal async Task Awk_UnicodeCallersPreserveRuntimeTextBoundaries(AwkRegexEngineKind backend)
     {
         foreach (var context in new[] { 0, 1, 2 })
         {
@@ -731,8 +663,8 @@ public sealed class AwkBenchmarkCounterTests
                 1 => ["END{print v}", "v=" + value],
                 _ => ["-F", value, "BEGIN{print FS;exit}"]
             };
-            var control = await RunAsync(Arguments("A"), string.Empty, backend, engine);
-            var escaped = await RunAsync(Arguments(@"\u0041"), string.Empty, backend, engine);
+            var control = await RunAsync(Arguments("A"), string.Empty, backend);
+            var escaped = await RunAsync(Arguments(@"\u0041"), string.Empty, backend);
             Assert.Equal(0, control.ExitCode);
             Assert.Equal(0, escaped.ExitCode);
             Assert.Equal("A\n", escaped.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -745,20 +677,17 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.Utf8Adapter)]
-    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.Utf8Adapter)]
-    internal async Task Awk_UnicodeRegexEscapesPreserveRuntimeBoundaries(AwkExecutionEngineKind engine,
-        AwkRegexEngineKind regex)
+    [InlineData(AwkRegexEngineKind.DotNetCompatibility)]
+    [InlineData(AwkRegexEngineKind.Utf8Adapter)]
+    internal async Task Awk_UnicodeRegexEscapesPreserveRuntimeBoundaries(AwkRegexEngineKind regex)
     {
         foreach (var literal in new[] { false, true })
         {
             string Script(string pattern) => literal
                 ? "BEGIN{for(i=0;i<3;i++)v=(\"A\"~/" + pattern + "/);print v;exit}"
                 : "BEGIN{p=\"" + pattern + "\";for(i=0;i<3;i++)v=(\"A\"~p);print v;exit}";
-            var control = await RunAsync([Script("A")], "", regex, engine);
-            var escaped = await RunAsync([Script(literal ? "\\u0041" : "\\\\u0041")], "", regex, engine);
+            var control = await RunAsync([Script("A")], "", regex);
+            var escaped = await RunAsync([Script(literal ? "\\u0041" : "\\\\u0041")], "", regex);
             Assert.Equal(0, escaped.ExitCode);
             Assert.Equal("1\n", escaped.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(string.Empty, escaped.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -773,19 +702,17 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkExecutionEngineKind.Interpreter, AwkRegexEngineKind.Utf8Adapter)]
-    [InlineData(AwkExecutionEngineKind.Executable, AwkRegexEngineKind.Utf8Adapter)]
-    internal async Task Awk_UnicodeStringEscapesShareLiteralRuntimeCounters(AwkExecutionEngineKind engine, AwkRegexEngineKind regex)
+    [InlineData(AwkRegexEngineKind.DotNetCompatibility)]
+    [InlineData(AwkRegexEngineKind.Utf8Adapter)]
+    internal async Task Awk_UnicodeStringEscapesShareLiteralRuntimeCounters(AwkRegexEngineKind regex)
     {
-        var control = await RunAsync(["BEGIN{v=\"\U0001f600\";printf \"%s\",v;exit}"], "", regex, engine);
+        var control = await RunAsync(["BEGIN{v=\"\U0001f600\";printf \"%s\",v;exit}"], "", regex);
         // Plain %s keeps the value in UTF-8; only the source escape boundary decodes.
         Assert.Equal(1, control.Counters.StringDecodes);
         foreach (var literal in new[] { "\\u1f600", "\U0001f600" })
         {
             var (exit, host, counters) = await RunAsync(
-                ["BEGIN{v=\"" + literal + "\";printf \"%s\",v;exit}"], "", regex, engine);
+                ["BEGIN{v=\"" + literal + "\";printf \"%s\",v;exit}"], "", regex);
             Assert.Equal(0, exit);
             Assert.Equal("\U0001f600", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
@@ -798,19 +725,13 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     private const string InvalidUtf8Diagnostic = "awk: invalid UTF-8 input\n";
-    private const string StepCalibrationInput =
-        "sku1 region1 open 10\n" +
-        "sku2 region2 closed 20\n" +
-        "sku1 region2 open 30\n";
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task Awk_AssignedFieldCountTextRemainsByteNative(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task Awk_AssignedFieldCountTextRemainsByteNative()
     {
         var (exitCode, host, counters) = await RunAsync(
             ["BEGIN{$0=\"a b c\";NF=\"01.8\";$1=\"z\";print NF,$0}"],
-            "", AwkRegexEngineKind.DotNetCompatibility, engine);
+            "", AwkRegexEngineKind.DotNetCompatibility);
 
         Assert.Equal(0, exitCode);
         Assert.Equal("01.8 z\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -822,14 +743,12 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.FormattingFallbacks);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task Awk_IntegerPrintBypassesCustomFormatWithoutStringInterop(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task Awk_IntegerPrintBypassesCustomFormatWithoutStringInterop()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["BEGIN{OFMT=\"%.2f\";print 1000000,9007199254740992,9223372036854775808,1e30,-0}"],
-            string.Empty, AwkRegexEngineKind.DotNetCompatibility, engine);
+            string.Empty, AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, exitCode);
         Assert.Equal("1000000 9007199254740992 9223372036854775808 1000000000000000019884624838656 0\n",
             fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -846,9 +765,8 @@ public sealed class AwkBenchmarkCounterTests
         const int updateCount = 10_000;
         var counters = AwkRuntimeCounters.CreateEnabled();
 
-        Parallel.For(0, updateCount, _ => counters.RecordExecutionStep());
-
-        Assert.Equal(updateCount, counters.ExecutionSteps);
+        Parallel.For(0, updateCount, _ => counters.RecordHostCall());
+        Assert.Equal(updateCount, counters.HostCalls);
     }
 
     [Fact]
@@ -880,10 +798,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.RecordSeparatorTailBytesMoved);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task Awk_LiteralRecordSeparatorScanWorkScalesWithInput(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task Awk_LiteralRecordSeparatorScanWorkScalesWithInput()
     {
         var row = "<row><cell>" + new string('a', 1_000) + "</cell></row>";
         foreach (var recordCount in new[] { 100, 400, 1_600 })
@@ -891,7 +807,7 @@ public sealed class AwkBenchmarkCounterTests
             var input = string.Concat(Enumerable.Repeat(row, recordCount));
             var (exitCode, fileSystem, counters) = await RunAsync(
                 ["BEGIN{RS=\"</row>\"} {n++} END{print n}"],
-                input, AwkRegexEngineKind.DotNetCompatibility, engine);
+                input, AwkRegexEngineKind.DotNetCompatibility);
 
             Assert.Equal(0, exitCode);
             Assert.Equal(recordCount + "\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -1013,33 +929,20 @@ public sealed class AwkBenchmarkCounterTests
         var interpreter = await RunAsync(
             [program],
             string.Empty,
-            AwkRegexEngineKind.Utf8Adapter,
-            AwkExecutionEngineKind.Interpreter);
-        var executable = await RunAsync(
-            [program],
-            string.Empty,
-            AwkRegexEngineKind.Utf8Adapter,
-            AwkExecutionEngineKind.Executable);
+            AwkRegexEngineKind.Utf8Adapter);
 
         Assert.Equal(0, interpreter.ExitCode);
-        Assert.Equal(0, executable.ExitCode);
         var expectedOutput = new string('x', 64) + "\n";
         Assert.Equal(expectedOutput, interpreter.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(expectedOutput, executable.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(64, interpreter.Counters.ConcatenationBytesCopied);
-        Assert.Equal(64, executable.Counters.ConcatenationBytesCopied);
         Assert.Equal(1, interpreter.Counters.ConcatenationArgumentBufferRents);
-        Assert.Equal(0, executable.Counters.ConcatenationArgumentBufferRents);
-        Assert.Equal(0, executable.Counters.VmFallbackCalls);
     }
 
-    [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter)]
-    [InlineData(AwkExecutionEngineKind.Executable)]
-    internal async Task ParsedShortConcatenationAvoidsArgumentPool(AwkExecutionEngineKind engine)
+    [Fact]
+    internal async Task ParsedShortConcatenationAvoidsArgumentPool()
     {
         var result = await RunAsync(["{s=\"[\" $0 \":\" NR \"]\";total+=length(s)} END{print total}"],
-            "id\nid\n", AwkRegexEngineKind.DotNetCompatibility, engine);
+            "id\nid\n", AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("12\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
@@ -1061,23 +964,13 @@ public sealed class AwkBenchmarkCounterTests
         var interpreter = await RunAsync(
             ["{s=s $0} END{print s}"],
             input.ToString(),
-            AwkRegexEngineKind.Utf8Adapter,
-            AwkExecutionEngineKind.Interpreter);
-        var executable = await RunAsync(
-            ["{s=s $0} END{print s}"],
-            input.ToString(),
-            AwkRegexEngineKind.Utf8Adapter,
-            AwkExecutionEngineKind.Executable);
+            AwkRegexEngineKind.Utf8Adapter);
 
         var finalLength = recordCount * recordLength;
         var expectedOutput = input.ToString().Replace("\n", string.Empty, StringComparison.Ordinal) + "\n";
         Assert.Equal(0, interpreter.ExitCode);
-        Assert.Equal(0, executable.ExitCode);
         Assert.Equal(expectedOutput, interpreter.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(expectedOutput, executable.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.InRange(interpreter.Counters.ConcatenationBytesCopied, finalLength, finalLength * 2L);
-        Assert.InRange(executable.Counters.ConcatenationBytesCopied, finalLength, finalLength * 2L);
-        Assert.Equal(0, executable.Counters.VmFallbackCalls);
     }
 
     [Theory]
@@ -1110,11 +1003,9 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task Awk_RecordSplitSnapshotsStayLazyAndByteNative(bool useExecutable, bool charactersAsBytes)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Awk_RecordSplitSnapshotsStayLazyAndByteNative(bool charactersAsBytes)
     {
         const int rows = 8;
         var shapes = new[]
@@ -1129,8 +1020,7 @@ public sealed class AwkBenchmarkCounterTests
             var result = await RunAsync(
                 arguments,
                 string.Concat(Enumerable.Repeat(record, rows)),
-                AwkRegexEngineKind.Utf8Adapter,
-                useExecutable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
+                AwkRegexEngineKind.Utf8Adapter);
 
             Assert.Equal(0, result.ExitCode);
             Assert.Equal(string.Concat(Enumerable.Repeat("2\n", rows)),
@@ -1166,8 +1056,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("32\n", valueString.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("32\n", userFunction.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(
-            numeric.Counters.AwkTextAllocations + entryCount,
-            valueString.Counters.AwkTextAllocations);
+            numeric.Counters.AwkTextAllocations + entryCount, valueString.Counters.AwkTextAllocations);
         Assert.Equal(numeric.Counters.AwkTextAllocations, userFunction.Counters.AwkTextAllocations);
         foreach (var result in new[] { defaultOrder, typeAscending, typeDescending, unsorted })
         {
@@ -1176,7 +1065,6 @@ public sealed class AwkBenchmarkCounterTests
             Assert.InRange(result.Counters.StringDecodes, 0, numeric.Counters.StringDecodes);
         }
         Assert.Equal(0, unsorted.Counters.ByteTextComparisons);
-        Assert.True(unsorted.Counters.ExecutionSteps < defaultOrder.Counters.ExecutionSteps);
     }
 
     [Theory]
@@ -1240,8 +1128,7 @@ public sealed class AwkBenchmarkCounterTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = CreateOptions(
             counters,
-            AwkRegexEngineKind.Utf8Adapter,
-            AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.Utf8Adapter);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             AwkTestHarness.BuildInvocation("awk", "{print}"),
@@ -1385,44 +1272,10 @@ public sealed class AwkBenchmarkCounterTests
 
         Assert.Equal(0, exitCode);
         Assert.Equal("10100\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.True(counters.ExecutionSteps > 0);
         Assert.Equal(0, counters.FormattingFallbacks);
         Assert.Equal(0, counters.FormattingStringInteropInputs);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
-    }
-
-    public static TheoryData<string, string, long> StreamingStepCalibrationCases => new()
-    {
-        {
-            "{print $2}",
-            "region1\nregion2\nregion2\n",
-            19
-        },
-        {
-            "$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}",
-            "2\n",
-            61
-        },
-        {
-            "{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}",
-            "3 2\n",
-            47
-        }
-    };
-
-    [Theory]
-    [MemberData(nameof(StreamingStepCalibrationCases))]
-    public async Task Awk_RuntimeCounterEvidencePinsStreamingStepCalibration(
-        string program,
-        string expectedOutput,
-        long expectedExecutionSteps)
-    {
-        var (exitCode, fileSystem, counters) = await RunAsync([program], StepCalibrationInput);
-
-        Assert.Equal(0, exitCode);
-        Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(expectedExecutionSteps, counters.ExecutionSteps);
     }
 
     [Fact]
@@ -1539,7 +1392,6 @@ public sealed class AwkBenchmarkCounterTests
 
         Assert.Equal(0, exitCode);
         Assert.Equal("3240\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.True(counters.ExecutionSteps > 0);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
@@ -1547,27 +1399,22 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Theory]
-    [InlineData(AwkExecutionEngineKind.Interpreter, false)]
-    [InlineData(AwkExecutionEngineKind.Interpreter, true)]
-    [InlineData(AwkExecutionEngineKind.Executable, false)]
-    [InlineData(AwkExecutionEngineKind.Executable, true)]
+    [InlineData(false)]
+    [InlineData(true)]
     internal async Task Awk_ShallowFunctionCallsDoNotForceStackSuspension(
-        AwkExecutionEngineKind engine, bool nestedArguments)
+bool nestedArguments)
     {
         var body = nestedArguments ? "return leaf(leaf(n-1))" : "return leaf(n)";
         var (exitCode, host, counters) = await RunAsync(
             ["function leaf(n){return n+1} function outer(n){" + body +
-             "} BEGIN{for(i=0;i<512;i++)sum+=outer(1);print sum}"],
-            string.Empty, AwkRegexEngineKind.DotNetCompatibility, engine);
+             "} BEGIN{for(i=0;i<512;i++)sum+=outer(1);print sum}"], string.Empty, AwkRegexEngineKind.DotNetCompatibility);
         Assert.Equal(0, exitCode);
         Assert.Equal("1024\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, counters.FunctionStackSuspensions);
-        Assert.True(counters.ExecutionSteps > 0);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
-        Assert.Equal(counters.MemoryReservedBytes, counters.MemoryCommittedBytes + counters.MemoryReleasedReservedBytes);
     }
 
     [Fact]
@@ -1576,14 +1423,10 @@ public sealed class AwkBenchmarkCounterTests
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["function inc(x){return x+1} {print inc($2)}"],
             "sku1 1\nsku2 2\n",
-            AwkRegexEngineKind.Utf8Adapter,
-            executionEngineKind: AwkExecutionEngineKind.Executable);
+            AwkRegexEngineKind.Utf8Adapter);
 
         Assert.Equal(0, exitCode);
         Assert.Equal("2\n3\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.True(counters.VmInstructions > 0);
-        Assert.True(counters.VmFallbackCalls > 0);
-        Assert.True(counters.VmOpcodeKindsExecuted > 0);
         Assert.Equal(0, counters.FormattingFallbacks);
         Assert.Equal(0, counters.FormattingStringInteropInputs);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
@@ -1595,8 +1438,7 @@ public sealed class AwkBenchmarkCounterTests
         RunAsync(
             arguments,
             string.Empty,
-            AwkRegexEngineKind.Utf8Adapter,
-            AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.Utf8Adapter);
 
     private static Task<BenchmarkRunResult> RunAsync(
         string[] arguments,
@@ -1604,23 +1446,15 @@ public sealed class AwkBenchmarkCounterTests
         RunAsync(
             arguments,
             input,
-            AwkRegexEngineKind.Utf8Adapter,
-            AwkExecutionEngineKind.Interpreter);
-
-    private static Task<BenchmarkRunResult> RunAsync(
-        string[] arguments,
-        string input,
-        AwkRegexEngineKind regexEngineKind) =>
-        RunAsync(arguments, input, regexEngineKind, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.Utf8Adapter);
 
     private static async Task<BenchmarkRunResult> RunAsync(
-        string[] arguments,
-        string input,
-        AwkRegexEngineKind regexEngineKind,
-        AwkExecutionEngineKind executionEngineKind)
+            string[] arguments,
+            string input,
+            AwkRegexEngineKind regexEngineKind)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = CreateOptions(counters, regexEngineKind, executionEngineKind);
+        var options = CreateOptions(counters, regexEngineKind);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             AwkTestHarness.BuildInvocation("awk", arguments),
@@ -1634,9 +1468,7 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     private readonly record struct BenchmarkRunResult(
-        int ExitCode,
-        MockFileSystem FileSystem,
-        AwkRuntimeCounters Counters);
+        int ExitCode, MockFileSystem FileSystem, AwkRuntimeCounters Counters);
 
     private static string BuildRepeatedSeparatedRows(int rowCount, int fieldCount, char separator)
     {
@@ -1659,8 +1491,7 @@ public sealed class AwkBenchmarkCounterTests
 
     private static AwkRuntimeOptions CreateOptions(
         AwkRuntimeCounters counters,
-        AwkRegexEngineKind regexEngineKind,
-        AwkExecutionEngineKind executionEngineKind) =>
+        AwkRegexEngineKind regexEngineKind) =>
         new(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
@@ -1668,5 +1499,5 @@ public sealed class AwkBenchmarkCounterTests
             counters,
             AwkRuntimeLimits.CreateDefault(),
             regexEngineKind,
-            executionEngineKind, regexEngine: AwkUtf8RegexEngine.Instance);
+regexEngine: AwkUtf8RegexEngine.Instance);
 }

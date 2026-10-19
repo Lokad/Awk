@@ -33,12 +33,12 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
         new(AwkText.CopyTrustedBytes(bytes, _counters, _accounting, _checkpoint), _checkpoint);
 
     public bool Equals(ReadOnlySpan<byte> bytes, AwkArrayKey key) =>
-        key.Equals(bytes, bytes.Length >= AwkExecutionGovernor.WorkChunkBytes ||
-            key.ByteLength >= AwkExecutionGovernor.WorkChunkBytes ? _checkpoint : null);
+        key.Equals(bytes, bytes.Length >= AwkRuntimeLimits.CancellationCheckBytes ||
+            key.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null);
 
     public int GetHashCode(ReadOnlySpan<byte> bytes)
     {
-        var checkpoint = bytes.Length >= AwkExecutionGovernor.WorkChunkBytes ? _checkpoint : null;
+        var checkpoint = bytes.Length >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null;
         checkpoint?.Invoke();
         var hash = new System.HashCode();
         hash.AddBytes(bytes);
@@ -47,11 +47,11 @@ internal sealed class AwkArrayKeyComparer : IEqualityComparer<AwkArrayKey>,
     }
 
     public bool Equals(AwkArrayKey left, AwkArrayKey right) =>
-        left.Equals(right, left.ByteLength >= AwkExecutionGovernor.WorkChunkBytes ||
-            right.ByteLength >= AwkExecutionGovernor.WorkChunkBytes ? _checkpoint : null);
+        left.Equals(right, left.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ||
+            right.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null);
 
     public int GetHashCode(AwkArrayKey key) =>
         // Small keys retain bounded initialization/inspection behavior. Long hashes
         // check before and after the framework call, before dictionary mutation.
-        key.GetRandomizedHashCode(key.ByteLength >= AwkExecutionGovernor.WorkChunkBytes ? _checkpoint : null);
+        key.GetRandomizedHashCode(key.ByteLength >= AwkRuntimeLimits.CancellationCheckBytes ? _checkpoint : null);
 }

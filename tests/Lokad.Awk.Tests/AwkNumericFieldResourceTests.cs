@@ -145,24 +145,6 @@ public sealed class AwkNumericFieldResourceTests
     }
 
     [Fact]
-    public void NumericConversionConsumesTheSharedByteWorkAllowance()
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(1), counters);
-        Prepare(state, "%.6g");
-        var committed = state.MemoryAccounting.CurrentCommittedBytes;
-        Assert.Equal(1, counters.ExecutionSteps);
-
-        var error = Assert.Throws<AwkRuntimeException>(() => _ = state.CurrentRecordByteText);
-
-        Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(1, counters.ExecutionSteps);
-        Assert.Equal(1.25, state.GetFieldValue(1).AsNumber());
-        Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
-
-    [Fact]
     public void FieldBufferEstimateIncludesValueTypeEntriesAndArrayHeaders()
     {
         Assert.Equal(24, Unsafe.SizeOf<AwkFieldText>());
@@ -193,5 +175,5 @@ public sealed class AwkNumericFieldResourceTests
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters ?? AwkRuntimeCounters.Disabled, limits,
-                AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter));
+                AwkRegexEngineKind.DotNetCompatibility));
 }

@@ -16,7 +16,7 @@ internal static class AwkByteFacts
             var hash = (int)2166136261;
             for (var index = 0; index < bytes.Length; index++)
             {
-                if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                if ((index & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
                     checkpoint?.Invoke();
                 hash ^= bytes[index];
                 hash *= 16777619;

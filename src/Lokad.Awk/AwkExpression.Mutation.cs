@@ -14,7 +14,7 @@ internal abstract partial class AwkExpression
             action = context =>
             {
                 var state = context.State;
-                state.RecordExecutionStep();
+                state.Checkpoint();
                 var previous = location.EvaluateNumber(state);
                 location.AssignValue(state, AwkValue.FromNumber(previous + 1));
             };
@@ -50,7 +50,7 @@ internal abstract partial class AwkExpression
             {
                 action = context =>
                 {
-                    context.State.RecordExecutionStep();
+                    context.State.Checkpoint();
                     location.AssignValue(context.State, value.EvaluateSynchronous(context));
                 };
                 return true;
@@ -84,46 +84,6 @@ internal abstract partial class AwkExpression
             await pending.ConfigureAwait(false);
             return value.AsScalarCopy();
         }
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler) =>
-            TryEmitStore(compiler, AwkStoredValueRetention.Retain);
-
-        internal override bool TryEmitExecutableStatement(AwkExecutableCompiler compiler)
-        {
-            // This store bypasses EmitExpressionOrFallback's ordinary expression checkpoint.
-            compiler.Emit(AwkOpcode.CheckBudget);
-            return TryEmitStore(compiler, AwkStoredValueRetention.Discard);
-        }
-
-        private bool TryEmitStore(AwkExecutableCompiler compiler, AwkStoredValueRetention retention)
-        {
-            if (target.TryGetScalarName(out var variable))
-            {
-                if (!compiler.TryEmitExpression(valueExpression))
-                    return false;
-
-                compiler.EmitStoreScalar(variable, retention);
-                compiler.Pop();
-                if (retention == AwkStoredValueRetention.Retain)
-                    compiler.Push();
-
-                return true;
-            }
-
-            if (!target.TryGetArrayElement(out var array, out var index) ||
-                !compiler.TryEmitExpression(valueExpression) ||
-                !index.TryEmitExecutableKey(compiler))
-            {
-                return false;
-            }
-
-            compiler.EmitStoreArrayElement(array, retention);
-            compiler.Pop(2);
-            if (retention == AwkStoredValueRetention.Retain)
-                compiler.Push();
-
-            return true;
-        }
     }
 
     private sealed class CompoundAssignmentExpression(
@@ -144,7 +104,7 @@ internal abstract partial class AwkExpression
                 action = context =>
                 {
                     var state = context.State;
-                    state.RecordExecutionStep();
+                    state.Checkpoint();
                     var previous = location.EvaluateNumber(state);
                     var right = value.EvaluateSynchronous(context).AsNumber(state.CancellationCheckpoint);
                     location.AssignValue(state, AwkValue.FromNumber(

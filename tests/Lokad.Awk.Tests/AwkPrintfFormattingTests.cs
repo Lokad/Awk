@@ -102,18 +102,15 @@ public sealed class AwkPrintfFormattingTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task IntegerFormattingPreservesEarlierOutputAtTheOutputLimit(bool useExecutable)
+    [Fact]
+    public async Task IntegerFormattingPreservesEarlierOutputAtTheOutputLimit()
     {
         var host = new MockFileSystem();
         var compiled = await AwkExecutor.CompileAsync(host,
             AwkTestHarness.BuildInvocation("awk", "BEGIN{print \"before\";printf \"%.5d\",2}"), CancellationToken.None);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            AwkRuntimeLimits.CreateDefault().WithMaxOutputBytes(7), AwkRegexEngineKind.DotNetCompatibility,
-            useExecutable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
+            AwkRuntimeLimits.CreateDefault().WithMaxOutputBytes(7), AwkRegexEngineKind.DotNetCompatibility);
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(2, exit.Value);
         Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));

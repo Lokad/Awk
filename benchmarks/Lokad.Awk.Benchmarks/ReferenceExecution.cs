@@ -89,11 +89,11 @@ internal static class ReferenceExecution
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(AwkUnixTimestampSeconds.FromSystemClock, TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(Invocation(workload)),
             deadline.Token, options).ConfigureAwait(false);
         Verify(host.Finish(exit.Value), workload.ExpectedDigest);
-        return new(counters.ExecutionSteps, counters.HostCalls, counters.RecordsRead, counters.FieldSplits,
+        return new(counters.HostCalls, counters.RecordsRead, counters.FieldSplits,
             counters.StringDecodes, counters.Utf8Encodes, counters.RegexMatches, counters.RegexCompiles,
             counters.MemoryPeakLiveBytes, counters.FieldsMaterialized);
     }
@@ -110,6 +110,6 @@ internal static class ReferenceExecution
             [new("LC_ALL", workload.Locale), new("TZ", "UTC"), new("PWD", "/")]);
 }
 
-internal sealed record ReferenceCounters(long ExecutionSteps, long HostCalls, long Records,
+internal sealed record ReferenceCounters(long HostCalls, long Records,
     long FieldSplits, long StringDecodes, long Utf8Encodes, long RegexMatches, long RegexCompiles,
     long MemoryPeakBytes, long FieldsMaterialized);

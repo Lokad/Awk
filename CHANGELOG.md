@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Removed the internal executable/bytecode engine, its selector, emission hooks, operand
+  stack, fallbacks and VM counters. One interpreter retains synchronous/prepared execution;
+  internal prepared-program helpers no longer generate bytecode. `MaxVmStackBytes` and
+  `WithMaxVmStackBytes` were removed.
+- Removed execution fuel and the public `MaxExecutionSteps`, `MaxHostCalls`, `MaxRecords`,
+  `MaxRegexOperations`, `MaxSortComparisons`, `MaxRegexRecordSeparatorBytesScanned` and
+  `MaxRegexCompilations` settings and their `WithMax...` methods. CPU control uses cooperative
+  cancellation and execution deadlines; no replacement work quotas were introduced.
+- Removed cumulative reservation/commit/refund totals, operation counts and duplicate
+  memory peaks. Live memory admission, ownership, refunds and one observational peak remain.
+- Removed internal POSIX matcher/construction stopwatch deadlines after verifying cancellation.
+  .NET regex timeouts, managed stack protection, host authorization, mutation preflights,
+  coarse memory admission and host/cleanup deadlines remain.
+
 - Literal-needle `index` calls can search short pristine fields without copied input
   or a retained field value, preserving byte/scalar positions and case rules.
 
@@ -32,15 +46,15 @@
 
 - Field-key array updates reuse existing owned dictionary keys, avoiding temporary field
   copies on hits. Plain assignment/new keys retain owned-key preparation; aliases,
-  pending RHS evaluation, deletion/record reuse, admission/refunds and VM checks remain.
+  pending RHS evaluation, deletion/record reuse, admission/refunds and mutation preflights remain.
 
 - Existing array values can be read through borrowed field keys, avoiding temporary key
   copies. Missing reads retain owned-key creation, quota/memory preflights and ordinary
-  aliases, evaluation order and VM budget checks.
+  aliases, evaluation order and mutation preflights.
 
 - Single-field array membership looks up borrowed UTF-8 bytes without copied field
   values or temporary keys, preserving key spelling, aliases, pending index evaluation,
-  owned-key fallbacks and VM budget checks.
+  owned-key fallbacks and mutation preflights.
 
 - Wider whitespace/literal records prepare fields through the requested index, avoiding
   unused descriptors in early filters. NF/mutations and tighter field quotas retain full
@@ -88,7 +102,7 @@
 
 - Length-only reads of untouched ASCII/byte fields avoid copied text and cached scalar
   values. Numeric, modified, cached and Unicode fields retain existing formatting;
-  initial ASCII classification remains cancellable and counts against optional fuel.
+  initial ASCII classification remains cancellable.
 
 - Prepared global scalar assignments use the existing write path directly, avoiding
   generic target resolution. Focused arithmetic measurements improve in both source
@@ -126,7 +140,7 @@
 - User functions now suspend only when CLR stack space is low, with independent entry
   and unwind checks. Raised syntax-depth budgets retain suspension at every call.
   Ordinary shallow calls avoid thread-pool scheduling; function-depth admission, explicit
-  fuel, cancellation, argument evaluation and failure cleanup retain their contracts.
+  cancellation, argument evaluation and failure cleanup retain their contracts.
 
 - Numeric policy budgets now share one immutable limits value with runtime execution.
   Public configuration methods, both presets, optional specialized quotas and diagnostics
@@ -202,22 +216,21 @@
   Numeric print values and separators keep their formatting charge through append;
   printf results stay charged through pending redirected writes. Failure releases
   staging and preserves earlier output. Ordinary built-in argument buffers are also
-  admitted across delayed evaluation. VM stacks use their already admitted exact
-  capacity, while unlimited execution keeps pooling. Print staging and printf result
-  copying observe cancellation without extra logical execution charges.
+  admitted across delayed evaluation. Print staging and printf result
+  copying observe cancellation.
 
 - String-value array sorting now admits newly formatted numeric text for the full
   staging lifetime, including custom CONVFMT results. Numeric tie comparisons release
   their formatting charge after each comparison. Existing text values stay shared;
   sorting nonfinite values transfers only its materialized destination text at commit.
   Failed admission preserves source and destination storage. Leased custom-format
-  result copies observe cancellation without adding logical execution charges.
+  result copies observe cancellation.
 
 - Array snapshots and sorting now admit newly encoded SYMTAB keys and temporary
   ordinal-key text for their full lifetime. Ordinary text keys and unsorted ordinal
   traversal retain their shared-key contracts. Key sorting transfers temporary text
   into its destination charge, avoiding duplicate admission. Measurement, sorted-key
-  copying and user-sort merge tails observe cancellation without adding logical fuel.
+  copying and user-sort merge tails observe cancellation.
 
 - SYMTAB inventory, key encoding and ordinary array snapshots now pass cancellation
   checkpoints through long scans. Standard-output staging uses the runtime checkpoint
@@ -230,7 +243,7 @@
   searches keep separator overlap across windows; long needles retain the framework
   path. Interrupted scans preserve unread records and delivered batches. UTF-16 regex
   offset counting uses whole-scalar chunks and publishes its cache only after success.
-  Logical scan/fuel charges and regex engines are unchanged.
+  Regex semantics are unchanged.
 
 - Ordinary unknown-string escapes now warn once across source literals, -v/-F and
   consumed assignment operands. Missing hex/Unicode digits and invalid Unicode values
@@ -267,14 +280,14 @@
   Governed scratch uses exact-sized arrays, while unbounded execution retains pooling.
   Capture scratch is released before returning the retained match. Cancellation,
   admission failure and failed substitution release temporary charges without changing
-  match/field/output state. This adds no logical fuel or byte charges.
+  match/field/output state.
 
 - Replacement classification, substitution/gensub scans, appends and result copies
   now propagate cooperative cancellation. Capture measurement, coordinate conversion
   and selected-group construction check before returning a completed match, and
   cancellation releases its lease and rented boundary storage. UTF-16 byte counting
   preserves surrogate pairs across chunks. Empty-match advancement and general regex
-  record copies use the operation callback. No additional fuel/byte charge is added.
+  record copies use the operation callback.
 
 - Long field/NF expansion and truncation now stage field lists and retained value
   caches before publication. Cancellation during analysis/copying preserves old
@@ -298,7 +311,7 @@
   boundary checks, and remaining field/record/replacement callers are under audit.
 
 - Printf flag/digit parsing, Unicode width/precision traversal and floating-point
-  postprocessing now propagate cooperative cancellation without extra fuel charges.
+  postprocessing now propagate cooperative cancellation.
   Pending formatted output is discarded on cancellation and builder reservations are
   released. Numeric formatting/encoding/copy/padding framework calls remain documented
   one-shot boundaries with existing output and memory preflights.
@@ -308,27 +321,18 @@
   Interrupted frontend cache construction publishes no partial snapshot and can be retried;
   completed syntax retains no callback. Lokad.Parsing token matching/parser shifts and
   one-shot framework copies/sorting remain documented boundaries. Frontend budgets,
-  public policy, explicit fuel enforcement and runtime counter admission are unchanged.
+  memory admission and host policy remain.
 
-- Frontend binding, symbol/semantic passes, lowering and executable compilation now
+- Frontend binding, symbol/semantic passes, lowering now
   propagate cooperative cancellation. Owned lexer/literal/string-diagnostic scans,
   parameter/layout construction, newline metadata and nesting audits check internally;
   returned artifacts retain no caller callback. Parser dependency calls and one-shot
-  framework construction are documented cancellation boundaries; frontend budgets and runtime
-  fuel/counter admission remain unchanged.
+  framework construction are documented cancellation boundaries; frontend budgets remain unchanged.
 
 - Runtime numeric scans, UTF-8 rune counting and sparse-index construction, ASCII case
   conversion and printf numeric arguments now reuse the execution's cancellation callback.
   Interrupted rune scans publish no partial cache and release index reservations.
-  Logical byte admission and positive explicit fuel quotas retain their semantics.
   Runtime text materialization and regex translation/backend coverage remain under audit.
-
-- Ordinary and restricted execution no longer have an implicit fuel cutoff, matching
-  current lython defaults. MaxExecutionSteps reports zero when unset; existing positive
-  WithMaxExecutionSteps(int) quotas remain enforced, including int.MaxValue. Cancellation,
-  restricted deadlines, memory/structural limits and host controls remain. Disabled fuel,
-  regex-call, sort-comparison and separator-scan quotas keep no admission totals; counters
-  remain observational. Long builtin/backend cancellation coverage remains under audit.
 
 - `-v` and `-F` now decode escapes under the final compatibility profile and apply
   assignments in their original mixed option order. Assignment operands decode when
@@ -355,7 +359,7 @@
   the pattern has no backslashes. Unchanged patterns retain their original string;
   bracket and balanced-group behavior is preserved.
 
-- Precompiled interpreter and executable runs now emit their frontend warnings before
+- Precompiled interpreter runs now emit their frontend warnings before
   execution, once per run, with source locations preserved. Warning appends share host
   and output admission, cancellation and deadlines with the execution. The golden
   harness no longer supplies a separate warning append that bypasses those limits.
@@ -426,7 +430,7 @@
   Flushing a file retains its logical opening and output-limit slot, supports repeated
   flush/close, and reopens for append. Mixed-direction lookups select the latest opening.
   Warning admission preflights memory/output, and stderr host exceptions become awk errors
-  in both engines while releasing queued diagnostics.
+  in the interpreter while releasing queued diagnostics.
 
 - Normalized mktime calendar overflow with bounded byte-native Gregorian arithmetic,
   including year zero and negative years. UTC/fixed zones support GNU's tm-year range;
@@ -492,7 +496,7 @@
 
 - Corrected NaN equality, ordering, and truth, and preserved signed special-number input.
   Numeric conversion now accepts all ASCII C whitespace without changing field splitting;
-  executable string literals honor the invocation's numeric-conversion profile.
+  prepared string literals honor the invocation's numeric-conversion profile.
 - Added friendly negative sqrt/log and finite exp range warnings, including discarded
   results. Queued diagnostics now preflight retained memory and buffer growth, with
   cleanup on failed host writes and sink disposal.
@@ -520,9 +524,9 @@
 - Added POSIX longest-match and subexpression selection for traditional EREs across regex
   consumers and both regex modes, including nullable and nested repetitions. A governed
   structured matcher preserves assertion context, offsets, counted compatibility routing,
-  cache limits, capture preflight, cancellation, and one operation deadline.
+  cache limits, capture preflight and cancellation.
 - Preserved assigned NF values and types while resizing fields from their truncated numeric
-  value. Unified updates, indirect access, field growth, and record resets in both engines,
+  value. Unified updates, indirect access, field growth, and record resets in the interpreter,
   with governed text retention and atomic limit failures.
 - Made main input follow live `ARGC`/`ARGV` edits, including added files, changed assignments,
   sparse entries, file actions, and plain `getline`. Preserved restricted path capabilities,
@@ -530,11 +534,10 @@
 - Aligned the execution defaults with Lokad.Lython: 50 million shared work steps, 100,000 host
   calls, and 1,000 active function frames in the compatibility preset. Restricted execution keeps
   its 32-frame cap, 30-second deadline, capability restrictions, and memory/size limits.
-- Unified interpreter and executable accounting, including regex searches, sort comparisons,
+- Unified interpreter accounting, including regex searches, sort comparisons,
   repeated separator scans, and byte-oriented built-ins. Explicit secondary CPU caps remain
   supported; their defaults are unlimited under the common governor.
-- Made nested function entry and unwind suspend safely, including argument evaluation, and
-  aligned VM output flushes with interpreter statement boundaries for budget exhaustion.
+- Made nested function entry and unwind suspend safely, including argument evaluation,.
 
 ## 0.2.0
 

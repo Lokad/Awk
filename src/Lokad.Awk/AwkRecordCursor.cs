@@ -261,7 +261,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 var scanStart = GetRelativeScanStart(content);
                 for (var index = scanStart; index < content.Length; index++)
                 {
-                    if (((index - scanStart) & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                    if (((index - scanStart) & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
                         _scanCheckpoint();
                     var value = content[index];
                     if (!separator.Contains(value))
@@ -291,7 +291,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 var separatorIndex = -1;
                 for (var index = scanStart; index < content.Length; index++)
                 {
-                    if (((index - scanStart) & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                    if (((index - scanStart) & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
                         _scanCheckpoint();
                     if (!separator.Contains(content[index]))
                         continue;
@@ -314,7 +314,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     if (separatorEnd >= nextRunCheckpoint)
                     {
                         _scanCheckpoint();
-                        nextRunCheckpoint = (long)separatorEnd + AwkExecutionGovernor.WorkChunkBytes;
+                        nextRunCheckpoint = (long)separatorEnd + AwkRuntimeLimits.CancellationCheckBytes;
                     }
                     separatorEnd++;
                 }
@@ -346,7 +346,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                         if (separatorEnd >= nextRunCheckpoint)
                         {
                             _scanCheckpoint();
-                            nextRunCheckpoint = (long)separatorEnd + AwkExecutionGovernor.WorkChunkBytes;
+                            nextRunCheckpoint = (long)separatorEnd + AwkRuntimeLimits.CancellationCheckBytes;
                         }
                         separatorEnd++;
                     }
@@ -631,7 +631,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                         if (separatorEnd >= nextNewlineCheckpoint)
                         {
                             _scanCheckpoint();
-                            nextNewlineCheckpoint = (long)separatorEnd + AwkExecutionGovernor.WorkChunkBytes;
+                            nextNewlineCheckpoint = (long)separatorEnd + AwkRuntimeLimits.CancellationCheckBytes;
                         }
                         separatorEnd += newlineLength;
                     }
@@ -664,7 +664,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                         if (position >= nextNewlineCheckpoint)
                         {
                             _scanCheckpoint();
-                            nextNewlineCheckpoint = (long)position + AwkExecutionGovernor.WorkChunkBytes;
+                            nextNewlineCheckpoint = (long)position + AwkRuntimeLimits.CancellationCheckBytes;
                         }
                         position += newlineLength;
                     }
@@ -680,7 +680,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 {
                     for (var index = start; index < content.Length; index++)
                     {
-                        if (((index - start) & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                        if (((index - start) & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
                             _scanCheckpoint();
                         if (!TryReadNewline(content, index, out var firstNewlineLength))
                             continue;
@@ -696,7 +696,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                             if (position >= nextNewlineCheckpoint)
                             {
                                 _scanCheckpoint();
-                                nextNewlineCheckpoint = (long)position + AwkExecutionGovernor.WorkChunkBytes;
+                                nextNewlineCheckpoint = (long)position + AwkRuntimeLimits.CancellationCheckBytes;
                             }
                             position += trailingNewlineLength;
                         }
@@ -793,7 +793,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     return true;
                 }
 
-
             }
         }
 
@@ -835,7 +834,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
     private void RecordSeparatorScan(int byteCount)
     {
-        _state.Resources.RecordByteWork(byteCount);
+        _state.Resources.Checkpoint();
         _state.Counters.RecordRecordSeparatorBytesScanned(byteCount);
     }
 
@@ -927,7 +926,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     {
         for (var index = 0; index < pattern.Length; index++)
         {
-            if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+            if ((index & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
                 checkpoint();
             if (IsRegexMetacharacter(pattern[index]))
                 return false;
@@ -973,7 +972,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             var termEnd = termStart + termLength - 1;
             for (var index = termStart + 1; index < termEnd; index++)
             {
-                if (((index - termStart - 1) & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                if (((index - termStart - 1) & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
                     checkpoint();
                 var ch = text[index];
                 if (ch is (byte)'\\' or (byte)'-' or (byte)'^' or (byte)'[' or (byte)']' || IsAsciiLetter(ch))
@@ -995,7 +994,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             if (termStart >= nextTermCheckpoint)
             {
                 checkpoint();
-                nextTermCheckpoint = (long)termStart + AwkExecutionGovernor.WorkChunkBytes;
+                nextTermCheckpoint = (long)termStart + AwkRuntimeLimits.CancellationCheckBytes;
             }
             int termLength;
             if (separatorText[termStart] == '[')
@@ -1054,7 +1053,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 ? (Low & 1UL << value) != 0
                 : value <= 0x7F && (High & 1UL << (value - 64)) != 0;
 
-
     }
 
     private static int IndexOfByte(ReadOnlySpan<byte> content, byte value, Action checkpoint)
@@ -1063,7 +1061,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         while (offset < content.Length)
         {
             checkpoint();
-            var length = Math.Min(AwkExecutionGovernor.WorkChunkBytes, content.Length - offset);
+            var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, content.Length - offset);
             var found = content.Slice(offset, length).IndexOf(value);
             if (found >= 0)
                 return offset + found;
@@ -1074,7 +1072,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
     private static int IndexOfLiteral(ReadOnlySpan<byte> content, ReadOnlySpan<byte> value, Action checkpoint)
     {
-        if (value.Length > AwkExecutionGovernor.WorkChunkBytes)
+        if (value.Length > AwkRuntimeLimits.CancellationCheckBytes)
         {
             // Keep the framework's long-needle algorithm rather than repeatedly
             // searching a large overlap. This remains an indivisible boundary.
@@ -1088,7 +1086,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         while (offset < candidates)
         {
             checkpoint();
-            var candidateCount = Math.Min(AwkExecutionGovernor.WorkChunkBytes, candidates - offset);
+            var candidateCount = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, candidates - offset);
             // Include the overlap so a separator may start at the last candidate.
             // Large needles remain a framework boundary, not a new local matcher.
             var found = content.Slice(offset, candidateCount + value.Length - 1).IndexOf(value);
@@ -1106,7 +1104,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         while (offset < bytes.Length)
         {
             checkpoint();
-            var end = offset + Math.Min(AwkExecutionGovernor.WorkChunkBytes, bytes.Length - offset);
+            var end = offset + Math.Min(AwkRuntimeLimits.CancellationCheckBytes, bytes.Length - offset);
             // Input is strict UTF-8 and the record offset is a scalar boundary.
             while (end < bytes.Length && (bytes[end] & 0xC0) == 0x80)
                 end--;
@@ -1151,7 +1149,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             if (end <= nextCheckpoint)
             {
                 checkpoint();
-                nextCheckpoint = (long)end - AwkExecutionGovernor.WorkChunkBytes;
+                nextCheckpoint = (long)end - AwkRuntimeLimits.CancellationCheckBytes;
             }
             end--;
             if (end > 0 && content[end - 1] == (byte)'\r')

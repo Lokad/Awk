@@ -38,7 +38,6 @@ internal abstract partial class AwkStatement
 
     private sealed class FflushStatement(AwkFflushTarget targetExpression) : AwkStatement
     {
-        internal override bool RequiresExecutableFallbackFlush => true;
 
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
@@ -50,7 +49,6 @@ internal abstract partial class AwkStatement
 
     private sealed class CloseStatement(AwkExpression targetExpression) : AwkStatement
     {
-        internal override bool RequiresExecutableFallbackFlush => true;
 
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {

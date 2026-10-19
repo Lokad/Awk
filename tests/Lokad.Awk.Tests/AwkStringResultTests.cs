@@ -9,16 +9,14 @@ public sealed class AwkStringResultTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = State(counters, CancellationToken.None);
-        var text = AwkText.FromString(new string('7', 2 * AwkExecutionGovernor.WorkChunkBytes + 37));
+        var text = AwkText.FromString(new string('7', 2 * AwkRuntimeLimits.CancellationCheckBytes + 37));
         var value = AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal);
-        var checks = counters.CancellationChecks;
         var allocations = counters.AwkTextAllocations;
         var values = counters.ValuesCreated;
 
         var result = AwkBuiltins.EvaluateCaseValue(state, value, upper);
 
         Assert.Same(text, result.ByteText);
-        Assert.Equal(1 + AwkExecutionGovernor.ByteWorkSteps(text.ByteLength), counters.CancellationChecks - checks);
         Assert.Equal(text.ByteLength, counters.AsciiCasePreparationBytes);
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.Equal(values + 1, counters.ValuesCreated);
@@ -80,8 +78,7 @@ public sealed class AwkStringResultTests
     private static AwkRuntimeState State(AwkRuntimeCounters counters, CancellationToken cancellationToken)
     {
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken, options);
     }
 }

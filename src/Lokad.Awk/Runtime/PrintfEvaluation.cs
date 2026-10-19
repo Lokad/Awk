@@ -66,7 +66,7 @@ internal static class PrintfEvaluation
             if (index >= nextCheckpoint)
             {
                 checkpoint?.Invoke();
-                nextCheckpoint = (long)index + AwkExecutionGovernor.WorkChunkBytes;
+                nextCheckpoint = (long)index + AwkRuntimeLimits.CancellationCheckBytes;
             }
             var current = format[index];
             if (current == '\\')
@@ -184,7 +184,6 @@ internal static class PrintfEvaluation
                 }
                 continue;
             }
-
 
             if (directive.Conversion == PrintfConversion.Character)
             {
@@ -400,7 +399,7 @@ internal static class PrintfEvaluation
                         if (index >= nextCheckpoint)
                         {
                             checkpoint?.Invoke();
-                            nextCheckpoint = (long)index + AwkExecutionGovernor.WorkChunkBytes;
+                            nextCheckpoint = (long)index + AwkRuntimeLimits.CancellationCheckBytes;
                         }
                         var current = mantissa[index];
                         if (!char.IsDigit(current))
@@ -495,7 +494,7 @@ internal static class PrintfEvaluation
                     if (utf16Length >= nextCheckpoint)
                     {
                         checkpoint?.Invoke();
-                        nextCheckpoint = (long)utf16Length + AwkExecutionGovernor.WorkChunkBytes;
+                        nextCheckpoint = (long)utf16Length + AwkRuntimeLimits.CancellationCheckBytes;
                     }
                     count++;
                     utf16Length += rune.Utf16SequenceLength;
@@ -555,7 +554,7 @@ internal static class PrintfEvaluation
                 if (utf16Length >= nextCheckpoint)
                 {
                     checkpoint?.Invoke();
-                    nextCheckpoint = (long)utf16Length + AwkExecutionGovernor.WorkChunkBytes;
+                    nextCheckpoint = (long)utf16Length + AwkRuntimeLimits.CancellationCheckBytes;
                 }
                 if (runeCount == maximumRuneCount)
                     break;
@@ -597,13 +596,24 @@ internal static class PrintfEvaluation
         var uppercase = conversion.IsUppercase() && (mode != AwkCompatibilityMode.Posix || conversion.IsFloat());
         return (double.IsNaN(value), uppercase, sign) switch
         {
-            (true, false, '-') => "-nan", (true, false, '+') => "+nan", (true, false, ' ') => " nan", (true, false, _) => "nan",
-            (true, true, '-') => "-NAN", (true, true, '+') => "+NAN", (true, true, ' ') => " NAN", (true, true, _) => "NAN",
-            (false, false, '-') => "-inf", (false, false, '+') => "+inf", (false, false, ' ') => " inf", (false, false, _) => "inf",
-            (false, true, '-') => "-INF", (false, true, '+') => "+INF", (false, true, ' ') => " INF", (false, true, _) => "INF"
+            (true, false, '-') => "-nan",
+            (true, false, '+') => "+nan",
+            (true, false, ' ') => " nan",
+            (true, false, _) => "nan",
+            (true, true, '-') => "-NAN",
+            (true, true, '+') => "+NAN",
+            (true, true, ' ') => " NAN",
+            (true, true, _) => "NAN",
+            (false, false, '-') => "-inf",
+            (false, false, '+') => "+inf",
+            (false, false, ' ') => " inf",
+            (false, false, _) => "inf",
+            (false, true, '-') => "-INF",
+            (false, true, '+') => "+INF",
+            (false, true, ' ') => " INF",
+            (false, true, _) => "INF"
         };
     }
-
 
     private static string ApplyNumericSign(
         string formatted,
@@ -663,7 +673,7 @@ internal static class PrintfEvaluation
 
         public void Append(ReadOnlySpan<char> text)
         {
-            var longText = text.Length >= AwkExecutionGovernor.WorkChunkBytes;
+            var longText = text.Length >= AwkRuntimeLimits.CancellationCheckBytes;
             if (longText)
                 _checkpoint?.Invoke();
             var byteCount = AwkUtf8Codec.GetEncodedByteCount(text);
@@ -694,7 +704,7 @@ internal static class PrintfEvaluation
             if (value > 0x7F)
                 throw new ArgumentOutOfRangeException(nameof(value));
 
-            var longPadding = count >= AwkExecutionGovernor.WorkChunkBytes;
+            var longPadding = count >= AwkRuntimeLimits.CancellationCheckBytes;
             if (longPadding)
                 _checkpoint?.Invoke();
             PreflightAdditionalBytes(count);

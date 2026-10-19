@@ -73,7 +73,7 @@ internal static class AwkReplacement
                 if (offset < nextCheckpoint)
                     return;
                 checkpoint?.Invoke();
-                nextCheckpoint = (long)offset + AwkExecutionGovernor.WorkChunkBytes;
+                nextCheckpoint = (long)offset + AwkRuntimeLimits.CancellationCheckBytes;
             }
         }
     }

@@ -268,7 +268,7 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
             AwkExpression.TryGetNumericFieldIndexExpression(simple.Expression, out var indexExpression))
         {
             var state = context.State;
-            state.RecordExecutionStep(); // Field expression, before its numeric index literal.
+            state.Checkpoint(); // Field expression, before its numeric index literal.
             // The shape check admits only NumberExpression, whose evaluation always completes synchronously.
             var field = (int)indexExpression.ResolveNumberAsync(context).GetAwaiter().GetResult();
             state.GetArrayFieldTarget(Variable, field, out var fieldKey, out var currentValue);

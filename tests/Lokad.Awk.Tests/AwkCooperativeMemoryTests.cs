@@ -109,7 +109,6 @@ public sealed class AwkCooperativeMemoryTests
         accounting.Reserve(70);
         Assert.Throws<AwkRuntimeException>(() => accounting.Reserve(31));
         Assert.Equal(70, accounting.CurrentReservedBytes);
-        Assert.Equal(1, accounting.ReserveCount);
         Assert.Equal(70, budget.Reserved);
         Assert.Throws<AwkRuntimeException>(() => accounting.ReserveAllocationPeak(31));
         using (accounting.ReserveAllocationPeak(30))

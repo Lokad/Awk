@@ -88,5 +88,5 @@ public sealed class AwkFieldCountValueTests
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, limits,
-                AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter));
+                AwkRegexEngineKind.DotNetCompatibility));
 }

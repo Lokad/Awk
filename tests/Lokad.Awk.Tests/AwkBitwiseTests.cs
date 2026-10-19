@@ -60,40 +60,14 @@ public sealed class AwkBitwiseTests
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         Assert.True(allocations < 1_024, "Allocated bytes: " + allocations);
-        Assert.Equal(argumentCount * 11_000, counters.ExecutionSteps);
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.AwkTextAsStringCalls);
         Assert.Equal(0, counters.AwkTextAllocations);
         Assert.Equal(0, counters.FormattingFallbacks);
     }
 
-    [Theory]
-    [InlineData("and")]
-    [InlineData("or")]
-    [InlineData("xor")]
-    public async Task EveryVariadicArgumentUsesTheSharedBudget(string name)
-    {
-        const int count = 257;
-        var expressions = Enumerable.Range(0, count)
-            .Select(index => AwkExpression.Number("argument", 1)).ToArray();
-        Assert.True(AwkBuiltins.TryGetCallable(name, out var builtin));
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var admitted = CreateState(counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(count));
-        var result = await builtin.EvaluateAsync(expressions, new AwkEvaluationContext(admitted));
-        Assert.Equal(1, result.AsNumber());
-        Assert.Equal(count, counters.ExecutionSteps);
-
-        var rejectedCounters = AwkRuntimeCounters.CreateEnabled();
-        var rejected = CreateState(rejectedCounters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(count - 1));
-        var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-            await builtin.EvaluateAsync(expressions, new AwkEvaluationContext(rejected)));
-        Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(count - 1, rejectedCounters.ExecutionSteps);
-    }
-
     private static AwkRuntimeState CreateState(AwkRuntimeCounters counters, AwkRuntimeLimits limits) =>
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility,
-                AwkExecutionEngineKind.Interpreter));
+                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility));
 }

@@ -5,15 +5,15 @@ public sealed class AwkRegexEscapeWarningTests
     public static IEnumerable<object[]> Modes()
     {
         foreach (var profile in new[] { "", "--posix", "--traditional" })
-        foreach (var executable in new[] { false, true })
-        foreach (var utf8 in new[] { false, true })
-            yield return [profile, executable, utf8];
+
+            foreach (var utf8 in new[] { false, true })
+                yield return [profile, utf8];
     }
 
     [Theory]
     [MemberData(nameof(Modes))]
     public async Task CompiledWarningHistoryIsFreshAndSharedWithDynamicPatterns(
-        string profile, bool executable, bool utf8)
+        string profile, bool utf8)
     {
         var source = new MockFileSystem();
         source.AddFile("/warning.awk", "function dead(){return /\\q\\q/}\nBEGIN{print \"q\"~\"\\\\q\";print \"d\"~\"\\\\d\";print \"d\"~\"\\\\d\"}");
@@ -31,7 +31,7 @@ public sealed class AwkRegexEscapeWarningTests
             var options = new AwkRuntimeOptions(AwkUnixTimestampSeconds.FromSystemClock, TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(),
                 utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-                executionEngineKind: executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+regexEngine: AwkUtf8RegexEngine.Instance);
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("1\n1\n1\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -141,8 +141,7 @@ public sealed class AwkRegexEscapeWarningTests
         string[] args = [.. profile.Length == 0 ? Array.Empty<string>() : new[] { profile }, script];
         var options = new AwkRuntimeOptions(AwkUnixTimestampSeconds.FromSystemClock, TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            AwkRuntimeLimits.CreateDefault().WithMaxFrontendDiagnostics(1), AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            AwkRuntimeLimits.CreateDefault().WithMaxFrontendDiagnostics(1), AwkRegexEngineKind.DotNetCompatibility);
         var exit = await AwkExecutor.ExecuteAsync(host,
             AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", args, [])), CancellationToken.None, options);
         Assert.Equal(distinct ? AwkExitCode.FatalError : AwkExitCode.Success, exit);

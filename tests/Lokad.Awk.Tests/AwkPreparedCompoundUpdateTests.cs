@@ -15,7 +15,6 @@ public sealed class AwkPreparedCompoundUpdateTests
         var source = new ValueSource(3, pending);
         var right = new EffectExpression(source, () => state.AssignVariableValue(name, AwkValue.FromNumber(100)));
         var expression = AwkExpression.Assignment(AwkReference.PreparedGlobalScalar(name, 0), right);
-        var steps = state.Counters.ExecutionSteps;
         var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
         if (pending)
         {
@@ -26,7 +25,6 @@ public sealed class AwkPreparedCompoundUpdateTests
         Assert.Equal(3, (await result).AsNumber());
         Assert.Equal(3, state.ResolvePreparedGlobalValue(name, 0).AsNumber());
         Assert.Equal(1, source.Consumptions);
-        Assert.Equal(2, state.Counters.ExecutionSteps - steps);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, state.Counters.StringDecodes);
     }
@@ -106,9 +104,7 @@ public sealed class AwkPreparedCompoundUpdateTests
         state.AssignVariable(name, "007");
         var source = new ValueSource(3, pending);
         var right = new EffectExpression(source, () => state.AssignVariableValue(name, AwkValue.FromNumber(100)));
-        var expression = AwkExpression.CompoundAssignment(AwkReference.PreparedGlobalScalar(name, 0), right,
-            (AwkCompoundAssignmentOperation)operation);
-        var steps = state.Counters.ExecutionSteps;
+        var expression = AwkExpression.CompoundAssignment(AwkReference.PreparedGlobalScalar(name, 0), right, (AwkCompoundAssignmentOperation)operation);
         var value = expression.EvaluateAsync(new AwkEvaluationContext(state));
         if (pending)
         {
@@ -121,7 +117,6 @@ public sealed class AwkPreparedCompoundUpdateTests
         Assert.Equal(expected, result.AsNumber());
         Assert.Equal(expected, state.ResolvePreparedGlobalValue(name, 0).AsNumber());
         Assert.Equal(1, source.Consumptions);
-        Assert.Equal(2, state.Counters.ExecutionSteps - steps);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, state.Counters.StringDecodes);
     }
@@ -262,7 +257,7 @@ public sealed class AwkPreparedCompoundUpdateTests
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         state.InitializeGlobalReadSlots(1);
         return state;

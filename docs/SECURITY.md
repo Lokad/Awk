@@ -29,8 +29,8 @@ Unexpected host exceptions become generic awk diagnostics; caller cancellation p
 as cancellation. Policy/resource failures return awk diagnostics and a nonzero exit status.
 Mutation preflights preserve earlier committed state/output, rather than rolling back a command.
 
-Neither preset has implicit execution fuel. Default execution needs caller cancellation
-or an owned deadline. Shared memory admission is immediate: any refusal fails the command;
+CPU execution uses caller cancellation or a cooperative whole-execution deadline.
+Shared memory admission is immediate: any refusal fails the command;
 Awk does not retry, wait, spill or change algorithms to recover. Accounting is conservative
 and approximate, not a process-heap cap. See [runtime limits](RUNTIME_LIMITS.md).
 

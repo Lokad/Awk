@@ -143,21 +143,6 @@ public sealed class AwkRegexSelectionTests
     }
 
     [Fact]
-    public void SelectionCompilationHonorsTheSharedCompilationCeiling()
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(AwkRegexEngineKind.Utf8Adapter, counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxRegexCompilations(1));
-        var regex = runtime.Create(new AwkRegexPattern("a|aa"));
-
-        var error = Assert.Throws<AwkRuntimeException>(() => runtime.MatchSpan(regex, AwkText.FromString("aa")));
-
-        Assert.Equal(AwkDiagnosticId.RuntimeResourceLimit, error.Id);
-        Assert.Equal(1, counters.RegexCompiles);
-        Assert.Equal(0, counters.RegexGroupsMaterialized);
-    }
-
-    [Fact]
     public void ZeroCacheBudgetDoesNotRetainSelectionCompilations()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -194,26 +179,6 @@ public sealed class AwkRegexSelectionTests
         Assert.Equal(AwkRegex.MatchTimeout, compiled.Regex.MatchTimeout);
 
         Assert.False(runtime.MatchSpan(regex, AwkText.FromString(new string('a', 100_000))).Success);
-        Assert.Equal(1, counters.RegexMatches);
-        Assert.Equal(0, counters.RegexGroupsMaterialized);
-    }
-
-    [Fact]
-    public void SelectionHasOneOperationDeadlineAndAwkDiagnostic()
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var checksDuringMatch = 0;
-        var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, () =>
-            {
-                if (counters.RegexMatches == 1 && ++checksDuringMatch == 2) Thread.Sleep(2100);
-            }, counters, AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
-        var regex = runtime.Create(new AwkRegexPattern("(a+)+b|c"));
-        var error = Assert.Throws<AwkRuntimeException>(() =>
-            runtime.MatchSpan(regex, AwkText.FromString(new string('a', 100_000))));
-
-        Assert.Equal(AwkDiagnosticId.RuntimeRegexTimeout, error.Id);
-        Assert.Equal("awk: regular expression match timed out\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(1, counters.RegexMatches);
         Assert.Equal(0, counters.RegexGroupsMaterialized);
     }

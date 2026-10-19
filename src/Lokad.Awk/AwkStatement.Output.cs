@@ -6,25 +6,16 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkStatement
 {
-    private sealed class FieldPrintStatement(AwkExpression indexExpression, AwkExpression fieldExpression) : AwkStatement
+    private sealed class FieldPrintStatement(AwkExpression indexExpression) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
         {
             var output = RequireExecutionContext(context).Output;
             // Keep the ordinary field-expression checkpoint before its index.
-            context.State.RecordExecutionStep();
+            context.State.Checkpoint();
             var index = (int)await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
             context.State.AppendFieldPrint(output, index);
             return AwkStatementFlow.Continue;
-        }
-
-        internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
-        {
-            // The opt-in engine retains its existing field evaluation and print instruction.
-            compiler.EmitExpressionOrFallback(fieldExpression);
-            compiler.EmitPrint(1);
-            compiler.Pop();
-            return true;
         }
     }
 
@@ -107,19 +98,6 @@ internal abstract partial class AwkStatement
                 builder.Append(segments.Segments, state.CancellationCheckpoint);
                 await EmitOutputAsync(output, io, target, builder.AsMemory()).ConfigureAwait(false);
             }
-        }
-
-        internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
-        {
-            if (target.IsRedirected || expressions.Length == 0)
-                return false;
-
-            for (var index = 0; index < expressions.Length; index++)
-                compiler.EmitExpressionOrFallback(expressions[index]);
-
-            compiler.EmitPrint(expressions.Length);
-            compiler.Pop(expressions.Length);
-            return true;
         }
 
     }

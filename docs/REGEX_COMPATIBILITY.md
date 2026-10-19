@@ -69,8 +69,8 @@ advance by a complete scalar. Empty input has no FPAT/patsplit fields.
 FS/FPAT/RS preparation completes before assignment publishes state. Fields retain captured
 separator/case settings; ordinary regex operations use current IGNORECASE. Malformed regex
 RS fails at assignment. General regex RS may rescan accumulated input to preserve cross-batch
-matches; cancellation and explicit scan/fuel limits apply, but no default aggregate CPU/scan
-ceiling is implied. See [records](RECORD_SEMANTICS.md) and [limits](RUNTIME_LIMITS.md).
+matches; cooperative cancellation and command deadlines apply. There is no separate scan-work
+quota. See [records](RECORD_SEMANTICS.md) and [limits](RUNTIME_LIMITS.md).
 
 ## Warnings
 
@@ -106,7 +106,8 @@ For a custom engine, implement the [AWK-specific contract](../src/Lokad.Awk/Rege
   at cleanup. Handle disposal is idempotent and non-throwing. The supplied budget is borrowed.
 
 Awk still chooses longest/capture selection and compatibility routes; the interface does not
-delegate those policies. Engine timeout does not bound indivisible construction. The adapter
+delegate those policies. Awk-owned POSIX selection polls cancellation without a separate stopwatch deadline;
+.NET calls retain timeout protection. Engine timeout does not bound indivisible construction. The adapter
 accepts spans without adding input/capture-text copies; an engine's own internals can allocate.
 Engine defects belong with that engine; Awk retains dialect, routing and boundary responsibility.
 

@@ -1,9 +1,8 @@
 # Language compatibility
 
 Lokad.Awk supports ordinary awk text processing over valid UTF-8 with host-mediated I/O.
-This is the current supported product, not full POSIX/GNU conformance. The interpreter
-and .NET regex remain defaults. The experimental executable backend is internal and opt-in;
-applications can explicitly supply a regex engine.
+This is the current supported product, not full POSIX/GNU conformance. The interpreter is the only execution engine. Regex defaults to .NET; applications can
+explicitly supply a regex engine.
 
 **Supported** means the listed behavior has golden coverage within its documented boundary.
 **Partial** identifies implemented behavior with remaining differences. **Deferred** means

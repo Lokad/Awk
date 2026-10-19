@@ -19,7 +19,7 @@ public sealed class AwkConcatAllocationTests
         if (finiteMemory) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits,
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var context = new AwkEvaluationContext(state);
         var parts = Enumerable.Range(0, arity).Select(index => AwkExpression.Literal(index == arity / 2 ? "café" : "")).ToArray();

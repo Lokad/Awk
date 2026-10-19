@@ -8,7 +8,7 @@ public sealed class AwkSynchronousPredicateTests
     public async Task LogicalFieldIndicesKeepBorrowedNumericReads(bool length)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, 0);
+        var state = State(counters);
         var bytes = "2 needle"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
         var before = counters.AwkTextAllocations;
@@ -25,19 +25,14 @@ public sealed class AwkSynchronousPredicateTests
         Assert.Equal(before, counters.AwkTextAllocations);
     }
 
-    public static IEnumerable<object[]> FuelBoundaries =>
-        from fuel in Enumerable.Range(0, 14).Append(100)
-        from found in new[] { false, true }
-        select new object[] { fuel, found };
-
     [Theory]
-    [MemberData(nameof(FuelBoundaries))]
-    public async Task FieldPredicatePreservesFuelAndPartialState(int fuel, bool found)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FieldPredicatePreservesState(bool found)
     {
-        var prepared = await Run(false, fuel, found);
-        var legacy = await Run(true, fuel, found);
+        var prepared = await Run(false, found);
+        var legacy = await Run(true, found);
         Assert.Equal(legacy with { Synchronous = prepared.Synchronous }, prepared);
-        if (fuel is 0 or 100)
         {
             Assert.Equal(found ? 1 : 0, prepared.Value);
             Assert.Equal(1, prepared.Synchronous);
@@ -53,7 +48,7 @@ public sealed class AwkSynchronousPredicateTests
     [InlineData(true, true, 0)]
     public async Task SynchronousLogicalOperandsKeepShortCircuitOrder(bool or, bool left, int expectedEntries)
     {
-        var state = State(AwkRuntimeCounters.CreateEnabled(), 0);
+        var state = State(AwkRuntimeCounters.CreateEnabled());
         var right = new EffectOperand();
         var first = AwkExpression.Number(left ? "1" : "0", left ? 1 : 0);
         var expression = or ? AwkExpression.LogicalOr(first, right) : AwkExpression.LogicalAnd(first, right);
@@ -65,7 +60,7 @@ public sealed class AwkSynchronousPredicateTests
     [Fact]
     public async Task PendingLogicalOperandUsesTheOriginalSingleEvaluationPath()
     {
-        var state = State(AwkRuntimeCounters.CreateEnabled(), 0);
+        var state = State(AwkRuntimeCounters.CreateEnabled());
         var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var right = new PendingOperand(completion.Task);
         var expression = AwkExpression.LogicalAnd(AwkExpression.Number("1", 1), right);
@@ -87,10 +82,10 @@ public sealed class AwkSynchronousPredicateTests
         Assert.IsNotAssignableFrom<AwkSynchronousExpression>(AwkExpression.LogicalOr(value, AwkExpression.Number("1", 1)));
     }
 
-    private static async Task<Result> Run(bool legacy, int fuel, bool found)
+    private static async Task<Result> Run(bool legacy, bool found)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, fuel);
+        var state = State(counters);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(found ? "A 9" : "B 9"));
         AwkExpression Field(int index) => AwkExpression.FieldIndex(legacy ? new LegacyNumber(index) :
             AwkExpression.Number(index.ToString(System.Globalization.CultureInfo.InvariantCulture), index));
@@ -101,17 +96,13 @@ public sealed class AwkSynchronousPredicateTests
         var result = -1.0; var error = "";
         try { result = (await expression.EvaluateAsync(new AwkEvaluationContext(state))).AsNumber(); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
-        return new(result, error, counters.ExecutionSteps, counters.SynchronousExpressionRuns,
-            counters.FieldsMaterialized, counters.AwkTextAllocations, state.MemoryAccounting.CurrentReservedBytes);
+        return new(result, error, counters.SynchronousExpressionRuns, counters.FieldsMaterialized, counters.AwkTextAllocations, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static AwkRuntimeState State(AwkRuntimeCounters counters, int fuel)
+    private static AwkRuntimeState State(AwkRuntimeCounters counters)
     {
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        if (fuel > 0) limits = limits.WithMaxExecutionSteps(fuel);
-        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits,
-                AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter));
+        return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility));
     }
     private sealed class LegacyNumber(int index) : AwkExpression
     {
@@ -131,6 +122,5 @@ public sealed class AwkSynchronousPredicateTests
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         { Entries++; return new(value); }
     }
-    private readonly record struct Result(double Value, string Error, long Steps, long Synchronous,
-        long FieldsMaterialized, long TextAllocations, long Reserved);
+    private readonly record struct Result(double Value, string Error, long Synchronous, long FieldsMaterialized, long TextAllocations, long Reserved);
 }

@@ -100,25 +100,6 @@ internal abstract partial class AwkExpression
             if (formattedParts is not null)
                 ArrayPool<AwkText>.Shared.Return(formattedParts, clearArray: true);
         }
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!compiler.TryEmitExpression(_parts[0]) || !compiler.TryEmitExpression(_parts[1]))
-                return false;
-
-            compiler.EmitFormatString(valueCount: 2);
-            for (var index = 2; index < _parts.Length; index++)
-            {
-                if (!compiler.TryEmitExpression(_parts[index]))
-                    return false;
-
-                compiler.EmitFormatString(valueCount: 1);
-            }
-
-            compiler.EmitConcat(_parts.Length);
-            compiler.Replace(popped: _parts.Length, pushed: 1);
-            return true;
-        }
     }
 
     private sealed class BinaryExpression(AwkExpression left, AwkExpression right, AwkNumericOperation operation) : AwkExpression
@@ -139,7 +120,7 @@ internal abstract partial class AwkExpression
 
         public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
         {
-            context.State.RecordExecutionStep();
+            context.State.Checkpoint();
             return EvaluateNumberCoreAsync(context);
         }
 
@@ -176,63 +157,24 @@ internal abstract partial class AwkExpression
         private async ValueTask<double> AwaitRightAsync(
             AwkEvaluationContext context, double leftValue, ValueTask<double> pending) =>
             AwkNumericOperations.Apply(leftValue, await pending.ConfigureAwait(false), operation);
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!compiler.TryEmitExpression(left) || !compiler.TryEmitExpression(right))
-                return false;
-
-            compiler.Emit(ToNumericOpcode(operation));
-            compiler.Replace(popped: 2, pushed: 1);
-            return true;
-
-
-        }
     }
 
     private sealed class NumberConversionExpression(AwkExpression expression) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             AwkValue.FromNumber((await expression.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint));
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!compiler.TryEmitExpression(expression))
-                return false;
-
-            compiler.Emit(AwkOpcode.ToNumber);
-            return true;
-        }
     }
 
     private sealed class NegateExpression(AwkExpression expression) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             AwkValue.FromNumber(-(await expression.EvaluateAsync(context).ConfigureAwait(false)).AsNumber(context.State.CancellationCheckpoint));
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!compiler.TryEmitExpression(expression))
-                return false;
-
-            compiler.Emit(AwkOpcode.Negate);
-            return true;
-        }
     }
 
     private sealed class NotExpression(AwkExpression expression) : AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             AwkValue.FromNumber((await expression.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy() ? 0 : 1);
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!compiler.TryEmitExpression(expression))
-                return false;
-
-            compiler.Emit(AwkOpcode.Not);
-            return true;
-        }
     }
 
     private class ComparisonExpression(
@@ -244,7 +186,7 @@ internal abstract partial class AwkExpression
 
         internal override ValueTask<bool> EvaluateConditionAsync(AwkEvaluationContext context)
         {
-            context.State.RecordExecutionStep();
+            context.State.Checkpoint();
             var pending = left.EvaluateAsync(context);
             return pending.IsCompletedSuccessfully
                 ? EvaluateConditionRight(context, pending.Result)
@@ -293,16 +235,6 @@ internal abstract partial class AwkExpression
             AwkValue.FromNumber(AwkComparisonOperations.Evaluate(
                 leftValue, rightValue, comparison, context.State) ? 1 : 0);
 
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!compiler.TryEmitExpression(left) || !compiler.TryEmitExpression(right))
-                return false;
-
-            compiler.EmitComparison(comparison);
-            compiler.Replace(popped: 2, pushed: 1);
-            return true;
-        }
-
     }
 
     private sealed class FieldValueComparisonExpression(
@@ -326,7 +258,6 @@ internal abstract partial class AwkExpression
     }
 
     private sealed class FieldLiteralComparisonExpression(
-        AwkExpression fieldExpression,
         AwkExpression indexExpression,
         LiteralExpression literal,
         AwkComparison comparison) : AwkSynchronousExpression
@@ -339,14 +270,14 @@ internal abstract partial class AwkExpression
         {
             if (indexExpression is not AwkSynchronousExpression index)
                 throw new InvalidOperationException("Synchronous field index is required.");
-            context.State.RecordExecutionStep(); // The original field expression, before its index.
+            context.State.Checkpoint(); // The original field expression, before its index.
             var field = (int)index.ResolveNumberSynchronous(context);
             return AwkValue.FromNumber(context.State.CompareFieldLiteral(field, literal.LiteralText, comparison) ? 1 : 0);
         }
 
         internal override ValueTask<bool> EvaluateConditionAsync(AwkEvaluationContext context)
         {
-            context.State.RecordExecutionStep();
+            context.State.Checkpoint();
             return EvaluateFieldConditionAsync(context);
         }
 
@@ -361,23 +292,13 @@ internal abstract partial class AwkExpression
         private async ValueTask<bool> EvaluateFieldConditionAsync(AwkEvaluationContext context)
         {
             // Retain field-expression admission before evaluating its index once.
-            context.State.RecordExecutionStep();
+            context.State.Checkpoint();
             var index = (int)await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
             return context.State.CompareFieldLiteral(index, literal.LiteralText, comparison);
         }
 
         private static async ValueTask<AwkValue> AwaitConditionAsync(ValueTask<bool> pending) =>
             AwkValue.FromNumber(await pending.ConfigureAwait(false) ? 1 : 0);
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            // The opt-in engine keeps ordinary field evaluation and comparison.
-            if (!compiler.TryEmitExpression(fieldExpression) || !compiler.TryEmitExpression(literal))
-                return false;
-            compiler.EmitComparison(comparison);
-            compiler.Replace(popped: 2, pushed: 1);
-            return true;
-        }
     }
 
     private sealed class LogicalExpression(
@@ -396,9 +317,6 @@ internal abstract partial class AwkExpression
 
             return AwkValue.FromNumber((await right.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy() ? 1 : 0);
         }
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler) =>
-            EmitLogical(compiler, left, right, operation);
     }
 
     private sealed class RegexMatchExpression(
@@ -434,17 +352,9 @@ internal abstract partial class AwkExpression
     {
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            context.State.RecordExecutionStep(); // The field expression still has its ordinary checkpoint.
+            context.State.Checkpoint(); // The field expression still has its ordinary checkpoint.
             var index = (int)await field.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
             return AwkValue.FromNumber(context.State.ContainsArrayField(arrayName, index, globalIndex) ? 1 : 0);
-        }
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!compiler.TryEmitExpression(field))
-                return false;
-            compiler.EmitArrayContains(arrayName);
-            return true;
         }
     }
 
@@ -454,15 +364,6 @@ internal abstract partial class AwkExpression
         {
             var key = await indexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
             return AwkValue.FromNumber(context.State.ContainsArrayValue(arrayName, key, globalIndex) ? 1 : 0);
-        }
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!indexExpression.TryEmitExecutableKey(compiler))
-                return false;
-
-            compiler.EmitArrayContains(arrayName);
-            return true;
         }
     }
 
@@ -475,32 +376,6 @@ internal abstract partial class AwkExpression
             (await condition.EvaluateAsync(context).ConfigureAwait(false)).IsTruthy()
                 ? await whenTrue.EvaluateAsync(context).ConfigureAwait(false)
                 : await whenFalse.EvaluateAsync(context).ConfigureAwait(false);
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            var startDepth = compiler.StackDepth;
-            compiler.EmitExpressionOrFallback(condition);
-            var falseJump = compiler.EmitJumpIfFalse();
-            compiler.Pop();
-
-            compiler.EmitExpressionOrFallback(whenTrue);
-            var endJump = compiler.EmitJump();
-            var resultDepth = compiler.StackDepth;
-
-            compiler.SetStackDepth(startDepth);
-            compiler.PatchJumpTarget(falseJump, compiler.CurrentOffset);
-            compiler.EmitExpressionOrFallback(whenFalse);
-
-            compiler.PatchJumpTarget(endJump, compiler.CurrentOffset);
-            compiler.SetStackDepth(resultDepth);
-            return true;
-        }
-    }
-
-    private static void EmitBooleanConstant(AwkExecutableCompiler compiler, bool value)
-    {
-        compiler.EmitLoadConstant(AwkValue.FromNumber(value ? 1 : 0));
-        compiler.Push();
     }
 
     private enum LogicalOperation

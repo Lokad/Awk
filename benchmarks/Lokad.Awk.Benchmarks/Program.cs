@@ -39,8 +39,8 @@ if (args.Length > 0 && args[0] is "--compare" or "--smoke" or "--reference-bench
 }
 
 BenchmarkSwitcher.FromTypes(
-    [typeof(FullInvocationBenchmarks), typeof(LegacyLayerBenchmarks), typeof(FrontendLayerBenchmarks),
-     typeof(FrontendScalingBenchmarks), typeof(ExecutableLayerBenchmarks), typeof(WorkloadAllocationBenchmarks),
+    [typeof(FullInvocationBenchmarks), typeof(InterpreterLayerBenchmarks), typeof(FrontendLayerBenchmarks),
+     typeof(FrontendScalingBenchmarks), typeof(WorkloadAllocationBenchmarks),
      typeof(FunctionSchedulingBenchmarks)]).Run(args);
 
 public sealed class AwkBenchmarkConfig : ManualConfig
@@ -159,30 +159,26 @@ public class FullInvocationBenchmarks
             "{total += length($0); hits += index($0, \"\u00e9\"); sample = substr($0, 2, 5)} END{print total, hits, sample}",
             ["{total += length($0); hits += index($0, \"\u00e9\"); sample = substr($0, 2, 5)} END{print total, hits, sample}", "/utf8.txt"],
             [new BenchmarkFile("/utf8.txt", CreateLargeUtf8Data())],
-            recordCount: 12_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 12_000);
         _singleByteFieldSeparator = new BenchmarkScenario(
             "single-byte field separator",
             "{sum += length($2); if($3 ~ /flag/) hits++} END{print sum, hits}",
             ["-F", "|", "{sum += length($2); if($3 ~ /flag/) hits++} END{print sum, hits}", "/pipe.txt"],
             [new BenchmarkFile("/pipe.txt", CreatePipeFieldData())],
-            recordCount: 18_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 18_000);
         _regexFieldSeparator = BenchmarkScenarioCatalog.RegexFieldSeparator();
         _regexRecordSeparator = new BenchmarkScenario(
             "regex record separator",
             "BEGIN{RS=\"([|]|;)+\"} {sum += length($0)} END{print NR, sum}",
             ["BEGIN{RS=\"([|]|;)+\"} {sum += length($0)} END{print NR, sum}", "/rs.txt"],
             [new BenchmarkFile("/rs.txt", CreateRecordSeparatorData())],
-            recordCount: 20_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 20_000);
         _splitAndGsub = new BenchmarkScenario(
             "split and gsub",
             "{n=split($0,a,\",\"); gsub(/[0-9]+/,\"#\",$0); total += n + length($0)} END{print total}",
             ["{n=split($0,a,\",\"); gsub(/[0-9]+/,\"#\",$0); total += n + length($0)} END{print total}", "/split.csv"],
             [new BenchmarkFile("/split.csv", CreateSplitSubstitutionData())],
-            recordCount: 16_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 16_000);
         _dynamicRecordSeparator = BenchmarkScenarioCatalog.DynamicRecordSeparator();
         _nonAsciiRecordSeparator = BenchmarkScenarioCatalog.NonAsciiRecordSeparator();
         _fieldModes = BenchmarkScenarioCatalog.FieldModes();
@@ -543,18 +539,18 @@ public class FullInvocationBenchmarks
 
 [Config(typeof(AwkBenchmarkConfig))]
 [MemoryDiagnoser]
-public class LegacyLayerBenchmarks
+public class InterpreterLayerBenchmarks
 {
     private BenchmarkScenario _scenario = BenchmarkScenario.Empty;
     private AwkCompiledProgram _compiled =
-        BenchmarkExecution.CompileLegacyAsync(BenchmarkScenarioCatalog.ColumnExtraction()).GetAwaiter().GetResult();
+        BenchmarkExecution.PrepareAsync(BenchmarkScenarioCatalog.ColumnExtraction()).GetAwaiter().GetResult();
 
     [GlobalSetup]
     public void Setup()
     {
         _scenario = BenchmarkScenarioCatalog.ColumnExtraction();
-        _compiled = BenchmarkExecution.CompileLegacyAsync(_scenario).GetAwaiter().GetResult();
-        BenchmarkExecution.ValidatePrecompiledLegacy(_scenario, _compiled);
+        _compiled = BenchmarkExecution.PrepareAsync(_scenario).GetAwaiter().GetResult();
+        BenchmarkExecution.ValidatePrepared(_scenario, _compiled);
     }
 
     [Benchmark(Baseline = true)]
@@ -564,15 +560,15 @@ public class LegacyLayerBenchmarks
     }
 
     [Benchmark]
-    public async Task CompileLegacyProgram()
+    public async Task PrepareProgram()
     {
-        _ = await BenchmarkExecution.CompileLegacyAsync(_scenario).ConfigureAwait(false);
+        _ = await BenchmarkExecution.PrepareAsync(_scenario).ConfigureAwait(false);
     }
 
     [Benchmark]
-    public async Task ExecutePrecompiledLegacyProgram()
+    public async Task ExecutePreparedProgram()
     {
-        _ = await BenchmarkExecution.RunPrecompiledLegacyAsync(_compiled, _scenario).ConfigureAwait(false);
+        _ = await BenchmarkExecution.RunPreparedAsync(_compiled, _scenario).ConfigureAwait(false);
     }
 }
 
@@ -582,15 +578,13 @@ public class FrontendLayerBenchmarks
 {
     private BenchmarkScenario _scenario = BenchmarkScenarioCatalog.ColumnExtraction();
     private AwkParseResult _parsed = BenchmarkExecution.Parse(BenchmarkScenarioCatalog.ColumnExtraction());
-    private AwkBindingResult _bound = BenchmarkExecution.Bind(BenchmarkExecution.Parse(BenchmarkScenarioCatalog.ColumnExtraction()));
 
     [GlobalSetup]
     public void Setup()
     {
         _scenario = BenchmarkScenarioCatalog.ColumnExtraction();
         _parsed = BenchmarkExecution.Parse(_scenario);
-        _bound = BenchmarkExecution.Bind(_parsed);
-        _ = BenchmarkExecution.CompileExecutable(_bound);
+        _ = BenchmarkExecution.Bind(_parsed);
     }
 
     [Benchmark(Baseline = true)]
@@ -603,12 +597,6 @@ public class FrontendLayerBenchmarks
     public void BindAndLowerOnly()
     {
         _ = BenchmarkExecution.Bind(_parsed);
-    }
-
-    [Benchmark]
-    public void CompileExecutableProgram()
-    {
-        _ = BenchmarkExecution.CompileExecutable(_bound);
     }
 }
 
@@ -642,8 +630,7 @@ public class FrontendScalingBenchmarks
             programSource,
             [programSource],
             [],
-            recordCount: RuleCount,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: RuleCount);
         _ = BenchmarkExecution.Parse(_scenario);
     }
 
@@ -654,67 +641,8 @@ public class FrontendScalingBenchmarks
     }
 }
 
-[Config(typeof(AwkBenchmarkConfig))]
-[MemoryDiagnoser]
-public class ExecutableLayerBenchmarks
-{
-    private BenchmarkScenario _vmScenario = BenchmarkScenarioCatalog.ColumnExtraction();
-    private BenchmarkScenario _fallbackScenario = BenchmarkScenarioCatalog.ExecutableFallbackDispatch();
-    private AwkCompiledProgram _vmCompiled =
-        BenchmarkExecution.CompileLegacyAsync(BenchmarkScenarioCatalog.ColumnExtraction()).GetAwaiter().GetResult();
-    private AwkCompiledProgram _fallbackCompiled =
-        BenchmarkExecution.CompileLegacyAsync(BenchmarkScenarioCatalog.ExecutableFallbackDispatch()).GetAwaiter().GetResult();
-    private AwkExecutableProgram _vmExecutable =
-        BenchmarkExecution.CompileExecutable(BenchmarkExecution.Bind(BenchmarkExecution.Parse(BenchmarkScenarioCatalog.ColumnExtraction())));
-    private AwkExecutableProgram _fallbackExecutable =
-        BenchmarkExecution.CompileExecutable(BenchmarkExecution.Bind(BenchmarkExecution.Parse(BenchmarkScenarioCatalog.ExecutableFallbackDispatch())));
-
-    [GlobalSetup]
-    public void Setup()
-    {
-        _vmScenario = BenchmarkScenarioCatalog.ColumnExtraction();
-        _fallbackScenario = BenchmarkScenarioCatalog.ExecutableFallbackDispatch();
-        _vmCompiled = BenchmarkExecution.CompileLegacyAsync(_vmScenario).GetAwaiter().GetResult();
-        _fallbackCompiled = BenchmarkExecution.CompileLegacyAsync(_fallbackScenario).GetAwaiter().GetResult();
-        _vmExecutable = _vmCompiled.ExecutableProgram;
-        _fallbackExecutable = _fallbackCompiled.ExecutableProgram;
-        BenchmarkExecution.ValidatePrecompiledExecutable(_vmScenario, _vmCompiled, _vmExecutable);
-        BenchmarkExecution.ValidatePrecompiledExecutable(_fallbackScenario, _fallbackCompiled, _fallbackExecutable);
-    }
-
-    [Benchmark(Baseline = true)]
-    public async Task ExecutePrecompiledLegacyProgram()
-    {
-        _ = await BenchmarkExecution.RunPrecompiledLegacyAsync(_vmCompiled, _vmScenario).ConfigureAwait(false);
-    }
-
-    [Benchmark]
-    public async Task ExecutePrecompiledExecutableVmProgram()
-    {
-        _ = await BenchmarkExecution
-            .RunPrecompiledExecutableAsync(_vmCompiled, _vmExecutable, _vmScenario)
-            .ConfigureAwait(false);
-    }
-
-    [Benchmark]
-    public async Task ExecuteExecutableFallbackDispatch()
-    {
-        _ = await BenchmarkExecution
-            .RunPrecompiledExecutableAsync(_fallbackCompiled, _fallbackExecutable, _fallbackScenario)
-            .ConfigureAwait(false);
-    }
-}
-
 internal static class BenchmarkExecution
 {
-    private static readonly AwkRuntimeOptions ExecutableRuntimeOptions = new(
-        () => new AwkUnixTimestampSeconds(0),
-        TimeZoneInfo.Utc,
-        new AwkRandomGenerator(),
-        AwkRuntimeCounters.Disabled,
-        AwkRuntimeLimits.CreateDefault(),
-        AwkRegexEngineKind.DotNetCompatibility,
-        executionEngineKind: AwkExecutionEngineKind.Executable);
 
     public static async Task<BenchmarkRunResult> RunFullInvocationAsync(BenchmarkScenario scenario)
     {
@@ -751,15 +679,7 @@ internal static class BenchmarkExecution
         return binding;
     }
 
-    public static AwkExecutableProgram CompileExecutable(AwkBindingResult binding)
-    {
-        if (!binding.Program.HasProgram)
-            throw new InvalidOperationException("Benchmark binding has no program.");
-
-        return AwkExecutableProgram.Compile(binding.Program.Program);
-    }
-
-    public static async Task<AwkCompiledProgram> CompileLegacyAsync(BenchmarkScenario scenario)
+    public static async Task<AwkCompiledProgram> PrepareAsync(BenchmarkScenario scenario)
     {
         var host = BenchmarkHost.FromFiles(scenario.Files);
         return await AwkExecutor
@@ -770,7 +690,7 @@ internal static class BenchmarkExecution
             .ConfigureAwait(false);
     }
 
-    public static async Task<BenchmarkRunResult> RunPrecompiledLegacyAsync(
+    public static async Task<BenchmarkRunResult> RunPreparedAsync(
         AwkCompiledProgram compiled,
         BenchmarkScenario scenario)
     {
@@ -782,21 +702,6 @@ internal static class BenchmarkExecution
         return host.Result;
     }
 
-    public static async Task<BenchmarkRunResult> RunPrecompiledExecutableAsync(
-        AwkCompiledProgram compiled,
-        AwkExecutableProgram executable,
-        BenchmarkScenario scenario)
-    {
-        var host = BenchmarkHost.FromFiles(scenario.Files);
-        var exitCode = await compiled
-            .ExecuteAsync(host, CancellationToken.None, ExecutableRuntimeOptions, executable)
-            .ConfigureAwait(false);
-        if (exitCode.Failed)
-            throw new InvalidOperationException("Executable benchmark scenario failed: " + scenario.Name);
-
-        return host.Result;
-    }
-
     public static void ValidateFullInvocation(BenchmarkScenario scenario)
     {
         var result = RunFullInvocationAsync(scenario).GetAwaiter().GetResult();
@@ -804,23 +709,12 @@ internal static class BenchmarkExecution
             throw new InvalidOperationException("Benchmark scenario wrote stderr: " + scenario.Name);
     }
 
-    public static void ValidatePrecompiledLegacy(BenchmarkScenario scenario, AwkCompiledProgram compiled)
+    public static void ValidatePrepared(BenchmarkScenario scenario, AwkCompiledProgram compiled)
     {
         var full = RunFullInvocationAsync(scenario).GetAwaiter().GetResult();
-        var precompiled = RunPrecompiledLegacyAsync(compiled, scenario).GetAwaiter().GetResult();
+        var precompiled = RunPreparedAsync(compiled, scenario).GetAwaiter().GetResult();
         if (full != precompiled)
             throw new InvalidOperationException("Benchmark layer output mismatch: " + scenario.Name);
-    }
-
-    public static void ValidatePrecompiledExecutable(
-        BenchmarkScenario scenario,
-        AwkCompiledProgram compiled,
-        AwkExecutableProgram executable)
-    {
-        var legacy = RunPrecompiledLegacyAsync(compiled, scenario).GetAwaiter().GetResult();
-        var executableResult = RunPrecompiledExecutableAsync(compiled, executable, scenario).GetAwaiter().GetResult();
-        if (legacy != executableResult)
-            throw new InvalidOperationException("Executable benchmark layer output mismatch: " + scenario.Name);
     }
 }
 
@@ -841,36 +735,31 @@ internal static class BenchmarkCounterReport
             "{print $2}",
             ["{print $2}", "/data.tsv"],
             [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n")],
-            recordCount: 3,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 3),
         new(
             "counter multi-column projection",
             "{print $1,$3,$2}",
             ["{print $1,$3,$2}", "/data.tsv"],
             [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\nsku3\tvalue3\ttail\n")],
-            recordCount: 3,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 3),
         new(
             "counter streaming projection calibration",
             "{print $2}",
             ["{print $2}", "/stream.tsv"],
             [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
-            recordCount: CounterStreamingRecordCount,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: CounterStreamingRecordCount),
         new(
             "counter three-key filter calibration",
             "$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}",
             ["$1 != \"\" && $2 != \"\" && $3 == \"open\" {matches++} END{print matches+0}", "/stream.tsv"],
             [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
-            recordCount: CounterStreamingRecordCount,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: CounterStreamingRecordCount),
         new(
             "counter associative aggregation calibration",
             "{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}",
             ["{sum[$1,$2]+=$4; count[$3]++} END{print length(sum), length(count)}", "/stream.tsv"],
             [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
-            recordCount: CounterStreamingRecordCount,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: CounterStreamingRecordCount),
         new(
             "counter two-file comparison calibration",
             "NR==FNR{left[$1]=$2; next} ($1 in left) && left[$1]!=$2{differences++} END{print differences+0}",
@@ -879,171 +768,134 @@ internal static class BenchmarkCounterReport
                 new BenchmarkFile("/left.tsv", BuildCounterComparisonRows(changed: false)),
                 new BenchmarkFile("/right.tsv", BuildCounterComparisonRows(changed: true))
             ],
-            recordCount: CounterComparisonRecordCount * 2,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: CounterComparisonRecordCount * 2),
         new(
             "counter arithmetic loop",
             "BEGIN{for(i=1;i<=100;i++) total += i * 2; print total}",
             ["BEGIN{for(i=1;i<=100;i++) total += i * 2; print total}"],
             [],
-            recordCount: 0,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 0),
         new(
             "counter print-heavy action",
             "BEGIN{for(i=1;i<=50;i++) print \"row\", i}",
             ["BEGIN{for(i=1;i<=50;i++) print \"row\", i}"],
             [],
-            recordCount: 0,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 0),
         new(
             "counter regex field separator",
             "BEGIN{FS=\"[|;]\"} {sum += NF + length($2)} END{print sum}",
             ["BEGIN{FS=\"[|;]\"} {sum += NF + length($2)} END{print sum}", "/pipe.txt"],
             [new BenchmarkFile("/pipe.txt", "a|beta;flag\nb|delta;plain\nc|gamma;flag\n")],
-            recordCount: 3,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 3),
         new(
             "counter dynamic record separator",
             "BEGIN{RS=\"|\"} NR==1{RS=\"[,;]\"} {total += length($0)} END{print NR, total}",
             ["BEGIN{RS=\"|\"} NR==1{RS=\"[,;]\"} {total += length($0)} END{print NR, total}", "/dynamic-rs.txt"],
             [new BenchmarkFile("/dynamic-rs.txt", "first|second,third;fourth;")],
-            recordCount: 4,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 4),
         new(
             "counter grouped byte-run record separator",
             "BEGIN{RS=\"([,;])+\"} {print length($0)}",
             ["BEGIN{RS=\"([,;])+\"} {print length($0)}", "/stream.tsv"],
             [new BenchmarkFile("/stream.tsv", BuildCounterStreamingRows())],
-            recordCount: 1,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 1),
         .. new[] { 100, 400, 1_600 }.Select(CreateLiteralRecordSeparatorScenario),
         new(
             "counter non-ASCII record separator",
             "BEGIN{RS=\"\u00e9\"} {total += length($0)} END{print NR, total}",
             ["BEGIN{RS=\"\u00e9\"} {total += length($0)} END{print NR, total}", "/non-ascii-rs.txt"],
             [new BenchmarkFile("/non-ascii-rs.txt", "caf\u00e91\u00e9r\u00e9sum\u00e92\u00e9")],
-            recordCount: 3,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 3),
         new(
             "counter field modes",
             "NR%2{FPAT=\"[A-Z]+|[0-9]+\"; FIELDWIDTHS=\"\"; fp += NF; split($0,a,/[0-9]+/,s); sep += length(s[1]); next} {FPAT=\"\"; FIELDWIDTHS=\"2 3\"; fw += NF} END{print fw, fp, sep}",
             ["NR%2{FPAT=\"[A-Z]+|[0-9]+\"; FIELDWIDTHS=\"\"; fp += NF; split($0,a,/[0-9]+/,s); sep += length(s[1]); next} {FPAT=\"\"; FIELDWIDTHS=\"2 3\"; fw += NF} END{print fw, fp, sep}", "/field-modes.txt"],
             [new BenchmarkFile("/field-modes.txt", "A-12-B\nabcdef\nC-34-D\nghijkl\n")],
-            recordCount: 4,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 4),
         new(
             "counter UTF-8 FIELDWIDTHS",
             "BEGIN{FIELDWIDTHS=\"4 5 2\"} {total += length($1) + length($2) + NF} END{print total}",
             ["BEGIN{FIELDWIDTHS=\"4 5 2\"} {total += length($1) + length($2) + NF} END{print total}", "/fieldwidths.txt"],
             [new BenchmarkFile("/fieldwidths.txt", "caf\u00e9bravo12\nna\u00efveplain34\n")],
-            recordCount: 2,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 2),
         new(
             "counter large split fields",
             "{n=split($0,a,\" \"); total += n + length($1) + length($NF) + length(a[1]) + length(a[n])} END{print total}",
             ["{n=split($0,a,\" \"); total += n + length($1) + length($NF) + length(a[1]) + length(a[n])} END{print total}", "/split-fields.txt"],
             [new BenchmarkFile("/split-fields.txt", BuildCounterSeparatedRows())],
-            recordCount: 32,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 32),
         new(
             "counter large scalar growth",
             "{x = x $0} END{print length(x)}",
             ["{x = x $0} END{print length(x)}", "/scalar.txt"],
             [new BenchmarkFile("/scalar.txt", "alpha\nbeta\ngamma\n")],
-            recordCount: 3,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 3),
         new(
             "counter large field list",
             "{total += NF + length($8)} END{print total}",
             ["{total += NF + length($8)} END{print total}", "/fields.txt"],
             [new BenchmarkFile("/fields.txt", "a b c d e f g h i j\n1 2 3 4 5 6 7 8 9 10\n")],
-            recordCount: 2,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 2),
         new(
             "counter small text split arrays",
             "{n=split($0,a,\"\"); total += n + length(a[1]) + length(a[n])} END{print total}",
             ["{n=split($0,a,\"\"); total += n + length(a[1]) + length(a[n])} END{print total}", "/small-split.txt"],
             [new BenchmarkFile("/small-split.txt", "abcdef\nbcdefg\n")],
-            recordCount: 2,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 2),
         new(
             "counter regex replacement expansion",
             "{gsub(/([[:alpha:]]+)([[:digit:]]+)/,\"<&>-<&>-<&>\",$0); total += length($0)} END{print total}",
             ["{gsub(/([[:alpha:]]+)([[:digit:]]+)/,\"<&>-<&>-<&>\",$0); total += length($0)} END{print total}", "/replace.txt"],
             [new BenchmarkFile("/replace.txt", "sku1 item22\nsku3 item44\n")],
-            recordCount: 2,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 2),
         new(
             "counter regex capture array",
             "BEGIN{if(match(\"abc123\",/([a-z]+)([0-9]+)/,m)) print m[1],m[2]}",
             ["BEGIN{if(match(\"abc123\",/([a-z]+)([0-9]+)/,m)) print m[1],m[2]}"],
             [],
-            recordCount: 0,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 0),
         new(
             "counter gensub capture selection",
             "BEGIN{print gensub(/(x)(a)?(b)?(c)?(d)?(e)?(f)?(g)?(h)?(i)?(j)?/,\"<\\\\1>\",\"g\",\"xx\")}",
             ["BEGIN{print gensub(/(x)(a)?(b)?(c)?(d)?(e)?(f)?(g)?(h)?(i)?(j)?/,\"<\\\\1>\",\"g\",\"xx\")}"],
             [],
-            recordCount: 0,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 0),
         new(
             "counter regex pattern gap",
             "BEGIN{s=\"abc\"; print match(s,/\\`a/)}",
             ["BEGIN{s=\"abc\"; print match(s,/\\`a/)}"],
             [],
-            recordCount: 0,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 0),
         new(
             "counter array sorting",
             "{a[$1] += $2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"; for(k in a) print k, a[k]}",
             ["{a[$1] += $2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"; for(k in a) print k, a[k]}", "/array-sort.txt"],
             [new BenchmarkFile("/array-sort.txt", "b 2\na 1\nb 3\n")],
-            recordCount: 3,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 3),
         new(
             "counter small ordinal array",
             "BEGIN{for(i=1;i<=64;i++) a[i]=i; for(i=1;i<=64;i++) total += a[i]; print total}",
             ["BEGIN{for(i=1;i<=64;i++) a[i]=i; for(i=1;i<=64;i++) total += a[i]; print total}"],
             [],
-            recordCount: 0,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 0),
         new(
             "counter user-function loop",
             "function add(x,y){return x+y} BEGIN{for(i=1;i<=80;i++) total=add(total,i); print total}",
             ["function add(x,y){return x+y} BEGIN{for(i=1;i<=80;i++) total=add(total,i); print total}"],
             [],
-            recordCount: 0,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 0),
         new(
             "counter UTF-8 rune slicing",
             "{for(i=1;i<=length($0);i++) last=substr($0,i,1)} END{print last}",
             ["{for(i=1;i<=length($0);i++) last=substr($0,i,1)} END{print last}", "/runes.txt"],
             [new BenchmarkFile("/runes.txt", new string('\u00e9', 4_096) + "\n")],
-            recordCount: 1,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
+            recordCount: 1),
         new(
             "counter byte concat",
             "{x = $1 \"|\" $2 \"|\" $3; total += length(x)} END{print total}",
             ["--characters-as-bytes", "{x = $1 \"|\" $2 \"|\" $3; total += length(x)} END{print total}", "/concat.txt"],
             [new BenchmarkFile("/concat.txt", "a b c\nx y z\n")],
-            recordCount: 2,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter),
-        new(
-            "counter executable opcode execution",
-            "{print $2}",
-            ["{print $2}", "/data.tsv"],
-            [new BenchmarkFile("/data.tsv", "sku1\tvalue1\ttail\nsku2\tvalue2\ttail\n")],
-            recordCount: 2,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Executable),
-        new(
-            "counter executable mixed fallback dispatch",
-            "function inc(x){return x+1} {print inc($2)}",
-            ["function inc(x){return x+1} {print inc($2)}", "/data.tsv"],
-            [new BenchmarkFile("/data.tsv", "sku1\t1\ttail\nsku2\t2\ttail\n")],
-            recordCount: 2,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Executable)
-        ];
+            recordCount: 2)        ];
             static BenchmarkScenario CreateLiteralRecordSeparatorScenario(int recordCount)
             {
                 const string script = "BEGIN{RS=\"</row>\"} {n++} END{print n}";
@@ -1054,8 +906,7 @@ internal static class BenchmarkCounterReport
                     script,
                     [script, "/literal-rs.txt"],
                     [new BenchmarkFile("/literal-rs.txt", input)],
-                    recordCount,
-                    counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+                    recordCount);
             }
 
             static string BuildCounterStreamingRows()
@@ -1124,8 +975,8 @@ internal static class BenchmarkCounterReport
         Console.WriteLine("OS: " + Environment.OSVersion);
         Console.WriteLine(".NET: " + Environment.Version);
         Console.WriteLine();
-        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | Execution steps | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex policy bytes | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | VM instructions | VM fallbacks | Memory peak |");
-        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex policy bytes | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | Memory peak |");
+        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
 
         for (var index = 0; index < Scenarios.Length; index++)
         {
@@ -1146,7 +997,6 @@ internal static class BenchmarkCounterReport
                 counters,
                 AwkRuntimeLimits.CreateDefault()
                     .WithMaxExecutionMemoryBytes(CounterExecutionMemoryLimitBytes),
-                executionEngineKind: scenario.CounterExecutionEngineKind,
                 regexEngineKind: AwkRegexEngineKind.DotNetCompatibility);
             var compiled = await AwkExecutor
                 .CompileAsync(
@@ -1176,7 +1026,7 @@ internal static class BenchmarkCounterReport
                     scenario.Metrics.RecordCount.ToString(CultureInfo.InvariantCulture),
                     scenario.Metrics.InputBytes.ToString(CultureInfo.InvariantCulture),
                     result.Run.StandardOutputBytes.ToString(CultureInfo.InvariantCulture),
-                    counters.ExecutionSteps.ToString(CultureInfo.InvariantCulture),
+
                     counters.StringDecodes.ToString(CultureInfo.InvariantCulture),
                     counters.AwkTextAsStringCalls.ToString(CultureInfo.InvariantCulture),
                     counters.AwkTextAsStringDecodeMisses.ToString(CultureInfo.InvariantCulture),
@@ -1199,8 +1049,6 @@ internal static class BenchmarkCounterReport
                     counters.RuneSliceBytesScanned.ToString(CultureInfo.InvariantCulture),
                     counters.RuneSliceIndexAllocations.ToString(CultureInfo.InvariantCulture),
                     counters.RuneSliceIndexBytes.ToString(CultureInfo.InvariantCulture),
-                    counters.VmInstructions.ToString(CultureInfo.InvariantCulture),
-                    counters.VmFallbackCalls.ToString(CultureInfo.InvariantCulture),
                     counters.MemoryPeakLiveBytes.ToString(CultureInfo.InvariantCulture) + " |"));
 
             static string EscapeCell(string value) =>
@@ -1223,8 +1071,7 @@ internal static class BenchmarkScenarioCatalog
             "{print $2}",
             ["{print $2}", "/data.tsv"],
             [new BenchmarkFile("/data.tsv", BuildColumnData())],
-            recordCount: 20_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 20_000);
 
     public static BenchmarkScenario DynamicRecordSeparator() =>
         new(
@@ -1232,8 +1079,7 @@ internal static class BenchmarkScenarioCatalog
             "BEGIN{RS=\"|\"} NR==1{RS=\"[,;]\"} {total += length($0)} END{print NR, total}",
             ["BEGIN{RS=\"|\"} NR==1{RS=\"[,;]\"} {total += length($0)} END{print NR, total}", "/dynamic-rs.txt"],
             [new BenchmarkFile("/dynamic-rs.txt", FullInvocationBenchmarks.CreateDynamicRecordSeparatorData())],
-            recordCount: 14_001,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 14_001);
 
     public static BenchmarkScenario NonAsciiRecordSeparator() =>
         new(
@@ -1241,8 +1087,7 @@ internal static class BenchmarkScenarioCatalog
             "BEGIN{RS=\"\u00e9\"} {total += length($0)} END{print NR, total}",
             ["BEGIN{RS=\"\u00e9\"} {total += length($0)} END{print NR, total}", "/non-ascii-rs.txt"],
             [new BenchmarkFile("/non-ascii-rs.txt", FullInvocationBenchmarks.CreateNonAsciiRecordSeparatorData())],
-            recordCount: 14_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 14_000);
 
     public static BenchmarkScenario RegexFieldSeparator() =>
         new(
@@ -1250,8 +1095,7 @@ internal static class BenchmarkScenarioCatalog
             "BEGIN{FS=\"[|;]\"} {sum += NF + length($2)} END{print sum}",
             ["BEGIN{FS=\"[|;]\"} {sum += NF + length($2)} END{print sum}", "/pipe.txt"],
             [new BenchmarkFile("/pipe.txt", FullInvocationBenchmarks.CreatePipeFieldData())],
-            recordCount: 18_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 18_000);
 
     public static BenchmarkScenario FieldModes() =>
         new(
@@ -1259,8 +1103,7 @@ internal static class BenchmarkScenarioCatalog
             "NR%2{FPAT=\"[A-Z]+|[0-9]+\"; FIELDWIDTHS=\"\"; fp += NF; split($0,a,/[0-9]+/,s); sep += length(s[1]); next} {FPAT=\"\"; FIELDWIDTHS=\"2 3\"; fw += NF} END{print fw, fp, sep}",
             ["NR%2{FPAT=\"[A-Z]+|[0-9]+\"; FIELDWIDTHS=\"\"; fp += NF; split($0,a,/[0-9]+/,s); sep += length(s[1]); next} {FPAT=\"\"; FIELDWIDTHS=\"2 3\"; fw += NF} END{print fw, fp, sep}", "/field-modes.txt"],
             [new BenchmarkFile("/field-modes.txt", FullInvocationBenchmarks.CreateFieldModeData())],
-            recordCount: 10_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 10_000);
 
     public static BenchmarkScenario FieldWidthsUtf8() =>
         new(
@@ -1268,8 +1111,7 @@ internal static class BenchmarkScenarioCatalog
             "BEGIN{FIELDWIDTHS=\"4 5 2\"} {total += length($1) + length($2) + NF} END{print total}",
             ["BEGIN{FIELDWIDTHS=\"4 5 2\"} {total += length($1) + length($2) + NF} END{print total}", "/fieldwidths.txt"],
             [new BenchmarkFile("/fieldwidths.txt", FullInvocationBenchmarks.CreateFieldWidthsUtf8Data())],
-            recordCount: 10_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 10_000);
 
     public static BenchmarkScenario LargeScalarGrowth() =>
         new(
@@ -1277,8 +1119,7 @@ internal static class BenchmarkScenarioCatalog
             "{x = x $0; if (NR % 500 == 0) sample = length(x)} END{print length(x), sample}",
             ["{x = x $0; if (NR % 500 == 0) sample = length(x)} END{print length(x), sample}", "/scalar.txt"],
             [new BenchmarkFile("/scalar.txt", FullInvocationBenchmarks.CreateLargeScalarGrowthData())],
-            recordCount: 2_500,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 2_500);
 
     public static BenchmarkScenario LargeFieldList() =>
         new(
@@ -1286,8 +1127,7 @@ internal static class BenchmarkScenarioCatalog
             "{total += NF + length($200)} END{print total}",
             ["{total += NF + length($200)} END{print total}", "/fields.txt"],
             [new BenchmarkFile("/fields.txt", FullInvocationBenchmarks.CreateLargeFieldListData())],
-            recordCount: 2_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 2_000);
 
     public static BenchmarkScenario SmallTextSplitArrays() =>
         new(
@@ -1295,8 +1135,7 @@ internal static class BenchmarkScenarioCatalog
             "{n=split($0,a,\"\"); total += n + length(a[1]) + length(a[n])} END{print total}",
             ["{n=split($0,a,\"\"); total += n + length(a[1]) + length(a[n])} END{print total}", "/small-split.txt"],
             [new BenchmarkFile("/small-split.txt", FullInvocationBenchmarks.CreateSmallTextSplitArrayData())],
-            recordCount: 12_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 12_000);
 
     public static BenchmarkScenario RegexReplacementExpansion() =>
         new(
@@ -1304,8 +1143,7 @@ internal static class BenchmarkScenarioCatalog
             "{gsub(/([[:alpha:]]+)([[:digit:]]+)/,\"<&>-<&>-<&>\",$0); total += length($0)} END{print total}",
             ["{gsub(/([[:alpha:]]+)([[:digit:]]+)/,\"<&>-<&>-<&>\",$0); total += length($0)} END{print total}", "/replace.txt"],
             [new BenchmarkFile("/replace.txt", FullInvocationBenchmarks.CreateRegexReplacementExpansionData())],
-            recordCount: 10_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 10_000);
 
     public static BenchmarkScenario ArraySorting() =>
         new(
@@ -1313,8 +1151,7 @@ internal static class BenchmarkScenarioCatalog
             "{a[$1] += $2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"; for(k in a) print k, a[k]}",
             ["{a[$1] += $2} END{PROCINFO[\"sorted_in\"]=\"@ind_str_asc\"; for(k in a) print k, a[k]}", "/array-sort.txt"],
             [new BenchmarkFile("/array-sort.txt", FullInvocationBenchmarks.CreateArraySortingData())],
-            recordCount: 8_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 8_000);
 
     public static BenchmarkScenario HeavyConcatByteMode() =>
         new(
@@ -1322,21 +1159,11 @@ internal static class BenchmarkScenarioCatalog
             "{x = $1 \"|\" $2 \"|\" $3 \"|\" $4; total += length(x)} END{print total}",
             ["--characters-as-bytes", "{x = $1 \"|\" $2 \"|\" $3 \"|\" $4; total += length(x)} END{print total}", "/concat.txt"],
             [new BenchmarkFile("/concat.txt", FullInvocationBenchmarks.CreateHeavyConcatData())],
-            recordCount: 12_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
-
-    public static BenchmarkScenario ExecutableFallbackDispatch() =>
-        new(
-            "executable fallback dispatch",
-            "function inc(x){return x+1} {print inc($2)}",
-            ["function inc(x){return x+1} {print inc($2)}", "/data.tsv"],
-            [new BenchmarkFile("/data.tsv", BuildColumnData())],
-            recordCount: 20_000,
-            counterExecutionEngineKind: AwkExecutionEngineKind.Interpreter);
+            recordCount: 12_000);
 
     public static bool TryResolveMetrics(string benchmarkTypeName, string benchmarkMethodName, out BenchmarkWorkloadMetrics metrics)
     {
-        if (benchmarkTypeName == nameof(LegacyLayerBenchmarks))
+        if (benchmarkTypeName == nameof(InterpreterLayerBenchmarks))
         {
             metrics = ColumnExtraction().Metrics;
             return true;
@@ -1345,14 +1172,6 @@ internal static class BenchmarkScenarioCatalog
         if (benchmarkTypeName == nameof(FrontendLayerBenchmarks))
         {
             metrics = ColumnExtraction().Metrics;
-            return true;
-        }
-
-        if (benchmarkTypeName == nameof(ExecutableLayerBenchmarks))
-        {
-            metrics = benchmarkMethodName == nameof(ExecutableLayerBenchmarks.ExecuteExecutableFallbackDispatch)
-                ? ExecutableFallbackDispatch().Metrics
-                : ColumnExtraction().Metrics;
             return true;
         }
 
@@ -1414,15 +1233,13 @@ internal sealed class BenchmarkScenario
         string programSource,
         IReadOnlyList<string> arguments,
         IReadOnlyList<BenchmarkFile> files,
-        long recordCount,
-        AwkExecutionEngineKind counterExecutionEngineKind)
+        long recordCount)
     {
         Name = name;
         ProgramSource = programSource;
         Arguments = arguments;
         Files = files;
         Metrics = new BenchmarkWorkloadMetrics(SumInputBytes(files), recordCount);
-        CounterExecutionEngineKind = counterExecutionEngineKind;
 
         static long SumInputBytes(IReadOnlyList<BenchmarkFile> files)
         {
@@ -1441,8 +1258,7 @@ internal sealed class BenchmarkScenario
         string.Empty,
         [],
         [],
-        0,
-        AwkExecutionEngineKind.Interpreter);
+        0);
 
     public string Name { get; }
 
@@ -1453,8 +1269,6 @@ internal sealed class BenchmarkScenario
     public IReadOnlyList<BenchmarkFile> Files { get; }
 
     public BenchmarkWorkloadMetrics Metrics { get; }
-
-    public AwkExecutionEngineKind CounterExecutionEngineKind { get; }
 }
 
 internal readonly record struct BenchmarkWorkloadMetrics(long InputBytes, long RecordCount);

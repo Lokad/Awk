@@ -582,7 +582,7 @@ internal sealed class AwkArrayRuntime
                     AwkArraySortEntry right)
                 {
                     var state = context.State;
-                    state.Resources.RecordSortComparison();
+                    state.Resources.Checkpoint();
                     comparatorArguments[0] = state.CreateByteTextValue(left.KeyText);
                     comparatorArguments[1] = left.Value;
                     comparatorArguments[2] = state.CreateByteTextValue(right.KeyText);
@@ -703,7 +703,7 @@ internal sealed class AwkArrayRuntime
     {
         public int Compare(AwkArraySortEntry left, AwkArraySortEntry right)
         {
-            state.Resources.RecordSortComparison();
+            state.Resources.Checkpoint();
             return comparer.Compare(in left, in right, state);
         }
     }

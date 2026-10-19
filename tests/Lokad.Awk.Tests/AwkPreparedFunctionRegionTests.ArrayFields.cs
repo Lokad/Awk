@@ -27,13 +27,10 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetArrayAwkValue(name, new("hit"), AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit"));
         _ = state.GetFieldValue(1); // Exclude the separate record-split work charge.
-        var expression = AwkExpression.ArrayElement(name,
-            AwkArrayIndex.Simple(AwkExpression.FieldIndex(AwkExpression.Number("1", 1))));
-        var steps = counters.ExecutionSteps;
+        var expression = AwkExpression.ArrayElement(name, AwkArrayIndex.Simple(AwkExpression.FieldIndex(AwkExpression.Number("1", 1))));
         var value = ordinary ? await expression.EvaluateAsync(new(state))
             : Assert.IsAssignableFrom<AwkSynchronousExpression>(expression).EvaluateSynchronous(new(state));
         Assert.Equal(7, value.AsNumber());
-        Assert.Equal(3, counters.ExecutionSteps - steps);
     }
 
     [Theory]
@@ -75,7 +72,6 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [Theory]
     [InlineData("default")]
     [InlineData("syntax")]
-    [InlineData("vm")]
     [InlineData("lint")]
     [InlineData("pending")]
     [InlineData("captured-regex")]
@@ -85,8 +81,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
         if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
-        var state = State(counters, limits, engine: boundary == "vm" ? AwkExecutionEngineKind.Executable
-            : AwkExecutionEngineKind.Interpreter, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
+        var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var fs = AwkVariableName.FromText("FS");
         if (boundary == "captured-regex") state.AssignVariable(fs, "[,;]");
@@ -110,15 +105,13 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FieldArrayActionsKeepOriginalFuelAndPartialState(bool missing)
+    public async Task FieldArrayActionsPreserveState(bool missing)
     {
-        for (var fuel = 0; fuel <= 45; fuel++)
         {
-            var prepared = await RunFieldArrayAction(false, missing, fuel);
-            var ordinary = await RunFieldArrayAction(true, missing, fuel);
+            var prepared = await RunFieldArrayAction(false, missing);
+            var ordinary = await RunFieldArrayAction(true, missing);
             Assert.Equal(ordinary, prepared with { Prepared = 0 });
             Assert.Equal(0, ordinary.Prepared);
-            if (fuel == 0)
             {
                 Assert.Equal(1, prepared.Prepared);
                 Assert.Equal(missing ? 4 : 14, prepared.Total);
@@ -126,7 +119,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         }
     }
 
-    private static async Task<FieldArrayResult> RunFieldArrayAction(bool ordinary, bool missing, int fuel)
+    private static async Task<FieldArrayResult> RunFieldArrayAction(bool ordinary, bool missing)
     {
         var program = Bind("{total+=a[$1]+b[$1]}");
         var statements = program.MainActions[0].Statements;
@@ -134,7 +127,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             : program.MainActions[0];
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
-        var state = State(counters, fuel == 0 ? limits : limits.WithMaxExecutionSteps(fuel));
+        var state = State(counters, 0 == 0 ? limits : limits);
         state.InitializeGlobalReadSlots(program.GlobalReadCount);
         var a = AwkArrayName.FromText("a"); var b = AwkArrayName.FromText("b");
         state.SetArrayAwkValue(a, new("hit"), AwkValue.FromNumber(7));
@@ -147,9 +140,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var error = "";
         try { await action.ExecuteAsync(state, io, output); }
         catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
-        var result = new FieldArrayResult(state.ResolveVariableValue(total).AsNumber(),
-            state.ContainsArrayValue(a, new("missing")), state.ContainsArrayValue(b, new("missing")),
-            counters.ExecutionSteps, counters.SynchronousActionRuns, error);
+        var result = new FieldArrayResult(state.ResolveVariableValue(total).AsNumber(), state.ContainsArrayValue(a, new("missing")), state.ContainsArrayValue(b, new("missing")), counters.SynchronousActionRuns, error);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         await io.CloseAsync();
         return result;
@@ -226,6 +217,5 @@ public sealed partial class AwkPreparedFunctionRegionTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private readonly record struct FieldArrayResult(double Total, bool FirstMiss, bool SecondMiss,
-        long Steps, long Prepared, string Error);
+    private readonly record struct FieldArrayResult(double Total, bool FirstMiss, bool SecondMiss, long Prepared, string Error);
 }

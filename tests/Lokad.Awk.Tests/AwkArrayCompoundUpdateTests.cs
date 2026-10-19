@@ -27,9 +27,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
         state.SetArrayAwkValue(name, Key, AwkValue.FromText("007"));
         var source = new ValueSource(3, pending);
         var right = new EffectExpression(source, () => state.SetArrayAwkValue(name, Key, AwkValue.FromNumber(100)));
-        var expression = AwkExpression.CompoundAssignment(AwkReference.ArrayElement(name, Index), right,
-            (AwkCompoundAssignmentOperation)operation);
-        var steps = state.Counters.ExecutionSteps;
+        var expression = AwkExpression.CompoundAssignment(AwkReference.ArrayElement(name, Index), right, (AwkCompoundAssignmentOperation)operation);
         var value = expression.EvaluateAsync(new AwkEvaluationContext(state));
         if (pending)
         {
@@ -42,7 +40,6 @@ public sealed partial class AwkArrayCompoundUpdateTests
         Assert.Equal(expected, result.AsNumber());
         Assert.Equal(expected, state.GetArrayAwkValue(name, Key).AsNumber());
         Assert.Equal(1, source.Consumptions);
-        Assert.Equal(3, state.Counters.ExecutionSteps - steps);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(0, state.Counters.StringDecodes);
     }
@@ -283,10 +280,7 @@ public sealed partial class AwkArrayCompoundUpdateTests
 
     private static AwkRuntimeState State()
     {
-        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         return state;
     }

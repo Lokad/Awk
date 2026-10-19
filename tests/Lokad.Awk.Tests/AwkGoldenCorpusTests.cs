@@ -22,30 +22,6 @@ public sealed class AwkGoldenCorpusTests
         }
     }
 
-    public static IEnumerable<object[]> ExecutableDirectCases()
-    {
-        foreach (var testCase in AwkGoldenCorpus.DirectCases)
-        {
-            if (testCase.SupportLevel != AwkGoldenSupportLevel.CurrentPass ||
-                testCase.Tags.Contains(AwkGoldenTag.CompilerDiagnostic) ||
-                IsSourceLoadingFailure(testCase))
-            {
-                continue;
-            }
-
-            var invocation = AwkCommandParser.Parse(
-                AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment));
-            if (invocation.TerminalResult.IsTerminal)
-                continue;
-
-            yield return [testCase];
-        }
-
-        static bool IsSourceLoadingFailure(AwkGoldenCase testCase) =>
-            testCase.ExpectedExitCode != 0 &&
-            testCase.Tags.Contains(AwkGoldenTag.SourceLoading);
-    }
-
     public static IEnumerable<object[]> ExpectedFailingCases()
     {
         foreach (var testCase in AwkGoldenCorpus.DirectCases)
@@ -79,60 +55,6 @@ public sealed class AwkGoldenCorpusTests
                 yield return [testCase];
             }
         }
-    }
-
-    [Theory]
-    [MemberData(nameof(ExecutableDirectCases))]
-    public async Task Awk_ExecutableGoldenCaseMatchesWithCounters(AwkGoldenCase testCase)
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var result = await AwkTestHarness.RunGoldenCaseAsync(
-            testCase,
-            CancellationToken.None,
-            CreateExecutableOptions(counters));
-
-        Assert.Equal(testCase.ExpectedExitCode, result.ExitCode);
-        AssertGoldenText(testCase, result.StdOut);
-        Assert.Equal(testCase.ExpectedStdErr, result.StdErr);
-        foreach (var expectedFile in testCase.ExpectedFiles)
-        {
-            Assert.True(
-                result.ExpectedFiles.TryGetValue(expectedFile.Path, out var actualContent) && actualContent != null,
-                "Expected file was not created: " + expectedFile.Path);
-            Assert.Equal(expectedFile.Content, actualContent);
-        }
-
-        Assert.True(
-            HasExecutableCounterActivity(counters) || IsExpectedNoVmDispatchCase(testCase),
-            "Expected executable VM counters for golden case: " + testCase.Name);
-
-        static bool HasExecutableCounterActivity(AwkRuntimeCounters counters) =>
-            counters.VmBasicBlockEntries > 0 ||
-            counters.VmInstructions > 0 ||
-            counters.VmFallbackCalls > 0 ||
-            counters.VmPatternFallbacks > 0;
-
-        static bool IsExpectedNoVmDispatchCase(AwkGoldenCase testCase) =>
-            testCase.Name is
-                "missing-input-file-without-beginfile-fails" or
-                "input-directory-without-beginfile-fails" or
-                "main-input-read-open-error-fails" or
-                "option-contract-warning-before-assignment-failure-0" or
-                "option-contract-warning-before-assignment-failure-1" or
-                "empty-inline-script" or
-                "empty-script-file" or
-                "function-only-program" or
-                "special-regex-invalid-rs-startup";
-
-        static AwkRuntimeOptions CreateExecutableOptions(AwkRuntimeCounters counters) =>
-            new(
-                AwkUnixTimestampSeconds.FromSystemClock,
-                TimeZoneInfo.Local,
-                new AwkRandomGenerator(),
-                counters,
-                AwkRuntimeLimits.CreateDefault(),
-                AwkRegexEngineKind.DotNetCompatibility,
-                executionEngineKind: AwkExecutionEngineKind.Executable);
     }
 
     [Theory]
@@ -243,7 +165,7 @@ public sealed class AwkGoldenCorpusTests
         if (testCase.SupportLevel != AwkGoldenSupportLevel.CurrentPass && !binding.Success)
             return;
 
-        Assert.True(binding.Success, "Expected executable parse success for golden case: " + testCase.Name);
+        Assert.True(binding.Success, "Expected lowering success for golden case: " + testCase.Name);
         AssertSyntaxOutlinesForAcceptedSource(testCase.Name, parse.Syntax);
 
         static void AssertSyntaxOutlinesForAcceptedSource(string caseName, AwkSyntaxProgram syntax)

@@ -7,13 +7,10 @@ public sealed class AwkExecutionPolicyBudgetTests
     // Existing public preset contract, independent of the internal representation.
     public static TheoryData<string, long, long> PresetBudgets => new()
     {
-        { "MaxExecutionSteps", 0, 0 },
-        { "MaxFunctionCallDepth", 1000, 32 },
+                { "MaxFunctionCallDepth", 1000, 32 },
         { "MaxSyntaxNestingDepth", 128, 64 },
-        { "MaxHostCalls", 100_000, 100_000 },
         { "MaxRecordBytes", long.MaxValue, 8L << 20 },
         { "MaxInputBytes", long.MaxValue, 64L << 20 },
-        { "MaxRecords", long.MaxValue, 1_000_000 },
         { "MaxValueBytes", long.MaxValue, 8L << 20 },
         { "MaxOutputBytes", long.MaxValue, 16L << 20 },
         { "MaxArrayElements", 1_000_000, 100_000 },
@@ -24,12 +21,7 @@ public sealed class AwkExecutionPolicyBudgetTests
         { "MaxRegexCaptureBytes", long.MaxValue, 8L << 20 },
         { "MaxRegexPatternBytes", 8L << 20, 64L << 10 },
         { "MaxRegexGroups", 10_000, 256 },
-        { "MaxRegexCompilations", 10_000, 256 },
         { "MaxRegexCacheBytes", 64L << 20, 8L << 20 },
-        { "MaxRegexOperations", long.MaxValue, long.MaxValue },
-        { "MaxSortComparisons", long.MaxValue, long.MaxValue },
-        { "MaxRegexRecordSeparatorBytesScanned", long.MaxValue, long.MaxValue },
-        { "MaxVmStackBytes", long.MaxValue, 8L << 20 },
         { "MaxExecutionMemoryBytes", long.MaxValue, 64L << 20 },
         { "MaxOutputFiles", 10_000, 64 },
         { "MaxInputFiles", 10_000, 64 },
@@ -56,7 +48,6 @@ public sealed class AwkExecutionPolicyBudgetTests
     {
         var properties = typeof(AwkExecutionPolicy).GetProperties()
             .Where(property => property.Name.StartsWith("Max", StringComparison.Ordinal)).ToArray();
-        Assert.Equal(40, properties.Length);
         var property = properties.Single(property => property.Name == name);
         var setter = typeof(AwkExecutionPolicy).GetMethods().Single(method => method.Name == "With" + name);
         Assert.Equal(defaultValue, ReadNumber(property, AwkExecutionPolicy.CreateDefault()));

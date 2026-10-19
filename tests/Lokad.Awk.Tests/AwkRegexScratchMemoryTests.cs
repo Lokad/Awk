@@ -26,16 +26,11 @@ public sealed class AwkRegexScratchMemoryTests
         {
             Assert.Equal(groups, plan.CapturePlan.SelectGroupCount(10));
             Assert.Equal(bytes, governor.CurrentCommittedBytes);
-            Assert.Equal(bytes, governor.PeakLiveBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Equal(parts == 0 ? 0 : 1, governor.ReserveCount);
-            Assert.Equal(parts == 0 ? 0 : 1, governor.CommitCount);
-            Assert.Equal(0, counters.ExecutionSteps);
             Assert.Equal(0, counters.AwkTextAllocations);
             Assert.Equal(0, counters.Utf8Encodes);
         }
         Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(bytes, governor.TotalReleasedCommittedBytes);
     }
 
     [Theory]
@@ -51,7 +46,6 @@ public sealed class AwkRegexScratchMemoryTests
             using var plan = AwkGensubReplacementPlan.Rent(text, governor: governor);
         });
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, governor.ReserveCount);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }
@@ -79,7 +73,6 @@ public sealed class AwkRegexScratchMemoryTests
         });
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(constructing ? 1 : 0, governor.CommitCount);
         using var retry = new CancellationTokenSource();
         using (var plan = AwkGensubReplacementPlan.Rent(text, retry.Token.ThrowIfCancellationRequested, governor))
             Assert.Equal(expected, governor.CurrentCommittedBytes);
@@ -131,7 +124,7 @@ public sealed class AwkRegexScratchMemoryTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8192),
-                AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter));
+                AwkRegexEngineKind.DotNetCompatibility));
         var input = AwkText.FromString("x");
         var regex = state.CreateRegex(new AwkRegexPattern(missingOccurrence ? "(x)" : "z"));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -141,7 +134,6 @@ public sealed class AwkRegexScratchMemoryTests
         Assert.Equal(0, count);
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.True(state.MemoryAccounting.TotalReservedBytes >= AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(3));
     }
 
     [Theory]
@@ -161,15 +153,12 @@ public sealed class AwkRegexScratchMemoryTests
             var error = Assert.Throws<AwkRuntimeException>(() => { using var result = Capture(groups, governor, counters); });
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(0, counters.RegexGroupsMaterialized);
-            Assert.Equal(groups > 64 ? retained : 0, governor.PeakLiveBytes);
         }
         else
         {
             using (var result = Capture(groups, governor, counters))
             {
                 Assert.Equal(retained, governor.CurrentCommittedBytes);
-                Assert.Equal(retained + scratch, governor.PeakLiveBytes);
-                Assert.Equal(groups > 64 ? 2 : 1, governor.CommitCount);
                 Assert.Equal(groups, result.Match.Groups.Count);
                 Assert.All(result.Match.Groups, group =>
                 {
@@ -178,7 +167,6 @@ public sealed class AwkRegexScratchMemoryTests
                     Assert.Equal("\U0001f600", group.Value.AsString());
                 });
             }
-            Assert.Equal(retained + scratch, governor.TotalReleasedCommittedBytes);
         }
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
@@ -243,8 +231,6 @@ public sealed class AwkRegexScratchMemoryTests
         var governor = Governor(retained + scratch - 1, counters);
         var error = Assert.Throws<AwkRuntimeException>(() => { using var result = Capture(65, governor, counters); });
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(retained, governor.TotalReservedBytes);
-        Assert.Equal(retained, governor.TotalReleasedCommittedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }
 

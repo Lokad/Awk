@@ -95,25 +95,6 @@ public sealed class AwkBorrowedArrayReadTests
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
-    [InlineData(-1)]
-    public void ReadKeepsGeneralVmInstructionsBudgetChecksAndRollback(int field)
-    {
-        var index = AwkArrayIndex.Simple(AwkExpression.FieldIndex(AwkExpression.Number(
-            field.ToString(System.Globalization.CultureInfo.InvariantCulture), field)));
-        var name = AwkArrayName.FromText("a");
-        var direct = AwkExpression.ArrayElement(name, index);
-        var general = AwkExpression.ArrayElement(name, new ForwardingIndex(index));
-        var expected = new AwkExecutableCompiler(new AwkExecutableTableBuilder());
-        var actual = new AwkExecutableCompiler(new AwkExecutableTableBuilder());
-        Assert.Equal(expected.TryEmitExpression(general), actual.TryEmitExpression(direct));
-        Assert.Equal(expected.Instructions, actual.Instructions);
-        Assert.Equal(expected.StackDepth, actual.StackDepth);
-        Assert.Equal(expected.MaxStackDepth, actual.MaxStackDepth);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
     [InlineData(2)]
     public async Task TargetKeysReuseHitsAndCopyMissesBeforeRecordReuse(int mode)
     {
@@ -178,14 +159,14 @@ public sealed class AwkBorrowedArrayReadTests
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxArrayElements(maxElements);
         if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(8 << 20);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits, AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter) { MemoryOwner = owner };
+            limits, AwkRegexEngineKind.DotNetCompatibility)
+        { MemoryOwner = owner };
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
     }
 
     private sealed record ForwardingIndex(AwkArrayIndex Inner) : AwkArrayIndex
     {
         public override ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context) => Inner.ResolveKeyAsync(context);
-        internal override bool TryEmitExecutableKey(AwkExecutableCompiler compiler) => Inner.TryEmitExecutableKey(compiler);
     }
 
     private sealed class PendingIndex(Task<AwkValue> result) : AwkExpression

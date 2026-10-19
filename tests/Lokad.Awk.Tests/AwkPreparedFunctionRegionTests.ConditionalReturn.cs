@@ -9,22 +9,20 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData("if(x)return 1/0;return 9", 1)]
     [InlineData("if(x)return 9;return 1/0", 0)]
     [InlineData("if(x)return x;return 1/0", 1)]
-    public async Task ConditionalReturnsMatchOrdinaryAtEveryFuelBoundary(string body, int argument)
+    public async Task ConditionalReturnsMatchOrdinary(string body, int argument)
     {
         var source = "function choose(x){" + body + "} BEGIN{total=5;total=choose(" + argument + ");print total}";
-        for (var fuel = 0; fuel <= 80; fuel++)
         {
-            var prepared = await RunAsync(source, false, fuel);
-            var ordinary = await RunAsync(source, true, fuel);
+            var prepared = await RunAsync(source, false);
+            var ordinary = await RunAsync(source, true);
             Assert.Equal(ordinary, prepared with { PreparedFunctions = ordinary.PreparedFunctions });
             Assert.Equal(0, ordinary.PreparedFunctions);
-            if (fuel == 0) Assert.Equal(1, prepared.PreparedFunctions);
+            Assert.Equal(1, prepared.PreparedFunctions);
         }
     }
 
     [Theory]
     [InlineData("default", true)]
-    [InlineData("executable", false)]
     [InlineData("syntax", false)]
     [InlineData("lint", false)]
     [InlineData("pending", false)]
@@ -33,9 +31,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
-        var state = State(counters, limits,
-            engine: boundary == "executable" ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter,
-            lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
+        var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
         var functions = Bind("function choose(x){if(x<3)return x+2;return x-2} BEGIN{}").Functions;
         state.InitializeFunctions(functions);
         var host = new MockFileSystem();

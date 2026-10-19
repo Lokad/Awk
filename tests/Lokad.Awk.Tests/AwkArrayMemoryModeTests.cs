@@ -18,7 +18,7 @@ public sealed class AwkArrayMemoryModeTests
             var variables = CreateVariables(AwkMemoryAccounting.Disabled, counters, limit,
                 () => { if (measuring) calls++; });
             var name = AwkArrayName.FromText("a");
-            var key = new AwkArrayKey(new string('k', AwkExecutionGovernor.WorkChunkBytes * 2));
+            var key = new AwkArrayKey(new string('k', AwkRuntimeLimits.CancellationCheckBytes * 2));
             variables.SetArrayValue(name, key, AwkValue.FromNumber(42));
             variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(9));
             measuring = true;
@@ -43,7 +43,7 @@ public sealed class AwkArrayMemoryModeTests
         var variables = CreateVariables(AwkMemoryAccounting.Disabled, AwkRuntimeCounters.Disabled,
             limit, () => { if (armed) cancellation.Token.ThrowIfCancellationRequested(); });
         var name = AwkArrayName.FromText("a");
-        var key = new AwkArrayKey(new string('k', AwkExecutionGovernor.WorkChunkBytes * 2));
+        var key = new AwkArrayKey(new string('k', AwkRuntimeLimits.CancellationCheckBytes * 2));
         variables.SetArrayValue(name, key, AwkValue.FromNumber(42));
         variables.SetArrayValue(name, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(9));
         cancellation.Cancel();
@@ -96,8 +96,6 @@ public sealed class AwkArrayMemoryModeTests
             Assert.Equal(0, accounting.CurrentReservedBytes);
             Assert.Equal(0, budget.Reserved);
         }
-        Assert.Equal(counters.MemoryCommittedBytes, counters.MemoryReleasedCommittedBytes);
-        Assert.Equal(mode != 0, counters.MemoryCommittedBytes > 0);
     }
 
     [Theory]

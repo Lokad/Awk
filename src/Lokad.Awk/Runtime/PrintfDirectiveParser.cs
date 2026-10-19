@@ -27,7 +27,7 @@ internal static class PrintfDirectiveParser
             if (cursor >= nextCheckpoint)
             {
                 checkpoint?.Invoke();
-                nextCheckpoint = (long)cursor + AwkExecutionGovernor.WorkChunkBytes;
+                nextCheckpoint = (long)cursor + AwkRuntimeLimits.CancellationCheckBytes;
             }
             specifier = format[cursor++];
             switch (specifier)
@@ -101,7 +101,12 @@ internal static class PrintfDirectiveParser
                 case 'h' or 'j' or 'l' or 'L' or 't' or 'z':
                     var bit = specifier switch
                     {
-                        'h' => 1, 'j' => 2, 'l' => 4, 'L' => 8, 't' => 16, _ => 32
+                        'h' => 1,
+                        'j' => 2,
+                        'l' => 4,
+                        'L' => 8,
+                        't' => 16,
+                        _ => 32
                     };
                     if ((modifiers & bit) != 0)
                         goto Finish;
@@ -117,7 +122,7 @@ internal static class PrintfDirectiveParser
         }
         // Preserve the entire unfinished directive rather than parsing its tail again.
         specifier = '\0';
-        Finish:
+    Finish:
         checkpoint?.Invoke();
         return new(flags, width, precision, PrintfConversionFacts.Parse(specifier), position, cursor - 1);
     }
@@ -168,7 +173,7 @@ internal static class PrintfDirectiveParser
             if (cursor >= nextCheckpoint)
             {
                 checkpoint?.Invoke();
-                nextCheckpoint = (long)cursor + AwkExecutionGovernor.WorkChunkBytes;
+                nextCheckpoint = (long)cursor + AwkRuntimeLimits.CancellationCheckBytes;
             }
             var digit = format[cursor++] - '0';
             if (value > (int.MaxValue - digit) / 10)

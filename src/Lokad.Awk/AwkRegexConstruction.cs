@@ -6,7 +6,7 @@ namespace Lokad.Awk;
 /// <summary>Cancellation boundaries for Awk-owned regex preparation, without retaining caller callbacks.</summary>
 internal static class AwkRegexConstruction
 {
-    internal const int ChunkCharacters = AwkExecutionGovernor.WorkChunkBytes / sizeof(char);
+    internal const int ChunkCharacters = AwkRuntimeLimits.CancellationCheckBytes / sizeof(char);
 
     public static void CheckProgress(int position, ref long next, Action? checkpoint)
     {

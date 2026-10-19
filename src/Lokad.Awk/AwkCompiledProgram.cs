@@ -7,7 +7,6 @@ namespace Lokad.Awk;
 internal sealed class AwkCompiledProgram(
     AwkInvocation invocation,
     AwkProgram program,
-    AwkExecutableProgram executableProgram,
     IReadOnlyList<AwkDiagnostic> warnings,
     AwkExecutionMemoryOwner owner) : IAsyncDisposable
 {
@@ -15,7 +14,6 @@ internal sealed class AwkCompiledProgram(
     private TaskCompletionSource? _disposeCompletion;
     private AwkInvocation? _invocation = invocation;
     private AwkProgram _program = program;
-    private AwkExecutableProgram? _executableProgram = executableProgram;
     private IReadOnlyList<AwkDiagnostic> _warnings = warnings;
 
     public IReadOnlyList<AwkDiagnostic> Warnings
@@ -36,29 +34,7 @@ internal sealed class AwkCompiledProgram(
     internal Task<AwkExitCode> ExecuteAsync(
         IAwkHost host,
         CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions) =>
-        ExecuteAsync(
-            host,
-            cancellationToken,
-            runtimeOptions,
-            runtimeOptions.ExecutionEngineKind == AwkExecutionEngineKind.Executable
-                ? ExecutableProgram
-                : null);
-
-    internal AwkExecutableProgram ExecutableProgram
-    {
-        get
-        {
-            lock (_lifetime)
-                return _executableProgram ?? throw new ObjectDisposedException(nameof(AwkCompiledProgram));
-        }
-    }
-
-    internal Task<AwkExitCode> ExecuteAsync(
-        IAwkHost host,
-        CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions,
-        AwkExecutableProgram? executableProgram)
+        AwkRuntimeOptions runtimeOptions)
     {
         AwkInvocation invocation;
         AwkProgram program;
@@ -82,21 +58,21 @@ internal sealed class AwkCompiledProgram(
         // while holding it: callbacks may synchronize concurrent executions.
         if (completion is { } active)
         {
-            _ = ExecuteTrackedAsync(active, host, invocation, program, warnings, cancellationToken, options, executableProgram);
+            _ = ExecuteTrackedAsync(active, host, invocation, program, warnings, cancellationToken, options);
             return active.Task;
         }
         return AwkExecutor.ExecuteCompiledAsync(
-            host, invocation, program, warnings, cancellationToken, options, executableProgram);
+            host, invocation, program, warnings, cancellationToken, options);
     }
 
     private static async Task ExecuteTrackedAsync(TaskCompletionSource<AwkExitCode> completion,
         IAwkHost host, AwkInvocation invocation, AwkProgram program, IReadOnlyList<AwkDiagnostic> warnings,
-        CancellationToken cancellationToken, AwkRuntimeOptions options, AwkExecutableProgram? executableProgram)
+        CancellationToken cancellationToken, AwkRuntimeOptions options)
     {
         try
         {
             completion.SetResult(await AwkExecutor.ExecuteCompiledAsync(
-                host, invocation, program, warnings, cancellationToken, options, executableProgram).ConfigureAwait(false));
+                host, invocation, program, warnings, cancellationToken, options).ConfigureAwait(false));
         }
         catch (OperationCanceledException exception)
         {
@@ -120,7 +96,6 @@ internal sealed class AwkCompiledProgram(
             // payload here; its charge remains until those executions and cleanup finish.
             _invocation = null;
             _program = default;
-            _executableProgram = null;
             _warnings = [];
         }
         _ = CompleteDisposeAsync(completion);

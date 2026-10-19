@@ -28,14 +28,12 @@ public sealed partial class AwkPrintStagingMemoryTests
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         using (var segments = AwkPrintRuntime.Stage(values, AwkValue.FromText(Separator), AwkValue.FromText(Terminator), state))
         {
-            Assert.Equal(string.Join("|", text.Select(static value => value.AsString())) + "!",
-                string.Concat(segments.Segments.ToArray().Select(static value => value.AsString())));
+            Assert.Equal(string.Join("|", text.Select(static value => value.AsString())) + "!", string.Concat(segments.Segments.ToArray().Select(static value => value.AsString())));
             Assert.Equal(before + container + payload, state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Equal(0, state.Counters.ExecutionSteps);
     }
 
     [Theory]
@@ -305,7 +303,6 @@ public sealed partial class AwkPrintStagingMemoryTests
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-        Assert.Equal(0, state.Counters.ExecutionSteps);
     }
 
     [Theory]
@@ -437,7 +434,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(Limit),
-            AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options);
         if (format == "wide") state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFormat,
             AwkValue.FromText(AwkText.FromSourceLiteralString("%8192.2f")));

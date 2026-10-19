@@ -23,7 +23,6 @@ public sealed class AwkRegexOwnedMemoryTests
         var retryGovernor = Governor(1 << 20);
         var retry = Runtime(utf8, retryGovernor);
         var regex = retry.Create(pattern);
-        Assert.True(retryGovernor.PeakLiveBytes > 0);
         Assert.Equal(0, retryGovernor.CurrentCommittedBytes);
         Assert.Equal(0, retryGovernor.CurrentReservedBytes);
         Assert.Same(regex, retry.Create(pattern));
@@ -46,7 +45,6 @@ public sealed class AwkRegexOwnedMemoryTests
         var selection = AwkRegexSelection.Analyze(text, governor: governor);
         Assert.Equal(2, selection.MaximumScalars);
         Assert.True(selection.RequiresLongest);
-        Assert.Equal(expectedPeak, governor.PeakLiveBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         if (expectedPeak > 0)
@@ -110,8 +108,6 @@ public sealed class AwkRegexOwnedMemoryTests
         {
             Assert.Equal(expected, AwkRegexConstruction.Replace(text, oldValue, newValue, () => { }, lease));
             Assert.Equal(bytes, governor.CurrentCommittedBytes);
-            Assert.Equal(bytes, governor.PeakLiveBytes);
-            Assert.Equal(1, governor.CommitCount);
         }
         Assert.Equal(0, governor.CurrentCommittedBytes);
         var shortGovernor = Governor(bytes - 1);
@@ -120,7 +116,6 @@ public sealed class AwkRegexOwnedMemoryTests
             var error = Assert.Throws<AwkRuntimeException>(() =>
                 AwkRegexConstruction.Replace(text, oldValue, newValue, () => { }, lease));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-            Assert.Equal(0, shortGovernor.ReserveCount);
             Assert.Equal(0, shortGovernor.CurrentCommittedBytes);
         }
     }
@@ -138,7 +133,6 @@ public sealed class AwkRegexOwnedMemoryTests
         using var lease = governor.CreateTransientLease();
         var result = AwkRegexConstruction.Replace(text, oldValue, newValue, () => { }, lease);
         Assert.Same(shape == "erase" ? string.Empty : text, result);
-        Assert.Equal(0, governor.ReserveCount);
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }
 
@@ -191,7 +185,6 @@ public sealed class AwkRegexOwnedMemoryTests
             _ = AwkRegex.TranslatePattern(new AwkRegexPattern(pattern), AwkCompatibilityMode.GnuDefault,
                 () => { }, tokenText);
             Assert.Equal(bytes, tokenGovernor.CurrentCommittedBytes);
-            Assert.Equal(bytes, tokenGovernor.PeakLiveBytes);
         }
         Assert.Equal(0, tokenGovernor.CurrentCommittedBytes);
         var governor = Governor(1 << 24);
@@ -202,11 +195,8 @@ public sealed class AwkRegexOwnedMemoryTests
         });
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         Assert.True(observed > 0);
-        Assert.True(governor.PeakLiveBytes > bytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
-        var before = governor.ReserveCount;
         Assert.Same(regex, runtime.Create(new AwkRegexPattern(pattern)));
-        Assert.Equal(before, governor.ReserveCount);
         // Exactly enough for token results is no longer enough for scalar scratch.
         var shortGovernor = Governor(bytes);
         var error = Assert.Throws<AwkRuntimeException>(() =>
@@ -233,7 +223,6 @@ public sealed class AwkRegexOwnedMemoryTests
             Assert.Equal(0, governor.CurrentReservedBytes);
             Assert.Equal(attempt, counters.RegexCompiles);
         }
-        Assert.True(governor.PeakLiveBytes > 0);
     }
 
     [Theory]

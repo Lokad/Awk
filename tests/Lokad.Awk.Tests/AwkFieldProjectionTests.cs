@@ -24,15 +24,11 @@ public sealed partial class AwkFieldProjectionTests
         Assert.Equal("0007"u8.ToArray(), first.ByteText.AsSpan().ToArray());
         Assert.Equal(1, counters.FieldsMaterialized);
         Assert.Equal(64, eagerCounters.FieldsMaterialized);
-        Assert.Equal(eagerCounters.ExecutionSteps, counters.ExecutionSteps);
         var third = await Field(3).EvaluateAsync(new(state));
         var thirdEager = await Field(3).EvaluateAsync(new(eager));
         Assert.Equal(thirdEager, third);
         Assert.Equal(3, counters.FieldsMaterialized);
-        Assert.Equal(eagerCounters.ExecutionSteps, counters.ExecutionSteps);
-        var beforeCompletion = counters.ExecutionSteps;
         Assert.Equal(64, state.FieldCount);
-        Assert.Equal(beforeCompletion + AwkExecutionGovernor.ByteWorkSteps(source.ByteLength), counters.ExecutionSteps);
         Assert.Equal(64, counters.FieldsMaterialized);
         Assert.Equal(first, await Field(1).EvaluateAsync(new(state)));
         Assert.Equal(0, counters.StringDecodes);
@@ -46,9 +42,7 @@ public sealed partial class AwkFieldProjectionTests
     public async Task OwnedExpressionRetainsTightFieldQuotaBeforePublishing(bool dynamicIndex)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxFields(2).WithMaxExecutionMemoryBytes(1 << 20),
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxFields(2).WithMaxExecutionMemoryBytes(1 << 20), AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var source = AwkText.FromString("one two " + new string('x', 160));
         state.SetCurrentRecord(source);
@@ -145,9 +139,7 @@ public sealed partial class AwkFieldProjectionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(builderLimit);
         if (finite) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
-        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
         return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options), counters);
     }
 }

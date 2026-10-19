@@ -94,12 +94,11 @@ internal static class AwkFrontendDiagnosticPolicy
             AwkRegexEscapes.ReportWarnings(text[start..^1], compatibilityMode, budget.RegexEscapeWarnings,
                 warning => AddDiagnostic(new AwkDiagnostic(token.Span, warning)), message =>
                     AddDiagnostic(new AwkDiagnostic(token.Span, message, AwkDiagnosticId.WarningRegexEscape)), checkpoint);
-            budget.ReserveRegexLiteralCompilations();
             if (!AwkRegexSyntaxValidator.IsValidLiteral(
-                    token,
-                    budget.MaxRegexPatternBytes,
-                    budget.MaxRegexGroups,
-                    compatibilityMode, checkpoint))
+                token,
+                budget.MaxRegexPatternBytes,
+                budget.MaxRegexGroups,
+                compatibilityMode, checkpoint))
             {
                 AddDiagnostic(new AwkDiagnostic(
                     token.Span,

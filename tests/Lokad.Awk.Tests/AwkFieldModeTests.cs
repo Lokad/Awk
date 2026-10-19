@@ -173,8 +173,7 @@ public sealed class AwkFieldModeTests
     {
         var resolvedLimits = (limits ?? AwkRuntimeLimits.CreateDefault()).WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, resolvedLimits, AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            new AwkRandomGenerator(), counters, resolvedLimits, AwkRegexEngineKind.DotNetCompatibility);
         return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
             new AwkRuntimeResourceMonitor(resolvedLimits, counters), AwkCompatibilityProfile.Default.WithMode(mode));
     }

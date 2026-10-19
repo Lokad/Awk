@@ -41,8 +41,7 @@ internal abstract partial class AwkExpression
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
         {
             AwkValue first;
-            if (_borrowedField > 0 && !context.State.UsesExecutableEngine &&
-                context.State.LintMode == AwkLintMode.Off && context.State.FieldsCannotReportRegexDiagnostics)
+            if (_borrowedField > 0 && context.State.LintMode == AwkLintMode.Off && context.State.FieldsCannotReportRegexDiagnostics)
             {
                 EvaluateLiteralFieldIndex(arguments[0], context);
                 if (context.State.TryGetPrintfFieldBytes(_borrowedField, out var bytes) &&
@@ -127,7 +126,7 @@ internal abstract partial class AwkExpression
         {
             if (indexExpression is not AwkSynchronousExpression index)
                 throw new InvalidOperationException("Synchronous field index is required.");
-            context.State.RecordExecutionStep(); // The original field expression, before its index.
+            context.State.Checkpoint(); // The original field expression, before its index.
             var field = (int)index.ResolveNumberSynchronous(context);
             return AwkValue.FromNumber(context.State.CountFieldStringUnits(field));
         }
@@ -135,7 +134,7 @@ internal abstract partial class AwkExpression
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             // Retain the field-expression checkpoint before evaluating its index.
-            context.State.RecordExecutionStep();
+            context.State.Checkpoint();
             var pending = indexExpression.ResolveNumberAsync(context);
             return pending.IsCompletedSuccessfully
                 ? ValueTask.FromResult(AwkValue.FromNumber(context.State.CountFieldStringUnits((int)pending.Result)))

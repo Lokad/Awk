@@ -236,7 +236,6 @@ public sealed class AwkRegexPreparationCancellationTests
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(1, governor.CommitCount);
         armed = false;
         var retried = runtime.Create(pattern);
         Assert.Equal(0, governor.CurrentCommittedBytes);

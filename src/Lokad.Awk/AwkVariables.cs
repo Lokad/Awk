@@ -834,7 +834,7 @@ internal sealed class AwkVariables
         var byteLength = value.ByteText.ByteLength;
         _throwIfValueBytesExceeded(byteLength);
         _counters.RecordValueCreated();
-        if (byteLength >= AwkExecutionGovernor.WorkChunkBytes)
+        if (byteLength >= AwkRuntimeLimits.CancellationCheckBytes)
             _checkpoint?.Invoke();
         _counters.RecordPreparedNumericSlotRead();
         return value;

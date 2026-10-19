@@ -41,7 +41,7 @@ internal static class AwkStatementBlockExecutor
         {
             foreach (var action in actions)
             {
-                context.State.RecordExecutionStep();
+                context.State.Checkpoint();
                 action(context);
             }
         }
@@ -57,7 +57,7 @@ internal static class AwkStatementBlockExecutor
         var state = context.State;
         for (var index = 0; index < statements.Length; index++)
         {
-            state.RecordExecutionStep();
+            state.Checkpoint();
             var flow = await statements[index].ExecuteAsync(context).ConfigureAwait(false);
             if (execution.Output.HasPendingOutput)
                 await execution.Output.FlushAsync(execution.Io).ConfigureAwait(false);

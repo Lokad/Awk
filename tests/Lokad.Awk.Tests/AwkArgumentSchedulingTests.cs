@@ -14,13 +14,12 @@ public sealed class AwkArgumentSchedulingTests
     public async Task FrozenInputCapabilitiesDenyNewOrReclassifiedPathsBeforeOpening(
         string program, string operand, string expectedOutput, int expectedOpens)
     {
-        foreach (var engine in Engines)
         {
             var host = Files();
             var arguments = operand.Length == 0 ? new[] { program } : new[] { program, operand };
             var compiled = await AwkExecutor.CompileAsync(host,
                 AwkTestHarness.BuildInvocation("awk", arguments), CancellationToken.None);
-            var options = Options(engine, allowDynamicPaths: false);
+            var options = Options(allowDynamicPaths: false);
 
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 
@@ -40,14 +39,13 @@ public sealed class AwkArgumentSchedulingTests
     public async Task FrozenInputCapabilitiesPermitAssignmentsRemovalAndOriginalPaths(
         string program, string expectedOutput, int expectedOpens)
     {
-        foreach (var engine in Engines)
         {
             var host = Files();
             var compiled = await AwkExecutor.CompileAsync(host,
                 AwkTestHarness.BuildInvocation("awk", program, "/a.txt"), CancellationToken.None);
 
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
-                Options(engine, allowDynamicPaths: false));
+                Options(allowDynamicPaths: false));
 
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal(expectedOutput, host.GetOutput(AwkFileDescriptor.StdOut));
@@ -62,7 +60,6 @@ public sealed class AwkArgumentSchedulingTests
     [InlineData("../b.txt", "awk: invalid path\n")]
     public async Task AddedPathsStillHonorPathValidationBeforeOpening(string path, string diagnostic)
     {
-        foreach (var engine in Engines)
         {
             var host = Files();
             var compiled = await AwkExecutor.CompileAsync(host,
@@ -70,7 +67,7 @@ public sealed class AwkArgumentSchedulingTests
                 CancellationToken.None);
 
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
-                Options(engine, accessibleRoot: new AwkPath("/jail")));
+                Options(accessibleRoot: new AwkPath("/jail")));
 
             Assert.Equal(AwkExitCode.FatalError, exit);
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -81,32 +78,8 @@ public sealed class AwkArgumentSchedulingTests
     }
 
     [Fact]
-    public async Task SparseArgcConsumesTheCommonAllowanceWithAndWithoutCounters()
-    {
-        foreach (var engine in Engines)
-        foreach (var observed in new[] { false, true })
-        {
-            var host = Files();
-            var compiled = await AwkExecutor.CompileAsync(host,
-                AwkTestHarness.BuildInvocation("awk", "BEGIN{ARGC=1e12}{print $0}"), CancellationToken.None);
-            var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-
-            var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
-                Options(engine, counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(200)));
-
-            Assert.Equal(AwkExitCode.FatalError, exit);
-            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
-            Assert.Equal("awk: execution step limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
-            Assert.Equal(observed ? 200 : 0, counters.ExecutionSteps);
-            Assert.Equal(0, host.ReadOpenCount);
-            Assert.Equal(0, host.OpenFileCount);
-        }
-    }
-
-    [Fact]
     public async Task CancellationAfterClosingAFileStopsSparseOperandAdmission()
     {
-        foreach (var engine in Engines)
         {
             using var cancellation = new CancellationTokenSource();
             var host = Files();
@@ -116,7 +89,7 @@ public sealed class AwkArgumentSchedulingTests
                 CancellationToken.None);
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                compiled.ExecuteAsync(host, cancellation.Token, Options(engine)));
+                compiled.ExecuteAsync(host, cancellation.Token, Options()));
 
             Assert.Equal("a\n", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -131,7 +104,6 @@ public sealed class AwkArgumentSchedulingTests
     [InlineData("/données= space.txt")]
     public async Task OriginalPathsStayByteNativeAndDynamicPathsUseTheCompatibilityBoundary(string originalPath)
     {
-        foreach (var engine in Engines)
         foreach (var dynamic in new[] { false, true })
         {
             var host = Files();
@@ -140,7 +112,7 @@ public sealed class AwkArgumentSchedulingTests
                 AwkTestHarness.BuildInvocation("awk", program, originalPath), CancellationToken.None);
             var counters = AwkRuntimeCounters.CreateEnabled();
 
-            var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(engine, counters));
+            var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(counters));
 
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal(dynamic ? "b\n" : "a\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -150,9 +122,6 @@ public sealed class AwkArgumentSchedulingTests
             Assert.Equal(0, host.OpenFileCount);
         }
     }
-
-    private static readonly AwkExecutionEngineKind[] Engines =
-        [AwkExecutionEngineKind.Interpreter, AwkExecutionEngineKind.Executable];
 
     private static MockFileSystem Files()
     {
@@ -166,13 +135,12 @@ public sealed class AwkArgumentSchedulingTests
     }
 
     private static AwkRuntimeOptions Options(
-        AwkExecutionEngineKind engine,
         AwkRuntimeCounters? counters = null,
         AwkRuntimeLimits? limits = null,
         bool allowDynamicPaths = true,
         AwkPath? accessibleRoot = null) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters ?? AwkRuntimeCounters.Disabled, limits ?? AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility, engine, accessiblePathRoot: accessibleRoot,
+            AwkRegexEngineKind.DotNetCompatibility, accessiblePathRoot: accessibleRoot,
             allowDynamicMainInputPaths: allowDynamicPaths);
 }

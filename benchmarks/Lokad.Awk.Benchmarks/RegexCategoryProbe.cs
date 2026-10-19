@@ -32,7 +32,8 @@ internal static class RegexCategoryProbe
             }
             catch (OperationCanceledException error) when (mode == "cancel" && error.CancellationToken == cancellation.Token) { }
             catch (AwkRuntimeException error) when (mode is "limit" or "growth" &&
-                AwkUtf8Codec.Decode(error.MessageBytes) == "awk: memory limit exceeded\n") { }
+                AwkUtf8Codec.Decode(error.MessageBytes) == "awk: memory limit exceeded\n")
+            { }
             if (IsPublished() || governor.CurrentCommittedBytes != 43 || governor.CurrentReservedBytes != 0)
                 throw new InvalidOperationException("Failed category preparation published metadata or changed borrowed admission.");
             var retry = Measure();
@@ -60,7 +61,8 @@ internal static class RegexCategoryProbe
 
     private static Measurement Measure()
     {
-        var governor = CreateAccounting(16L << 20);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(16L << 20), counters);
         var watch = new Stopwatch();
         var before = GC.GetAllocatedBytesForCurrentThread();
         watch.Start();
@@ -69,8 +71,8 @@ internal static class RegexCategoryProbe
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         if (governor.CurrentCommittedBytes != 0 || governor.CurrentReservedBytes != 0)
             throw new InvalidOperationException("Category probe left admission live.");
-        return new(watch.Elapsed.TotalMilliseconds, allocated, governor.PeakLiveBytes,
-            governor.ReserveCount, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(translated))));
+        return new(watch.Elapsed.TotalMilliseconds, allocated, counters.MemoryPeakLiveBytes,
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(translated))));
     }
 
     private static AwkMemoryAccounting CreateAccounting(long bytes) =>
@@ -89,5 +91,5 @@ internal static class RegexCategoryProbe
         };
     }
 
-    private sealed record Measurement(double Milliseconds, long AllocatedBytes, long PeakBytes, long Reservations, string Hash);
+    private sealed record Measurement(double Milliseconds, long AllocatedBytes, long PeakBytes, string Hash);
 }

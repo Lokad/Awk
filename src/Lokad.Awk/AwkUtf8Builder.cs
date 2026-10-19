@@ -212,7 +212,7 @@ internal sealed class AwkUtf8Builder : IDisposable
             for (var offset = 0; offset < count;)
             {
                 checkpoint();
-                var length = Math.Min(AwkExecutionGovernor.WorkChunkBytes, count - offset);
+                var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, count - offset);
                 _buffer.AsSpan(_contentOffset + Length + offset, length).Fill(value);
                 offset += length;
             }

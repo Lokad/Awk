@@ -18,16 +18,6 @@ internal abstract partial class AwkExpression
 
             return ValueTask.FromResult(context.State.GetFieldValue(_index));
         }
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!_index.IsNamedField)
-                return false;
-
-            compiler.EmitLoadField(_index);
-            compiler.Push();
-            return true;
-        }
     }
 
     private sealed class DynamicFieldIndexExpression(AwkExpression indexExpression) : AwkSynchronousExpression
@@ -48,10 +38,9 @@ internal abstract partial class AwkExpression
                 ? context.State.GetFieldNumber((int)index.ResolveNumberSynchronous(context))
                 : throw new InvalidOperationException("Synchronous field index is required.");
 
-
         public ValueTask<bool> CompareLeftAsync(AwkEvaluationContext context, AwkValue left, AwkComparison comparison)
         {
-            context.State.RecordExecutionStep();
+            context.State.Checkpoint();
             var pending = indexExpression.ResolveNumberAsync(context);
             return pending.IsCompletedSuccessfully
                 ? ValueTask.FromResult(context.State.CompareValueField(left, (int)pending.Result, comparison))
@@ -64,7 +53,7 @@ internal abstract partial class AwkExpression
 
         public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
         {
-            context.State.RecordExecutionStep();
+            context.State.Checkpoint();
             var pending = indexExpression.ResolveNumberAsync(context);
             return pending.IsCompletedSuccessfully
                 ? ValueTask.FromResult(context.State.GetFieldNumber((int)pending.Result))
@@ -74,7 +63,6 @@ internal abstract partial class AwkExpression
         private static async ValueTask<double> AwaitNumericIndexAsync(
             AwkEvaluationContext context, ValueTask<double> pending) =>
             context.State.GetFieldNumber((int)await pending.ConfigureAwait(false));
-
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
@@ -98,22 +86,6 @@ internal abstract partial class AwkExpression
 
             return context.State.GetFieldValue(new AwkFieldIndex(index));
         }
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!indexExpression.TryGetExecutableIntegerConstant(out var index) || index < 0)
-                return false;
-
-            // Constant folding must retain admission of the index expression.
-            compiler.Emit(AwkOpcode.CheckBudget);
-            if (index == 0)
-                compiler.Emit(AwkOpcode.LoadCurrentRecord);
-            else
-                compiler.EmitLoadField(new AwkFieldIndex(index));
-
-            compiler.Push();
-            return true;
-        }
     }
 
     private sealed class FieldCountExpression : AwkSynchronousExpression
@@ -125,13 +97,6 @@ internal abstract partial class AwkExpression
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FieldCount));
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            compiler.Emit(AwkOpcode.LoadFieldCount);
-            compiler.Push();
-            return true;
-        }
     }
 
     private sealed class FieldNfExpression : AwkExpression
@@ -142,13 +107,6 @@ internal abstract partial class AwkExpression
             ValueTask.FromResult(context.State.FieldCount == 0
                 ? context.State.GetCurrentRecordValue()
                 : context.State.GetFieldValue(context.State.FieldCount));
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            compiler.Emit(AwkOpcode.LoadLastField);
-            compiler.Push();
-            return true;
-        }
     }
 
     private sealed class FieldZeroExpression : AwkExpression
@@ -157,13 +115,6 @@ internal abstract partial class AwkExpression
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(context.State.GetCurrentRecordValue());
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            compiler.Emit(AwkOpcode.LoadCurrentRecord);
-            compiler.Push();
-            return true;
-        }
     }
 
     private sealed class RecordNumberExpression : AwkExpression
@@ -172,13 +123,6 @@ internal abstract partial class AwkExpression
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.RecordNumber));
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            compiler.Emit(AwkOpcode.LoadRecordNumber);
-            compiler.Push();
-            return true;
-        }
     }
 
     private sealed class FileRecordNumberExpression : AwkExpression
@@ -187,13 +131,6 @@ internal abstract partial class AwkExpression
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber));
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            compiler.Emit(AwkOpcode.LoadFileRecordNumber);
-            compiler.Push();
-            return true;
-        }
     }
 
     private sealed class FileNameExpression : AwkExpression
@@ -202,13 +139,6 @@ internal abstract partial class AwkExpression
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(context.State.ResolveSpecialVariableValue(AwkSpecialVariableId.FileName));
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            compiler.Emit(AwkOpcode.LoadFileName);
-            compiler.Push();
-            return true;
-        }
     }
 
     private sealed class LiteralExpression(string literal,
@@ -222,13 +152,6 @@ internal abstract partial class AwkExpression
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.CreateByteTextValue(_literalText);
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            compiler.EmitLoadConstant(AwkValue.FromText(_literalText));
-            compiler.Push();
-            return true;
-        }
     }
 
     private sealed class VariableExpression(AwkVariableName name) : AwkSynchronousExpression
@@ -239,13 +162,6 @@ internal abstract partial class AwkExpression
         internal override int SynchronousDepth => AwkSpecialVariables.TryGetScalar(name, out _) ? 0 : 1;
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             context.State.ResolveVariableValue(name);
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            compiler.EmitLoadScalar(name);
-            compiler.Push();
-            return true;
-        }
 
         public override bool TryGetVariableName(out AwkVariableName variableName)
         {
@@ -276,13 +192,6 @@ internal abstract partial class AwkExpression
             context.State.TryResolvePreparedGlobalNumber(index, out var number)
                 ? number
                 : EvaluateSynchronousCore(context).AsNumber(context.State.CancellationCheckpoint);
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            compiler.EmitLoadScalar(name);
-            compiler.Push();
-            return true;
-        }
 
         public override bool TryGetVariableName(out AwkVariableName variableName)
         {
@@ -323,7 +232,7 @@ internal abstract partial class AwkExpression
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
         {
-            context.State.RecordExecutionStep(); // Field expression, before its index.
+            context.State.Checkpoint(); // Field expression, before its index.
             return fieldOperand.IndexExpression is AwkSynchronousExpression index
                 ? context.State.GetArrayFieldValue(name, (int)index.ResolveNumberSynchronous(context), globalIndex)
                 : throw new InvalidOperationException("Synchronous field index is required.");
@@ -331,17 +240,9 @@ internal abstract partial class AwkExpression
 
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            context.State.RecordExecutionStep();
+            context.State.Checkpoint();
             var index = (int)await fieldOperand.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
             return context.State.GetArrayFieldValue(name, index, globalIndex);
-        }
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!compiler.TryEmitExpression(fieldOperand))
-                return false;
-            compiler.EmitLoadArrayElement(name);
-            return true;
         }
     }
 
@@ -351,15 +252,6 @@ internal abstract partial class AwkExpression
         {
             var key = await indexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
             return context.State.GetArrayAwkValue(name, key, globalIndex);
-        }
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!indexExpression.TryEmitExecutableKey(compiler))
-                return false;
-
-            compiler.EmitLoadArrayElement(name);
-            return true;
         }
     }
 
@@ -371,19 +263,9 @@ internal abstract partial class AwkExpression
         protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
             context.State.ResolveSourceNumberLiteral(text, gnuDefaultValue);
 
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
+        internal override bool TryGetIntegerConstant(out int value)
         {
-            if (!TryResolvePortableExecutableNumber(text, gnuDefaultValue, out var value))
-                return false;
-
-            compiler.EmitLoadConstant(AwkValue.FromNumber(value));
-            compiler.Push();
-            return true;
-        }
-
-        internal override bool TryGetExecutableIntegerConstant(out int value)
-        {
-            if (TryResolvePortableExecutableNumber(text, gnuDefaultValue, out var resolvedValue) &&
+            if (TryResolvePortableNumber(text, gnuDefaultValue, out var resolvedValue) &&
                 Math.Abs(resolvedValue % 1) < double.Epsilon &&
                 resolvedValue >= int.MinValue &&
                 resolvedValue <= int.MaxValue)
@@ -396,7 +278,7 @@ internal abstract partial class AwkExpression
             return false;
         }
 
-        private static bool TryResolvePortableExecutableNumber(
+        private static bool TryResolvePortableNumber(
             string text,
             double gnuDefaultValue,
             out double value)

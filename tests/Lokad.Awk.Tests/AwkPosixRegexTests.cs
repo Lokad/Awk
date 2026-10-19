@@ -3,6 +3,52 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPosixRegexTests
 {
     [Fact]
+    public void CancellationDuringProgramConstructionReleasesWorkspace()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var accounting = AwkMemoryAccounting.Create(
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(64L << 20));
+        var compiling = false;
+        var checks = 0;
+        void CheckCancellation()
+        {
+            if (compiling && ++checks == 2) cancellation.Cancel();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }
+
+        var error = Assert.Throws<OperationCanceledException>(() => AwkPosixRegex.TryCreate(
+            "(a|aa){1,4096}", AwkRegexCaseSensitivity.CaseSensitive, accounting,
+            () => compiling = true, CheckCancellation, out _));
+
+        Assert.True(compiling);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(0, accounting.CurrentReservedBytes);
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+    }
+
+    [Fact]
+    public void CancellationInsideMatcherReleasesWorkspace()
+    {
+        Assert.True(AwkPosixRegex.TryCreate("(a|aa)*b", AwkRegexCaseSensitivity.CaseSensitive,
+            AwkMemoryAccounting.Disabled, static () => { }, static () => { }, out var program));
+        using var cancellation = new CancellationTokenSource();
+        var accounting = AwkMemoryAccounting.Create(
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20));
+        var checks = 0;
+        void CheckCancellation()
+        {
+            if (++checks == 2) cancellation.Cancel();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }
+
+        var error = Assert.Throws<OperationCanceledException>(() => program.Match(
+            new string('a', 100_000), 0, 0, accounting, CheckCancellation));
+
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(0, accounting.CurrentReservedBytes);
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+    }
+    [Fact]
     public void DeepGroupsCompileWithoutRecursiveParserOrCompilerCalls()
     {
         var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4 << 20));
@@ -44,7 +90,6 @@ public sealed class AwkPosixRegexTests
         var governor = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1));
         Assert.False(AwkPosixRegex.TryCreate(pattern, AwkRegexCaseSensitivity.CaseSensitive,
             governor, static () => throw new InvalidOperationException("Unexpected compilation"), static () => { }, out _));
-        Assert.Equal(0, governor.ReserveCount);
     }
 
     [Fact]
@@ -92,7 +137,6 @@ public sealed class AwkPosixRegexTests
             AwkMemoryAccounting.Disabled, static () => { }, static () => { }, out var program));
         var error = Assert.Throws<AwkRuntimeException>(() => program.Match("aaa", 0, 0, governor, static () => { }));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, governor.ReserveCount);
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }
 }

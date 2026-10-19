@@ -463,27 +463,6 @@ public sealed class AwkTextCancellationTests
         Assert.Equal(7, dictionary[compact]);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TextCheckpointsDoNotDuplicateExplicitFuelOrStringInterop(bool observed)
-    {
-        var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var text = AwkText.FromString(new string('a', LongText)).Concat(AwkText.FromString("z"), counters, AwkMemoryAccounting.Disabled);
-        var chunks = AwkExecutionGovernor.ByteWorkSteps(text.ByteLength);
-        var resources = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(chunks), counters);
-        resources.RecordByteWork(text.ByteLength);
-        Action checkpoint = () => resources.ThrowIfCancellationRequested(CancellationToken.None);
-        Assert.Equal(text.ByteLength, text.GetRuneLength(checkpoint));
-        var key = new AwkArrayKey(text, checkpoint);
-        var comparer = AwkArrayKeyComparer.ForRuntime(checkpoint);
-        Assert.True(comparer.Equals(key, key));
-        Assert.Equal(observed ? chunks : 0, counters.ExecutionSteps);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        if (observed) Assert.True(counters.CancellationChecks > 4);
-    }
-
     private static AwkMemoryAccounting Governor(AwkRuntimeCounters counters) =>
         AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters);
 

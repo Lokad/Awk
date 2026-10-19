@@ -93,7 +93,6 @@ public sealed class AwkArrayEstimateTests
         variables.ClearArray(name);
         Assert.Equal(0, accounting.CurrentCommittedBytes);
         Assert.Equal(0, budget.Reserved);
-        Assert.Equal(counters.MemoryCommittedBytes, counters.MemoryReleasedCommittedBytes);
     }
 
     private static void AssertMemoryLimit(Action action)

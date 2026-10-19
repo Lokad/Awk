@@ -9,16 +9,15 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData("t=1/(x-5);return t")]
     [InlineData("t=x+1;return 1/(x-5)")]
     [InlineData("t=length(x);return t")]
-    public async Task LocalAssignmentReturnsMatchOrdinaryAtEveryFuelBoundary(string body)
+    public async Task LocalAssignmentReturnsMatchOrdinary(string body)
     {
         var source = "function step(x,y,t){" + body + "} BEGIN{total=5;for(i=0;i<3;i++)total=step(total,2);print total}";
-        for (var fuel = 0; fuel <= 140; fuel++)
         {
-            var prepared = await RunAsync(source, false, fuel);
-            var ordinary = await RunAsync(source, true, fuel);
+            var prepared = await RunAsync(source, false);
+            var ordinary = await RunAsync(source, true);
             Assert.Equal(ordinary, prepared with { PreparedFunctions = ordinary.PreparedFunctions });
             Assert.Equal(0, ordinary.PreparedFunctions);
-            if (fuel == 0) Assert.True(prepared.PreparedFunctions > 0);
+            Assert.True(prepared.PreparedFunctions > 0);
         }
     }
 
@@ -58,17 +57,17 @@ public sealed partial class AwkPreparedFunctionRegionTests
     }
 
     [Theory]
-    [InlineData("default", true)] [InlineData("syntax", false)]
-    [InlineData("executable", false)] [InlineData("lint", false)]
-    [InlineData("pending", false)] [InlineData("captured-regex", false)]
+    [InlineData("default", true)]
+    [InlineData("syntax", false)]
+    [InlineData("lint", false)]
+    [InlineData("pending", false)]
+    [InlineData("captured-regex", false)]
     public async Task LocalAssignmentReturnsKeepExistingGuardsAndFieldDiagnostics(string boundary, bool prepared)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         if (boundary == "syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
-        var state = State(counters, limits,
-            engine: boundary == "executable" ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter,
-            lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
+        var state = State(counters, limits, lint: boundary == "lint" ? AwkLintMode.Normal : AwkLintMode.Off);
         var functions = Bind("function step(x,t){t=$1+x;return t} BEGIN{}").Functions;
         state.InitializeFunctions(functions);
         var fs = AwkVariableName.FromText("FS");

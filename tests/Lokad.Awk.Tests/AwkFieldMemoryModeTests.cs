@@ -40,7 +40,6 @@ public sealed class AwkFieldMemoryModeTests
             Assert.Equal(0, accounting.CurrentReservedBytes);
             Assert.Equal(0, budget.Reserved);
         }
-        Assert.Equal(counters.MemoryCommittedBytes, counters.MemoryReleasedCommittedBytes);
     }
 
     [Theory]
@@ -121,13 +120,12 @@ public sealed class AwkFieldMemoryModeTests
         AwkMemoryAccounting.Create(mode == 1 ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20)
             : AwkRuntimeLimits.CreateDefault(), counters, owner);
 
-    private static AwkFieldFrame Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, int valueLimit,
-        Action? checkpoint = null) =>
+    private static AwkFieldFrame Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, int valueLimit, Action? checkpoint = null) =>
         new(counters, accounting, 4096, bytes =>
         {
             if (bytes > valueLimit)
                 throw new AwkRuntimeException(Lokad.Awk.AwkMessages.ErrorMemoryLimit);
-        }, static value => AwkText.FromString(value.AsString()), static _ => { }, checkpoint);
+        }, static value => AwkText.FromString(value.AsString()), checkpoint);
 
     private static List<AwkFieldText> Split(AwkText _) =>
         [AwkFieldText.FromRecordSlice(0, 5), AwkFieldText.FromRecordSlice(6, 4)];

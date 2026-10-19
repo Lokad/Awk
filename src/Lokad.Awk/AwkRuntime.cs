@@ -20,48 +20,9 @@ internal static class AwkRuntime
             AwkRuntimeOptions.CreateSystemDefault());
 
     public static Task<AwkExitCode> ExecuteAsync(
-        IAwkHost host,
-        AwkInvocation invocation,
-        AwkProgram program,
-        CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions) =>
-        ExecuteWithNewResourceMonitorAsync(
-            host,
-            invocation,
-            program,
-            cancellationToken,
-            runtimeOptions,
-            executableProgram: null);
-
-    internal static Task<AwkExitCode> ExecuteAsync(
-        IAwkHost host,
-        AwkInvocation invocation,
-        AwkProgram program,
-        CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions,
-        AwkExecutableProgram? executableProgram) =>
-        ExecuteWithNewResourceMonitorAsync(
-            host,
-            invocation,
-            program,
-            cancellationToken,
-            runtimeOptions,
-            executableProgram);
-
-    private static Task<AwkExitCode> ExecuteWithNewResourceMonitorAsync(
-        IAwkHost host,
-        AwkInvocation invocation,
-        AwkProgram program,
-        CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions,
-        AwkExecutableProgram? executableProgram) =>
-        ExecuteAsync(
-            host,
-            invocation,
-            program,
-            cancellationToken,
-            runtimeOptions,
-            executableProgram,
+        IAwkHost host, AwkInvocation invocation, AwkProgram program,
+        CancellationToken cancellationToken, AwkRuntimeOptions runtimeOptions) =>
+        ExecuteAsync(host, invocation, program, cancellationToken, runtimeOptions,
             new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken));
 
     internal static async Task<AwkExitCode> ExecuteAsync(
@@ -70,17 +31,10 @@ internal static class AwkRuntime
         AwkProgram program,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions,
-        AwkExecutableProgram? executableProgram,
         AwkRuntimeResourceMonitor resources,
         AwkStringEscapeWarnings? stringEscapeWarnings = null,
         AwkRegexEscapeWarnings? regexEscapeWarnings = null)
     {
-        if (executableProgram == null &&
-            runtimeOptions.ExecutionEngineKind == AwkExecutionEngineKind.Executable)
-        {
-            throw new InvalidOperationException("Executable execution requires a compiled executable program.");
-        }
-
         var executionOptions = invocation.ExecutionOptions;
         var runtimeArguments = invocation.RuntimeArgumentsPlan;
         var stdio = invocation.Stdio;
@@ -99,18 +53,14 @@ internal static class AwkRuntime
             executionOptions.CompatibilityProfile,
             stringEscapeWarnings, regexEscapeWarnings);
         state.InitializeGlobalNames(program.GlobalNames);
-        if (executableProgram is null)
-            state.InitializeGlobalReadSlots(program.GlobalReadCount);
+        state.InitializeGlobalReadSlots(program.GlobalReadCount);
         state.InitializeArguments(runtimeArguments.RuntimeArguments);
         state.InitializeEnvironment(
             runtimeOptions.ExposeEnvironment
                 ? runtimeArguments.Environment
                 : Array.Empty<AwkEnvironmentVariable>());
         state.InitializeProcInfo();
-        if (executableProgram == null)
-            state.InitializeFunctions(program.Functions);
-        else
-            state.InitializeFunctions(executableProgram.Functions);
+        state.InitializeFunctions(program.Functions);
         var cleanupDeadline = new AwkCleanupDeadline(runtimeOptions.CleanupTimeout);
         var io = new AwkIo(
             host,
@@ -134,7 +84,7 @@ internal static class AwkRuntime
             runtimeOptions.ExposeHostErrorDetails,
             runtimeOptions.MaxHostErrorBytes,
             cleanupDeadline);
-        using var actionExecutor = new AwkRuntimeActionExecutor(program, executableProgram, state);
+        using var actionExecutor = new AwkRuntimeActionExecutor(program, state);
         var inputScheduler = new AwkInputScheduler(
             host,
             invocation,

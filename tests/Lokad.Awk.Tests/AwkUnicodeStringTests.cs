@@ -29,7 +29,7 @@ public sealed class AwkUnicodeStringTests
     {
         const string source = "BEGIN{print \"\\u\\ud800\"}";
         var budget = new AwkFrontendBudget(int.MaxValue, int.MaxValue, 1, int.MaxValue,
-            long.MaxValue, int.MaxValue, static () => { });
+            long.MaxValue, int.MaxValue);
         if ((AwkCompatibilityMode)mode == AwkCompatibilityMode.Posix)
         {
             Assert.Empty(AwkParser.Parse(source, budget, CancellationToken.None,
@@ -44,23 +44,23 @@ public sealed class AwkUnicodeStringTests
 
     public static IEnumerable<object[]> ValueByteLimits()
     {
-        foreach (var executable in new[] { false, true })
+
         foreach (var utf8 in new[] { false, true })
-        foreach (var counters in new[] { false, true })
-        foreach (var limit in new[] { 3, 4 })
-            yield return [executable, utf8, counters, limit];
+            foreach (var counters in new[] { false, true })
+                foreach (var limit in new[] { 3, 4 })
+                    yield return [utf8, counters, limit];
     }
 
     [Theory]
     [MemberData(nameof(ValueByteLimits))]
-    public async Task SupplementaryLiteralUsesFourUtf8Bytes(bool executable, bool utf8, bool enabled, int limit)
+    public async Task SupplementaryLiteralUsesFourUtf8Bytes(bool utf8, bool enabled, int limit)
     {
         const string source = "BEGIN{print 1;v=\"\\u1f600\";printf \"%s\",v;exit}";
         var counters = enabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(limit),
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+regexEngine: AwkUtf8RegexEngine.Instance);
         var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
             AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
         Assert.Empty(compiled.Warnings);
@@ -72,14 +72,10 @@ public sealed class AwkUnicodeStringTests
         Assert.Equal(limit == 4 ? string.Empty : "awk: memory limit exceeded\n",
             host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.OpenFileCount);
-        if (enabled && executable)
-            Assert.True(counters.VmBasicBlockEntries > 0 || counters.VmPatternFallbacks > 0);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CompiledUnicodeWarningRetainsMappedSourceLocation(bool executable)
+    [Fact]
+    public async Task CompiledUnicodeWarningRetainsMappedSourceLocation()
     {
         var sourceHost = new MockFileSystem();
         sourceHost.AddFile("/unicode.awk", "# source\nBEGIN{print \"\\ud800\"}\n");
@@ -95,8 +91,7 @@ public sealed class AwkUnicodeStringTests
         var host = new MockFileSystem();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility,
-            executionEngineKind: executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("?\n", host.GetOutput(AwkFileDescriptor.StdOut));

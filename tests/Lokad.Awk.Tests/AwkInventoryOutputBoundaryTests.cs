@@ -4,7 +4,7 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkInventoryOutputBoundaryTests
 {
-    private const int Large = AwkExecutionGovernor.WorkChunkBytes * 16;
+    private const int Large = AwkRuntimeLimits.CancellationCheckBytes * 16;
 
     public static IEnumerable<object[]> OutputCopies()
     {
@@ -33,8 +33,7 @@ public sealed class AwkInventoryOutputBoundaryTests
         using var output = new AwkOutputSink(limits, governor, counters, Check);
         output.Append(AwkText.FromSourceLiteralString("kept:"));
         var text = rope
-            ? AwkText.FromString(new string('a', Large / 2)).Concat(AwkText.FromString(new string('b', Large / 2)),
-                AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled)
+            ? AwkText.FromString(new string('a', Large / 2)).Concat(AwkText.FromString(new string('b', Large / 2)), AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled)
             : AwkText.FromString(new string('a', Large));
         var expected = rope ? new string('a', Large / 2) + new string('b', Large / 2) : new string('a', Large);
         var bytes = Encoding.UTF8.GetBytes(expected);
@@ -46,7 +45,6 @@ public sealed class AwkInventoryOutputBoundaryTests
         Assert.Equal(6, checks);
         Assert.Equal("kept:", output.ToString());
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, counters.ExecutionSteps);
         armed = false;
         Append(output, kind, text, bytes);
         Assert.Equal("kept:" + expected + (kind == "parts" ? "!" : ""), output.ToString());
@@ -80,21 +78,18 @@ public sealed class AwkInventoryOutputBoundaryTests
         Assert.Equal("kept:", output.ToString());
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, counters.ExecutionSteps);
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void ActionExecutorOutputUsesTheRuntimeCancellationToken(bool observed, bool executable)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ActionExecutorOutputUsesTheRuntimeCancellationToken(bool observed)
     {
         using var cancellation = new CancellationTokenSource();
         var counters = Counters(observed);
         var state = State(counters, cancellation.Token);
         var program = new AwkProgram([], [], [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
-        using var executor = new AwkRuntimeActionExecutor(program, executable ? AwkExecutableProgram.Compile(program) : null, state);
+        using var executor = new AwkRuntimeActionExecutor(program, state);
         executor.Output.Append(AwkText.FromSourceLiteralString("kept:"));
         cancellation.Cancel();
 
@@ -103,7 +98,6 @@ public sealed class AwkInventoryOutputBoundaryTests
 
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal("kept:", executor.Output.ToString());
-        Assert.Equal(0, counters.ExecutionSteps);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -202,10 +196,7 @@ public sealed class AwkInventoryOutputBoundaryTests
             if (++checks == 3) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var variables = new AwkVariables(4_096, 4_096, 1_024, governor, counters,
-            AwkValue.FromText, AwkValue.FromNumericString,
-            text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal),
-            (_, _) => { }, _ => { }, checkpoint: Check);
+        var variables = new AwkVariables(4_096, 4_096, 1_024, governor, counters, AwkValue.FromText, AwkValue.FromNumericString, text => AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), (_, _) => { }, _ => { }, checkpoint: Check);
         var names = Enumerable.Range(0, 512).Select(index => AwkVariableName.FromText("v" + index)).ToHashSet();
         var array = AwkArrayName.FromText(symbolTable ? AwkVariables.SymbolTableName : "kept");
         if (symbolTable) variables.InitializeGlobalNames(names);
@@ -233,11 +224,9 @@ public sealed class AwkInventoryOutputBoundaryTests
         Assert.Equal(count, variables.GetArraySnapshotCount(array));
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.Equal(0, counters.ExecutionSteps);
         var keys = new AwkArrayKey[count];
         variables.CopyArrayKeys(array, keys);
-        Assert.Equal(names.Select(static name => name.Text).Order(StringComparer.Ordinal),
-            keys.Select(static key => key.ToString()).Order(StringComparer.Ordinal));
+        Assert.Equal(names.Select(static name => name.Text).Order(StringComparer.Ordinal), keys.Select(static key => key.ToString()).Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -326,7 +315,7 @@ public sealed class AwkInventoryOutputBoundaryTests
     {
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20),
-            AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options);
     }
 }

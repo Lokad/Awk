@@ -4,34 +4,6 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkSortingResourceTests
 {
-    [Theory]
-    [InlineData("")]
-    [InlineData("@val_type_asc")]
-    [InlineData("@val_type_desc")]
-    public async Task SortComparisonFailureLeavesSourceAndDestinationUntouched(string selector)
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = CreateState(counters, AwkRuntimeLimits.CreateDefault()
-            .WithMaxSortComparisons(1).WithMaxExecutionMemoryBytes(1 << 20));
-        var source = AwkArrayName.FromText("source");
-        var destination = AwkArrayName.FromText("destination");
-        for (var index = 1; index <= 32; index++)
-            state.SetArrayAwkValue(source, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(33 - index));
-        var first = AwkArrayKey.FromOrdinal(1);
-        state.SetArrayString(destination, first, "keep");
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
-
-        var error = await Assert.ThrowsAsync<AwkRuntimeException>(() =>
-            state.SortArrayValuesAsync(source, destination, AwkArraySortOrder.Parse(selector),
-                new AwkEvaluationContext(state)).AsTask());
-
-        Assert.Equal("awk: array sort comparison limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal("keep", state.GetArrayByteText(destination, first).AsString());
-        Assert.Equal(32, state.GetArrayAwkValue(source, first).AsNumber());
-        Assert.True(state.GetArrayAwkValue(source, first).IsNumberValue);
-        Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
-        Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
-    }
 
     [Theory]
     [InlineData("@val_type_asc")]
@@ -70,17 +42,13 @@ public sealed class AwkSortingResourceTests
         for (var index = 1; index <= 32; index++)
             state.SetArrayAwkValue(name, AwkArrayKey.FromOrdinal(index), AwkValue.FromNumber(index));
         state.SetArrayString(AwkArrayName.FromText("PROCINFO"), new AwkArrayKey("sorted_in"), "@unsorted");
-        var reservedBefore = state.MemoryAccounting.TotalReservedBytes;
         var committedBefore = state.MemoryAccounting.CurrentCommittedBytes;
-        var stepsBefore = counters.ExecutionSteps;
         using (var snapshot = await state.SnapshotArrayKeyValuesAsync(name, new AwkEvaluationContext(state)))
         {
             Assert.Equal(32, snapshot.Count);
             Assert.Equal(committedBefore + AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(32), state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal(32, snapshot.Distinct().Count());
         }
-        Assert.Equal(AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(32), state.MemoryAccounting.TotalReservedBytes - reservedBefore);
-        Assert.Equal(stepsBefore, counters.ExecutionSteps);
         Assert.Equal(committedBefore, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -103,6 +71,5 @@ public sealed class AwkSortingResourceTests
     private static AwkRuntimeState CreateState(AwkRuntimeCounters counters, AwkRuntimeLimits limits) =>
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility,
-                AwkExecutionEngineKind.Interpreter));
+                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility));
 }

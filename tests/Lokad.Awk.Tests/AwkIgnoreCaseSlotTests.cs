@@ -44,11 +44,11 @@ public sealed class AwkIgnoreCaseSlotTests
 
     private static AwkRuntimeState State(AwkCompatibilityMode mode)
     {
-        var counters=AwkRuntimeCounters.CreateEnabled();
-        var limits=AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1<<20);
-        var options=new AwkRuntimeOptions(()=>new AwkUnixTimestampSeconds(0),TimeZoneInfo.Utc,new AwkRandomGenerator(),
-            counters,limits,AwkRegexEngineKind.DotNetCompatibility,AwkExecutionEngineKind.Interpreter);
-        return new AwkRuntimeState(AwkFieldSeparatorSpec.Default,CancellationToken.None,options,
-            new AwkRuntimeResourceMonitor(limits,counters),AwkCompatibilityProfile.Default.WithMode(mode));
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
+            counters, limits, AwkRegexEngineKind.DotNetCompatibility);
+        return new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
+            new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default.WithMode(mode));
     }
 }

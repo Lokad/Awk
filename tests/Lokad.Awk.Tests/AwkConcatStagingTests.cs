@@ -28,7 +28,6 @@ public sealed class AwkConcatStagingTests
             Assert.Equal(Expected(arity), value.ByteText.AsString());
             Assert.Equal(Enumerable.Range(0, arity), calls);
             Assert.Equal(arity > 8 ? 1 : 0, state.Counters.ConcatenationArgumentBufferRents);
-            Assert.Equal(arity + 1, state.Counters.ExecutionSteps);
             Assert.Equal(0, state.Counters.StringDecodes);
             Assert.Equal(0, state.Counters.Utf8Encodes);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -109,7 +108,6 @@ public sealed class AwkConcatStagingTests
                 Assert.Same(failure, await Assert.ThrowsAsync<AwkRuntimeException>(async () => await pending));
             }
             Assert.False(later);
-            Assert.Equal(3, state.Counters.ExecutionSteps);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         Assert.Equal(0, budget.Reserved);
@@ -153,7 +151,8 @@ public sealed class AwkConcatStagingTests
         if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), limits,
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter) { MemoryOwner = owner };
+            AwkRegexEngineKind.DotNetCompatibility)
+        { MemoryOwner = owner };
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
     }
     private sealed class Callback(Func<AwkEvaluationContext, ValueTask<AwkValue>> evaluate) : AwkExpression

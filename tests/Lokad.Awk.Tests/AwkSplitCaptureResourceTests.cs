@@ -92,18 +92,6 @@ public sealed class AwkSplitCaptureResourceTests
     }
 
     [Fact]
-    public void ByteWorkFailureLeavesBothCaptureDestinationsUntouched()
-    {
-        var state = Seed(State(AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(1)));
-        var before = state.MemoryAccounting.CurrentCommittedBytes;
-
-        var error = Assert.Throws<AwkRuntimeException>(() => Split(state, new string('a', 5000), ","));
-
-        Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        AssertPreserved(state, before);
-    }
-
-    [Fact]
     public void CaptureBufferEstimateIncludesIndexedValueEntriesAndHeaders()
     {
         Assert.Equal(16, Unsafe.SizeOf<AwkCapturedSeparator>());
@@ -140,5 +128,5 @@ public sealed class AwkSplitCaptureResourceTests
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters ?? AwkRuntimeCounters.Disabled, limits,
-                AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter));
+                AwkRegexEngineKind.DotNetCompatibility));
 }

@@ -47,7 +47,7 @@ internal static partial class AwkBuiltins
             for (var index = 0; index < bytes.Length;)
             {
                 checkpoint();
-                var length = Math.Min(bytes.Length - index, AwkExecutionGovernor.WorkChunkBytes);
+                var length = Math.Min(bytes.Length - index, AwkRuntimeLimits.CancellationCheckBytes);
                 var chunk = bytes.Slice(index, length);
                 if (!Ascii.IsValid(chunk))
                 {
@@ -76,10 +76,10 @@ internal static partial class AwkBuiltins
             AwkText.CopyBytes(bytes, converted, checkpoint);
             for (var index = firstChange; index < converted.Length;)
             {
-                var chunkOffset = index & (AwkExecutionGovernor.WorkChunkBytes - 1);
+                var chunkOffset = index & (AwkRuntimeLimits.CancellationCheckBytes - 1);
                 if (chunkOffset == 0)
                     checkpoint();
-                var length = Math.Min(converted.Length - index, AwkExecutionGovernor.WorkChunkBytes - chunkOffset);
+                var length = Math.Min(converted.Length - index, AwkRuntimeLimits.CancellationCheckBytes - chunkOffset);
                 var chunk = converted.AsSpan(index, length);
                 var status = conversion is AwkCaseConversion.Upper
                     ? Ascii.ToUpperInPlace(chunk, out var written)

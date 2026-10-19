@@ -108,7 +108,6 @@ public sealed class AwkFrontendCancellationTests
     [InlineData("semantics")]
     [InlineData("lowering")]
     [InlineData("binding")]
-    [InlineData("executable")]
     public void FrontendPassesObserveMidTraversalCancellation(string pass)
     {
         var parsed = AwkParser.Parse("BEGIN{" + string.Concat(Enumerable.Repeat("x=x+1;", 128)) + "}");
@@ -146,8 +145,7 @@ public sealed class AwkFrontendCancellationTests
                     AwkBinder.Bind(parsed, AwkCompatibilityProfile.Default, Checkpoint);
                     break;
                 default:
-                    AwkExecutableProgram.Compile(binding.Program.Program, Checkpoint);
-                    break;
+                    throw new ArgumentException("Unknown frontend pass.");
             }
         }
 
@@ -303,10 +301,8 @@ public sealed class AwkFrontendCancellationTests
         Assert.Equal(127, last.Index);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ReturnedArtifactsDoNotRetainTheFrontendCancellationCallback(bool executable)
+    [Fact]
+    public async Task ReturnedArtifactsDoNotRetainTheFrontendCancellationCallback()
     {
         const string source = "function f(a){return a+1} BEGIN{print f(2), 3e1, \"ok\"}";
         var parsed = AwkParser.Parse(source);
@@ -321,17 +317,15 @@ public sealed class AwkFrontendCancellationTests
         var binding = AwkBinder.Bind(parsed, AwkCompatibilityProfile.Default, Checkpoint);
         Assert.True(binding.PhaseResult.Success);
         var program = binding.Program.Program;
-        var bytecode = AwkExecutableProgram.Compile(program, Checkpoint);
         var compiled = new AwkCompiledProgram(AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", source)),
-            program, bytecode, parsed.Warnings, AwkExecutionMemoryOwner.Disabled);
+            program, parsed.Warnings, AwkExecutionMemoryOwner.Disabled);
         var frontendCalls = calls;
         Assert.True(frontendCalls > 0);
         cancellation.Cancel();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
-            AwkRegexEngineKind.DotNetCompatibility,
-            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         var hosts = new[] { new MockFileSystem(), new MockFileSystem() };
         var results = await Task.WhenAll(hosts.Select(host => compiled.ExecuteAsync(host, CancellationToken.None, options)));
         Assert.All(results, result => Assert.Equal(AwkExitCode.Success, result));

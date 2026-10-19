@@ -17,13 +17,13 @@ internal abstract class AwkSynchronousExpression : AwkExpression
 
     internal AwkValue EvaluateSynchronous(AwkEvaluationContext context)
     {
-        context.State.RecordExecutionStep();
+        context.State.Checkpoint();
         return EvaluateSynchronousCore(context);
     }
 
     internal double ResolveNumberSynchronous(AwkEvaluationContext context)
     {
-        context.State.RecordExecutionStep();
+        context.State.Checkpoint();
         return EvaluateNumberSynchronousCore(context);
     }
 
@@ -48,18 +48,6 @@ internal abstract class AwkSynchronousExpression : AwkExpression
 
 internal abstract partial class AwkExpression
 {
-    private static AwkOpcode ToNumericOpcode(AwkNumericOperation operation) =>
-        operation switch
-        {
-            AwkNumericOperation.Add => AwkOpcode.Add,
-            AwkNumericOperation.Subtract => AwkOpcode.Subtract,
-            AwkNumericOperation.Multiply => AwkOpcode.Multiply,
-            AwkNumericOperation.Divide => AwkOpcode.Divide,
-            AwkNumericOperation.Modulo => AwkOpcode.Modulo,
-            AwkNumericOperation.Power => AwkOpcode.Power,
-            _ => throw new ArgumentOutOfRangeException(nameof(operation))
-        };
-
     private static AwkExpression CreateBinary(AwkExpression left, AwkExpression right, AwkNumericOperation operation) =>
         TryGetSynchronousPair(left, right, out var syncLeft, out var syncRight)
             ? new SynchronousBinaryExpression(syncLeft, syncRight, operation)
@@ -92,14 +80,6 @@ internal abstract partial class AwkExpression
             var rightValue = right.ResolveNumberSynchronous(context);
             return AwkNumericOperations.Apply(leftValue, rightValue, operation);
         }
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!compiler.TryEmitExpression(left) || !compiler.TryEmitExpression(right)) return false;
-            compiler.Emit(ToNumericOpcode(operation));
-            compiler.Replace(popped: 2, pushed: 1);
-            return true;
-        }
     }
 
     private sealed class SynchronousComparisonExpression(
@@ -112,14 +92,6 @@ internal abstract partial class AwkExpression
             var leftValue = left.EvaluateSynchronous(context);
             var rightValue = right.EvaluateSynchronous(context);
             return AwkValue.FromNumber(AwkComparisonOperations.Evaluate(leftValue, rightValue, comparison, context.State) ? 1 : 0);
-        }
-
-        internal override bool TryEmitExecutableValue(AwkExecutableCompiler compiler)
-        {
-            if (!compiler.TryEmitExpression(left) || !compiler.TryEmitExpression(right)) return false;
-            compiler.EmitComparison(comparison);
-            compiler.Replace(popped: 2, pushed: 1);
-            return true;
         }
     }
 }

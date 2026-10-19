@@ -38,7 +38,6 @@ public sealed class AwkFieldMutationCancellationTests
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(committed, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-        Assert.True(governor.PeakCommittedBytes > committed);
         Assert.Equal(materialized, counters.FieldsMaterialized);
         Assert.Equal(2, frame.GetFieldCount(AlreadySplit));
         Assert.Equal("02.8", frame.GetFieldCountValue(AlreadySplit).AsString());
@@ -197,7 +196,6 @@ public sealed class AwkFieldMutationCancellationTests
         Assert.Equal(operation == "reference" ? "aa" : operation == "field" ? "aatail" : "aa", frame.RecordAwkText.AsString());
         frame.ResetRecord();
         Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(counters.MemoryCommittedBytes, counters.MemoryReleasedCommittedBytes);
     }
 
     private static void Grow(AwkFieldFrame frame, string operation, int target, AwkText? separator = null, bool preserveNumericCount = false)
@@ -220,7 +218,7 @@ public sealed class AwkFieldMutationCancellationTests
     private static List<AwkFieldText> AlreadySplit(AwkText _) => throw new InvalidOperationException("Already split.");
 
     private static AwkFieldFrame Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
-        new(counters, governor, ManyFields * 2, _ => { }, value => value.ByteText, _ => { }, checkpoint);
+        new(counters, governor, ManyFields * 2, _ => { }, value => value.ByteText, checkpoint);
 
     private static AwkMemoryAccounting Governor(AwkRuntimeCounters counters, long budget = 8 << 20) =>
         AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(budget), counters);

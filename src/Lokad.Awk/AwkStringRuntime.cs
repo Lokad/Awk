@@ -7,14 +7,11 @@ namespace Lokad.Awk;
 internal sealed class AwkStringRuntime
 {
     private readonly AwkStringUnitMode _unitMode;
-    private readonly Action<int>? _recordByteWork;
     private readonly Action? _checkpoint;
 
-    public AwkStringRuntime(AwkStringUnitMode unitMode, Action<int>? recordByteWork = null,
-        Action? checkpoint = null)
+    public AwkStringRuntime(AwkStringUnitMode unitMode, Action? checkpoint = null)
     {
         _unitMode = unitMode;
-        _recordByteWork = recordByteWork;
         _checkpoint = checkpoint;
     }
 
@@ -23,7 +20,7 @@ internal sealed class AwkStringRuntime
     public int CountUnits(AwkText value)
     {
         if (_unitMode is not AwkStringUnitMode.Byte)
-            _recordByteWork?.Invoke(value.ByteLength);
+            _checkpoint?.Invoke();
         return _unitMode is AwkStringUnitMode.Byte ? value.ByteLength : value.GetRuneLength(_checkpoint);
     }
 
@@ -32,16 +29,16 @@ internal sealed class AwkStringRuntime
         if (!ignoreCase)
             return left.CompareBytes(right, _checkpoint);
 
-        var comparison = AwkCaseText.Compare(left.AsSpan(_checkpoint), right.AsSpan(_checkpoint), _unitMode, _recordByteWork);
+        var comparison = AwkCaseText.Compare(left.AsSpan(_checkpoint), right.AsSpan(_checkpoint), _unitMode, _checkpoint);
         return comparison == 0 && sorting ? left.CompareBytes(right, _checkpoint) : comparison;
     }
 
     public int IndexOfUnits(AwkText source, AwkText value, bool ignoreCase)
     {
         if (!ignoreCase)
-            _recordByteWork?.Invoke(source.ByteLength);
+            _checkpoint?.Invoke();
         var position = ignoreCase
-            ? AwkCaseText.IndexOf(source.AsSpan(_checkpoint), value.AsSpan(_checkpoint), _unitMode, _recordByteWork)
+            ? AwkCaseText.IndexOf(source.AsSpan(_checkpoint), value.AsSpan(_checkpoint), _unitMode, _checkpoint)
             : source.IndexOf(value, _checkpoint);
         if (position < 0)
             return 0;
@@ -54,10 +51,10 @@ internal sealed class AwkStringRuntime
     internal int IndexOfUnits(ReadOnlySpan<byte> source, AwkText value, bool ignoreCase)
     {
         if (!ignoreCase)
-            _recordByteWork?.Invoke(source.Length);
+            _checkpoint?.Invoke();
         var needle = value.AsSpan(_checkpoint);
         var position = ignoreCase
-            ? AwkCaseText.IndexOf(source, needle, _unitMode, _recordByteWork)
+            ? AwkCaseText.IndexOf(source, needle, _unitMode, _checkpoint)
             : source.IndexOf(needle);
         if (!ignoreCase) _checkpoint?.Invoke();
         if (position < 0) return 0;
@@ -72,7 +69,7 @@ internal sealed class AwkStringRuntime
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor)
     {
-        _recordByteWork?.Invoke(source.ByteLength);
+        _checkpoint?.Invoke();
         return _unitMode is AwkStringUnitMode.Byte
             ? source.CopyByteSlice(start, length, counters, governor, _checkpoint)
             : source.CopyRuneSlice(start, length, counters, governor, _checkpoint);

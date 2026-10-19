@@ -35,7 +35,7 @@ internal static class AwkNumberParser
     {
         // Short nonnumeric text needs no scan checkpoint; execution boundaries already
         // check cancellation, and cleanup inspections can still read existing text.
-        if (text.Length >= AwkExecutionGovernor.WorkChunkBytes)
+        if (text.Length >= AwkRuntimeLimits.CancellationCheckBytes)
             checkpoint?.Invoke();
         var start = SkipWhitespace(text, 0, checkpoint);
         if (TryParseSpecial(text, start, mode, out var special, checkpoint))
@@ -327,7 +327,7 @@ internal static class AwkNumberParser
 
     private static void CheckScanProgress(int offset, Action? checkpoint)
     {
-        if (offset > 0 && (offset & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+        if (offset > 0 && (offset & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
             checkpoint?.Invoke();
     }
 

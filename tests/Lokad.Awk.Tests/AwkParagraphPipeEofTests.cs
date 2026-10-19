@@ -5,15 +5,15 @@ public sealed class AwkParagraphPipeEofTests
     public static IEnumerable<object[]> PipeCases()
     {
         foreach (var testCase in AwkGoldenCorpus.PipeParagraphEofCases())
-        foreach (var executable in new[] { false, true })
-        foreach (var utf8 in new[] { false, true })
-            yield return [testCase, executable, utf8];
+
+            foreach (var utf8 in new[] { false, true })
+                yield return [testCase, utf8];
     }
 
     [Theory]
     [MemberData(nameof(PipeCases))]
     public async Task PipeParagraphEofMatchesTheSelectedReferenceContract(
-        AwkGoldenCase testCase, bool executable, bool utf8)
+        AwkGoldenCase testCase, bool utf8)
     {
         var files = AwkTestHarness.BuildFileSystem(testCase);
         var host = new AwkGetlinePipeTestHost(files);
@@ -22,19 +22,10 @@ public sealed class AwkParagraphPipeEofTests
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+regexEngine: AwkUtf8RegexEngine.Instance);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        AwkExitCode exit;
-        if (executable)
-        {
-            var compiled = await AwkExecutor.CompileAsync(host, invocation, deadline.Token);
-            exit = await compiled.ExecuteAsync(host, deadline.Token, options);
-        }
-        else
-        {
-            exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation), deadline.Token, options);
-        }
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation), deadline.Token, options);
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(testCase.ExpectedStdOut, files.GetOutput(AwkFileDescriptor.StdOut));
@@ -49,7 +40,5 @@ public sealed class AwkParagraphPipeEofTests
             Assert.Equal(invocation.CurrentDirectory, command.CurrentDirectory);
             Assert.Contains(command.Environment, v => v.Name == "LC_ALL" && v.Value == "C.UTF-8");
         }
-        if (executable)
-            Assert.True(counters.VmBasicBlockEntries > 0 || counters.VmPatternFallbacks > 0);
     }
 }

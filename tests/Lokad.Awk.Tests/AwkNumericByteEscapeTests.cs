@@ -187,5 +187,5 @@ public sealed class AwkNumericByteEscapeTests
     private static AwkRuntimeOptions Options(AwkRuntimeLimits limits, bool counters) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled, limits,
-            AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
 }

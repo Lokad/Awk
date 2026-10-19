@@ -7,16 +7,9 @@ internal sealed class AwkRuntimeResourceMonitor
 {
     private readonly AwkRuntimeLimits _limits;
     private readonly AwkRuntimeCounters _counters;
-    private readonly AwkExecutionGovernor _execution;
     private readonly CancellationToken _cancellationToken;
-    private long _hostCalls;
     private long _outputBytes;
     private long _inputBytes;
-    private long _records;
-    private long _regexOperations;
-    private long _sortComparisons;
-    private long _regexRecordSeparatorBytesScanned;
-    private int _regexCompilations;
     private long _sourceBytes;
     private long _expandedSourceBytes;
     private int _includeFiles;
@@ -28,7 +21,6 @@ internal sealed class AwkRuntimeResourceMonitor
     {
         _limits = limits;
         _counters = counters;
-        _execution = new AwkExecutionGovernor(limits.MaxExecutionSteps, counters);
         _cancellationToken = cancellationToken;
     }
 
@@ -36,31 +28,22 @@ internal sealed class AwkRuntimeResourceMonitor
 
     public void RecordHostCall()
     {
-        RecordExecutionStep();
-        if (_limits.MaxHostCalls != AwkRuntimeLimits.Unlimited)
-        {
-            var next = AwkRuntimeMemory.CheckedAdd(_hostCalls, 1);
-            if (next > _limits.MaxHostCalls)
-                throw new AwkRuntimeException(AwkMessages.ErrorHostCallLimit);
-        }
-
-        if (_limits.MaxHostCalls != AwkRuntimeLimits.Unlimited)
-            _hostCalls++;
+        Checkpoint();
         _counters.RecordHostCall();
     }
 
     public void RecordCleanupHostCall() => _counters.RecordHostCall();
 
-    public void RecordExecutionStep() => RecordExecutionStep(_cancellationToken);
+    public void Checkpoint() => ThrowIfCancellationRequested(_cancellationToken);
 
-    public void RecordExecutionStep(CancellationToken cancellationToken) =>
-        _execution.Check(1, cancellationToken);
+    public void Checkpoint(CancellationToken cancellationToken) =>
+        ThrowIfCancellationRequested(cancellationToken);
 
-    public void ThrowIfCancellationRequested(CancellationToken cancellationToken) =>
-        _execution.ThrowIfCancellationRequested(cancellationToken);
-
-    public void RecordByteWork(int byteCount) =>
-        _execution.Check(AwkExecutionGovernor.ByteWorkSteps(byteCount), _cancellationToken);
+    public void ThrowIfCancellationRequested(CancellationToken cancellationToken)
+    {
+        _counters.RecordCancellationCheck();
+        cancellationToken.ThrowIfCancellationRequested();
+    }
 
     public void RecordBytesRead(long byteCount)
     {
@@ -81,41 +64,10 @@ internal sealed class AwkRuntimeResourceMonitor
         _counters.RecordBytesRead(byteCount);
     }
 
-    public void RecordInputRecord()
+    public void RecordRegexMatch()
     {
-        if (_limits.MaxRecords == AwkRuntimeLimits.Unlimited)
-            return;
-
-        var next = AwkRuntimeMemory.CheckedAdd(_records, 1);
-        if (next > _limits.MaxRecords)
-            throw new AwkRuntimeException(AwkMessages.ErrorRecordLimit, AwkDiagnosticId.RuntimeResourceLimit);
-
-        _records = next;
-    }
-
-    public void RecordRegexOperation(int inputBytes)
-    {
-        var next = _limits.MaxRegexOperations == AwkRuntimeLimits.Unlimited
-            ? 0 : AwkRuntimeMemory.CheckedAdd(_regexOperations, 1);
-        if (next > _limits.MaxRegexOperations)
-            throw new AwkRuntimeException(AwkMessages.ErrorRegexOperationLimit, AwkDiagnosticId.RuntimeResourceLimit);
-
-        _execution.Check(1 + AwkExecutionGovernor.ByteWorkSteps(inputBytes), _cancellationToken);
-        if (_limits.MaxRegexOperations != AwkRuntimeLimits.Unlimited)
-            _regexOperations = next;
+        Checkpoint();
         _counters.RecordRegexMatch();
-    }
-
-    public void RecordSortComparison()
-    {
-        var next = _limits.MaxSortComparisons == AwkRuntimeLimits.Unlimited
-            ? 0 : AwkRuntimeMemory.CheckedAdd(_sortComparisons, 1);
-        if (next > _limits.MaxSortComparisons)
-            throw new AwkRuntimeException(AwkMessages.ErrorSortComparisonLimit, AwkDiagnosticId.RuntimeResourceLimit);
-
-        RecordExecutionStep();
-        if (_limits.MaxSortComparisons != AwkRuntimeLimits.Unlimited)
-            _sortComparisons = next;
     }
 
     public void RecordOutputBytes(long byteCount)
@@ -135,43 +87,10 @@ internal sealed class AwkRuntimeResourceMonitor
         _counters.RecordOutputBytes(byteCount);
     }
 
-    public void RecordRegexRecordSeparatorBytesScanned(int byteCount)
-    {
-        if (byteCount <= 0)
-            return;
-
-        var next = _limits.MaxRegexRecordSeparatorBytesScanned == AwkRuntimeLimits.Unlimited
-            ? 0 : AwkRuntimeMemory.CheckedAdd(_regexRecordSeparatorBytesScanned, byteCount);
-        if (next > _limits.MaxRegexRecordSeparatorBytesScanned)
-        {
-            throw new AwkRuntimeException(
-                AwkMessages.ErrorRegexRecordSeparatorScanLimit,
-                AwkDiagnosticId.RuntimeResourceLimit);
-        }
-
-        if (_limits.MaxRegexRecordSeparatorBytesScanned != AwkRuntimeLimits.Unlimited)
-            _regexRecordSeparatorBytesScanned = next;
+    public void RecordRegexRecordSeparatorBytesScanned(int byteCount) =>
         _counters.RecordRecordSeparatorBytesScanned(byteCount);
-    }
 
-    public void RecordRegexCompilation()
-    {
-        ReserveRegexCompilations(1);
-        _counters.RecordRegexCompile();
-    }
-
-    public void ReserveRegexCompilations(int count)
-    {
-        var next = AwkRuntimeMemory.CheckedAdd(_regexCompilations, count);
-        if (next > _limits.MaxRegexCompilations)
-        {
-            throw new AwkRuntimeException(
-                AwkMessages.ErrorRegexCompilationLimit,
-                AwkDiagnosticId.RuntimeResourceLimit);
-        }
-
-        _regexCompilations = next;
-    }
+    public void RecordRegexCompilation() => _counters.RecordRegexCompile();
 
     public void RecordSourceBytes(long byteCount)
     {
@@ -230,9 +149,6 @@ internal sealed class AwkRuntimeResourceMonitor
 
     public void ThrowIfValueBytesExceeded(long byteCount) =>
         ThrowIfExceeded(byteCount, _limits.MaxValueBytes);
-
-    public void ThrowIfVmStackBytesExceeded(long byteCount) =>
-        ThrowIfExceeded(byteCount, _limits.MaxVmStackBytes);
 
     private static void ThrowIfExceeded(long byteCount, long limit)
     {

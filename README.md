@@ -59,11 +59,9 @@ runtime, IO, regex, memory, and host-operation budgets. `CreateDefault()` preser
 compatibility surface. The `--sandbox` command-line option independently disables file and command
 redirections; it does not replace host-side path and descriptor policy.
 
-Both presets have no implicit execution-fuel cutoff. Pass a caller cancellation token or configure
-WithExecutionTimeout. Ordinary finite-memory execution can use
+Pass a caller cancellation token or configure `WithExecutionTimeout`. Ordinary finite-memory execution can use
 `AwkExecutionPolicy.CreateDefault().WithMaxExecutionMemoryBytes(64L << 20)`; restricted execution
-already has finite memory and a 30-second cooperative deadline. Positive explicit
-WithMaxExecutionSteps quotas remain enforced. Some long builtin/backend calls still have coarse
+already has finite memory and a 30-second cooperative deadline. Some long builtin/backend calls still have coarse
 cancellation boundaries; see the runtime-limit contract for their current limits.
 
 See [docs/SECURITY.md](docs/SECURITY.md) before executing awk supplied by an untrusted party.
@@ -86,8 +84,8 @@ selected GNU conveniences, not full POSIX/GNU conformance. CSV, nested arrays, s
 typed regex values and indirect calls remain unsupported; see the
 [compatibility matrix](docs/COMPATIBILITY_MATRIX.md).
 
-The interpreter remains the default engine. The internal, opt-in executable backend uses explicit interpreter
-fallbacks for unsupported shapes. Regex defaults to .NET compatibility, with
+The interpreter is the only execution engine, including its synchronous/prepared paths.
+Regex defaults to .NET compatibility, with
 documented [backend differences](docs/REGEX_COMPATIBILITY.md). Applications can supply an
 `IAwkRegexEngine` through `policy.WithRegexEngine(engine)`; the optional `Lokad.Awk.Utf8Regex`
 package provides `AwkUtf8RegexEngine.Instance`. Newer producer adoption remains postponed.

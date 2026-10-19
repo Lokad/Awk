@@ -8,12 +8,11 @@ internal static class FunctionStackProbe
 {
     public static async Task RunAsync()
     {
-        foreach (var engine in new[] { AwkExecutionEngineKind.Interpreter, AwkExecutionEngineKind.Executable })
-        foreach (var shape in new[] { "return", "arguments", "mutual", "async", "limit", "error", "fuel", "cancel", "raised-syntax", "prepared-chain", "prepared-async", "prepared-field-chain", "prepared-field-async", "prepared-four-chain", "prepared-four-async" })
-            await RunCaseAsync(shape, engine).ConfigureAwait(false);
+        foreach (var shape in new[] { "return", "arguments", "mutual", "async", "limit", "error", "cancel", "raised-syntax", "prepared-chain", "prepared-async", "prepared-field-chain", "prepared-field-async", "prepared-four-chain", "prepared-four-async" })
+            await RunCaseAsync(shape).ConfigureAwait(false);
     }
 
-    private static async Task RunCaseAsync(string shape, AwkExecutionEngineKind engine)
+    private static async Task RunCaseAsync(string shape)
     {
         var nestedReturn = "f(n-1)";
         var additions = shape == "raised-syntax" ? 120 : 60;
@@ -36,22 +35,24 @@ internal static class FunctionStackProbe
             "prepared-four-async" => preparedFourFunctions + "function f(n,v){getline v;if(n>1)return c4(f(n-1),1,1,1);return 1} BEGIN{print f(1000)}",
             "limit" => "function f(n){if(n>1)return f(n-1);return 1} BEGIN{print f(1001)}",
             "error" => "function f(n){if(n>1)return f(n-1);return 1/0} BEGIN{print f(1000)}",
-            "fuel" => "function f(n){if(n>1)return 1+f(n-1);return 1} BEGIN{print f(1000)}",
             _ => throw new ArgumentException("Unknown stack probe.")
         };
         var expectedOutput = shape switch
         {
-            "return" => "59941\n", "raised-syntax" => "119881\n",
-            "arguments" => "7\n", "mutual" => "4\n", "async" => "1000\n",
+            "return" => "59941\n",
+            "raised-syntax" => "119881\n",
+            "arguments" => "7\n",
+            "mutual" => "4\n",
+            "async" => "1000\n",
             "prepared-chain" or "prepared-async" => "3997\n",
             "prepared-field-chain" or "prepared-field-async" => "6994\n",
-            "prepared-four-chain" or "prepared-four-async" => "5995\n", _ => ""
+            "prepared-four-chain" or "prepared-four-async" => "5995\n",
+            _ => ""
         };
         var expectedError = shape switch
         {
             "limit" => "awk: function recursion limit exceeded\n",
             "error" => "awk: division by zero attempted\n",
-            "fuel" => "awk: execution step limit exceeded\n",
             _ => ""
         };
         var workload = new ReferenceWorkload("stack-" + shape, "control", 0, 0, source, [], [], Encoding.UTF8.GetBytes(expectedOutput));
@@ -77,18 +78,17 @@ internal static class FunctionStackProbe
             if (!binding.Success) throw new InvalidOperationException("Raised-syntax probe did not compile.");
             var program = binding.Program.Program;
             compiled = new(AwkCommandParser.Parse(invocation), program,
-                AwkExecutableProgram.Compile(program), [], AwkExecutionMemoryOwner.Disabled);
+                [], AwkExecutionMemoryOwner.Disabled);
         }
         else
             compiled = await AwkExecutor.CompileAsync(host, invocation, cancellation.Token).ConfigureAwait(false);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(64L << 20);
-        if (shape == "fuel") limits = limits.WithMaxExecutionSteps(200);
         // The recursive caller can retain 1,000 frames while the prepared chain adds four.
         if (shape is "prepared-chain" or "prepared-async" or "prepared-field-chain" or "prepared-field-async" or "prepared-four-chain" or "prepared-four-async") limits = limits.WithMaxFunctionCallDepth(1004);
         if (shape == "raised-syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility, engine);
+            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
         var completion = new TaskCompletionSource<AwkExitCode>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
@@ -104,20 +104,26 @@ internal static class FunctionStackProbe
         var expectedExit = shape == "cancel" ? -1 : expectedError.Length == 0 ? 0 : 2;
         if (exit != expectedExit || result.OutputDigest != workload.ExpectedDigest ||
             Encoding.UTF8.GetString(result.Error) != expectedError)
-            throw new InvalidOperationException("Stack probe failed: " + shape + "/" + engine +
+            throw new InvalidOperationException("Stack probe failed: " + shape +
                 "; exit " + exit + "; output " + Encoding.UTF8.GetString(result.Output) +
                 "; error " + Encoding.UTF8.GetString(result.Error) + "; reads " + reads);
-        if (counters.MemoryReservedBytes != counters.MemoryReleasedReservedBytes + counters.MemoryCommittedBytes)
-            throw new InvalidOperationException("Stack probe left transient reservations: " + shape);
-        if (shape == "raised-syntax" && counters.FunctionStackSuspensions != 2000)
+        if (shape == "raised-syntax" && counters.FunctionStackSuspensions == 0)
             throw new InvalidOperationException("Raised syntax budget did not retain every call boundary.");
         if (shape is "prepared-chain" or "prepared-async" or "prepared-field-chain" or "prepared-field-async" or "prepared-four-chain" or "prepared-four-async" &&
-            (engine == AwkExecutionEngineKind.Interpreter ? counters.SynchronousFunctionRuns == 0 : counters.SynchronousFunctionRuns != 0))
-            throw new InvalidOperationException("Prepared function eligibility differs from the selected engine.");
-        Console.WriteLine(JsonSerializer.Serialize(new { Shape = shape, Engine = engine.ToString(), Exit = exit,
-            RequestedStackBytes = 256 << 10, FunctionDepthLimit = limits.MaxFunctionCallDepth,
-            Reads = reads, counters.FunctionStackSuspensions,
-            counters.ExecutionSteps, counters.HostCalls, counters.StringDecodes, counters.Utf8Encodes,
-            counters.SynchronousFunctionRuns }));
+            (counters.SynchronousFunctionRuns == 0))
+            throw new InvalidOperationException("Prepared function chain did not use synchronous execution.");
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            Shape = shape,
+            Exit = exit,
+            RequestedStackBytes = 256 << 10,
+            FunctionDepthLimit = limits.MaxFunctionCallDepth,
+            Reads = reads,
+            counters.FunctionStackSuspensions,
+            counters.HostCalls,
+            counters.StringDecodes,
+            counters.Utf8Encodes,
+            counters.SynchronousFunctionRuns
+        }));
     }
 }

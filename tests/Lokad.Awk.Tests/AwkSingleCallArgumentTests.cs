@@ -83,8 +83,7 @@ public sealed class AwkSingleCallArgumentTests
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(depth)
             .WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility);
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
     }
 }

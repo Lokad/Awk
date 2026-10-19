@@ -16,8 +16,7 @@ internal sealed class AwkSynchronousFor(
     {
         var state = context.State;
         return state.LintMode == AwkLintMode.Off &&
-            (!HasPreparedCalls || (!state.UsesExecutableEngine &&
-                state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
+            (!HasPreparedCalls || (state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
                 System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())) &&
             context.TryGetExecutionContext(out var execution) && !execution.Output.HasPendingOutput;
     }
@@ -56,10 +55,10 @@ internal sealed class AwkSynchronousFor(
         initialize(context);
         while (condition.EvaluateSynchronous(context).IsTruthy())
         {
-            state.RecordExecutionStep();
+            state.Checkpoint();
             foreach (var action in body)
             {
-                state.RecordExecutionStep();
+                state.Checkpoint();
                 action(context);
             }
             increment(context);
@@ -74,10 +73,10 @@ internal sealed class AwkSynchronousFor(
         state.Counters.RecordSynchronousDoWhileLoop();
         do
         {
-            state.RecordExecutionStep();
+            state.Checkpoint();
             foreach (var action in body)
             {
-                state.RecordExecutionStep();
+                state.Checkpoint();
                 action(context);
             }
         } while (condition.EvaluateSynchronous(context).IsTruthy());

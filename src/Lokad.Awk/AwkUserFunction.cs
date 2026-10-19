@@ -85,7 +85,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         AwkEvaluationContext context)
     {
         var state = context.State;
-        state.RecordExecutionStep();
+        state.Checkpoint();
         try
         {
             // Completed ValueTasks otherwise deepen the CLR stack even while evaluating arguments.
@@ -144,7 +144,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
         AwkEvaluationContext context)
     {
         var state = context.State;
-        state.RecordExecutionStep();
+        state.Checkpoint();
         try
         {
             if (RequiresStackBoundary(state))
@@ -204,7 +204,7 @@ internal sealed class AwkUserFunction : IAwkUserFunction
             if (!context.TryGetExecutionContext(out var execution))
                 return AwkValue.Unassigned();
 
-            if (_synchronous is { } prepared && !state.UsesExecutableEngine && state.LintMode == AwkLintMode.Off &&
+            if (_synchronous is { } prepared && state.LintMode == AwkLintMode.Off &&
                 state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
                 (!prepared.HasLocalAssignment || state.FieldsCannotReportRegexDiagnostics) &&
                 !execution.Output.HasPendingOutput && RuntimeHelpers.TryEnsureSufficientExecutionStack())

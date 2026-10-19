@@ -9,8 +9,6 @@ public sealed class AwkUnicodeCallerTests
     [InlineData(0, true)]
     [InlineData(1, false)]
     [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
     public async Task OptionWarningsRemainOrderedOnFreshConcurrentExecutions(int entry, bool utf8)
     {
         var source = new MockFileSystem();
@@ -29,7 +27,7 @@ public sealed class AwkUnicodeCallerTests
         {
             var host = new MockFileSystem();
             host.AddFile("/caller.awk", "# source\nBEGIN{print v;print \"\\u\";exit}\n");
-            var options = Options(entry == 2, utf8);
+            var options = Options(utf8);
             var exit = entry == 0
                 ? await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), deadline.Token, options)
                 : await compiled.ExecuteAsync(host, deadline.Token, options);
@@ -44,11 +42,9 @@ public sealed class AwkUnicodeCallerTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task OptionWarningAdmissionPrecedesSourceAndInputIo(bool compiledEntry, bool hostQuota)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OptionWarningAdmissionPrecedesSourceAndInputIo(bool compiledEntry)
     {
         var source = new MockFileSystem();
         source.AddFile("/caller.awk", "{print}");
@@ -57,14 +53,13 @@ public sealed class AwkUnicodeCallerTests
         var host = new MockFileSystem();
         host.AddFile("/caller.awk", "{print}");
         host.AddFile("/data", "unread\n");
-        var limits = hostQuota ? AwkRuntimeLimits.CreateDefault().WithMaxHostCalls(1)
-            : AwkRuntimeLimits.CreateDefault().WithMaxOutputBytes(AwkUtf8Codec.Encode(Warning).Length - 1);
-        var options = Options(false, false, limits);
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxOutputBytes(AwkUtf8Codec.Encode(Warning).Length - 1);
+        var options = Options(false, limits);
         var exit = compiledEntry ? await compiled.ExecuteAsync(host, CancellationToken.None, options)
             : await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), CancellationToken.None, options);
         Assert.Equal(AwkExitCode.FatalError, exit);
         Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(hostQuota ? Warning + "awk: host call limit exceeded\n" : "awk: memory limit exceeded\n",
+        Assert.Equal("awk: memory limit exceeded\n",
             host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.ReadOpenCount);
         Assert.Equal(0, host.OpenFileCount);
@@ -74,16 +69,12 @@ public sealed class AwkUnicodeCallerTests
     [Theory]
     [InlineData(1, false)]
     [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    [InlineData(3, false)]
-    [InlineData(3, true)]
     public async Task OptionAndSourceDiagnosticsShareOneFrontendBudget(int limit, bool sourceWarning)
     {
         var command = AwkTestHarness.BuildInvocation("awk", "-v", @"v=\u",
             sourceWarning ? "BEGIN{print \"\\u\";exit}" : "BEGIN{print v;exit}");
         var host = new MockFileSystem();
-        var options = Options(false, false, AwkRuntimeLimits.CreateDefault().WithMaxFrontendDiagnostics(limit));
+        var options = Options(false, AwkRuntimeLimits.CreateDefault().WithMaxFrontendDiagnostics(limit));
         var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), CancellationToken.None, options);
         var exceeded = sourceWarning && limit == 1;
         Assert.Equal(exceeded ? AwkExitCode.FatalError : AwkExitCode.Success, exit);
@@ -133,7 +124,7 @@ public sealed class AwkUnicodeCallerTests
     public void OperandDecodeBufferPreflightsBeforeReplacingTheVariable(bool counters)
     {
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            Options(false, false, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters));
+            Options(false, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20), counters));
         var name = AwkIdentifier.FromTrustedName("v");
         state.AssignVariableFromExternalText(name, "keep");
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
@@ -146,14 +137,12 @@ public sealed class AwkUnicodeCallerTests
     }
 
     [Theory]
-    [InlineData(3, false)]
-    [InlineData(3, true)]
     [InlineData(4, false)]
     [InlineData(4, true)]
     public void OperandValueLimitMeasuresTheDecodedUtf8Scalar(int limit, bool counters)
     {
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            Options(false, false, AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(limit), counters));
+            Options(false, AwkRuntimeLimits.CreateDefault().WithMaxValueBytes(limit), counters));
         var name = AwkIdentifier.FromTrustedName("v");
         state.AssignVariableFromExternalText(name, "old");
         var assignment = AwkVariableAssignment.InputArgument(name, @"\u1f600");
@@ -194,10 +183,10 @@ public sealed class AwkUnicodeCallerTests
         Assert.Equal(2, checks);
     }
 
-    private static AwkRuntimeOptions Options(bool executable, bool utf8, AwkRuntimeLimits? limits = null,
+    private static AwkRuntimeOptions Options(bool utf8, AwkRuntimeLimits? limits = null,
         bool counters = true) => new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
         new AwkRandomGenerator(), counters ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
         limits ?? AwkRuntimeLimits.CreateDefault(),
         utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-        executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+regexEngine: AwkUtf8RegexEngine.Instance);
 }

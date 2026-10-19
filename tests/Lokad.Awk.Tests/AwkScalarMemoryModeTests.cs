@@ -48,8 +48,6 @@ public sealed class AwkScalarMemoryModeTests
             Assert.Equal(0, accounting.CurrentReservedBytes);
             Assert.Equal(0, budget.Reserved);
         }
-        Assert.Equal(counters.MemoryCommittedBytes, counters.MemoryReleasedCommittedBytes);
-        Assert.Equal(mode != 0, counters.MemoryCommittedBytes > 0);
     }
 
     [Theory]

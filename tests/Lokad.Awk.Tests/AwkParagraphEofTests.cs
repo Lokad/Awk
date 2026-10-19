@@ -4,14 +4,11 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkParagraphEofTests
 {
     [Theory]
-    [InlineData(0, "\n", "\n")]
-    [InlineData(1, "\n", "\n")]
-    [InlineData(0, "\r", "\n\r\n")]
-    [InlineData(1, "\r", "\n\r\n")]
-    [InlineData(0, "\n\n", "")]
-    [InlineData(1, "\n\n", "")]
+    [InlineData("\n", "\n")]
+    [InlineData("\r", "\n\r\n")]
+    [InlineData("\n\n", "")]
     public async Task PipeEofAppliesTheDirectiveWithoutRecordAdmissionOrFieldReplacement(
-        int engine, string first, string last)
+        string first, string last)
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(40), new AwkFileDescriptor(41)));
@@ -26,7 +23,7 @@ public sealed class AwkParagraphEofTests
             "BEGIN{RS=\"\";RT=\"sentinel\";$0=\"seed fields\";v=\"kept\";\"producer\"|getline v;" +
             "print NR,FNR,NF,v,\"[\"RT\"]\",\"[\"$0\"]\";exit}"), CancellationToken.None);
 
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(counters, engine));
+        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(counters));
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("0 0 2 kept [] [seed fields]\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
@@ -36,14 +33,10 @@ public sealed class AwkParagraphEofTests
         Assert.Equal(1, counters.StringDecodes); // Host command lookup; no record decoding.
         Assert.Equal(2, host.ReadLineBatchLineCounts.Count);
         Assert.Equal("producer", Assert.Single(host.CommandInvocations).CommandName);
-        if (engine == 1)
-            Assert.True(counters.VmBasicBlockEntries > 0);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    public async Task FailedReadAfterDiscardedBlankLinesPreservesRtAndTheCurrentRecord(int engine)
+    [Fact]
+    public async Task FailedReadAfterDiscardedBlankLinesPreservesRtAndTheCurrentRecord()
     {
         var reads = 0;
         var host = new MockFileSystem
@@ -60,7 +53,7 @@ public sealed class AwkParagraphEofTests
             "BEGIN{RS=\"\";RT=\"sentinel\";$0=\"seed fields\";v=\"kept\";code=(getline v<\"data\");" +
             "print code,NR,FNR,NF,v,RT,\"[\"$0\"]\";exit}"), CancellationToken.None);
 
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(counters, engine));
+        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(counters));
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("-1 0 0 2 kept sentinel [seed fields]\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -80,7 +73,7 @@ public sealed class AwkParagraphEofTests
             host.EnqueueAwkReadResult(AwkReadResult.FromContent("\n"u8.ToArray(), [], AwkReadCompletion.MoreData));
         host.EnqueueAwkReadResult(AwkReadResult.FromContent("\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, Options(counters, 0));
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, Options(counters));
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         state.AssignVariableValue(AwkVariableName.FromText("RT"), AwkValue.FromText(AwkText.FromSourceLiteralString("sentinel")));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
@@ -108,7 +101,7 @@ public sealed class AwkParagraphEofTests
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            Options(AwkRuntimeCounters.Disabled, 0));
+            Options(AwkRuntimeCounters.Disabled));
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         using var cursor = new AwkRecordCursor(state, descriptorReader, descriptorReader.CreateLineReader(AwkFileDescriptor.StdIn));
@@ -152,7 +145,7 @@ public sealed class AwkParagraphEofTests
         else
             host.EnqueueAwkReadResult(AwkReadResult.FromContent(bytes, [1], AwkReadCompletion.EndOfFile));
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, Options(counters, 0));
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, Options(counters));
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("seed fields"));
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
@@ -195,7 +188,7 @@ public sealed class AwkParagraphEofTests
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(new byte[] { 10, 10 }, [1], AwkReadCompletion.EndOfFile));
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, Options(counters, 0));
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, Options(counters));
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn), AwkParagraphLeaderPolicy.Retain);
@@ -255,7 +248,7 @@ public sealed class AwkParagraphEofTests
         host.EnqueueAwkReadResult(AwkReadResult.FromContent("\n\n\n\n\n\n\n\n"u8.ToArray(), [1, 2, 3, 4, 5, 6, 7], AwkReadCompletion.EndOfFile));
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxBuilderBytes(12).WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         state.AssignVariableValue(AwkVariableName.FromText("RS"), AwkValue.FromText(AwkText.Empty));
         state.AssignVariableValue(AwkVariableName.FromText("RT"), AwkValue.FromText(AwkText.FromSourceLiteralString("marker")));
@@ -319,8 +312,8 @@ public sealed class AwkParagraphEofTests
         Assert.Equal(2, reads);
     }
 
-    private static AwkRuntimeOptions Options(AwkRuntimeCounters counters, int engine) =>
+    private static AwkRuntimeOptions Options(AwkRuntimeCounters counters) =>
         new(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
-            AwkRegexEngineKind.Utf8Adapter, (AwkExecutionEngineKind)engine, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
 }

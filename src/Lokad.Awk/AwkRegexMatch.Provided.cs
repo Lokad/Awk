@@ -38,7 +38,7 @@ internal readonly partial record struct AwkRegexMatch
                 if (byteIndex >= nextCheckpoint)
                 {
                     checkpoint();
-                    nextCheckpoint = (long)byteIndex + AwkExecutionGovernor.WorkChunkBytes;
+                    nextCheckpoint = (long)byteIndex + AwkRuntimeLimits.CancellationCheckBytes;
                 }
                 if (Rune.DecodeFromUtf8(input[byteIndex..], out var rune, out var consumed) != OperationStatus.Done)
                     throw InvalidRange();

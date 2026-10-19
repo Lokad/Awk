@@ -2,13 +2,10 @@ namespace Lokad.Awk.Tests;
 
 public sealed partial class AwkFieldProjectionTests
 {
-    [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(3)] [InlineData(5)]
-    [InlineData(8)] [InlineData(12)] [InlineData(20)] [InlineData(80)]
-    public async Task FieldListPrintKeepsExactFuelAndPartialOutput(int fuel)
+    [Fact]
+    public async Task FieldListPrintPreservesOutput()
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (fuel != 0) limits = limits.WithMaxExecutionSteps(fuel);
         Assert.Equal(await RunPrintAsync(true, limits), await RunPrintAsync(false, limits));
     }
 
@@ -86,15 +83,12 @@ public sealed partial class AwkFieldProjectionTests
         host.SetStandardInput("head 007 café\nother -3 tail\n");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(2 << 20);
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, limits, AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter,
-            memoryBudget: budget);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility, memoryBudget: budget);
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
-        return new(exit.Value, host.GetOutput(AwkFileDescriptor.StdOut), host.GetOutput(AwkFileDescriptor.StdErr),
-            counters.ExecutionSteps, counters.HostCalls, counters.FieldsMaterialized, counters.FieldSplits);
+        return new(exit.Value, host.GetOutput(AwkFileDescriptor.StdOut), host.GetOutput(AwkFileDescriptor.StdErr), counters.HostCalls, counters.FieldsMaterialized, counters.FieldSplits);
     }
 
-    private readonly record struct PrintResult(int Exit, string Output, string Error, long Steps, long Calls, long Fields, long Splits);
+    private readonly record struct PrintResult(int Exit, string Output, string Error, long Calls, long Fields, long Splits);
 }

@@ -11,8 +11,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
             CancellationToken.None, options);
         var record = AwkText.FromSourceLiteralString("alpha beta");
@@ -47,8 +46,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         if (finiteMemory)
             limits = limits.WithMaxExecutionMemoryBytes(4_096);
         var governor = AwkMemoryAccounting.Create(limits, counters);
-        var frame = new AwkFieldFrame(counters, governor, 1_000, _ => { },
-            value => value.ByteText, _ => { });
+        var frame = new AwkFieldFrame(counters, governor, 1_000, _ => { }, value => value.ByteText);
         var record = AwkText.FromString("alpha beta");
         List<AwkFieldText> fields =
         [AwkFieldText.FromRecordSlice(0, 5), AwkFieldText.FromRecordSlice(6, 4)];
@@ -68,8 +66,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         }
 
         var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
-        output.WriteLine("10,000 record resets and lazy field counts: {0} bytes; finite memory: {1}.",
-            allocatedBytes, finiteMemory);
+        output.WriteLine("10,000 record resets and lazy field counts: {0} bytes; finite memory: {1}.", allocatedBytes, finiteMemory);
         Assert.Equal(20_000, total);
         Assert.InRange(allocatedBytes, 0, allocationLimit);
         Assert.Equal(10_100, counters.FieldSplits);
@@ -88,8 +85,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
             CancellationToken.None, options);
         state.SetCurrentRecord(AwkText.FromString("alpha beta"));
@@ -127,10 +123,10 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4_096), counters);
-        var frame = new AwkFieldFrame(counters, accounting, 1_000, _ => { }, value => value.ByteText, _ => { });
+        var frame = new AwkFieldFrame(counters, accounting, 1_000, _ => { }, value => value.ByteText);
         var record = AwkText.FromSourceLiteralString("row");
         List<AwkFieldText> fields = [AwkFieldText.Empty];
-        Func<AwkText,List<AwkFieldText>> split = _ => fields;
+        Func<AwkText, List<AwkFieldText>> split = _ => fields;
         for (var index = 0; index < 100; index++)
         {
             frame.SetRecordText(record);
@@ -162,9 +158,9 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var budget = new CooperativeTestBudget(4_096);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var accounting = AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled, owner);
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, accounting, 1_000, _ => { }, value => value.ByteText, _ => { });
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, accounting, 1_000, _ => { }, value => value.ByteText);
         List<AwkFieldText> fields = [AwkFieldText.FromRecordSlice(0, 3)];
-        Func<AwkText,List<AwkFieldText>> split = _ => fields;
+        Func<AwkText, List<AwkFieldText>> split = _ => fields;
         frame.SetRecordText(AwkText.FromSourceLiteralString("one"));
         Assert.Equal("one", frame.GetFieldValue(new AwkFieldIndex(1), split, AwkValue.FromText).AsString());
         frame.SetRecordText(AwkText.FromSourceLiteralString("two"));

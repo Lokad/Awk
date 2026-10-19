@@ -88,39 +88,14 @@ public sealed class AwkNumberParserTests
         Assert.True(AwkBuiltins.TryGetCallable("strtonum", out var builtin));
         foreach (var number in new double[] { 1d / 3, -0d, double.Epsilon, Math.CopySign(double.NaN, -1) })
         {
-            var before = counters.ExecutionSteps;
             var context = new AwkEvaluationContext(state);
             AwkExpression[] arguments = [AwkExpression.Number("value", number)];
             var result = await builtin.EvaluateAsync(arguments, context);
             Assert.Equal(BitConverter.DoubleToUInt64Bits(number), BitConverter.DoubleToUInt64Bits(result.AsNumber()));
-            Assert.Equal(1, counters.ExecutionSteps - before);
         }
         Assert.Equal(0, counters.StringDecodes);
         Assert.Equal(0, counters.FormattingFallbacks);
         Assert.Equal(0, counters.AwkTextAllocations);
-    }
-
-    [Theory]
-    [InlineData(4096, 1)]
-    [InlineData(4097, 2)]
-    [InlineData(8193, 3)]
-    public async Task StrtonumPreflightsOfferedByteWorkAtomically(int byteCount, int chunks)
-    {
-        Assert.True(AwkBuiltins.TryGetCallable("strtonum", out var builtin));
-        var expression = AwkExpression.Literal("0x" + new string('0', byteCount - 3) + "1");
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var admitted = CreateState(counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(chunks + 1));
-        var value = await builtin.EvaluateAsync([expression], new AwkEvaluationContext(admitted));
-        Assert.Equal(1, value.AsNumber());
-        Assert.Equal(chunks + 1, counters.ExecutionSteps);
-
-        var rejectedCounters = AwkRuntimeCounters.CreateEnabled();
-        var rejected = CreateState(rejectedCounters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(chunks));
-        var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
-            await builtin.EvaluateAsync([expression], new AwkEvaluationContext(rejected)));
-        Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(1, rejectedCounters.ExecutionSteps);
-        Assert.Equal(0, rejectedCounters.StringDecodes);
     }
 
     [Fact]
@@ -138,6 +113,5 @@ public sealed class AwkNumberParserTests
     private static AwkRuntimeState CreateState(AwkRuntimeCounters counters, AwkRuntimeLimits limits) =>
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility,
-                AwkExecutionEngineKind.Interpreter));
+                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility));
 }

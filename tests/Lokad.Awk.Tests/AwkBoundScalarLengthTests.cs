@@ -13,13 +13,11 @@ public sealed class AwkBoundScalarLengthTests
         var scalar = AwkExpression.PreparedGlobalVariable(name, 0);
         var expression = AwkExpression.Length(scalar, AwkOptionalIdentifier.Some(name.Identifier));
         var context = new AwkEvaluationContext(state);
-        var steps = state.Counters.ExecutionSteps;
 
         Assert.Equal(3, (await expression.EvaluateAsync(context)).AsNumber());
         state.AssignVariableValue(name, AwkValue.FromText("updated"));
         Assert.Equal(7, (await expression.EvaluateAsync(context)).AsNumber());
         Assert.Equal(2, state.Counters.BoundScalarLengths);
-        Assert.Equal(6, state.Counters.ExecutionSteps - steps);
 
         var mismatched = AwkExpression.Length(scalar, AwkOptionalIdentifier.Some(array.Identifier));
         Assert.Equal(1, (await mismatched.EvaluateAsync(context)).AsNumber());
@@ -79,7 +77,7 @@ public sealed class AwkBoundScalarLengthTests
     {
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()).WithMaxExecutionMemoryBytes(1 << 20),
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         state.InitializeGlobalReadSlots(2);
         return state;

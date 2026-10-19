@@ -18,18 +18,14 @@ public sealed class AwkPrintfAdmissionTests
         using (var builder = new AwkUtf8Builder(limits, accounting, capacity: 16))
         using (var pressure = accounting.ReserveTransient(limit - accounting.CurrentCommittedBytes))
         {
-            var reserves = accounting.ReserveCount;
             var committed = accounting.CurrentCommittedBytes;
             var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(AwkText.FromSourceLiteralString("payload")), counters);
-            PrintfEvaluation.FormatToBuilder(builder, "%8s", arguments, PrintfMissingArgumentPolicy.Throw,
-                limits, counters, accounting);
+            PrintfEvaluation.FormatToBuilder(builder, "%8s", arguments, PrintfMissingArgumentPolicy.Throw, limits, counters, accounting);
             Assert.Equal(" payload"u8.ToArray(), builder.AsSpan().ToArray());
-            Assert.Equal(reserves, accounting.ReserveCount);
             Assert.Equal(committed, accounting.CurrentCommittedBytes);
             Assert.Equal(0, accounting.CurrentReservedBytes);
             Assert.Equal(1, counters.Utf8Encodes);
             Assert.Equal(1, counters.StringDecodes);
-            Assert.Equal(0, counters.ExecutionSteps);
         }
         Assert.Equal(0, accounting.CurrentCommittedBytes);
         Assert.Equal(0, budget.Reserved);

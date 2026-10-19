@@ -151,7 +151,8 @@ public sealed class AwkFieldCapacityTests
     }
 
     [Theory]
-    [InlineData(1)] [InlineData(2)]
+    [InlineData(1)]
+    [InlineData(2)]
     public async Task RepeatedGrowthAdmitsOnlyGeometricBuffersAndZeroNfKeepsCapacityUntilRecomposition(int mode)
     {
         var budget = new CooperativeTestBudget(Limit);
@@ -159,10 +160,8 @@ public sealed class AwkFieldCapacityTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = Accounting(mode, owner, counters);
         var (frame, record, _) = Frame(accounting, counters, 1);
-        var reservations = accounting.ReserveCount;
         for (var count = 2; count <= 513; count++) frame.AssignFieldCount(new(count), Space, NoSplit);
         Assert.Equal(AwkRuntimeMemory.EstimateTextBytes(record) + Buffer(1024), accounting.CurrentCommittedBytes);
-        Assert.Equal(8, accounting.ReserveCount - reservations);
         Assert.Equal(513, counters.FieldsMaterialized);
         frame.AssignFieldCount(new(0), Space, NoSplit);
         Assert.Equal(AwkRuntimeMemory.EstimateTextBytes(record) + Buffer(1024), accounting.CurrentCommittedBytes);
@@ -184,8 +183,7 @@ public sealed class AwkFieldCapacityTests
         var record = AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("x", count)));
         var fields = new List<AwkFieldText>();
         for (var i = 0; i < count; i++) fields.Add(AwkFieldText.FromRecordSlice(i * 2, 1));
-        var frame = new AwkFieldFrame(counters, accounting, 16384, _ => { },
-            value => AwkText.FromString(value.AsString()), _ => { }, checkpoint);
+        var frame = new AwkFieldFrame(counters, accounting, 16384, _ => { }, value => AwkText.FromString(value.AsString()), checkpoint);
         frame.SetRecordText(record);
         Assert.Equal(count, frame.GetFieldCount(_ => fields));
         return (frame, record, fields);

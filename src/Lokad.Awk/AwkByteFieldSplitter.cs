@@ -282,7 +282,7 @@ internal sealed class AwkByteFieldSplitter(
             var position = 0;
             for (var index = 0; index < content.Length; index++)
             {
-                if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+                if ((index & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
                     throwIfCancellationRequested();
                 if (content[index] != separator && content[index] != (byte)'\n')
                     continue;
@@ -735,7 +735,7 @@ internal sealed class AwkByteFieldSplitter(
             if (_position < _nextCheckpoint)
                 return;
             checkpoint();
-            _nextCheckpoint = (long)_position + AwkExecutionGovernor.WorkChunkBytes;
+            _nextCheckpoint = (long)_position + AwkRuntimeLimits.CancellationCheckBytes;
         }
     }
 
@@ -781,7 +781,7 @@ internal sealed class AwkByteFieldSplitter(
             if (_position < _nextCheckpoint)
                 return;
             checkpoint();
-            _nextCheckpoint = (long)_position + AwkExecutionGovernor.WorkChunkBytes;
+            _nextCheckpoint = (long)_position + AwkRuntimeLimits.CancellationCheckBytes;
         }
     }
 
@@ -807,7 +807,7 @@ internal sealed class AwkByteFieldSplitter(
             for (var searchOffset = _position; searchOffset < content.Length;)
             {
                 checkpoint();
-                var length = Math.Min(AwkExecutionGovernor.WorkChunkBytes, content.Length - searchOffset);
+                var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, content.Length - searchOffset);
                 var found = content.Slice(searchOffset, length).IndexOf(separator);
                 if (found >= 0)
                 {
@@ -836,7 +836,7 @@ internal sealed class AwkByteFieldSplitter(
         var count = 1;
         for (var index = 0; index < content.Length; index++)
         {
-            if ((index & (AwkExecutionGovernor.WorkChunkBytes - 1)) == 0)
+            if ((index & (AwkRuntimeLimits.CancellationCheckBytes - 1)) == 0)
                 throwIfCancellationRequested();
             if (content[index] == separator)
                 count++;

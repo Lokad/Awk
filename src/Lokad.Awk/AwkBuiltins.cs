@@ -401,7 +401,7 @@ internal static partial class AwkBuiltins
                 return AwkValue.FromNumber(number);
 
             var text = argument.ByteText;
-            context.State.Resources.RecordByteWork(text.ByteLength);
+            context.State.Resources.Checkpoint();
             var numberBase = AwkNumberParser.GetBase(text.AsSpan(context.State.CancellationCheckpoint), context.State.CancellationCheckpoint);
             if (numberBase == 10)
                 return AwkValue.FromNumber(argument.AsNumber(context.State.CancellationCheckpoint));

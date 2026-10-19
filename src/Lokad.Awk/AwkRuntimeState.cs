@@ -49,7 +49,6 @@ internal sealed class AwkRuntimeState : IDisposable
     private readonly AwkExecutionContextStack _executionContexts = new();
     private readonly AwkRangePatternRuntime _rangePatterns = new();
     private readonly AwkExecutionControlRuntime _executionControl = new();
-    private readonly Dictionary<AwkExecutableTables, AwkExecutableRuntimeBindings> _executableBindings = new();
     private AwkText _recordSeparatorText = AwkText.Empty;
     private AwkRegexCaseSensitivity _recordSeparatorCaseSensitivity;
     private long _recordSeparatorVersion;
@@ -64,7 +63,6 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkRegexEscapeWarnings? regexEscapeWarnings = null)
     {
         Counters = runtimeOptions.Counters;
-        UsesExecutableEngine = runtimeOptions.ExecutionEngineKind == AwkExecutionEngineKind.Executable;
         Limits = runtimeOptions.Limits;
         Resources = resources;
         MemoryAccounting = AwkMemoryAccounting.Create(Limits, Counters, runtimeOptions.MemoryOwner);
@@ -115,7 +113,7 @@ internal sealed class AwkRuntimeState : IDisposable
             runtimeOptions.MemoryOwner.IsEnabled ? runtimeOptions.MemoryOwner.Scope : runtimeOptions.MemoryBudget);
         try
         {
-            _stringRuntime = new AwkStringRuntime(stringUnitMode, Resources.RecordByteWork, CancellationCheckpoint);
+            _stringRuntime = new AwkStringRuntime(stringUnitMode, CancellationCheckpoint);
             _formattingRuntime = new AwkFormattingRuntime(ResolveFormatVariable, Limits, Counters, MemoryAccounting,
                 CompatibilityMode, CancellationCheckpoint);
             _fieldSplitter = new AwkFieldSplitter(
@@ -128,7 +126,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 ThrowIfCancellationRequested,
                 MemoryAccounting,
                 Counters,
-                Resources.RecordByteWork,
+
                 CompatibilityMode,
                 _regexRuntime.ResetWarningSite);
             _recordFields = new AwkRecordFieldRuntime(
@@ -145,7 +143,7 @@ internal sealed class AwkRuntimeState : IDisposable
                 MemoryAccounting,
                 Limits.MaxFields,
                 Resources.ThrowIfValueBytesExceeded,
-                Resources.RecordByteWork,
+
                 CancellationCheckpoint);
             recordFields = _recordFields;
             _specialVariables = new AwkSpecialVariableDispatcher(
@@ -236,13 +234,11 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public AwkCompatibilityMode CompatibilityMode { get; }
 
-
     public AwkLintMode LintMode { get; }
 
     public bool NonDecimalData { get; }
 
     public AwkRuntimeCounters Counters { get; }
-    internal bool UsesExecutableEngine { get; }
 
     public AwkRuntimeLimits Limits { get; }
 
@@ -278,14 +274,6 @@ internal sealed class AwkRuntimeState : IDisposable
         Resources.ThrowIfValueBytesExceeded(text.ByteLength);
         Counters.RecordValueCreated();
         return AwkValue.FromText(text, NumberParsingMode, CancellationCheckpoint);
-    }
-
-    internal AwkValue ResolveExecutableConstant(AwkValue value)
-    {
-        var mode = NumberParsingMode;
-        return mode == AwkNumberParsingMode.Decimal || value.IsNumberValue
-            ? value
-            : AwkValue.FromText(value.ByteText, mode, CancellationCheckpoint);
     }
 
     public AwkValue CreateDeferredTextValue(AwkText text)
@@ -332,14 +320,11 @@ internal sealed class AwkRuntimeState : IDisposable
         Resources.ThrowIfCancellationRequested(_cancellationToken);
     }
 
-    public void RecordExecutionStep() =>
-        Resources.RecordExecutionStep(_cancellationToken);
+    public void Checkpoint() =>
+        Resources.Checkpoint(_cancellationToken);
 
     public void ThrowIfRecordBytesExceeded(AwkText record) =>
         Resources.ThrowIfRecordBytesExceeded(record.ByteLength);
-
-    public void ThrowIfVmStackBytesExceeded(long byteCount) =>
-        Resources.ThrowIfVmStackBytesExceeded(byteCount);
 
     public void InitializeArguments(IReadOnlyList<string> arguments)
     {
@@ -495,7 +480,7 @@ internal sealed class AwkRuntimeState : IDisposable
         var start = (int)startValue.AsNumber(CancellationCheckpoint);
         if (start < 1) start = 1;
         var byteMode = _stringRuntime.IsByteMode;
-        if (!byteMode) Resources.RecordByteWork(source.Length);
+        if (!byteMode) Resources.Checkpoint();
         var sourceLength = byteMode ? source.Length : AwkText.CountRunes(source, CancellationCheckpoint);
         if (start > sourceLength) return AwkValue.FromText(string.Empty);
         var zeroBasedStart = start - 1;
@@ -503,7 +488,7 @@ internal sealed class AwkRuntimeState : IDisposable
             : (int)lengthValue.AsNumber(CancellationCheckpoint);
         if (length <= 0) return AwkValue.FromText(string.Empty);
         length = Math.Min(length, sourceLength - zeroBasedStart);
-        Resources.RecordByteWork(source.Length);
+        Resources.Checkpoint();
         var byteStart = zeroBasedStart;
         var byteEnd = zeroBasedStart + length;
         if (!byteMode)
@@ -553,7 +538,7 @@ internal sealed class AwkRuntimeState : IDisposable
             return CountStringUnits(FormatStringByteText(GetFieldValue(field)));
 
         if (!_stringRuntime.IsByteMode)
-            Resources.RecordByteWork(length);
+            Resources.Checkpoint();
         return length;
     }
 
@@ -604,8 +589,8 @@ internal sealed class AwkRuntimeState : IDisposable
             !IsCaseInsensitive && _recordFields.TryGetUnmaterializedFieldBytes(new AwkFieldIndex(index), out bytes);
         var value = borrowed ? default : index == 0 ? GetCurrentRecordValue() : GetFieldValue(index);
         // Literal evaluation follows the field read, including its value limit and checkpoint.
-        RecordExecutionStep();
-        var deferLiteral = borrowed && literal.ByteLength < AwkExecutionGovernor.WorkChunkBytes;
+        Checkpoint();
+        var deferLiteral = borrowed && literal.ByteLength < AwkRuntimeLimits.CancellationCheckBytes;
         // The byte-only branch never inspects this value; keep long literal scan checkpoints.
         var right = deferLiteral ? CreateDeferredTextValue(literal) : CreateByteTextValue(literal);
         if (deferLiteral) Counters.RecordDeferredComparisonLiteral();
@@ -944,16 +929,6 @@ internal sealed class AwkRuntimeState : IDisposable
             _variables.SetScalarValue(slot, value);
         else
             _variableRuntime.AssignVariableValue(AwkSpecialVariables.VariableName(id), value);
-    }
-
-    public AwkExecutableRuntimeBindings GetExecutableBindings(AwkExecutableTables tables)
-    {
-        if (_executableBindings.TryGetValue(tables, out var bindings))
-            return bindings;
-
-        bindings = new AwkExecutableRuntimeBindings(tables);
-        _executableBindings[tables] = bindings;
-        return bindings;
     }
 
     public AwkGlobalSlotId GetOrCreateGlobalScalarSlot(AwkVariableName name) =>

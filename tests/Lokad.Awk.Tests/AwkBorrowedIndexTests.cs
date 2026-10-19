@@ -30,13 +30,17 @@ public sealed class AwkBorrowedIndexTests
     }
 
     [Theory]
-    [InlineData("63", 1)] [InlineData("64", 1)] [InlineData("65", 0)]
-    [InlineData("cached", 0)] [InlineData("owned", 0)] [InlineData("variable", 0)]
-    [InlineData("executable", 0)] [InlineData("lint", 0)] [InlineData("regex", 0)]
+    [InlineData("63", 1)]
+    [InlineData("64", 1)]
+    [InlineData("65", 0)]
+    [InlineData("cached", 0)]
+    [InlineData("owned", 0)]
+    [InlineData("variable", 0)]
+    [InlineData("lint", 0)]
+    [InlineData("regex", 0)]
     public async Task ExistingFallbacksStayOrdinary(string shape, int expected)
     {
-        var state = State(0, AwkExecutionMemoryOwner.Disabled, executable: shape == "executable",
-            lint: shape == "lint", regex: shape == "regex");
+        var state = State(0, AwkExecutionMemoryOwner.Disabled, lint: shape == "lint", regex: shape == "regex");
         var ascii = int.TryParse(shape, out var size);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("id " + (ascii ? new string('a', size) : "déjà-timeout")));
         if (shape == "cached") _ = state.GetFieldValue(2);
@@ -123,33 +127,6 @@ public sealed class AwkBorrowedIndexTests
         Assert.Equal(0, state.Counters.BorrowedFieldIndexSearches);
     }
 
-    [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public async Task LogicalFuelMatchesOrdinaryEvaluation(bool ignoreCase)
-    {
-        async Task<(long Steps, string Error)> Run(bool executable, int? fuel)
-        {
-            var limits = AwkRuntimeLimits.CreateDefault();
-            if (fuel is { } maximum) limits = limits.WithMaxExecutionSteps(maximum);
-            var state = State(0, AwkExecutionMemoryOwner.Disabled, executable: executable, limits: limits);
-            state.SetCurrentRecord(AwkText.FromSourceLiteralString("id déjà-timeout"));
-            if (ignoreCase) state.AssignVariableValue(AwkVariableName.FromText("IGNORECASE"), AwkValue.FromNumber(1));
-            try
-            {
-                Assert.Equal(6, (await Call().EvaluateAsync(new(state))).AsNumber());
-                return (state.Counters.ExecutionSteps, "");
-            }
-            catch (AwkRuntimeException error)
-            {
-                return (state.Counters.ExecutionSteps, AwkUtf8Codec.Decode(error.MessageBytes));
-            }
-        }
-        var ordinary = await Run(true, null);
-        Assert.Equal(ordinary, await Run(false, null));
-        for (var fuel = 1; fuel < ordinary.Steps; fuel++)
-            Assert.Equal(await Run(true, fuel), await Run(false, fuel));
-    }
-
     private static AwkExpression Call(AwkExpression? needle = null)
     {
         Assert.True(AwkBuiltins.TryGetCallable("index", out var builtin));
@@ -158,14 +135,14 @@ public sealed class AwkBorrowedIndexTests
     }
 
     private static AwkRuntimeState State(int mode, AwkExecutionMemoryOwner owner,
-        CancellationToken token = default, bool executable = false, bool bytes = false,
+        CancellationToken token = default, bool bytes = false,
         bool lint = false, bool regex = false, AwkRuntimeLimits? limits = null)
     {
         limits ??= AwkRuntimeLimits.CreateDefault();
         if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(Limit);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility,
-            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter) { MemoryOwner = owner };
+            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility)
+        { MemoryOwner = owner };
         var profile = bytes ? AwkCompatibilityProfile.Default.WithCharactersAsBytes() : AwkCompatibilityProfile.Default;
         if (lint) profile = profile.WithLintMode(AwkLintMode.Normal);
         return new(regex ? AwkFieldSeparatorSpec.FromText("[ ]+") : AwkFieldSeparatorSpec.Default, token, options,

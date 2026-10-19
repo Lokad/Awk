@@ -160,7 +160,6 @@ public sealed class AwkFrontendMemoryTests
         Assert.Equal(0, budget.Reserved);
         Assert.Throws<ObjectDisposedException>(() => { _ = compiled.ExecuteAsync(new MockFileSystem(), CancellationToken.None); });
         Assert.Throws<ObjectDisposedException>(() => compiled.Warnings);
-        Assert.Throws<ObjectDisposedException>(() => compiled.ExecutableProgram);
         Assert.True(parent.TryReserve(1 << 20, out var reusable));
         reusable.Dispose();
     }

@@ -17,15 +17,15 @@ public sealed class AwkGetlineExpressionTests
     {
         foreach (var testCase in AwkGoldenCorpus.PipeGetlineExpressionCases()
             .Concat(AwkGoldenCorpus.PipeGetlineDestinationCases()))
-            foreach (var executable in new[] { false, true })
-                foreach (var utf8 in new[] { false, true })
-                    yield return [testCase, executable, utf8];
+
+            foreach (var utf8 in new[] { false, true })
+                yield return [testCase, utf8];
     }
 
     [Theory]
     [MemberData(nameof(PipeCases))]
     public async Task PipeExpressionsKeepTheHostCommandAndDescriptorLifecycle(
-        AwkGoldenCase testCase, bool executable, bool utf8)
+        AwkGoldenCase testCase, bool utf8)
     {
         var files = AwkTestHarness.BuildFileSystem(testCase);
         var host = new AwkGetlinePipeTestHost(files);
@@ -34,7 +34,7 @@ public sealed class AwkGetlineExpressionTests
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+regexEngine: AwkUtf8RegexEngine.Instance);
         var compiled = await AwkExecutor.CompileAsync(host, invocation, CancellationToken.None);
 
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
@@ -53,8 +53,6 @@ public sealed class AwkGetlineExpressionTests
             Assert.Equal(invocation.CurrentDirectory, command.CurrentDirectory);
             Assert.Contains(command.Environment, entry => entry.Name == "LC_ALL" && entry.Value == "C.UTF-8");
         }
-        if (executable)
-            Assert.True(counters.VmBasicBlockEntries > 0 || counters.VmPatternFallbacks > 0);
     }
 
     [Theory]

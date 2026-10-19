@@ -87,7 +87,6 @@ public sealed class AwkPrintfCancellationTests
             format, arguments, limits, counters, governor, checkpoint: Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal(4, callsDuringValue);
-        Assert.InRange(governor.PeakCommittedBytes, 1, 1 << 20);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, counters.Utf8Encodes);
@@ -124,7 +123,6 @@ public sealed class AwkPrintfCancellationTests
             checkpoint: cancellation.Token.ThrowIfCancellationRequested));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal(0, counters.Utf8Encodes);
-        Assert.InRange(governor.PeakCommittedBytes, 1, 1 << 20);
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }
@@ -210,28 +208,23 @@ public sealed class AwkPrintfCancellationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void FormattingCheckpointsDoNotChargeExtraFuelOrChangeAdmission(bool observed)
+    public void FormattingCheckpointsPreserveAdmission(bool observed)
     {
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20).WithMaxExecutionSteps(1);
+        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20);
         var resources = new AwkRuntimeResourceMonitor(limits, counters);
         var governor = AwkMemoryAccounting.Create(limits, counters);
-        resources.RecordExecutionStep();
-        var output = AwkFormattingRuntime.FormatPrintfStrictByteText("%" + new string('0', 24_000) + "1$s",
-            new TestArguments("界", 0), limits, counters, governor,
-            checkpoint: () => resources.ThrowIfCancellationRequested(CancellationToken.None));
+        resources.Checkpoint();
+        var output = AwkFormattingRuntime.FormatPrintfStrictByteText("%" + new string('0', 24_000) + "1$s", new TestArguments("界", 0), limits, counters, governor, checkpoint: () => resources.ThrowIfCancellationRequested(CancellationToken.None));
         Assert.Equal("界", output.AsString());
-        Assert.Equal(observed ? 1 : 0, counters.ExecutionSteps);
         if (observed)
             Assert.True(counters.CancellationChecks > 1);
-        var failure = Assert.Throws<AwkRuntimeException>(() => resources.RecordExecutionStep());
-        Assert.Equal("awk: execution step limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
+        resources.Checkpoint();
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }
 
-    private readonly struct TestArguments(string text, double number, Action? onString = null,
-        Action? onNumber = null, bool numeric = false) : IPrintfArguments
+    private readonly struct TestArguments(string text, double number, Action? onString = null, Action? onNumber = null, bool numeric = false) : IPrintfArguments
     {
         private readonly AwkText _text = AwkText.FromSourceLiteralString(text);
 

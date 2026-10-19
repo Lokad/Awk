@@ -33,17 +33,17 @@ internal sealed class AwkSynchronousFunction(AwkFunctionLocalLayout layout, AwkS
         state.Counters.RecordSynchronousFunction();
         if (HasLocalAssignment)
         {
-            state.RecordExecutionStep(); // Assignment statement in the function block.
-            state.RecordExecutionStep(); // Assignment expression, before its value.
+            state.Checkpoint(); // Assignment statement in the function block.
+            state.Checkpoint(); // Assignment expression, before its value.
             state.AssignFunctionLocalValue(_local.Slot, _local.Name, _prefix.EvaluateSynchronous(context));
         }
         var selected = Body;
         if (_condition.SynchronousDepth > 0)
         {
-            state.RecordExecutionStep(); // If statement, before its condition.
+            state.Checkpoint(); // If statement, before its condition.
             if (!_condition.EvaluateSynchronous(context).IsTruthy()) selected = _alternative;
         }
-        state.RecordExecutionStep(); // Return statement checkpoint in its enclosing block.
+        state.Checkpoint(); // Return statement checkpoint in its enclosing block.
         return selected.EvaluateSynchronous(context).AsScalarCopy();
     }
 
@@ -117,7 +117,7 @@ internal abstract partial class AwkExpression
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
         {
             var state = context.State;
-            state.RecordExecutionStep(); // Invocation, after its call-expression checkpoint.
+            state.Checkpoint(); // Invocation, after its call-expression checkpoint.
             state.ThrowIfCancellationRequested();
             if (_operands.Length == 0)
             {

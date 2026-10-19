@@ -30,7 +30,6 @@ public sealed class AwkPreparedNumericUpdateTests
         Assert.Equal(expected.AsNumber(), actual.AsNumber());
         Assert.Equal(legacy.ResolveVariableValue(name).AsNumber(), prepared.ResolveVariableValue(name).AsNumber());
         Assert.Equal(legacy.Counters.ValuesCreated, prepared.Counters.ValuesCreated);
-        Assert.Equal(legacy.Counters.ExecutionSteps, prepared.Counters.ExecutionSteps);
         Assert.Equal(legacy.Counters.StringDecodes, prepared.Counters.StringDecodes);
         Assert.Equal(legacy.Counters.Utf8Encodes, prepared.Counters.Utf8Encodes);
         Assert.Equal(legacy.MemoryAccounting.CurrentCommittedBytes, prepared.MemoryAccounting.CurrentCommittedBytes);
@@ -106,7 +105,7 @@ public sealed class AwkPreparedNumericUpdateTests
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, options);
     }
 }

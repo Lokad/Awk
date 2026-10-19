@@ -68,7 +68,6 @@ public sealed class AwkRegexBracketClassTests
             Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate("[[:absent:]]", lease: lease));
         else
             AwkRegexBracketClasses.Validate("(a)([[:digit:]])", lease: lease);
-        Assert.Equal(0, governor.PeakLiveBytes);
     }
 
     [Theory]
@@ -84,14 +83,12 @@ public sealed class AwkRegexBracketClassTests
             var failure = Assert.Throws<AwkRuntimeException>(() => AwkRegexBracketClasses.Validate(pattern, lease: lease));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
         }
-        Assert.Equal(0, shortGovernor.PeakLiveBytes);
         var governor = Governor(bytes + 11);
         using var retained = governor.ReserveTransient(11);
         if (invalid)
             Assert.Throws<ArgumentException>(() => AwkRegexBracketClasses.Validate(pattern, lease: retained));
         else
             AwkRegexBracketClasses.Validate(pattern, lease: retained);
-        Assert.Equal(bytes + 11, governor.PeakLiveBytes);
         Assert.Equal(11, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
     }

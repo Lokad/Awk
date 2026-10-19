@@ -78,27 +78,17 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the aggregate deadline for best-effort cleanup calls in one execution phase.</summary>
     public TimeSpan CleanupTimeout { get; private init; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>Gets the explicit logical-work allowance, or zero when execution has no fuel limit.</summary>
-    /// <remarks>Both presets default to zero. Configure a positive allowance with <see cref="WithMaxExecutionSteps"/>.</remarks>
-    public int MaxExecutionSteps => Limits.MaxExecutionSteps;
-
     /// <summary>Gets the maximum active awk function-call depth.</summary>
     public int MaxFunctionCallDepth => Limits.MaxFunctionCallDepth;
 
     /// <summary>Gets the maximum frontend and expression-tree nesting depth.</summary>
     public int MaxSyntaxNestingDepth => Limits.MaxSyntaxNestingDepth;
 
-    /// <summary>Gets the maximum number of host calls.</summary>
-    public long MaxHostCalls => Limits.MaxHostCalls;
-
     /// <summary>Gets the maximum size of one input record in UTF-8 bytes.</summary>
     public long MaxRecordBytes => Limits.MaxRecordBytes;
 
     /// <summary>Gets the maximum aggregate bytes read from runtime input descriptors.</summary>
     public long MaxInputBytes => Limits.MaxInputBytes;
-
-    /// <summary>Gets the maximum number of input records consumed by one execution.</summary>
-    public long MaxRecords => Limits.MaxRecords;
 
     /// <summary>Gets the maximum size of one runtime value in UTF-8 bytes.</summary>
     public long MaxValueBytes => Limits.MaxValueBytes;
@@ -130,23 +120,8 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum number of group constructs in one regex pattern.</summary>
     public int MaxRegexGroups => Limits.MaxRegexGroups;
 
-    /// <summary>Gets the maximum regex constructor calls in one execution.</summary>
-    public int MaxRegexCompilations => Limits.MaxRegexCompilations;
-
     /// <summary>Gets the maximum estimated bytes retained across regex caches.</summary>
     public long MaxRegexCacheBytes => Limits.MaxRegexCacheBytes;
-
-    /// <summary>Gets an optional secondary regex search ceiling; any explicitly configured shared work allowance also applies.</summary>
-    public long MaxRegexOperations => Limits.MaxRegexOperations;
-
-    /// <summary>Gets an optional secondary array-sort comparison ceiling; any explicitly configured shared work allowance also applies.</summary>
-    public long MaxSortComparisons => Limits.MaxSortComparisons;
-
-    /// <summary>Gets an optional secondary regex separator scan ceiling; any explicitly configured shared work allowance also applies.</summary>
-    public long MaxRegexRecordSeparatorBytesScanned => Limits.MaxRegexRecordSeparatorBytesScanned;
-
-    /// <summary>Gets the maximum executable-engine stack size in bytes.</summary>
-    public long MaxVmStackBytes => Limits.MaxVmStackBytes;
 
     /// <summary>Gets the maximum estimated aggregate retained execution memory.</summary>
     public long MaxExecutionMemoryBytes => Limits.MaxExecutionMemoryBytes;
@@ -291,10 +266,6 @@ public sealed record AwkExecutionPolicy
     public AwkExecutionPolicy WithCleanupTimeout(TimeSpan timeout) =>
         this with { CleanupTimeout = RequirePositive(timeout) };
 
-    /// <summary>Returns a copy with the execution-step budget configured.</summary>
-    public AwkExecutionPolicy WithMaxExecutionSteps(int value) =>
-        this with { Limits = Limits.WithMaxExecutionSteps(value) };
-
     /// <summary>Returns a copy with the awk function-call depth configured.</summary>
     public AwkExecutionPolicy WithMaxFunctionCallDepth(int value) =>
         this with { Limits = Limits.WithMaxFunctionCallDepth(value) };
@@ -303,10 +274,6 @@ public sealed record AwkExecutionPolicy
     public AwkExecutionPolicy WithMaxSyntaxNestingDepth(int value) =>
         this with { Limits = Limits.WithMaxSyntaxNestingDepth(value) };
 
-    /// <summary>Returns a copy with the host-call budget configured.</summary>
-    public AwkExecutionPolicy WithMaxHostCalls(long value) =>
-        this with { Limits = Limits.WithMaxHostCalls(value) };
-
     /// <summary>Returns a copy with the per-record byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxRecordBytes(long value) =>
         this with { Limits = Limits.WithMaxRecordBytes(value) };
@@ -314,10 +281,6 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the aggregate runtime-input byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxInputBytes(long value) =>
         this with { Limits = Limits.WithMaxInputBytes(value) };
-
-    /// <summary>Returns a copy with the input-record budget configured.</summary>
-    public AwkExecutionPolicy WithMaxRecords(long value) =>
-        this with { Limits = Limits.WithMaxRecords(value) };
 
     /// <summary>Returns a copy with the per-value byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxValueBytes(long value) =>
@@ -359,29 +322,9 @@ public sealed record AwkExecutionPolicy
     public AwkExecutionPolicy WithMaxRegexGroups(int value) =>
         this with { Limits = Limits.WithMaxRegexGroups(value) };
 
-    /// <summary>Returns a copy with the regex compilation budget configured.</summary>
-    public AwkExecutionPolicy WithMaxRegexCompilations(int value) =>
-        this with { Limits = Limits.WithMaxRegexCompilations(value) };
-
     /// <summary>Returns a copy with the retained regex-cache byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxRegexCacheBytes(long value) =>
         this with { Limits = Limits.WithMaxRegexCacheBytes(value) };
-
-    /// <summary>Returns a copy with the regex-operation budget configured.</summary>
-    public AwkExecutionPolicy WithMaxRegexOperations(long value) =>
-        this with { Limits = Limits.WithMaxRegexOperations(value) };
-
-    /// <summary>Returns a copy with the built-in sort-comparison budget configured.</summary>
-    public AwkExecutionPolicy WithMaxSortComparisons(long value) =>
-        this with { Limits = Limits.WithMaxSortComparisons(value) };
-
-    /// <summary>Returns a copy with the regex record-separator scan budget configured.</summary>
-    public AwkExecutionPolicy WithMaxRegexRecordSeparatorBytesScanned(long value) =>
-        this with { Limits = Limits.WithMaxRegexRecordSeparatorBytesScanned(value) };
-
-    /// <summary>Returns a copy with the executable stack-byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxVmStackBytes(long value) =>
-        this with { Limits = Limits.WithMaxVmStackBytes(value) };
 
     /// <summary>Returns a copy with the aggregate retained-memory budget configured.</summary>
     public AwkExecutionPolicy WithMaxExecutionMemoryBytes(long value) =>

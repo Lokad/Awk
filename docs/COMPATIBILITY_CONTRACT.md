@@ -111,8 +111,7 @@ subject to concrete script demand. Native loading, coprocesses, network special 
 arbitrary raw bytes, ambient locale execution and arbitrary precision are excluded.
 
 The public boundary comprises invocations, async execution, host outcomes, resource policy
-and AWK-specific memory/regex contracts. The executable engine and prepared-program
-machinery remain internal/opt-in. Core has no Utf8Regex runtime dependency; the optional
+and AWK-specific memory/regex contracts. Interpreter prepared-program helpers remain internal. Core has no Utf8Regex runtime dependency; the optional
 adapter and newer producer adoption are independent qualification decisions.
 
 The [golden corpus](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs) owns observable behavior.

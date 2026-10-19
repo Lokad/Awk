@@ -55,7 +55,6 @@ public sealed class AwkFieldLengthTests
         state.SetCurrentRecord(AwkText.FromString("before"));
         var source = new IndexSource(pending);
         var expression = Length(new IndexExpression(source));
-        var steps = counters.ExecutionSteps;
         var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
         state.SetCurrentRecord(AwkText.FromString("after next"));
         if (pending)
@@ -65,7 +64,6 @@ public sealed class AwkFieldLengthTests
         }
         Assert.Equal(pending ? 5 : 6, (await result).AsNumber());
         Assert.Equal(1, source.Consumptions);
-        Assert.True(counters.ExecutionSteps - steps >= 3);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
@@ -127,8 +125,7 @@ public sealed class AwkFieldLengthTests
         var limits = AwkRuntimeLimits.CreateDefault();
         if (finite) limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
         return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options), counters);
     }
 }

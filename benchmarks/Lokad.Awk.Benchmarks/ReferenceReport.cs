@@ -125,12 +125,16 @@ internal static class ReferenceReport
         var policy = new
         {
             Preset = "AwkExecutionPolicy.CreateDefault; interpreter; DotNetCompatibility; TimeZone=UTC",
-            limits.MaxExecutionSteps, limits.MaxHostCalls, limits.MaxFunctionCallDepth,
-            limits.MaxExecutionMemoryBytes, limits.MaxArrayElements, limits.MaxFields,
-            limits.MaxInputBytes, limits.MaxOutputBytes, limits.MaxRecordBytes,
-            limits.MaxRegexOperations, limits.MaxRegexRecordSeparatorBytesScanned, limits.MaxSortComparisons,
+            limits.MaxFunctionCallDepth,
+            limits.MaxExecutionMemoryBytes,
+            limits.MaxArrayElements,
+            limits.MaxFields,
+            limits.MaxInputBytes,
+            limits.MaxOutputBytes,
+            limits.MaxRecordBytes,
             InvocationTimeoutSeconds = ReferenceExecution.InvocationTimeout.TotalSeconds,
-            DriverOutputBytes = 64L << 20, DriverErrorBytes = 64 << 10
+            DriverOutputBytes = 64L << 20,
+            DriverErrorBytes = 64 << 10
         };
         return new(1, mode, DateTimeOffset.UtcNow, Contract, host, reference, policy, gate, cases, pairs, complete, rows.ToArray());
     }

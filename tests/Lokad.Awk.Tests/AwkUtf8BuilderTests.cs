@@ -94,19 +94,10 @@ public sealed class AwkUtf8BuilderTests
             Assert.Equal(4, governor.CurrentCommittedBytes);
             builder.Append("abcde"u8);
             Assert.Equal(8, governor.CurrentCommittedBytes);
-            Assert.Equal(12, governor.PeakLiveBytes);
             Assert.Equal(0, governor.CurrentReservedBytes);
         }
 
         Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(2, counters.MemoryReserveCalls);
-        Assert.Equal(2, counters.MemoryCommitCalls);
-        Assert.Equal(0, counters.MemoryReleaseReservedCalls);
-        Assert.Equal(2, counters.MemoryReleaseCommittedCalls);
-        Assert.Equal(12, counters.MemoryReservedBytes);
-        Assert.Equal(12, counters.MemoryCommittedBytes);
-        Assert.Equal(0, counters.MemoryReleasedReservedBytes);
-        Assert.Equal(12, counters.MemoryReleasedCommittedBytes);
         Assert.Equal(12, counters.MemoryPeakLiveBytes);
     }
 

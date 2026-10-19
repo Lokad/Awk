@@ -3,23 +3,19 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkSynchronousRegionTests
 {
     [Fact]
-    public async Task PreparedDoWhileMatchesLegacyAtEveryFuelBoundary()
+    public async Task PreparedDoWhileMatchesLegacy()
     {
-        for (var fuel = 0; fuel <= 160; fuel++)
         {
-            var prepared = await RunLoop(false, fuel, false, doWhileLoop: true);
-            var legacy = await RunLoop(true, fuel, false, doWhileLoop: true);
+            var prepared = await RunLoop(false, false, doWhileLoop: true);
+            var legacy = await RunLoop(true, false, doWhileLoop: true);
             Assert.Equal(legacy with { LoopRuns = prepared.LoopRuns }, prepared);
             Assert.Equal(1, prepared.LoopRuns);
             Assert.Equal(0, legacy.LoopRuns);
-            if (fuel == 0 || fuel >= 120)
             {
                 Assert.Equal(20, prepared.Value);
                 Assert.Equal(8, prepared.Index);
-                Assert.Equal(120, prepared.Steps);
                 Assert.Equal("", prepared.Error);
             }
-            else Assert.Equal("awk: execution step limit exceeded\n", prepared.Error);
         }
     }
 
@@ -29,8 +25,8 @@ public sealed partial class AwkSynchronousRegionTests
     [InlineData(true, true)]
     public async Task DoWhileBoundarySelectsLegacyBeforeEffects(bool lint, bool pendingOutput)
     {
-        var prepared = await RunLoop(false, 0, pendingOutput, lint: lint, doWhileLoop: true);
-        var legacy = await RunLoop(true, 0, pendingOutput, lint: lint, doWhileLoop: true);
+        var prepared = await RunLoop(false, pendingOutput, lint: lint, doWhileLoop: true);
+        var legacy = await RunLoop(true, pendingOutput, lint: lint, doWhileLoop: true);
         Assert.Equal(legacy, prepared);
         Assert.Equal(0, prepared.LoopRuns);
     }
@@ -38,8 +34,8 @@ public sealed partial class AwkSynchronousRegionTests
     [Fact]
     public async Task DoWhileMemoryFailurePreservesTargetAndStopsBeforeIncrement()
     {
-        var prepared = await RunLoop(false, 0, false, failMemory: true, doWhileLoop: true);
-        var legacy = await RunLoop(true, 0, false, failMemory: true, doWhileLoop: true);
+        var prepared = await RunLoop(false, false, failMemory: true, doWhileLoop: true);
+        var legacy = await RunLoop(true, false, failMemory: true, doWhileLoop: true);
         Assert.Equal(legacy with { LoopRuns = prepared.LoopRuns }, prepared);
         Assert.Equal(1, prepared.LoopRuns);
         Assert.Equal(7, prepared.Value);
@@ -53,7 +49,7 @@ public sealed partial class AwkSynchronousRegionTests
     public async Task DoWhilePendingBodyIsNotReplayedOrPublishedEarly(bool cancel)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, 0);
+        var state = State(counters);
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -91,7 +87,7 @@ public sealed partial class AwkSynchronousRegionTests
     public async Task DoWhilePendingConditionObservesFirstBodyOnce(bool cancel)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, 0);
+        var state = State(counters);
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -129,7 +125,7 @@ public sealed partial class AwkSynchronousRegionTests
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, 0, cancellation.Token);
+        var state = State(counters, cancellation.Token);
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), AwkExpression.Number("9", 9));
@@ -151,13 +147,12 @@ public sealed partial class AwkSynchronousRegionTests
     public async Task DoWhileBodyBoundKeepsMandatoryFirstIteration(int count, int expectedPrepared)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var state = State(counters, 0);
+        var state = State(counters);
         var io = Io(state, new MockFileSystem(), counters);
         using var output = new AwkOutputSink(state.Limits, state.MemoryAccounting, counters);
         var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("0", 0))]]);
         var loop = AwkStatement.DoWhile(Enumerable.Repeat(AwkStatement.NoOp(), count).ToArray(), condition);
         Assert.Equal(AwkStatementFlow.Continue, await loop.ExecuteAsync(new AwkEvaluationContext(state, output, io)));
-        Assert.Equal(count + 2, counters.ExecutionSteps);
         Assert.Equal(expectedPrepared, counters.SynchronousDoWhileLoopRuns);
         await io.CloseAsync();
     }

@@ -29,12 +29,15 @@ public sealed class AwkBorrowedSubstringTests
     }
 
     [Theory]
-    [InlineData("63", 1)] [InlineData("64", 1)] [InlineData("65", 0)]
-    [InlineData("cached", 0)] [InlineData("owned", 0)]
-    [InlineData("variable", 0)] [InlineData("executable", 0)]
+    [InlineData("63", 1)]
+    [InlineData("64", 1)]
+    [InlineData("65", 0)]
+    [InlineData("cached", 0)]
+    [InlineData("owned", 0)]
+    [InlineData("variable", 0)]
     public async Task OnlyPristineShortLiteralInputsBorrow(string shape, int expected)
     {
-        var state = State(0, AwkExecutionMemoryOwner.Disabled, executable: shape == "executable");
+        var state = State(0, AwkExecutionMemoryOwner.Disabled);
         var ascii = int.TryParse(shape, out var size);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("key " + (ascii ? new string('a', size) : "résumé")));
         if (shape == "cached") _ = state.GetFieldValue(2);
@@ -57,7 +60,7 @@ public sealed class AwkBorrowedSubstringTests
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("key é😀z"));
         if (expected is null)
         {
-            var baseline = State(0, AwkExecutionMemoryOwner.Disabled, executable: true, bytes: bytes);
+            var baseline = State(0, AwkExecutionMemoryOwner.Disabled, bytes: bytes);
             baseline.SetCurrentRecord(AwkText.FromSourceLiteralString("key é😀z"));
             var ordinary = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await Call(length: length).EvaluateAsync(new(baseline)));
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await Call(length: length).EvaluateAsync(new(state)));
@@ -114,35 +117,6 @@ public sealed class AwkBorrowedSubstringTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    [Fact]
-    public async Task LogicalFuelMatchesOrdinaryEvaluation()
-    {
-        async Task<(long Steps, string Error)> Run(bool executable, int? fuel)
-        {
-            var limits = AwkRuntimeLimits.CreateDefault();
-            if (fuel is { } maximum) limits = limits.WithMaxExecutionSteps(maximum);
-            var state = State(0, AwkExecutionMemoryOwner.Disabled, executable: executable, limits: limits);
-            state.SetCurrentRecord(AwkText.FromSourceLiteralString("key résumé"));
-            try
-            {
-                Assert.Equal("ré", (await Call().EvaluateAsync(new(state))).AsString());
-                return (state.Counters.ExecutionSteps, "");
-            }
-            catch (AwkRuntimeException error)
-            {
-                return (state.Counters.ExecutionSteps, AwkUtf8Codec.Decode(error.MessageBytes));
-            }
-        }
-        var ordinary = await Run(true, null);
-        Assert.Equal(ordinary, await Run(false, null));
-        for (var fuel = 1; fuel < ordinary.Steps; fuel++)
-        {
-            var expected = await Run(true, fuel);
-            Assert.NotEqual("", expected.Error);
-            Assert.Equal(expected, await Run(false, fuel));
-        }
-    }
-
     private static AwkExpression Call(bool whole = false, int length = 2, AwkExpression? start = null)
     {
         Assert.True(AwkBuiltins.TryGetCallable("substr", out var builtin));
@@ -153,13 +127,13 @@ public sealed class AwkBorrowedSubstringTests
     }
 
     private static AwkRuntimeState State(int mode, AwkExecutionMemoryOwner owner,
-        CancellationToken token = default, bool executable = false, bool bytes = false, AwkRuntimeLimits? limits = null)
+        CancellationToken token = default, bool bytes = false, AwkRuntimeLimits? limits = null)
     {
         limits ??= AwkRuntimeLimits.CreateDefault();
         if (mode == 1) limits = limits.WithMaxExecutionMemoryBytes(Limit);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility,
-            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter) { MemoryOwner = owner };
+            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility)
+        { MemoryOwner = owner };
         var profile = bytes ? AwkCompatibilityProfile.Default.WithCharactersAsBytes() : AwkCompatibilityProfile.Default;
         return new(AwkFieldSeparatorSpec.Default, token, options,
             new AwkRuntimeResourceMonitor(limits, options.Counters, token), profile);

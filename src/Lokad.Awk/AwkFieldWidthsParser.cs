@@ -97,7 +97,7 @@ internal static class AwkFieldWidthsParser
         if (position < nextCheckpoint)
             return;
         checkpoint?.Invoke();
-        nextCheckpoint = (long)position + AwkExecutionGovernor.WorkChunkBytes;
+        nextCheckpoint = (long)position + AwkRuntimeLimits.CancellationCheckBytes;
     }
 
     private static bool IsBlank(byte value) => value is (byte)' ' or (byte)'\t';

@@ -343,7 +343,7 @@ public sealed class AwkReplacementCaptureCancellationTests
         using var cancellation = new CancellationTokenSource();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.Utf8Adapter, AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance));
+                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance));
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var replacement = AwkText.FromString(new string('x', LongText))
             .Concat(AwkText.FromString("&"), counters, state.MemoryAccounting);

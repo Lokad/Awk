@@ -12,7 +12,7 @@ public sealed class AwkFieldCancellationTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var splitter = Splitter(() => { }, counters, AwkMemoryAccounting.Disabled);
-        var ascii = new string('a', 3 * AwkExecutionGovernor.WorkChunkBytes + 17);
+        var ascii = new string('a', 3 * AwkRuntimeLimits.CancellationCheckBytes + 17);
         var unicode = string.Concat(Enumerable.Repeat("é长", 1_200));
         var text = AwkText.FromString(" \t" + ascii + "\t" + unicode + " \n");
         if (mode == "record")
@@ -284,27 +284,8 @@ public sealed class AwkFieldCancellationTests
         Assert.Equal(allocations + 1, counters.AwkTextAllocations);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void FieldCheckpointsPreserveLogicalFuelAndByteNativeCounters(bool observed)
-    {
-        var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var text = AwkText.FromString(new string('a', LongScan) + ",b");
-        var chunks = AwkExecutionGovernor.ByteWorkSteps(text.ByteLength);
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(chunks);
-        var resources = new AwkRuntimeResourceMonitor(limits, counters);
-        var splitter = Splitter(() => resources.ThrowIfCancellationRequested(CancellationToken.None), counters, AwkMemoryAccounting.Disabled, resources);
-        var fields = splitter.SplitFieldTextsBySeparator(text, AwkFieldSeparatorSpec.FromText(","), AwkSeparatorCaptureMode.Capture, counters);
-        Assert.Equal(2, fields.Fields.Count);
-        Assert.Equal(observed ? chunks : 0, counters.ExecutionSteps);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-        if (observed) Assert.True(counters.CancellationChecks > 4);
-    }
-
     private static AwkFieldFrame Frame(AwkRuntimeCounters counters, AwkMemoryAccounting governor, Action checkpoint) =>
-        new(counters, governor, LongScan, _ => { }, value => value.ByteText, _ => { }, checkpoint);
+        new(counters, governor, LongScan, _ => { }, value => value.ByteText, checkpoint);
 
     private static AwkMemoryAccounting Governor(AwkRuntimeCounters counters) =>
         AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20), counters);
@@ -313,7 +294,7 @@ public sealed class AwkFieldCancellationTests
     {
         var monitor = resources ?? new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
         var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint, counters, AwkRegexEngineKind.DotNetCompatibility, monitor, governor);
-        return new(AwkFieldSeparatorSpec.Default, regex.Create, regex.CreateLiteral, regex.EnumerateMatchSpans, () => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint, governor, counters, monitor.RecordByteWork);
+        return new(AwkFieldSeparatorSpec.Default, regex.Create, regex.CreateLiteral, regex.EnumerateMatchSpans, () => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint, governor, counters);
     }
 
     private static Action CancelOnCheck(CancellationTokenSource cancellation, int check)

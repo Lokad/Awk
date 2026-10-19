@@ -7,22 +7,19 @@ supplied by the host. Refine a preset with its `With...` methods.
 
 | Budget | Default | Restricted |
 | --- | --- | --- |
-| Execution fuel | No implicit quota | No implicit quota |
 | Function depth / syntax depth | 1,000 / 128 | 32 / 64 |
-| Ordinary host calls | 100,000 | 100,000 |
 | Execution-memory quota | Unlimited | 64 MiB |
 | Record / value / builder bytes | Unlimited / unlimited / 64 MiB | 8 MiB each |
 | Runtime input / output bytes | Unlimited | 64 MiB / 16 MiB |
 | Fields / entries per array | 1,000,000 | 100,000 |
-| Regex match timeout | 2 seconds | 2 seconds |
+| .NET regex match timeout | 2 seconds | 2 seconds |
 | Host-operation / command deadline | 5 minutes | 10 seconds |
 | Aggregate cleanup deadline | 30 seconds | 5 seconds |
 | Whole-execution deadline | Caller-owned | 30 seconds, cooperative |
 
-Specialized regex-operation, sorting and separator-scan quotas are optional in both
-presets. Positive `WithMaxExecutionSteps` enables logical fuel, not CPU time. The preset
-value zero means no fuel; setters require positive values. Counters do not enable quotas.
-Remaining frontend, regex, I/O and VM limits are listed in the
+CPU execution uses caller cancellation or `WithExecutionTimeout`. There are no execution-step,
+host-call, record-count, regex-operation/compilation, sorting or separator-scan work quotas.
+Counters are observational. Remaining storage, frontend and open-resource bounds are listed in the
 [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs).
 
 ## Shared memory
@@ -56,10 +53,11 @@ fatal refusal. Engines must not turn admission refusal into unsupported-pattern 
 
 ## Cancellation, streaming and publication
 
-Every logical checkpoint polls cancellation even without fuel or counters. Caller cancellation
+Cancellation checkpoints remain active with counters disabled. Caller cancellation
 propagates; `WithExecutionTimeout` expiry is an awk failure. Host and cleanup deadlines bound
-waiting, not hard termination. Regex matching has its own timeout; construction and some
-framework/parser calls are indivisible. No universal cancellation latency or CPU cap is promised.
+waiting, not hard termination. Awk-owned POSIX construction/matching polls cancellation without a separate stopwatch
+deadline. .NET regex calls retain a timeout because they cannot poll that token internally;
+supplied engines retain their timeout contract. Some framework/parser calls are indivisible. No universal cancellation latency or CPU cap is promised.
 
 Fields split on demand where supported. Tight field quotas still validate the whole record
 before publishing a prefix; `NF` and mutation can finish splitting. Streaming buffers and caches

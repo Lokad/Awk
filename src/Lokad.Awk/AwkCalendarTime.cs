@@ -163,8 +163,8 @@ internal static class AwkCalendarTime
                 return 0;
             if (_admitted == 0)
             {
-                _admitted = Math.Min(AwkExecutionGovernor.WorkChunkBytes, _bytes.Length - _position);
-                resources.RecordByteWork(_admitted);
+                _admitted = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, _bytes.Length - _position);
+                resources.Checkpoint();
             }
             return _bytes[_position];
         }

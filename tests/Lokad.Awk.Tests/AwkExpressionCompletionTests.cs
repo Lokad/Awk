@@ -26,7 +26,6 @@ public sealed class AwkExpressionCompletionTests
         var expression = comparison
             ? AwkExpression.Compare(new SourceExpression(left), new SourceExpression(right), AwkComparison.LessThan)
             : AwkExpression.Add(new SourceExpression(left), new SourceExpression(right));
-        var before = counters.ExecutionSteps;
 
         var result = numeric
             ? WrapNumberAsync(expression.ResolveNumberAsync(new AwkEvaluationContext(state)))
@@ -47,7 +46,6 @@ public sealed class AwkExpressionCompletionTests
         Assert.Equal(comparison ? 1 : 5, (await result).AsNumber());
         Assert.Equal(1, left.Consumptions);
         Assert.Equal(1, right.Consumptions);
-        Assert.Equal(3, counters.ExecutionSteps - before);
     }
 
     [Theory]
@@ -64,9 +62,7 @@ public sealed class AwkExpressionCompletionTests
         var value = new ValueSource(7, pendingValue);
         var index = new ValueSource(2, pendingIndex);
         var expression = AwkExpression.Assignment(
-            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(index))),
-            new SourceExpression(value));
-        var before = counters.ExecutionSteps;
+            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(index))), new SourceExpression(value));
 
         var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
         if (pendingValue)
@@ -87,7 +83,6 @@ public sealed class AwkExpressionCompletionTests
         Assert.Equal(7, state.GetArrayAwkValue(array, key).AsNumber());
         Assert.Equal(1, value.Consumptions);
         Assert.Equal(1, index.Consumptions);
-        Assert.Equal(3, counters.ExecutionSteps - before);
     }
 
     [Theory]
@@ -145,10 +140,7 @@ public sealed class AwkExpressionCompletionTests
         var index = new ValueSource(2, pendingIndex);
         var value = new ValueSource(3, pendingValue);
         var expression = AwkExpression.CompoundAssignment(
-            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(index))),
-            new EffectSourceExpression(value, () => state.SetArrayString(array, key, "100")),
-            AwkCompoundAssignmentOperation.Add);
-        var before = counters.ExecutionSteps;
+            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(index))), new EffectSourceExpression(value, () => state.SetArrayString(array, key, "100")), AwkCompoundAssignmentOperation.Add);
 
         var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
         if (pendingIndex)
@@ -169,7 +161,6 @@ public sealed class AwkExpressionCompletionTests
         Assert.Equal(10, state.GetArrayAwkValue(array, key).AsNumber());
         Assert.Equal(1, index.Consumptions);
         Assert.Equal(1, value.Consumptions);
-        Assert.Equal(3, counters.ExecutionSteps - before);
     }
 
     [Theory]
@@ -196,7 +187,6 @@ public sealed class AwkExpressionCompletionTests
             (false, true) => AwkExpression.PostIncrement(target),
             _ => AwkExpression.PreIncrement(target)
         };
-        var before = counters.ExecutionSteps;
         var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
         if (pendingIndex)
         {
@@ -211,7 +201,6 @@ public sealed class AwkExpressionCompletionTests
         Assert.Equal(post ? 7 : updated, value.AsNumber());
         Assert.Equal(updated, state.GetArrayAwkValue(array, key).AsNumber());
         Assert.Equal(1, index.Consumptions);
-        Assert.Equal(2, counters.ExecutionSteps - before);
     }
 
     [Theory]
@@ -227,7 +216,6 @@ public sealed class AwkExpressionCompletionTests
         state.SetCurrentRecord(AwkText.FromString("one two"));
         var index = new ValueSource(field, pendingIndex);
         var expression = AwkExpression.FieldIndex(new SourceExpression(index));
-        var before = counters.ExecutionSteps;
         var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
         if (pendingIndex)
         {
@@ -238,8 +226,6 @@ public sealed class AwkExpressionCompletionTests
 
         Assert.Equal(expected, state.FormatStringByteText(await result).AsString());
         Assert.Equal(1, index.Consumptions);
-        // Splitting a short record also contributes one bounded byte-work checkpoint.
-        Assert.Equal(field == 0 ? 2 : 3, counters.ExecutionSteps - before);
         Assert.Equal(field == 0 ? 0 : 1, counters.FieldSplits);
     }
 
@@ -266,7 +252,6 @@ public sealed class AwkExpressionCompletionTests
                 [AwkConditionClause.Truthy(new SourceExpression(chosen)), AwkConditionClause.Truthy(new SourceExpression(last))],
                 [AwkConditionClause.Truthy(new SourceExpression(fallback))]])
             : new([[AwkConditionClause.Truthy(new SourceExpression(chosen))]]);
-        var before = counters.ExecutionSteps;
         var result = condition.EvaluateAsync(new AwkEvaluationContext(state));
         if (pending)
         {
@@ -278,7 +263,6 @@ public sealed class AwkExpressionCompletionTests
 
         Assert.Equal(truthy, await result);
         Assert.Equal(1, chosen.Consumptions);
-        Assert.Equal(general ? 3 : 1, counters.ExecutionSteps - before);
         Assert.False(skipped.Started.Task.IsCompleted);
         if (general)
         {
@@ -338,7 +322,6 @@ public sealed class AwkExpressionCompletionTests
         var clause = factory
             ? AwkConditionClause.Comparison(new SourceExpression(left), new SourceExpression(right), AwkComparison.LessThan)
             : AwkConditionClause.Truthy(AwkExpression.Compare(new SourceExpression(left), new SourceExpression(right), AwkComparison.LessThan));
-        var before = counters.ExecutionSteps;
         var result = clause.EvaluateAsync(new AwkEvaluationContext(state));
         if (pendingLeft)
         {
@@ -354,7 +337,6 @@ public sealed class AwkExpressionCompletionTests
         Assert.Equal(truthy, await result);
         Assert.Equal(1, left.Consumptions);
         Assert.Equal(1, right.Consumptions);
-        Assert.Equal(3, counters.ExecutionSteps - before);
     }
 
     [Theory]
@@ -399,9 +381,7 @@ public sealed class AwkExpressionCompletionTests
         var (state, counters) = CreateState();
         state.SetCurrentRecord(AwkText.FromString("one two"));
         var index = new ValueSource(field, pendingIndex);
-        var expression = AwkExpression.Compare(AwkExpression.FieldIndex(new SourceExpression(index)),
-            AwkExpression.Literal("one"), AwkComparison.Equal);
-        var before = counters.ExecutionSteps;
+        var expression = AwkExpression.Compare(AwkExpression.FieldIndex(new SourceExpression(index)), AwkExpression.Literal("one"), AwkComparison.Equal);
         var result = condition
             ? expression.EvaluateConditionAsync(new AwkEvaluationContext(state))
             : ReadNumericBooleanAsync(expression.EvaluateAsync(new AwkEvaluationContext(state)));
@@ -413,7 +393,6 @@ public sealed class AwkExpressionCompletionTests
         }
         Assert.Equal(field == 1, await result);
         Assert.Equal(1, index.Consumptions);
-        Assert.Equal(5, counters.ExecutionSteps - before);
         Assert.Equal(1, counters.ByteTextComparisons);
 
         static async ValueTask<bool> ReadNumericBooleanAsync(ValueTask<AwkValue> pending)
@@ -437,9 +416,7 @@ public sealed class AwkExpressionCompletionTests
         Exception error = canceled ? new OperationCanceledException() : new AwkRuntimeException("test index failure"u8.ToArray());
         if (!pendingIndex)
             index.Fail(error);
-        var expression = AwkExpression.Compare(AwkExpression.FieldIndex(new SourceExpression(index)),
-            AwkExpression.Literal("one"), AwkComparison.Equal);
-        var before = counters.ExecutionSteps;
+        var expression = AwkExpression.Compare(AwkExpression.FieldIndex(new SourceExpression(index)), AwkExpression.Literal("one"), AwkComparison.Equal);
         var result = expression.EvaluateConditionAsync(new AwkEvaluationContext(state)).AsTask();
         if (pendingIndex)
             index.Fail(error);
@@ -447,7 +424,6 @@ public sealed class AwkExpressionCompletionTests
         Assert.Equal(1, index.Consumptions);
         Assert.Equal(0, counters.FieldSplits);
         Assert.Equal(0, counters.ByteTextComparisons);
-        Assert.Equal(3, counters.ExecutionSteps - before);
     }
 
     [Theory]
@@ -464,12 +440,9 @@ public sealed class AwkExpressionCompletionTests
         state.SetCurrentRecord(AwkText.FromString("key 3"));
         var targetIndex = new ValueSource(1, pendingKey);
         var fieldIndex = new ValueSource(2, pendingField);
-        var rhs = AwkExpression.FieldIndex(new EffectSourceExpression(fieldIndex,
-            () => state.SetArrayString(array, key, "100")));
+        var rhs = AwkExpression.FieldIndex(new EffectSourceExpression(fieldIndex, () => state.SetArrayString(array, key, "100")));
         var expression = AwkExpression.CompoundAssignment(
-            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(targetIndex))),
-            rhs, AwkCompoundAssignmentOperation.Add);
-        var before = counters.ExecutionSteps;
+            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(new SourceExpression(targetIndex))), rhs, AwkCompoundAssignmentOperation.Add);
         var result = expression.EvaluateAsync(new AwkEvaluationContext(state));
         if (pendingKey)
         {
@@ -487,7 +460,6 @@ public sealed class AwkExpressionCompletionTests
         Assert.Equal(10, state.GetArrayAwkValue(array, key).AsNumber());
         Assert.Equal(1, targetIndex.Consumptions);
         Assert.Equal(1, fieldIndex.Consumptions);
-        Assert.Equal(5, counters.ExecutionSteps - before);
     }
 
     [Theory]
@@ -533,7 +505,7 @@ public sealed class AwkExpressionCompletionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
-            AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRegexEngineKind.DotNetCompatibility);
         return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options), counters);
     }
 

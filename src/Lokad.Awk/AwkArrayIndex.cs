@@ -20,10 +20,6 @@ internal abstract record AwkArrayIndex
 
     internal virtual ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array) =>
         ResolveKeyAsync(context);
-
-    /// <summary>Emits the key when the executable engine supports this index shape.</summary>
-    /// <returns><see langword="true"/> only when the complete key was emitted.</returns>
-    internal virtual bool TryEmitExecutableKey(AwkExecutableCompiler compiler) => false;
 }
 
 internal sealed record AwkEmptyArrayIndex : AwkArrayIndex
@@ -45,13 +41,10 @@ internal sealed record AwkSimpleArrayIndex(AwkExpression Expression) : AwkArrayI
         if (!AwkExpression.TryGetFieldIndexExpression(Expression, out var indexExpression))
             return await ResolveKeyAsync(context).ConfigureAwait(false);
         // Retain the field expression's checkpoint before evaluating its index.
-        context.State.RecordExecutionStep();
+        context.State.Checkpoint();
         var index = (int)await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
         return context.State.GetArrayFieldKey(array, index);
     }
-
-    internal override bool TryEmitExecutableKey(AwkExecutableCompiler compiler) =>
-        compiler.TryEmitExpression(Expression);
 }
 
 internal sealed record AwkCompositeArrayIndex(IReadOnlyList<AwkExpression> Expressions) : AwkArrayIndex

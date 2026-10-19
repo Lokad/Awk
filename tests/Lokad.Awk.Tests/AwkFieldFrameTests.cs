@@ -55,7 +55,7 @@ public sealed class AwkFieldFrameTests
     {
         var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(500));
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { }, value => value.ByteText, _ => { });
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { }, value => value.ByteText);
         var priorPlan = CreatePlan(0, ",");
         frame.SetRecordText(AwkText.FromSourceLiteralString("keep"), priorPlan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -85,7 +85,7 @@ public sealed class AwkFieldFrameTests
     {
         var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4_096));
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { }, value => value.ByteText, _ => { });
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1_000, _ => { }, value => value.ByteText);
         var plan = CreatePlan(mode, new string('x', 200));
         frame.SetRecordText(AwkText.FromSourceLiteralString("keep"), plan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -107,7 +107,7 @@ public sealed class AwkFieldFrameTests
     {
         var governor = AwkMemoryAccounting.Create(
             AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(4_096));
-        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1, _ => { }, value => value.ByteText, _ => { });
+        var frame = new AwkFieldFrame(AwkRuntimeCounters.Disabled, governor, 1, _ => { }, value => value.ByteText);
         var plan = CreatePlan(0, ",");
         frame.SetRecordText(AwkText.FromSourceLiteralString("a,b"), plan);
         var committedBefore = governor.CurrentCommittedBytes;
@@ -137,12 +137,7 @@ public sealed class AwkFieldFrameTests
 
     private static AwkFieldFrame CreateFrame(AwkRuntimeCounters counters) =>
         new(
-            counters,
-            CreateAccounting(counters),
-            maxFields: 1_000,
-            _ => { },
-            value => value.ByteText,
-            _ => { });
+            counters, CreateAccounting(counters), maxFields: 1_000, _ => { }, value => value.ByteText);
 
     private static AwkMemoryAccounting CreateAccounting(AwkRuntimeCounters counters) =>
         AwkMemoryAccounting.Create(AwkRuntimeLimits.CreateDefault(), counters);

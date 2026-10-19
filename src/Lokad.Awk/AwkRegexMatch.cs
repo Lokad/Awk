@@ -263,7 +263,7 @@ internal readonly partial record struct AwkRegexMatch
         for (var offset = 0; offset < text.Length;)
         {
             checkpoint();
-            var length = Math.Min(AwkExecutionGovernor.WorkChunkBytes, text.Length - offset);
+            var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, text.Length - offset);
             // Do not split a surrogate pair across independent encoder calls.
             if (offset + length < text.Length && char.IsHighSurrogate(text[offset + length - 1]) &&
                 char.IsLowSurrogate(text[offset + length]))

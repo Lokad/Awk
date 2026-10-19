@@ -9,7 +9,7 @@ public sealed class AwkDirectStringBuiltinTests
     [InlineData(true)]
     public void ChangedAsciiCaseUsesOwnedChunkConversionsAtOriginalBoundaries(bool upper)
     {
-        const int changedBytes = 2 * AwkExecutionGovernor.WorkChunkBytes + 37;
+        const int changedBytes = 2 * AwkRuntimeLimits.CancellationCheckBytes + 37;
         foreach (var prefixBytes in new[] { 0, 1, 4_095, 4_096, 4_097 })
         {
             var state = State(shared: false, AwkExecutionMemoryOwner.Disabled);
@@ -17,22 +17,18 @@ public sealed class AwkDirectStringBuiltinTests
             var source = AwkValue.FromText(prefix + new string(upper ? 'a' : 'A', changedBytes));
             var result = AwkBuiltins.EvaluateCaseValue(state, source, upper);
             Assert.Equal(prefixBytes + changedBytes, state.Counters.AsciiCasePreparationBytes);
-            Assert.Equal(AwkExecutionGovernor.ByteWorkSteps(prefixBytes + changedBytes),
-                state.Counters.AsciiCasePreparationChunks);
+            Assert.Equal((prefixBytes + changedBytes + AwkRuntimeLimits.CancellationCheckBytes - 1) / AwkRuntimeLimits.CancellationCheckBytes, state.Counters.AsciiCasePreparationChunks);
             var checks = state.Counters.CancellationChecks;
             Assert.Equal(prefixBytes + changedBytes, result.ByteText.GetRuneLength(state.CancellationCheckpoint));
             Assert.Equal(checks, state.Counters.CancellationChecks);
             Assert.False(result.ByteText.ContainsNonAscii(state.Counters));
             Assert.Equal(0, state.Counters.RegexPolicyInputBytesInspected);
-            var steps = state.Counters.ExecutionSteps;
             Assert.Equal(prefixBytes + changedBytes, state.CountStringUnits(result.ByteText));
-            Assert.Equal(AwkExecutionGovernor.ByteWorkSteps(prefixBytes + changedBytes),
-                state.Counters.ExecutionSteps - steps);
             Assert.Equal(prefix + new string(upper ? 'A' : 'a', changedBytes), result.AsString());
             Assert.Equal(changedBytes, state.Counters.AsciiCaseConversionBytes);
-            var offset = prefixBytes % AwkExecutionGovernor.WorkChunkBytes;
-            Assert.Equal((offset + changedBytes + AwkExecutionGovernor.WorkChunkBytes - 1) /
-                AwkExecutionGovernor.WorkChunkBytes, state.Counters.AsciiCaseConversionChunks);
+            var offset = prefixBytes % AwkRuntimeLimits.CancellationCheckBytes;
+            Assert.Equal((offset + changedBytes + AwkRuntimeLimits.CancellationCheckBytes - 1) /
+                AwkRuntimeLimits.CancellationCheckBytes, state.Counters.AsciiCaseConversionChunks);
             Assert.Equal(0, state.Counters.StringDecodes);
             Assert.Equal(0, state.Counters.Utf8Encodes);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -84,19 +80,16 @@ public sealed class AwkDirectStringBuiltinTests
                 return index == pendingIndex ? new(completion.Task) : ValueTask.FromResult(value);
             })).ToArray();
             var committed = state.MemoryAccounting.CurrentCommittedBytes;
-            var reserves = state.MemoryAccounting.ReserveCount;
             var pending = builtin.EvaluateAsync(arguments, new(state)).AsTask();
             try
             {
                 Assert.False(pending.IsCompleted);
                 Assert.Equal(Enumerable.Range(0, pendingIndex + 1), entered);
                 Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
-                Assert.Equal(reserves, state.MemoryAccounting.ReserveCount);
                 completion.SetResult(values[pendingIndex]);
                 Assert.Equal(name == "index" ? "2" : "bcd", (await pending).AsString());
                 Assert.Equal(Enumerable.Range(0, values.Length), entered);
                 var scans = name == "index" ? 1 : 2;
-                Assert.Equal(values.Length + scans * AwkExecutionGovernor.ByteWorkSteps(6), state.Counters.ExecutionSteps);
                 Assert.Equal(0, state.Counters.StringDecodes);
                 Assert.Equal(0, state.Counters.Utf8Encodes);
                 Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -132,12 +125,10 @@ public sealed class AwkDirectStringBuiltinTests
                     : ValueTask.FromResult(AwkValue.FromNumber(index));
             })).ToArray();
             var committed = state.MemoryAccounting.CurrentCommittedBytes;
-            var reservedBytes = state.Counters.MemoryReservedBytes;
             var failure = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
                 await builtin.EvaluateAsync(arguments, new(state)));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(failure.MessageBytes));
             Assert.Equal(1, effects);
-            Assert.Equal(reservedBytes, state.Counters.MemoryReservedBytes);
             Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
@@ -192,8 +183,8 @@ public sealed class AwkDirectStringBuiltinTests
         var limits = AwkRuntimeLimits.CreateDefault();
         if (!shared) limits = limits.WithMaxExecutionMemoryBytes(Limit);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter) { MemoryOwner = owner };
+            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility)
+        { MemoryOwner = owner };
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
     }
 }

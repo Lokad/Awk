@@ -350,18 +350,13 @@ public sealed class AwkIncrementalFieldTests
         AwkMemoryAccounting.Create(mode == 1 ? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(8 << 20)
             : AwkRuntimeLimits.CreateDefault(), counters, owner);
 
-    private static (AwkFieldFrame, AwkFieldSplitter) Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters,
-        string separator, int maxFields = 1 << 20, Action? checkpoint = null)
+    private static (AwkFieldFrame, AwkFieldSplitter) Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, string separator, int maxFields = 1 << 20, Action? checkpoint = null)
     {
         Action check = checkpoint ?? (() => { });
         var monitor = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
-        var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            check, counters, AwkRegexEngineKind.DotNetCompatibility, monitor, accounting);
-        var splitter = new AwkFieldSplitter(AwkFieldSeparatorSpec.FromText(separator), regex.Create, regex.CreateLiteral,
-            regex.EnumerateMatchSpans, () => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            check, accounting, counters, monitor.RecordByteWork);
-        var frame = new AwkFieldFrame(counters, accounting, maxFields, _ => { }, value => value.ByteText,
-            monitor.RecordByteWork, check, splitter);
+        var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, check, counters, AwkRegexEngineKind.DotNetCompatibility, monitor, accounting);
+        var splitter = new AwkFieldSplitter(AwkFieldSeparatorSpec.FromText(separator), regex.Create, regex.CreateLiteral, regex.EnumerateMatchSpans, () => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, check, accounting, counters);
+        var frame = new AwkFieldFrame(counters, accounting, maxFields, _ => { }, value => value.ByteText, check, splitter);
         return (frame, splitter);
     }
 }

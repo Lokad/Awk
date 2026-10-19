@@ -5,15 +5,15 @@ public sealed class AwkGetlinePostfixTests
     public static IEnumerable<object[]> PipeCases()
     {
         foreach (var testCase in AwkGoldenCorpus.PipeGetlinePostfixCases())
-            foreach (var executable in new[] { false, true })
-                foreach (var utf8 in new[] { false, true })
-                    yield return [testCase, executable, utf8];
+
+            foreach (var utf8 in new[] { false, true })
+                yield return [testCase, utf8];
     }
 
     [Theory]
     [MemberData(nameof(PipeCases))]
     public async Task PipeTargetsAssignOrRejectBeforeHostEffects(
-        AwkGoldenCase testCase, bool executable, bool utf8)
+        AwkGoldenCase testCase, bool utf8)
     {
         var files = AwkTestHarness.BuildFileSystem(testCase);
         var host = new AwkGetlinePipeTestHost(files);
@@ -22,31 +22,12 @@ public sealed class AwkGetlinePostfixTests
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+regexEngine: AwkUtf8RegexEngine.Instance);
 
-        if (executable && testCase.ExpectedExitCode != 0)
-        {
-            var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                AwkExecutor.CompileAsync(host, invocation, CancellationToken.None));
-            Assert.Equal(testCase.ExpectedStdErr, error.Message);
-            Assert.Equal(string.Empty, files.GetOutput(AwkFileDescriptor.StdErr));
-        }
-        else
-        {
-            AwkExitCode exit;
-            if (executable)
-            {
-                var compiled = await AwkExecutor.CompileAsync(host, invocation, CancellationToken.None);
-                exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
-            }
-            else
-            {
-                exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation),
-                    CancellationToken.None, options);
-            }
-            Assert.Equal(testCase.ExpectedExitCode, exit.Value);
-            Assert.Equal(testCase.ExpectedStdErr, files.GetOutput(AwkFileDescriptor.StdErr));
-        }
+        var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation),
+            CancellationToken.None, options);
+        Assert.Equal(testCase.ExpectedExitCode, exit.Value);
+        Assert.Equal(testCase.ExpectedStdErr, files.GetOutput(AwkFileDescriptor.StdErr));
 
         Assert.Equal(testCase.ExpectedStdOut, files.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(0, host.OpenPipeCount);
@@ -55,8 +36,6 @@ public sealed class AwkGetlinePostfixTests
             Assert.Empty(host.Commands);
             Assert.Empty(host.Writes);
             Assert.Equal(0, files.ReadOpenCount);
-            Assert.Equal(0, counters.VmBasicBlockEntries);
-            Assert.Equal(0, counters.VmPatternFallbacks);
         }
         else
         {
@@ -64,8 +43,6 @@ public sealed class AwkGetlinePostfixTests
             Assert.Equal("cat data", command.CommandName);
             Assert.Equal(invocation.CurrentDirectory, command.CurrentDirectory);
             Assert.Contains(command.Environment, entry => entry.Name == "LC_ALL" && entry.Value == "C.UTF-8");
-            if (executable)
-                Assert.True(counters.VmBasicBlockEntries > 0 || counters.VmPatternFallbacks > 0);
         }
     }
 

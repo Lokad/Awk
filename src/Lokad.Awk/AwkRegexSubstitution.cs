@@ -232,7 +232,7 @@ internal static class AwkRegexSubstitution
         for (var offset = 0; offset < bytes.Length;)
         {
             checkpoint();
-            var length = Math.Min(AwkExecutionGovernor.WorkChunkBytes, bytes.Length - offset);
+            var length = Math.Min(AwkRuntimeLimits.CancellationCheckBytes, bytes.Length - offset);
             if (bytes.Slice(offset, length).IndexOfAny((byte)'&', (byte)'\\') >= 0)
                 return false;
             offset += length;

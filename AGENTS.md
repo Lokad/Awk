@@ -20,15 +20,15 @@ or environment dependencies.
 
 ## Architecture Rules
 
-- Keep the default execution engine as the interpreter. Executable/VM work stays opt-in.
-  A default change needs golden parity, resource/cancellation parity, fallback counter evidence,
-  representative benchmark gains and a rollback path for the same source revision.
+- Keep one execution engine: the interpreter, including useful synchronous/prepared paths.
+  Do not retain or reintroduce the removed bytecode backend, engine-selection flags or VM
+  qualification machinery. Internal prepared programs prepare interpreter execution only.
 - Preserve strict UTF-8 ingress. `AwkText` represents valid UTF-8 bytes; hot paths should stay
   byte-native and cross to `string` only at documented compatibility boundaries.
 - Keep unsupported host capabilities explicit. Host failures must become awk-shaped diagnostics,
   not leaked CLR exception text.
 - Resource-limit failures must preflight before observable mutation: arrays, fields, records,
-  output, capture arrays, and VM stack growth should not partially mutate on failure.
+  output and capture arrays should not partially mutate on failure.
 - Do not add package dependencies casually. Package references are allowlisted in
   `Directory.Build.targets` and versioned centrally in `Directory.Packages.props`.
 
@@ -41,16 +41,16 @@ or environment dependencies.
   model absence with a value object, result type, `Try...` shape, or clear precondition.
 - Use `ArgumentNullException.ThrowIfNull` at public or shared boundaries, not defensive null plumbing
   throughout hot paths.
-- Async runtime paths use `Task`/`ValueTask` and `ConfigureAwait(false)`. Executable expressions are
-  async-only where host or fallback behavior can be involved.
-- Avoid unnecessary allocations in record, field, regex, formatting, array, and VM paths. If a change
+- Async runtime paths use `Task`/`ValueTask` and `ConfigureAwait(false)` where host behavior
+  can suspend; preserve the interpreter's synchronous completion paths.
+- Avoid unnecessary allocations in record, field, regex, formatting and array paths. If a change
   deliberately crosses a string boundary, update or add counter evidence.
 
 ## Tests
 
 - Add ordinary awk behavior to the golden corpus first. It is the canonical user-visible behavior
   suite.
-- Use narrower tests for parser/binder shape, source loading, resource limits, counters, VM internals,
+- Use narrower tests for parser/binder shape, source loading, resource limits, counters,
   and host boundary behavior. See `tests/Lokad.Awk.Tests/README.md` before adding a new test layer.
 - Diagnostics should assert exact stdout/stderr/exit behavior and no CLR exception leakage.
 - For performance-sensitive runtime changes, add or refresh `AwkRuntimeCounters` assertions before
@@ -61,7 +61,7 @@ or environment dependencies.
 - Keep README examples aligned with the actual public API. The package does not provide a default
   filesystem host; examples should make the `IAwkHost` boundary explicit.
 - Update docs under `docs/` when changing UTF-8 policy, runtime limits, regex compatibility,
-  executable rollout behavior, benchmark workflow, or release readiness assumptions.
+  execution behavior, benchmark workflow, or release readiness assumptions.
 - Maintain `docs/BENCHMARKS.md` as the single current comparison, with at most three tables,
   elapsed-time ratios and managed allocations. Present a performance snapshot: replace superseded
   rows and keep optimization timelines, before/after experiments and qualification logs local.

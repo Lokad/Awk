@@ -73,28 +73,6 @@ public sealed class AwkScanCancellationTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ScanCheckpointsDoNotChargeOfferedBytesAgain(bool observed)
-    {
-        var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var number = AwkText.FromString("0x" + new string('0', LongScan) + "1");
-        var chunks = AwkExecutionGovernor.ByteWorkSteps(number.ByteLength);
-        var resources = new AwkRuntimeResourceMonitor(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(chunks), counters);
-        Action checkpoint = () => resources.ThrowIfCancellationRequested(CancellationToken.None);
-        resources.RecordByteWork(number.ByteLength);
-
-        var parsed = AwkNumberParser.ParseNonDecimal(number.AsSpan(), 0, 16, checkpoint);
-
-        Assert.Equal(1, parsed.Number);
-        Assert.Equal(observed ? chunks : 0, counters.ExecutionSteps);
-        if (observed) Assert.True(counters.CancellationChecks > 1);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
-    }
-
-    [Theory]
     [InlineData("ascii")]
     [InlineData("three-byte")]
     [InlineData("supplementary")]
@@ -133,25 +111,6 @@ public sealed class AwkScanCancellationTests
         Assert.Equal("\u754c\u754c", text.CopyRuneSlice(100, 2, counters, governor).AsString());
         Assert.Equal(1, counters.RuneSliceIndexAllocations);
         Assert.Equal(LongScan, text.RuneLength);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void RuneScansRetainExplicitFuelAndCounterIndependence(bool observed)
-    {
-        var source = AwkText.FromString(new string('\u754c', LongScan));
-        var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        var chunks = AwkExecutionGovernor.ByteWorkSteps(source.ByteLength);
-        var resources = new AwkRuntimeResourceMonitor(
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionSteps(chunks), counters);
-        var strings = new AwkStringRuntime(AwkStringUnitMode.Utf8Rune, resources.RecordByteWork,
-            () => resources.ThrowIfCancellationRequested(CancellationToken.None));
-
-        Assert.Equal(LongScan, strings.CountUnits(source));
-        Assert.Equal(observed ? chunks : 0, counters.ExecutionSteps);
-        Assert.Equal(0, counters.StringDecodes);
-        Assert.Equal(0, counters.Utf8Encodes);
     }
 
     [Theory]
@@ -237,7 +196,7 @@ public sealed class AwkScanCancellationTests
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
                 AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
-                AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter));
+                AwkRegexEngineKind.DotNetCompatibility));
 
     private sealed class CancelAfterValueExpression(CancellationTokenSource cancellation, AwkValue value) : AwkExpression
     {

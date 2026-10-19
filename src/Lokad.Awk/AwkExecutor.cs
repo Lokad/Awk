@@ -18,7 +18,7 @@ internal static class AwkExecutor
         AwkInvocation invocation,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions) =>
-        ExecuteCoreAsync(host, invocation, cancellationToken, runtimeOptions, null, null);
+        ExecuteCoreAsync(host, invocation, cancellationToken, runtimeOptions, null);
 
     internal static Task<AwkExitCode> ExecuteCompiledAsync(
         IAwkHost host,
@@ -26,24 +26,21 @@ internal static class AwkExecutor
         AwkProgram program,
         IReadOnlyList<AwkDiagnostic> warnings,
         CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions,
-        AwkExecutableProgram? executableProgram) =>
+        AwkRuntimeOptions runtimeOptions) =>
         ExecuteCoreAsync(
             host,
             invocation,
             cancellationToken,
             runtimeOptions,
-            AwkProgramResolution.Success(program, warnings),
-            executableProgram);
+            AwkProgramResolution.Success(program, warnings));
 
     private static async Task<AwkExitCode> ExecuteCoreAsync(
         IAwkHost host, AwkInvocation invocation, CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions, AwkProgramResolution? compiledResolution,
-        AwkExecutableProgram? executableProgram)
+        AwkRuntimeOptions runtimeOptions, AwkProgramResolution? compiledResolution)
     {
         if (runtimeOptions.MemoryBudget is null)
             return await ExecuteBodyAsync(host, invocation, cancellationToken, runtimeOptions,
-                compiledResolution, executableProgram).ConfigureAwait(false);
+                compiledResolution).ConfigureAwait(false);
 
         AwkExecutionMemoryOwner owner;
         try
@@ -58,7 +55,7 @@ internal static class AwkExecutor
         await using (owner.ConfigureAwait(false))
             return await ExecuteBodyAsync(new AwkBudgetHost(host, owner), invocation,
                 owner.Token(cancellationToken), runtimeOptions with { MemoryOwner = owner },
-                compiledResolution, executableProgram).ConfigureAwait(false);
+                compiledResolution).ConfigureAwait(false);
     }
 
     private static async Task<AwkExitCode> ExecuteBodyAsync(
@@ -66,8 +63,7 @@ internal static class AwkExecutor
         AwkInvocation invocation,
         CancellationToken cancellationToken,
         AwkRuntimeOptions runtimeOptions,
-        AwkProgramResolution? compiledResolution,
-        AwkExecutableProgram? executableProgram)
+        AwkProgramResolution? compiledResolution)
     {
         var resources = new AwkRuntimeResourceMonitor(runtimeOptions.Limits, runtimeOptions.Counters, cancellationToken);
         var stringEscapeWarnings = new AwkStringEscapeWarnings();
@@ -181,7 +177,6 @@ internal static class AwkExecutor
                     resolvedProgram.Program,
                     cancellationToken,
                     runtimeOptions,
-                    executableProgram,
                     resources,
                     stringEscapeWarnings,
                     regexEscapeWarnings)
@@ -310,7 +305,6 @@ internal static class AwkExecutor
         return new AwkCompiledProgram(
             invocation,
             resolvedProgram.Program,
-            AwkExecutableProgram.Compile(resolvedProgram.Program, cancellationToken.ThrowIfCancellationRequested),
             [.. optionWarnings, .. resolved.Warnings], owner);
     }
 

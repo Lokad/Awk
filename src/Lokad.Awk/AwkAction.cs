@@ -38,7 +38,7 @@ internal readonly struct AwkAction
 
         using var executionContext = state.PushExecutionContext(output, io);
         var evaluationContext = new AwkEvaluationContext(state, output, io);
-        if (_synchronous is { } prepared && !state.UsesExecutableEngine && state.LintMode == AwkLintMode.Off &&
+        if (_synchronous is { } prepared && state.LintMode == AwkLintMode.Off &&
             state.FieldsCannotReportRegexDiagnostics &&
             state.Limits.MaxSyntaxNestingDepth <= AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth &&
             !output.HasPendingOutput && System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())

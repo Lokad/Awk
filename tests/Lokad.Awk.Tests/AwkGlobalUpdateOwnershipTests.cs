@@ -189,7 +189,7 @@ public sealed class AwkGlobalUpdateOwnershipTests
     private static AwkRuntimeState State(bool vector)
     {
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(Limit), AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter);
+            AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(Limit), AwkRegexEngineKind.DotNetCompatibility);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         if (vector) state.InitializeGlobalReadSlots(1);
         return state;

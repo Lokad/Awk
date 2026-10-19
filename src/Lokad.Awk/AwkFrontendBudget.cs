@@ -4,7 +4,6 @@ namespace Lokad.Awk;
 
 internal sealed class AwkFrontendBudget
 {
-    private readonly Action _reserveRegexLiteralCompilations;
 
     public AwkFrontendBudget(
         int maxSyntaxNestingDepth,
@@ -13,7 +12,6 @@ internal sealed class AwkFrontendBudget
         int maxIdentifierBytes,
         long maxRegexPatternBytes,
         int maxRegexGroups,
-        Action reserveRegexLiteralCompilations,
         AwkStringEscapeWarnings? stringEscapeWarnings = null,
         AwkRegexEscapeWarnings? regexEscapeWarnings = null)
     {
@@ -23,7 +21,6 @@ internal sealed class AwkFrontendBudget
         MaxIdentifierBytes = maxIdentifierBytes;
         MaxRegexPatternBytes = maxRegexPatternBytes;
         MaxRegexGroups = maxRegexGroups;
-        _reserveRegexLiteralCompilations = reserveRegexLiteralCompilations;
         StringEscapeWarnings = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
         RegexEscapeWarnings = regexEscapeWarnings ?? new AwkRegexEscapeWarnings();
     }
@@ -45,8 +42,6 @@ internal sealed class AwkFrontendBudget
 
     public int MaxRegexGroups { get; }
 
-    public void ReserveRegexLiteralCompilations() => _reserveRegexLiteralCompilations();
-
     public static AwkFrontendBudget Unlimited(int maxSyntaxNestingDepth) =>
         new(
             maxSyntaxNestingDepth,
@@ -54,8 +49,7 @@ internal sealed class AwkFrontendBudget
             int.MaxValue,
             int.MaxValue,
             long.MaxValue,
-            int.MaxValue,
-            static () => { });
+            int.MaxValue);
 
     public static AwkFrontendBudget FromResources(AwkRuntimeResourceMonitor resources, int previousDiagnostics = 0,
         AwkStringEscapeWarnings? stringEscapeWarnings = null,
@@ -68,6 +62,6 @@ internal sealed class AwkFrontendBudget
             resources.Limits.MaxIdentifierBytes,
             resources.Limits.MaxRegexPatternBytes,
             resources.Limits.MaxRegexGroups,
-            () => resources.ReserveRegexCompilations(2),
-            stringEscapeWarnings, regexEscapeWarnings) { Memory = memory ?? AwkFrontendMemory.Disabled };
+            stringEscapeWarnings, regexEscapeWarnings)
+        { Memory = memory ?? AwkFrontendMemory.Disabled };
 }

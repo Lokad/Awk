@@ -16,7 +16,6 @@ internal sealed class AwkFieldSplitter(
     Action throwIfCancellationRequested,
     AwkMemoryAccounting memoryAccounting,
     AwkRuntimeCounters counters,
-    Action<int>? recordByteWork = null,
     AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
     Action<object>? resetRegexWarningSite = null)
 {
@@ -74,7 +73,7 @@ internal sealed class AwkFieldSplitter(
 
     public long EstimateFieldWidthsMemory(AwkText value)
     {
-        recordByteWork?.Invoke(value.ByteLength);
+        throwIfCancellationRequested();
         return AwkRuntimeMemory.EstimateFieldWidthListBytes(AwkFieldWidthsParser.Parse(value.AsSpan(throwIfCancellationRequested), null, throwIfCancellationRequested));
     }
 
@@ -138,7 +137,7 @@ internal sealed class AwkFieldSplitter(
     public List<AwkFieldText> SplitRecordFields(AwkText line, AwkRecordSplitPlan plan,
         List<AwkFieldText>? fieldBuffer = null)
     {
-        recordByteWork?.Invoke(line.ByteLength);
+        throwIfCancellationRequested();
         if (compatibilityMode != AwkCompatibilityMode.GnuDefault &&
             plan.Mode == AwkFieldSplittingMode.FieldSeparator && plan.Separator.ByteText.ByteLength == 0)
         {
@@ -174,7 +173,7 @@ internal sealed class AwkFieldSplitter(
                         if (bytePosition >= nextCheckpoint)
                         {
                             throwIfCancellationRequested();
-                            nextCheckpoint = (long)bytePosition + AwkExecutionGovernor.WorkChunkBytes;
+                            nextCheckpoint = (long)bytePosition + AwkRuntimeLimits.CancellationCheckBytes;
                         }
                         var status = Rune.DecodeFromUtf8(content[bytePosition..], out _, out var consumed);
                         if (status != OperationStatus.Done)
@@ -289,7 +288,7 @@ internal sealed class AwkFieldSplitter(
         AwkSeparatorCaptureMode captureMode,
         AwkRuntimeCounters counters)
     {
-        recordByteWork?.Invoke(line.ByteLength);
+        throwIfCancellationRequested();
         return _byteSplitter.SplitBySeparator(
             line,
             separator,
@@ -303,7 +302,7 @@ internal sealed class AwkFieldSplitter(
         AwkSeparatorCaptureMode captureMode,
         AwkRuntimeCounters counters)
     {
-        recordByteWork?.Invoke(input.ByteLength);
+        throwIfCancellationRequested();
         return _byteSplitter.Patsplit(input, pattern, captureMode, counters);
     }
 

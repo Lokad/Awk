@@ -31,7 +31,7 @@ public sealed class AwkUnicodeRegexTests
         Assert.Equal(Warning, parse.Warnings[0].Message);
         Assert.Equal("awk: warning: invalid `\\u' escape sequence\n", parse.Warnings[1].Message);
         var budget = new AwkFrontendBudget(int.MaxValue, int.MaxValue, 1, int.MaxValue,
-            long.MaxValue, int.MaxValue, static () => { });
+            long.MaxValue, int.MaxValue);
         var error = Assert.Throws<AwkRuntimeException>(() => AwkParser.Parse(source, budget,
             CancellationToken.None, profile));
         Assert.Equal(AwkDiagnosticId.RuntimeResourceLimit, error.Id);
@@ -69,11 +69,9 @@ public sealed class AwkUnicodeRegexTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task CompiledRegexWarningsAreFreshForConcurrentHosts(bool executable, bool utf8)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CompiledRegexWarningsAreFreshForConcurrentHosts(bool utf8)
     {
         var source = new MockFileSystem();
         source.AddFile("/regex.awk", "# source\nBEGIN{if(0)print /\\u/;p=\"\\\\u\";for(i=0;i<3;i++)print \"u\"~p;exit}");
@@ -92,7 +90,7 @@ public sealed class AwkUnicodeRegexTests
             var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(),
                 utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-                executable ? AwkExecutionEngineKind.Executable : AwkExecutionEngineKind.Interpreter, regexEngine: AwkUtf8RegexEngine.Instance);
+regexEngine: AwkUtf8RegexEngine.Instance);
             var exit = await compiled.ExecuteAsync(host, deadline.Token, options);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("1\n1\n1\n", host.GetOutput(AwkFileDescriptor.StdOut));

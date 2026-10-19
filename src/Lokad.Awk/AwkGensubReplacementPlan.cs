@@ -133,7 +133,7 @@ internal readonly struct AwkGensubReplacementPlan : IDisposable
             if (offset < nextCheckpoint)
                 return;
             checkpoint?.Invoke();
-            nextCheckpoint = (long)offset + AwkExecutionGovernor.WorkChunkBytes;
+            nextCheckpoint = (long)offset + AwkRuntimeLimits.CancellationCheckBytes;
         }
 
         static void AddPart(Span<AwkGensubReplacementPart> parts, ref int count, AwkGensubReplacementPart part)

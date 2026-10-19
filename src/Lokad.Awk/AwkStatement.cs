@@ -68,7 +68,7 @@ internal abstract partial class AwkStatement
     {
         ArgumentNullException.ThrowIfNull(expressions);
         return !target.IsRedirected && expressions.Count == 1 && AwkExpression.TryGetFieldIndexExpression(expressions[0], out var index)
-            ? new FieldPrintStatement(index, expressions[0])
+            ? new FieldPrintStatement(index)
             : new PrintStatement(AwkCollectionSnapshots.Copy(expressions), target);
     }
 
@@ -179,10 +179,6 @@ internal abstract partial class AwkStatement
             AwkIo io) =>
         ExecuteAsync(new AwkEvaluationContext(state, output, io));
 
-    /// <summary>Emits this complete statement when supported by the executable engine.</summary>
-    /// <returns><see langword="true"/> only when control flow and compiler stack state were fully emitted.</returns>
-    internal virtual bool TryEmitExecutable(AwkExecutableCompiler compiler) => false;
-
     internal virtual bool TryPrepareSynchronousAction(out Action<AwkEvaluationContext> action)
     {
         action = static _ => { };
@@ -222,9 +218,6 @@ internal abstract partial class AwkStatement
     /// <summary>Executes this statement and returns the control-flow request visible to its enclosing block.</summary>
     public abstract ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context);
 
-    /// <summary>Gets whether executable fallback must flush pending VM state before interpreting this statement.</summary>
-    internal virtual bool RequiresExecutableFallbackFlush => false;
-
     private static AwkExecutionContext RequireExecutionContext(AwkEvaluationContext context) =>
         context.TryGetExecutionContext(out var execution)
             ? execution
@@ -242,11 +235,5 @@ internal abstract partial class AwkStatement
 
         public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(AwkStatementFlow.Continue);
-
-        internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
-        {
-            compiler.Emit(AwkOpcode.NoOp);
-            return true;
-        }
     }
 }

@@ -154,5 +154,5 @@ public sealed class AwkUntypedStateTests
             new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), counters,
                 limits ?? AwkRuntimeLimits.CreateDefault().WithMaxExecutionMemoryBytes(1 << 20),
-                AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter));
+                AwkRegexEngineKind.DotNetCompatibility));
 }

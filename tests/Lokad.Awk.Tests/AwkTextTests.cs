@@ -128,10 +128,6 @@ public sealed class AwkTextTests
         Assert.Equal("café!", source.Concat(suffix, counters, governor).AsString());
         Assert.Equal("fé", source.CopyRuneSlice(2, 2, counters, governor).AsString());
         Assert.Equal("ca", source.CopyByteSlice(0, 2, counters, governor).AsString());
-
-        Assert.True(counters.MemoryReserveCalls >= 6);
-        Assert.True(counters.MemoryCommitCalls >= 6);
-        Assert.True(counters.MemoryReleaseCommittedCalls >= 6);
         Assert.True(counters.MemoryPeakLiveBytes > 0);
     }
 

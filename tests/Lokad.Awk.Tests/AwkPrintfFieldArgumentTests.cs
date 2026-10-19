@@ -2,13 +2,10 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkPrintfFieldArgumentTests
 {
-    [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(3)] [InlineData(5)]
-    [InlineData(8)] [InlineData(12)] [InlineData(20)] [InlineData(80)]
-    public async Task ExactFuelAndPartialOutputMatchOwnedFields(int fuel)
+    [Fact]
+    public async Task OutputMatchesOwnedFields()
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        if (fuel != 0) limits = limits.WithMaxExecutionSteps(fuel);
         Assert.Equal(await RunAsync(true, limits), await RunAsync(false, limits));
     }
 
@@ -28,8 +25,10 @@ public sealed class AwkPrintfFieldArgumentTests
     }
 
     [Theory]
-    [InlineData(false, false)] [InlineData(true, false)]
-    [InlineData(false, true)] [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
     public async Task PendingHostBorrowsOwnedFormattingAfterRecordChanges(bool cancel, bool fieldList)
     {
         using var cancellation = new CancellationTokenSource();
@@ -37,20 +36,17 @@ public sealed class AwkPrintfFieldArgumentTests
         await using var owner = AwkExecutionMemoryOwner.Create(budget, cancellation.Token);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, limits, AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter)
-            { MemoryOwner = owner };
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility)
+        { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options);
         var host = new PendingHost();
-        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static () => []);
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static () => []);
         AwkExpression[] fields = [AwkExpression.FieldIndex(AwkExpression.Number("1", 1)), AwkExpression.FieldIndex(AwkExpression.Number("2", 2))];
         var statement = fieldList ? AwkStatement.Print(fields)
             : AwkStatement.Printf(AwkExpression.Literal("%s:%04d\n"), fields);
         var expected = fieldList ? "before 7\n" : "before:0007\n";
-        var program = new AwkProgram([], [new(null, [statement])], [], [], [],
-            new Dictionary<AwkFunctionName, AwkUserFunction>());
-        using var executor = new AwkRuntimeActionExecutor(program, null, state);
+        var program = new AwkProgram([], [new(null, [statement])], [], [], [], new Dictionary<AwkFunctionName, AwkUserFunction>());
+        using var executor = new AwkRuntimeActionExecutor(program, state);
         var run = executor.ProcessRecordAsync(state, io, AwkText.FromSourceLiteralString("before 7")).AsTask();
         try
         {
@@ -84,21 +80,17 @@ public sealed class AwkPrintfFieldArgumentTests
     private static async Task<Result> RunAsync(bool owned, AwkRuntimeLimits limits, string format = "%s:%04d\\n")
     {
         var fields = owned ? "$i,$j" : "$1,$2";
-        var invocation = AwkTestHarness.BuildInvocation("awk", "-v", "i=1", "-v", "j=2",
-            "{printf \"" + format + "\"," + fields + "}");
+        var invocation = AwkTestHarness.BuildInvocation("awk", "-v", "i=1", "-v", "j=2", "{printf \"" + format + "\"," + fields + "}");
         var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), invocation, CancellationToken.None);
         var host = new MockFileSystem();
         host.SetStandardInput("head 007\nother -3\n");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(2 << 20);
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, limits, AwkRegexEngineKind.DotNetCompatibility, AwkExecutionEngineKind.Interpreter,
-            memoryBudget: budget);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility, memoryBudget: budget);
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);
-        return new(exit.Value, host.GetOutput(AwkFileDescriptor.StdOut), host.GetOutput(AwkFileDescriptor.StdErr),
-            counters.ExecutionSteps, counters.HostCalls, counters.FieldsMaterialized, counters.FieldSplits);
+        return new(exit.Value, host.GetOutput(AwkFileDescriptor.StdOut), host.GetOutput(AwkFileDescriptor.StdErr), counters.HostCalls, counters.FieldsMaterialized, counters.FieldSplits);
     }
 
     private sealed class PendingHost : IAwkHost
@@ -120,5 +112,5 @@ public sealed class AwkPrintfFieldArgumentTests
         public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) => _files.CreatePipeAsync(mode, token);
     }
 
-    private readonly record struct Result(int Exit, string Output, string Error, long Steps, long Calls, long Fields, long Splits);
+    private readonly record struct Result(int Exit, string Output, string Error, long Calls, long Fields, long Splits);
 }

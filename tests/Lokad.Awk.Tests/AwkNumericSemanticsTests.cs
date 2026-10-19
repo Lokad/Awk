@@ -124,7 +124,6 @@ public sealed class AwkNumericSemanticsTests
         using var sink = new AwkOutputSink(limits, governor, AwkRuntimeCounters.Disabled);
         for (var index = 0; index <= initialCount; index++)
             sink.ReportDiagnostic(Warning(message));
-        Assert.Equal(limit, governor.PeakLiveBytes);
         Assert.Equal(outputBuffer + newBuffer + (initialCount + 1) * messageBytes, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         var host = new MockFileSystem();
@@ -132,9 +131,7 @@ public sealed class AwkNumericSemanticsTests
 
         await sink.FlushDiagnosticsAsync(io);
         Assert.Equal(outputBuffer + newBuffer, governor.CurrentCommittedBytes);
-        var reserves = governor.ReserveCount;
         sink.ReportDiagnostic(Warning(message));
-        Assert.Equal(reserves + 1, governor.ReserveCount);
         Assert.Equal(outputBuffer + newBuffer + messageBytes, governor.CurrentCommittedBytes);
         await sink.FlushDiagnosticsAsync(io);
         Assert.Equal(string.Concat(Enumerable.Repeat(message, initialCount + 2)), host.GetOutput(AwkFileDescriptor.StdErr));

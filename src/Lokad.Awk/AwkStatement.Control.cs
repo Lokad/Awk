@@ -49,35 +49,6 @@ internal abstract partial class AwkStatement
             var selectedBody = await condition.EvaluateAsync(context).ConfigureAwait(false) ? body : elseBody;
             return await AwkStatementBlockExecutor.ExecuteAsync(selectedBody, context).ConfigureAwait(false);
         }
-
-        internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
-        {
-            if (!condition.TryEmitExecutable(compiler))
-                return false;
-
-            var jumpIfFalseIndex = compiler.EmitJumpIfFalse();
-            compiler.Pop();
-            for (var index = 0; index < body.Length; index++)
-            {
-                compiler.EmitStatementOrFallback(body[index]);
-            }
-
-            if (elseBody.Length == 0)
-            {
-                compiler.PatchJumpTarget(jumpIfFalseIndex, compiler.CurrentOffset);
-                return true;
-            }
-
-            var jumpOverElseIndex = compiler.EmitJump();
-            compiler.PatchJumpTarget(jumpIfFalseIndex, compiler.CurrentOffset);
-            for (var index = 0; index < elseBody.Length; index++)
-            {
-                compiler.EmitStatementOrFallback(elseBody[index]);
-            }
-
-            compiler.PatchJumpTarget(jumpOverElseIndex, compiler.CurrentOffset);
-            return true;
-        }
     }
 
     private sealed class ForInStatement(
@@ -91,7 +62,7 @@ internal abstract partial class AwkStatement
             using var keys = await state.SnapshotArrayKeyValuesAsync(arrayVariable, context).ConfigureAwait(false);
             for (var index = 0; index < keys.Count; index++)
             {
-                state.RecordExecutionStep();
+                state.Checkpoint();
                 state.AssignVariableValue(loopVariable, state.CreateArrayKeyValue(keys[index]));
                 var flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
@@ -140,7 +111,7 @@ internal abstract partial class AwkStatement
                 .EvaluateAsync(context)
                 .ConfigureAwait(false))
             {
-                state.RecordExecutionStep();
+                state.Checkpoint();
                 flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;
@@ -196,7 +167,7 @@ internal abstract partial class AwkStatement
                 .EvaluateAsync(context)
                 .ConfigureAwait(false))
             {
-                state.RecordExecutionStep();
+                state.Checkpoint();
                 var flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;
@@ -227,7 +198,7 @@ internal abstract partial class AwkStatement
             var state = context.State;
             do
             {
-                state.RecordExecutionStep();
+                state.Checkpoint();
                 var flow = await AwkStatementBlockExecutor.ExecuteAsync(body, context).ConfigureAwait(false);
                 if (flow == AwkStatementFlow.BreakLoop)
                     return AwkStatementFlow.Continue;
@@ -315,12 +286,6 @@ internal abstract partial class AwkStatement
 
         public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(AwkStatementFlow.NextRecord);
-
-        internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
-        {
-            compiler.Emit(AwkOpcode.Next);
-            return true;
-        }
     }
 
     private sealed class NextFileStatement : AwkStatement
@@ -329,12 +294,6 @@ internal abstract partial class AwkStatement
 
         public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context) =>
             ValueTask.FromResult(AwkStatementFlow.NextFile);
-
-        internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
-        {
-            compiler.Emit(AwkOpcode.NextFile);
-            return true;
-        }
     }
 
     private sealed class ReturnStatement(AwkOptionalExpression valueExpression) : AwkStatement
@@ -376,20 +335,6 @@ internal abstract partial class AwkStatement
 
             state.RequestExit(exitCode);
             return AwkStatementFlow.ExitProgram;
-        }
-
-        internal override bool TryEmitExecutable(AwkExecutableCompiler compiler)
-        {
-            if (statusExpression.HasValue && !compiler.TryEmitExpression(statusExpression.Value))
-                return false;
-
-            compiler.EmitExit(statusExpression.HasValue
-                ? AwkExitStatusPresence.Specified
-                : AwkExitStatusPresence.None);
-            if (statusExpression.HasValue)
-                compiler.Pop();
-
-            return true;
         }
     }
 }

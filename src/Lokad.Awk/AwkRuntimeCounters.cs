@@ -4,7 +4,6 @@ internal sealed class AwkRuntimeCounters
 {
     private readonly bool _enabled;
     private readonly object _sync = new();
-    private ulong _vmOpcodeMask;
 
     private AwkRuntimeCounters(bool enabled)
     {
@@ -179,7 +178,6 @@ internal sealed class AwkRuntimeCounters
         if (_enabled) lock (_sync) PrintfSignedIntegerFastPaths++;
     }
 
-
     public long FormattingStringInteropInputs { get; private set; }
 
     public long StringInteropFallbacks { get; private set; }
@@ -278,22 +276,6 @@ internal sealed class AwkRuntimeCounters
 
     public long HostCalls { get; private set; }
 
-    public long ExecutionSteps { get; private set; }
-
-    public long VmInstructions { get; private set; }
-
-    public long VmBasicBlockEntries { get; private set; }
-
-    public long VmFallbackCalls { get; private set; }
-
-    public long VmPatternFallbacks { get; private set; }
-
-    public long VmOpcodeKindsExecuted { get; private set; }
-
-    public long VmBudgetChecks { get; private set; }
-
-    public long VmMaxStackDepth { get; private set; }
-
     public long CancellationChecks { get; private set; }
 
     public long FunctionStackSuspensions { get; private set; }
@@ -342,22 +324,6 @@ internal sealed class AwkRuntimeCounters
     public long RuneSliceIndexAllocations { get; private set; }
 
     public long RuneSliceIndexBytes { get; private set; }
-
-    public long MemoryReserveCalls { get; private set; }
-
-    public long MemoryCommitCalls { get; private set; }
-
-    public long MemoryReleaseReservedCalls { get; private set; }
-
-    public long MemoryReleaseCommittedCalls { get; private set; }
-
-    public long MemoryReservedBytes { get; private set; }
-
-    public long MemoryCommittedBytes { get; private set; }
-
-    public long MemoryReleasedReservedBytes { get; private set; }
-
-    public long MemoryReleasedCommittedBytes { get; private set; }
 
     public long MemoryPeakLiveBytes { get; private set; }
 
@@ -591,94 +557,6 @@ internal sealed class AwkRuntimeCounters
             HostCalls++;
     }
 
-    public void RecordExecutionStep() => RecordExecutionSteps(1);
-
-    public void RecordExecutionSteps(int count)
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            ExecutionSteps += count;
-    }
-
-    public void RecordVmInstruction()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            VmInstructions++;
-    }
-
-    public void RecordVmOpcode(AwkOpcode opcode)
-    {
-        if (!_enabled)
-            return;
-
-        var opcodeIndex = (int)opcode;
-        if ((uint)opcodeIndex >= sizeof(ulong) * 8)
-            return;
-
-        lock (_sync)
-        {
-            var opcodeBit = 1UL << opcodeIndex;
-            if ((_vmOpcodeMask & opcodeBit) != 0)
-                return;
-
-            _vmOpcodeMask |= opcodeBit;
-            VmOpcodeKindsExecuted++;
-        }
-    }
-
-    public void RecordVmBasicBlockEntry()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            VmBasicBlockEntries++;
-    }
-
-    public void RecordVmFallbackCall()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            VmFallbackCalls++;
-    }
-
-    public void RecordVmPatternFallback()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            VmPatternFallbacks++;
-    }
-
-    public void RecordVmBudgetCheck()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            VmBudgetChecks++;
-    }
-
-    public void RecordVmStackDepth(long depth)
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-        {
-            if (depth > VmMaxStackDepth)
-                VmMaxStackDepth = depth;
-        }
-    }
-
     public void RecordCancellationCheck()
     {
         if (!_enabled)
@@ -771,59 +649,11 @@ internal sealed class AwkRuntimeCounters
         }
     }
 
-    public void RecordMemoryReserve(long byteCount, long liveBytes)
+    public void RecordMemoryLiveBytes(long liveBytes)
     {
-        if (!_enabled || byteCount <= 0)
-            return;
-
+        if (!_enabled) return;
         lock (_sync)
-        {
-            MemoryReserveCalls++;
-            MemoryReservedBytes += byteCount;
-            RecordMemoryLiveBytes(liveBytes);
-        }
-    }
-
-    public void RecordMemoryCommit(long byteCount, long liveBytes)
-    {
-        if (!_enabled || byteCount <= 0)
-            return;
-
-        lock (_sync)
-        {
-            MemoryCommitCalls++;
-            MemoryCommittedBytes += byteCount;
-            RecordMemoryLiveBytes(liveBytes);
-        }
-    }
-
-    public void RecordMemoryReleaseReserved(long byteCount)
-    {
-        if (!_enabled || byteCount <= 0)
-            return;
-
-        lock (_sync)
-        {
-            MemoryReleaseReservedCalls++;
-            MemoryReleasedReservedBytes += byteCount;
-        }
-    }
-
-    public void RecordMemoryReleaseCommitted(long byteCount)
-    {
-        if (!_enabled || byteCount <= 0)
-            return;
-
-        lock (_sync)
-        {
-            MemoryReleaseCommittedCalls++;
-            MemoryReleasedCommittedBytes += byteCount;
-        }
-    }
-
-    private void RecordMemoryLiveBytes(long liveBytes)
-    {
-        if (liveBytes > MemoryPeakLiveBytes)
-            MemoryPeakLiveBytes = liveBytes;
+            if (liveBytes > MemoryPeakLiveBytes)
+                MemoryPeakLiveBytes = liveBytes;
     }
 }

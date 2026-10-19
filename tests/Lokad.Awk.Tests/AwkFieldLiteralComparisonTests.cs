@@ -57,9 +57,9 @@ public sealed class AwkFieldLiteralComparisonTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(AwkExecutionGovernor.WorkChunkBytes - 1)]
-    [InlineData(AwkExecutionGovernor.WorkChunkBytes)]
-    [InlineData(AwkExecutionGovernor.WorkChunkBytes + 1)]
+    [InlineData(AwkRuntimeLimits.CancellationCheckBytes - 1)]
+    [InlineData(AwkRuntimeLimits.CancellationCheckBytes)]
+    [InlineData(AwkRuntimeLimits.CancellationCheckBytes + 1)]
     public void LiteralAdmissionAndThresholdPreserveValueWork(int length)
     {
         var (state, counters) = State(true);
@@ -69,7 +69,7 @@ public sealed class AwkFieldLiteralComparisonTests
         var values = counters.ValuesCreated;
         Assert.False(state.CompareFieldLiteral(1, AwkText.FromString(new string('1', length)), AwkComparison.Equal));
         Assert.Equal(1, counters.ValuesCreated - values);
-        Assert.Equal(length < AwkExecutionGovernor.WorkChunkBytes ? 1 : 0, counters.DeferredComparisonLiterals);
+        Assert.Equal(length < AwkRuntimeLimits.CancellationCheckBytes ? 1 : 0, counters.DeferredComparisonLiterals);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal("x", state.CurrentRecordByteText.AsString());
@@ -83,8 +83,7 @@ public sealed class AwkFieldLiteralComparisonTests
         if (finite)
             limits = limits.WithMaxExecutionMemoryBytes(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility,
-            AwkExecutionEngineKind.Interpreter);
+            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
         return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation, options), counters);
     }
 }
