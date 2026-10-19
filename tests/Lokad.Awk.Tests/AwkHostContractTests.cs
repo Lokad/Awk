@@ -71,7 +71,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendExitCode(0);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
-            "BEGIN{print \"payload\" | \"consumer\"}"));
+            "BEGIN{print \"payload\" | \"consumer a:b\\\\*.txt\"}"));
 
         var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
 

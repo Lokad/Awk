@@ -1,7 +1,7 @@
 namespace Lokad.Awk.Tests;
 
-// Models commands that consume their input and produce no output. Completion of an
-// output command waits for the writer to close, so fflush must not wait for it.
+// Defaults to commands that consume input and produce no output. Tests can supply one
+// input record and a command status. Output completion waits for the writer to close.
 internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
 {
     private readonly Dictionary<AwkFileDescriptor, Pipe> _pipes = [];
@@ -10,6 +10,8 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
     public int OpenPipeCount => _pipes.Values.Distinct().Count(pipe => pipe.ReadOpen || pipe.WriteOpen);
     public List<AwkCommandInvocation> Commands { get; } = [];
     public List<byte[]> Writes { get; } = [];
+    public string InputRecord { get; init; } = "";
+    public int CommandStatus { get; init; }
 
     public async Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
         IReadOnlyList<AwkCommandInvocation> commands, CancellationToken cancellationToken)
@@ -25,8 +27,9 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
             }
             else if (_pipes.TryGetValue(command.StdOut, out var input))
             {
+                input.Content = AwkUtf8Codec.Encode(InputRecord);
                 input.WriteOpen = false;
-                results.Add(AwkExitCode.Success);
+                results.Add(new AwkExitCode(CommandStatus));
             }
             else
             {
@@ -61,7 +64,7 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
         else
         {
             pipe.WriteOpen = false;
-            pipe.Completion.TrySetResult(AwkExitCode.Success);
+            pipe.Completion.TrySetResult(new AwkExitCode(CommandStatus));
         }
         return Task.FromResult(AwkOperationStatus.Success);
     }
@@ -74,7 +77,9 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
             return files.ReadLinesAsync(descriptor, maxLineCount, cancellationToken);
         Assert.Equal(pipe.Read, descriptor);
         Assert.True(pipe.ReadOpen);
-        return Task.FromResult(AwkReadResult.EndOfFile);
+        var content = pipe.Content;
+        pipe.Content = ReadOnlyMemory<byte>.Empty;
+        return Task.FromResult(AwkReadResult.FromContent(content, [], AwkReadCompletion.EndOfFile));
     }
 
     public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
@@ -93,6 +98,7 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
         public AwkFileDescriptor Write { get; } = write;
         public bool ReadOpen { get; set; } = true;
         public bool WriteOpen { get; set; } = true;
+        public ReadOnlyMemory<byte> Content { get; set; }
         public TaskCompletionSource<AwkExitCode> Completion { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
     }

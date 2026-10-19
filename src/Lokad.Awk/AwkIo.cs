@@ -308,6 +308,11 @@ internal sealed class AwkIo
         if (_specialPaths.TryResolveOutput(path, out _))
             return pipe;
 
+        if (pipe.Kind != AwkOpenRedirectionKind.None)
+            return _host.TryResolveExistingPath(path, out var absolute)
+                ? pipe.Newer(_descriptors.GetRedirection(absolute))
+                : pipe;
+
         return pipe.Newer(_descriptors.GetRedirection(_host.ResolveExistingPath(path)));
     }
 
