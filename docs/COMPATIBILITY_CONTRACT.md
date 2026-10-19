@@ -86,13 +86,17 @@ MoreData from EOF; MoreData contains bytes. Line offsets are snapshotted, while 
 remains borrowed until the next read starts on that descriptor or it closes. Append buffers
 remain valid until the host task completes. Other descriptors have independent lifetimes.
 
-Redirected getline I/O failures return -1 and set enabled ERRNO; success/EOF preserve ERRNO.
+Redirected getline I/O failures return -1 and set enabled ERRNO without an automatic runtime
+stderr diagnostic; callers must check the status. Success/EOF preserve ERRNO.
 Policy denial, unsupported capabilities, resource failure and invalid UTF-8 are fatal.
 Getline resolves its source/destination before reading, even at EOF: index effects and
 missing-location admission can occur without a value assignment. Direct postfix field
 destinations are rejected; use `getline $(i++)` for explicit index mutation.
 
-Flush/close follow logical-stream and host outcomes. Failures preserve prior committed output
+Flush/close follow logical-stream and host outcomes. Open-pipe commands are opaque host input, including
+colons, backslashes, wildcards and quotes. Same-name streams select the latest opening.
+Output-pipe fflush succeeds without closing/awaiting the command; input-only fflush warns and
+returns -1. close returns the command status. Failures preserve prior committed output
 without exposing CLR exception text. Caller cancellation propagates after cleanup; owned
 deadlines produce awk failures. See [embedding](../README.md#embedding),
 [security](SECURITY.md) and [runtime limits](RUNTIME_LIMITS.md).

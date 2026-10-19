@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-10-19
+
+- Fixed `close()` and targeted `fflush()` on open command pipes whose opaque command text
+  contains colons, backslashes, wildcards or quoted arguments. File-path validation,
+  latest-opening selection and command exit statuses are preserved. Output-pipe flush
+  does not close or await the command; input-pipe flush retains its warning/-1 behavior.
+- Consumer migration: redirected `getline` open/read failures intentionally return -1,
+  set `ERRNO` where enabled, and emit no automatic runtime stderr diagnostic. Check the
+  return value rather than relying on stderr. Success/EOF preserve `ERRNO`. Unhandled
+  main-input failures, capability denial, invalid UTF-8 and resource refusal remain fatal;
+  stderr written by a host command is unaffected.
+- Use a caller cancellation token or `WithExecutionTimeout` for cooperative whole-command
+  control. The default has no CPU deadline; the restricted preset uses 30 seconds.
+  `WithCommandTimeout` limits a pipe-command wait, `WithHostOperationTimeout` limits other
+  host-operation waits, and `WithCleanupTimeout` bounds aggregate cleanup waiting. These
+  controls do not forcibly terminate host work; governed buffers remain funded until their
+  actual users finish. There are no replacement fuel/work quotas or compatibility shims.
 
 - Removed the internal executable/bytecode engine, its selector, emission hooks, operand
   stack, fallbacks and VM counters. One interpreter retains synchronous/prepared execution;
@@ -143,8 +159,8 @@
   cancellation, argument evaluation and failure cleanup retain their contracts.
 
 - Numeric policy budgets now share one immutable limits value with runtime execution.
-  Public configuration methods, both presets, optional specialized quotas and diagnostics
-  retain their existing behavior; argument/environment/host-error budgets remain host-owned.
+  Retained storage, frontend and open-resource limits share both presets; argument,
+  environment and host-error budgets remain host-owned. Removed work quotas are listed above.
 
 - Field and `NF` access now reuse the record-splitting callback within an execution,
   removing per-read delegate allocations while preserving lazy splitting and record plans.
@@ -202,14 +218,14 @@
   replacement admits one exact result string, keeps its charge through preparation
   and cache publication, and removes the intermediate builder buffer. No-op and empty
   results share existing storage. Cancellation, shortfalls and invalid regexes release
-  staging; matching behavior and logical execution charges remain unchanged.
+  staging; matching behavior remains unchanged.
 
 - Awk-owned regex preparation now checks cancellation during dialect translation,
   scalar/width analysis, pattern/group limit scans and cache-weight measurement.
   Final checks precede all compiled-regex cache publications. Interrupted decoding
   releases scratch and can be retried; completed regexes and shared Unicode metadata
-  retain no construction callback. Existing matching behavior and logical charges
-  are unchanged. Native constructors and shared metadata initialization remain
+  retain no construction callback. Existing matching behavior is unchanged.
+  Native constructors and shared metadata initialization remain
   noninterruptible boundaries.
 
 - Finite-memory execution now admits exact print/printf argument and segment arrays.
@@ -255,7 +271,7 @@
   publishing storage or parser metadata. Unicode warnings follow special-variable
   reassignment and fresh compiled execution; malformed regex RS fails at assignment.
   Same-value/case changes reuse prepared regexes, and byte-native separator fast
-  paths remain available. Compilation quota failures preserve prior values/fields.
+  paths remain available. Preparation/admission failures preserve prior values/fields.
 
 - POSIX/byte-mode option warnings now precede source-loading, parsing and external
   assignment failures and are retained once per compiled execution. They share the
@@ -487,7 +503,7 @@
 - Added variadic `and`, `or`, and `xor`, unsigned bitwise results, and GNU 5.4 oversized
   shift behavior. Fractions truncate after negative-value checks; complete folds preserve
   exactly representable high bits. Native out-of-range casts have an explicit portable
-  policy, and both engines retain one-time argument effects and shared work checkpoints.
+  policy, and the interpreter retains one-time argument effects and cancellation checkpoints.
 
 - Made strtonum preserve numeric arguments and convert string prefixes with the correct
   raw-byte base selection. Added GNU 5.4 hex float conversion and POSIX C-style hex input,

@@ -22,6 +22,12 @@ host-call, record-count, regex-operation/compilation, sorting or separator-scan 
 Counters are observational. Remaining storage, frontend and open-resource bounds are listed in the
 [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs).
 
+Version 0.3.0 removes the former work-quota settings and `WithMax...` methods; see the
+[migration notes](../CHANGELOG.md#030---2026-10-19). Use a caller cancellation token or
+`WithExecutionTimeout` for cooperative whole-execution control. `WithCommandTimeout` governs
+pipe-command waits, `WithHostOperationTimeout` other host-operation waits, and
+`WithCleanupTimeout` aggregate cleanup. None forcibly terminates a host operation.
+
 ## Shared memory
 
 `WithMemoryBudget(IMemoryBudget)` borrows an application-owned shared allowance through

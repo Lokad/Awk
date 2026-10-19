@@ -174,8 +174,7 @@
       "lokad.awk": {
         "type": "Project",
         "dependencies": {
-          "Lokad.Parsing": "[1.1.0, )",
-          "Lokad.Utf8Regex": "[0.2.0, )"
+          "Lokad.Parsing": "[1.1.0, )"
         }
       },
       "Lokad.Parsing": {
@@ -186,12 +185,6 @@
         "dependencies": {
           "JetBrains.Annotations": "11.1.0"
         }
-      },
-      "Lokad.Utf8Regex": {
-        "type": "CentralTransitive",
-        "requested": "[0.2.0, )",
-        "resolved": "0.2.0",
-        "contentHash": "AK2u9bIayI3bqbHvuRYuyB9pUVbzIMhimSsFhy7GAvESangIWACzc1TdJWHKFoXD2hus0F+G1MFj343tPdeAUg=="
       }
     }
   }

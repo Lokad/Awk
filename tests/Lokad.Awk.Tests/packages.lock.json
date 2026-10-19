@@ -101,14 +101,13 @@
       "lokad.awk": {
         "type": "Project",
         "dependencies": {
-          "Lokad.Parsing": "[1.1.0, )",
-          "Lokad.Utf8Regex": "[0.2.0, )"
+          "Lokad.Parsing": "[1.1.0, )"
         }
       },
       "lokad.awk.utf8regex": {
         "type": "Project",
         "dependencies": {
-          "Lokad.Awk": "[0.3.0, )",
+          "Lokad.Awk": "[0.4.0, )",
           "Lokad.Utf8Regex": "[0.2.0, )"
         }
       },

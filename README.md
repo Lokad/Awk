@@ -42,13 +42,16 @@ For an in-memory host implementation pattern, see
 Host reads report EOF and failure as separate outcomes: successful batches use
 `AwkReadResult.FromContent` (or `EndOfFile`), while failed reads use `AwkReadResult.Failure` with a
 structured `AwkOperationError`. `AwkReadCompletion.MoreData` requires a nonempty batch, preventing a
-host from causing a no-progress read loop. The runtime maps failures to awk diagnostics and `ERRNO`.
+host from causing a no-progress read loop. Recoverable redirected `getline` open/read failures
+return -1, set enabled `ERRNO`, and emit no automatic runtime stderr diagnostic. Success/EOF
+preserve `ERRNO`. Unhandled main-input failures, policy/capability denial, invalid UTF-8 and
+resource refusal remain fatal; stderr written by a host command is unaffected.
 The result snapshots line offsets. Hosts keep successful read content unchanged and alive until the
 next read starts on the same descriptor or that descriptor is closed; descriptors have independent
 buffer lifetimes.
 `IAwkHost` contains only the effects used by the runtime: command execution, append, open, close,
 read, and pipe creation. Open, read, and pipe creation report unsupported capabilities and failures
-as structured results so the runtime can produce awk diagnostics without leaking host exceptions.
+as structured results so the runtime can apply those semantics without leaking host exceptions.
 Append and command outcomes use `AwkExitCode`; a batch command response must contain exactly one
 result per submitted command.
 
@@ -74,7 +77,11 @@ before refunding storage, including after timeout or cancellation. Source copies
 buffers use coarse estimates; admission can conservatively refuse before execution.
 See [runtime limits](docs/RUNTIME_LIMITS.md) for ownership and accounting scope.
 
-Release notes are tracked in [CHANGELOG.md](CHANGELOG.md).
+Release notes and removed work-quota APIs are listed in [CHANGELOG.md](CHANGELOG.md#030---2026-10-19).
+Both packages use version 0.3.0, assembly/file versions 0.3.0.0 and informational version
+`0.3.0+<source commit>`. Package dependencies and SourceLink identify the qualified source;
+the release tag `v0.3.0` must identify that same commit. Before 1.0, minor releases may remove
+public APIs as explicitly described in their release notes.
 
 ## Status
 
