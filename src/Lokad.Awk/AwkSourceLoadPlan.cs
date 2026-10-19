@@ -116,8 +116,12 @@ internal sealed class AwkSourceLoadPlan
     public void ThrowIfDenied(AwkPath path) =>
         AwkHostPathPolicy.ThrowIfDenied(path, _accessiblePathRoot);
 
-    public bool TryMarkIncluded(AwkScriptFile script) =>
-        _includedIdentities.Add(script.SourceIdentity);
+    public bool TryMarkIncluded(AwkScriptFile script)
+    {
+        if (_includedIdentities.Contains(script.SourceIdentity)) return false;
+        Memory.AdmitSourceUnits(1);
+        return _includedIdentities.Add(script.SourceIdentity);
+    }
 
     public bool TryGetScriptText(
         AwkPath path,
@@ -127,6 +131,15 @@ internal sealed class AwkSourceLoadPlan
     public void CacheScriptText(AwkPath path, AwkScriptTextReadResult result)
     {
         if (result is not AwkScriptTextReadResult.Failed)
+        {
+            if (!_scriptTextByPath.ContainsKey(path))
+            {
+                // Cached misses and empty files retain path/index storage too. Admit a
+                // coarse entry/growth estimate through the existing frontend owner.
+                Memory.AdmitSourceUnits(4);
+                Memory.AdmitTextCopy(path.Path.Length);
+            }
             _scriptTextByPath[path] = result;
+        }
     }
 }

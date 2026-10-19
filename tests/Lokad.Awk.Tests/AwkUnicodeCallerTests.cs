@@ -67,20 +67,18 @@ public sealed class AwkUnicodeCallerTests
     }
 
     [Theory]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    public async Task OptionAndSourceDiagnosticsShareOneFrontendBudget(int limit, bool sourceWarning)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OptionAndSourceWarningsRemainOrdered(bool sourceWarning)
     {
         var command = AwkTestHarness.BuildInvocation("awk", "-v", @"v=\u",
             sourceWarning ? "BEGIN{print \"\\u\";exit}" : "BEGIN{print v;exit}");
         var host = new MockFileSystem();
-        var options = Options(false, AwkRuntimeLimits.CreateDefault().WithMaxFrontendDiagnostics(limit));
+        var options = Options(false, AwkRuntimeLimits.CreateDefault());
         var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), CancellationToken.None, options);
-        var exceeded = sourceWarning && limit == 1;
-        Assert.Equal(exceeded ? AwkExitCode.FatalError : AwkExitCode.Success, exit);
-        Assert.Equal(exceeded ? string.Empty : "u\n", host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(exceeded ? Warning + "awk: frontend diagnostic limit exceeded\n"
-            : sourceWarning ? Warning + Warning : Warning, host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("u\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(sourceWarning ? Warning + Warning : Warning, host.GetOutput(AwkFileDescriptor.StdErr));
     }
 
     [Theory]

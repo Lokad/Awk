@@ -30,7 +30,7 @@ internal sealed class AwkInvocation
 
     public AwkTerminalInvocationResult TerminalResult { get; }
 
-    public IReadOnlyList<AwkDiagnostic> GetOptionWarnings(int maxDiagnostics, CancellationToken cancellationToken,
+    public IReadOnlyList<AwkDiagnostic> GetOptionWarnings(CancellationToken cancellationToken,
         AwkStringEscapeWarnings? stringEscapeWarnings = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -38,9 +38,6 @@ internal sealed class AwkInvocation
         List<AwkDiagnostic>? warnings = null;
         if (ExecutionOptions.CompatibilityProfile.OverridesCharactersAsBytes)
         {
-            if (maxDiagnostics <= 0)
-                throw new AwkRuntimeException(AwkMessages.ErrorFrontendDiagnosticLimit,
-                    AwkDiagnosticId.RuntimeResourceLimit);
             warnings = [new AwkDiagnostic(default, AwkMessages.WarningPosixOverridesCharactersAsBytes,
                 AwkDiagnosticId.WarningRuntime)];
         }
@@ -52,9 +49,6 @@ internal sealed class AwkInvocation
             AwkEscapes.ReportStringWarnings(assignment.RawValue, ExecutionOptions.CompatibilityProfile.Mode,
                 history, warning =>
                 {
-                    if ((warnings?.Count ?? 0) >= maxDiagnostics)
-                        throw new AwkRuntimeException(AwkMessages.ErrorFrontendDiagnosticLimit,
-                            AwkDiagnosticId.RuntimeResourceLimit);
                     warnings ??= [];
                     warnings.Add(new AwkDiagnostic(default, warning));
                 }, cancellationToken.ThrowIfCancellationRequested);

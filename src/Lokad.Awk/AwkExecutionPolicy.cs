@@ -91,24 +91,6 @@ public sealed record AwkExecutionPolicy
     public int MaxPipes => Limits.MaxPipes;
 
     /// <summary>Gets the maximum aggregate UTF-8 bytes loaded as awk source.</summary>
-    public long MaxSourceBytes => Limits.MaxSourceBytes;
-
-    /// <summary>Gets the maximum number of top-level source units in one invocation.</summary>
-    public int MaxSourceUnits => Limits.MaxSourceUnits;
-
-    /// <summary>Gets the maximum UTF-8 bytes in the fully expanded compilation source.</summary>
-    public long MaxExpandedSourceBytes => Limits.MaxExpandedSourceBytes;
-
-    /// <summary>Gets the maximum UTF-16 characters admitted to the frontend.</summary>
-    public int MaxFrontendCharacters => Limits.MaxFrontendCharacters;
-
-    /// <summary>Gets the maximum token count produced by the frontend.</summary>
-    public int MaxFrontendTokens => Limits.MaxFrontendTokens;
-
-    /// <summary>Gets the maximum lexical diagnostics produced by the frontend.</summary>
-    public int MaxFrontendDiagnostics => Limits.MaxFrontendDiagnostics;
-
-    /// <summary>Gets the maximum command argument count admitted before invocation planning.</summary>
     public int MaxArguments { get; private init; } = 100_000;
 
     /// <summary>Gets the maximum aggregate UTF-8 bytes across command arguments.</summary>
@@ -127,9 +109,6 @@ public sealed record AwkExecutionPolicy
     public int MaxIncludeDepth => Limits.MaxIncludeDepth;
 
     /// <summary>Gets the maximum number of distinct <c>@include</c> directives followed.</summary>
-    public int MaxIncludeFiles => Limits.MaxIncludeFiles;
-
-    /// <summary>Creates the compatibility-oriented default policy.</summary>
     public static AwkExecutionPolicy CreateDefault() => new(AwkRuntimeLimits.CreateDefault());
 
     /// <summary>Creates a finite deny-by-default policy suitable for untrusted awk.</summary>
@@ -234,30 +213,6 @@ public sealed record AwkExecutionPolicy
         this with { Limits = Limits.WithMaxPipes(value) };
 
     /// <summary>Returns a copy with the aggregate source-byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxSourceBytes(long value) =>
-        this with { Limits = Limits.WithMaxSourceBytes(value) };
-
-    /// <summary>Returns a copy with the top-level source-unit budget configured.</summary>
-    public AwkExecutionPolicy WithMaxSourceUnits(int value) =>
-        this with { Limits = Limits.WithMaxSourceUnits(value) };
-
-    /// <summary>Returns a copy with the expanded compilation-source byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxExpandedSourceBytes(long value) =>
-        this with { Limits = Limits.WithMaxExpandedSourceBytes(value) };
-
-    /// <summary>Returns a copy with the frontend character budget configured.</summary>
-    public AwkExecutionPolicy WithMaxFrontendCharacters(int value) =>
-        this with { Limits = Limits.WithMaxFrontendCharacters(value) };
-
-    /// <summary>Returns a copy with the frontend token budget configured.</summary>
-    public AwkExecutionPolicy WithMaxFrontendTokens(int value) =>
-        this with { Limits = Limits.WithMaxFrontendTokens(value) };
-
-    /// <summary>Returns a copy with the frontend diagnostic budget configured.</summary>
-    public AwkExecutionPolicy WithMaxFrontendDiagnostics(int value) =>
-        this with { Limits = Limits.WithMaxFrontendDiagnostics(value) };
-
-    /// <summary>Returns a copy with the command argument-count budget configured.</summary>
     public AwkExecutionPolicy WithMaxArguments(int value) =>
         this with { MaxArguments = AwkRuntimeLimits.RequirePositive(value) };
 
@@ -273,17 +228,13 @@ public sealed record AwkExecutionPolicy
     public AwkExecutionPolicy WithMaxEnvironmentBytes(long value) =>
         this with { MaxEnvironmentBytes = AwkRuntimeLimits.RequirePositive(value) };
 
-    /// <summary>Returns a copy with the host-error byte budget configured.</summary>
+    /// <summary>Returns a copy with the aggregate command argument-byte budget configured.</summary>
     public AwkExecutionPolicy WithMaxHostErrorBytes(int value) =>
         this with { MaxHostErrorBytes = AwkRuntimeLimits.RequirePositive(value) };
 
-    /// <summary>Returns a copy with the include-depth budget configured.</summary>
+    /// <summary>Returns a copy with the environment entry-count budget configured.</summary>
     public AwkExecutionPolicy WithMaxIncludeDepth(int value) =>
         this with { Limits = Limits.WithMaxIncludeDepth(value) };
-
-    /// <summary>Returns a copy with the included-file budget configured.</summary>
-    public AwkExecutionPolicy WithMaxIncludeFiles(int value) =>
-        this with { Limits = Limits.WithMaxIncludeFiles(value) };
 
 }
 

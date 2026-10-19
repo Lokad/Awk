@@ -333,9 +333,9 @@ public sealed class AwkGrammarCancellationTests
     {
         var text = " " + string.Concat(Enumerable.Repeat("\\" + newline, 12_000)) + "BEGIN{}";
         var calls = 0;
-        var expected = AwkLineContinuations.NormalizeWithCheckpoint(text, int.MaxValue, () => calls++);
+        var expected = AwkLineContinuations.NormalizeWithCheckpoint(text, () => calls++);
         var lexerCalls = 0;
-        AwkLexer.Tokenize(text, int.MaxValue, () => lexerCalls++);
+        AwkLexer.Tokenize(text, () => lexerCalls++);
         Assert.True(calls > lexerCalls + 128);
         Assert.Equal(" BEGIN{}", expected.Text);
         Assert.Equal(12_000, expected.LineContinuations.Count);
@@ -348,9 +348,9 @@ public sealed class AwkGrammarCancellationTests
             cancellation.Token.ThrowIfCancellationRequested();
         }
         var failure = Assert.Throws<OperationCanceledException>(() =>
-            AwkLineContinuations.NormalizeWithCheckpoint(text, int.MaxValue, Checkpoint));
+            AwkLineContinuations.NormalizeWithCheckpoint(text, Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        Assert.Equal(expected.Text, AwkLineContinuations.Normalize(text, int.MaxValue, CancellationToken.None).Text);
+        Assert.Equal(expected.Text, AwkLineContinuations.Normalize(text, CancellationToken.None).Text);
     }
 
     [Theory]

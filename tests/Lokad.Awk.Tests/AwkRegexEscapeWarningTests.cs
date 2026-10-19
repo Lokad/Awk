@@ -134,20 +134,21 @@ regexEngine: AwkUtf8RegexEngine.Instance);
     [InlineData("--posix", true)]
     [InlineData("--traditional", false)]
     [InlineData("--traditional", true)]
-    public async Task DeduplicationPrecedesFrontendDiagnosticAdmission(string profile, bool distinct)
+    public async Task DistinctEscapesProduceDistinctWarnings(string profile, bool distinct)
     {
         var host = new MockFileSystem();
         var script = distinct ? @"BEGIN{if(0)print /\q\d/;print 1}" : @"BEGIN{if(0)print /\q\q/;print 1}";
         string[] args = [.. profile.Length == 0 ? Array.Empty<string>() : new[] { profile }, script];
         var options = new AwkRuntimeOptions(AwkUnixTimestampSeconds.FromSystemClock, TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            AwkRuntimeLimits.CreateDefault().WithMaxFrontendDiagnostics(1), AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
         var exit = await AwkExecutor.ExecuteAsync(host,
             AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", args, [])), CancellationToken.None, options);
-        Assert.Equal(distinct ? AwkExitCode.FatalError : AwkExitCode.Success, exit);
-        Assert.Equal(distinct ? string.Empty : "1\n", host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(distinct ? "awk: frontend diagnostic limit exceeded\n"
-            : "awk: warning: regexp escape sequence `\\q' is not a known regexp operator\n",
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("1\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        var warnings = "awk: warning: regexp escape sequence `\\q' is not a known regexp operator\n";
+        if (distinct) warnings += "awk: warning: regexp escape sequence `\\d' is not a known regexp operator\n";
+        Assert.Equal(warnings,
             host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.OpenFileCount);
     }

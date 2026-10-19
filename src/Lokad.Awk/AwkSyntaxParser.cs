@@ -27,7 +27,7 @@ internal static class AwkSyntaxParser
         checkpoint?.Invoke();
         budget.Memory.AdmitLexing(source.Length);
         var parsingSource = AwkParsingSource.Create(source, checkpoint);
-        var tokens = AwkLexer.Tokenize(source, budget.MaxTokens, checkpoint, compatibilityMode, budget.Memory);
+        var tokens = AwkLexer.Tokenize(source, checkpoint, compatibilityMode, budget.Memory);
         checkpoint?.Invoke();
         if (AwkSyntaxNesting.TryFindExcessiveDelimiterDepth(
                 tokens,
@@ -231,13 +231,6 @@ internal static class AwkSyntaxParser
                                 item.HasExplicitAction,
                                 item.Span));
                             break;
-                    }
-
-                    if (_diagnostics.Count > budget.MaxDiagnostics)
-                    {
-                        throw new AwkRuntimeException(
-                            AwkMessages.ErrorFrontendDiagnosticLimit,
-                            AwkDiagnosticId.RuntimeResourceLimit);
                     }
                 }
             }

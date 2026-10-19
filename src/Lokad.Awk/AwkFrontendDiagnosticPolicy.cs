@@ -101,12 +101,6 @@ internal static class AwkFrontendDiagnosticPolicy
 
         void AddDiagnostic(AwkDiagnostic diagnostic)
         {
-            if (diagnostics.Count >= budget.MaxDiagnostics)
-            {
-                throw new AwkRuntimeException(
-                    AwkMessages.ErrorFrontendDiagnosticLimit,
-                    AwkDiagnosticId.RuntimeResourceLimit);
-            }
 
             diagnostics.Add(diagnostic);
         }

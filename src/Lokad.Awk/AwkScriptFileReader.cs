@@ -194,7 +194,6 @@ internal static class AwkScriptFileReader
                     while (await reader.TryBufferLineAsync().ConfigureAwait(false))
                     {
                         var line = reader.ReadLine();
-                        resources.RecordSourceBytes(line.Length);
                         if (line.IsEmpty)
                             continue;
 

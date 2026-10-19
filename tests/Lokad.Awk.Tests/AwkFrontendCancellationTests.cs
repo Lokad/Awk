@@ -81,10 +81,10 @@ public sealed class AwkFrontendCancellationTests
             _ => "\"" + body + "\""
         };
         var shortCalls = 0;
-        var shortTokens = AwkLexer.Tokenize(Wrap("x"), int.MaxValue, () => shortCalls++);
+        var shortTokens = AwkLexer.Tokenize(Wrap("x"), () => shortCalls++);
         var source = Wrap(new string('x', 32_000));
         var longCalls = 0;
-        var longTokens = AwkLexer.Tokenize(source, int.MaxValue, () => longCalls++);
+        var longTokens = AwkLexer.Tokenize(source, () => longCalls++);
         Assert.Equal(shortTokens.Select(token => token.Kind), longTokens.Select(token => token.Kind));
         Assert.True(longCalls > shortCalls);
         using var cancellation = new CancellationTokenSource();
@@ -97,7 +97,7 @@ public sealed class AwkFrontendCancellationTests
         }
 
         var failure = Assert.Throws<OperationCanceledException>(() =>
-            AwkLexer.Tokenize(source, int.MaxValue, Checkpoint));
+            AwkLexer.Tokenize(source, Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Equal(shortCalls + 1, calls);
     }

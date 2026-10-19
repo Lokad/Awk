@@ -8,7 +8,7 @@ public sealed class AwkUnicodeRegexTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
-    public void LiteralWarningsKeepRegexTokenSpansAndBudget(int mode)
+    public void LiteralWarningsKeepRegexTokenSpans(int mode)
     {
         const string literal = "/\\u\\ud800/";
         const string source = "BEGIN{if(0)print " + literal + "}";
@@ -30,11 +30,6 @@ public sealed class AwkUnicodeRegexTests
         }
         Assert.Equal(Warning, parse.Warnings[0].Message);
         Assert.Equal("awk: warning: invalid `\\u' escape sequence\n", parse.Warnings[1].Message);
-        var budget = new AwkFrontendBudget(int.MaxValue, int.MaxValue, 1, long.MaxValue, int.MaxValue);
-        var error = Assert.Throws<AwkRuntimeException>(() => AwkParser.Parse(source, budget,
-            CancellationToken.None, profile));
-        Assert.Equal(AwkDiagnosticId.RuntimeResourceLimit, error.Id);
-        Assert.Equal("awk: frontend diagnostic limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
     }
 
     [Theory]

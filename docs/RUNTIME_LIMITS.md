@@ -2,8 +2,7 @@
 
 The host's shared governor admits memory, caller cancellation controls duration, and
 `IAwkHost` controls effects. This branch removes duplicate execution-memory, record/value,
-builder/capture and cumulative I/O ceilings, plus Awk-owned deadlines. Collection count/name caps are also removed; frontend
-caps remain pending cleanup. Released 0.3.0 retains its older API; see the [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs)
+builder/capture and cumulative I/O ceilings, plus Awk-owned deadlines. Collection/name and frontend source/token/diagnostic caps are also removed. Released 0.3.0 retains its older API; see the [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs)
 and [migration notes](../CHANGELOG.md#unreleased) for the next release.
 
 ## Shared memory admission
@@ -67,7 +66,8 @@ remain necessary. There are no fuel, host-call, record-count, regex-work or sort
 
 Removed for the next release: `MaxExecutionMemoryBytes`, `MaxRecordBytes`, `MaxValueBytes`,
 `MaxInputBytes`, `MaxOutputBytes`, `MaxBuilderBytes`, `MaxRegexCaptureBytes`, `MaxArrayElements`, `MaxFields`, `MaxSymbols`,
-`MaxIdentifierBytes`, their setters
+`MaxIdentifierBytes`, `MaxSourceBytes`, `MaxSourceUnits`, `MaxExpandedSourceBytes`,
+`MaxFrontendCharacters`, `MaxFrontendTokens`, `MaxFrontendDiagnostics`, `MaxIncludeFiles`, their setters
 and enforcement. Their storage concerns
 belong to shared admission; cumulative I/O is not a memory charge. With no supplied budget,
 Awk must not silently invent a governor. Hosts using the restricted preset must supply the

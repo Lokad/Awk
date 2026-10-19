@@ -10,7 +10,7 @@ public sealed class AwkProfileNameTests
     {
         var mode = (AwkCompatibilityMode)modeValue;
         const string source = "function f(switch){return switch/2}BEGIN{switch(1){case 1:print 9}print \"a\"~/a/}";
-        var tokens = AwkLexer.Tokenize(source, int.MaxValue, CancellationToken.None, mode);
+        var tokens = AwkLexer.Tokenize(source, CancellationToken.None, mode);
         var names = tokens.Where(token => token.Text == "switch").ToArray();
         Assert.Equal(3, names.Length);
         Assert.Equal(AwkTokenKind.Identifier, names[0].Kind);

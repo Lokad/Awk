@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Removed aggregate source, expanded-source, source-unit, include-file, frontend character,
+  token and diagnostic ceilings and their setters. Major source/parser owners use shared
+  admission; empty-file and cached-miss metadata is admitted too. Include depth, parser
+  progress, warning semantics and cancellation remain protected.
+
 - Removed `MaxArrayElements`, `MaxFields`, `MaxSymbols`, `MaxIdentifierBytes` and their
   setters. Shared memory admission funds collection capacity and payloads before growth;
   field reads no longer force a full split to enforce a count quota. Deleted array entries

@@ -26,7 +26,6 @@ internal static partial class AwkSourceLoader
             exposeHostErrorDetails,
             maxHostErrorBytes,
             memory);
-        resources.ThrowIfSourceUnitCountExceeded(plan.SourceCount);
         plan.Memory.AdmitSourceUnits(plan.SourceCount);
         var sources = new List<AwkSourceUnit>(plan.SourceCount);
         var inlineSourceIndex = 0;
@@ -37,7 +36,6 @@ internal static partial class AwkSourceLoader
             if (source is AwkSourceReference.InlineSource inline)
             {
                 inlineSourceIndex++;
-                resources.RecordSourceBytes(AwkUtf8Codec.GetEncodedByteCount(inline.InlineScript));
                 var sourceName = new AwkSourceName($"<inline:{inlineSourceIndex}>");
                 var expanded = await ExpandIncludesAsync(
                         host,
@@ -54,8 +52,6 @@ internal static partial class AwkSourceLoader
 
                 if (expanded is not SourceExpansionResult.Loaded loaded)
                     throw new System.InvalidOperationException("Unexpected source expansion result.");
-
-                RecordExpandedSource(loaded.Source.Text);
                 sources.Add(new AwkSourceUnit(sourceName, loaded.Source.Text, loaded.Source.Segments));
                 continue;
             }
@@ -76,8 +72,6 @@ internal static partial class AwkSourceLoader
 
                 if (include is not SourceExpansionResult.Loaded loaded)
                     throw new System.InvalidOperationException("Unexpected source expansion result.");
-
-                RecordExpandedSource(loaded.Source.Text);
                 sources.Add(new AwkSourceUnit(
                     new AwkSourceName(AwkUtf8Codec.Decode(includePath.Display)),
                     loaded.Source.Text,
@@ -120,8 +114,6 @@ internal static partial class AwkSourceLoader
 
             if (expandedScript is not SourceExpansionResult.Loaded expandedFile)
                 throw new System.InvalidOperationException("Unexpected source expansion result.");
-
-            RecordExpandedSource(expandedFile.Source.Text);
             sources.Add(new AwkSourceUnit(
                 found.Script.SourceName,
                 expandedFile.Source.Text,
@@ -129,13 +121,5 @@ internal static partial class AwkSourceLoader
         }
 
         return AwkSourceLoadResult.FromSources(sources, cancellationToken.ThrowIfCancellationRequested, plan.Memory);
-
-        void RecordExpandedSource(string text)
-        {
-            if (sources.Count > 0)
-                resources.RecordExpandedSourceBytes(1);
-
-            resources.RecordExpandedSourceBytes(AwkUtf8Codec.GetEncodedByteCount(text));
-        }
     }
 }

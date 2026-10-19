@@ -61,30 +61,31 @@ public sealed class AwkStringEscapeWarningTests
     public static IEnumerable<object[]> FrontendBudgets()
     {
         foreach (var profile in new[] { "", "--posix", "--traditional" })
-        foreach (var escaped in new[] { 'q', 'j', 'x', 'u' })
-            yield return [profile, escaped];
+            foreach (var escaped in new[] { 'q', 'j', 'x', 'u' })
+                yield return [profile, escaped];
     }
 
     [Theory]
     [MemberData(nameof(FrontendBudgets))]
-    public async Task DeduplicationPrecedesFrontendAdmissionButNumericWarningsRemainPerOccurrence(
+    public async Task EscapeWarningsDeduplicateUnknownsButRetainNumericOccurrences(
         string profile, char escaped)
     {
         var option = "v=" + '\\' + (escaped == 'j' ? 'q' : escaped);
         var script = "BEGIN{print \"" + '\\' + escaped + '\\' + escaped + "\";exit}";
         string[] args = [.. profile.Length == 0 ? Array.Empty<string>() : new[] { profile }, "-v", option, script];
         var host = new MockFileSystem();
-        var options = Options(false, AwkRuntimeLimits.CreateDefault().WithMaxFrontendDiagnostics(1));
+        var options = Options(false, AwkRuntimeLimits.CreateDefault());
         var exit = await AwkExecutor.ExecuteAsync(host,
             AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", args, [])), CancellationToken.None, options);
         var perOccurrence = escaped is 'x' or 'u';
         var posixNumeric = profile == "--posix" && perOccurrence;
-        var exceeded = escaped == 'j' || perOccurrence && !posixNumeric;
         var firstWarning = posixNumeric ? string.Empty : perOccurrence
             ? "awk: warning: no hex digits in `\\" + escaped + "' escape sequence\n" : Warning;
-        Assert.Equal(exceeded ? AwkExitCode.FatalError : AwkExitCode.Success, exit);
-        Assert.Equal(exceeded ? string.Empty : new string(escaped, 2) + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(firstWarning + (exceeded ? "awk: frontend diagnostic limit exceeded\n" : string.Empty),
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal(new string(escaped, 2) + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        var sourceWarnings = escaped == 'j' ? "awk: warning: escape sequence `\\j' treated as plain `j'\n"
+: perOccurrence && !posixNumeric ? firstWarning + firstWarning : string.Empty;
+        Assert.Equal(firstWarning + sourceWarnings,
             host.GetOutput(AwkFileDescriptor.StdErr));
         AwkTestHarness.AssertNoClrExceptionLeak(host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.OpenFileCount);
@@ -98,7 +99,7 @@ public sealed class AwkStringEscapeWarningTests
     {
         var history = new AwkStringEscapeWarnings();
         Assert.Throws<AwkRuntimeException>(() => AwkEscapes.ReportStringWarnings(@"\q", (AwkCompatibilityMode)mode,
-            history, _ => throw new AwkRuntimeException(Lokad.Awk.AwkMessages.ErrorFrontendDiagnosticLimit,
+            history, _ => throw new AwkRuntimeException(Lokad.Awk.AwkMessages.ErrorMemoryLimit,
                 AwkDiagnosticId.RuntimeResourceLimit)));
         List<AwkStringEscapeWarning> emitted = [];
         AwkEscapes.ReportStringWarnings(@"\q\q", (AwkCompatibilityMode)mode, history, emitted.Add);

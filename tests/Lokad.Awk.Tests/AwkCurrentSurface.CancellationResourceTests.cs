@@ -1068,9 +1068,7 @@ regexEngine: AwkUtf8RegexEngine.Instance)))).State;
         Assert.Equal(AwkRuntimeLimits.DefaultMaxOutputFiles, limits.MaxOutputFiles);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxInputFiles, limits.MaxInputFiles);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxPipes, limits.MaxPipes);
-        Assert.Equal(AwkRuntimeLimits.DefaultMaxSourceBytes, limits.MaxSourceBytes);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxIncludeDepth, limits.MaxIncludeDepth);
-        Assert.Equal(AwkRuntimeLimits.DefaultMaxIncludeFiles, limits.MaxIncludeFiles);
         Assert.Equal(AwkRuntimeLimits.DefaultInputReadBatchLineCount, AwkIo.InputReadBatchLineCount);
         Assert.Equal(
             TimeSpan.FromSeconds(AwkRuntimeLimits.DefaultRegexMatchTimeoutSeconds), AwkRegex.MatchTimeout);

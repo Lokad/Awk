@@ -7,27 +7,25 @@ namespace Lokad.Awk;
 internal static class AwkLexer
 {
     public static List<AwkToken> Tokenize(string source) =>
-        Tokenize(source, int.MaxValue, CancellationToken.None);
+        Tokenize(source, CancellationToken.None);
 
     public static List<AwkToken> Tokenize(
         string source,
-        int maxTokens,
         CancellationToken cancellationToken,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
-        => Tokenize(source, maxTokens,
+        => Tokenize(source,
             cancellationToken.CanBeCanceled ? cancellationToken.ThrowIfCancellationRequested : null,
             compatibilityMode);
 
     internal static List<AwkToken> Tokenize(
         string source,
-        int maxTokens,
         Action? checkpoint,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
         AwkFrontendMemory? memory = null)
     {
         checkpoint?.Invoke();
         var frontend = memory ?? AwkFrontendMemory.Disabled;
-        var lexer = new Lexer(source, maxTokens, checkpoint, compatibilityMode, frontend);
+        var lexer = new Lexer(source, checkpoint, compatibilityMode, frontend);
         var tokens = lexer.Tokenize();
         checkpoint?.Invoke();
         frontend.AdmitTokens(source.Length, tokens.Count);
@@ -39,19 +37,17 @@ internal static class AwkLexer
         private readonly string _source;
         private readonly List<AwkToken> _lexemes;
         private readonly List<AwkToken> _tokens = [];
-        private readonly int _maxTokens;
         private readonly Action? _checkpoint;
         private int _position;
         private int _lexemeIndex;
         private bool _canStartRegex = true;
         private readonly AwkLexicalNames _names;
 
-        public Lexer(string source, int maxTokens, Action? checkpoint, AwkCompatibilityMode compatibilityMode,
+        public Lexer(string source, Action? checkpoint, AwkCompatibilityMode compatibilityMode,
             AwkFrontendMemory memory)
         {
             _source = source;
             _names = new AwkLexicalNames(compatibilityMode);
-            _maxTokens = maxTokens;
             _checkpoint = checkpoint;
             _lexemes = ReadContextFreeLexemes(source, checkpoint, memory);
 
@@ -308,12 +304,6 @@ internal static class AwkLexer
 
         private void AddToken(AwkTokenKind kind, int start, int length)
         {
-            if (_tokens.Count >= _maxTokens)
-            {
-                throw new AwkRuntimeException(
-                    AwkMessages.ErrorFrontendTokenLimit,
-                    AwkDiagnosticId.RuntimeResourceLimit);
-            }
 
             kind = _names.Classify(kind, _source.AsSpan(start, length));
             _tokens.Add(AwkToken.FromSource(kind, _source, new AwkTextSpan(start, length)));

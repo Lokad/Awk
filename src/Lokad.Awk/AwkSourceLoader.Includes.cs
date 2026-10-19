@@ -20,7 +20,7 @@ internal static partial class AwkSourceLoader
     {
         Action checkpoint = cancellationToken.ThrowIfCancellationRequested;
         checkpoint();
-        var normalization = AwkLineContinuations.Normalize(source, resources.Limits.MaxFrontendTokens, cancellationToken, plan.Memory);
+        var normalization = AwkLineContinuations.Normalize(source, cancellationToken, plan.Memory);
         var normalizedSource = normalization.Text;
         if (plan.CompatibilityMode != AwkCompatibilityMode.GnuDefault ||
             normalizedSource.IndexOf('@', StringComparison.Ordinal) < 0)

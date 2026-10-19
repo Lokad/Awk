@@ -7,12 +7,12 @@ namespace Lokad.Awk;
 
 internal static class AwkLineContinuations
 {
-    public static AwkLineContinuationNormalization Normalize(string text, int maxTokens, CancellationToken cancellationToken,
+    public static AwkLineContinuationNormalization Normalize(string text, CancellationToken cancellationToken,
         AwkFrontendMemory? memory = null)
-        => NormalizeWithCheckpoint(text, maxTokens,
+        => NormalizeWithCheckpoint(text,
             cancellationToken.CanBeCanceled ? cancellationToken.ThrowIfCancellationRequested : null, memory);
 
-    public static AwkLineContinuationNormalization NormalizeWithCheckpoint(string text, int maxTokens, Action? checkpoint,
+    public static AwkLineContinuationNormalization NormalizeWithCheckpoint(string text, Action? checkpoint,
         AwkFrontendMemory? memory = null)
     {
         checkpoint?.Invoke();
@@ -32,7 +32,7 @@ internal static class AwkLineContinuations
         frontend.AdmitTextCopy(text.Length);
         var builder = new StringBuilder(text.Length);
         var continuations = new List<AwkLineContinuationPoint>();
-        var tokens = AwkLexer.Tokenize(text, maxTokens, checkpoint, memory: frontend);
+        var tokens = AwkLexer.Tokenize(text, checkpoint, memory: frontend);
         var tokenIndex = 0;
         var segmentStart = 0;
         var index = firstContinuation;

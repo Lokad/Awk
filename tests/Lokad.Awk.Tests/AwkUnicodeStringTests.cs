@@ -21,26 +21,6 @@ public sealed class AwkUnicodeStringTests
         Assert.Equal(new AwkTextSpan(source.IndexOf('"'), literal.Length), warning.Span);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void UnicodeDiagnosticsRespectFrontendBudget(int mode)
-    {
-        const string source = "BEGIN{print \"\\u\\ud800\"}";
-        var budget = new AwkFrontendBudget(int.MaxValue, int.MaxValue, 1, long.MaxValue, int.MaxValue);
-        if ((AwkCompatibilityMode)mode == AwkCompatibilityMode.Posix)
-        {
-            Assert.Empty(AwkParser.Parse(source, budget, CancellationToken.None,
-                AwkCompatibilityMode.Posix).Warnings);
-            return;
-        }
-        var error = Assert.Throws<AwkRuntimeException>(() => AwkParser.Parse(source, budget,
-            CancellationToken.None, (AwkCompatibilityMode)mode));
-        Assert.Equal(AwkDiagnosticId.RuntimeResourceLimit, error.Id);
-        Assert.Equal("awk: frontend diagnostic limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-    }
-
     public static IEnumerable<object[]> UnicodeModes()
     {
 

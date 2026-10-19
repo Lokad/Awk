@@ -7,7 +7,7 @@ internal static class AwkDirectiveParser
     public static bool TryParseLine(string line, out AwkParsedDirective directive, Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        IReadOnlyList<AwkToken> tokens = AwkLexer.Tokenize(line, int.MaxValue, checkpoint);
+        IReadOnlyList<AwkToken> tokens = AwkLexer.Tokenize(line, checkpoint);
         var atIndex = FindNextSignificantIndex(tokens, 0, checkpoint);
         checkpoint?.Invoke();
         tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);

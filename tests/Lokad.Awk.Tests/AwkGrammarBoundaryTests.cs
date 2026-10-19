@@ -57,18 +57,4 @@ public sealed class AwkGrammarBoundaryTests
             Assert.Equal(kind, Assert.Single(expression.OperatorTokens).Kind);
         }
     }
-
-    [Theory]
-    [InlineData(8, 100, "BEGIN{print\\\n1;print 2;print 3}", "awk: frontend token limit exceeded\n")]
-    [InlineData(100, 1, "BEGIN{print (1<2<3);print (1<2<3)}", "awk: frontend diagnostic limit exceeded\n")]
-    public async Task FrontendLimitsStillPreflightGrammarWork(int tokens, int diagnostics, string source, string expected)
-    {
-        var host = new MockFileSystem();
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxFrontendTokens(tokens).WithMaxFrontendDiagnostics(diagnostics);
-        var exit = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-        Assert.Equal(AwkExitCode.FatalError, exit);
-        Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdErr));
-    }
 }

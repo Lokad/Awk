@@ -11,11 +11,7 @@ internal sealed record AwkRuntimeLimits
     public const int DefaultMaxOutputFiles = 10_000;
     public const int DefaultMaxInputFiles = 10_000;
     public const int DefaultMaxPipes = 1_024;
-    public const long DefaultMaxSourceBytes = 64L << 20;
-    public const int DefaultMaxSourceUnits = 10_000;
-    public const long DefaultMaxExpandedSourceBytes = 64L << 20;
     public const int DefaultMaxIncludeDepth = 128;
-    public const int DefaultMaxIncludeFiles = 1_024;
     public const int DefaultInputReadBatchLineCount = 128;
     public const int DefaultUtf8BuilderInitialCapacity = 256;
     public const int DefaultRegexCacheSize = 128;
@@ -34,28 +30,13 @@ internal sealed record AwkRuntimeLimits
     public int MaxRegexGroups { get; private init; } = 10_000;
 
     public long MaxRegexCacheBytes { get; private init; } = 64L << 20;
-
     public int MaxOutputFiles { get; private init; } = DefaultMaxOutputFiles;
 
     public int MaxInputFiles { get; private init; } = DefaultMaxInputFiles;
 
     public int MaxPipes { get; private init; } = DefaultMaxPipes;
 
-    public long MaxSourceBytes { get; private init; } = DefaultMaxSourceBytes;
-
-    public int MaxSourceUnits { get; private init; } = DefaultMaxSourceUnits;
-
-    public long MaxExpandedSourceBytes { get; private init; } = DefaultMaxExpandedSourceBytes;
-
-    public int MaxFrontendCharacters { get; private init; } = int.MaxValue;
-
-    public int MaxFrontendTokens { get; private init; } = int.MaxValue;
-
-    public int MaxFrontendDiagnostics { get; private init; } = int.MaxValue;
-
     public int MaxIncludeDepth { get; private init; } = DefaultMaxIncludeDepth;
-
-    public int MaxIncludeFiles { get; private init; } = DefaultMaxIncludeFiles;
 
     public static AwkRuntimeLimits CreateDefault() => new();
 
@@ -70,14 +51,7 @@ internal sealed record AwkRuntimeLimits
             MaxOutputFiles = 64,
             MaxInputFiles = 64,
             MaxPipes = 8,
-            MaxSourceBytes = 4L << 20,
-            MaxSourceUnits = 256,
-            MaxExpandedSourceBytes = 4L << 20,
-            MaxFrontendCharacters = 512 << 10,
-            MaxFrontendTokens = 250_000,
-            MaxFrontendDiagnostics = 256,
-            MaxIncludeDepth = 16,
-            MaxIncludeFiles = 64
+            MaxIncludeDepth = 16
         };
 
     public static AwkRuntimeLimits FromPolicy(AwkExecutionPolicy policy)
@@ -110,29 +84,8 @@ internal sealed record AwkRuntimeLimits
     public AwkRuntimeLimits WithMaxPipes(int value) =>
         this with { MaxPipes = RequirePositive(value) };
 
-    public AwkRuntimeLimits WithMaxSourceBytes(long value) =>
-        this with { MaxSourceBytes = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxSourceUnits(int value) =>
-        this with { MaxSourceUnits = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxExpandedSourceBytes(long value) =>
-        this with { MaxExpandedSourceBytes = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxFrontendCharacters(int value) =>
-        this with { MaxFrontendCharacters = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxFrontendTokens(int value) =>
-        this with { MaxFrontendTokens = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxFrontendDiagnostics(int value) =>
-        this with { MaxFrontendDiagnostics = RequirePositive(value) };
-
     public AwkRuntimeLimits WithMaxIncludeDepth(int value) =>
         this with { MaxIncludeDepth = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxIncludeFiles(int value) =>
-        this with { MaxIncludeFiles = RequirePositive(value) };
 
     internal static int RequirePositive(int value)
     {

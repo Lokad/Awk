@@ -200,6 +200,42 @@ public sealed class AwkFrontendMemoryTests
         Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
     }
 
+    [Fact]
+    public async Task ManyShallowEmptyIncludesRetainMetadataAndRefundAfterExecution()
+    {
+        var budget = new CooperativeTestBudget(2 << 20);
+        var host = new MockFileSystem();
+        var names = Enumerable.Range(0, 100).Select(index => $"/empty{index}.awk").ToArray();
+        foreach (var name in names) host.AddFile(name, "");
+        var source = string.Join('\n', names.Select(name => $"@include \"{name}\"")) + "\nBEGIN{print 42;exit}";
+        var awk = AwkTestHarness.ParseAwk(Command(source, budget));
+        var result = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMaxIncludeDepth(1),
+            CancellationToken.None);
+        Assert.Equal(AwkExitCode.Success, result);
+        Assert.Equal("42\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.True(budget.Peak > 0);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Fact]
+    public async Task SourceCacheRefusalCannotPublishAnUnfundedMiss()
+    {
+        var budget = new CooperativeTestBudget(1 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var invocation = AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", "BEGIN{}"));
+        var plan = AwkSourceLoadPlan.FromInvocation(invocation, memory: owner.FrontendMemory);
+        var path = new AwkPath("/missing.awk");
+        var retained = budget.Reserved;
+        budget.RefuseNextAdmissionMinimumGrowth = 1;
+        var error = Assert.Throws<AwkRuntimeException>(() =>
+            plan.CacheScriptText(path, AwkScriptTextReadResult.MissingText));
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.False(plan.TryGetScriptText(path, out _));
+        Assert.Equal(retained, budget.Reserved);
+    }
+
     private static AwkCommandInvocation Command(string source, IMemoryBudget budget) =>
         new("awk", [source], [], AwkPath.Root, AwkFileDescriptor.StdIn,
             AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, budget);
