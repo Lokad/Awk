@@ -1,6 +1,8 @@
 # Benchmarks
 
-Comparison with GNU awk 5.2.1, measured **2026-10-19 UTC**. Rows marked **†** were refreshed at
+Comparison with GNU awk 5.2.1, measured **2026-10-19 UTC**. Rows marked **‡** were refreshed at
+[`e99bcae`](https://github.com/Lokad/Awk/commit/e99bcae66e6065dbddefeba4c0d20a34d78b9109);
+**†** rows retain measurements at
 [`828a19e`](https://github.com/Lokad/Awk/commit/828a19e7449d0e3387d4958be081a4c00dcad1c3);
 unmarked rows retain measurements at
 [`5c4a21a`](https://github.com/Lokad/Awk/commit/5c4a21a77a7279b07c2652bba820383119b1a174).
@@ -25,13 +27,13 @@ and do not imply full GNU conformance.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE capture arrays (GNU) † | 28.00 | 35.007 | 8.117 | 4.31× | 16.05 |
 | gsub and output | 56.00 | 5.555 | 2.111 | 2.63× | 3.76 |
-| Loop with two-argument calls and local temporary | 8.00 | 10.772 | 4.489 | 2.40× | 0.75 |
+| Loop with two-argument calls and local temporary ‡ | 8.00 | 10.940 | 4.474 | 2.45× | 0.75 |
 | Two-file membership / join | 77.83 | 6.640 | 2.800 | 2.37× | 3.04 |
 | Text function with branches and local temporary | 62.00 | 4.539 | 1.944 | 2.33× | 2.32 |
 | Numeric array sort (GNU) | 18.92 | 5.491 | 2.491 | 2.20× | 2.49 |
 | Project three columns / output | 60.00 | 3.295 | 1.578 | 2.09× | 0.76 |
+| Loop with two-argument calls ‡ | 8.00 | 8.384 | 4.145 | 2.02× | 0.75 |
 | Branching function, two arguments | 8.00 | 8.683 | 4.329 | 2.01× | 0.77 |
-| Loop with two-argument calls | 8.00 | 8.296 | 4.146 | 2.00× | 0.75 |
 | ERE boolean matching | 32.00 | 2.531 | 1.284 | 1.97× | 0.75 |
 | Nested user calls | 8.00 | 3.106 | 1.620 | 1.92× | 0.72 |
 | printf | 24.00 | 3.661 | 1.911 | 1.92× | 0.69 |
@@ -43,7 +45,7 @@ and do not imply full GNU conformance.
 | ERE field separator | 48.00 | 3.674 | 1.993 | 1.84× | 3.49 |
 | Post-test arithmetic loop | 8.00 | 5.189 | 2.855 | 1.82× | 0.73 |
 | Keyed sum / sorted output (GNU) | 24.00 | 2.493 | 1.372 | 1.82× | 0.76 |
-| Project a column / output † | 60.00 | 2.401 | 1.331 | 1.80× | 0.75 |
+| Project a column / output ‡ | 60.00 | 2.381 | 1.335 | 1.78× | 0.75 |
 | While loop and numeric arithmetic | 8.00 | 5.019 | 2.895 | 1.73× | 0.73 |
 | Alternate reads from two lookup arrays | 21.50 | 2.517 | 1.453 | 1.73× | 0.77 |
 | Field-key reads, existing/new | 63.15 | 2.845 | 1.679 | 1.69× | 1.49 |
