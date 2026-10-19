@@ -1,11 +1,13 @@
 # Benchmarks
 
-Retained baseline versus GNU awk 5.2.1, measured **2026-10-19 UTC** at
-[`5c4a21a`](https://github.com/Lokad/Awk/commit/5c4a21a77a7279b07c2652bba820383119b1a174). All rows use that source,
-the interpreter, .NET regex and default limits (UTC time zone), with no supplied
-shared memory budget and complete output consumption. The optional Utf8Regex adapter is
-outside this baseline; newer producer adoption remains postponed. The subsequent engine/quota
-simplification has not been timed; these retained figures are not a fresh measurement of that change.
+Comparison with GNU awk 5.2.1, measured **2026-10-19 UTC**. Rows marked **†** were refreshed at
+[`828a19e`](https://github.com/Lokad/Awk/commit/828a19e7449d0e3387d4958be081a4c00dcad1c3);
+unmarked rows retain measurements at
+[`5c4a21a`](https://github.com/Lokad/Awk/commit/5c4a21a77a7279b07c2652bba820383119b1a174).
+All use the interpreter, .NET regex and default limits (UTC time zone), with no supplied
+shared memory budget and complete output consumption. Retained rows have not been rerun
+on the newer source. The optional Utf8Regex adapter is outside this baseline; newer adoption
+remains postponed.
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** divides Lokad elapsed
 by GNU elapsed: 1.00× is parity; higher is slower. Allocations are managed GC MiB per
@@ -21,7 +23,7 @@ and do not imply full GNU conformance.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| ERE capture arrays (GNU) | 28.00 | 36.831 | 8.108 | 4.54× | 16.05 |
+| ERE capture arrays (GNU) † | 28.00 | 35.007 | 8.117 | 4.31× | 16.05 |
 | gsub and output | 56.00 | 5.555 | 2.111 | 2.63× | 3.76 |
 | Loop with two-argument calls and local temporary | 8.00 | 10.772 | 4.489 | 2.40× | 0.75 |
 | Two-file membership / join | 77.83 | 6.640 | 2.800 | 2.37× | 3.04 |
@@ -37,11 +39,11 @@ and do not imply full GNU conformance.
 | Branching function, one argument | 8.00 | 7.585 | 4.037 | 1.88× | 0.77 |
 | Loop with unary arithmetic calls | 8.00 | 7.188 | 3.845 | 1.87× | 0.74 |
 | Unicode length/substr / output | 60.00 | 3.874 | 2.080 | 1.86× | 1.98 |
-| Project a column / output | 60.00 | 2.474 | 1.334 | 1.85× | 0.75 |
 | Five-part string concatenation | 20.00 | 3.065 | 1.661 | 1.84× | 1.43 |
 | ERE field separator | 48.00 | 3.674 | 1.993 | 1.84× | 3.49 |
 | Post-test arithmetic loop | 8.00 | 5.189 | 2.855 | 1.82× | 0.73 |
 | Keyed sum / sorted output (GNU) | 24.00 | 2.493 | 1.372 | 1.82× | 0.76 |
+| Project a column / output † | 60.00 | 2.401 | 1.331 | 1.80× | 0.75 |
 | While loop and numeric arithmetic | 8.00 | 5.019 | 2.895 | 1.73× | 0.73 |
 | Alternate reads from two lookup arrays | 21.50 | 2.517 | 1.453 | 1.73× | 0.77 |
 | Field-key reads, existing/new | 63.15 | 2.845 | 1.679 | 1.69× | 1.49 |
@@ -55,7 +57,7 @@ and do not imply full GNU conformance.
 | Filter $1 / occasionally print $3, 64 fields | 1,291.42 | 2.018 | 2.139 | 0.94× | 3.42 |
 | Byte-run ERE record separator (GNU) | 36.00 | 1.338 | 1.445 | 0.93× | 1.00 |
 | Changed ASCII case | 580.00 | 2.438 | 2.961 | 0.82× | 3.55 |
-| Multicharacter record separator (GNU) | 52.00 | 1.200 | 1.482 | 0.81× | 0.61 |
+| Multicharacter record separator (GNU) † | 52.00 | 1.138 | 1.477 | 0.77× | 0.61 |
 | Filter $2 after a 4 KiB field | 1,025.50 | 0.605 | 2.093 | 0.29× | 2.14 |
 
 Early wide filtering reads `$1` on every record and `$3` on one in eight. Single-array
