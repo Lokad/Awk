@@ -5,20 +5,18 @@ public sealed class AwkFieldMemoryModeTests
     private static readonly AwkText Separator = AwkText.FromSourceLiteralString("|");
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    public async Task ReadThenMutateGrowShrinkAndResetPreservePayloadAndRefunds(int mode, bool staged)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ReadThenMutateGrowShrinkAndResetPreservePayloadAndRefunds(bool governed, bool staged)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(mode, owner, counters);
-        Assert.Equal(mode != 0, accounting.IsEnabled);
-        var frame = Frame(accounting, counters, 1 << 20);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        Assert.Equal(governed, accounting.IsEnabled);
+        var frame = Frame(accounting, counters);
         var target = staged ? 1537 : 4;
         for (var iteration = 0; iteration < 2; iteration++)
         {
@@ -41,21 +39,16 @@ public sealed class AwkFieldMemoryModeTests
             Assert.Equal(0, budget.Reserved);
         }
     }
-
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    public async Task SharedRefusalAfterReadPreservesFieldsAndRecord(int mode, bool count)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SharedRefusalAfterReadPreservesFieldsAndRecord(bool count)
     {
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(mode, owner, counters);
-        var frame = Frame(accounting, counters, 16);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var frame = Frame(accounting, counters);
         frame.SetRecordText(AwkText.FromSourceLiteralString("café beta"));
         Assert.Equal("café", frame.GetFieldValue(new(1), Split, AwkValue.FromText).AsString());
         var record = frame.RecordAwkText;
@@ -83,18 +76,17 @@ public sealed class AwkFieldMemoryModeTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task CanceledFieldCreationDoesNotPublishCacheAndCanRetry(int mode)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CanceledFieldCreationDoesNotPublishCacheAndCanRetry(bool governed)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(mode, owner, counters);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         using var cancellation = new CancellationTokenSource();
         var token = cancellation.Token;
-        var frame = Frame(accounting, counters, 1 << 20, () => token.ThrowIfCancellationRequested());
+        var frame = Frame(accounting, counters, () => token.ThrowIfCancellationRequested());
         frame.SetRecordText(AwkText.FromSourceLiteralString("café beta"));
         Assert.Equal(2, frame.GetFieldCount(Split));
         var committed = accounting.CurrentCommittedBytes;
@@ -117,10 +109,8 @@ public sealed class AwkFieldMemoryModeTests
         Assert.Equal(0, budget.Reserved);
     }
 
-    private static AwkMemoryAccounting Accounting(int mode, AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters) =>
-        AwkMemoryAccounting.Create(counters, owner);
 
-    private static AwkFieldFrame Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, int valueLimit, Action? checkpoint = null) =>
+    private static AwkFieldFrame Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, Action? checkpoint = null) =>
         new(counters, accounting, static value => AwkText.FromString(value.AsString()), checkpoint);
 
     private static List<AwkFieldText> Split(AwkText _) =>

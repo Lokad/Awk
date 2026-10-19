@@ -3,17 +3,16 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkScalarMemoryModeTests
 {
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task UpdatesPreserveComputedNfOfsPreparationAndRefunds(int mode)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UpdatesPreserveComputedNfOfsPreparationAndRefunds(bool governed)
     {
         var budget = new CooperativeTestBudget(20_000);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
-        Assert.Equal(mode != 0, accounting.IsEnabled);
+        Assert.Equal(governed, accounting.IsEnabled);
         var fieldCount = 3;
         var assignments = 0;
         var preparations = 0;
@@ -50,13 +49,12 @@ public sealed class AwkScalarMemoryModeTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task FailedOfsPreparationPreservesValueAndAdmission(int mode)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedOfsPreparationPreservesValueAndAdmission(bool governed)
     {
         var budget = new CooperativeTestBudget(20_000);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var limits = AwkRuntimeLimits.CreateDefault();
         var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
         var error = new AwkRuntimeException("preparation rejected"u8.ToArray());
@@ -75,7 +73,7 @@ public sealed class AwkScalarMemoryModeTests
         Assert.Equal(0, budget.Reserved);
     }
     [Fact]
-    public async Task SharedOnlyOrFiniteRefusalPrecedesOfsPreparation()
+    public async Task SharedAdmissionRefusalPrecedesOfsPreparation()
     {
         var budget = new CooperativeTestBudget(1024);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);

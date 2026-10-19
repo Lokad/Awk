@@ -9,7 +9,8 @@ unmarked rows retain measurements at
 All use the interpreter, .NET regex and default limits (UTC time zone), with no supplied
 shared memory budget and complete output consumption. Retained rows have not been rerun
 on the newer source. The internal Utf8Regex adapter is outside this baseline; newer adoption
-remains postponed.
+remains postponed. The later resource-control simplification has not received a full baseline
+refresh; none of these rows is a fresh measurement of that source.
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** divides Lokad elapsed
 by GNU elapsed: 1.00× is parity; higher is slower. Allocations are managed GC MiB per

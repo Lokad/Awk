@@ -65,7 +65,7 @@ caller's phase and locals; suspended frames retain their memory charge.
 
 Absent field reads return empty without growing NF; writes/mutable references can extend it.
 NF assignment keeps its supplied type/text while resizing to its truncated numeric count.
-Negative truncated counts, nonfinite values and counts above MaxFields fail; fractions
+Negative truncated counts, nonfinite values and unrepresentable field counts fail; fractions
 between -1 and zero yield zero fields. Existing-field writes retain that NF value; growth
 replaces it with the new integer count. `$0` assignment/reset restores computed NF.
 Direct and SYMTAB special-variable access use the same setters.

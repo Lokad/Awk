@@ -8,7 +8,7 @@ public sealed class AwkIncrementalFieldTests
         var budget = new CooperativeTestBudget(8 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(2, owner, counters);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, splitter) = Frame(accounting, counters, " ");
         var old = AwkText.FromSourceLiteralString("left right");
         frame.SetRecordText(old, splitter.CaptureRecordPlan());
@@ -31,18 +31,16 @@ public sealed class AwkIncrementalFieldTests
     }
 
     [Theory]
-    [InlineData(0, " ")]
-    [InlineData(1, " ")]
-    [InlineData(2, " ")]
-    [InlineData(0, "|")]
-    [InlineData(1, "|")]
-    [InlineData(2, "|")]
-    public async Task ReusedBuffersKeepCapturedSeparatorsAndMutationSnapshots(int mode, string separator)
+    [InlineData(false, " ")]
+    [InlineData(true, " ")]
+    [InlineData(false, "|")]
+    [InlineData(true, "|")]
+    public async Task ReusedBuffersKeepCapturedSeparatorsAndMutationSnapshots(bool governed, string separator)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(mode, owner, counters);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, splitter) = Frame(accounting, counters, separator);
         frame.SetRecordText(AwkText.FromSourceLiteralString("warm" + separator + "row"), splitter.CaptureRecordPlan());
         Assert.Equal("warm", Read(frame, splitter, 1));
@@ -65,18 +63,16 @@ public sealed class AwkIncrementalFieldTests
     }
 
     [Theory]
-    [InlineData(0, " ")]
-    [InlineData(1, " ")]
-    [InlineData(2, " ")]
-    [InlineData(0, "|")]
-    [InlineData(1, "|")]
-    [InlineData(2, "|")]
-    public async Task SmallFieldListsReuseAcrossRecordsAndRefundOnReset(int mode, string separator)
+    [InlineData(false, " ")]
+    [InlineData(true, " ")]
+    [InlineData(false, "|")]
+    [InlineData(true, "|")]
+    public async Task SmallFieldListsReuseAcrossRecordsAndRefundOnReset(bool governed, string separator)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(mode, owner, counters);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, splitter) = Frame(accounting, counters, separator);
         AwkValue saved = default;
         for (var repeat = 0; repeat < 3; repeat++)
@@ -102,15 +98,14 @@ public sealed class AwkIncrementalFieldTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task ReusedFieldListCancellationClearsUnpublishedDescriptors(int mode)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReusedFieldListCancellationClearsUnpublishedDescriptors(bool governed)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(mode, owner, counters);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         var armed = false; var checks = 0;
         void Check() { if (armed && ++checks == 4) throw new OperationCanceledException(); }
         var (frame, splitter) = Frame(accounting, counters, " ", checkpoint: Check);
@@ -134,15 +129,14 @@ public sealed class AwkIncrementalFieldTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task LargeFieldListsAreDiscardedBeforeSmallReuse(int mode)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LargeFieldListsAreDiscardedBeforeSmallReuse(bool governed)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(mode, owner, counters);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, splitter) = Frame(accounting, counters, " ");
         frame.SetRecordText(AwkText.FromSourceLiteralString(string.Join(' ', Enumerable.Repeat("x", 8))), splitter.CaptureRecordPlan());
         Assert.Equal(8, frame.GetFieldCount(line => splitter.SplitRecordFields(line, frame.SplitPlan)));
@@ -158,18 +152,16 @@ public sealed class AwkIncrementalFieldTests
     }
 
     [Theory]
-    [InlineData(0, " ")]
-    [InlineData(1, " ")]
-    [InlineData(2, " ")]
-    [InlineData(0, "|")]
-    [InlineData(1, "|")]
-    [InlineData(2, "|")]
-    public async Task PrefixReadsCompleteWithoutLosingCachedValuesAndRefundOnReset(int mode, string separator)
+    [InlineData(false, " ")]
+    [InlineData(true, " ")]
+    [InlineData(false, "|")]
+    [InlineData(true, "|")]
+    public async Task PrefixReadsCompleteWithoutLosingCachedValuesAndRefundOnReset(bool governed, string separator)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(mode, owner, counters);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, splitter) = Frame(accounting, counters, separator);
         var words = new[] { "alpha", "beta", "café" }.Concat(Enumerable.Repeat("tail", 61)).ToArray();
         for (var repeat = 0; repeat < 2; repeat++)
@@ -223,15 +215,14 @@ public sealed class AwkIncrementalFieldTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task CanceledExtensionPreservesPublishedPrefixAndCanRetry(int mode)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CanceledExtensionPreservesPublishedPrefixAndCanRetry(bool governed)
     {
         var budget = new CooperativeTestBudget(8 << 20);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(mode, owner, counters);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         using var cancellation = new CancellationTokenSource();
         var armed = false;
         var checks = 0;
@@ -266,15 +257,14 @@ public sealed class AwkIncrementalFieldTests
     }
 
     [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task RefusedExtensionLeavesThePrefixAndAccountingReusable(int mode)
+    [InlineData(true)]
+    public async Task RefusedExtensionLeavesThePrefixAndAccountingReusable(bool governed)
     {
         const long limit = 8 << 20;
         var budget = new CooperativeTestBudget(limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var accounting = Accounting(mode, owner, counters);
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, splitter) = Frame(accounting, counters, "|");
         frame.SetRecordText(AwkText.FromSourceLiteralString("first|second|third|" + new string('t', 160)), splitter.CaptureRecordPlan());
         Assert.Equal("first", Read(frame, splitter, 1));
@@ -303,10 +293,8 @@ public sealed class AwkIncrementalFieldTests
         return AwkUtf8Codec.Decode(bytes);
     }
 
-    private static AwkMemoryAccounting Accounting(int mode, AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters) =>
-        AwkMemoryAccounting.Create(counters, owner);
 
-    private static (AwkFieldFrame, AwkFieldSplitter) Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, string separator, int maxFields = 1 << 20, Action? checkpoint = null)
+    private static (AwkFieldFrame, AwkFieldSplitter) Frame(AwkMemoryAccounting accounting, AwkRuntimeCounters counters, string separator, Action? checkpoint = null)
     {
         Action check = checkpoint ?? (() => { });
         var monitor = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);

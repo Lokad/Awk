@@ -2,7 +2,9 @@
 
 The host's shared governor admits memory, caller cancellation controls duration, and
 `IAwkHost` controls effects. This branch removes duplicate execution-memory, record/value,
-builder/capture and cumulative I/O ceilings, plus Awk-owned deadlines. Collection/name and frontend source/token/diagnostic caps are also removed. Released 0.3.0 retains its older API; see the [public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs)
+builder/capture, collection, frontend and invocation ceilings, cumulative I/O quotas and
+Awk-owned deadlines. Released 0.3.0 retains its older API; see the
+[public policy](../src/Lokad.Awk/AwkExecutionPolicy.cs)
 and [migration notes](../CHANGELOG.md#unreleased) for the next release.
 
 ## Shared memory admission
@@ -70,15 +72,10 @@ remain necessary. Regex pattern/group construction guards remain until default-b
 construction admission and stack behavior are qualified; they are not work quotas.
 There are no fuel, host-call, record-count, regex-work or sorting-work quotas.
 
-Removed for the next release: `MaxExecutionMemoryBytes`, `MaxRecordBytes`, `MaxValueBytes`,
-`MaxInputBytes`, `MaxOutputBytes`, `MaxBuilderBytes`, `MaxRegexCaptureBytes`, `MaxArrayElements`, `MaxFields`, `MaxSymbols`,
-`MaxIdentifierBytes`, `MaxSourceBytes`, `MaxSourceUnits`, `MaxExpandedSourceBytes`,
-`MaxFrontendCharacters`, `MaxFrontendTokens`, `MaxFrontendDiagnostics`, `MaxIncludeFiles`,
-`MaxArguments`, `MaxArgumentBytes`, `MaxEnvironmentEntries`, `MaxEnvironmentBytes`, their setters
-and enforcement. Their storage concerns
-belong to shared admission; cumulative I/O is not a memory charge. With no supplied budget,
-Awk must not silently invent a governor. Hosts using the restricted preset must supply the
-shared budget and cancellation needed for their workload when upgrading from 0.3.0.
+Duplicate runtime, collection, source/frontend and invocation quotas have been removed for the
+next release; [migration notes](../CHANGELOG.md#unreleased) list the API changes. These storage
+concerns belong to shared admission. With no supplied budget, Awk invents no aggregate cap.
+Hosts using the restricted preset must supply shared admission and cancellation on upgrade.
 
 See [host containment](SECURITY.md), [UTF-8 policy](UTF8_POLICY.md) and
 [record semantics](RECORD_SEMANTICS.md) for the independent guarantees.

@@ -53,7 +53,9 @@ producer adoption needs its own qualification and must not block independent Awk
 Caller/host cancellation owns deadlines. Await actual users before refunds; do not abandon
 background work, independently match input chunks or add work quotas. Awk-owned POSIX selection
 polls cancellation. The default .NET backend and .NET semantic fallbacks retain their existing
-fixed timeout because those calls cannot poll Awk's token internally.
+fixed timeout because those calls cannot poll Awk's token internally. Default .NET construction
+is also indivisible and its internal footprint is only coarsely covered. Pattern-byte/group
+construction guards remain pending admission and stack qualification; they are not work quotas.
 
 ## Validation and measurements
 
