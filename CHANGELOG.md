@@ -2,6 +2,9 @@
 
 ## 0.3.0 - 2026-10-19
 
+Published on [NuGet](https://www.nuget.org/packages/Lokad.Awk/0.3.0) from source
+[`574e5e8`](https://github.com/Lokad/Awk/commit/574e5e8fe3109adad59876e47491f65619d8e58e).
+
 - Only Lokad.Awk is distributed as a NuGet package. The Utf8Regex adapter remains an
   internal, non-packable project; hosts can supply their own `IAwkRegexEngine`.
 - Fixed `close()` and targeted `fflush()` on open command pipes whose opaque command text
