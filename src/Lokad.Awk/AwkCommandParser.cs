@@ -1,92 +1,28 @@
 using System;
-using System.Text;
+using System.Threading;
 
 namespace Lokad.Awk;
 
 internal static class AwkCommandParser
 {
-    public static AwkInvocation Parse(AwkCommandInvocation invocation)
-        => Parse(invocation, AwkExecutionPolicy.CreateDefault());
-
-    public static AwkInvocation Parse(
-        AwkCommandInvocation invocation,
-        AwkExecutionPolicy policy)
+    public static AwkInvocation Parse(AwkCommandInvocation invocation,
+        AwkFrontendMemory? memory = null, CancellationToken cancellationToken = default)
     {
-        if (ExceedsInvocationLimits(invocation, policy, out var limitMessage))
-        {
-            return new AwkInvocationBuilder(invocation)
-                .WithErrorMessage(limitMessage, AwkDiagnosticId.RuntimeResourceLimit)
-                .Build();
-        }
-
-        try
-        {
-            var parser = new Parser(invocation);
-            return parser.Parse();
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        (memory ?? AwkFrontendMemory.Disabled).AdmitInvocationCopies(invocation, cancellationToken);
+        try { return new Parser(invocation, cancellationToken).Parse(); }
         catch (Exception exception) when (exception is FormatException or AwkPathException)
         {
             return new AwkInvocationBuilder(invocation)
                 .WithErrorMessage(AwkMessages.ErrorInvalidPath, AwkDiagnosticId.OptionInvalid)
                 .Build();
         }
-
-        static bool ExceedsInvocationLimits(
-            AwkCommandInvocation invocation,
-            AwkExecutionPolicy policy,
-            out ReadOnlyMemory<byte> message)
-        {
-            if (invocation.Arguments.Count > policy.MaxArguments)
-            {
-                message = AwkMessages.ErrorArgumentLimit;
-                return true;
-            }
-
-            var argumentBytes = 0L;
-            for (var index = 0; index < invocation.Arguments.Count; index++)
-            {
-                argumentBytes = AwkRuntimeMemory.CheckedAdd(
-                    argumentBytes,
-                    Encoding.UTF8.GetByteCount(invocation.Arguments[index]));
-                if (argumentBytes > policy.MaxArgumentBytes)
-                {
-                    message = AwkMessages.ErrorArgumentLimit;
-                    return true;
-                }
-            }
-
-            if (invocation.Environment.Count > policy.MaxEnvironmentEntries)
-            {
-                message = AwkMessages.ErrorEnvironmentLimit;
-                return true;
-            }
-
-            var environmentBytes = 0L;
-            for (var index = 0; index < invocation.Environment.Count; index++)
-            {
-                var variable = invocation.Environment[index];
-                environmentBytes = AwkRuntimeMemory.CheckedAdd(
-                    environmentBytes,
-                    Encoding.UTF8.GetByteCount(variable.Name));
-                environmentBytes = AwkRuntimeMemory.CheckedAdd(
-                    environmentBytes,
-                    Encoding.UTF8.GetByteCount(variable.Value));
-                if (environmentBytes > policy.MaxEnvironmentBytes)
-                {
-                    message = AwkMessages.ErrorEnvironmentLimit;
-                    return true;
-                }
-            }
-
-            message = ReadOnlyMemory<byte>.Empty;
-            return false;
-        }
     }
 
-    private sealed class Parser(AwkCommandInvocation invocation)
+    private sealed class Parser(AwkCommandInvocation invocation, CancellationToken cancellationToken)
     {
         private readonly AwkSourceInputPlanner _sourceInputPlanner =
-            new(invocation.CommandName, invocation.CurrentDirectory);
+            new(invocation.CommandName, invocation.CurrentDirectory, cancellationToken);
         private AwkCompatibilityProfile _profile = AwkCompatibilityProfile.Default;
         private bool _sandbox;
 
@@ -96,6 +32,7 @@ internal static class AwkCommandParser
             var parsingInputArguments = false;
             while (true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (parsingInputArguments)
                 {
                     AddRemainingInputArguments(parser);
@@ -156,6 +93,7 @@ internal static class AwkCommandParser
             {
                 while (parser.TryReadRaw(out var argument))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     if (argument == "--")
                         continue;
 

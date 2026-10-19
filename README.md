@@ -57,13 +57,14 @@ result per submitted command.
 
 `AwkExecutionPolicy.CreateRestricted()` disables script-created file redirections and command
 pipes, `@include`, and changed `ARGV` input paths; hides the invocation environment and host-error
-details; pins time and local timezone to the Unix epoch and UTC; and applies finite frontend,
-runtime, regex and host-operation bounds. Storage admission requires a supplied shared budget. `CreateDefault()` preserves the broader
+details; pins time and local timezone to the Unix epoch and UTC; and applies tighter stack,
+regex-construction and open-resource bounds. Storage admission requires a supplied shared budget.
+`CreateDefault()` preserves the broader
 compatibility surface. The `--sandbox` command-line option independently disables file and command
 redirections; it does not replace host-side path and descriptor policy.
 
 Pass a caller cancellation token and use `WithMemoryBudget` for shared host-governed admission.
-This branch removes legacy execution-memory, record/value-size and cumulative I/O quotas,
+This branch removes duplicate runtime, collection, source/frontend and invocation quotas,
 and the four separate Awk deadline settings. Hosts supply shared admission and caller-owned
 deadline cancellation explicitly. Some long builtin/backend calls still have coarse cancellation
 boundaries; see [resource control](docs/RUNTIME_LIMITS.md).
@@ -78,7 +79,7 @@ before refunding storage, including after cancellation. Source copies and parser
 buffers use coarse estimates; admission can conservatively refuse before execution.
 See [runtime limits](docs/RUNTIME_LIMITS.md) for ownership and accounting scope.
 
-Release notes and removed work-quota APIs are listed in [CHANGELOG.md](CHANGELOG.md#030---2026-10-19).
+Release notes and removed work-quota APIs are listed in [CHANGELOG.md](CHANGELOG.md#unreleased).
 The Lokad.Awk package uses version 0.3.0, assembly/file versions 0.3.0.0 and informational version
 `0.3.0+<source commit>`. Package dependencies and SourceLink identify the qualified source;
 the release tag `v0.3.0` must identify that same commit. Before 1.0, minor releases may remove

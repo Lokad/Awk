@@ -128,10 +128,10 @@ public sealed class AwkCommandInvocation
     /// <summary>Gets the borrowed budget associated with this command by its caller.</summary>
     public IMemoryBudget? MemoryBudget { get; }
 
-    /// <summary>Gets an immutable snapshot of command arguments, excluding the executable name.</summary>
+    /// <summary>Gets the caller-owned immutable snapshot of arguments, excluding the executable name.</summary>
     public IReadOnlyList<string> Arguments { get; }
 
-    /// <summary>Gets an immutable snapshot of exported environment variables.</summary>
+    /// <summary>Gets the caller-owned immutable snapshot of exported environment variables.</summary>
     public IReadOnlyList<AwkEnvironmentVariable> Environment { get; }
 
     /// <summary>Gets the canonical absolute current directory for the command.</summary>

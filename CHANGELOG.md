@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Removed argument-count/byte and environment-count/byte quotas and their setters. Command
+  preparation now runs under the existing execution/frontend owner and cancellation, admitting
+  Awk-owned lists, snapshots, option/path copies and `AWKPATH` splitting before allocation.
+  Caller-owned invocation snapshots retain their original lifetime. `TryParse` stays cheap.
+
 - Removed aggregate source, expanded-source, source-unit, include-file, frontend character,
   token and diagnostic ceilings and their setters. Major source/parser owners use shared
   admission; empty-file and cached-miss metadata is admitted too. Include depth, parser

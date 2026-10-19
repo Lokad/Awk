@@ -15,6 +15,26 @@ internal sealed class AwkFrontendMemory(IMemoryBudget? budget) : IDisposable
     // UTF-16 builders, their growth overlap/final strings and source mapping buffers.
     public void AdmitTextCopy(int characters) => AddSourceEstimate(characters, 8);
 
+    public void AdmitInvocationCopies(AwkCommandInvocation command, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (budget is null) return;
+        // Invocation snapshots belong to the caller. Fund the parser's lists, final
+        // snapshots, option/value copies and expanded paths before constructing them.
+        var bytes = AwkRuntimeMemory.CheckedAdd(
+            AwkRuntimeMemory.CheckedMultiply((long)command.Arguments.Count + 1, 256),
+            AwkRuntimeMemory.CheckedMultiply(command.Environment.Count, 32));
+        for (var index = 0; index < command.Arguments.Count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            bytes = AwkRuntimeMemory.CheckedAdd(bytes, AwkRuntimeMemory.CheckedMultiply(
+                (long)command.Arguments[index].Length + command.CurrentDirectory.Path.Length, 8));
+        }
+        bytes = AwkRuntimeMemory.CheckedAdd(_sourceBytes, bytes);
+        Resize(bytes, _parserBytes);
+        _sourceBytes = bytes;
+    }
+
     private void AddSourceEstimate(int count, int bytesPerItem)
     {
         if (budget is null || count == 0) return;

@@ -27,13 +27,15 @@ internal sealed class AwkSourceLoadPlan
         bool exposeHostErrorDetails,
         int maxHostErrorBytes,
         AwkCompatibilityMode compatibilityMode,
-        AwkFrontendMemory? memory)
+        AwkFrontendMemory? memory,
+        CancellationToken cancellationToken)
     {
         static IReadOnlyList<string> ParseAwkPathEntries(
-            IReadOnlyList<AwkEnvironmentVariable> environment)
+            IReadOnlyList<AwkEnvironmentVariable> environment, AwkFrontendMemory memory, CancellationToken cancellationToken)
         {
             for (var index = 0; index < environment.Count; index++)
             {
+                if ((index & 255) == 0) cancellationToken.ThrowIfCancellationRequested();
                 if (!string.Equals(environment[index].Name, "AWKPATH", StringComparison.Ordinal))
                     continue;
 
@@ -41,9 +43,11 @@ internal sealed class AwkSourceLoadPlan
                 if (awkPath.Length == 0)
                     return [];
 
+                memory.AdmitTextCopy(awkPath.Length);
                 var entries = awkPath.Split(':', StringSplitOptions.None);
                 for (var entryIndex = 0; entryIndex < entries.Length; entryIndex++)
                 {
+                    if ((entryIndex & 255) == 0) cancellationToken.ThrowIfCancellationRequested();
                     entries[entryIndex] = entries[entryIndex].Length == 0
                         ? "."
                         : entries[entryIndex].TrimEnd('/');
@@ -57,7 +61,7 @@ internal sealed class AwkSourceLoadPlan
 
         _sources = sources;
         Memory = memory ?? AwkFrontendMemory.Disabled;
-        _awkPathEntries = exposeEnvironment ? ParseAwkPathEntries(environment) : [];
+        _awkPathEntries = exposeEnvironment ? ParseAwkPathEntries(environment, Memory, cancellationToken) : [];
         _currentDirectory = currentDirectory;
         _accessiblePathRoot = accessiblePathRoot;
 
@@ -91,7 +95,8 @@ internal sealed class AwkSourceLoadPlan
         bool exposeEnvironment = true,
         bool exposeHostErrorDetails = true,
         int maxHostErrorBytes = 4 << 10,
-        AwkFrontendMemory? memory = null) =>
+        AwkFrontendMemory? memory = null,
+        CancellationToken cancellationToken = default) =>
         new(
             invocation.SourcePlan.Sources,
             invocation.RuntimeArgumentsPlan.Environment,
@@ -102,7 +107,8 @@ internal sealed class AwkSourceLoadPlan
             exposeHostErrorDetails,
             maxHostErrorBytes,
             invocation.ExecutionOptions.CompatibilityProfile.Mode,
-            memory);
+            memory,
+            cancellationToken);
 
     public AwkSourceReference GetSource(int index) => _sources[index];
 

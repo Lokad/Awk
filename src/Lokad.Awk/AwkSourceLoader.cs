@@ -25,7 +25,8 @@ internal static partial class AwkSourceLoader
             exposeEnvironment,
             exposeHostErrorDetails,
             maxHostErrorBytes,
-            memory);
+            memory,
+            cancellationToken);
         plan.Memory.AdmitSourceUnits(plan.SourceCount);
         var sources = new List<AwkSourceUnit>(plan.SourceCount);
         var inlineSourceIndex = 0;

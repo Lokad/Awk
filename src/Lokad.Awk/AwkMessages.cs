@@ -126,10 +126,6 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: dynamic main-input paths are disabled by execution policy\n");
     internal static readonly ReadOnlyMemory<byte> ErrorPathOutsideExecutionRoot =
         AwkUtf8Codec.Encode("awk: path is outside the execution policy root\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorArgumentLimit =
-        AwkUtf8Codec.Encode("awk: command argument limit exceeded\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorEnvironmentLimit =
-        AwkUtf8Codec.Encode("awk: command environment limit exceeded\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidPath =
         AwkUtf8Codec.Encode("awk: invalid path\n");
     internal static readonly ReadOnlyMemory<byte> ErrorUnexpectedFailure =

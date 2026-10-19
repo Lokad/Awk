@@ -90,28 +90,16 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum concurrently open command pipes.</summary>
     public int MaxPipes => Limits.MaxPipes;
 
-    /// <summary>Gets the maximum aggregate UTF-8 bytes loaded as awk source.</summary>
-    public int MaxArguments { get; private init; } = 100_000;
-
-    /// <summary>Gets the maximum aggregate UTF-8 bytes across command arguments.</summary>
-    public long MaxArgumentBytes { get; private init; } = 64L << 20;
-
-    /// <summary>Gets the maximum environment entry count admitted before invocation planning.</summary>
-    public int MaxEnvironmentEntries { get; private init; } = 100_000;
-
-    /// <summary>Gets the maximum aggregate UTF-8 bytes across environment names and values.</summary>
-    public long MaxEnvironmentBytes { get; private init; } = 64L << 20;
-
     /// <summary>Gets the maximum UTF-8 byte length of a host error admitted to diagnostics.</summary>
     public int MaxHostErrorBytes { get; private init; } = 4 << 10;
 
     /// <summary>Gets the maximum nested <c>@include</c> depth.</summary>
     public int MaxIncludeDepth => Limits.MaxIncludeDepth;
 
-    /// <summary>Gets the maximum number of distinct <c>@include</c> directives followed.</summary>
+    /// <summary>Creates compatible defaults without a private aggregate memory cap or deadline.</summary>
     public static AwkExecutionPolicy CreateDefault() => new(AwkRuntimeLimits.CreateDefault());
 
-    /// <summary>Creates a finite deny-by-default policy suitable for untrusted awk.</summary>
+    /// <summary>Creates deny-by-default capabilities with tighter stack and open-resource bounds.</summary>
     public static AwkExecutionPolicy CreateRestricted() =>
         new(AwkRuntimeLimits.CreateRestricted())
         {
@@ -124,10 +112,6 @@ public sealed record AwkExecutionPolicy
             ExposeHostErrorDetails = false,
             TimeProvider = AwkFixedTimeProvider.UnixEpoch,
             TimeZone = TimeZoneInfo.Utc,
-            MaxArguments = 1_024,
-            MaxArgumentBytes = 4L << 20,
-            MaxEnvironmentEntries = 1_024,
-            MaxEnvironmentBytes = 1L << 20,
             MaxHostErrorBytes = 1 << 10
         };
 
@@ -212,27 +196,11 @@ public sealed record AwkExecutionPolicy
     public AwkExecutionPolicy WithMaxPipes(int value) =>
         this with { Limits = Limits.WithMaxPipes(value) };
 
-    /// <summary>Returns a copy with the aggregate source-byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxArguments(int value) =>
-        this with { MaxArguments = AwkRuntimeLimits.RequirePositive(value) };
-
-    /// <summary>Returns a copy with the aggregate command argument-byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxArgumentBytes(long value) =>
-        this with { MaxArgumentBytes = AwkRuntimeLimits.RequirePositive(value) };
-
-    /// <summary>Returns a copy with the environment entry-count budget configured.</summary>
-    public AwkExecutionPolicy WithMaxEnvironmentEntries(int value) =>
-        this with { MaxEnvironmentEntries = AwkRuntimeLimits.RequirePositive(value) };
-
-    /// <summary>Returns a copy with the aggregate environment-byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxEnvironmentBytes(long value) =>
-        this with { MaxEnvironmentBytes = AwkRuntimeLimits.RequirePositive(value) };
-
-    /// <summary>Returns a copy with the aggregate command argument-byte budget configured.</summary>
+    /// <summary>Returns a copy with the maximum disclosed host-error byte length configured.</summary>
     public AwkExecutionPolicy WithMaxHostErrorBytes(int value) =>
         this with { MaxHostErrorBytes = AwkRuntimeLimits.RequirePositive(value) };
 
-    /// <summary>Returns a copy with the environment entry-count budget configured.</summary>
+    /// <summary>Returns a copy with the nested include depth configured.</summary>
     public AwkExecutionPolicy WithMaxIncludeDepth(int value) =>
         this with { Limits = Limits.WithMaxIncludeDepth(value) };
 

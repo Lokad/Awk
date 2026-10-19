@@ -34,35 +34,35 @@ internal static class AwkExecutor
             runtimeOptions,
             AwkProgramResolution.Success(program, warnings));
 
-    private static async Task<AwkExitCode> ExecuteCoreAsync(
-        IAwkHost host, AwkInvocation invocation, CancellationToken cancellationToken,
-        AwkRuntimeOptions runtimeOptions, AwkProgramResolution? compiledResolution)
-    {
-        if (runtimeOptions.MemoryBudget is null)
-        {
-            var result = await ExecuteBodyAsync(host, invocation, cancellationToken, runtimeOptions,
-                compiledResolution).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            return result;
-        }
+    internal static Task<AwkExitCode> ExecuteAsync(IAwkHost host, AwkCommandInvocation command,
+        CancellationToken cancellationToken, AwkRuntimeOptions runtimeOptions) =>
+        ExecuteCoreAsync(host, null, cancellationToken, runtimeOptions, null, command);
 
+    private static async Task<AwkExitCode> ExecuteCoreAsync(
+        IAwkHost host, AwkInvocation? invocation, CancellationToken cancellationToken,
+        AwkRuntimeOptions runtimeOptions, AwkProgramResolution? compiledResolution,
+        AwkCommandInvocation? command = null)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var stderr = invocation is { } prepared ? prepared.Stdio.StdErr :
+            command is { } unparsed ? unparsed.StdErr : throw new ArgumentException("An invocation is required.");
         AwkExecutionMemoryOwner owner;
-        try
-        {
-            owner = AwkExecutionMemoryOwner.Create(runtimeOptions.MemoryBudget, cancellationToken);
-        }
+        try { owner = AwkExecutionMemoryOwner.Create(runtimeOptions.MemoryBudget, cancellationToken); }
         catch (AwkRuntimeException exception)
         {
-            return await ReportRuntimeFailureAsync(host, invocation, runtimeOptions, exception, cancellationToken)
+            return await ReportRuntimeFailureAsync(host, stderr, runtimeOptions, exception, cancellationToken)
                 .ConfigureAwait(false);
         }
         await using (owner.ConfigureAwait(false))
         {
             try
             {
-                var result = await ExecuteBodyAsync(new AwkBudgetHost(host, owner), invocation,
-                    owner.Token(cancellationToken), runtimeOptions with { MemoryOwner = owner },
-                    compiledResolution).ConfigureAwait(false);
+                var token = owner.Token(cancellationToken);
+                var resolved = invocation ?? AwkCommandParser.Parse(
+                    command ?? throw new ArgumentException("A command is required."), owner.FrontendMemory, token);
+                var options = owner.IsEnabled ? runtimeOptions with { MemoryOwner = owner } : runtimeOptions;
+                var result = await ExecuteBodyAsync(owner.IsEnabled ? new AwkBudgetHost(host, owner) : host,
+                    resolved, token, options, compiledResolution).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 return result;
             }
@@ -70,6 +70,11 @@ internal static class AwkExecutor
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 throw;
+            }
+            catch (AwkRuntimeException exception)
+            {
+                return await ReportRuntimeFailureAsync(host, stderr, runtimeOptions, exception, cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
     }
@@ -193,7 +198,7 @@ internal static class AwkExecutor
         }
         catch (AwkRuntimeException exception)
         {
-            return await ReportRuntimeFailureAsync(host, invocation, runtimeOptions, exception, cancellationToken)
+            return await ReportRuntimeFailureAsync(host, invocation.Stdio.StdErr, runtimeOptions, exception, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -222,7 +227,7 @@ internal static class AwkExecutor
     }
 
     private static async Task<AwkExitCode> ReportRuntimeFailureAsync(
-        IAwkHost host, AwkInvocation invocation, AwkRuntimeOptions options,
+        IAwkHost host, AwkFileDescriptor stderr, AwkRuntimeOptions options,
         AwkRuntimeException exception, CancellationToken cancellationToken)
     {
         var failure = AwkDiagnostics.Runtime(exception);
@@ -231,7 +236,7 @@ internal static class AwkExecutor
         try
         {
             var status = await AwkHostBoundaryPolicy.AwaitAsync(
-                    host.AppendAsync(invocation.Stdio.StdErr, failure.Message, cancellationToken), cancellationToken)
+                    host.AppendAsync(stderr, failure.Message, cancellationToken), cancellationToken)
                 .ConfigureAwait(false);
             return status.Succeeded ? failure.ExitCode : AwkDiagnostics.FatalExitCode;
         }
@@ -241,23 +246,27 @@ internal static class AwkExecutor
         }
     }
 
-    internal static Task<AwkCompiledProgram> CompileAsync(
-        IAwkHost host,
-        AwkCommandInvocation command,
-        CancellationToken cancellationToken) =>
-        CompileAsync(host, AwkCommandParser.Parse(command), cancellationToken, command.MemoryBudget);
+    internal static Task<AwkCompiledProgram> CompileAsync(IAwkHost host,
+        AwkCommandInvocation command, CancellationToken cancellationToken) =>
+        CompileCoreAsync(host, null, command, cancellationToken, command.MemoryBudget);
 
-    internal static async Task<AwkCompiledProgram> CompileAsync(
-        IAwkHost host,
-        AwkInvocation invocation,
-        CancellationToken cancellationToken,
-        IMemoryBudget? memoryBudget = null)
+    internal static Task<AwkCompiledProgram> CompileAsync(IAwkHost host,
+        AwkInvocation invocation, CancellationToken cancellationToken, IMemoryBudget? memoryBudget = null) =>
+        CompileCoreAsync(host, invocation, null, cancellationToken, memoryBudget);
+
+    private static async Task<AwkCompiledProgram> CompileCoreAsync(IAwkHost host,
+        AwkInvocation? invocation, AwkCommandInvocation? command,
+        CancellationToken cancellationToken, IMemoryBudget? memoryBudget)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var owner = AwkExecutionMemoryOwner.Create(memoryBudget, cancellationToken);
         try
         {
+            var token = owner.Token(cancellationToken);
+            var resolved = invocation ?? AwkCommandParser.Parse(
+                command ?? throw new ArgumentException("A command is required."), owner.FrontendMemory, token);
             return await CompileBodyAsync(owner.IsEnabled ? new AwkBudgetHost(host, owner) : host,
-                invocation, owner.Token(cancellationToken), owner).ConfigureAwait(false);
+                resolved, token, owner).ConfigureAwait(false);
         }
         catch
         {

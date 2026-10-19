@@ -145,41 +145,6 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
-    public async Task AwkExecutionPolicy_ArgumentLimitAppliesBeforeInvocationPlanning()
-    {
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
-            "awk",
-            "BEGIN{print \"unreachable\"}",
-            "/one.txt"));
-        var host = new MockFileSystem();
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxArguments(1);
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal("awk: command argument limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
-    public async Task AwkExecutionPolicy_EnvironmentByteLimitAppliesBeforeInvocationPlanning()
-    {
-        var invocation = AwkTestHarness.BuildInvocation(
-            "awk",
-            ["BEGIN{print \"unreachable\"}"],
-            [new AwkEnvironmentVariable("TOKEN", "secret")]);
-        var tool = AwkTestHarness.ParseAwk(invocation);
-        var host = new MockFileSystem();
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxEnvironmentBytes(4);
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(
-            "awk: command environment limit exceeded\n",
-            host.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
     public async Task AwkExecutionPolicy_RestrictedPresetDeniesFileRedirections()
     {
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(

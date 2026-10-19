@@ -11,9 +11,11 @@ internal sealed class AwkSourceInputPlanner
     private readonly List<AwkSourceReference> _sources = [];
     private readonly List<string> _runtimeArguments;
     private readonly List<AwkVariableAssignment> _variables = [];
+    private readonly CancellationToken _cancellationToken;
 
-    public AwkSourceInputPlanner(string commandName, AwkPath currentDirectory)
+    public AwkSourceInputPlanner(string commandName, AwkPath currentDirectory, CancellationToken cancellationToken = default)
     {
+        _cancellationToken = cancellationToken;
         _currentDirectory = currentDirectory;
         _runtimeArguments = [commandName];
     }
@@ -28,6 +30,7 @@ internal sealed class AwkSourceInputPlanner
         var separator = AwkFieldSeparatorSpec.Default;
         for (var index = 0; index < _variables.Count; index++)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             var assignment = _variables[index].WithCompatibilityMode(mode);
             _variables[index] = assignment;
             if (assignment.Source == AwkVariableAssignmentSource.FieldSeparatorOption)
@@ -38,14 +41,14 @@ internal sealed class AwkSourceInputPlanner
 
     public AwkInvocationPlan BuildPlan(IReadOnlyList<AwkEnvironmentVariable> environment) =>
         new(
-            new AwkSourcePlan(AwkCollectionSnapshots.Copy(_sources)),
+            new AwkSourcePlan(AwkCollectionSnapshots.Copy(_sources, _cancellationToken)),
             new AwkInputPlan(
-                AwkCollectionSnapshots.Copy(_paths),
-                AwkCollectionSnapshots.Copy(_inputArguments)),
+                AwkCollectionSnapshots.Copy(_paths, _cancellationToken),
+                AwkCollectionSnapshots.Copy(_inputArguments, _cancellationToken)),
             new AwkRuntimeArgumentPlan(
-                AwkCollectionSnapshots.Copy(_runtimeArguments),
-                AwkCollectionSnapshots.Copy(_variables),
-                AwkCollectionSnapshots.Copy(environment),
+                AwkCollectionSnapshots.Copy(_runtimeArguments, _cancellationToken),
+                AwkCollectionSnapshots.Copy(_variables, _cancellationToken),
+                AwkCollectionSnapshots.Copy(environment, _cancellationToken),
                 _currentDirectory));
 
     public void AddInlineScript(string source)

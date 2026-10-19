@@ -12,6 +12,10 @@ Awk's local interfaces. A budget carried by the invocation takes precedence and 
 nested command descriptors. Awk owns its child scopes and reservations, never the supplied
 budget. Scopes share the root allowance; they do not receive independent limits.
 
+The invocation's immutable input snapshots belong to the caller. Execution admits Awk-owned
+argument/environment preparation before copies; the snapshots themselves retain the caller's
+lifetime. `TryParse` only recognizes and wraps the command.
+
 Major frontend, compiled-program and runtime owners admit retained capacity and temporary
 growth peaks before allocation or mutation. Estimates are deliberately coarse, not a heap
 cap or an attempt to track every object. Replacement can require both old and new capacity.
@@ -62,12 +66,15 @@ fixed timeout because it cannot poll the token internally. See [regex engines](R
 
 Managed recursion/syntax-depth protection, strict UTF-8, host authorization, mutation
 preflights, representable allocation sizes, open-resource bounds and bounded streaming/caches
-remain necessary. There are no fuel, host-call, record-count, regex-work or sorting-work quotas.
+remain necessary. Regex pattern/group construction guards remain until default-backend
+construction admission and stack behavior are qualified; they are not work quotas.
+There are no fuel, host-call, record-count, regex-work or sorting-work quotas.
 
 Removed for the next release: `MaxExecutionMemoryBytes`, `MaxRecordBytes`, `MaxValueBytes`,
 `MaxInputBytes`, `MaxOutputBytes`, `MaxBuilderBytes`, `MaxRegexCaptureBytes`, `MaxArrayElements`, `MaxFields`, `MaxSymbols`,
 `MaxIdentifierBytes`, `MaxSourceBytes`, `MaxSourceUnits`, `MaxExpandedSourceBytes`,
-`MaxFrontendCharacters`, `MaxFrontendTokens`, `MaxFrontendDiagnostics`, `MaxIncludeFiles`, their setters
+`MaxFrontendCharacters`, `MaxFrontendTokens`, `MaxFrontendDiagnostics`, `MaxIncludeFiles`,
+`MaxArguments`, `MaxArgumentBytes`, `MaxEnvironmentEntries`, `MaxEnvironmentBytes`, their setters
 and enforcement. Their storage concerns
 belong to shared admission; cumulative I/O is not a memory charge. With no supplied budget,
 Awk must not silently invent a governor. Hosts using the restricted preset must supply the

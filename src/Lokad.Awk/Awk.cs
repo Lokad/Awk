@@ -47,7 +47,7 @@ public sealed class Awk
         ArgumentNullException.ThrowIfNull(host);
         return AwkExecutor.ExecuteAsync(
             host,
-            AwkCommandParser.Parse(_command),
+            _command,
             cancellationToken,
             AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault(), _command.MemoryBudget));
     }
@@ -60,7 +60,7 @@ public sealed class Awk
     {
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(policy);
-        return AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(_command, policy),
+        return AwkExecutor.ExecuteAsync(host, _command,
             cancellationToken, AwkRuntimeOptions.Create(policy, _command.MemoryBudget));
     }
 }

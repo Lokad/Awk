@@ -15,10 +15,6 @@ public sealed class AwkExecutionPolicyBudgetTests
         { "MaxOutputFiles", 10_000, 64 },
         { "MaxInputFiles", 10_000, 64 },
         { "MaxPipes", 1024, 8 },
-        { "MaxArguments", 100_000, 1024 },
-        { "MaxArgumentBytes", 64L << 20, 4L << 20 },
-        { "MaxEnvironmentEntries", 100_000, 1024 },
-        { "MaxEnvironmentBytes", 64L << 20, 1L << 20 },
         { "MaxHostErrorBytes", 4 << 10 , 1 << 10},
         { "MaxIncludeDepth", 128, 16 },
     };
