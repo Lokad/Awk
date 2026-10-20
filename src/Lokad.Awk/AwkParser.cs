@@ -11,7 +11,7 @@ internal static class AwkParser
     public static AwkParseResult Parse(string source, int maxSyntaxNestingDepth)
         => Parse(
             source,
-            AwkFrontendBudget.Unlimited(maxSyntaxNestingDepth),
+            new AwkFrontendBudget(maxSyntaxNestingDepth),
             CancellationToken.None);
 
     public static AwkParseResult Parse(

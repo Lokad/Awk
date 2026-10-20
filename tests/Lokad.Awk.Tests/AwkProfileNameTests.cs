@@ -31,7 +31,7 @@ public sealed class AwkProfileNameTests
     {
         var mode = (AwkCompatibilityMode)modeValue;
         const string source = "function f(and,SYMTAB){and++;SYMTAB[1]=and;return and}BEGIN{SYMTAB[\"x\"]=3;print f(2,a)}";
-        var parse = AwkParser.Parse(source, AwkFrontendBudget.Unlimited(int.MaxValue), CancellationToken.None, mode);
+        var parse = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue), CancellationToken.None, mode);
         var binding = AwkBinder.Bind(parse, AwkCompatibilityProfile.Default.WithMode(mode));
         Assert.True(binding.Success);
         Assert.Contains(binding.SemanticModel.Usages, symbol =>

@@ -603,7 +603,6 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal("payload\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(8, result.Counters.FieldSplits);
-        // The optional VM's field opcode still reads NF before loading a field.
         Assert.Equal(10, result.Counters.FieldsMaterialized);
         Assert.Equal(0, result.Counters.StringDecodes);
         Assert.Equal(0, result.Counters.Utf8Encodes);

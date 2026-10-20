@@ -22,34 +22,11 @@ public sealed class AwkGoldenCorpusTests
         }
     }
 
-    public static IEnumerable<object[]> ExpectedFailingCases()
-    {
-        foreach (var testCase in AwkGoldenCorpus.DirectCases)
-        {
-            if (testCase.SupportLevel == AwkGoldenSupportLevel.ExpectedFailing)
-            {
-                yield return [testCase];
-            }
-        }
-    }
-
     public static IEnumerable<object[]> ParserAcceptanceCases()
     {
         foreach (var testCase in AwkGoldenCorpus.DirectCases)
         {
             if (testCase.SupportLevel == AwkGoldenSupportLevel.CurrentPass ||
-                IsParserDiagnosticCase(testCase))
-            {
-                yield return [testCase];
-            }
-        }
-    }
-
-    public static IEnumerable<object[]> ParserParityCases()
-    {
-        foreach (var testCase in AwkGoldenCorpus.DirectCases)
-        {
-            if (testCase.SupportLevel != AwkGoldenSupportLevel.ExpectedFailing ||
                 IsParserDiagnosticCase(testCase))
             {
                 yield return [testCase];
@@ -117,7 +94,7 @@ public sealed class AwkGoldenCorpusTests
         var expectParserFailure = IsParserDiagnosticCase(testCase);
         var source = loaded.CompilationSource;
         var binding = AwkBinder.Bind(
-            AwkParser.Parse(source.Text, AwkFrontendBudget.Unlimited(int.MaxValue),
+            AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue),
                 CancellationToken.None, invocation.ExecutionOptions.CompatibilityProfile.Mode),
             invocation.ExecutionOptions.CompatibilityProfile);
         if (expectParserFailure)
@@ -131,8 +108,8 @@ public sealed class AwkGoldenCorpusTests
     }
 
     [Theory]
-    [MemberData(nameof(ParserParityCases))]
-    public async Task Awk_GoldenSourcesHaveSyntaxOutlinesForExecutableLowering(AwkGoldenCase testCase)
+    [MemberData(nameof(DirectCases))]
+    public async Task Awk_GoldenSourcesHaveInterpreterSyntaxOutlines(AwkGoldenCase testCase)
     {
         var fileSystem = AwkTestHarness.BuildFileSystem(testCase);
         var invocation = AwkCommandParser.Parse(
@@ -153,7 +130,7 @@ public sealed class AwkGoldenCorpusTests
 
         var expectParserFailure = IsParserDiagnosticCase(testCase);
         var source = loaded.CompilationSource;
-        var parse = AwkParser.Parse(source.Text, AwkFrontendBudget.Unlimited(int.MaxValue),
+        var parse = AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue),
                 CancellationToken.None, invocation.ExecutionOptions.CompatibilityProfile.Mode);
         var binding = AwkBinder.Bind(parse, invocation.ExecutionOptions.CompatibilityProfile);
         if (expectParserFailure)
@@ -223,58 +200,6 @@ public sealed class AwkGoldenCorpusTests
     }
 
     [Fact]
-    public async Task Awk_DirectExpectedFailingCasesDocumentGaps()
-    {
-        foreach (var item in ExpectedFailingCases())
-        {
-            var testCase = Assert.IsType<AwkGoldenCase>(Assert.Single(item));
-            var result = await AwkTestHarness.RunGoldenCaseAsync(testCase, CancellationToken.None);
-
-            Assert.False(
-                GoldenCaseMatches(testCase, result),
-                "Expected-failing awk case now matches the oracle expectation and should be promoted: " + testCase.Name);
-        }
-
-        static bool GoldenCaseMatches(AwkGoldenCase testCase, AwkTestRunResult result)
-        {
-            if (testCase.ExpectedExitCode != result.ExitCode ||
-                testCase.ExpectedStdErr != result.StdErr ||
-                !GoldenTextMatches(testCase, result.StdOut))
-            {
-                return false;
-            }
-
-            foreach (var expectedFile in testCase.ExpectedFiles)
-            {
-                if (!result.ExpectedFiles.TryGetValue(expectedFile.Path, out var actualContent) ||
-                    actualContent != expectedFile.Content)
-                {
-                    return false;
-                }
-            }
-
-            return true;
-
-            static bool GoldenTextMatches(AwkGoldenCase testCase, string actual)
-            {
-                return testCase.StdOutComparison switch
-                {
-                    AwkGoldenTextComparison.Exact => testCase.ExpectedStdOut == actual,
-                    AwkGoldenTextComparison.UnorderedNonEmptyLines =>
-                        SortedNonEmptyLines(testCase.ExpectedStdOut).SequenceEqual(SortedNonEmptyLines(actual)),
-                    _ => throw new InvalidOperationException("Unknown stdout comparison mode.")
-                };
-            }
-        }
-    }
-
-    [Fact]
-    public void Awk_GoldenCorpusHasNoExpectedFailingCases()
-    {
-        Assert.Empty(ExpectedFailingCases());
-    }
-
-    [Fact]
     public void Awk_GoldenCorpusDiagnosticHealthCheck()
     {
         var genericInvalidScriptCases = AwkGoldenCorpus.DirectCases
@@ -292,7 +217,6 @@ public sealed class AwkGoldenCorpusTests
             .Select(testCase => testCase.Name)
             .ToArray();
 
-        Assert.Empty(ExpectedFailingCases());
         Assert.Empty(genericInvalidScriptCases);
         Assert.Empty(nonAwkDiagnostics);
         Assert.Empty(clrLeakExpectations);

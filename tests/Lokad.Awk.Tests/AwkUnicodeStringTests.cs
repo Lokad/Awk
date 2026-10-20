@@ -11,7 +11,7 @@ public sealed class AwkUnicodeStringTests
     {
         var literal = "\"" + escape + "\"";
         var source = "BEGIN{if(0)print " + literal + "}";
-        var parse = AwkParser.Parse(source, AwkFrontendBudget.Unlimited(int.MaxValue),
+        var parse = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue),
             CancellationToken.None, (AwkCompatibilityMode)mode);
         Assert.True(parse.Success);
         var warning = Assert.Single(parse.Warnings);

@@ -9,7 +9,7 @@ internal static class AwkSyntaxParser
         => Parse(source, int.MaxValue);
 
     public static AwkSyntaxProgram Parse(string source, int maxSyntaxNestingDepth)
-        => Parse(source, AwkFrontendBudget.Unlimited(maxSyntaxNestingDepth), CancellationToken.None);
+        => Parse(source, new AwkFrontendBudget(maxSyntaxNestingDepth), CancellationToken.None);
 
     public static AwkSyntaxProgram Parse(
         string source,

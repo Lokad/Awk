@@ -4906,27 +4906,6 @@ internal static partial class AwkGoldenCorpus
             .Build();
     }
 
-    private static AwkGoldenCase ExpectedFailing(
-        string name,
-        IReadOnlyList<string> arguments,
-        IReadOnlyList<AwkGoldenFile> inputFiles,
-        int expectedExitCode,
-        string expectedStdOut,
-        string expectedStdErr,
-        IReadOnlyList<AwkGoldenTag> tags,
-        string nondeterminismNote)
-    {
-        return AwkGoldenCaseBuilder
-            .Create(name, arguments, inputFiles)
-            .ExitsWith(expectedExitCode)
-            .WithStdOut(expectedStdOut)
-            .WithStdErr(expectedStdErr)
-            .WithSupportLevel(AwkGoldenSupportLevel.ExpectedFailing)
-            .WithTags([.. tags, AwkGoldenTag.ExpectedFailing])
-            .WithNondeterminismNote(nondeterminismNote)
-            .Build();
-    }
-
     private static AwkGoldenCase FailingWithDirectories(
         string name,
         IReadOnlyList<string> arguments,

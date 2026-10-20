@@ -22,10 +22,6 @@ internal sealed class AwkFrontendBudget
 
     public int MaxSyntaxNestingDepth { get; }
 
-    public static AwkFrontendBudget Unlimited(int maxSyntaxNestingDepth) =>
-        new(
-            maxSyntaxNestingDepth);
-
     public static AwkFrontendBudget FromResources(AwkRuntimeResourceMonitor resources, AwkStringEscapeWarnings? stringEscapeWarnings = null,
         AwkRegexEscapeWarnings? regexEscapeWarnings = null,
         AwkFrontendMemory? memory = null) =>

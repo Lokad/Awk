@@ -270,7 +270,7 @@ public sealed class AwkFrontendCancellationTests
 
         var failure = Assert.Throws<OperationCanceledException>(() =>
             AwkFrontendDiagnosticPolicy.AddLexicalDiagnostics(source, tokens, diagnostics,
-                AwkFrontendBudget.Unlimited(int.MaxValue), mode, Checkpoint));
+                new AwkFrontendBudget(int.MaxValue), mode, Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Empty(diagnostics);
     }

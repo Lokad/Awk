@@ -15,7 +15,7 @@ internal static class AwkFrontendDiagnosticPolicy
             source,
             tokens,
             diagnostics,
-            AwkFrontendBudget.Unlimited(int.MaxValue));
+            new AwkFrontendBudget(int.MaxValue));
 
     public static void AddLexicalDiagnostics(
         string source,

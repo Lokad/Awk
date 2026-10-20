@@ -13,7 +13,7 @@ public sealed class AwkUnicodeRegexTests
         const string literal = "/\\u\\ud800/";
         const string source = "BEGIN{if(0)print " + literal + "}";
         var profile = (AwkCompatibilityMode)mode;
-        var parse = AwkParser.Parse(source, AwkFrontendBudget.Unlimited(int.MaxValue),
+        var parse = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue),
             CancellationToken.None, profile);
         Assert.True(parse.Success);
         if (profile == AwkCompatibilityMode.Posix)

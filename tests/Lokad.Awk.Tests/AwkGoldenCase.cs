@@ -312,14 +312,12 @@ public enum AwkGoldenTextComparison
 public enum AwkGoldenSupportLevel
 {
     CurrentPass,
-    ExpectedFailing,
     KnownUnsupported
 }
 
 public enum AwkGoldenTag
 {
     CurrentPass,
-    ExpectedFailing,
     DirectLayer,
     OracleReviewed,
     RuntimeBehavior,
