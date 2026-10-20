@@ -101,6 +101,9 @@ Text remains strict UTF-8 in byte mode and under `LC_ALL=C`. The
 
 ## Design
 
+Source builds require the stable .NET SDK selected by `global.json` (10.0.401 with patch
+roll-forward, excluding previews). Run `dotnet test Lokad.Awk.slnx` for build and correctness.
+
 The library is intended to stay host-agnostic. The public surface should stay small:
 
 - parse command-line-style awk invocations

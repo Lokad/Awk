@@ -13,6 +13,7 @@ or environment dependencies.
 
 ## Commands
 
+- Use the stable SDK selected in `global.json` (10.0.401, patch roll-forward only).
 - Restore/build/test: `dotnet test .\Lokad.Awk.slnx`
 - Package build checks: `dotnet build .\src\Lokad.Awk\Lokad.Awk.csproj -c Release`
 - Only `src/Lokad.Awk` produces a NuGet package. The Utf8Regex adapter, tests and benchmarks
