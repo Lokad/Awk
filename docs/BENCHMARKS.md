@@ -1,9 +1,10 @@
 # Benchmarks
 
-Current observations against GNU awk 5.2.1, measured **2026-10-20 UTC** at
+Reference observations against GNU awk 5.2.1, measured **2026-10-20 UTC** at
 [`229e4d2`](https://github.com/Lokad/Awk/commit/229e4d2ad3628eb2ed6b3c50020a329faea20daf).
 All rows use the interpreter, default .NET regex and default policy (UTC time zone), without
 a supplied shared memory budget. The internal Utf8Regex adapter is outside this baseline.
+These reference rows retain that measured revision; they have not been rerun for newer source.
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** divides Lokad elapsed
 by GNU elapsed: 1.00× is parity; higher is slower. Allocations are managed GC MiB per
@@ -70,6 +71,23 @@ returns, branches, local temporaries and nested calls.
 | Keyed sum / sorted output (GNU) | 384.00 | 38.054 | 6.309 | 6.03× | 9.88 |
 | Two-file membership / join | 1,386.30 | 118.965 | 29.837 | 3.99× | 41.38 |
 
+## Managed policy controls
+
+Current measurements at
+[`e454fe8`](https://github.com/Lokad/Awk/commit/e454fe83453ba75d9f049eefee4a3d6b83c7c670),
+2026-10-20 UTC. The same portable arithmetic script processes 4,096 records. These embedded
+execution controls use the existing `--governed-profile` fixture and have no native timing.
+The budget is supplied by a thread-safe test host; application budgets can cost differently.
+
+| Mode | Shared admission | Lokad ms | Lokad allocated MiB |
+| --- | --- | ---: | ---: |
+| GNU/default | None | 4.979 | 0.72 |
+| POSIX | None | 4.796 | 0.71 |
+| POSIX | 512 MiB | 5.914 | 0.71 |
+
+These controls use four warmups, five 500 ms iterations and one launch. Their source/binary
+identities and pre/post idle checks pass. They do not refresh the reference rows above.
+
 ## Measurement contract
 
 Lokad runs inside an already-running .NET process through `Awk.TryParse`/`Awk.ExecuteAsync`
@@ -115,8 +133,8 @@ also observes provider-owned admission.
 Benchmark execution failures return nonzero; CLI help, list and environment-info commands
 may succeed without running measurements.
 Existing `--governed-profile` cases cover calls, projection and aggregation with a 512 MiB
-thread-safe test budget, including default-mode call/aggregation controls. Host budgets can
-cost differently. Keep transfers/builds outside measurement
+thread-safe test budget, including default-mode call/aggregation controls. Medium arithmetic
+cases compare GNU/default, POSIX and governed POSIX execution. Keep transfers/builds outside measurement
 windows. Preserve the full correctness suite and confirm promising changes once in both source orders.
 
 Refresh all families at declared milestones. Replace affected rows after qualification,
