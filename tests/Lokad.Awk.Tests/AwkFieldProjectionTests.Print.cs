@@ -21,7 +21,7 @@ public sealed partial class AwkFieldProjectionTests
         var bytes = "before 007 café"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
         var io = new AwkIo(new MockFileSystem(), AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static () => []);
+            AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static _ => []);
         var allocations = counters.AwkTextAllocations;
         await Statement().ExecuteAsync(new(state, output, io));
         Array.Fill(bytes, (byte)'X');

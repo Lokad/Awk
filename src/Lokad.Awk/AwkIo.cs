@@ -36,7 +36,7 @@ internal sealed class AwkIo
         AwkRuntimeCounters counters,
         AwkRuntimeLimits limits,
         AwkRuntimeState state,
-        Func<IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
+        Func<AwkMemoryLease, IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
         bool sandbox = false,
         bool allowFileRedirections = true,
         bool allowCommandPipes = true,
@@ -73,6 +73,7 @@ internal sealed class AwkIo
             maxHostErrorBytes);
         _pipes = new AwkPipeRuntime(
             _host,
+            state.MemoryAccounting,
             _maxOutputFiles,
             limits.MaxPipes,
             () => _descriptors.OutputFileCount,

@@ -867,7 +867,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     private static AwkIo Io(AwkRuntimeState state, MockFileSystem host, AwkRuntimeCounters counters) =>
         new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
-            CancellationToken.None, counters, state.Limits, state, static () => []);
+            CancellationToken.None, counters, state.Limits, state, static _ => []);
 
     private sealed class FixedReturnExpression(AwkValue value) : AwkSynchronousExpression
     {

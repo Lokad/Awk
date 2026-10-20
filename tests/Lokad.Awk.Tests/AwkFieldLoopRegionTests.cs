@@ -149,7 +149,7 @@ public sealed class AwkFieldLoopRegionTests
 
     private static AwkIo Io(AwkRuntimeState state, MockFileSystem host, AwkRuntimeCounters counters) =>
         new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
-            CancellationToken.None, counters, state.Limits, state, static () => []);
+            CancellationToken.None, counters, state.Limits, state, static _ => []);
 
     private sealed class PendingIndex(Task<AwkValue> value) : AwkExpression
     {

@@ -1,7 +1,7 @@
 namespace Lokad.Awk;
 
-// One coarse execution charge. A pending host borrow conservatively delays refunds;
-// actual host-task completion owns the final scope boundary, including failed waits.
+// One coarse execution charge. Storage owners keep their leases until actual users finish;
+// tracked tasks keep the scope alive, without retaining unrelated released storage.
 internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
 {
     private readonly IMemoryScope? _scope;
@@ -10,7 +10,6 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
     private readonly List<Task> _hostTasks = [];
     private long _trackedBytes;
     private long _temporaryBytes;
-    private long _deferredRefundBytes;
     private long _mutationFloor;
     private bool _disposed;
 
@@ -74,15 +73,10 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
     {
         var reservation = _reservation;
         if (reservation is null) return true;
-        var previous = AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes);
         var current = AwkRuntimeMemory.CheckedAdd(trackedBytes, temporaryBytes);
-        var deferred = _hostTasks.Any(static task => !task.IsCompleted)
-            ? AwkRuntimeMemory.CheckedAdd(_deferredRefundBytes, Math.Max(0, previous - current))
-            : 0;
-        if (!reservation.TryResize(Math.Max(_mutationFloor, AwkRuntimeMemory.CheckedAdd(current, deferred)))) return false;
+        if (!reservation.TryResize(Math.Max(_mutationFloor, current))) return false;
         _trackedBytes = trackedBytes;
         _temporaryBytes = temporaryBytes;
-        _deferredRefundBytes = deferred;
         return true;
     }
 
@@ -93,7 +87,7 @@ internal sealed class AwkExecutionMemoryOwner : IAsyncDisposable
         if (_reservation is not { } reservation || growth <= 0) return default;
         var previous = _mutationFloor;
         var floor = Math.Max(previous, AwkRuntimeMemory.CheckedAdd(
-            AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes), _deferredRefundBytes), growth));
+            AwkRuntimeMemory.CheckedAdd(_trackedBytes, _temporaryBytes), growth));
         if (!reservation.TryResize(Math.Max(reservation.Bytes, floor)))
             throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit);
         _mutationFloor = floor;

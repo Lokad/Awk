@@ -114,5 +114,5 @@ public sealed class AwkGetlineDestinationTests
     private static AwkIo CreateIo(MockFileSystem host, AwkRuntimeState state,
         AwkRuntimeLimits limits, CancellationToken cancellation) =>
         new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
-            cancellation, state.Counters, limits, state, static () => []);
+            cancellation, state.Counters, limits, state, static _ => []);
 }

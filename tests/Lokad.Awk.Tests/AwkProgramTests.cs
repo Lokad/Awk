@@ -197,7 +197,7 @@ public sealed class AwkProgramTests
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             state,
-            static () => []);
+            static _ => []);
         var statement = AwkStatement.Print(
             [AwkExpression.Literal("x")],
             new AwkOutputRedirection(AwkExpression.Literal("/out.txt"), AwkOutputRedirectionKind.Write));
@@ -218,5 +218,5 @@ public sealed class AwkProgramTests
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None),
-            static () => []);
+            static _ => []);
 }

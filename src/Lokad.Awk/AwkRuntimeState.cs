@@ -319,15 +319,27 @@ internal sealed class AwkRuntimeState : IDisposable
             static variable => variable.Value);
     }
 
-    public IReadOnlyList<AwkEnvironmentVariable> SnapshotEnvironment()
+    public IReadOnlyList<AwkEnvironmentVariable> SnapshotEnvironment(AwkMemoryLease commandMemory)
     {
         Counters.RecordStringInteropFallback();
+        var count = _variables.GetArraySnapshotCount(EnvironmentArrayName);
+        // Snapshot plus invocation copies (including shared-budget forwarding). Keep their
+        // strings funded even if ENVIRON is subsequently changed by the parent program.
+        commandMemory.ReserveAdditional(AwkRuntimeMemory.CheckedAdd(256,
+            AwkRuntimeMemory.CheckedMultiply(count, 48)));
         var result = _variables.SnapshotArrayValues(
             EnvironmentArrayName,
-            this,
-            static (state, key, value) => new AwkEnvironmentVariable(
-                key.ToByteText(state.Counters, state.MemoryAccounting).AsString(state.Counters, state.CancellationCheckpoint),
-                state.FormatStringByteText(value).AsString(state.Counters, state.CancellationCheckpoint)));
+            count,
+            (State: this, Memory: commandMemory),
+            static (context, key, value) =>
+            {
+                var (state, memory) = context;
+                memory.ReserveAdditional(AwkRuntimeMemory.EstimateUtf16StringBytes(key.ByteLength));
+                var name = key.AsString(state.Counters, state.CancellationCheckpoint);
+                var text = state.FormatStringByteText(value, memory);
+                memory.ReserveAdditional(AwkRuntimeMemory.EstimateUtf16StringBytes(text.ByteLength));
+                return new AwkEnvironmentVariable(name, text.AsString(state.Counters, state.CancellationCheckpoint));
+            });
         Array.Sort(
             result,
             static (left, right) => StringComparer.Ordinal.Compare(left.Name, right.Name));

@@ -67,7 +67,7 @@ public sealed class AwkFlushTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token,
             Options(limits, counters));
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static () => []);
+            AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static _ => []);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var continued = false;
         AwkStatement[] statements =
@@ -340,7 +340,7 @@ bool inputFirst)
 
     private static AwkIo Io(IAwkHost host, AwkRuntimeLimits limits, AwkRuntimeState state) =>
         new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
-            CancellationToken.None, state.Counters, limits, state, static () => []);
+            CancellationToken.None, state.Counters, limits, state, static _ => []);
 
     private static AwkRuntimeOptions Options(AwkRuntimeLimits? limits = null,
         AwkRuntimeCounters? counters = null) =>

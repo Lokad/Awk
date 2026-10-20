@@ -436,7 +436,7 @@ public sealed partial class AwkPrintStagingMemoryTests
 
     private static AwkIo Io(AwkRuntimeState state, IAwkHost host, CancellationToken token = default) =>
         new(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
-            token, state.Counters, state.Limits, state, static () => []);
+            token, state.Counters, state.Limits, state, static _ => []);
 
     private static CooperativeTestMemory State(bool observed, string format, CancellationToken token = default)
     {

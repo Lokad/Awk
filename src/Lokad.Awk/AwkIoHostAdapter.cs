@@ -13,7 +13,7 @@ internal sealed class AwkIoHostAdapter(
     AwkFileDescriptor stdOut,
     AwkFileDescriptor stdErr,
     CancellationToken cancellationToken,
-    Func<IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
+    Func<AwkMemoryLease, IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
     AwkRuntimeCounters counters,
     AwkRuntimeResourceMonitor resources,
     AwkPath? accessiblePathRoot = null,
@@ -105,28 +105,35 @@ internal sealed class AwkIoHostAdapter(
             AwkDiagnosticId.HostIoFailure);
     }
 
-    public AwkCommandInvocation CreateOutputPipeCommand(string commandName, AwkFileDescriptor stdIn) =>
+    public AwkCommandInvocation CreateOutputPipeCommand(string commandName, AwkFileDescriptor stdIn,
+        AwkMemoryLease memory) =>
         new(
             commandName,
             Array.Empty<string>(),
-            SnapshotCommandEnvironment(),
+            SnapshotCommandEnvironment(commandName, memory),
             currentDirectory,
             stdIn,
             stdOut,
             stdErr);
 
-    public AwkCommandInvocation CreateInputPipeCommand(string commandName, AwkFileDescriptor stdOut) =>
+    public AwkCommandInvocation CreateInputPipeCommand(string commandName, AwkFileDescriptor stdOut,
+        AwkMemoryLease memory) =>
         new(
             commandName,
             Array.Empty<string>(),
-            SnapshotCommandEnvironment(),
+            SnapshotCommandEnvironment(commandName, memory),
             currentDirectory,
             stdIn,
             stdOut,
             stdErr);
 
-    private IReadOnlyList<AwkEnvironmentVariable> SnapshotCommandEnvironment() =>
-        forwardCommandEnvironment ? snapshotEnvironment() : [];
+    private IReadOnlyList<AwkEnvironmentVariable> SnapshotCommandEnvironment(string commandName,
+        AwkMemoryLease memory)
+    {
+        memory.ReserveAdditional(AwkRuntimeMemory.CheckedAdd(512,
+            AwkRuntimeMemory.EstimateUtf16StringBytes(commandName.Length)));
+        return forwardCommandEnvironment ? snapshotEnvironment(memory) : [];
+    }
 
     public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command)
     {

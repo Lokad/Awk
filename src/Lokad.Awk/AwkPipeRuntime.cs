@@ -6,6 +6,7 @@ namespace Lokad.Awk;
 
 internal sealed class AwkPipeRuntime(
     AwkIoHostAdapter host,
+    AwkMemoryAccounting memoryAccounting,
     int maxOutputRedirections,
     int maxPipes,
     Func<int> outputFileCount,
@@ -46,17 +47,20 @@ internal sealed class AwkPipeRuntime(
                 throw new AwkRuntimeException(AwkMessages.ErrorOutputFileLimit, AwkDiagnosticId.HostIoFailure);
 
             var descriptors = await host.CreatePipeAsync(AwkPipeMode.Pipeline).ConfigureAwait(false);
+            var memory = memoryAccounting.CreateTransientLease();
+            Task<AwkExitCode>? completion = null;
             try
             {
-                var invocation = host.CreateOutputPipeCommand(command, descriptors.Read);
-                var completion = host.RunCommandAsync(invocation);
-                var pipe = new AwkOutputPipe(descriptors.Write, completion, nextRedirectionOrder());
+                var invocation = host.CreateOutputPipeCommand(command, descriptors.Read, memory);
+                completion = host.RunCommandAsync(invocation);
+                var pipe = new AwkOutputPipe(descriptors.Write, completion, memory, nextRedirectionOrder());
                 _outputPipes.Add(command, pipe);
                 return pipe;
             }
             catch
             {
                 await CloseCreatedDescriptorsForCleanupAsync(descriptors).ConfigureAwait(false);
+                await AwaitCommandForCleanupAsync(completion, memory).ConfigureAwait(false);
                 throw;
             }
         }
@@ -75,18 +79,21 @@ internal sealed class AwkPipeRuntime(
             ThrowIfPipeLimitReached();
 
             var descriptors = await host.CreatePipeAsync(AwkPipeMode.Pipeline).ConfigureAwait(false);
+            var memory = memoryAccounting.CreateTransientLease();
+            Task<AwkExitCode>? completion = null;
             try
             {
-                var invocation = host.CreateInputPipeCommand(command, descriptors.Write);
-                var completion = host.RunCommandAsync(invocation);
+                var invocation = host.CreateInputPipeCommand(command, descriptors.Write, memory);
+                completion = host.RunCommandAsync(invocation);
                 var reader = createRecordCursor(descriptors.Read);
-                var pipe = new AwkInputPipe(descriptors.Read, descriptors.Write, reader, completion, nextRedirectionOrder());
+                var pipe = new AwkInputPipe(descriptors.Read, descriptors.Write, reader, completion, memory, nextRedirectionOrder());
                 _inputPipes.Add(command, pipe);
                 return pipe;
             }
             catch
             {
                 await CloseCreatedDescriptorsForCleanupAsync(descriptors).ConfigureAwait(false);
+                await AwaitCommandForCleanupAsync(completion, memory).ConfigureAwait(false);
                 throw;
             }
         }
@@ -174,9 +181,26 @@ internal sealed class AwkPipeRuntime(
         }
     }
 
+    private static async Task AwaitCommandForCleanupAsync(Task<AwkExitCode>? completion, AwkMemoryLease memory)
+    {
+        try
+        {
+            if (completion is not null)
+                _ = await completion.ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Command completion cannot replace the primary execution failure.
+        }
+        finally
+        {
+            memory.Dispose();
+        }
+    }
+
     private sealed class AwkOutputPipe(
         AwkFileDescriptor writeDescriptor,
-        Task<AwkExitCode> commandCompletion, long order)
+        Task<AwkExitCode> commandCompletion, AwkMemoryLease memory, long order)
     {
         public long Order { get; } = order;
 
@@ -185,7 +209,8 @@ internal sealed class AwkPipeRuntime(
         public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host)
         {
             await host.CloseDescriptorAsync(WriteDescriptor).ConfigureAwait(false);
-            return await commandCompletion.ConfigureAwait(false);
+            try { return await commandCompletion.ConfigureAwait(false); }
+            finally { memory.Dispose(); }
         }
 
         public async Task CloseForCleanupAsync(AwkIoHostAdapter host)
@@ -199,14 +224,7 @@ internal sealed class AwkPipeRuntime(
                 // Keep cleanup best-effort so the primary execution failure is preserved.
             }
 
-            try
-            {
-                _ = await commandCompletion.ConfigureAwait(false);
-            }
-            catch (Exception)
-            {
-                // Command completion cannot replace the primary execution failure.
-            }
+            await AwaitCommandForCleanupAsync(commandCompletion, memory).ConfigureAwait(false);
         }
     }
 
@@ -214,7 +232,7 @@ internal sealed class AwkPipeRuntime(
         AwkFileDescriptor readDescriptor,
         AwkFileDescriptor writeDescriptor,
         AwkRecordCursor reader,
-        Task<AwkExitCode> commandCompletion, long order)
+        Task<AwkExitCode> commandCompletion, AwkMemoryLease memory, long order)
     {
         public long Order { get; } = order;
 
@@ -225,7 +243,8 @@ internal sealed class AwkPipeRuntime(
             Reader.Dispose();
             await host.CloseDescriptorAsync(readDescriptor).ConfigureAwait(false);
             await host.CloseDescriptorAsync(writeDescriptor).ConfigureAwait(false);
-            return await commandCompletion.ConfigureAwait(false);
+            try { return await commandCompletion.ConfigureAwait(false); }
+            finally { memory.Dispose(); }
         }
 
         public async Task CloseForCleanupAsync(AwkIoHostAdapter host)
@@ -249,14 +268,7 @@ internal sealed class AwkPipeRuntime(
                 // Keep cleanup best-effort so the primary execution failure is preserved.
             }
 
-            try
-            {
-                _ = await commandCompletion.ConfigureAwait(false);
-            }
-            catch (Exception)
-            {
-                // Command completion cannot replace the primary execution failure.
-            }
+            await AwaitCommandForCleanupAsync(commandCompletion, memory).ConfigureAwait(false);
         }
     }
 }

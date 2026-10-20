@@ -89,5 +89,5 @@ public sealed class AwkEvaluationContextTests
 
     private static AwkIo CreateIo(AwkRuntimeState state) =>
         new(new MockFileSystem(), AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
-            AwkFileDescriptor.StdErr, CancellationToken.None, state.Counters, state.Limits, state, static () => []);
+            AwkFileDescriptor.StdErr, CancellationToken.None, state.Counters, state.Limits, state, static _ => []);
 }

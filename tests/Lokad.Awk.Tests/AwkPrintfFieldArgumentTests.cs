@@ -25,7 +25,7 @@ public sealed class AwkPrintfFieldArgumentTests
         { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options);
         var host = new PendingHost();
-        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static () => []);
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static _ => []);
         AwkExpression[] fields = [AwkExpression.FieldIndex(AwkExpression.Number(1)), AwkExpression.FieldIndex(AwkExpression.Number(2))];
         var statement = fieldList ? AwkStatement.Print(fields)
             : AwkStatement.Printf(AwkExpression.Literal("%s:%04d\n"), fields);

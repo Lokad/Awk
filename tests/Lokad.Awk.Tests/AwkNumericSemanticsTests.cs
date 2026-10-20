@@ -187,6 +187,6 @@ public sealed class AwkNumericSemanticsTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         return new AwkIo(host, new AwkPath("/"), AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut,
             AwkFileDescriptor.StdErr, CancellationToken.None, AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(), state, static () => [], exposeHostErrorDetails: false);
+            AwkRuntimeLimits.CreateDefault(), state, static _ => [], exposeHostErrorDetails: false);
     }
 }

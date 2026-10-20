@@ -27,7 +27,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             state,
-            static () => []);
+            static _ => []);
         var statement = AwkStatement.For(
             AwkStatement.Assignment(AwkReference.Scalar(AwkVariableName.FromText("i")), AwkExpression.Number(0)),
             new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number(1))]]),
@@ -222,7 +222,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             state,
-            static () => []);
+            static _ => []);
 
         var exception = await Assert.ThrowsAsync<AwkRuntimeException>(
             () => io.WriteAsync(AwkTestHarness.CreateRedirectedOutput(
@@ -452,7 +452,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             state,
-            static () => []);
+            static _ => []);
         using var context = state.PushExecutionContext(AwkTestHarness.CreateOutputSink(), io);
 
         cancellation.Cancel();
@@ -795,7 +795,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(),
             state,
-            static () => []);
+            static _ => []);
 
         await output.FlushAsync(io);
 
@@ -1197,7 +1197,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxOutputFiles(2),
             state,
-            static () => []);
+            static _ => []);
 
         await io.WriteAsync(AwkTestHarness.CreateRedirectedOutput(
             "/one.txt",

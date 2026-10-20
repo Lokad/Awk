@@ -44,26 +44,6 @@ public sealed class AwkMemoryAccountingTransitionTests
         Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
     }
 
-    [Fact]
-    public async Task LedgerRefundKeepsActualPendingUsersAdmitted()
-    {
-        var budget = new CooperativeTestBudget(100);
-        var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var ledger = AwkMemoryAccounting.Create(AwkRuntimeCounters.CreateEnabled(), owner);
-        ledger.Reserve(40);
-        ledger.CommitReserved(40);
-        var pending = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _ = owner.Track(pending.Task);
-        ledger.ReleaseCommitted(40);
-        Assert.Equal(0, ledger.CurrentCommittedBytes);
-        Assert.Equal(40, budget.Reserved);
-        var closing = owner.DisposeAsync();
-        Assert.False(closing.IsCompleted);
-        pending.SetResult(0);
-        await closing;
-        Assert.Equal(0, budget.Reserved);
-    }
-
     private static string Snapshot(AwkMemoryAccounting ledger) => JsonSerializer.Serialize(ledger);
     private static void AssertMemory(Action action) => Assert.Equal("awk: memory limit exceeded\n",
         AwkUtf8Codec.Decode(Assert.Throws<AwkRuntimeException>(action).MessageBytes));

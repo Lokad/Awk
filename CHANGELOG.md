@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Long-lived pipe commands no longer retain memory charges for already-consumed records.
+  Command/environment snapshots stay funded through actual command completion, including
+  parent environment mutation, cancellation and cleanup.
+
 - Uncached input-field copies such as `$2=$1` reuse record slices when the assignment result
   is discarded. Values become owned before escaping the record; mutation preflights and
   cancellation remain in place.

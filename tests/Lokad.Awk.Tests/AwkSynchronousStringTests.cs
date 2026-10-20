@@ -86,7 +86,7 @@ public sealed class AwkSynchronousStringTests
         var lower = AwkExpression.Length(Builtin("tolower", Variable()), AwkOptionalIdentifier.None);
         var second = AwkStatement.Expression(AwkExpression.CompoundAssignment(AwkReference.PreparedGlobalScalar(total, 1), AwkExpression.Add(AwkExpression.Add(length, index), lower), AwkCompoundAssignmentOperation.Add));
         var host = new MockFileSystem();
-        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static () => []);
+        var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, CancellationToken.None, counters, state.Limits, state, static _ => []);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var error = "";
         using (state.PushExecutionContext(output, io))

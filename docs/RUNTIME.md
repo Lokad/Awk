@@ -66,6 +66,8 @@ released on failed allocation. Routine bounded-cache eviction remains separate f
 Refund follows actual ownership. Pending host reads/writes/commands keep borrowed storage
 funded until completion; cancellation alone does not end that lifetime. Reused prepared storage
 stays funded through active executions, including when disposal prevents further use.
+An open command funds its command/environment snapshot; it does not retain charges for
+unrelated records or completed writes. Closing it releases that snapshot after command completion.
 
 ```csharp
 // memoryBudget and cancellationToken belong to the embedding application.

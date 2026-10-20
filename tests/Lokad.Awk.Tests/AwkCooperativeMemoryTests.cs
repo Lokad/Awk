@@ -20,45 +20,32 @@ public sealed class AwkCooperativeMemoryTests
     }
 
     [Fact]
-    public async Task PendingHostBorrowKeepsChargeUntilActualCompletion()
+    public async Task PendingTaskKeepsScopeAliveWithoutRetainingUnrelatedStorage()
     {
         var budget = new CooperativeTestBudget(100);
         var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        Assert.True(owner.TryResizeTracked(70));
         var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         _ = owner.Track(completion.Task);
-        Assert.True(owner.TryResizeTracked(0));
-        Assert.Equal(70, budget.Reserved);
-        Assert.False(owner.TryResizeTracked(31));
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        var borrowed = accounting.ReserveTransient(40);
+        using (accounting.ReserveTransient(60))
+            Assert.Equal(100, budget.Reserved);
+        Assert.Equal(40, budget.Reserved);
         var closing = owner.DisposeAsync();
-        Assert.False(closing.IsCompleted);
-        Assert.Equal(70, budget.Reserved);
-        completion.SetResult(0);
-        await closing;
-        Assert.Equal(0, budget.Reserved);
-        Assert.Equal(1, budget.ScopesDisposed);
-    }
-
-    [Fact]
-    public async Task TemporaryPeakRemainsAdmittedUntilPendingHostWorkCompletes()
-    {
-        var budget = new CooperativeTestBudget(100);
-        var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var peak = owner.ReservePeak(70);
-        _ = owner.Track(completion.Task);
         try
         {
-            peak.Dispose();
-            Assert.Equal(70, budget.Reserved);
-            Assert.False(budget.TryReserve(31, out _));
+            Assert.False(closing.IsCompleted);
+            Assert.Equal(40, budget.Reserved);
+            Assert.Equal(0, budget.ScopesDisposed);
         }
         finally
         {
+            borrowed.Dispose();
             completion.TrySetResult(0);
-            await owner.DisposeAsync();
+            await closing;
         }
         Assert.Equal(0, budget.Reserved);
+        Assert.Equal(1, budget.ScopesDisposed);
     }
 
     [Fact]
@@ -80,23 +67,6 @@ public sealed class AwkCooperativeMemoryTests
         Assert.Throws<ObjectDisposedException>(() => first.Resize(1));
         second.Dispose();
         Assert.Equal(0, budget.Reserved);
-    }
-
-    [Fact]
-    public async Task PeakRefundBecomesReusableAfterTheActualBorrowEnds()
-    {
-        var budget = new CooperativeTestBudget(100);
-        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var completion = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var peak = owner.ReservePeak(70);
-        _ = owner.Track(completion.Task);
-        peak.Resize(40);
-        Assert.Equal(70, budget.Reserved);
-        peak.Dispose();
-        Assert.Equal(70, budget.Reserved);
-        completion.SetResult(0);
-        Assert.True(owner.TryResizeTracked(100));
-        Assert.Equal(100, budget.Reserved);
     }
 
     [Fact]
