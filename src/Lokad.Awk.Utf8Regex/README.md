@@ -14,7 +14,10 @@ var policy = AwkExecutionPolicy.CreateDefault()
 ```
 
 Awk retains pattern translation, longest-match/capture selection, replacement, UTF-8
-boundary validation and resource policy. Compiled handles belong to execution caches;
+boundary validation and ordinary text/capture admission. The adapter funds producer construction,
+compiled storage and synchronous match scratch through the borrowed budget; core supplies no
+pattern/group ceilings. Refused admission fails execution rather than requesting fallback.
+Compiled handles belong to bounded execution caches;
 the application owns the stateless supplied engine. Input spans stay synchronous.
 Every operation receives the current cancellation token; cached handles retain no operation
 token. The adapter has no independent match timeout. Pinned producer 0.2.0 has no token-aware

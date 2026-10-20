@@ -423,7 +423,8 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         var backend = Assert.IsType<AwkDotNetRegexBackend>(regex.Backend);
         Assert.Equal(AwkRegexCaseSensitivity.CaseSensitive, backend.SeedCaseSensitivity);
-        Assert.Equal(AwkRegex.MatchTimeout, backend.Value.MatchTimeout);
+        Assert.NotNull(backend.Value);
+        Assert.Equal(TimeSpan.FromSeconds(2), backend.Value.MatchTimeout);
     }
 
     [Fact]
@@ -672,27 +673,23 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_RegexEnumerationHoldsOnlyOneMatchBuffer()
     {
-        var requiredBytes = AwkRuntimeMemory.EstimateRegexMatchBytes(
-            groupCount: 1,
-            retainedTextBytes: AwkRuntimeMemory.EstimateTextBytes(byteLength: 1));
-        using var memoryForState = CreateGovernedState(checked((int)requiredBytes));
+        using var memoryForState = CreateGovernedState(8192);
         var state = memoryForState.State;
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
-        var input = AwkText.FromString("aaaa");
+        var input = AwkText.FromString(new string('a', 1000));
 
         var matchCount = 0;
         using (var matches = state.EnumerateRegexMatches(regex, input, AwkRegexCapturePlan.All))
         {
             while (matches.MoveNext(out _))
             {
-                Assert.Equal(requiredBytes, state.MemoryAccounting.CurrentCommittedBytes);
                 matchCount++;
             }
 
             Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
         }
 
-        Assert.Equal(4, matchCount);
+        Assert.Equal(1000, matchCount);
         Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
@@ -700,13 +697,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_RegexFirstMatchMemoryLimitDoesNotReserveEnumerationList()
     {
-        var requiredBytes = AwkRuntimeMemory.EstimateRegexMatchBytes(
-            groupCount: 1,
-            retainedTextBytes: AwkRuntimeMemory.EstimateTextBytes(byteLength: 1));
-        using var memoryForState = CreateGovernedState(checked((int)requiredBytes));
+        using var memoryForState = CreateGovernedState(8192);
         var state = memoryForState.State;
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
-        var input = AwkText.FromString("aaaa");
+        var input = AwkText.FromString(new string('a', 10000));
 
         using (var leasedMatch = state.MatchRegexValue(regex, input, AwkRegexCapturePlan.All))
         {
@@ -714,7 +708,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
             Assert.True(match.Success);
             Assert.Equal("a", match.Value.AsString());
-            Assert.Equal(requiredBytes, state.MemoryAccounting.CurrentCommittedBytes);
         }
         Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
@@ -759,10 +752,13 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     [Fact]
     public void Awk_SubFirstReplacementMemoryLimitDoesNotReserveEnumerationList()
     {
-        using var memoryForState = CreateGovernedState(300);
+        using var memoryForState = CreateGovernedState(8192);
         var state = memoryForState.State;
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("aaaa");
+        Assert.True(memoryForState.Budget.TryReserve(
+            memoryForState.Budget.Limit - memoryForState.Budget.Reserved - 300, out var pressure));
+        using var heldPressure = pressure;
 
         var replaced = AwkRegexSubstitution.ReplaceAll(
             state,
@@ -1059,8 +1055,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         Assert.Equal(AwkRuntimeLimits.DefaultMaxPipes, limits.MaxPipes);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxIncludeDepth, limits.MaxIncludeDepth);
         Assert.Equal(AwkRuntimeLimits.DefaultInputReadBatchLineCount, AwkIo.InputReadBatchLineCount);
-        Assert.Equal(
-            TimeSpan.FromSeconds(AwkRuntimeLimits.DefaultRegexMatchTimeoutSeconds), AwkRegex.MatchTimeout);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxFunctionCallDepth, limits.MaxFunctionCallDepth);
         Assert.Equal(AwkRuntimeLimits.DefaultMaxSyntaxNestingDepth, limits.MaxSyntaxNestingDepth);
     }

@@ -33,36 +33,6 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Fact]
-    public async Task AwkExecutionPolicy_RegexPatternLimitAppliesBeforeDynamicCompilation()
-    {
-        var host = new MockFileSystem();
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
-            "awk",
-            "BEGIN{pattern=\"abcde\"; print \"x\" ~ pattern}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxRegexPatternBytes(4);
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal("awk: regular expression pattern limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
-    public async Task AwkExecutionPolicy_RegexGroupLimitAppliesBeforeSourceCompilation()
-    {
-        var host = new MockFileSystem();
-        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation(
-            "awk",
-            "BEGIN{print \"a\" ~ /((a))/}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxRegexGroups(1);
-
-        var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal("awk: regular expression group limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
-    }
-
-    [Fact]
     public async Task AwkExecutionPolicy_RestrictedPresetHidesInvocationEnvironment()
     {
         var invocation = AwkCommandInvocation.CreateWithStandardDescriptors(

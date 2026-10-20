@@ -29,12 +29,9 @@ public sealed class AwkRegexPreparationCancellationTests
             : runtime.Create(new AwkRegexPattern(text));
         var error = Assert.Throws<OperationCanceledException>(() => Create());
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(0, counters.RegexCompiles);
         armed = false;
         var retried = Create();
-        Assert.Equal(1, counters.RegexCompiles);
         Assert.Same(retried, Create());
-        Assert.Equal(1, counters.RegexCompiles);
     }
 
     [Theory]
@@ -87,8 +84,6 @@ public sealed class AwkRegexPreparationCancellationTests
     [InlineData("translation", "posix")]
     [InlineData("translation", "collating")]
     [InlineData("translation", "trailingescape")]
-    [InlineData("limits", "plain")]
-    [InlineData("weight", "plain")]
     public void OwnedPreparationWalksObserveCancellation(string stage, string shape)
     {
         var text = Pattern(shape);
@@ -110,60 +105,8 @@ public sealed class AwkRegexPreparationCancellationTests
                 case "scalar": _ = AwkRegexScalarPattern.Translate(text, checkpoint); break;
                 case "translation": _ = AwkRegex.TranslatePattern(new AwkRegexPattern(text),
                     checkpoint: checkpoint); break;
-                case "limits": AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(text,
-                    long.MaxValue, int.MaxValue, checkpoint); break;
-                case "weight": _ = AwkRegexResourceFacts.EstimateCacheBytes(text, checkpoint); break;
                 default: throw new ArgumentException("Unknown preparation stage.");
             }
-        }
-    }
-
-    [Theory]
-    [InlineData("ascii")]
-    [InlineData("pair")]
-    [InlineData("malformed")]
-    [InlineData("combining")]
-    [InlineData("nul")]
-    public void PatternByteLimitsPreserveUtf8CountingAtChunkBoundaries(string shape)
-    {
-        var prefix = new string('a', AwkRegexConstruction.ChunkCharacters - 1);
-        var atom = shape switch
-        {
-            "ascii" => "a",
-            "pair" => "\U00010400",
-            "malformed" => "\uD800!\uDC00\uD800",
-            "combining" => "e\u0301",
-            "nul" => "\0",
-            _ => throw new ArgumentException("Unknown text shape.")
-        };
-        var text = prefix + atom + new string('b', AwkRegexConstruction.ChunkCharacters * 2);
-        var expected = Encoding.UTF8.GetByteCount(text);
-        var calls = 0;
-        Assert.Equal(expected, AwkRegexConstruction.Utf8ByteCount(text, () => calls++));
-        Assert.True(calls >= 7);
-        AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(text, expected, 0, () => { });
-        var error = Assert.Throws<AwkRuntimeException>(() =>
-            AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(text, expected - 1, 0, () => { }));
-        Assert.Equal(AwkDiagnosticId.RuntimeResourceLimit, error.Id);
-        Assert.Equal("awk: regular expression pattern limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-    }
-
-    [Theory]
-    [InlineData("a(b)", 1)]
-    [InlineData("[()]\\(a\\)", 0)]
-    [InlineData("(?:a)(b)", 2)]
-    public void GroupBreadthAdmissionRemainsTheExistingConstructCount(string tail, int groups)
-    {
-        var text = new string('a', AwkRegexConstruction.ChunkCharacters - 1) + tail;
-        AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(text, long.MaxValue, groups, () => { });
-        Assert.Equal(1024L + 4L * Encoding.UTF8.GetByteCount(text) + 64L * groups,
-            AwkRegexResourceFacts.EstimateCacheBytes(text, () => { }));
-        if (groups > 0)
-        {
-            var error = Assert.Throws<AwkRuntimeException>(() =>
-                AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(text, long.MaxValue, groups - 1, () => { }));
-            Assert.Equal(AwkDiagnosticId.RuntimeResourceLimit, error.Id);
-            Assert.Equal("awk: regular expression group limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         }
     }
 
@@ -260,34 +203,10 @@ public sealed class AwkRegexPreparationCancellationTests
         armed = true;
         switch (regex.Backend)
         {
-            case AwkDotNetRegexBackend dotnet: Assert.Matches(dotnet.Value, "a"); break;
+            case AwkDotNetRegexBackend { Value: { } value }: Assert.Matches(value, "a"); break;
             case AwkProvidedRegexBackend provided: Assert.Equal(["0"], provided.GroupNames); break;
             default: throw new InvalidOperationException("Unknown backend.");
         }
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void GroupCountingCanBeCanceledAfterByteMeasurement(bool cacheWeight)
-    {
-        var text = string.Concat(Enumerable.Repeat("(a)", 8192));
-        var measured = 0;
-        _ = AwkRegexConstruction.Utf8ByteCount(text, () => measured++);
-        using var cancellation = new CancellationTokenSource();
-        var checks = 0;
-        void Checkpoint()
-        {
-            if (++checks == measured + 3) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }
-        var error = Assert.Throws<OperationCanceledException>(() =>
-        {
-            if (cacheWeight) _ = AwkRegexResourceFacts.EstimateCacheBytes(text, Checkpoint);
-            else AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(text, long.MaxValue, 8192, Checkpoint);
-        });
-        Assert.Equal(cancellation.Token, error.CancellationToken);
-        AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(text, long.MaxValue, 8192, () => { });
     }
 
     [Theory]

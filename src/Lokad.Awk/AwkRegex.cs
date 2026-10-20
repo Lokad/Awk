@@ -10,7 +10,7 @@ internal enum AwkRegexCaseSensitivity
     IgnoreCase
 }
 
-internal sealed class AwkRegex
+internal sealed class AwkRegex : IDisposable
 {
     private readonly bool _hasFixedCaseSensitivity;
 
@@ -28,9 +28,6 @@ internal sealed class AwkRegex
         PatternHashCode = pattern.GetHashCode();
         checkpoint?.Invoke();
     }
-
-    public static readonly TimeSpan MatchTimeout =
-        TimeSpan.FromSeconds(AwkRuntimeLimits.DefaultRegexMatchTimeoutSeconds);
 
     public string Pattern { get; }
     internal int PatternHashCode { get; }
@@ -62,13 +59,21 @@ internal sealed class AwkRegex
         string translatedPattern,
         AwkRegexCaseSensitivity caseSensitivity,
         bool hasFixedCaseSensitivity = false,
-        AwkRegexSelection? selection = null, string? erePattern = null, Action? checkpoint = null)
+        AwkRegexSelection? selection = null, string? erePattern = null, Action? checkpoint = null,
+        IMemoryBudget? memoryBudget = null)
     {
         checkpoint?.Invoke();
-        var compiled = new Regex(translatedPattern, ResolveOptions(caseSensitivity), MatchTimeout);
-        checkpoint?.Invoke();
-        return new AwkRegex(translatedPattern, AwkRegexBackend.DotNet(caseSensitivity, compiled),
-            hasFixedCaseSensitivity, selection, erePattern, checkpoint);
+        var compiled = AwkDotNetRegexPattern.Compile(translatedPattern, ResolveOptions(caseSensitivity), memoryBudget, checkpoint);
+        try
+        {
+            return new AwkRegex(translatedPattern, AwkRegexBackend.DotNet(caseSensitivity, compiled),
+                hasFixedCaseSensitivity, selection, erePattern, checkpoint);
+        }
+        catch
+        {
+            compiled.Dispose();
+            throw;
+        }
     }
 
     internal static AwkRegex CreateProvided(
@@ -81,6 +86,11 @@ internal sealed class AwkRegex
         checkpoint?.Invoke();
         return new AwkRegex(translatedPattern, new AwkProvidedRegexBackend(caseSensitivity, groupNames.ToArray()),
             hasFixedCaseSensitivity, selection, erePattern, checkpoint);
+    }
+
+    public void Dispose()
+    {
+        if (Backend is IDisposable owned) owned.Dispose();
     }
 
     internal static bool RequiresDotNetEngine(string translatedPattern, Action? checkpoint = null) =>
@@ -447,19 +457,25 @@ internal abstract record AwkRegexBackend(AwkRegexCaseSensitivity SeedCaseSensiti
     public abstract IReadOnlyList<string> GroupNames { get; }
 }
 
-internal sealed record AwkDotNetRegexBackend : AwkRegexBackend
+internal sealed record AwkDotNetRegexBackend : AwkRegexBackend, IDisposable
 {
     public AwkDotNetRegexBackend(AwkRegexCaseSensitivity seedCaseSensitivity, Regex value)
         : base(seedCaseSensitivity)
     {
         Value = value;
+        GroupNames = value.GetGroupNames();
     }
 
-    public Regex Value { get; }
+    public Regex? Value { get; private set; }
 
-    public override int GroupCount => Value.GetGroupNumbers().Length;
+    public override int GroupCount => GroupNames.Count;
 
-    public override IReadOnlyList<string> GroupNames => Value.GetGroupNames();
+    public override IReadOnlyList<string> GroupNames { get; }
+    public void Dispose()
+    {
+        if (Value is { } value) AwkDotNetRegexPattern.Release(value);
+        Value = null;
+    }
 }
 
 internal sealed record AwkProvidedRegexBackend : AwkRegexBackend

@@ -10,6 +10,8 @@ internal sealed class AwkFrontendMemory(IMemoryBudget? budget) : IDisposable
 
     public static AwkFrontendMemory Disabled { get; } = new(null);
 
+    internal IMemoryBudget? Budget => budget;
+
     public void AdmitSourceUnits(int count) => AddSourceEstimate(count, 64);
 
     // UTF-16 builders, their growth overlap/final strings and source mapping buffers.

@@ -312,7 +312,7 @@ internal sealed class AwkLongestRegex
     public Regex Regex { get; }
     public int[] Groups { get; }
 
-    public static AwkLongestRegex Create(AwkRegex source, AwkRegexCaseSensitivity caseSensitivity, Action? checkpoint = null)
+    public static AwkLongestRegex Create(AwkRegex source, AwkRegexCaseSensitivity caseSensitivity, Action? checkpoint = null, IMemoryBudget? memoryBudget = null)
     {
         checkpoint?.Invoke();
         var names = source.Backend.GroupNames;
@@ -332,16 +332,24 @@ internal sealed class AwkLongestRegex
             wholeName + ">" + AwkRegexScalarPattern.AnyScalar + length + @")(?<=\G" + prefix + "(?:" +
             stripped + ")))(?:" + source.Pattern + @")(?<=\G" + prefix + whole + ")";
         checkpoint?.Invoke();
-        var regex = new Regex(pattern, AwkRegex.ResolveOptions(caseSensitivity), AwkRegex.MatchTimeout);
-        checkpoint?.Invoke();
-        var groups = new int[names.Count];
-        for (var index = 0; index < groups.Length; index++)
+        var regex = AwkDotNetRegexPattern.Compile(pattern, AwkRegex.ResolveOptions(caseSensitivity), memoryBudget, checkpoint);
+        try
         {
-            if ((index & 63) == 0) checkpoint?.Invoke();
-            groups[index] = regex.GroupNumberFromName(index == 0 ? wholeName : names[index]);
+            checkpoint?.Invoke();
+            var groups = new int[names.Count];
+            for (var index = 0; index < groups.Length; index++)
+            {
+                if ((index & 63) == 0) checkpoint?.Invoke();
+                groups[index] = regex.GroupNumberFromName(index == 0 ? wholeName : names[index]);
+            }
+            checkpoint?.Invoke();
+            return new AwkLongestRegex(regex, groups);
         }
-        checkpoint?.Invoke();
-        return new AwkLongestRegex(regex, groups);
+        catch
+        {
+            regex.Dispose();
+            throw;
+        }
     }
 
     private static string UniqueName(IReadOnlyList<string> names, string candidate, Action? checkpoint)

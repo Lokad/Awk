@@ -47,7 +47,7 @@ public sealed class AwkFieldModeTests
         var state = memoryForState.State;
         var oldValue = state.ResolveVariableValue(AwkVariableName.FromText(name));
         before = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = memoryForState.Budget.Limit - before - growth + 1;
+        var pressure = memoryForState.Budget.Limit - memoryForState.Budget.Reserved - growth + 1;
         state.MemoryAccounting.Reserve(pressure);
         var error = Assert.Throws<AwkRuntimeException>(() => Assign(state, name, value, throughSymbolTable));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));

@@ -14,7 +14,6 @@ internal sealed record AwkRuntimeLimits
     public const int DefaultInputReadBatchLineCount = 128;
     public const int DefaultUtf8BuilderInitialCapacity = 256;
     public const int DefaultRegexCacheSize = 128;
-    public const int DefaultRegexMatchTimeoutSeconds = 2;
 
     private AwkRuntimeLimits()
     {
@@ -24,11 +23,6 @@ internal sealed record AwkRuntimeLimits
 
     public int MaxSyntaxNestingDepth { get; private init; } = DefaultMaxSyntaxNestingDepth;
 
-    public long MaxRegexPatternBytes { get; private init; } = 8L << 20;
-
-    public int MaxRegexGroups { get; private init; } = 10_000;
-
-    public long MaxRegexCacheBytes { get; private init; } = 64L << 20;
     public int MaxOutputFiles { get; private init; } = DefaultMaxOutputFiles;
 
     public int MaxInputFiles { get; private init; } = DefaultMaxInputFiles;
@@ -44,9 +38,6 @@ internal sealed record AwkRuntimeLimits
         {
             MaxFunctionCallDepth = 32,
             MaxSyntaxNestingDepth = 64,
-            MaxRegexPatternBytes = 64L << 10,
-            MaxRegexGroups = 256,
-            MaxRegexCacheBytes = 8L << 20,
             MaxOutputFiles = 64,
             MaxInputFiles = 64,
             MaxPipes = 8,
@@ -64,15 +55,6 @@ internal sealed record AwkRuntimeLimits
 
     public AwkRuntimeLimits WithMaxSyntaxNestingDepth(int value) =>
         this with { MaxSyntaxNestingDepth = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxRegexPatternBytes(long value) =>
-        this with { MaxRegexPatternBytes = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxRegexGroups(int value) =>
-        this with { MaxRegexGroups = RequirePositive(value) };
-
-    public AwkRuntimeLimits WithMaxRegexCacheBytes(long value) =>
-        this with { MaxRegexCacheBytes = RequirePositive(value) };
 
     public AwkRuntimeLimits WithMaxOutputFiles(int value) =>
         this with { MaxOutputFiles = RequirePositive(value) };
@@ -92,9 +74,4 @@ internal sealed record AwkRuntimeLimits
         return value;
     }
 
-    internal static long RequirePositive(long value)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
-        return value;
-    }
 }

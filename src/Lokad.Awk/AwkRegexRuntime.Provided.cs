@@ -4,42 +4,31 @@ internal sealed partial class AwkRegexRuntime
 {
     private sealed record ProvidedCompilation(IAwkCompiledRegex? Pattern);
 
-    private readonly struct ProvidedLease(ProvidedCompilation compilation, bool owns) : IDisposable
-    {
-        public IAwkCompiledRegex? Pattern => compilation.Pattern;
-        public void Dispose()
-        {
-            if (owns) compilation.Pattern?.Dispose();
-        }
-    }
-
-    private ProvidedLease ResolveProvidedRegex(string pattern, AwkRegexCaseSensitivity sensitivity,
+    private IAwkCompiledRegex? ResolveProvidedRegex(string pattern, AwkRegexCaseSensitivity sensitivity,
         bool countCompilation = true)
     {
         var key = new AwkRegexCacheKey(pattern, sensitivity, AwkRegexCacheKind.TranslatedPattern);
-        if (_providedRegexCache.TryGetValue(key, out var cached)) return new(cached, false);
-        if (_providedEngine is not { } engine) return new(new(null), false);
-        ThrowIfPatternExceedsLimits(pattern);
+        if (_providedRegexCache.TryGetValue(key, out var cached)) return cached.Pattern;
+        if (_providedEngine is not { } engine) return null;
+
         if (countCompilation) _resources.RecordRegexCompilation();
         IAwkCompiledRegex? compiled = null;
         try
         {
             _throwIfCancellationRequested();
             var supported = engine.TryCompile(pattern, sensitivity == AwkRegexCaseSensitivity.IgnoreCase,
-                _providedMemoryBudget, _cancellationToken, out compiled);
+                _regexMemoryBudget, _cancellationToken, out compiled);
             if (supported)
             {
-                if (compiled is null || compiled.GroupCount < 1 || compiled.GroupNames.Count != compiled.GroupCount ||
-                    compiled.GroupCount - 1 > _resources.Limits.MaxRegexGroups)
+                if (compiled is null || compiled.GroupCount < 1 || compiled.GroupNames.Count != compiled.GroupCount)
                     throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
             }
             else if (compiled is not null)
                 throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
             _throwIfCancellationRequested();
             var entry = new ProvidedCompilation(compiled);
-            var retained = _providedRegexCache.Set(key, entry,
-                AwkRegexResourceFacts.EstimateCacheBytes(pattern, _throwIfCancellationRequested));
-            return new(entry, !retained);
+            _providedRegexCache.Set(key, entry);
+            return compiled;
         }
         catch (AwkRegexAdmissionException)
         {
@@ -62,8 +51,8 @@ internal sealed partial class AwkRegexRuntime
     {
         try
         {
-            using var lease = ResolveProvidedRegex(regex.Pattern, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
-            if (lease.Pattern is not { } compiled)
+            var compiled = ResolveProvidedRegex(regex.Pattern, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
+            if (compiled is null)
                 return MatchSpan(regex, input, offset, CaptureDotNetInputContext(input));
             _resources.RecordRegexMatch();
             var bytes = input.AsSpan(_throwIfCancellationRequested);
@@ -85,8 +74,8 @@ internal sealed partial class AwkRegexRuntime
     {
         try
         {
-            using var lease = ResolveProvidedRegex(regex.Pattern, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
-            if (lease.Pattern is not { } compiled)
+            var compiled = ResolveProvidedRegex(regex.Pattern, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
+            if (compiled is null)
                 return MatchValue(regex, input, governor, capturePlan, offset,
                     CaptureDotNetInputContext(input), out matchSpan);
             var count = capturePlan.SelectGroupCount(compiled.GroupCount);
@@ -114,5 +103,12 @@ internal sealed partial class AwkRegexRuntime
         }
     }
 
-    public void Dispose() => _providedRegexCache.Clear();
+    public void Dispose()
+    {
+        _regexCache.Clear();
+        _dotNetRegexCache.Clear();
+        _providedRegexCache.Clear();
+        _longestRegexCache.Clear();
+        _posixRegexCache.Clear();
+    }
 }

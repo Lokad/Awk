@@ -57,8 +57,8 @@ result per submitted command.
 
 `AwkExecutionPolicy.CreateRestricted()` disables script-created file redirections and command
 pipes, `@include`, and changed `ARGV` input paths; hides the invocation environment and host-error
-details; pins time and local timezone to the Unix epoch and UTC; and applies tighter stack,
-regex-construction and open-resource bounds. Storage admission requires a supplied shared budget.
+details; pins time and local timezone to the Unix epoch and UTC; and applies tighter stack
+and open-resource bounds. Storage admission requires a supplied shared budget.
 `CreateDefault()` preserves the broader compatibility surface. The `--sandbox` command-line option
 independently disables file and command redirections; it does not replace host-side path and
 descriptor policy.

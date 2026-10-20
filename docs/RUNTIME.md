@@ -12,7 +12,7 @@ APIs; [migration notes](../CHANGELOG.md#unreleased) describe their removal.
 
 `AwkExecutionPolicy.CreateRestricted()` disables script-created redirections, command pipes,
 `@include` and changed `ARGV` input paths; hides invocation environment and host-error details;
-fixes time to Unix epoch/UTC; and tightens stack, regex-construction and open-resource bounds.
+fixes time to Unix epoch/UTC; and tightens stack and open-resource bounds.
 Explicit invocation inputs remain available. Supply shared admission and caller cancellation
 for resource control; the preset supplies neither an aggregate memory allowance nor a deadline.
 
@@ -111,13 +111,22 @@ The [engine contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs) defines these o
   Poll during construction, search and result shaping. Retain no input/capture spans or
   operation tokens; there is no match-timeout parameter or adapter-owned deadline.
 
-The application owns the engine. Execution-local bounded caches own compiled handles and
-dispose them on eviction or cleanup; disposal is idempotent and non-throwing. Any retained
-storage uses the borrowed budget under the same admission and actual-user lifetime rules
-as other Awk owners. Awk does not transfer ownership of that budget to the engine.
+The application owns the engine. Providers admit and fund their own construction, retained
+handles and matching workspace through the borrowed budget; engine-specific bounds belong
+there. Execution-local caches retain at most 128 entries per kind and dispose handles on
+eviction or cleanup. Disposal is idempotent and non-throwing. Awk owns translation, semantic
+selection and published capture/text storage under its ordinary admission rules. It neither
+predicts a supplied engine's footprint nor transfers ownership of the budget.
+
+The default .NET provider uses coarse construction/storage admission and retains its fixed
+two-second match protection because .NET matching cannot poll the token. Literal syntax
+validation uses the same provider and releases its temporary handle. These estimates are
+not a heap cap. Core has no pattern-byte, group-count or regex-cache byte quota.
 
 The repository's internal, non-packable `Lokad.Awk.Utf8Regex` adapter pins producer **0.2.0**.
 It adds no input or capture-text copies; producer internals and compatibility routes can allocate.
+Its handle retains shared admission until disposal; match scratch is admitted and refunded
+within each synchronous call. Refusal remains fatal and never requests fallback.
 The producer has no token-aware APIs. The adapter disables its match clock and checks cancellation
 before/after producer calls and during capture copying; a long producer call remains indivisible.
 These checks do not establish in-flight producer cancellation. Future cooperative producer adoption
@@ -130,10 +139,8 @@ The [benchmark baseline](BENCHMARKS.md) uses the default .NET backend.
 
 ## Remaining bounds
 
-Bounds cover function/syntax/include depth, open input/output files and pipes, regex-cache retention,
-disclosed host-error length and checked allocation representability. Pattern-byte/group guards
-remain pending default-backend construction admission and stack qualification; .NET construction
-is indivisible and its internal footprint is only coarsely covered. These are not work quotas.
+Bounds cover function/syntax/include depth, open input/output files and pipes, fixed cache retention,
+disclosed host-error length and checked allocation representability. These are not work quotas.
 There are no fuel, host-call, record-count, regex-work or sorting-work quotas.
 
 [Compatibility](COMPATIBILITY.md) describes qualified language support and known differences.

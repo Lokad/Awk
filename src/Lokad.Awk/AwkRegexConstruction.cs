@@ -231,25 +231,4 @@ internal static class AwkRegexConstruction
             position += length;
         }
     }
-
-    public static int Utf8ByteCount(string text, Action? checkpoint)
-    {
-        if (checkpoint is null)
-            return Encoding.UTF8.GetByteCount(text);
-        var total = 0;
-        for (var position = 0; position < text.Length;)
-        {
-            checkpoint();
-            var length = Math.Min(ChunkCharacters, text.Length - position);
-            // Keep pairs together, including when the UTF-16 input is internally malformed.
-            if (position + length < text.Length && char.IsHighSurrogate(text[position + length - 1]) &&
-                char.IsLowSurrogate(text[position + length]))
-                length--;
-            total = AwkRuntimeMemory.CheckedAdd(total, Encoding.UTF8.GetByteCount(text.AsSpan(position, length)));
-            checkpoint();
-            position += length;
-        }
-        checkpoint();
-        return total;
-    }
 }

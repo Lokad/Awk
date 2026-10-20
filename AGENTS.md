@@ -29,6 +29,9 @@ or environment dependencies.
   byte-native and cross to `string` only at documented compatibility boundaries.
 - Keep unsupported host capabilities explicit. Host failures must become awk-shaped diagnostics,
   not leaked CLR exception text.
+- Regex providers own engine allocation admission and engine-specific protection. Keep the
+  existing budget/token contract; do not reintroduce core regex quotas or parallel engine selectors.
+  Awk still owns translation, match selection, capture publication and their ordinary storage.
 - Resource-limit failures must preflight before observable mutation: arrays, fields, records,
   output and capture arrays should not partially mutate on failure.
 - Do not add package dependencies casually. Package references are allowlisted in

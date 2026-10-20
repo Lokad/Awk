@@ -332,6 +332,7 @@ public sealed class AwkReplacementCaptureCancellationTests
             using var match = runtime.MatchValue(regex, AwkText.FromString("a"), governor, AwkRegexCapturePlan.All);
         });
         Assert.Equal(1, counters.RegexMatches);
+        runtime.Dispose();
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
     }

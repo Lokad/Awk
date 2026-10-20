@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Removed `MaxRegexPatternBytes`, `MaxRegexGroups`, `MaxRegexCacheBytes` and their setters.
+  Regex providers own admission for their compiled storage and matching workspace, using
+  the supplied budget. Core retains fixed bounded caches, AWK translation/selection and
+  ordinary capture/text admission. The default .NET provider retains its two-second match
+  protection; the internal Utf8Regex adapter adds no clock and remains pinned to 0.2.0.
+  Eviction/cleanup releases handles; regex values surviving eviction can recompile on use.
+
 - Removed the unused `AwkExecutionPolicy.Unlimited` sentinel. Memory admission uses the
   supplied `IMemoryBudget`; omitting it leaves no private aggregate memory cap. Read-byte
   observations now share one path after removal of cumulative input quotas.

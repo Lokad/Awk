@@ -110,6 +110,10 @@ dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.
 ```
 
 The [Linux wrapper](../benchmarks/run-reference-linux.sh) pins the toolchain/reference.
+Invocation and allocation benchmarks share `ReferenceWorkloads` and one in-memory host.
+Interpreter/frontend isolation uses that catalog too; the counter report retains its small,
+dedicated calibration cases. Its memory peak covers Awk-owned storage; the host governor
+also observes provider-owned admission.
 Existing `--governed-profile` cases measure shared-budget overhead with a 512 MiB thread-safe
 test budget; host budgets can cost differently. Keep transfers/builds outside measurement
 windows. Preserve the full correctness suite and confirm promising changes once in both source orders.

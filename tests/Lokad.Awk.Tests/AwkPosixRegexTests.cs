@@ -59,6 +59,8 @@ public sealed class AwkPosixRegexTests
             governor, () => compilations++, static () => { }, out var program));
         Assert.Equal(2049, program.GroupCount);
         Assert.Equal(1, compilations);
+        Assert.True(governor.CurrentCommittedBytes > 0);
+        program.Dispose();
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }
@@ -129,6 +131,7 @@ public sealed class AwkPosixRegexTests
         Assert.Throws<OperationCanceledException>(() => runtime.MatchSpan(regex, AwkText.FromString(new string('a', 100000))));
         Assert.Equal(1, counters.RegexMatches);
         Assert.Equal(0, counters.RegexGroupsMaterialized);
+        runtime.Dispose();
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
     }

@@ -77,7 +77,7 @@ public sealed class AwkRangeParagraphTests
         var record = AwkText.FromSourceLiteralString("a\nbéx");
         state.SetCurrentRecord(record);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = memoryForState.Budget.Limit - before;
+        var pressure = memoryForState.Budget.Limit - memoryForState.Budget.Reserved;
         state.MemoryAccounting.Reserve(pressure);
 
         var error = Assert.Throws<AwkRuntimeException>(() => state.FieldCount);
@@ -113,7 +113,7 @@ public sealed class AwkRangeParagraphTests
             descriptorReader.CreateLineReader(AwkFileDescriptor.StdIn));
         _ = await cursor.ReadAsync();
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = memoryForState.Budget.Limit - before - 2;
+        var pressure = memoryForState.Budget.Limit - memoryForState.Budget.Reserved - 2;
         state.MemoryAccounting.Reserve(pressure);
 
         var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await cursor.ReadAsync());

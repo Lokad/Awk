@@ -88,9 +88,7 @@ internal static class AwkFrontendDiagnosticPolicy
                     AddDiagnostic(new AwkDiagnostic(token.Span, message, AwkDiagnosticId.WarningRegexEscape)), checkpoint);
             if (!AwkRegexSyntaxValidator.IsValidLiteral(
                 token,
-                budget.MaxRegexPatternBytes,
-                budget.MaxRegexGroups,
-                compatibilityMode, checkpoint))
+                compatibilityMode, checkpoint, budget.Memory.Budget))
             {
                 AddDiagnostic(new AwkDiagnostic(
                     token.Span,
@@ -205,14 +203,12 @@ internal static class AwkFrontendDiagnosticPolicy
 internal static class AwkRegexSyntaxValidator
 {
     public static bool IsValidLiteral(AwkToken token)
-        => IsValidLiteral(token, long.MaxValue, int.MaxValue);
+        => IsValidLiteral(token, AwkCompatibilityMode.GnuDefault);
 
     public static bool IsValidLiteral(
         AwkToken token,
-        long maxPatternBytes,
-        int maxGroups,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null)
+        Action? checkpoint = null, IMemoryBudget? memoryBudget = null)
     {
         checkpoint?.Invoke();
         var text = token.Text;
@@ -226,32 +222,25 @@ internal static class AwkRegexSyntaxValidator
             return false;
         }
 
-        return IsValidPattern(pattern, maxPatternBytes, maxGroups, compatibilityMode, checkpoint);
+        return IsValidPattern(pattern, compatibilityMode, checkpoint, memoryBudget);
     }
 
     public static bool IsValidPattern(string pattern)
-        => IsValidPattern(pattern, long.MaxValue, int.MaxValue);
+        => IsValidPattern(pattern, AwkCompatibilityMode.GnuDefault);
 
     private static bool IsValidPattern(
         string pattern,
-        long maxPatternBytes,
-        int maxGroups,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null)
+        Action? checkpoint = null, IMemoryBudget? memoryBudget = null)
     {
         checkpoint?.Invoke();
         try
         {
             checkpoint?.Invoke();
-            AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(pattern, maxPatternBytes, maxGroups, checkpoint);
             var translated = AwkRegexScalarPattern.Translate(
                 AwkRegex.TranslatePattern(new AwkRegexPattern(pattern), compatibilityMode, checkpoint), checkpoint);
-            AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(translated, maxPatternBytes, maxGroups, checkpoint);
             checkpoint?.Invoke();
-            _ = new Regex(
-                translated,
-                RegexOptions.CultureInvariant,
-                AwkRegex.MatchTimeout);
+            using var compiled = AwkDotNetRegexPattern.Compile(translated, RegexOptions.CultureInvariant, memoryBudget, checkpoint);
             checkpoint?.Invoke();
             return true;
         }

@@ -32,7 +32,7 @@ using System.Text.RegularExpressions;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkPosixRegex
+internal sealed class AwkPosixRegex : IDisposable
 {
     private enum Kind { Literal, Dot, Class, Assertion, Empty, Sequence, Alternate, Group, Repeat }
     private enum Op { Literal, Dot, Class, Assertion, Jump, Fork, Join, Open, Close, Loop, Next, Skip, SkipEnd, Accept }
@@ -194,11 +194,13 @@ internal sealed class AwkPosixRegex
     private readonly int _maximumDepth;
 
     internal int GroupCount => _groups;
-    internal long CacheBytes { get; }
+    private IMemoryScope? _providerStorage;
+    private AwkMemoryLease? _nodeStorage;
 
     private sealed class CompilationContext(AwkMemoryAccounting governor,
-        AwkMemoryLease results, Action work, Action prepare)
+        AwkMemoryLease results, Action work, Action prepare, IMemoryBudget? providerBudget)
     {
+        public IMemoryBudget? ProviderBudget { get; } = providerBudget;
         public AwkMemoryAccounting Governor { get; } = governor;
         public AwkMemoryLease Results { get; } = results;
         public Action Work { get; } = work;
@@ -217,18 +219,22 @@ internal sealed class AwkPosixRegex
         }
         Add(Op.Accept, 0);
         _maximumDepth = _nodes.Max(node => node.Depth);
-        var predicateBytes = 0L;
-        foreach (var expression in _predicates.Keys)
-            predicateBytes = AwkRuntimeMemory.CheckedAdd(predicateBytes,
-                AwkRegexResourceFacts.EstimateCacheBytes(expression, context.Prepare));
-        CacheBytes = AwkRuntimeMemory.CheckedAdd(
-            AwkRegexResourceFacts.EstimateCacheBytes(pattern, context.Prepare),
-            AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedMultiply(_nodes.Count, 224), predicateBytes));
+
+    }
+
+    public void Dispose()
+    {
+        _predicates.Clear();
+        _nodes.Clear();
+        _nodeStorage?.Dispose();
+        _nodeStorage = null;
+        _providerStorage?.Dispose();
+        _providerStorage = null;
     }
 
     internal static bool TryCreate(string pattern, AwkRegexCaseSensitivity sensitivity,
         AwkMemoryAccounting governor, Action recordCompilation, Action checkCancellation,
-        [NotNullWhen(true)] out AwkPosixRegex? result, AwkMemoryLease? resultLease = null)
+        [NotNullWhen(true)] out AwkPosixRegex? result, AwkMemoryLease? resultLease = null, IMemoryBudget? memoryBudget = null)
     {
         result = null;
         if (!IsEligible(pattern, checkCancellation)) return false;
@@ -252,12 +258,23 @@ internal sealed class AwkPosixRegex
         recordCompilation();
         var compilationBytes = AwkRuntimeMemory.CheckedAdd(256, AwkRuntimeMemory.CheckedMultiply(nodes, 224));
         using var compilationMemory = governor.ReserveTransient(compilationBytes);
-        result = new(tree, parser.Groups, sensitivity == AwkRegexCaseSensitivity.IgnoreCase, pattern,
-            new(governor, retained, Checkpoint, checkCancellation));
-        checkCancellation();
-        parsingMemory.MoveTo(retained, parsingBytes);
-        compilationMemory.MoveTo(retained, compilationBytes);
-        return true;
+        var providerStorage = memoryBudget?.CreateScope();
+        try
+        {
+            result = new(tree, parser.Groups, sensitivity == AwkRegexCaseSensitivity.IgnoreCase, pattern,
+                new(governor, retained, Checkpoint, checkCancellation, providerStorage));
+            result._providerStorage = providerStorage;
+            result._nodeStorage = governor.CreateTransientLease();
+            compilationMemory.MoveTo(result._nodeStorage, compilationBytes);
+            checkCancellation();
+            return true;
+        }
+        catch
+        {
+            result?.Dispose();
+            providerStorage?.Dispose();
+            throw;
+        }
     }
 
     private static bool IsEligible(string pattern, Action checkpoint)
@@ -406,8 +423,9 @@ internal sealed class AwkPosixRegex
                     context.Prepare();
                     if (!_predicates.TryGetValue(expression, out var predicate))
                     {
-                        predicate = new Regex(expression, AwkRegex.ResolveOptions(_ignoreCase
-                            ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive), AwkRegex.MatchTimeout);
+                        predicate = AwkDotNetRegexPattern.Compile(expression, AwkRegex.ResolveOptions(_ignoreCase
+                            ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive),
+                            context.ProviderBudget, context.Prepare);
                         context.Prepare();
                         _predicates.Add(expression, predicate);
                         preparedText.MoveTo(context.Results, expressionBytes);

@@ -19,7 +19,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     private readonly AwkBoundedCache<AwkRegexCacheKey, Regex> _dotNetRegexCache;
     private readonly AwkBoundedCache<AwkRegexCacheKey, ProvidedCompilation> _providedRegexCache;
     private readonly IAwkRegexEngine? _providedEngine;
-    private readonly IMemoryBudget? _providedMemoryBudget;
+    private readonly IMemoryBudget? _regexMemoryBudget;
     private readonly AwkBoundedCache<AwkRegexCacheKey, AwkLongestRegex> _longestRegexCache;
     private readonly AwkBoundedCache<AwkRegexCacheKey, PosixCompilation> _posixRegexCache;
     private readonly AwkMemoryAccounting _memoryAccounting;
@@ -62,27 +62,17 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         _cancellationToken = cancellationToken;
         _counters = counters;
         _providedEngine = regexEngine;
-        _providedMemoryBudget = memoryBudget;
+        _regexMemoryBudget = memoryBudget;
         _resources = resources;
         _memoryAccounting = memoryAccounting ?? AwkMemoryAccounting.Disabled;
         _compatibilityMode = compatibilityMode;
         _unicodeWarnings = new AwkRegexUnicodeWarnings(_memoryAccounting, compatibilityMode,
             reportUnicodeWarning, throwIfCancellationRequested, regexEscapeWarnings);
-        var cachePartitionBytes = Math.Max(1, resources.Limits.MaxRegexCacheBytes / 5);
-        _regexCache = new AwkBoundedCache<AwkRegexCacheKey, AwkRegex>(
-            MaxCachedRegexes,
-            cachePartitionBytes);
-        _dotNetRegexCache = new AwkBoundedCache<AwkRegexCacheKey, Regex>(
-            MaxCachedRegexes,
-            cachePartitionBytes);
-        _providedRegexCache = new AwkBoundedCache<AwkRegexCacheKey, ProvidedCompilation>(
-            MaxCachedRegexes,
-            cachePartitionBytes, static entry => entry.Pattern?.Dispose());
-        _longestRegexCache = new AwkBoundedCache<AwkRegexCacheKey, AwkLongestRegex>(
-            MaxCachedRegexes,
-            cachePartitionBytes);
-        _posixRegexCache = new AwkBoundedCache<AwkRegexCacheKey, PosixCompilation>(
-            MaxCachedRegexes, cachePartitionBytes);
+        _regexCache = new(MaxCachedRegexes, static regex => regex.Dispose());
+        _dotNetRegexCache = new(MaxCachedRegexes, AwkDotNetRegexPattern.Release);
+        _providedRegexCache = new(MaxCachedRegexes, static entry => entry.Pattern?.Dispose());
+        _longestRegexCache = new(MaxCachedRegexes, static regex => AwkDotNetRegexPattern.Release(regex.Regex));
+        _posixRegexCache = new(MaxCachedRegexes, static entry => entry.Program?.Dispose());
     }
 
     public void ResetWarningSite(object site) => _unicodeWarnings.Reset(site);
@@ -99,7 +89,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         bool hasFixedCaseSensitivity)
     {
         _throwIfCancellationRequested();
-        ThrowIfPatternExceedsLimits(pattern.Text);
+
         _unicodeWarnings.Report(pattern, caseSensitivity);
         var kind = hasFixedCaseSensitivity ? AwkRegexCacheKind.FixedPattern : AwkRegexCacheKind.Pattern;
         var key = new AwkRegexCacheKey(pattern.Text, caseSensitivity, kind);
@@ -121,13 +111,13 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             AwkRegexPattern pattern,
             AwkRegexCaseSensitivity caseSensitivity, AwkMemoryLease translatedText)
         {
-            ThrowIfPatternExceedsLimits(pattern.Text);
+
             var ere = AwkRegex.TranslatePattern(pattern, _compatibilityMode, _throwIfCancellationRequested,
                 translatedText, _memoryAccounting);
             var selection = AwkRegexSelection.Analyze(ere, _throwIfCancellationRequested, _memoryAccounting);
             var translated = AwkRegexScalarPattern.Translate(ere, _throwIfCancellationRequested,
                 _memoryAccounting, translatedText);
-            ThrowIfPatternExceedsLimits(translated);
+
             return CreateRegex(translated, caseSensitivity, hasFixedCaseSensitivity, selection, ere);
         }
     }
@@ -151,11 +141,11 @@ internal sealed partial class AwkRegexRuntime : IDisposable
 
         try
         {
-            ThrowIfPatternExceedsLimits(literal.Text);
+
             using var translatedText = _memoryAccounting.CreateTransientLease();
             var escaped = AwkRegexConstruction.EscapeLiteral(literal.Text,
                 _throwIfCancellationRequested, _memoryAccounting, translatedText);
-            ThrowIfPatternExceedsLimits(escaped);
+
             _resources.RecordRegexCompilation();
             return Cache(key, CreateRegex(escaped, caseSensitivity, hasFixedCaseSensitivity));
         }
@@ -194,8 +184,8 @@ internal sealed partial class AwkRegexRuntime : IDisposable
 
         try
         {
-            using var lease = ResolveProvidedRegex(regex.Pattern, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
-            if (lease.Pattern is not { } compiled) return IsMatch(regex, input, forceDotNet: true);
+            var compiled = ResolveProvidedRegex(regex.Pattern, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
+            if (compiled is null) return IsMatch(regex, input, forceDotNet: true);
             _resources.RecordRegexMatch();
             var result = compiled.IsMatch(input.AsSpan(_throwIfCancellationRequested), _cancellationToken);
             _throwIfCancellationRequested();
@@ -447,23 +437,18 @@ internal sealed partial class AwkRegexRuntime : IDisposable
 
     private AwkRegex Cache(AwkRegexCacheKey key, AwkRegex regex)
     {
-        var weight = AwkRuntimeMemory.CheckedAdd(
-            AwkRegexResourceFacts.EstimateCacheBytes(key.PatternText, _throwIfCancellationRequested),
-            AwkRegexResourceFacts.EstimateCacheBytes(regex.Pattern, _throwIfCancellationRequested));
-        if (!ReferenceEquals(regex.ErePattern, key.PatternText) && !ReferenceEquals(regex.ErePattern, regex.Pattern))
-            weight = AwkRuntimeMemory.CheckedAdd(weight,
-                AwkRegexResourceFacts.EstimateCacheBytes(regex.ErePattern, _throwIfCancellationRequested));
-        _throwIfCancellationRequested();
-        _regexCache.Set(key, regex, weight);
-        return regex;
+        try
+        {
+            _throwIfCancellationRequested();
+            _regexCache.Set(key, regex);
+            return regex;
+        }
+        catch
+        {
+            regex.Dispose();
+            throw;
+        }
     }
-
-    private void ThrowIfPatternExceedsLimits(string pattern) =>
-        AwkRegexResourceFacts.ThrowIfPatternExceedsLimits(
-            pattern,
-            _resources.Limits.MaxRegexPatternBytes,
-            _resources.Limits.MaxRegexGroups,
-            _throwIfCancellationRequested);
 
     private AwkRegex CreateRegex(
         string translatedPattern,
@@ -473,13 +458,13 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     {
         if (_providedEngine is not null && !AwkRegex.RequiresDotNetEngine(translatedPattern, _throwIfCancellationRequested))
         {
-            using var lease = ResolveProvidedRegex(translatedPattern, caseSensitivity, countCompilation: false);
-            if (lease.Pattern is { } compiled)
+            var compiled = ResolveProvidedRegex(translatedPattern, caseSensitivity, countCompilation: false);
+            if (compiled is not null)
                 return AwkRegex.CreateProvided(translatedPattern, caseSensitivity, compiled.GroupNames,
                     hasFixedCaseSensitivity, selection, erePattern, _throwIfCancellationRequested);
             _resources.RecordRegexCompilation();
         }
-        return AwkRegex.CreateDotNet(translatedPattern, caseSensitivity, hasFixedCaseSensitivity, selection, erePattern, _throwIfCancellationRequested);
+        return AwkRegex.CreateDotNet(translatedPattern, caseSensitivity, hasFixedCaseSensitivity, selection, erePattern, _throwIfCancellationRequested, _regexMemoryBudget);
     }
 
     private readonly record struct PosixCompilation(AwkPosixRegex? Program);
@@ -496,11 +481,18 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         }
         using var preparedText = governor.CreateTransientLease();
         var supported = AwkPosixRegex.TryCreate(regex.ErePattern, sensitivity, governor,
-            _resources.RecordRegexCompilation, _throwIfCancellationRequested, out program, preparedText);
-        var weight = program?.CacheBytes ?? AwkRegexResourceFacts.EstimateCacheBytes(regex.Pattern, _throwIfCancellationRequested);
-        _throwIfCancellationRequested();
-        _posixRegexCache.Set(key, new(program), weight);
-        return supported;
+            _resources.RecordRegexCompilation, _throwIfCancellationRequested, out program, preparedText, _regexMemoryBudget);
+        try
+        {
+            _throwIfCancellationRequested();
+            _posixRegexCache.Set(key, new(program));
+            return supported;
+        }
+        catch
+        {
+            program?.Dispose();
+            throw;
+        }
     }
 
     private AwkPosixMatch MatchPosix(AwkPosixRegex program, string input, int startAt,
@@ -525,30 +517,42 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             return cached;
 
         _resources.RecordRegexCompilation();
-        var compiled = AwkLongestRegex.Create(regex, caseSensitivity, _throwIfCancellationRequested);
-        var weight = AwkRuntimeMemory.CheckedAdd(
-            AwkRegexResourceFacts.EstimateCacheBytes(compiled.Regex.ToString(), _throwIfCancellationRequested),
-            AwkRuntimeMemory.CheckedMultiply(compiled.Groups.Length, sizeof(int)));
-        _throwIfCancellationRequested();
-        _longestRegexCache.Set(key, compiled, weight);
-        return compiled;
+        var compiled = AwkLongestRegex.Create(regex, caseSensitivity, _throwIfCancellationRequested, _regexMemoryBudget);
+        try
+        {
+            _throwIfCancellationRequested();
+            _longestRegexCache.Set(key, compiled);
+            return compiled;
+        }
+        catch
+        {
+            AwkDotNetRegexPattern.Release(compiled.Regex);
+            throw;
+        }
     }
 
     private Regex ResolveDotNetRegex(AwkRegex regex)
     {
         Regex CacheDotNet(AwkRegexCacheKey key, Regex compiledRegex)
         {
-            var weight = AwkRegexResourceFacts.EstimateCacheBytes(key.PatternText, _throwIfCancellationRequested);
-            _throwIfCancellationRequested();
-            _dotNetRegexCache.Set(key, compiledRegex, weight);
-            return compiledRegex;
+            try
+            {
+                _throwIfCancellationRequested();
+                _dotNetRegexCache.Set(key, compiledRegex);
+                return compiledRegex;
+            }
+            catch
+            {
+                AwkDotNetRegexPattern.Release(compiledRegex);
+                throw;
+            }
         }
 
         var caseSensitivity = regex.ResolveCaseSensitivity(_resolveCaseSensitivity);
         if (regex.Backend is AwkDotNetRegexBackend precompiled &&
-            precompiled.SeedCaseSensitivity == caseSensitivity)
+            precompiled.SeedCaseSensitivity == caseSensitivity && precompiled.Value is { } value)
         {
-            return precompiled.Value;
+            return value;
         }
 
         var key = new AwkRegexCacheKey(
@@ -558,14 +562,11 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         if (_dotNetRegexCache.TryGetValue(key, out var cached))
             return cached;
 
-        ThrowIfPatternExceedsLimits(regex.Pattern);
         _resources.RecordRegexCompilation();
         return CacheDotNet(
             key,
-            new Regex(
-                regex.Pattern,
-                AwkRegex.ResolveOptions(caseSensitivity),
-                AwkRegex.MatchTimeout));
+            AwkDotNetRegexPattern.Compile(regex.Pattern, AwkRegex.ResolveOptions(caseSensitivity),
+                _regexMemoryBudget, _throwIfCancellationRequested));
     }
 
     private void RecordDotNetTextRoute(AwkRegexExecutionPolicy policy)

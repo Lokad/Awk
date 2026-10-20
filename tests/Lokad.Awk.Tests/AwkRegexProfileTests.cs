@@ -27,40 +27,6 @@ public sealed class AwkRegexProfileTests
     }
 
     [Theory]
-    [InlineData(AwkCompatibilityMode.GnuDefault, false)]
-    [InlineData(AwkCompatibilityMode.Posix, false)]
-    [InlineData(AwkCompatibilityMode.Traditional, false)]
-    [InlineData(AwkCompatibilityMode.GnuDefault, true)]
-    [InlineData(AwkCompatibilityMode.Posix, true)]
-    [InlineData(AwkCompatibilityMode.Traditional, true)]
-    internal void TranslatedPatternLimitsPreflightCacheRetention(AwkCompatibilityMode mode, bool engine)
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault().WithMaxRegexPatternBytes(2);
-        var governor = AwkMemoryAccounting.Disabled;
-        var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), governor, mode, regexEngine: engine ? AwkUtf8RegexEngine.Instance : null);
-        var pattern = new AwkRegexPattern(@"\w");
-        if (mode == AwkCompatibilityMode.GnuDefault)
-        {
-            var failure = Assert.Throws<AwkRuntimeException>(() => runtime.Create(pattern));
-            Assert.Equal(AwkDiagnosticId.RuntimeResourceLimit, failure.Id);
-            Assert.Equal(0, governor.CurrentCommittedBytes);
-            Assert.Equal(0, governor.CurrentReservedBytes);
-            Assert.Throws<AwkRuntimeException>(() => runtime.Create(pattern));
-            Assert.Equal(2, counters.RegexCompiles);
-        }
-        else
-        {
-            var first = runtime.Create(pattern);
-            Assert.Same(first, runtime.Create(pattern));
-            Assert.Equal(1, counters.RegexCompiles);
-        }
-        Assert.Equal(0, counters.RegexMatches);
-        Assert.Equal(0, counters.StringDecodes);
-    }
-
-    [Theory]
     [InlineData("[W]")]
     [InlineData("[WW]")]
     [InlineData("[Ww]")]

@@ -5,7 +5,9 @@ namespace Lokad.Awk;
 /// <summary>Compiles Awk-translated patterns for synchronous matching of valid UTF-8.</summary>
 /// <remarks>The application owns the engine. Implementations must permit concurrent compilation.
 /// Awk owns each successful compiled pattern. Return false only for unsupported syntax;
-/// refused memory admission and cancellation must fail rather than request fallback.</remarks>
+/// refused memory admission and cancellation must fail rather than request fallback.
+/// The provider owns admission for its construction, retained handles and matching workspace;
+/// engine-specific bounds belong to the provider, not Awk's execution policy.</remarks>
 public interface IAwkRegexEngine
 {
     /// <summary>Compiles an already translated pattern, or reports unsupported syntax.</summary>

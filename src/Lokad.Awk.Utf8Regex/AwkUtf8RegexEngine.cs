@@ -6,8 +6,8 @@ namespace Lokad.Awk.Utf8Regex;
 
 /// <summary>Adapts Lokad.Utf8Regex to Awk's UTF-8 matching contract.</summary>
 /// <remarks>This adapter adds no input copies or capture-text allocations. Producer internals
-/// retain the same approximate accounting as the existing integration; no independent allowance
-/// or governor is created.</remarks>
+/// use coarse shared-budget admission owned by compiled handles and active matches;
+/// no independent allowance or governor is created.</remarks>
 public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
 {
     /// <summary>Gets the stateless shared engine. Compiled handles remain execution-owned.</summary>
@@ -23,19 +23,34 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
         var options = RegexOptions.CultureInvariant | (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
         // Pinned0.2.0 has no token-aware APIs. Keep boundary checks until a producer upgrade
         // is qualified; do not inherit its default timeout or create an independent clock.
-        var regex = new ProducerRegex(pattern, options, System.Text.RegularExpressions.Regex.InfiniteMatchTimeout);
-        cancellationToken.ThrowIfCancellationRequested();
-        compiledPattern = new CompiledPattern(regex);
-        return true;
+        IMemoryReservation? storage = null;
+        if (memoryBudget is not null && !memoryBudget.TryReserve(1_024L + pattern.Length * 64L, out storage))
+            throw new AwkRegexAdmissionException();
+        try
+        {
+            var regex = new ProducerRegex(pattern, options, System.Text.RegularExpressions.Regex.InfiniteMatchTimeout);
+            cancellationToken.ThrowIfCancellationRequested();
+            compiledPattern = new CompiledPattern(regex, memoryBudget, storage);
+            return true;
+        }
+        catch
+        {
+            storage?.Dispose();
+            throw;
+        }
     }
 
     private sealed class CompiledPattern : IAwkCompiledRegex
     {
         private ProducerRegex? _regex;
+        private readonly IMemoryBudget? _budget;
+        private IMemoryReservation? _storage;
 
-        public CompiledPattern(ProducerRegex regex)
+        public CompiledPattern(ProducerRegex regex, IMemoryBudget? budget, IMemoryReservation? storage)
         {
             _regex = regex;
+            _budget = budget;
+            _storage = storage;
             GroupNames = regex.GetGroupNames();
         }
 
@@ -48,7 +63,9 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
         public bool IsMatch(ReadOnlySpan<byte> input, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = Regex.Match(input).Success;
+            var regex = Regex;
+            using var scratch = ReserveMatch(input.Length, 0);
+            var result = regex.Match(input).Success;
             cancellationToken.ThrowIfCancellationRequested();
             return result;
         }
@@ -59,7 +76,9 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
             ArgumentOutOfRangeException.ThrowIfNegative(startInUtf16);
             ArgumentOutOfRangeException.ThrowIfGreaterThan(captures.Length, GroupCount);
             cancellationToken.ThrowIfCancellationRequested();
-            var match = Regex.MatchDetailedFromUtf16Offset(input, startInUtf16);
+            var regex = Regex;
+            using var scratch = ReserveMatch(input.Length, captures.Length);
+            var match = regex.MatchDetailedFromUtf16Offset(input, startInUtf16);
             if (!match.Success)
             {
                 captures.Clear();
@@ -80,6 +99,19 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
                 matchAligned ? match.LengthInBytes : 0, match.IndexInUtf16, match.LengthInUtf16, matchAligned);
         }
 
-        public void Dispose() => _regex = null;
+        private IMemoryReservation? ReserveMatch(int inputBytes, int captures)
+        {
+            if (_budget is null) return null;
+            if (!_budget.TryReserve(256L + inputBytes * 2L + captures * 32L, out var scratch))
+                throw new AwkRegexAdmissionException();
+            return scratch;
+        }
+
+        public void Dispose()
+        {
+            _regex = null;
+            _storage?.Dispose();
+            _storage = null;
+        }
     }
 }

@@ -99,7 +99,7 @@ public sealed class AwkRegexSelectionTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        using var memoryForGovernor = new CooperativeTestMemory(4096, counters);
+        using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
         var governor = memoryForGovernor.Accounting;
         var runtime = Runtime(engine, counters, limits, units);
         var regex = runtime.Create(new AwkRegexPattern("(😀|😀😀)"));
@@ -118,6 +118,7 @@ public sealed class AwkRegexSelectionTests
             Assert.Equal("😀😀", match.Groups[0].Value.AsString());
             Assert.True(governor.CurrentCommittedBytes > 0);
         }
+        runtime.Dispose();
         Assert.Equal(0, governor.CurrentReservedBytes);
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(2, counters.RegexGroupsMaterialized);
@@ -145,24 +146,10 @@ public sealed class AwkRegexSelectionTests
     }
 
     [Fact]
-    public void ZeroCacheBudgetDoesNotRetainSelectionCompilations()
-    {
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(true, counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxRegexCacheBytes(1));
-        var regex = runtime.Create(new AwkRegexPattern("a|aa"));
-        var input = AwkText.FromString("aa");
-
-        Assert.Equal(2, runtime.MatchSpan(regex, input).ByteLength);
-        Assert.Equal(2, runtime.MatchSpan(regex, input).ByteLength);
-        Assert.Equal(3, counters.RegexCompiles);
-    }
-
-    [Fact]
-    public void ImplementationGroupsDoNotConsumeTheUserGroupAllowance()
+    public void SelectionPreservesPublicCaptureGroupNumbers()
     {
         var runtime = Runtime(false, AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxRegexGroups(1).WithMaxRegexPatternBytes(6));
+            AwkRuntimeLimits.CreateDefault());
         var regex = runtime.Create(new AwkRegexPattern("(a|aa)"));
         using var match = runtime.MatchValue(regex, AwkText.FromString("aa"),
             AwkMemoryAccounting.Disabled, AwkRegexCapturePlan.All);
@@ -178,7 +165,7 @@ public sealed class AwkRegexSelectionTests
         var runtime = Runtime(true, counters, AwkRuntimeLimits.CreateDefault());
         var regex = runtime.Create(new AwkRegexPattern("(a+)+b|c"));
         var compiled = AwkLongestRegex.Create(regex, AwkRegexCaseSensitivity.CaseSensitive);
-        Assert.Equal(AwkRegex.MatchTimeout, compiled.Regex.MatchTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(2), compiled.Regex.MatchTimeout);
 
         Assert.False(runtime.MatchSpan(regex, AwkText.FromString(new string('a', 100_000))).Success);
         Assert.Equal(1, counters.RegexMatches);

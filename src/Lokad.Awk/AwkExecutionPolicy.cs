@@ -69,15 +69,6 @@ public sealed record AwkExecutionPolicy
     /// <summary>Gets the maximum frontend and expression-tree nesting depth.</summary>
     public int MaxSyntaxNestingDepth => Limits.MaxSyntaxNestingDepth;
 
-    /// <summary>Gets the maximum UTF-8 byte length of a source or translated regex pattern.</summary>
-    public long MaxRegexPatternBytes => Limits.MaxRegexPatternBytes;
-
-    /// <summary>Gets the maximum number of group constructs in one regex pattern.</summary>
-    public int MaxRegexGroups => Limits.MaxRegexGroups;
-
-    /// <summary>Gets the maximum estimated bytes retained across regex caches.</summary>
-    public long MaxRegexCacheBytes => Limits.MaxRegexCacheBytes;
-
     /// <summary>Gets the maximum concurrently open output redirections.</summary>
     public int MaxOutputFiles => Limits.MaxOutputFiles;
 
@@ -168,18 +159,6 @@ public sealed record AwkExecutionPolicy
     /// <summary>Returns a copy with the frontend nesting depth configured.</summary>
     public AwkExecutionPolicy WithMaxSyntaxNestingDepth(int value) =>
         this with { Limits = Limits.WithMaxSyntaxNestingDepth(value) };
-
-    /// <summary>Returns a copy with the regex pattern-byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxRegexPatternBytes(long value) =>
-        this with { Limits = Limits.WithMaxRegexPatternBytes(value) };
-
-    /// <summary>Returns a copy with the per-pattern regex group budget configured.</summary>
-    public AwkExecutionPolicy WithMaxRegexGroups(int value) =>
-        this with { Limits = Limits.WithMaxRegexGroups(value) };
-
-    /// <summary>Returns a copy with the retained regex-cache byte budget configured.</summary>
-    public AwkExecutionPolicy WithMaxRegexCacheBytes(long value) =>
-        this with { Limits = Limits.WithMaxRegexCacheBytes(value) };
 
     /// <summary>Returns a copy with the open output-file budget configured.</summary>
     public AwkExecutionPolicy WithMaxOutputFiles(int value) =>
