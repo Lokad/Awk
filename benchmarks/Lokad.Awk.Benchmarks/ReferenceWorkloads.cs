@@ -353,3 +353,16 @@ internal sealed class PreparedReferenceWorkload : IDisposable
             Directory.Delete(DirectoryPath, recursive: true);
     }
 }
+
+internal readonly record struct BenchmarkFile
+{
+    public BenchmarkFile(string path, string content)
+    {
+        Path = path;
+        ContentBytes = Encoding.UTF8.GetBytes(content);
+    }
+
+    public string Path { get; }
+
+    public byte[] ContentBytes { get; }
+}
