@@ -119,6 +119,29 @@ public sealed class AwkRecordCounterSlotTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
+    [Fact]
+    public void StandaloneTerminatorAdmissionRefusalPreservesCountersAndTerminator()
+    {
+        const long limit = 1 << 20;
+        using var memory = CreateState(AwkCompatibilityMode.GnuDefault, limit);
+        var state = memory.State;
+        state.RecordNumber = 4;
+        state.FileRecordNumber = 3;
+        state.SetRecordTerminator(AwkRecordTerminator.FromAsciiByte((byte)','));
+        Assert.True(memory.Budget.TryReserve(limit - memory.Budget.Reserved, out var otherConsumer));
+        using (otherConsumer)
+        {
+            var terminator = AwkRecordTerminator.FromText(AwkText.FromSourceLiteralString(new string('x', 8_192)));
+            var error = Assert.Throws<AwkRuntimeException>(() => state.AdvanceMainInputRecord(terminator));
+
+            Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+            Assert.Equal(4, state.RecordNumber);
+            Assert.Equal(3, state.FileRecordNumber);
+            Assert.Equal(",", state.ResolveSpecialVariableText(AwkSpecialVariableId.RecordTerminator).AsString());
+            Assert.Equal(limit, memory.Budget.Reserved);
+        }
+    }
+
     private static CooperativeTestMemory CreateState(AwkCompatibilityMode mode, long memory)
     {
 
