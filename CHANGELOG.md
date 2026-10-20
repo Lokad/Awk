@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Uncached input-field copies such as `$2=$1` reuse record slices when the assignment result
+  is discarded. Values become owned before escaping the record; mutation preflights and
+  cancellation remain in place.
+
 - Source numeric literals resolve once in the program's compatibility mode during lowering,
   avoiding repeated POSIX/traditional parsing. Numeric nodes retain one value; integer field
   preparation uses that resolved value. Preparation observes cancellation under the existing

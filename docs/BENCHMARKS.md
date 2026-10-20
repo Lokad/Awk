@@ -1,9 +1,10 @@
 # Benchmarks
 
-Comparison with GNU awk 5.2.1. Reference rows marked **\*** were measured **2026-10-20 UTC** at
-[`1c96b9d`](https://github.com/Lokad/Awk/commit/1c96b9daffa461d9923a53208f9c8c08f1671f77). Other reference rows retain
-their measurements from **2026-10-20 UTC** at
-[`229e4d2`](https://github.com/Lokad/Awk/commit/229e4d2ad3628eb2ed6b3c50020a329faea20daf).
+Comparison with GNU awk 5.2.1. Lokad measurements marked **†** were taken **2026-10-20 UTC** at
+[`5f217ae`](https://github.com/Lokad/Awk/commit/5f217aedda5ce6bd766db8c5c76145f9102fe7cd). Their GNU values retain
+the qualified measurements at [`1c96b9d`](https://github.com/Lokad/Awk/commit/1c96b9daffa461d9923a53208f9c8c08f1671f77),
+also 2026-10-20 UTC; those native values have not been rerun. Unmarked reference rows retain
+their measurements at [`229e4d2`](https://github.com/Lokad/Awk/commit/229e4d2ad3628eb2ed6b3c50020a329faea20daf), 2026-10-20 UTC.
 All reference rows use the interpreter, default .NET regex and default policy (UTC time zone), without
 a supplied shared memory budget. The internal Utf8Regex adapter is outside this baseline.
 Unmarked reference rows have not been rerun for newer source.
@@ -24,11 +25,11 @@ and do not imply full GNU conformance.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE capture arrays (GNU) | 28.00 | 37.216 | 8.118 | 4.58× | 16.02 |
 | Two-file membership / join | 77.83 | 7.427 | 2.799 | 2.65× | 3.03 |
-| Copy field / rebuild record* | 60.00 | 4.076 | 1.578 | 2.58× | 2.09 |
 | gsub and output | 56.00 | 5.344 | 2.111 | 2.53× | 3.72 |
 | Loop with two-argument calls and local temporary | 8.00 | 11.271 | 4.455 | 2.53× | 0.75 |
 | Numeric array sort (GNU) | 18.92 | 6.169 | 2.496 | 2.47× | 2.49 |
 | Text function with branches and local temporary | 62.00 | 4.438 | 1.947 | 2.28× | 2.32 |
+| Copy field / rebuild record† | 60.00 | 3.392 | 1.578 | 2.15× | 1.68 |
 | Branching function, two arguments | 8.00 | 8.833 | 4.333 | 2.04× | 0.76 |
 | Branching function, one argument | 8.00 | 8.214 | 4.031 | 2.04× | 0.76 |
 | Project three columns / output | 60.00 | 3.158 | 1.574 | 2.01× | 0.75 |
@@ -44,7 +45,7 @@ and do not imply full GNU conformance.
 | ERE field separator | 48.00 | 3.547 | 1.992 | 1.78× | 3.48 |
 | printf | 24.00 | 3.392 | 1.911 | 1.77× | 0.69 |
 | Keyed sum / sorted output (GNU) | 24.00 | 2.399 | 1.363 | 1.76× | 0.76 |
-| Project a column / output* | 60.00 | 2.340 | 1.329 | 1.76× | 0.74 |
+| Project a column / output† | 60.00 | 2.302 | 1.329 | 1.73× | 0.74 |
 | Nested user calls | 8.00 | 2.738 | 1.618 | 1.69× | 0.72 |
 | Alternate reads from two lookup arrays | 21.50 | 2.431 | 1.450 | 1.68× | 0.76 |
 | Mixed narrow-record processing | 60.00 | 3.671 | 2.209 | 1.66× | 0.80 |
@@ -60,7 +61,7 @@ and do not imply full GNU conformance.
 | Multicharacter record separator (GNU) | 52.00 | 1.107 | 1.489 | 0.74× | 0.61 |
 | Filter `$2` after a 4 KiB field | 1,025.50 | 0.663 | — | — | 2.14 |
 
-Rows marked * use the focused measurements at `1c96b9d`. Field rewriting runs
+Rows marked † use the Lokad revision above. Field rewriting runs
 `{$2=$1;print}`, including `$0` reconstruction with `OFS`; projection is its read-only control.
 
 Early wide filtering reads `$1` on every record and `$3` on one in eight. Single-array
@@ -74,8 +75,8 @@ returns, branches, local temporaries and nested calls.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Copy field / rebuild record* | 960.00 | 68.175 | 10.346 | 6.59× | 32.36 |
 | Keyed sum / sorted output (GNU) | 384.00 | 38.054 | 6.309 | 6.03× | 9.88 |
+| Copy field / rebuild record† | 960.00 | 54.556 | 10.346 | 5.27× | 25.86 |
 | Two-file membership / join | 1,386.30 | 118.965 | 29.837 | 3.99× | 41.38 |
 
 ## Managed policy controls
@@ -107,13 +108,17 @@ isolate evaluator cost or predict large-input parity. The driver bounds each inv
 
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
 BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Unmarked reference rows use
-three warmups; marked rows and policy controls use four. Timing and separate managed-allocation
-runs use five 500 ms iterations and one launch. Single-launch medians are observational baseline
+three warmups; marked rows and policy controls use four. Marked Lokad rows measure time and
+allocations together through the shared full-invocation fixture; other reference rows use separate
+runs. All use five 500 ms iterations and one launch. Single-launch medians are observational baseline
 estimates; small differences need bounded repeat confirmation.
 
 Fixture generation and preflight are outside timing. The marked rows pass source/binary/native
 identity and pre/post idle checks, with no extra authenticated SSH sessions. All three rewrite
-scales plus projection/medium pass exact output/digest, stderr and exit checks at the marked revision.
+scales, projection/medium and profile-wide/large pass exact output/digest, stderr and exit checks
+at the marked Lokad revision; eight field-copy golden cases also match GNU. The large rewrite and
+projection rows use the latest reverse-order confirmation; medium rewriting uses a single current
+absolute capture. No gain is inferred from that single capture.
 
 For the retained `229e4d2` snapshot, all 110 catalogue/control cases passed exact
 stdout/stderr, exit, output length and SHA-256 checks. Source/binary identities are stable.
