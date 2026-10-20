@@ -344,8 +344,7 @@ internal sealed class AwkRuntimeState : IDisposable
         _specialVariables.InitializeProcInfo();
     }
 
-    public void InitializeFunctions<TFunction>(IReadOnlyDictionary<AwkFunctionName, TFunction> functions)
-        where TFunction : IAwkUserFunction
+    public void InitializeFunctions(IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions)
     {
         IEnumerable<string> FunctionNames()
         {
@@ -365,7 +364,7 @@ internal sealed class AwkRuntimeState : IDisposable
             FunctionNames());
     }
 
-    public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out IAwkUserFunction? function) =>
+    public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out AwkUserFunction? function) =>
         _functions.TryGetUserFunction(name, out function);
 
     public void PushFunctionFrame(

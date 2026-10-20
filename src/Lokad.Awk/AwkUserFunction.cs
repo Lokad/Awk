@@ -6,26 +6,7 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
-internal interface IAwkUserFunction
-{
-    AwkFunctionName FunctionName { get; }
-
-    string Name { get; }
-
-    AwkFunctionLocalLayout LocalLayout { get; }
-
-    IReadOnlyList<AwkVariableName> Parameters { get; }
-
-    ValueTask<AwkValue> InvokeAsync(
-        IReadOnlyList<AwkExpression> arguments,
-        AwkEvaluationContext context);
-
-    ValueTask<AwkValue> InvokeValuesAsync(
-        IReadOnlyList<AwkValue> arguments,
-        AwkEvaluationContext context);
-}
-
-internal sealed class AwkUserFunction : IAwkUserFunction
+internal sealed class AwkUserFunction
 {
     private readonly AwkStatement[] _statements;
     private readonly AwkSynchronousFunction? _synchronous;

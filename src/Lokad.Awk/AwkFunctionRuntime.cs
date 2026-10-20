@@ -8,8 +8,7 @@ internal sealed class AwkFunctionRuntime
 {
     private readonly AwkFunctionCallStack _calls;
     private readonly Action<AwkArrayName> _removeFunctionLocalArray;
-    private Dictionary<AwkFunctionName, IAwkUserFunction> _functions =
-        new Dictionary<AwkFunctionName, IAwkUserFunction>();
+    private Dictionary<AwkFunctionName, AwkUserFunction> _functions = [];
 
     public AwkFunctionRuntime(
         int maxFunctionCallDepth,
@@ -32,20 +31,10 @@ internal sealed class AwkFunctionRuntime
 
     public bool HasScalarLocal(AwkFunctionLocalSlotId slotId) => _calls.HasScalarLocal(slotId);
 
-    public void InitializeFunctions<TFunction>(
-        IReadOnlyDictionary<AwkFunctionName, TFunction> functions)
-        where TFunction : IAwkUserFunction
-    {
-        var functionMap = new Dictionary<AwkFunctionName, IAwkUserFunction>(functions.Count);
-        foreach (var function in functions)
-        {
-            functionMap[function.Key] = function.Value;
-        }
+    public void InitializeFunctions(IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions) =>
+        _functions = new(functions);
 
-        _functions = functionMap;
-    }
-
-    public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out IAwkUserFunction? function) =>
+    public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out AwkUserFunction? function) =>
         _functions.TryGetValue(name, out function);
 
     public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments) =>

@@ -471,7 +471,7 @@ internal sealed class AwkArrayRuntime
         {
             static async ValueTask SortWithUserFunctionAsync(
                 AwkArraySortEntry[] entries,
-                IAwkUserFunction function,
+                AwkUserFunction function,
                 AwkEvaluationContext context)
             {
                 if (entries.Length < 2)
