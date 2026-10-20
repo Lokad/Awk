@@ -59,25 +59,16 @@ result per submitted command.
 pipes, `@include`, and changed `ARGV` input paths; hides the invocation environment and host-error
 details; pins time and local timezone to the Unix epoch and UTC; and applies tighter stack,
 regex-construction and open-resource bounds. Storage admission requires a supplied shared budget.
-`CreateDefault()` preserves the broader
-compatibility surface. The `--sandbox` command-line option independently disables file and command
-redirections; it does not replace host-side path and descriptor policy.
+`CreateDefault()` preserves the broader compatibility surface. The `--sandbox` command-line option
+independently disables file and command redirections; it does not replace host-side path and
+descriptor policy.
 
 Pass a caller cancellation token and use `WithMemoryBudget` for shared host-governed admission.
-This branch removes duplicate runtime, collection, source/frontend and invocation quotas,
-and the four separate Awk deadline settings. Hosts supply shared admission and caller-owned
-deadline cancellation explicitly. Some long builtin/backend calls still have coarse cancellation
-boundaries; see [resource control](docs/RUNTIME_LIMITS.md).
-
-See [docs/SECURITY.md](docs/SECURITY.md) before executing awk supplied by an untrusted party.
-
-`WithMemoryBudget(IMemoryBudget)` admits major frontend/runtime storage against an application-owned
-shared allowance. Implement the local budget interfaces as an adapter over your host's governor;
-Awk disposes only its own child scope. Nested command descriptors carry the active budget,
-which takes precedence over the policy budget. Governed cleanup waits for actual host users
-before refunding storage, including after cancellation. Source copies and parser
-buffers use coarse estimates; admission can conservatively refuse before execution.
-See [runtime limits](docs/RUNTIME_LIMITS.md) for ownership and accounting scope.
+An invocation budget takes precedence and follows nested command descriptors. Awk owns only
+its child scopes; governed cleanup waits for actual host users before refunding storage.
+Admission uses coarse estimates and can refuse before execution. See the
+[runtime and host contract](docs/RUNTIME.md) for authority, memory ownership, cancellation
+and remaining bounds, including responsibilities when executing untrusted scripts.
 
 Release notes and removed work-quota APIs are listed in [CHANGELOG.md](CHANGELOG.md#unreleased).
 The Lokad.Awk package uses version 0.3.0, assembly/file versions 0.3.0.0 and informational version
@@ -122,8 +113,7 @@ The library is intended to stay host-agnostic. The public surface should stay sm
 Detailed runtime contracts live in:
 
 - [docs/UTF8_POLICY.md](docs/UTF8_POLICY.md)
-- [docs/RUNTIME_LIMITS.md](docs/RUNTIME_LIMITS.md)
-- [docs/SECURITY.md](docs/SECURITY.md)
+- [docs/RUNTIME.md](docs/RUNTIME.md)
 - [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
 - [docs/RECORD_SEMANTICS.md](docs/RECORD_SEMANTICS.md)
 - [docs/REGEX.md](docs/REGEX.md)

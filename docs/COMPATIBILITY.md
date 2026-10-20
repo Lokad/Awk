@@ -15,7 +15,7 @@ commitment. Rejection tests do not establish feature support.
 | Sources and command arguments | Supported: inline/repeated sources, `-f`, `-i`, `-F`, `-v`, includes, assignment operands and live ARGV scheduling, within host/policy authority. | [Source cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs), [ARGV](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.ArgvCompatibility.cs) |
 | Expressions and statements | Supported: arithmetic, concatenation, assignments, conditionals, loops and switch; profile/name rules apply. | [Grammar](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.GrammarBoundaries.cs), [profiles](#compatibility-profiles-and-names) |
 | Rules and input phases | Supported: ordinary/range patterns, BEGIN/END, next/nextfile and GNU BEGINFILE/ENDFILE, with phase restrictions. | [Function flow](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FunctionFlow.cs), [records](RECORD_SEMANTICS.md) |
-| User functions | Supported: recursion, local scalar parameters, missing arguments and forwarded array aliases; depth/resource limits apply. | [Untyped values](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.UntypedState.cs), [limits](RUNTIME_LIMITS.md) |
+| User functions | Supported: recursion, local scalar parameters, missing arguments and forwarded array aliases; depth/resource limits apply. | [Untyped values](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.UntypedState.cs), [runtime contract](RUNTIME.md) |
 | Scalars and flat arrays | Supported: numeric strings/origins, associative and SUBSEP compound keys, membership, delete and array length. Compound keys are not nested arrays. | [Value rules](#values-numbers-and-formatting), [goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs) |
 | Records and fields | Supported: FS/FPAT/FIELDWIDTHS, character/regex/paragraph RS, RT, lazy fields and NF mutation. | [Field modes](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FieldModes.cs), [record contract](RECORD_SEMANTICS.md) |
 | Getline | Supported: main/redirected/one-way pipe expressions with scalar, array or field destinations; failure and destination rules apply. | [Destinations](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.GetlineDestinations.cs), [failures](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.GetlineFailures.cs), [I/O rules](#host-io-and-getline) |
@@ -200,8 +200,8 @@ quotes. Same-name streams select the latest opening. Output-pipe fflush succeeds
 closing/awaiting the command; input-only fflush warns and returns -1. close returns the
 command status. Flush/close follow logical-stream and host outcomes. Failures preserve
 committed output without exposing CLR exception text. Caller cancellation propagates after
-cleanup; hosts schedule deadlines through caller cancellation. See [embedding](../README.md#embedding),
-[security](SECURITY.md) and [runtime limits](RUNTIME_LIMITS.md).
+cleanup; hosts schedule deadlines through caller cancellation. See [embedding](../README.md#embedding)
+and the [runtime and host contract](RUNTIME.md).
 
 ## Main input directories
 

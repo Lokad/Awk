@@ -54,4 +54,4 @@ ranges and retains match-selection and replacement policy. The internal [Utf8Reg
 does not change ingress or string units. Newer producer adoption remains postponed.
 
 Admission completes before text publication. Memory ownership, actual-user refunds and
-cancellation limits are described in [runtime limits](RUNTIME_LIMITS.md).
+cancellation are described in the [runtime and host contract](RUNTIME.md).
