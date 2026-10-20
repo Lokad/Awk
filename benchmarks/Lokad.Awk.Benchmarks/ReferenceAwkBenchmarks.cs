@@ -1,13 +1,9 @@
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Configs;
-using BenchmarkDotNet.Columns;
-using BenchmarkDotNet.Reports;
-using BenchmarkDotNet.Running;
 
 namespace Lokad.Awk.Benchmarking;
 
 // No MemoryDiagnoser: allocations in the process wrapper are not GNU awk's allocations.
-[Config(typeof(ReferenceAwkBenchmarkConfig))]
+[MedianColumn]
 public class ReferenceAwkBenchmarks
 {
     private PreparedReferenceWorkload? _prepared;
@@ -59,19 +55,9 @@ public class ReferenceAwkBenchmarks
     }
 }
 
-public sealed class ReferenceAwkBenchmarkConfig : ManualConfig
-{
-    public ReferenceAwkBenchmarkConfig()
-    {
-        Add(DefaultConfig.Instance);
-        AddColumn(StatisticColumn.Median);
-        AddColumn(new ReferenceThroughputColumn());
-    }
-}
-
 // Managed allocations/GC for the same public-invocation workloads, with no native-memory claim.
 [MemoryDiagnoser]
-[Config(typeof(ReferenceAwkBenchmarkConfig))]
+[MedianColumn]
 public class WorkloadAllocationBenchmarks
 {
     private ReferenceWorkload? _workload;
@@ -97,31 +83,5 @@ public class WorkloadAllocationBenchmarks
         var result = await ReferenceExecution.RunLibraryAsync(workload, false, CancellationToken.None).ConfigureAwait(false);
         ReferenceExecution.Verify(result, workload.ExpectedDigest);
         return result.OutputDigest.Bytes;
-    }
-}
-
-internal sealed class ReferenceThroughputColumn : IColumn
-{
-    public string Id => nameof(ReferenceThroughputColumn);
-    public string ColumnName => "MiB/s";
-    public bool AlwaysShow => true;
-    public ColumnCategory Category => ColumnCategory.Custom;
-    public int PriorityInCategory => 0;
-    public bool IsNumeric => true;
-    public UnitType UnitType => UnitType.Dimensionless;
-    public string Legend => "Declared input bytes per second; CLI launch and pipes are included for GNU awk.";
-    public bool IsAvailable(Summary summary) => true;
-    public bool IsDefault(Summary summary, BenchmarkCase benchmarkCase) => false;
-    public string GetValue(Summary summary, BenchmarkCase benchmarkCase) => GetValue(summary, benchmarkCase, summary.Style);
-    public string GetValue(Summary summary, BenchmarkCase benchmarkCase, SummaryStyle style)
-    {
-        var name = benchmarkCase.Parameters.Items.First(parameter => parameter.Name == "Workload").Value.ToString();
-        var scale = benchmarkCase.Parameters.Items.First(parameter => parameter.Name == "Scale").Value.ToString();
-        var statistics = summary[benchmarkCase]?.ResultStatistics;
-        if (name is null || scale is null || statistics is null || statistics.Mean <= 0)
-            return "NA";
-        var workload = ReferenceWorkloads.Create(name, scale);
-        return (workload.InputBytes / 1_048_576.0 / (statistics.Mean / 1_000_000_000.0))
-            .ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     }
 }
