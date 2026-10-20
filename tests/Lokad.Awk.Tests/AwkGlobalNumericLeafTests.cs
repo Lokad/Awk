@@ -56,8 +56,10 @@ public sealed class AwkGlobalNumericLeafTests
         Assert.Equal(0, state.Counters.NumericGlobalReads);
     }
 
-    [Fact]
-    public void BoundNumbersRetainTheExpressionCancellationCheckpoint()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BoundNumbersRetainTheExpressionCancellationCheckpoint(bool numericAsync)
     {
         using var cancellation = new CancellationTokenSource();
         using var memoryForState = State(token: cancellation.Token);
@@ -66,7 +68,11 @@ public sealed class AwkGlobalNumericLeafTests
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         _ = state.ResolvePreparedGlobalValue(name, 0);
         cancellation.Cancel();
-        Assert.Throws<OperationCanceledException>(() => Leaf(name).ResolveNumberSynchronous(new(state)));
+        if (numericAsync)
+            await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+                await Leaf(name).ResolveNumberAsync(new(state)));
+        else
+            Assert.Throws<OperationCanceledException>(() => Leaf(name).ResolveNumberSynchronous(new(state)));
         Assert.Equal(0, state.Counters.NumericGlobalReads);
     }
 

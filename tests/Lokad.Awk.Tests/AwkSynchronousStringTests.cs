@@ -48,6 +48,22 @@ public sealed class AwkSynchronousStringTests
         Assert.Equal(1, source.Entries);
     }
 
+    [Fact]
+    public async Task NumericLengthWaitsForItsArgumentWithoutReplayingIt()
+    {
+        using var memoryForState = State(AwkRuntimeCounters.CreateEnabled());
+        var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = new PendingOperand(completion.Task);
+        var expression = AwkExpression.Length(source, AwkOptionalIdentifier.None);
+        var pending = expression.ResolveNumberAsync(new(memoryForState.State)).AsTask();
+        Assert.False(pending.IsCompleted);
+        Assert.Equal(1, source.Entries);
+        completion.SetResult(AwkValue.FromText("caf\u00e9"));
+        Assert.Equal(4, await pending);
+        Assert.Equal(1, source.Entries);
+        Assert.Equal(0, memoryForState.State.MemoryAccounting.CurrentReservedBytes);
+    }
+
     private static AwkExpression Builtin(string name, params AwkExpression[] arguments)
     {
         Assert.True(AwkBuiltins.TryGetCallable(name, out var definition));
