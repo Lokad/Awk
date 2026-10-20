@@ -98,7 +98,8 @@ internal abstract partial class AwkExpression
             ? new FieldArrayElementExpression(name, field, globalIndex)
             : new ArrayElementExpression(name, index, globalIndex);
 
-    public static AwkExpression Number(string text, double value) => new NumberExpression(text, value);
+    public static AwkExpression Number(string text, double value, Action? checkpoint = null) =>
+        new NumberExpression(text, value, checkpoint);
 
     public static AwkExpression Concat(IReadOnlyList<AwkExpression> parts) => new ConcatExpression(parts);
 

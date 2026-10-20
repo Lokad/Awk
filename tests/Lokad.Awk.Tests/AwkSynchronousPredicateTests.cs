@@ -113,7 +113,7 @@ public sealed class AwkSynchronousPredicateTests
     private sealed class LegacyNumber(int index) : AwkExpression
     {
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(AwkValue.FromNumber(context.State.ResolveSourceNumberLiteral(
+            ValueTask.FromResult(AwkValue.FromNumber(AwkTestHarness.ResolveSourceNumberLiteral(context.State,
                 index.ToString(System.Globalization.CultureInfo.InvariantCulture), index)));
     }
     private sealed class EffectOperand : AwkSynchronousExpression

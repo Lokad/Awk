@@ -2,6 +2,31 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkFrontendCancellationTests
 {
+    [Fact]
+    public void SourceNumberPreparationObservesItsCancellationCallback()
+    {
+        using var cancellation = new CancellationTokenSource();
+        void Checkpoint()
+        {
+            cancellation.Cancel();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }
+        var text = "1" + new string('0', 12_000);
+        var failure = Assert.Throws<OperationCanceledException>(() =>
+            AwkExpression.Number(text, double.PositiveInfinity, Checkpoint));
+        Assert.Equal(cancellation.Token, failure.CancellationToken);
+    }
+
+    [Fact]
+    public async Task SourceNumberExecutionDoesNotUseThePreparationCancellationCallback()
+    {
+        using var preparation = new CancellationTokenSource();
+        var expression = AwkExpression.Number("2", 2, preparation.Token.ThrowIfCancellationRequested);
+        preparation.Cancel();
+        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
+        Assert.Equal(2, (await expression.EvaluateAsync(new(state))).AsNumber());
+    }
+
     [Theory]
     [InlineData("decimal")]
     [InlineData("leading-dot")]

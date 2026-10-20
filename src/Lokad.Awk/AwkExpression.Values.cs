@@ -255,22 +255,24 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class NumberExpression(string text, double gnuDefaultValue) : AwkSynchronousExpression
+    private sealed class NumberExpression(string text, double gnuDefaultValue, Action? checkpoint) : AwkSynchronousExpression
     {
+        private readonly double _decimalValue = PrepareDecimalValue(text, checkpoint);
+
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
-            AwkValue.FromNumber(context.State.ResolveSourceNumberLiteral(text, gnuDefaultValue));
+            AwkValue.FromNumber(EvaluateNumberSynchronousCore(context));
 
         protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
-            context.State.ResolveSourceNumberLiteral(text, gnuDefaultValue);
+            context.State.CompatibilityMode == AwkCompatibilityMode.GnuDefault ? gnuDefaultValue : _decimalValue;
 
         internal override bool TryGetIntegerConstant(out int value)
         {
-            if (TryResolvePortableNumber(text, gnuDefaultValue, out var resolvedValue) &&
-                Math.Abs(resolvedValue % 1) < double.Epsilon &&
-                resolvedValue >= int.MinValue &&
-                resolvedValue <= int.MaxValue)
+            if (IsPortableDecimalLiteral(text) && _decimalValue == gnuDefaultValue &&
+                Math.Abs(_decimalValue % 1) < double.Epsilon &&
+                _decimalValue >= int.MinValue &&
+                _decimalValue <= int.MaxValue)
             {
-                value = (int)resolvedValue;
+                value = (int)_decimalValue;
                 return true;
             }
 
@@ -278,42 +280,25 @@ internal abstract partial class AwkExpression
             return false;
         }
 
-        private static bool TryResolvePortableNumber(
-            string text,
-            double gnuDefaultValue,
-            out double value)
+        private static double PrepareDecimalValue(string text, Action? checkpoint) =>
+            AwkValue.TryParseNumber(text, AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText,
+                out var value, checkpoint) ? value : 0;
+
+        private static bool IsPortableDecimalLiteral(string text)
         {
-            if (IsPortableDecimalLiteral(text) &&
-                AwkValue.TryParseNumber(
-                    text,
-                    AwkNumberParsingMode.Decimal,
-                    AwkNumberTextExtent.EntireText,
-                    out var decimalValue) &&
-                decimalValue == gnuDefaultValue)
+            if (text.Length == 0)
+                return false;
+
+            for (var index = 0; index < text.Length; index++)
             {
-                value = gnuDefaultValue;
-                return true;
+                var ch = text[index];
+                if (ch is >= '0' and <= '9' or '.' or '+' or '-' or 'e' or 'E')
+                    continue;
+
+                return false;
             }
 
-            value = 0;
-            return false;
-
-            static bool IsPortableDecimalLiteral(string text)
-            {
-                if (text.Length == 0)
-                    return false;
-
-                for (var index = 0; index < text.Length; index++)
-                {
-                    var ch = text[index];
-                    if (ch is >= '0' and <= '9' or '.' or '+' or '-' or 'e' or 'E')
-                        continue;
-
-                    return false;
-                }
-
-                return true;
-            }
+            return true;
         }
     }
 }

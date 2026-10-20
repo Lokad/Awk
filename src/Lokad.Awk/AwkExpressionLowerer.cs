@@ -130,7 +130,7 @@ internal static partial class AwkExpressionLowerer
                 return false;
             }
 
-            lowered = AwkExpression.Number(numberText, numberValue);
+            lowered = AwkExpression.Number(numberText, numberValue, scope.Checkpoint);
             return true;
         }
 

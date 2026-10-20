@@ -8,6 +8,12 @@ namespace Lokad.Awk.Tests;
 
 internal static class AwkTestHarness
 {
+    // Independent legacy oracle for the numeric source-literal evaluation tests.
+    public static double ResolveSourceNumberLiteral(AwkRuntimeState state, string text, double gnuDefaultValue) =>
+        state.CompatibilityMode == AwkCompatibilityMode.GnuDefault ? gnuDefaultValue :
+        AwkValue.TryParseNumber(text, AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText,
+            out var value, state.CancellationCheckpoint) ? value : 0;
+
     public static AwkRuntimeState CreateRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
         CancellationToken cancellationToken) =>

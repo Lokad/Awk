@@ -413,21 +413,6 @@ internal sealed class AwkRuntimeState : IDisposable
     public long MakeCalendarTime(AwkText specification, bool utc) =>
         _timeRuntime.MakeTime(specification, utc, Resources, MemoryAccounting);
 
-    public double ResolveSourceNumberLiteral(string text, double gnuDefaultValue)
-    {
-        if (CompatibilityMode == AwkCompatibilityMode.GnuDefault)
-            return gnuDefaultValue;
-
-        return AwkValue.TryParseNumber(
-            text,
-            AwkNumberParsingMode.Decimal,
-            AwkNumberTextExtent.EntireText,
-            out var decimalValue,
-            CancellationCheckpoint)
-                ? decimalValue
-                : 0;
-    }
-
     public int CountStringUnits(AwkText value) =>
         _stringRuntime.CountUnits(value);
 
