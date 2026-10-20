@@ -125,7 +125,7 @@ Evidence: [record cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs),
 ## Regex semantics
 
 These rules apply across engines. Host integration and the internal Utf8Regex adapter
-are described in [regex engines](REGEX.md).
+are described in [runtime regex integration](RUNTIME.md#regex-engines).
 
 ### Regex patterns
 

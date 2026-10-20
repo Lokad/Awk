@@ -42,9 +42,9 @@ bytes, but results and observable regex ranges must still end at scalar boundari
 Byte-mode `FS=""` requires ASCII; field widths/skips cannot split a scalar. `--posix`
 overrides byte mode with a warning, independently of option order.
 
-Regex engines receive valid UTF-8 spans through the [engine contract](REGEX.md#supplying-an-engine).
-Selecting an engine does not change ingress or units. [Compatibility notes](COMPATIBILITY.md#source-string-escapes)
-cover escape-to-text conversion and the remaining language differences.
+Selecting a [regex engine](#regex-engines) does not change ingress or units.
+[Compatibility notes](COMPATIBILITY.md#source-string-escapes) cover escape-to-text conversion
+and the remaining language differences.
 
 ## Shared memory admission
 
@@ -87,10 +87,46 @@ delay completion indefinitely; hard process/container isolation belongs to the e
 Parent failure cancels owned pipe commands before cleanup waits. Cleanup still awaits actual
 command completion; successful `close()` preserves command exit statuses.
 
-The regex contract carries the current token with no adapter-owned timeout. The internal adapter
-checks call boundaries; its pinned Utf8Regex 0.2.0 producer cannot poll the token. Awk-owned POSIX
-matching polls cancellation; default .NET matching retains a fixed timeout because it cannot poll internally.
-See [regex integration](REGEX.md) for backend guarantees and postponed producer adoption.
+Awk-owned POSIX matching polls cancellation. Default .NET matching and semantic fallbacks
+retain a fixed timeout because they cannot poll the token internally.
+
+## Regex engines
+
+.NET regex is the default; core has no Lokad.Utf8Regex dependency. Applications can supply
+`IAwkRegexEngine` through `policy.WithRegexEngine(engine)`. Awk retains pattern translation,
+longest-match/capture selection, replacement and UTF-8 boundary rules; see
+[regex semantics](COMPATIBILITY.md#regex-semantics). Some patterns or observable captures
+still require Awk's managed selector or .NET fallback.
+
+The [engine contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs) defines these obligations:
+
+- `TryCompile` receives translated .NET-compatible pattern text, invariant case choice,
+  a borrowed active memory budget and the current token. Support concurrent compilation;
+  return false only for unsupported syntax. Refused admission throws
+  `AwkRegexAdmissionException`; refusal and cancellation must never request fallback.
+- Compiled handles consume valid UTF-8 spans synchronously. Search from the supplied UTF-16
+  offset with full-input assertion context. Fill every supplied capture slot, including
+  unmatched groups, with absolute byte/UTF-16 coordinates. Awk validates ranges.
+- `TryCompile`, `IsMatch` and `Match` receive the current operation's `CancellationToken`.
+  Poll during construction, search and result shaping. Retain no input/capture spans or
+  operation tokens; there is no match-timeout parameter or adapter-owned deadline.
+
+The application owns the engine. Execution-local bounded caches own compiled handles and
+dispose them on eviction or cleanup; disposal is idempotent and non-throwing. Any retained
+storage uses the borrowed budget under the same admission and actual-user lifetime rules
+as other Awk owners. Awk does not transfer ownership of that budget to the engine.
+
+The repository's internal, non-packable `Lokad.Awk.Utf8Regex` adapter pins producer **0.2.0**.
+It adds no input or capture-text copies; producer internals and compatibility routes can allocate.
+The producer has no token-aware APIs. The adapter disables its match clock and checks cancellation
+before/after producer calls and during capture copying; a long producer call remains indivisible.
+These checks do not establish in-flight producer cancellation. Future cooperative producer adoption
+requires separate qualification and remains postponed independently of core work and releases.
+
+[Host-engine tests](../tests/Lokad.Awk.Tests/AwkHostRegexTests.cs) cover ownership, invalid ranges,
+fatal refusal and cooperative token forwarding. [Adapter tests](../tests/Lokad.Awk.Tests/AwkUtf8RegexAdapterTests.cs)
+cover direct/fallback paths, coordinates, replacements, separators, no-decode paths and token reuse.
+The [benchmark baseline](BENCHMARKS.md) uses the default .NET backend.
 
 ## Remaining bounds
 

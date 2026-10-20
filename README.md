@@ -88,7 +88,7 @@ The interpreter is the only execution engine, including its synchronous/prepared
 Regex defaults to .NET compatibility, with
 documented [regex semantics](docs/COMPATIBILITY.md#regex-semantics). Applications can supply an
 `IAwkRegexEngine` through `policy.WithRegexEngine(engine)`. The repository's
-[`Lokad.Awk.Utf8Regex` adapter](docs/REGEX.md) is for internal qualification and is not distributed as a
+[`Lokad.Awk.Utf8Regex` adapter](docs/RUNTIME.md#regex-engines) is for internal qualification and is not distributed as a
 NuGet package. Newer producer adoption remains postponed.
 
 Current representative throughput, GNU comparison and managed allocations are maintained in
@@ -110,7 +110,6 @@ Detailed runtime contracts live in:
 
 - [docs/RUNTIME.md](docs/RUNTIME.md)
 - [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
-- [docs/REGEX.md](docs/REGEX.md)
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
 
 ## Dependencies

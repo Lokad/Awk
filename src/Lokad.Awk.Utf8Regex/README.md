@@ -21,5 +21,5 @@ token. The adapter has no independent match timeout. Pinned producer 0.2.0 has n
 APIs, so cancellation checks surround its calls and run during capture copying; they cannot
 interrupt work inside a producer call. A future cooperative producer can use the same contract
 after separate qualification. No producer upgrade is required by the core package.
-See [regex engines](../../docs/REGEX.md) for integration and cancellation status, and
+See [runtime regex integration](../../docs/RUNTIME.md#regex-engines) for integration and cancellation status, and
 [compatibility](../../docs/COMPATIBILITY.md#regex-semantics) for AWK semantics.
