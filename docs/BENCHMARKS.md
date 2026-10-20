@@ -1,16 +1,9 @@
 # Benchmarks
 
-Comparison with GNU awk 5.2.1, measured **2026-10-19 UTC**. Rows marked **‡** were refreshed at
-[`e99bcae`](https://github.com/Lokad/Awk/commit/e99bcae66e6065dbddefeba4c0d20a34d78b9109);
-**†** rows retain measurements at
-[`828a19e`](https://github.com/Lokad/Awk/commit/828a19e7449d0e3387d4958be081a4c00dcad1c3);
-unmarked rows retain measurements at
-[`5c4a21a`](https://github.com/Lokad/Awk/commit/5c4a21a77a7279b07c2652bba820383119b1a174).
-All use the interpreter, .NET regex and default limits (UTC time zone), with no supplied
-shared memory budget and complete output consumption. Retained rows have not been rerun
-on the newer source. The internal Utf8Regex adapter is outside this baseline; newer adoption
-remains postponed. The later resource-control simplification has not received a full baseline
-refresh; none of these rows is a fresh measurement of that source.
+Current observations against GNU awk 5.2.1, measured **2026-10-20 UTC** at
+[`229e4d2`](https://github.com/Lokad/Awk/commit/229e4d2ad3628eb2ed6b3c50020a329faea20daf).
+All rows use the interpreter, default .NET regex and default policy (UTC time zone), without
+a supplied shared memory budget. The internal Utf8Regex adapter is outside this baseline.
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** divides Lokad elapsed
 by GNU elapsed: 1.00× is parity; higher is slower. Allocations are managed GC MiB per
@@ -19,49 +12,49 @@ peak memory or GNU native allocations. Rows run from worst ratio to best within 
 
 ## Representative processing
 
-All 36 workload families use the same [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs)
+All 36 families use the same [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs)
 in both implementations. Most cases have 4,096 records; the all-fields wide and long-field
 cases have 256, and join has 4,096 records per file. GNU-marked cases use selected extensions
 and do not imply full GNU conformance.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| ERE capture arrays (GNU) † | 28.00 | 35.007 | 8.117 | 4.31× | 16.05 |
-| gsub and output | 56.00 | 5.555 | 2.111 | 2.63× | 3.76 |
-| Loop with two-argument calls and local temporary ‡ | 8.00 | 10.940 | 4.474 | 2.45× | 0.75 |
-| Two-file membership / join | 77.83 | 6.640 | 2.800 | 2.37× | 3.04 |
-| Text function with branches and local temporary | 62.00 | 4.539 | 1.944 | 2.33× | 2.32 |
-| Numeric array sort (GNU) | 18.92 | 5.491 | 2.491 | 2.20× | 2.49 |
-| Project three columns / output | 60.00 | 3.295 | 1.578 | 2.09× | 0.76 |
-| Loop with two-argument calls ‡ | 8.00 | 8.384 | 4.145 | 2.02× | 0.75 |
-| Branching function, two arguments | 8.00 | 8.683 | 4.329 | 2.01× | 0.77 |
-| ERE boolean matching | 32.00 | 2.531 | 1.284 | 1.97× | 0.75 |
-| Nested user calls | 8.00 | 3.106 | 1.620 | 1.92× | 0.72 |
-| printf | 24.00 | 3.661 | 1.911 | 1.92× | 0.69 |
-| ASCII substr/index/length/casing | 52.00 | 2.951 | 1.562 | 1.89× | 1.08 |
-| Branching function, one argument | 8.00 | 7.585 | 4.037 | 1.88× | 0.77 |
-| Loop with unary arithmetic calls | 8.00 | 7.188 | 3.845 | 1.87× | 0.74 |
-| Unicode length/substr / output | 60.00 | 3.874 | 2.080 | 1.86× | 1.98 |
-| Five-part string concatenation | 20.00 | 3.065 | 1.661 | 1.84× | 1.43 |
-| ERE field separator | 48.00 | 3.674 | 1.993 | 1.84× | 3.49 |
-| Post-test arithmetic loop | 8.00 | 5.189 | 2.855 | 1.82× | 0.73 |
-| Keyed sum / sorted output (GNU) | 24.00 | 2.493 | 1.372 | 1.82× | 0.76 |
-| Project a column / output ‡ | 60.00 | 2.381 | 1.335 | 1.78× | 0.75 |
-| While loop and numeric arithmetic | 8.00 | 5.019 | 2.895 | 1.73× | 0.73 |
-| Alternate reads from two lookup arrays | 21.50 | 2.517 | 1.453 | 1.73× | 0.77 |
-| Field-key reads, existing/new | 63.15 | 2.845 | 1.679 | 1.69× | 1.49 |
-| For loop and numeric arithmetic | 8.00 | 4.837 | 2.901 | 1.67× | 0.72 |
-| Mixed narrow-record processing | 60.00 | 3.679 | 2.209 | 1.67× | 0.80 |
-| Field-key membership | 48.56 | 2.052 | 1.317 | 1.56× | 0.82 |
-| Literal field separator | 48.00 | 2.106 | 1.395 | 1.51× | 0.77 |
-| Filter three fields | 24.00 | 2.122 | 1.540 | 1.38× | 0.71 |
-| Literal index search in a field | 70.00 | 2.125 | 1.592 | 1.33× | 0.79 |
-| Field loop, 64 fields | 80.00 | 2.423 | 2.186 | 1.11× | 1.08 |
-| Filter $1 / occasionally print $3, 64 fields | 1,291.42 | 2.018 | 2.139 | 0.94× | 3.42 |
-| Byte-run ERE record separator (GNU) | 36.00 | 1.338 | 1.445 | 0.93× | 1.00 |
-| Changed ASCII case | 580.00 | 2.438 | 2.961 | 0.82× | 3.55 |
-| Multicharacter record separator (GNU) † | 52.00 | 1.138 | 1.477 | 0.77× | 0.61 |
-| Filter $2 after a 4 KiB field | 1,025.50 | 0.605 | 2.093 | 0.29× | 2.14 |
+| ERE capture arrays (GNU) | 28.00 | 37.216 | 8.118 | 4.58× | 16.02 |
+| Two-file membership / join | 77.83 | 7.427 | 2.799 | 2.65× | 3.03 |
+| gsub and output | 56.00 | 5.344 | 2.111 | 2.53× | 3.72 |
+| Loop with two-argument calls and local temporary | 8.00 | 11.271 | 4.455 | 2.53× | 0.75 |
+| Numeric array sort (GNU) | 18.92 | 6.169 | 2.496 | 2.47× | 2.49 |
+| Text function with branches and local temporary | 62.00 | 4.438 | 1.947 | 2.28× | 2.32 |
+| Branching function, two arguments | 8.00 | 8.833 | 4.333 | 2.04× | 0.76 |
+| Branching function, one argument | 8.00 | 8.214 | 4.031 | 2.04× | 0.76 |
+| Project three columns / output | 60.00 | 3.158 | 1.574 | 2.01× | 0.75 |
+| Unicode length/substr / output | 60.00 | 4.124 | 2.086 | 1.98× | 1.98 |
+| Loop with two-argument calls | 8.00 | 8.174 | 4.148 | 1.97× | 0.74 |
+| ERE boolean matching | 32.00 | 2.523 | 1.285 | 1.96× | 0.74 |
+| ASCII substr/index/length/casing | 52.00 | 3.045 | 1.566 | 1.94× | 1.07 |
+| Loop with unary arithmetic calls | 8.00 | 7.072 | 3.837 | 1.84× | 0.74 |
+| While loop and numeric arithmetic | 8.00 | 5.373 | 2.922 | 1.84× | 0.72 |
+| Five-part string concatenation | 20.00 | 3.022 | 1.654 | 1.83× | 1.42 |
+| Post-test arithmetic loop | 8.00 | 5.232 | 2.876 | 1.82× | 0.72 |
+| Field-key membership | 48.56 | 2.374 | 1.315 | 1.81× | 0.81 |
+| ERE field separator | 48.00 | 3.547 | 1.992 | 1.78× | 3.48 |
+| printf | 24.00 | 3.392 | 1.911 | 1.77× | 0.69 |
+| Keyed sum / sorted output (GNU) | 24.00 | 2.399 | 1.363 | 1.76× | 0.76 |
+| Project a column / output | 60.00 | 2.264 | 1.329 | 1.70× | 0.74 |
+| Nested user calls | 8.00 | 2.738 | 1.618 | 1.69× | 0.72 |
+| Alternate reads from two lookup arrays | 21.50 | 2.431 | 1.450 | 1.68× | 0.76 |
+| Mixed narrow-record processing | 60.00 | 3.671 | 2.209 | 1.66× | 0.80 |
+| For loop and numeric arithmetic | 8.00 | 4.763 | 2.912 | 1.64× | 0.72 |
+| Field-key reads, existing/new | 63.15 | 2.727 | 1.672 | 1.63× | 1.49 |
+| Filter three fields | 24.00 | 1.988 | 1.530 | 1.30× | 0.71 |
+| Literal index search in a field | 70.00 | 2.036 | 1.594 | 1.28× | 0.79 |
+| Literal field separator | 48.00 | 1.782 | 1.396 | 1.28× | 0.76 |
+| Field loop, 64 fields | 80.00 | 2.389 | 2.184 | 1.09× | 1.08 |
+| Filter `$1` / occasionally print `$3`, 64 fields | 1,291.42 | 1.935 | 2.184 | 0.89× | 3.42 |
+| Byte-run ERE record separator (GNU) | 36.00 | 1.234 | 1.449 | 0.85× | 1.00 |
+| Changed ASCII case | 580.00 | 2.393 | 2.970 | 0.81× | 3.55 |
+| Multicharacter record separator (GNU) | 52.00 | 1.107 | 1.489 | 0.74× | 0.61 |
+| Filter `$2` after a 4 KiB field | 1,025.50 | 0.663 | — | — | 2.14 |
 
 Early wide filtering reads `$1` on every record and `$3` on one in eight. Single-array
 reads mix existing/new keys; the alternating control uses two all-hit tables. Field search
@@ -74,8 +67,8 @@ returns, branches, local temporaries and nested calls.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Keyed sum / sorted output (GNU) | 384.00 | 39.589 | 6.289 | 6.29× | 9.93 |
-| Two-file membership / join | 1,386.30 | 119.762 | 29.962 | 4.00× | 41.49 |
+| Keyed sum / sorted output (GNU) | 384.00 | 38.054 | 6.309 | 6.03× | 9.88 |
+| Two-file membership / join | 1,386.30 | 118.965 | 29.837 | 3.99× | 41.38 |
 
 ## Measurement contract
 
@@ -88,13 +81,18 @@ isolate evaluator cost or predict large-input parity. The driver bounds each inv
 
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
 BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Timing and separate managed
-allocation runs each use three warmups, five iterations and one launch. Single-launch
-medians are baseline estimates; small differences need bounded repeat confirmation.
+allocation runs each use three warmups, five 500 ms iterations and one launch. Single-launch
+medians are observational baseline estimates; small differences need bounded repeat confirmation.
 
-Fixture generation and preflight are outside timing. All 110 catalogue/control cases
-pass exact stdout/stderr, exit, output length and SHA-256 checks. Pre/middle/post quiet
-gates pass (at most 3% median/5% maximum background CPU); source/binary identities remain
-stable, with no additional SSH logins during measurement. Ordinary CI requires no GNU.
+Fixture generation and preflight are outside timing. All 110 catalogue/control cases pass exact
+stdout/stderr, exit, output length and SHA-256 checks. Source/binary identities are stable.
+The timing pass passed its initial idle check; its post-check was not collected after one native
+case timed out. The separate allocation pass passed idle checks before/after measurement
+(at most 3% median/5% maximum background CPU), with no additional SSH logins in that window.
+This snapshot is not a fully qualified performance comparison or evidence of a speedup.
+
+A dash marks the GNU long-field timing that did not complete within the runner's 15-second
+deadline; that case has no elapsed ratio. No older value fills the gap. Ordinary CI requires no GNU.
 
 ## Reproduction and maintenance
 
