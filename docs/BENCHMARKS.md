@@ -1,10 +1,12 @@
 # Benchmarks
 
-Reference observations against GNU awk 5.2.1, measured **2026-10-20 UTC** at
+Comparison with GNU awk 5.2.1. Reference rows marked **\*** were measured **2026-10-20 UTC** at
+[`1c96b9d`](https://github.com/Lokad/Awk/commit/1c96b9daffa461d9923a53208f9c8c08f1671f77). Other reference rows retain
+their measurements from **2026-10-20 UTC** at
 [`229e4d2`](https://github.com/Lokad/Awk/commit/229e4d2ad3628eb2ed6b3c50020a329faea20daf).
-All rows use the interpreter, default .NET regex and default policy (UTC time zone), without
+All reference rows use the interpreter, default .NET regex and default policy (UTC time zone), without
 a supplied shared memory budget. The internal Utf8Regex adapter is outside this baseline.
-These reference rows retain that measured revision; they have not been rerun for newer source.
+Unmarked reference rows have not been rerun for newer source.
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** divides Lokad elapsed
 by GNU elapsed: 1.00× is parity; higher is slower. Allocations are managed GC MiB per
@@ -13,7 +15,7 @@ peak memory or GNU native allocations. Rows run from worst ratio to best within 
 
 ## Representative processing
 
-All 36 families use the same [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs)
+All 37 families use the same [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs)
 in both implementations. Most cases have 4,096 records; the all-fields wide and long-field
 cases have 256, and join has 4,096 records per file. GNU-marked cases use selected extensions
 and do not imply full GNU conformance.
@@ -22,6 +24,7 @@ and do not imply full GNU conformance.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | ERE capture arrays (GNU) | 28.00 | 37.216 | 8.118 | 4.58× | 16.02 |
 | Two-file membership / join | 77.83 | 7.427 | 2.799 | 2.65× | 3.03 |
+| Copy field / rebuild record* | 60.00 | 4.076 | 1.578 | 2.58× | 2.09 |
 | gsub and output | 56.00 | 5.344 | 2.111 | 2.53× | 3.72 |
 | Loop with two-argument calls and local temporary | 8.00 | 11.271 | 4.455 | 2.53× | 0.75 |
 | Numeric array sort (GNU) | 18.92 | 6.169 | 2.496 | 2.47× | 2.49 |
@@ -41,7 +44,7 @@ and do not imply full GNU conformance.
 | ERE field separator | 48.00 | 3.547 | 1.992 | 1.78× | 3.48 |
 | printf | 24.00 | 3.392 | 1.911 | 1.77× | 0.69 |
 | Keyed sum / sorted output (GNU) | 24.00 | 2.399 | 1.363 | 1.76× | 0.76 |
-| Project a column / output | 60.00 | 2.264 | 1.329 | 1.70× | 0.74 |
+| Project a column / output* | 60.00 | 2.340 | 1.329 | 1.76× | 0.74 |
 | Nested user calls | 8.00 | 2.738 | 1.618 | 1.69× | 0.72 |
 | Alternate reads from two lookup arrays | 21.50 | 2.431 | 1.450 | 1.68× | 0.76 |
 | Mixed narrow-record processing | 60.00 | 3.671 | 2.209 | 1.66× | 0.80 |
@@ -57,6 +60,9 @@ and do not imply full GNU conformance.
 | Multicharacter record separator (GNU) | 52.00 | 1.107 | 1.489 | 0.74× | 0.61 |
 | Filter `$2` after a 4 KiB field | 1,025.50 | 0.663 | — | — | 2.14 |
 
+Rows marked * use the focused measurements at `1c96b9d`. Field rewriting runs
+`{$2=$1;print}`, including `$0` reconstruction with `OFS`; projection is its read-only control.
+
 Early wide filtering reads `$1` on every record and `$3` on one in eight. Single-array
 reads mix existing/new keys; the alternating control uses two all-hit tables. Field search
 uses alternating hits/misses with a Unicode prefix. Function cases distinguish pure
@@ -68,6 +74,7 @@ returns, branches, local temporaries and nested calls.
 
 | Case | Input KiB | Lokad ms | GNU ms | Lokad.Awk/awk | Lokad allocated MiB |
 | --- | ---: | ---: | ---: | ---: | ---: |
+| Copy field / rebuild record* | 960.00 | 68.175 | 10.346 | 6.59× | 32.36 |
 | Keyed sum / sorted output (GNU) | 384.00 | 38.054 | 6.309 | 6.03× | 9.88 |
 | Two-file membership / join | 1,386.30 | 118.965 | 29.837 | 3.99× | 41.38 |
 
@@ -99,16 +106,22 @@ embedding versus CLI execution. CLR process startup is excluded. Small cases do 
 isolate evaluator cost or predict large-input parity. The driver bounds each invocation to 15 seconds.
 
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
-BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Timing and separate managed
-allocation runs each use three warmups, five 500 ms iterations and one launch. Single-launch
-medians are observational baseline estimates; small differences need bounded repeat confirmation.
+BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Unmarked reference rows use
+three warmups; marked rows and policy controls use four. Timing and separate managed-allocation
+runs use five 500 ms iterations and one launch. Single-launch medians are observational baseline
+estimates; small differences need bounded repeat confirmation.
 
-Fixture generation and preflight are outside timing. All 110 catalogue/control cases pass exact
+Fixture generation and preflight are outside timing. The marked rows pass source/binary/native
+identity and pre/post idle checks, with no extra authenticated SSH sessions. All three rewrite
+scales plus projection/medium pass exact output/digest, stderr and exit checks at the marked revision.
+
+For the retained `229e4d2` snapshot, all 110 catalogue/control cases passed exact
 stdout/stderr, exit, output length and SHA-256 checks. Source/binary identities are stable.
 The timing pass passed its initial idle check; its post-check was not collected after one native
 case timed out. The separate allocation pass passed idle checks before/after measurement
 (at most 3% median/5% maximum background CPU), with no additional SSH logins in that window.
-This snapshot is not a fully qualified performance comparison or evidence of a speedup.
+The retained snapshot is not a fully qualified performance comparison; none of these
+observations establishes a speedup.
 
 A dash marks the GNU long-field timing that did not complete within the runner's 15-second
 deadline; that case has no elapsed ratio. No older value fills the gap. Ordinary CI requires no GNU.
@@ -122,8 +135,8 @@ controls. For example, use the same filter for timing and managed allocation run
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-benchmarks --awk PATH_TO_GAWK --filter '*ReferenceAwkBenchmarks*medium*aggregate*' '*ReferenceAwkBenchmarks*medium*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
-dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*aggregate*' '*WorkloadAllocationBenchmarks*medium*projection*' --warmupCount 3 --iterationCount 5 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-benchmarks --awk PATH_TO_GAWK --filter '*ReferenceAwkBenchmarks*medium*field-rewrite*' '*ReferenceAwkBenchmarks*medium*projection*' --warmupCount 4 --iterationCount 5 --iterationTime 500 --launchCount 1 --exporters json
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --filter '*WorkloadAllocationBenchmarks*medium*field-rewrite*' '*WorkloadAllocationBenchmarks*medium*projection*' --warmupCount 4 --iterationCount 5 --iterationTime 500 --launchCount 1 --exporters json
 ```
 
 The [Linux wrapper](../benchmarks/run-reference-linux.sh) pins the toolchain/reference.
