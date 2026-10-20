@@ -74,19 +74,20 @@ returns, branches, local temporaries and nested calls.
 ## Managed policy controls
 
 Current measurements at
-[`e454fe8`](https://github.com/Lokad/Awk/commit/e454fe83453ba75d9f049eefee4a3d6b83c7c670),
+[`bd58a8f`](https://github.com/Lokad/Awk/commit/bd58a8f11c9723b0c437fd7d2b68ee8dd6d067bf),
 2026-10-20 UTC. The same portable arithmetic script processes 4,096 records. These embedded
 execution controls use the existing `--governed-profile` fixture and have no native timing.
 The budget is supplied by a thread-safe test host; application budgets can cost differently.
 
 | Mode | Shared admission | Lokad ms | Lokad allocated MiB |
 | --- | --- | ---: | ---: |
-| GNU/default | None | 4.979 | 0.72 |
-| POSIX | None | 4.796 | 0.71 |
-| POSIX | 512 MiB | 5.914 | 0.71 |
+| GNU/default | None | 5.212 | 0.718 |
+| POSIX | None | 4.910 | 0.711 |
+| POSIX | 512 MiB | 5.733 | 0.712 |
 
 These controls use four warmups, five 500 ms iterations and one launch. Their source/binary
-identities and pre/post idle checks pass. They do not refresh the reference rows above.
+identities and pre/post idle checks pass. Single-launch medians vary between runs and do
+not establish a speedup. They do not refresh the reference rows above.
 
 ## Measurement contract
 
