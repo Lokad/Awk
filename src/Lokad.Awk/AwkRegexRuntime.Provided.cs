@@ -16,7 +16,7 @@ internal sealed partial class AwkRegexRuntime
     private ProvidedLease ResolveProvidedRegex(string pattern, AwkRegexCaseSensitivity sensitivity,
         bool countCompilation = true)
     {
-        var key = new AwkRegexCacheKey(pattern, sensitivity, AwkRegexCacheKind.TranslatedPattern, _engineKind);
+        var key = new AwkRegexCacheKey(pattern, sensitivity, AwkRegexCacheKind.TranslatedPattern);
         if (_providedRegexCache.TryGetValue(key, out var cached)) return new(cached, false);
         if (_providedEngine is not { } engine) return new(new(null), false);
         ThrowIfPatternExceedsLimits(pattern);

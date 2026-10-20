@@ -96,7 +96,7 @@ bool asynchronousHost)
 
     private static AwkRuntimeOptions Options(
 AwkRuntimeLimits limits, AwkRuntimeCounters counters) =>
-        new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
+        new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits);
 
     private static async Task<Result> RunAsync(AwkCompiledProgram compiled, string input, AwkRuntimeLimits limits, bool observed)
     {

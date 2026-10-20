@@ -162,7 +162,6 @@ public sealed class AwkUntypedStateTests
         return testMemory.Initialize(AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
                     testMemory.Configure(new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                         new AwkRandomGenerator(), counters,
-                        limits ?? AwkRuntimeLimits.CreateDefault(),
-                        AwkRegexEngineKind.DotNetCompatibility))));
+                        limits ?? AwkRuntimeLimits.CreateDefault()))));
     }
 }

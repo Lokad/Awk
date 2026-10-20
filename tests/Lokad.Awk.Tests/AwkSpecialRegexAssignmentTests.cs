@@ -45,9 +45,7 @@ public sealed class AwkSpecialRegexAssignmentTests
         var testMemory = new CooperativeTestMemory(1 << 20);
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits,
-            utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            new AwkRandomGenerator(), counters, limits, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
         return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
             new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default));
     }

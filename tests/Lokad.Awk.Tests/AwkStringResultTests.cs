@@ -78,7 +78,7 @@ public sealed class AwkStringResultTests
     private static AwkRuntimeState State(AwkRuntimeCounters counters, CancellationToken cancellationToken)
     {
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+            counters, AwkRuntimeLimits.CreateDefault());
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken, options);
     }
 }

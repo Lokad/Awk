@@ -995,8 +995,7 @@ internal static class BenchmarkCounterReport
                 TimeZoneInfo.Utc,
                 new AwkRandomGenerator(),
                 counters,
-                AwkRuntimeLimits.CreateDefault(),
-                regexEngineKind: AwkRegexEngineKind.DotNetCompatibility) with { MemoryBudget = new Lokad.Awk.Tests.CooperativeTestBudget(CounterExecutionMemoryLimitBytes) };
+                AwkRuntimeLimits.CreateDefault()) with { MemoryBudget = new Lokad.Awk.Tests.CooperativeTestBudget(CounterExecutionMemoryLimitBytes) };
             var compiled = await AwkExecutor
                 .CompileAsync(
                     BenchmarkHost.FromFiles(scenario.Files),

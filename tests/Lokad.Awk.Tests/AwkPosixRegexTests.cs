@@ -124,7 +124,7 @@ public sealed class AwkPosixRegexTests
             {
                 if (counters.RegexMatches == 1 && ++checks == 2) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
-            }, counters, AwkRegexEngineKind.Utf8Adapter, new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            }, counters, new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("(a+)+b|c"));
         Assert.Throws<OperationCanceledException>(() => runtime.MatchSpan(regex, AwkText.FromString(new string('a', 100000))));
         Assert.Equal(1, counters.RegexMatches);

@@ -143,7 +143,7 @@ public sealed class AwkFieldLoopRegionTests
 
     private static AwkRuntimeState State(AwkRuntimeCounters counters, AwkRuntimeLimits limits, AwkExecutionMemoryOwner owner, CancellationToken token = default, AwkLintMode lint = AwkLintMode.Off)
     {
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility) { MemoryOwner = owner };
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits) { MemoryOwner = owner };
         return new(AwkFieldSeparatorSpec.Default, token, options, new(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint));
     }
 

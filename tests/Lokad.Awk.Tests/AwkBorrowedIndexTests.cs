@@ -121,7 +121,7 @@ public sealed class AwkBorrowedIndexTests
     {
         limits ??= AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility)
+            AwkRuntimeCounters.CreateEnabled(), limits)
         { MemoryOwner = owner };
         var profile = bytes ? AwkCompatibilityProfile.Default.WithCharactersAsBytes() : AwkCompatibilityProfile.Default;
         if (lint) profile = profile.WithLintMode(AwkLintMode.Normal);

@@ -21,7 +21,7 @@ public sealed class AwkPrintfFieldArgumentTests
         await using var owner = AwkExecutionMemoryOwner.Create(budget, cancellation.Token);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility)
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits)
         { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options);
         var host = new PendingHost();
@@ -72,7 +72,7 @@ public sealed class AwkPrintfFieldArgumentTests
         host.SetStandardInput("head 007\nother -3\n");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(2 << 20);
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility, memoryBudget: budget);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, memoryBudget: budget);
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);

@@ -149,8 +149,7 @@ public sealed class AwkConcatStagingTests
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), limits,
-            AwkRegexEngineKind.DotNetCompatibility)
+            new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), limits)
         { MemoryOwner = owner };
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
     }

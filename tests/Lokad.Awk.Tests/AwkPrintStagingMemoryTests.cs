@@ -444,8 +444,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var testMemory = new CooperativeTestMemory(Limit);
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, testMemory.Configure(options));
         if (format == "wide") state.AssignSpecialVariableValue(AwkSpecialVariableId.OutputFormat,
             AwkValue.FromText(AwkText.FromSourceLiteralString("%8192.2f")));

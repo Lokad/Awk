@@ -87,7 +87,7 @@ public sealed class AwkBinaryNumericTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
+            new AwkRandomGenerator(), counters, limits);
         return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options), counters);
     }
 }

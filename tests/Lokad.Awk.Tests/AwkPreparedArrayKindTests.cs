@@ -185,8 +185,7 @@ public sealed class AwkPreparedArrayKindTests
 
     private static AwkRuntimeOptions Options(AwkRuntimeLimits? limits = null) =>
         new(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            (limits ?? AwkRuntimeLimits.CreateDefault()),
-            AwkRegexEngineKind.DotNetCompatibility);
+            (limits ?? AwkRuntimeLimits.CreateDefault()));
 
     private static AwkRuntimeState State(bool slots = true, AwkRuntimeLimits? limits = null)
     {

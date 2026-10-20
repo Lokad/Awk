@@ -62,7 +62,7 @@ public sealed class AwkIgnoreCaseResourceTests
     {
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility));
+                new AwkRandomGenerator(), counters, limits));
         state.AssignSpecialVariableValue(AwkSpecialVariableId.IgnoreCase, AwkValue.FromNumber(1));
         return state;
     }

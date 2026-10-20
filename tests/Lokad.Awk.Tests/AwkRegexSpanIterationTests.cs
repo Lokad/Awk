@@ -59,6 +59,5 @@ public sealed class AwkRegexSpanIterationTests
         static () => AwkRegexCaseSensitivity.CaseSensitive,
         AwkStringUnitMode.Utf8Rune,
         static () => { },
-        counters,
-        adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility, regexEngine: AwkUtf8RegexEngine.Instance);
+        counters, regexEngine: adapter ? AwkUtf8RegexEngine.Instance : null);
 }

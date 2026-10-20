@@ -92,7 +92,6 @@ internal sealed class AwkRuntimeState : IDisposable
             stringUnitMode,
             ThrowIfCancellationRequested,
             Counters,
-            runtimeOptions.RegexEngineKind,
             resources,
             MemoryAccounting,
             CompatibilityMode,

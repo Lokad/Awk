@@ -9,8 +9,8 @@ public sealed class AwkRecordScanCancellationTests
     public static IEnumerable<object[]> Modes()
     {
         foreach (var observed in new[] { false, true })
-        foreach (var backend in new[] { AwkRegexEngineKind.DotNetCompatibility, AwkRegexEngineKind.Utf8Adapter })
-            yield return [observed, (int)backend];
+        foreach (var backend in new[] { false, true })
+            yield return [observed, backend];
     }
 
     public static IEnumerable<object[]> RecordScans()
@@ -23,7 +23,7 @@ public sealed class AwkRecordScanCancellationTests
 
     [Theory]
     [MemberData(nameof(RecordScans))]
-    public async Task InterruptedOwnedScanPreservesTheRecordAndDeliveredInput(bool observed, int backend, string scenario)
+    public async Task InterruptedOwnedScanPreservesTheRecordAndDeliveredInput(bool observed, bool backend, string scenario)
     {
         var large = new string('a', LongScan);
         var (initial, selected, input, expected, terminator) = scenario switch
@@ -98,7 +98,7 @@ public sealed class AwkRecordScanCancellationTests
 
     [Theory]
     [MemberData(nameof(Continuations))]
-    public async Task InterruptedPendingRunKeepsBothDeliveredBatches(bool observed, int backend, bool paragraph, string newline)
+    public async Task InterruptedPendingRunKeepsBothDeliveredBatches(bool observed, bool backend, bool paragraph, string newline)
     {
         var delimiter = paragraph ? newline + newline : "|";
         var large = paragraph ? string.Concat(Enumerable.Repeat(newline, LongScan)) : new string('|', LongScan);
@@ -155,7 +155,7 @@ public sealed class AwkRecordScanCancellationTests
 
     [Theory]
     [MemberData(nameof(Classifications))]
-    public async Task LongSeparatorClassificationCanBeInterruptedBeforeHostIo(bool observed, int backend, string scenario)
+    public async Task LongSeparatorClassificationCanBeInterruptedBeforeHostIo(bool observed, bool backend, string scenario)
     {
         var repeated = new string('1', LongScan);
         var separator = scenario switch
@@ -205,7 +205,7 @@ public sealed class AwkRecordScanCancellationTests
 
     [Theory]
     [MemberData(nameof(Modes))]
-    public async Task InterruptedUtf16PrefixCountDoesNotPublishAMixedOffsetCache(bool observed, int backend)
+    public async Task InterruptedUtf16PrefixCountDoesNotPublishAMixedOffsetCache(bool observed, bool backend)
     {
         var prefix = string.Concat(Enumerable.Repeat("αz😀", LongScan * 4 / 7));
         var bytes = Encoding.UTF8.GetBytes(prefix + "|valueznextz");
@@ -259,7 +259,7 @@ public sealed class AwkRecordScanCancellationTests
 
     [Theory]
     [MemberData(nameof(LiteralBoundaries))]
-    public async Task LiteralWindowOverlapKeepsWholeUtf8Separators(bool observed, int backend, int offset)
+    public async Task LiteralWindowOverlapKeepsWholeUtf8Separators(bool observed, bool backend, int offset)
     {
         const string separator = "é😀";
         var prefix = new string('a', offset);
@@ -284,14 +284,13 @@ public sealed class AwkRecordScanCancellationTests
         Assert.Single(host.ReadLineBatchLineCounts);
     }
 
-    private static CooperativeTestMemory State(bool observed, int backend)
+    private static CooperativeTestMemory State(bool observed, bool backend)
     {
 
         var testMemory = new CooperativeTestMemory(8 << 20);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(), (AwkRegexEngineKind)backend,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRuntimeLimits.CreateDefault(), regexEngine: backend ? AwkUtf8RegexEngine.Instance : null);
         return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options)));
     }
 

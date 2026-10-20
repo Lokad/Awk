@@ -145,8 +145,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{getline line; print line}"),
@@ -247,8 +246,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{RS=\"|\"} {print $0}"),
@@ -274,8 +272,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{RS=\",\"} {count++} END{print count}"),
@@ -299,8 +296,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{RS=1} {RS=(NR%2 ? \"1\" : 1); count++} END{print count}"),
@@ -324,8 +320,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "{print length($0)}"),
@@ -352,8 +347,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "{print NF}"),
@@ -391,8 +385,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
                 TimeZoneInfo.Utc,
                 new AwkRandomGenerator(),
                 counters,
-                AwkRuntimeLimits.CreateDefault(),
-                AwkRegexEngineKind.DotNetCompatibility);
+                AwkRuntimeLimits.CreateDefault());
             var compiled = await AwkExecutor.CompileAsync(
                 new MockFileSystem(),
                 BuildInvocation("awk", scenario.Program),
@@ -424,8 +417,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             charactersAsBytes
@@ -452,8 +444,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{n=split(\"café,bravo\", a, \",\"); print n, a[1], a[2]}"),
@@ -477,8 +468,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "--characters-as-bytes", "BEGIN{FS=\"\"} {print NF, $1, $2, $3}", "/file.txt"),
@@ -503,8 +493,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{FS=\"\"} {print NF, $1, $2, $3}", "/file.txt"),
@@ -582,8 +571,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", program),
@@ -657,8 +645,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", program),
@@ -686,8 +673,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "{for(i=1;i<=NF;i++) $i=$i; print $0}"),
@@ -751,8 +737,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", arguments),
@@ -816,9 +801,7 @@ public sealed class AwkCurrentSurfaceRecordsFieldsTests : AwkCurrentSurfaceTestB
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", program),
@@ -842,8 +825,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{split(\"a,b\", a, \",\", s); print length(s)}"),
@@ -886,8 +868,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", program),
@@ -991,8 +972,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var program = "BEGIN{RS=\"" + separator + "\"} {records++} END{print length($0), records}";
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
@@ -1031,8 +1011,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{RS=\"([,]|;)+\"} {print length($0)}"),
@@ -1105,8 +1084,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var program = "BEGIN{RS=\"" + separator + "\"} {print $0 \"[\" length(RT) \"]\"}";
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
@@ -1170,8 +1148,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{RS=\"(,+|;+)\"} {print $0}"),
@@ -1212,8 +1189,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", "BEGIN{RS=\"\"} {print $0}"),

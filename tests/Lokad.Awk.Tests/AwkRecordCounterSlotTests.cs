@@ -65,8 +65,7 @@ public sealed class AwkRecordCounterSlotTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits,
-            AwkRegexEngineKind.DotNetCompatibility);
+            new AwkRandomGenerator(), counters, limits);
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options,
             new AwkRuntimeResourceMonitor(limits, counters, cancellation.Token), AwkCompatibilityProfile.Default);
         var terminator = longTerminator
@@ -127,8 +126,7 @@ public sealed class AwkRecordCounterSlotTests
         var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits,
-            AwkRegexEngineKind.DotNetCompatibility);
+            new AwkRandomGenerator(), counters, limits);
         return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
             new AwkRuntimeResourceMonitor(limits, counters, CancellationToken.None),
             AwkCompatibilityProfile.Default.WithMode(mode)));

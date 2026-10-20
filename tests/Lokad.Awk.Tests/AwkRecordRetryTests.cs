@@ -7,8 +7,8 @@ public sealed class AwkRecordRetryTests
     public static IEnumerable<object[]> Modes()
     {
         foreach (var enabled in new[] { false, true })
-        foreach (var backend in new[] { AwkRegexEngineKind.Utf8Adapter, AwkRegexEngineKind.DotNetCompatibility })
-            yield return [enabled, (int)backend];
+        foreach (var backend in new[] { true, false })
+            yield return [enabled, backend];
     }
 
     public static IEnumerable<object[]> NewlineModes()
@@ -54,7 +54,7 @@ public sealed class AwkRecordRetryTests
     [Theory]
     [MemberData(nameof(NewlineModes))]
     public async Task DefaultNewlineCopyFailurePreservesTheBufferedLine(
-        bool enabled, int backend, string newline, string first)
+        bool enabled, bool backend, string newline, string first)
     {
         var input = Encoding.UTF8.GetBytes(first + newline + "ok" + newline);
         var firstLineLength = Encoding.UTF8.GetByteCount(first + newline);
@@ -91,7 +91,7 @@ public sealed class AwkRecordRetryTests
     [Theory]
     [MemberData(nameof(NewlineModes))]
     public async Task BufferedModeAdmissionFailurePreservesTheLineReaderTail(
-        bool enabled, int backend, string newline, string first)
+        bool enabled, bool backend, string newline, string first)
     {
         var tail = first + newline;
         var host = Host(Encoding.UTF8.GetBytes("seed" + newline + tail), [4 + newline.Length]);
@@ -121,7 +121,7 @@ public sealed class AwkRecordRetryTests
     [Theory]
     [MemberData(nameof(BatchModes))]
     public async Task FailedAppendRetainsTheDeliveredBatchAndCompletionWithoutRereading(
-        bool enabled, int backend, bool eof, bool changeSeparator)
+        bool enabled, bool backend, bool eof, bool changeSeparator)
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent("ok:aa"u8.ToArray(), [], AwkReadCompletion.MoreData));
@@ -165,7 +165,7 @@ public sealed class AwkRecordRetryTests
 
     [Theory]
     [MemberData(nameof(Modes))]
-    public async Task DisposingAfterFailedAppendReleasesTheBufferCharge(bool enabled, int backend)
+    public async Task DisposingAfterFailedAppendReleasesTheBufferCharge(bool enabled, bool backend)
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent("ok:aa"u8.ToArray(), [], AwkReadCompletion.MoreData));
@@ -190,7 +190,7 @@ public sealed class AwkRecordRetryTests
     [Theory]
     [MemberData(nameof(ParagraphModes))]
     public async Task ParagraphFailurePreservesLeadersThroughPendingSeparatorsAndRsChanges(
-        bool enabled, int backend, bool retain, bool split, string newline, string retrySeparator)
+        bool enabled, bool backend, bool retain, bool split, string newline, string retrySeparator)
     {
         var leaders = newline + newline;
         var unread = leaders + "alpha" + newline + newline + (split ? newline : "") + "beta";
@@ -242,7 +242,7 @@ public sealed class AwkRecordRetryTests
     [Theory]
     [MemberData(nameof(CancellationModes))]
     public async Task CancellationAfterDeliveryPreservesTheBufferedDefaultLine(
-        bool enabled, int backend, bool finite)
+        bool enabled, bool backend, bool finite)
     {
         using var cancellation = new CancellationTokenSource();
         var reads = 0;
@@ -285,7 +285,7 @@ public sealed class AwkRecordRetryTests
     [Theory]
     [MemberData(nameof(CancellationModes))]
     public async Task CancellationAfterBatchDeliveryKeepsRecordStateAndReleasesTheBufferOnDispose(
-        bool enabled, int backend, bool finite)
+        bool enabled, bool backend, bool finite)
     {
         using var cancellation = new CancellationTokenSource();
         var reads = 0;
@@ -323,7 +323,7 @@ public sealed class AwkRecordRetryTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    private static CooperativeTestMemory State(bool enabled, int backend, AwkRuntimeLimits? requested = null,
+    private static CooperativeTestMemory State(bool enabled, bool backend, AwkRuntimeLimits? requested = null,
         CancellationToken cancellationToken = default, bool memoryEnabled = true)
     {
 
@@ -331,7 +331,7 @@ public sealed class AwkRecordRetryTests
         var limits = requested ?? AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), enabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
-            limits, (AwkRegexEngineKind)backend, regexEngine: AwkUtf8RegexEngine.Instance);
+            limits, regexEngine: backend ? AwkUtf8RegexEngine.Instance : null);
         return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken, testMemory.Configure(options)));
     }
 

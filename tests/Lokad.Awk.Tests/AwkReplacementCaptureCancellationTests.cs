@@ -310,11 +310,11 @@ public sealed class AwkReplacementCaptureCancellationTests
     }
 
     [Theory]
-    [InlineData(AwkRegexEngineKind.DotNetCompatibility, "a")]
-    [InlineData(AwkRegexEngineKind.Utf8Adapter, "a")]
-    [InlineData(AwkRegexEngineKind.DotNetCompatibility, "(a|aa)")]
-    [InlineData(AwkRegexEngineKind.Utf8Adapter, "(a|aa)")]
-    internal void RegexRuntimePassesItsCallbackThroughCaptureConstruction(AwkRegexEngineKind engine, string pattern)
+    [InlineData(false, "a")]
+    [InlineData(true, "a")]
+    [InlineData(false, "(a|aa)")]
+    [InlineData(true, "(a|aa)")]
+    internal void RegexRuntimePassesItsCallbackThroughCaptureConstruction(bool engine, string pattern)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor(counters);
@@ -325,7 +325,7 @@ public sealed class AwkReplacementCaptureCancellationTests
             {
                 if (counters.RegexGroupsMaterialized > 0) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
-            }, counters, engine, new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            }, counters, new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), governor, regexEngine: engine ? AwkUtf8RegexEngine.Instance : null);
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         Assert.Throws<OperationCanceledException>(() =>
         {
@@ -346,7 +346,7 @@ public sealed class AwkReplacementCaptureCancellationTests
         using var cancellation = new CancellationTokenSource();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance));
+                new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance));
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var replacement = AwkText.FromString(new string('x', LongText))
             .Concat(AwkText.FromString("&"), counters, state.MemoryAccounting);

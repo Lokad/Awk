@@ -19,7 +19,7 @@ public sealed class AwkFunctionFlowTests
         var limits = AwkRuntimeLimits.CreateDefault()
             .WithMaxFunctionCallDepth(2);
         var options = new AwkRuntimeOptions(
-            () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
+            () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         state.InitializeFunctions(program.Functions);
         var host = new MockFileSystem();
@@ -69,8 +69,7 @@ public sealed class AwkFunctionFlowTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(2),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(2));
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(0, exit.Value);
         Assert.True(reads >= 2);

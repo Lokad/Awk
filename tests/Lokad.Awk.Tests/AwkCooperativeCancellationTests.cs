@@ -26,7 +26,7 @@ bool observed, bool delayed)
         };
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var limits = AwkRuntimeLimits.CreateDefault();
-        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility) with { MemoryBudget = new CooperativeTestBudget(1 << 20) };
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits) with { MemoryBudget = new CooperativeTestBudget(1 << 20) };
         var run = Task.Run(() => compiled.ExecuteAsync(host, cancellation.Token, options));
         try
         {

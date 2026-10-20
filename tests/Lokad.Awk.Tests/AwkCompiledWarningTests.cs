@@ -169,9 +169,7 @@ public sealed class AwkCompiledWarningTests
     private static AwkRuntimeOptions Options(bool utf8, AwkRuntimeCounters counters,
         AwkRuntimeLimits? limits = null) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits ?? AwkRuntimeLimits.CreateDefault(),
-            utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            regexEngine: AwkUtf8RegexEngine.Instance);
+            limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
 
     private sealed class WarningHost(string failure) : IAwkHost
     {

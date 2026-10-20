@@ -88,7 +88,7 @@ internal static class FunctionStackProbe
         if (shape is "prepared-chain" or "prepared-async" or "prepared-field-chain" or "prepared-field-async" or "prepared-four-chain" or "prepared-four-async") limits = limits.WithMaxFunctionCallDepth(1004);
         if (shape == "raised-syntax") limits = limits.WithMaxSyntaxNestingDepth(256);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility) with { MemoryBudget = new Lokad.Awk.Tests.CooperativeTestBudget(64L << 20) };
+            new AwkRandomGenerator(), counters, limits) with { MemoryBudget = new Lokad.Awk.Tests.CooperativeTestBudget(64L << 20) };
         var completion = new TaskCompletionSource<AwkExitCode>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {

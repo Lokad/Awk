@@ -79,7 +79,7 @@ public sealed class AwkCalendarTimeTests
         const int limit = 1 << 20;
         using var memory = new CooperativeTestMemory(limit);
         var options = new AwkRuntimeOptions(static () => new(0), Zone(false), new AwkRandomGenerator(),
-            AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault());
         var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options))).State;
         var text = AwkText.FromString("2020 10 1 1 30 0");
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -99,8 +99,7 @@ public sealed class AwkCalendarTimeTests
         cancellation.Cancel();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token,
             new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(),
-                AwkRegexEngineKind.DotNetCompatibility));
+                new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault()));
         Assert.Throws<OperationCanceledException>(() => state.MakeCalendarTime(AwkText.FromString("1970 1 1 0 0 0"), true));
     }
 
@@ -117,5 +116,5 @@ public sealed class AwkCalendarTimeTests
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), zone,
                 new AwkRandomGenerator(), counters ?? AwkRuntimeCounters.Disabled,
-                limits ?? AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility));
+                limits ?? AwkRuntimeLimits.CreateDefault()));
 }

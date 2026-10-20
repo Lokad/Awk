@@ -5,13 +5,13 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegexProfileTests
 {
     [Theory]
-    [InlineData(AwkCompatibilityMode.GnuDefault, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkCompatibilityMode.Posix, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkCompatibilityMode.Traditional, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkCompatibilityMode.GnuDefault, AwkRegexEngineKind.Utf8Adapter)]
-    [InlineData(AwkCompatibilityMode.Posix, AwkRegexEngineKind.Utf8Adapter)]
-    [InlineData(AwkCompatibilityMode.Traditional, AwkRegexEngineKind.Utf8Adapter)]
-    internal void CachedPatternsRetainTheirProfile(AwkCompatibilityMode mode, AwkRegexEngineKind engine)
+    [InlineData(AwkCompatibilityMode.GnuDefault, false)]
+    [InlineData(AwkCompatibilityMode.Posix, false)]
+    [InlineData(AwkCompatibilityMode.Traditional, false)]
+    [InlineData(AwkCompatibilityMode.GnuDefault, true)]
+    [InlineData(AwkCompatibilityMode.Posix, true)]
+    [InlineData(AwkCompatibilityMode.Traditional, true)]
+    internal void CachedPatternsRetainTheirProfile(AwkCompatibilityMode mode, bool engine)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -27,20 +27,19 @@ public sealed class AwkRegexProfileTests
     }
 
     [Theory]
-    [InlineData(AwkCompatibilityMode.GnuDefault, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkCompatibilityMode.Posix, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkCompatibilityMode.Traditional, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkCompatibilityMode.GnuDefault, AwkRegexEngineKind.Utf8Adapter)]
-    [InlineData(AwkCompatibilityMode.Posix, AwkRegexEngineKind.Utf8Adapter)]
-    [InlineData(AwkCompatibilityMode.Traditional, AwkRegexEngineKind.Utf8Adapter)]
-    internal void TranslatedPatternLimitsPreflightCacheRetention(AwkCompatibilityMode mode, AwkRegexEngineKind engine)
+    [InlineData(AwkCompatibilityMode.GnuDefault, false)]
+    [InlineData(AwkCompatibilityMode.Posix, false)]
+    [InlineData(AwkCompatibilityMode.Traditional, false)]
+    [InlineData(AwkCompatibilityMode.GnuDefault, true)]
+    [InlineData(AwkCompatibilityMode.Posix, true)]
+    [InlineData(AwkCompatibilityMode.Traditional, true)]
+    internal void TranslatedPatternLimitsPreflightCacheRetention(AwkCompatibilityMode mode, bool engine)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxRegexPatternBytes(2);
         var governor = AwkMemoryAccounting.Disabled;
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, counters, engine,
-            new AwkRuntimeResourceMonitor(limits, counters), governor, mode, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkStringUnitMode.Utf8Rune, static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), governor, mode, regexEngine: engine ? AwkUtf8RegexEngine.Instance : null);
         var pattern = new AwkRegexPattern(@"\w");
         if (mode == AwkCompatibilityMode.GnuDefault)
         {
@@ -69,7 +68,7 @@ public sealed class AwkRegexProfileTests
     public void CanonicalLetterClassesKeepBooleanMatchingByteNative(string pattern)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(AwkCompatibilityMode.GnuDefault, AwkRegexEngineKind.Utf8Adapter,
+        var runtime = Runtime(AwkCompatibilityMode.GnuDefault, true,
             AwkRuntimeLimits.CreateDefault(), counters);
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         var input = AwkText.FromString("W", counters);
@@ -82,9 +81,9 @@ public sealed class AwkRegexProfileTests
         Assert.Equal(0, counters.AwkTextAsStringCalls);
     }
 
-    private static AwkRegexRuntime Runtime(AwkCompatibilityMode mode, AwkRegexEngineKind engine,
+    private static AwkRegexRuntime Runtime(AwkCompatibilityMode mode, bool engine,
         AwkRuntimeLimits limits, AwkRuntimeCounters counters) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, engine, new AwkRuntimeResourceMonitor(limits, counters),
-            compatibilityMode: mode, regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters),
+            compatibilityMode: mode, regexEngine: engine ? AwkUtf8RegexEngine.Instance : null);
 }

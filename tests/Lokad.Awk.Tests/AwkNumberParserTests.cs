@@ -113,5 +113,5 @@ public sealed class AwkNumberParserTests
     private static AwkRuntimeState CreateState(AwkRuntimeCounters counters, AwkRuntimeLimits limits) =>
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility));
+                new AwkRandomGenerator(), counters, limits));
 }

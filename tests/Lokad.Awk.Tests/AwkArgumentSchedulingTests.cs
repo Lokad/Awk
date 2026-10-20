@@ -141,6 +141,6 @@ public sealed class AwkArgumentSchedulingTests
         AwkPath? accessibleRoot = null) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters ?? AwkRuntimeCounters.Disabled, limits ?? AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility, accessiblePathRoot: accessibleRoot,
+accessiblePathRoot: accessibleRoot,
             allowDynamicMainInputPaths: allowDynamicPaths);
 }

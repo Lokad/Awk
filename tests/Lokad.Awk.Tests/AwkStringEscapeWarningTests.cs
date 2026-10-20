@@ -129,7 +129,5 @@ public sealed class AwkStringEscapeWarningTests
 
     private static AwkRuntimeOptions Options(bool utf8, AwkRuntimeLimits? limits = null) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits ?? AwkRuntimeLimits.CreateDefault(),
-            utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRuntimeCounters.CreateEnabled(), limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
 }

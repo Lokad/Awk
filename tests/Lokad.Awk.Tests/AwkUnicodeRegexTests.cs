@@ -46,9 +46,8 @@ public sealed class AwkUnicodeRegexTests
         var messages = new List<string>();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
-            utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
             new AwkRuntimeResourceMonitor(limits, counters), compatibilityMode: (AwkCompatibilityMode)mode,
-            reportUnicodeWarning: messages.Add, regexEngine: AwkUtf8RegexEngine.Instance);
+            reportUnicodeWarning: messages.Add, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
         var first = new AwkRegexPattern(@"\u", warningSite: new object());
         var second = new AwkRegexPattern(@"\u", warningSite: new object());
         var regex = runtime.Create(first);
@@ -82,9 +81,7 @@ public sealed class AwkUnicodeRegexTests
         {
             var host = new MockFileSystem();
             var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(),
-                utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-regexEngine: AwkUtf8RegexEngine.Instance);
+                new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
             var exit = await compiled.ExecuteAsync(host, deadline.Token, options);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("1\n1\n1\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -134,8 +131,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
-            utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
         for (var i = 0; i < 2; i++)
         {
             var error = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(pattern)));

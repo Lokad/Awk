@@ -295,6 +295,5 @@ public sealed class AwkRegexOwnedMemoryTests
         AwkRuntimeCounters? counters = null) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             checkpoint ?? (() => { }), counters ?? AwkRuntimeCounters.Disabled,
-            utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters ?? AwkRuntimeCounters.Disabled), governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters ?? AwkRuntimeCounters.Disabled), governor, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
 }

@@ -75,6 +75,6 @@ public sealed class AwkSortingResourceTests
         var memory = new CooperativeTestMemory(1 << 20);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             memory.Configure(new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility))));
+                new AwkRandomGenerator(), counters, limits))));
     }
 }

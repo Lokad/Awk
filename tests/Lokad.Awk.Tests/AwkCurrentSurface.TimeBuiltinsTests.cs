@@ -47,8 +47,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         expectedRandom.Seed(new AwkRandomSeed(17828));
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, random,
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
 
         var actual = (await EvaluateAsync("rand", [], state)).AsNumber();
@@ -66,8 +65,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             TimeZoneInfo.Utc,
             random,
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var first = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var second = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
 
@@ -178,6 +176,5 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             CancellationToken.None,
             new AwkRuntimeOptions(currentUnixTimeSeconds, timeZone, new AwkRandomGenerator(),
                 AwkRuntimeCounters.Disabled,
-                AwkRuntimeLimits.CreateDefault(),
-                AwkRegexEngineKind.DotNetCompatibility));
+                AwkRuntimeLimits.CreateDefault()));
 }

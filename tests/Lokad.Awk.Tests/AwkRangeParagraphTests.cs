@@ -40,7 +40,7 @@ public sealed class AwkRangeParagraphTests
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(
             input.AsMemory(boundary), [], AwkReadCompletion.EndOfFile));
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForState = State(counters, AwkRegexEngineKind.Utf8Adapter);
+        using var memoryForState = State(counters, true);
         var state = memoryForState.State;
         Assign(state, "RS", "");
         var descriptorReader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
@@ -64,12 +64,12 @@ public sealed class AwkRangeParagraphTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    public void LazyParagraphFieldsRetryAfterMemoryFailureUsingTheirCapturedSeparator(int backend)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LazyParagraphFieldsRetryAfterMemoryFailureUsingTheirCapturedSeparator(bool backend)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForState = State(counters, (AwkRegexEngineKind)backend);
+        using var memoryForState = State(counters, backend);
         var state = memoryForState.State;
         Assign(state, "RS", "");
         Assign(state, "FS", "é");
@@ -92,7 +92,7 @@ public sealed class AwkRangeParagraphTests
         Assert.Equal(2, state.FieldCount);
         Assert.True(state.GetFieldValue(1).ByteText.AsSpan().SequenceEqual("a\nb"u8));
         Assert.True(state.GetFieldValue(2).ByteText.AsSpan().SequenceEqual("x"u8));
-        if ((AwkRegexEngineKind)backend == AwkRegexEngineKind.Utf8Adapter)
+        if (backend)
             Assert.Equal(1, counters.StringDecodes); // Literal FS compilation; record bytes stay native.
     }
 
@@ -101,7 +101,7 @@ public sealed class AwkRangeParagraphTests
     {
         var host = new TestOperationVisitor([]);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForState = State(counters, AwkRegexEngineKind.Utf8Adapter);
+        using var memoryForState = State(counters, true);
         var state = memoryForState.State;
         Assign(state, "RS", "");
         // The first read ends a separator run when it encounters x; x and its final
@@ -135,13 +135,13 @@ public sealed class AwkRangeParagraphTests
         state.AssignVariableValue(AwkVariableName.FromText(name),
             AwkValue.FromText(AwkText.FromSourceLiteralString(text)));
 
-    private static CooperativeTestMemory State(AwkRuntimeCounters counters, AwkRegexEngineKind backend)
+    private static CooperativeTestMemory State(AwkRuntimeCounters counters, bool backend)
     {
 
         var testMemory = new CooperativeTestMemory(1 << 20);
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, backend, regexEngine: AwkUtf8RegexEngine.Instance);
+            new AwkRandomGenerator(), counters, limits, regexEngine: backend ? AwkUtf8RegexEngine.Instance : null);
         return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options)));
     }
 }

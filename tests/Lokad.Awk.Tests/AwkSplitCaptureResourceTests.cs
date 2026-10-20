@@ -63,7 +63,7 @@ public sealed class AwkSplitCaptureResourceTests
     {
         using var memory = new CooperativeTestMemory(8 << 20);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault());
         var state = Seed(memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
             CancellationToken.None, memory.Configure(options))).State);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -131,6 +131,5 @@ public sealed class AwkSplitCaptureResourceTests
         CancellationToken cancellationToken = default) =>
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters ?? AwkRuntimeCounters.Disabled, limits,
-                AwkRegexEngineKind.DotNetCompatibility));
+                new AwkRandomGenerator(), counters ?? AwkRuntimeCounters.Disabled, limits));
 }

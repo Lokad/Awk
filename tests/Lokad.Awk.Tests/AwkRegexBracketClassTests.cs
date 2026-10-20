@@ -3,20 +3,20 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegexBracketClassTests
 {
     [Theory]
-    [InlineData(AwkCompatibilityMode.GnuDefault, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkCompatibilityMode.Posix, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkCompatibilityMode.Traditional, AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkCompatibilityMode.GnuDefault, AwkRegexEngineKind.Utf8Adapter)]
-    [InlineData(AwkCompatibilityMode.Posix, AwkRegexEngineKind.Utf8Adapter)]
-    [InlineData(AwkCompatibilityMode.Traditional, AwkRegexEngineKind.Utf8Adapter)]
+    [InlineData(AwkCompatibilityMode.GnuDefault, false)]
+    [InlineData(AwkCompatibilityMode.Posix, false)]
+    [InlineData(AwkCompatibilityMode.Traditional, false)]
+    [InlineData(AwkCompatibilityMode.GnuDefault, true)]
+    [InlineData(AwkCompatibilityMode.Posix, true)]
+    [InlineData(AwkCompatibilityMode.Traditional, true)]
     internal void InvalidNamedClassFailsBeforePublicationAndDoesNotPoisonRetry(
-        AwkCompatibilityMode mode, AwkRegexEngineKind engine)
+        AwkCompatibilityMode mode, bool engine)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var governor = AwkMemoryAccounting.Disabled;
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, engine, new AwkRuntimeResourceMonitor(limits, counters), governor, mode, regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters), governor, mode, regexEngine: engine ? AwkUtf8RegexEngine.Instance : null);
         for (var run = 0; run < 2; run++)
         {
             var failure = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern("[[:word:]]")));
@@ -153,8 +153,7 @@ public sealed class AwkRegexBracketClassTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            new AwkRuntimeResourceMonitor(limits, counters), regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
         var captured = runtime.Create(new AwkRegexPattern("([[:digit:]])([[:alpha:]])"));
         Assert.Equal(3, captured.GroupCount);
         var punctuation = runtime.Create(new AwkRegexPattern("[[:punct:]]"));

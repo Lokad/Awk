@@ -15,7 +15,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     private readonly CancellationToken _cancellationToken;
     private readonly AwkRuntimeCounters _counters;
     private readonly AwkRuntimeResourceMonitor _resources;
-    private readonly AwkRegexEngineKind _engineKind;
     private readonly AwkBoundedCache<AwkRegexCacheKey, AwkRegex> _regexCache;
     private readonly AwkBoundedCache<AwkRegexCacheKey, Regex> _dotNetRegexCache;
     private readonly AwkBoundedCache<AwkRegexCacheKey, ProvidedCompilation> _providedRegexCache;
@@ -32,7 +31,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         AwkStringUnitMode stringUnitMode,
         Action throwIfCancellationRequested,
         AwkRuntimeCounters counters,
-        AwkRegexEngineKind engineKind,
         IAwkRegexEngine? regexEngine = null,
         CancellationToken cancellationToken = default)
         : this(
@@ -40,7 +38,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             stringUnitMode,
             throwIfCancellationRequested,
             counters,
-            engineKind,
             new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), regexEngine: regexEngine, cancellationToken: cancellationToken)
     {
     }
@@ -50,7 +47,6 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         AwkStringUnitMode stringUnitMode,
         Action throwIfCancellationRequested,
         AwkRuntimeCounters counters,
-        AwkRegexEngineKind engineKind,
         AwkRuntimeResourceMonitor resources,
         AwkMemoryAccounting? memoryAccounting = null,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
@@ -60,14 +56,12 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         IMemoryBudget? memoryBudget = null,
         CancellationToken cancellationToken = default)
     {
-        if (engineKind == AwkRegexEngineKind.Utf8Adapter) ArgumentNullException.ThrowIfNull(regexEngine);
         _resolveCaseSensitivity = resolveCaseSensitivity;
         _stringUnitMode = stringUnitMode;
         _throwIfCancellationRequested = throwIfCancellationRequested;
         _cancellationToken = cancellationToken;
         _counters = counters;
-        _engineKind = engineKind;
-        _providedEngine = engineKind == AwkRegexEngineKind.Utf8Adapter ? regexEngine : null;
+        _providedEngine = regexEngine;
         _providedMemoryBudget = memoryBudget;
         _resources = resources;
         _memoryAccounting = memoryAccounting ?? AwkMemoryAccounting.Disabled;
@@ -108,7 +102,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         ThrowIfPatternExceedsLimits(pattern.Text);
         _unicodeWarnings.Report(pattern, caseSensitivity);
         var kind = hasFixedCaseSensitivity ? AwkRegexCacheKind.FixedPattern : AwkRegexCacheKind.Pattern;
-        var key = new AwkRegexCacheKey(pattern.Text, caseSensitivity, kind, _engineKind);
+        var key = new AwkRegexCacheKey(pattern.Text, caseSensitivity, kind);
         if (_regexCache.TryGetValue(key, out var cached))
             return cached;
 
@@ -151,7 +145,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     {
         _throwIfCancellationRequested();
         var kind = hasFixedCaseSensitivity ? AwkRegexCacheKind.FixedLiteral : AwkRegexCacheKind.Literal;
-        var key = new AwkRegexCacheKey(literal.Text, caseSensitivity, kind, _engineKind);
+        var key = new AwkRegexCacheKey(literal.Text, caseSensitivity, kind);
         if (_regexCache.TryGetValue(key, out var cached))
             return cached;
 
@@ -494,8 +488,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         [NotNullWhen(true)] out AwkPosixRegex? program)
     {
         var sensitivity = regex.ResolveCaseSensitivity(_resolveCaseSensitivity);
-        var key = new AwkRegexCacheKey(regex, sensitivity, AwkRegexCacheKind.TranslatedPattern,
-            AwkRegexEngineKind.DotNetCompatibility);
+        var key = new AwkRegexCacheKey(regex, sensitivity, AwkRegexCacheKind.TranslatedPattern);
         if (_posixRegexCache.TryGetValue(key, out var cached))
         {
             program = cached.Program;
@@ -527,7 +520,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     {
         var caseSensitivity = regex.ResolveCaseSensitivity(_resolveCaseSensitivity);
         var key = new AwkRegexCacheKey(regex, caseSensitivity,
-            AwkRegexCacheKind.TranslatedPattern, AwkRegexEngineKind.DotNetCompatibility);
+            AwkRegexCacheKind.TranslatedPattern);
         if (_longestRegexCache.TryGetValue(key, out var cached))
             return cached;
 
@@ -561,8 +554,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         var key = new AwkRegexCacheKey(
             regex,
             caseSensitivity,
-            AwkRegexCacheKind.TranslatedPattern,
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRegexCacheKind.TranslatedPattern);
         if (_dotNetRegexCache.TryGetValue(key, out var cached))
             return cached;
 
@@ -594,18 +586,16 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         public AwkRegexCacheKey(
             string pattern,
             AwkRegexCaseSensitivity caseSensitivity,
-            AwkRegexCacheKind kind,
-            AwkRegexEngineKind engineKind)
-            : this(pattern, pattern.GetHashCode(), caseSensitivity, kind, engineKind)
+            AwkRegexCacheKind kind)
+            : this(pattern, pattern.GetHashCode(), caseSensitivity, kind)
         {
         }
 
         public AwkRegexCacheKey(
             AwkRegex regex,
             AwkRegexCaseSensitivity caseSensitivity,
-            AwkRegexCacheKind kind,
-            AwkRegexEngineKind engineKind)
-            : this(regex.Pattern, regex.PatternHashCode, caseSensitivity, kind, engineKind)
+            AwkRegexCacheKind kind)
+            : this(regex.Pattern, regex.PatternHashCode, caseSensitivity, kind)
         {
         }
 
@@ -613,14 +603,12 @@ internal sealed partial class AwkRegexRuntime : IDisposable
             string pattern,
             int patternHashCode,
             AwkRegexCaseSensitivity caseSensitivity,
-            AwkRegexCacheKind kind,
-            AwkRegexEngineKind engineKind)
+            AwkRegexCacheKind kind)
         {
             _pattern = pattern;
             _patternHashCode = patternHashCode;
             CaseSensitivity = caseSensitivity;
             Kind = kind;
-            EngineKind = engineKind;
         }
 
         public string PatternText => _pattern ?? string.Empty;
@@ -629,12 +617,10 @@ internal sealed partial class AwkRegexRuntime : IDisposable
 
         private AwkRegexCacheKind Kind { get; }
 
-        private AwkRegexEngineKind EngineKind { get; }
 
         public bool Equals(AwkRegexCacheKey other) =>
             CaseSensitivity == other.CaseSensitivity &&
             Kind == other.Kind &&
-            EngineKind == other.EngineKind &&
             string.Equals(PatternText, other.PatternText, StringComparison.Ordinal);
 
         public override bool Equals(object? obj) =>
@@ -642,7 +628,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
 
         public override int GetHashCode() =>
             HashCode.Combine(_pattern is null ? string.Empty.GetHashCode() : _patternHashCode,
-                CaseSensitivity, Kind, EngineKind);
+                CaseSensitivity, Kind);
     }
 
     private enum AwkRegexCacheKind

@@ -298,7 +298,7 @@ public sealed class AwkIncrementalFieldTests
     {
         Action check = checkpoint ?? (() => { });
         var monitor = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
-        var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, check, counters, AwkRegexEngineKind.DotNetCompatibility, monitor, accounting);
+        var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, check, counters, monitor, accounting);
         var splitter = new AwkFieldSplitter(AwkFieldSeparatorSpec.FromText(separator), regex.Create, regex.CreateLiteral, regex.EnumerateMatchSpans, () => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, check, accounting, counters);
         var frame = new AwkFieldFrame(counters, accounting, value => value.ByteText, check, splitter);
         return (frame, splitter);

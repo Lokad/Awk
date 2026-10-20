@@ -69,7 +69,7 @@ public sealed class AwkFieldLiteralComparisonTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
+            new AwkRandomGenerator(), counters, limits);
         var memory = new CooperativeTestMemory(1 << 20, counters, enabled: finite);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation, memory.Configure(options)));
     }

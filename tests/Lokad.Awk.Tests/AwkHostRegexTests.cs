@@ -85,7 +85,7 @@ public sealed class AwkHostRegexTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits, AwkRegexEngineKind.Utf8Adapter, regexEngine: engine);
+            limits, regexEngine: engine);
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new("(é)"));
         var committed = state.MemoryAccounting.CurrentCommittedBytes;

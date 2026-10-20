@@ -130,7 +130,7 @@ public sealed class AwkBorrowedSubstringTests
     {
         limits ??= AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility)
+            AwkRuntimeCounters.CreateEnabled(), limits)
         { MemoryOwner = owner };
         var profile = bytes ? AwkCompatibilityProfile.Default.WithCharactersAsBytes() : AwkCompatibilityProfile.Default;
         return new(AwkFieldSeparatorSpec.Default, token, options,

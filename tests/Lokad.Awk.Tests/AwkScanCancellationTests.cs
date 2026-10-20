@@ -199,8 +199,7 @@ public sealed class AwkScanCancellationTests
         return testMemory.Initialize(AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token,
                     testMemory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                         new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-                        AwkRuntimeLimits.CreateDefault(),
-                        AwkRegexEngineKind.DotNetCompatibility))));
+                        AwkRuntimeLimits.CreateDefault()))));
     }
     private sealed class CancelAfterValueExpression(CancellationTokenSource cancellation, AwkValue value) : AwkExpression
     {

@@ -61,8 +61,7 @@ public sealed class AwkPreparedNumberReadTests
 
         var testMemory = new CooperativeTestMemory(1 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()));
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         if (slots) state.InitializeGlobalReadSlots(1);
         return testMemory.Initialize(() => state);

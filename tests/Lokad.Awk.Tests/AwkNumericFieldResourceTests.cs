@@ -185,7 +185,6 @@ public sealed class AwkNumericFieldResourceTests
         var memory = new CooperativeTestMemory(1 << 20);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellationToken,
             memory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters ?? AwkRuntimeCounters.Disabled, limits,
-                AwkRegexEngineKind.DotNetCompatibility))));
+                new AwkRandomGenerator(), counters ?? AwkRuntimeCounters.Disabled, limits))));
     }
 }

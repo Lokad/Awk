@@ -53,8 +53,7 @@ public sealed class AwkBoundScalarLengthTests
 
         var testMemory = new CooperativeTestMemory(1 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()));
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         state.InitializeGlobalReadSlots(2);
         return testMemory.Initialize(() => state);

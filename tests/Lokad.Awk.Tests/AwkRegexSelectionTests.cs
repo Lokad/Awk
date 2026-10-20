@@ -5,14 +5,14 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegexSelectionTests
 {
     [Theory]
-    [InlineData(AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkRegexEngineKind.Utf8Adapter)]
-    internal void EquivalentPatternsAndCaseChangesKeepCompiledCacheIdentity(AwkRegexEngineKind engine)
+    [InlineData(false)]
+    [InlineData(true)]
+    internal void EquivalentPatternsAndCaseChangesKeepCompiledCacheIdentity(bool engine)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var sensitivity = AwkRegexCaseSensitivity.CaseSensitive;
         var runtime = new AwkRegexRuntime(() => sensitivity, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, engine, regexEngine: AwkUtf8RegexEngine.Instance);
+            static () => { }, counters, regexEngine: engine ? AwkUtf8RegexEngine.Instance : null);
         const string pattern = "^(SKU)([[:alpha:]]+)([0-9]+)$";
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         var equalText = new string(pattern.ToCharArray());
@@ -41,9 +41,9 @@ public sealed class AwkRegexSelectionTests
     }
 
     [Theory]
-    [InlineData(AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkRegexEngineKind.Utf8Adapter)]
-    internal void SelectionIsCachedAndOnlyObservableMatchesNeedIt(AwkRegexEngineKind engine)
+    [InlineData(false)]
+    [InlineData(true)]
+    internal void SelectionIsCachedAndOnlyObservableMatchesNeedIt(bool engine)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = Runtime(engine, counters, AwkRuntimeLimits.CreateDefault());
@@ -78,7 +78,7 @@ public sealed class AwkRegexSelectionTests
     internal void UnambiguousScalarPatternsKeepByteNativeRoute(string pattern)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(AwkRegexEngineKind.Utf8Adapter, counters, AwkRuntimeLimits.CreateDefault());
+        var runtime = Runtime(true, counters, AwkRuntimeLimits.CreateDefault());
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         var input = AwkText.FromString("SKU12abc;,😀😀", counters);
 
@@ -90,12 +90,12 @@ public sealed class AwkRegexSelectionTests
     }
 
     [Theory]
-    [InlineData(AwkRegexEngineKind.DotNetCompatibility, AwkStringUnitMode.Utf8Rune)]
-    [InlineData(AwkRegexEngineKind.Utf8Adapter, AwkStringUnitMode.Utf8Rune)]
-    [InlineData(AwkRegexEngineKind.DotNetCompatibility, AwkStringUnitMode.Byte)]
-    [InlineData(AwkRegexEngineKind.Utf8Adapter, AwkStringUnitMode.Byte)]
+    [InlineData(false, AwkStringUnitMode.Utf8Rune)]
+    [InlineData(true, AwkStringUnitMode.Utf8Rune)]
+    [InlineData(false, AwkStringUnitMode.Byte)]
+    [InlineData(true, AwkStringUnitMode.Byte)]
     internal void InternalCapturesAreHiddenFromCoordinatesAndMemory(
-        AwkRegexEngineKind engine, AwkStringUnitMode units)
+        bool engine, AwkStringUnitMode units)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -124,9 +124,9 @@ public sealed class AwkRegexSelectionTests
     }
 
     [Theory]
-    [InlineData(AwkRegexEngineKind.DotNetCompatibility)]
-    [InlineData(AwkRegexEngineKind.Utf8Adapter)]
-    internal void CaptureFailurePreflightsAllPublicGroups(AwkRegexEngineKind engine)
+    [InlineData(false)]
+    [InlineData(true)]
+    internal void CaptureFailurePreflightsAllPublicGroups(bool engine)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -148,7 +148,7 @@ public sealed class AwkRegexSelectionTests
     public void ZeroCacheBudgetDoesNotRetainSelectionCompilations()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(AwkRegexEngineKind.Utf8Adapter, counters,
+        var runtime = Runtime(true, counters,
             AwkRuntimeLimits.CreateDefault().WithMaxRegexCacheBytes(1));
         var regex = runtime.Create(new AwkRegexPattern("a|aa"));
         var input = AwkText.FromString("aa");
@@ -161,7 +161,7 @@ public sealed class AwkRegexSelectionTests
     [Fact]
     public void ImplementationGroupsDoNotConsumeTheUserGroupAllowance()
     {
-        var runtime = Runtime(AwkRegexEngineKind.DotNetCompatibility, AwkRuntimeCounters.Disabled,
+        var runtime = Runtime(false, AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault().WithMaxRegexGroups(1).WithMaxRegexPatternBytes(6));
         var regex = runtime.Create(new AwkRegexPattern("(a|aa)"));
         using var match = runtime.MatchValue(regex, AwkText.FromString("aa"),
@@ -175,7 +175,7 @@ public sealed class AwkRegexSelectionTests
     public void StructuredSelectionAvoidsCatastrophicBacktracking()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(AwkRegexEngineKind.Utf8Adapter, counters, AwkRuntimeLimits.CreateDefault());
+        var runtime = Runtime(true, counters, AwkRuntimeLimits.CreateDefault());
         var regex = runtime.Create(new AwkRegexPattern("(a+)+b|c"));
         var compiled = AwkLongestRegex.Create(regex, AwkRegexCaseSensitivity.CaseSensitive);
         Assert.Equal(AwkRegex.MatchTimeout, compiled.Regex.MatchTimeout);
@@ -192,7 +192,7 @@ public sealed class AwkRegexSelectionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, cancellation.Token.ThrowIfCancellationRequested,
-            counters, AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
+            counters, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("a|aa"));
         cancellation.Cancel();
 
@@ -205,7 +205,7 @@ public sealed class AwkRegexSelectionTests
     [Fact]
     public void ExistingNamedGroupsCannotCollideWithSelectionGroups()
     {
-        var runtime = Runtime(AwkRegexEngineKind.DotNetCompatibility, AwkRuntimeCounters.Disabled,
+        var runtime = Runtime(false, AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault());
         var regex = runtime.Create(new AwkRegexPattern("(?<LokadWhole>a|aa)(?<LokadPrefix>a*)"));
         using var match = runtime.MatchValue(regex, AwkText.FromString("aaa"),
@@ -217,8 +217,7 @@ public sealed class AwkRegexSelectionTests
         Assert.Equal("aa", match.Match.Groups[2].Value.AsString());
     }
 
-    private static AwkRegexRuntime Runtime(AwkRegexEngineKind engine, AwkRuntimeCounters counters,
+    private static AwkRegexRuntime Runtime(bool engine, AwkRuntimeCounters counters,
         AwkRuntimeLimits limits, AwkStringUnitMode units = AwkStringUnitMode.Utf8Rune) =>
-        new(() => AwkRegexCaseSensitivity.CaseSensitive, units, static () => { }, counters, engine,
-            new AwkRuntimeResourceMonitor(limits, counters), regexEngine: AwkUtf8RegexEngine.Instance);
+        new(() => AwkRegexCaseSensitivity.CaseSensitive, units, static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), regexEngine: engine ? AwkUtf8RegexEngine.Instance : null);
 }

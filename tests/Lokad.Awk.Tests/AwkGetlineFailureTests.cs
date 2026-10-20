@@ -115,9 +115,7 @@ bool utf8)
     private static AwkRuntimeOptions Options(bool utf8,
         AwkRuntimeCounters counters, AwkRuntimeLimits? limits = null) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits ?? AwkRuntimeLimits.CreateDefault(),
-            utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
 
     private static async Task<AwkExitCode> ExecuteAsync(IAwkHost host, string script, AwkRuntimeOptions options)
     {

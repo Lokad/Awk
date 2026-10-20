@@ -11,7 +11,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+            counters, AwkRuntimeLimits.CreateDefault());
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
             CancellationToken.None, options);
         var record = AwkText.FromSourceLiteralString("alpha beta");
@@ -84,7 +84,7 @@ public sealed class AwkRecordFieldAllocationTests(ITestOutputHelper output)
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+            counters, AwkRuntimeLimits.CreateDefault());
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default,
             CancellationToken.None, options);
         state.SetCurrentRecord(AwkText.FromString("alpha beta"));

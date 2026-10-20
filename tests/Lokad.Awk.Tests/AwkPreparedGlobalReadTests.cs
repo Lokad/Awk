@@ -127,8 +127,7 @@ public sealed class AwkPreparedGlobalReadTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault());
         var memory = new CooperativeTestMemory(1 << 20, counters);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, memory.Configure(options)));
     }

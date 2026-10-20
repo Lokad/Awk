@@ -71,7 +71,7 @@ public sealed partial class AwkFieldProjectionTests
         host.SetStandardInput("head 007 café\nother -3 tail\n");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(2 << 20);
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility, memoryBudget: budget);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, memoryBudget: budget);
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);

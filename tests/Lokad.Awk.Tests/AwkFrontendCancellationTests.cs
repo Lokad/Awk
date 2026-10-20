@@ -324,8 +324,7 @@ public sealed class AwkFrontendCancellationTests
         cancellation.Cancel();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var hosts = new[] { new MockFileSystem(), new MockFileSystem() };
         var results = await Task.WhenAll(hosts.Select(host => compiled.ExecuteAsync(host, CancellationToken.None, options)));
         Assert.All(results, result => Assert.Equal(AwkExitCode.Success, result));

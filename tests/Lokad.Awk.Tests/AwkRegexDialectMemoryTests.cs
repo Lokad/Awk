@@ -122,9 +122,9 @@ public sealed class AwkRegexDialectMemoryTests
             AwkRegexResourceFacts.EstimateCacheBytes(probe.ErePattern);
         AwkRegexRuntime WithCacheBudget(long partition) =>
             new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, () => { },
-                AwkRuntimeCounters.Disabled, utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
+                AwkRuntimeCounters.Disabled,
                 new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault().WithMaxRegexCacheBytes(partition * 5),
-                    AwkRuntimeCounters.Disabled), governor, regexEngine: AwkUtf8RegexEngine.Instance);
+                    AwkRuntimeCounters.Disabled), governor, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
         var exact = WithCacheBudget(bytes);
         var cached = exact.Create(new AwkRegexPattern(text));
         Assert.Same(cached, exact.Create(new AwkRegexPattern(text)));
@@ -221,6 +221,5 @@ public sealed class AwkRegexDialectMemoryTests
     private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryAccounting governor, Action checkpoint) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint,
             AwkRuntimeCounters.Disabled,
-            utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled), governor, regexEngine: AwkUtf8RegexEngine.Instance);
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled), governor, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
 }

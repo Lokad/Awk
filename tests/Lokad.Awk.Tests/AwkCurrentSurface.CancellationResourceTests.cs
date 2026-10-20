@@ -250,8 +250,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
                 if (checks > 5)
                     throw new OperationCanceledException();
             },
-            AwkRuntimeCounters.Disabled,
-            AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRuntimeCounters.Disabled, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("a"));
         var input = AwkText.FromString(new string('a', 32));
         enumerating = true;
@@ -279,9 +278,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var input = new string('a', 64);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
@@ -344,8 +341,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility) with
+            AwkRuntimeLimits.CreateDefault()) with
         { MemoryBudget = new CooperativeTestBudget(memoryBudgetBytes) };
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
@@ -474,8 +470,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         using var memory = new CooperativeTestMemory(1 << 20);
         var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
@@ -506,8 +501,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var state = AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
             CancellationToken.None,
@@ -742,16 +736,13 @@ regexEngine: AwkUtf8RegexEngine.Instance);
                 TimeZoneInfo.Utc,
                 new AwkRandomGenerator(),
                 AwkRuntimeCounters.Disabled,
-                AwkRuntimeLimits.CreateDefault(),
-                useUtf8Adapter
-                    ? AwkRegexEngineKind.Utf8Adapter
-                    : AwkRegexEngineKind.DotNetCompatibility,
-regexEngine: AwkUtf8RegexEngine.Instance)))).State;
+                AwkRuntimeLimits.CreateDefault(), regexEngine: (useUtf8Adapter
+                    ? true
+                    : false) ? AwkUtf8RegexEngine.Instance : null)))).State;
         // Prepare outside the capture-only budget. Runtime scalar preparation has
         // its own admission tests and can require more memory than one match payload.
         var preparation = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
-            AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled,
-            useUtf8Adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility, regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled, regexEngine: useUtf8Adapter ? AwkUtf8RegexEngine.Instance : null);
         var regex = preparation.Create(new AwkRegexPattern("."));
         var input = AwkText.FromString(text);
 
@@ -826,8 +817,7 @@ regexEngine: AwkUtf8RegexEngine.Instance)))).State;
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility) with
+            AwkRuntimeLimits.CreateDefault()) with
         { MemoryBudget = new CooperativeTestBudget(1 << 20) };
         var content = new string('x', 80);
         var compiled = await AwkExecutor.CompileAsync(
@@ -852,8 +842,7 @@ regexEngine: AwkUtf8RegexEngine.Instance)))).State;
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         using var memory = new CooperativeTestMemory(1 << 20);
         var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default,
@@ -1242,8 +1231,7 @@ regexEngine: AwkUtf8RegexEngine.Instance)))).State;
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault().WithMaxOutputFiles(1),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault().WithMaxOutputFiles(1));
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation(
@@ -1306,8 +1294,7 @@ regexEngine: AwkUtf8RegexEngine.Instance)))).State;
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            limits,
-            AwkRegexEngineKind.DotNetCompatibility);
+            limits);
 
     private static CooperativeTestMemory CreateGovernedState(int memoryBudgetBytes)
     {
@@ -1320,7 +1307,6 @@ regexEngine: AwkUtf8RegexEngine.Instance)))).State;
                         TimeZoneInfo.Utc,
                         new AwkRandomGenerator(),
                         AwkRuntimeCounters.Disabled,
-                        AwkRuntimeLimits.CreateDefault(),
-                        AwkRegexEngineKind.DotNetCompatibility))));
+                        AwkRuntimeLimits.CreateDefault()))));
     }
 }

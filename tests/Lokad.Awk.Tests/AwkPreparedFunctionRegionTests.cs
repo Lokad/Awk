@@ -860,7 +860,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     private static AwkRuntimeState State(AwkRuntimeCounters counters, AwkRuntimeLimits limits, CancellationToken token = default, AwkExecutionMemoryOwner? owner = null, AwkLintMode lint = AwkLintMode.Off)
     {
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility)
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits)
         { MemoryOwner = owner ?? AwkExecutionMemoryOwner.Disabled };
         return new(AwkFieldSeparatorSpec.Default, token, options, new AwkRuntimeResourceMonitor(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint));
     }

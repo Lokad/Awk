@@ -127,8 +127,7 @@ public sealed class AwkRegexScratchMemoryTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
-                AwkRegexEngineKind.DotNetCompatibility));
+                new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()));
         var input = AwkText.FromString("x");
         var regex = state.CreateRegex(new AwkRegexPattern(missingOccurrence ? "(x)" : "z"));
         var before = state.MemoryAccounting.CurrentCommittedBytes;

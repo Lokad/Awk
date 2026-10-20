@@ -29,9 +29,7 @@ public sealed class AwkRegexEscapeWarningTests
         {
             var host = new MockFileSystem();
             var options = new AwkRuntimeOptions(AwkUnixTimestampSeconds.FromSystemClock, TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(),
-                utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-regexEngine: AwkUtf8RegexEngine.Instance);
+                new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("1\n1\n1\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -141,7 +139,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
         string[] args = [.. profile.Length == 0 ? Array.Empty<string>() : new[] { profile }, script];
         var options = new AwkRuntimeOptions(AwkUnixTimestampSeconds.FromSystemClock, TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var exit = await AwkExecutor.ExecuteAsync(host,
             AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", args, [])), CancellationToken.None, options);
         Assert.Equal(AwkExitCode.Success, exit);

@@ -163,7 +163,5 @@ public sealed class AwkUnicodeCallerTests
     private static AwkRuntimeOptions Options(bool utf8, AwkRuntimeLimits? limits = null,
         bool counters = true) => new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
         new AwkRandomGenerator(), counters ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
-        limits ?? AwkRuntimeLimits.CreateDefault(),
-        utf8 ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility,
-regexEngine: AwkUtf8RegexEngine.Instance);
+        limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
 }

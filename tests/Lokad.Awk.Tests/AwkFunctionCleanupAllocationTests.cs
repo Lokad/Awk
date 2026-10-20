@@ -9,7 +9,7 @@ public sealed class AwkFunctionCleanupAllocationTests
     public void SingleArgumentInvocationDoesNotAllocateAnInlineArray(bool evaluatedValues)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+        var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault());
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var function = new AwkUserFunction(AwkFunctionName.FromText("f"), new AwkFunctionLocalLayout([AwkVariableName.FromText("x")]), []);
         AwkExpression[] expressions = [AwkExpression.Number("42", 42)];

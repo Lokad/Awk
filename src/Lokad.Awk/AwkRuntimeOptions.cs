@@ -12,7 +12,6 @@ internal sealed record AwkRuntimeOptions
         AwkRandomGenerator randomGenerator,
         AwkRuntimeCounters counters,
         AwkRuntimeLimits limits,
-        AwkRegexEngineKind regexEngineKind,
         bool allowFileRedirections = true,
         bool allowCommandPipes = true,
         AwkPath? accessiblePathRoot = null,
@@ -31,7 +30,6 @@ internal sealed record AwkRuntimeOptions
         _createRandomGenerator = randomGeneratorSnapshot.Clone;
         Counters = counters;
         Limits = limits;
-        RegexEngineKind = regexEngineKind;
         AllowFileRedirections = allowFileRedirections;
         AllowCommandPipes = allowCommandPipes;
         AccessiblePathRoot = accessiblePathRoot;
@@ -63,8 +61,6 @@ internal sealed record AwkRuntimeOptions
 
     public AwkRuntimeLimits Limits { get; }
 
-    public AwkRegexEngineKind RegexEngineKind { get; }
-
     public bool AllowFileRedirections { get; }
 
     public bool AllowCommandPipes { get; }
@@ -92,7 +88,6 @@ internal sealed record AwkRuntimeOptions
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.FromPolicy(policy),
-            policy.RegexEngine is null ? AwkRegexEngineKind.DotNetCompatibility : AwkRegexEngineKind.Utf8Adapter,
             policy.AllowFileRedirections,
             policy.AllowCommandPipes,
             policy.AccessiblePathRoot,

@@ -266,8 +266,7 @@ public sealed class AwkPreparedCompoundUpdateTests
         var testMemory = new CooperativeTestMemory(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         state.InitializeGlobalReadSlots(1);
         return testMemory.Initialize(() => state);

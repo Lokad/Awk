@@ -53,8 +53,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             () => caseSensitivity,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            AwkRuntimeCounters.Disabled,
-            AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeCounters.Disabled);
 
         var first = runtime.Create(new AwkRegexPattern("a+"));
         var second = runtime.Create(new AwkRegexPattern("a+"));
@@ -76,8 +75,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters,
-            AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);
+            counters, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("[,;]"));
         var input = AwkText.FromString("alpha,béta;gamma", counters, governor);
         var baselineTextAllocations = counters.AwkTextAllocations;
@@ -110,8 +108,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             charactersAsBytes ? AwkStringUnitMode.Byte : AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters,
-            useUtf8Adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility, regexEngine: AwkUtf8RegexEngine.Instance);
+            counters, regexEngine: useUtf8Adapter ? AwkUtf8RegexEngine.Instance : null);
         var regex = runtime.Create(new AwkRegexPattern("(.)"));
         var input = AwkText.FromString("😀🦊", counters);
         using var match = runtime.MatchValue(regex, input, AwkMemoryAccounting.Disabled, AwkRegexCapturePlan.All);
@@ -143,8 +140,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters,
-            useUtf8Adapter ? AwkRegexEngineKind.Utf8Adapter : AwkRegexEngineKind.DotNetCompatibility, regexEngine: AwkUtf8RegexEngine.Instance);
+            counters, regexEngine: useUtf8Adapter ? AwkUtf8RegexEngine.Instance : null);
         // Construct an untranslated backend pattern to exercise the publication guard.
         var pattern = splitCaptureOnly ? @"(\uD83D)(\uDE00)" : @"[\uD800-\uDBFF]";
         var regex = AwkRegex.CreateDotNet(pattern, AwkRegexCaseSensitivity.CaseSensitive);
@@ -169,8 +165,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters,
-            AwkRegexEngineKind.DotNetCompatibility);
+            counters);
         var regex = runtime.Create(new AwkRegexPattern("[0-9]"));
         var input = AwkText.FromString(string.Concat(Enumerable.Repeat("é1", 128)), counters);
         var count = 0;
@@ -197,8 +192,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Byte,
             static () => { },
-            counters,
-            AwkRegexEngineKind.DotNetCompatibility);
+            counters);
         var regex = runtime.Create(new AwkRegexPattern("z"));
         var input = AwkText.FromString(new string('a', 4_096), counters);
 
@@ -218,10 +212,9 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters,
-            useUtf8Adapter
-                ? AwkRegexEngineKind.Utf8Adapter
-                : AwkRegexEngineKind.DotNetCompatibility, regexEngine: AwkUtf8RegexEngine.Instance);
+            counters, regexEngine: (useUtf8Adapter
+                ? true
+                : false) ? AwkUtf8RegexEngine.Instance : null);
         var regex = runtime.Create(new AwkRegexPattern("(a)"));
         var input = AwkText.FromString("a", counters);
         var baselineTextAllocations = counters.AwkTextAllocations;
@@ -249,10 +242,9 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters,
-            useUtf8Adapter
-                ? AwkRegexEngineKind.Utf8Adapter
-                : AwkRegexEngineKind.DotNetCompatibility, regexEngine: AwkUtf8RegexEngine.Instance);
+            counters, regexEngine: (useUtf8Adapter
+                ? true
+                : false) ? AwkUtf8RegexEngine.Instance : null);
         var regex = runtime.Create(new AwkRegexPattern("(a)(b)(c)(d)"));
         var input = AwkText.FromString("abcd", counters);
         var baselineTextAllocations = counters.AwkTextAllocations;
@@ -314,9 +306,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new AwkRegexPattern("[[:alpha:]]+"));
         var input = AwkText.FromString("abc123déf", counters, state.MemoryAccounting);
@@ -350,9 +340,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            limits,
-            AwkRegexEngineKind.Utf8Adapter,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            limits, regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString(new string('a', 4_096), counters);
@@ -382,9 +370,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var regex = state.CreateRegex(new AwkRegexPattern("a"));
         var input = AwkText.FromString("a1234", counters, state.MemoryAccounting);
@@ -416,9 +402,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
 
         var result = await AwkTestHarness
             .RunGoldenCaseAsync(testCase, CancellationToken.None, options);
@@ -461,9 +445,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", program),
@@ -493,11 +475,9 @@ regexEngine: AwkUtf8RegexEngine.Instance);
                 TimeZoneInfo.Utc,
                 new AwkRandomGenerator(),
                 AwkRuntimeCounters.Disabled,
-                AwkRuntimeLimits.CreateDefault(),
-                useUtf8Adapter
-                    ? AwkRegexEngineKind.Utf8Adapter
-                    : AwkRegexEngineKind.DotNetCompatibility,
-regexEngine: AwkUtf8RegexEngine.Instance);
+                AwkRuntimeLimits.CreateDefault(), regexEngine: (useUtf8Adapter
+                    ? true
+                    : false) ? AwkUtf8RegexEngine.Instance : null);
             var fileSystem = new MockFileSystem();
             var compiled = await AwkExecutor.CompileAsync(
                 fileSystem,
@@ -541,9 +521,7 @@ regexEngine: AwkUtf8RegexEngine.Instance);
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(),
-            AwkRegexEngineKind.Utf8Adapter,
-regexEngine: AwkUtf8RegexEngine.Instance);
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation(

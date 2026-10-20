@@ -153,7 +153,7 @@ public sealed class AwkBorrowedArrayReadTests
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits, AwkRegexEngineKind.DotNetCompatibility)
+            limits)
         { MemoryOwner = owner };
         return AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
     }

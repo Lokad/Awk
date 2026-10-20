@@ -197,7 +197,7 @@ public sealed class AwkGlobalUpdateOwnershipTests
 
         var testMemory = new CooperativeTestMemory(Limit);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(), AwkRegexEngineKind.DotNetCompatibility);
+            AwkRuntimeLimits.CreateDefault());
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         if (vector) state.InitializeGlobalReadSlots(1);
         return testMemory.Initialize(() => state);
