@@ -4,6 +4,10 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FieldProjectionCases()
     {
+        // Numeric $0 follows OFMT, as in mawk; GNU's cached CONVFMT spelling differs.
+        yield return Passing("record-print-keeps-format-spelling-and-empty-record",
+            ["BEGIN{OFMT=\"%.2f\";CONVFMT=\"%.3f\";ORS=\"|\";$0=1.2345;print;print $0;$0=\"0007\";print;print $0;$0=\"café old\";$2=1.2345;print;print $0;NF=0;print;print $0}"],
+            [], "1.23|1.23|0007|0007|café 1.234|café 1.234|||", "");
         yield return Passing("field-capacity-growth-shrink-and-recomposition",
             ["{NF=65;print NF,$1,$64,\"[\"$65\"]\";NF=1;print NF,$0;$129=\"z\";print NF,$1,$129}"],
             [], "65 x x []\n1 x\n129 x z\n", string.Join(' ', Enumerable.Repeat("x", 64)) + "\n");

@@ -81,10 +81,13 @@ by alias, including forwarded missing parameters. Scalar assignments/returns cop
 Grouped arguments impose scalar context and reject arrays. Function parameters shadow
 globals, including for `length` and forwarded array aliases.
 
-Assignment targets/keys and old compound values are evaluated before the RHS. Concatenation
-formats each operand before evaluating the next. Side effects on targets, SUBSEP or CONVFMT
+Plain assignment evaluates the RHS before resolving its target/key. Compound assignment
+reads the target and old value before the RHS. Concatenation formats each operand before
+evaluating the next. Side effects on targets, SUBSEP or CONVFMT
 can therefore differ from GNU awk; keep order-sensitive effects in separate statements.
 Numeric OFS/ORS use current CONVFMT; use string separators to preserve assigned spelling.
+Printing a numerically assigned `$0` uses OFMT, as in mawk. GNU's cached CONVFMT spelling
+for single-record printing is not reproduced.
 
 Formatting preflights publication. Bitwise, calendar and nonfinite/range behavior follow
 the golden contract, not every libc quirk. Time comes from the policy's clock/zone, with
