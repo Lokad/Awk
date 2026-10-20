@@ -83,7 +83,7 @@ public sealed class AwkSingleCallArgumentTests
     private static CooperativeTestMemory State(int depth)
     {
 
-        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(1 << 20);
         var limits = AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(depth);
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             AwkRuntimeCounters.CreateEnabled(), limits, AwkRegexEngineKind.DotNetCompatibility);

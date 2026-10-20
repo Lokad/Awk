@@ -80,7 +80,7 @@ public sealed class AwkEvaluationContextTests
     private static CooperativeTestMemory CreateState(bool finite)
     {
 
-        var testMemory = new CooperativeTestMemory(1 << 20, enabled: finite && (long)(1 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: finite);
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), limits,

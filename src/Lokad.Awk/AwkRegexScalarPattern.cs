@@ -90,39 +90,13 @@ internal static partial class AwkRegexScalarPattern
 
     private static string? TranslateBracket(string content, Action? checkpoint)
     {
-        long nextCheckpoint = 0;
         // The adapter's value-match prefilter folds a one-letter ASCII class even
         // without IgnoreCase. Canonical literal atoms avoid that ambiguity while
         // retaining byte-native matching and the class's exact set of characters.
-        if (content.Length > 0 && char.IsAsciiLetter(content[0]))
-        {
-            var lower = char.ToLowerInvariant(content[0]);
-            var hasLower = false;
-            var hasUpper = false;
-            var singleLetter = true;
-            for (var scan = 0; scan < content.Length; scan++)
-            {
-                AwkRegexConstruction.CheckProgress(scan, ref nextCheckpoint, checkpoint);
-                var value = content[scan];
-                if (!char.IsAsciiLetter(value) || char.ToLowerInvariant(value) != lower)
-                {
-                    singleLetter = false;
-                    break;
-                }
-                hasLower |= value == lower;
-                hasUpper |= value != lower;
-            }
-            if (singleLetter)
-            {
-                checkpoint?.Invoke();
-                var upper = char.ToUpperInvariant(lower);
-                return hasLower && hasUpper
-                    ? "(?:" + lower + "|" + upper + ")"
-                    : (hasLower ? lower : upper).ToString();
-            }
-        }
+        if (TryReadAsciiLetterClass(content, out var firstLetter, out var lastLetter, checkpoint))
+            return firstLetter == lastLetter ? firstLetter.ToString() : "(?:" + firstLetter + "|" + lastLetter + ")";
 
-        nextCheckpoint = 0;
+        long nextCheckpoint = 0;
         var negated = content.StartsWith('^');
         var index = negated ? 1 : 0;
         var bmp = new StringBuilder(content.Length);
@@ -192,6 +166,34 @@ internal static partial class AwkRegexScalarPattern
                 supplementary.Add(new ScalarRange(Math.Max(first, 0x10000), last));
             }
         }
+    }
+
+    private static bool TryReadAsciiLetterClass(ReadOnlySpan<char> content,
+        out char first, out char last, Action? checkpoint)
+    {
+        first = last = default;
+        if (content.IsEmpty || !char.IsAsciiLetter(content[0]))
+            return false;
+
+        var lower = char.ToLowerInvariant(content[0]);
+        var hasLower = false;
+        var hasUpper = false;
+        long nextCheckpoint = 0;
+        for (var index = 0; index < content.Length; index++)
+        {
+            AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
+            var value = content[index];
+            if (!char.IsAsciiLetter(value) || char.ToLowerInvariant(value) != lower)
+                return false;
+            hasLower |= value == lower;
+            hasUpper |= value != lower;
+        }
+
+        checkpoint?.Invoke();
+        var upper = char.ToUpperInvariant(lower);
+        first = hasLower ? lower : upper;
+        last = hasUpper ? upper : lower;
+        return true;
     }
 
     private static int ReadAtom(ReadOnlySpan<char> content, ref int index, out uint categoryMask, Action? checkpoint)

@@ -4,7 +4,6 @@ namespace Lokad.Awk;
 
 internal sealed record AwkRuntimeLimits
 {
-    public const long Unlimited = long.MaxValue;
     public const int CancellationCheckBytes = 4_096;
     public const int DefaultMaxFunctionCallDepth = 1_000;
     public const int DefaultMaxSyntaxNestingDepth = 128;

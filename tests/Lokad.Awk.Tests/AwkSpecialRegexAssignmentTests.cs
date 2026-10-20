@@ -42,7 +42,7 @@ public sealed class AwkSpecialRegexAssignmentTests
     private static CooperativeTestMemory State(bool utf8, AwkRuntimeCounters counters)
     {
 
-        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(1 << 20);
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits,

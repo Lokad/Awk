@@ -15,9 +15,6 @@ public sealed record AwkExecutionPolicy
         return this with { RegexEngine = engine };
     }
 
-    /// <summary>Represents an effectively unlimited numeric budget.</summary>
-    public const long Unlimited = long.MaxValue;
-
     /// <summary>Gets the borrowed cooperative host budget, if supplied.</summary>
     public IMemoryBudget? MemoryBudget { get; private init; }
 

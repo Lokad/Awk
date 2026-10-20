@@ -155,26 +155,8 @@ internal static partial class AwkRegexScalarPattern
 
         private (long Replacement, long Scratch) Bracket(ReadOnlySpan<char> content)
         {
-            if (content.Length > 0 && char.IsAsciiLetter(content[0]))
-            {
-                var lower = char.ToLowerInvariant(content[0]);
-                var hasLower = false;
-                var hasUpper = false;
-                var sameLetter = true;
-                long nextCheckpoint = 0;
-                for (var scan = 0; scan < content.Length; scan++)
-                {
-                    AwkRegexConstruction.CheckProgress(scan, ref nextCheckpoint, checkpoint);
-                    if (!char.IsAsciiLetter(content[scan]) || char.ToLowerInvariant(content[scan]) != lower)
-                    {
-                        sameLetter = false;
-                        break;
-                    }
-                    hasLower |= content[scan] == lower;
-                    hasUpper |= content[scan] != lower;
-                }
-                if (sameLetter) return (hasLower && hasUpper ? 7 : 1, Add(128, Times(content.Length, 2)));
-            }
+            if (TryReadAsciiLetterClass(content, out var firstLetter, out var lastLetter, checkpoint))
+                return (firstLetter == lastLetter ? 1 : 7, Add(128, Times(content.Length, 2)));
             var negated = content.StartsWith("^");
             var requiresTranslation = negated;
             long ranges = 0;

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Removed the unused `AwkExecutionPolicy.Unlimited` sentinel. Memory admission uses the
+  supplied `IMemoryBudget`; omitting it leaves no private aggregate memory cap. Read-byte
+  observations now share one path after removal of cumulative input quotas.
+
 - Caller cancellation still propagates when it arrives while an admission-failure
   diagnostic is being written, including failure to create the execution reservation.
 

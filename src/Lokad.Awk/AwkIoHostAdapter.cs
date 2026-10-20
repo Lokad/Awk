@@ -191,7 +191,6 @@ internal sealed class AwkIoHostAdapter(
             cancellationToken,
             maxLineCount,
             resources,
-            countAsRuntimeInput: true,
             exposeHostErrorDetails: exposeHostErrorDetails,
             maxHostErrorBytes: maxHostErrorBytes);
 

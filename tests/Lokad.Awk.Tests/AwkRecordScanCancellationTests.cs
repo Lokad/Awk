@@ -287,7 +287,7 @@ public sealed class AwkRecordScanCancellationTests
     private static CooperativeTestMemory State(bool observed, int backend)
     {
 
-        var testMemory = new CooperativeTestMemory(8 << 20, enabled: true && (long)(8 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(8 << 20);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault(), (AwkRegexEngineKind)backend,

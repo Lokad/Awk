@@ -34,7 +34,6 @@ internal sealed class AwkRecordDescriptorReader
             _cancellationToken,
             AwkIo.InputReadBatchLineCount,
             _resources,
-            countAsRuntimeInput: true,
             exposeHostErrorDetails: _exposeHostErrorDetails,
             maxHostErrorBytes: _maxHostErrorBytes);
 
@@ -53,7 +52,7 @@ internal sealed class AwkRecordDescriptorReader
                     _maxHostErrorBytes)));
         }
 
-        _resources.RecordInputBytes(result.Content.Length);
+        _resources.RecordBytesRead(result.Content.Length);
         return AwkRecordReadBatch.Success(result.Content, result.Completion);
     }
 

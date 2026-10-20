@@ -364,7 +364,7 @@ public sealed partial class AwkSynchronousRegionTests
     private static CooperativeTestMemory State(AwkRuntimeCounters counters, CancellationToken token = default, bool lint = false)
     {
 
-        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(1 << 20);
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, AwkRegexEngineKind.DotNetCompatibility);
         var state = new AwkRuntimeState(AwkFieldSeparatorSpec.Default, token, testMemory.Configure(options), new AwkRuntimeResourceMonitor(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint ? AwkLintMode.Normal : AwkLintMode.Off));

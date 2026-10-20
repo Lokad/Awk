@@ -9,7 +9,6 @@ public sealed class AwkScalarMemoryModeTests
     {
         var budget = new CooperativeTestBudget(20_000);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
-        var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         Assert.Equal(governed, accounting.IsEnabled);
@@ -55,7 +54,6 @@ public sealed class AwkScalarMemoryModeTests
     {
         var budget = new CooperativeTestBudget(20_000);
         await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
-        var limits = AwkRuntimeLimits.CreateDefault();
         var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
         var error = new AwkRuntimeException("preparation rejected"u8.ToArray());
         var preparations = 0;
@@ -77,7 +75,6 @@ public sealed class AwkScalarMemoryModeTests
     {
         var budget = new CooperativeTestBudget(1024);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var limits = AwkRuntimeLimits.CreateDefault();
         var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
         Assert.True(accounting.IsEnabled);
         var preparations = 0;

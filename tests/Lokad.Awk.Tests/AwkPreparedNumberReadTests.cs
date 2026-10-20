@@ -59,7 +59,7 @@ public sealed class AwkPreparedNumberReadTests
     private static CooperativeTestMemory State(AwkRuntimeLimits? limits = null, bool slots = true)
     {
 
-        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(1 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()),
             AwkRegexEngineKind.DotNetCompatibility);

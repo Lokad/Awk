@@ -110,7 +110,7 @@ public sealed class AwkPreparedNumericInputTests
     [Fact]
     public void RejectedStoredInputPreservesTheOldElementAndCharge()
     {
-        using var memoryForState = CreateState(maxMemoryBytes: 1024);
+        using var memoryForState = CreateState(memoryBudgetBytes: 1024);
         var state = memoryForState.State;
         Store(state, state.CreateNumericStringValue("123"), storage: 1);
         var retained = state.MemoryAccounting.CurrentCommittedBytes;
@@ -147,10 +147,10 @@ public sealed class AwkPreparedNumericInputTests
     }
 
     private static CooperativeTestMemory CreateState(bool nonDecimal = false, CancellationToken cancellationToken = default,
-        long maxMemoryBytes = 1 << 20)
+        long memoryBudgetBytes = 1 << 20)
     {
 
-        var testMemory = new CooperativeTestMemory(maxMemoryBytes, enabled: true && (long)(maxMemoryBytes) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(memoryBudgetBytes);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,

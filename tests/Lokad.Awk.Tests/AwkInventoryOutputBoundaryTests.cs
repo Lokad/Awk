@@ -319,7 +319,7 @@ public sealed class AwkInventoryOutputBoundaryTests
     private static CooperativeTestMemory State(AwkRuntimeCounters counters, CancellationToken token)
     {
 
-        var testMemory = new CooperativeTestMemory(8 << 20, enabled: true && (long)(8 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(8 << 20);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),
             AwkRegexEngineKind.Utf8Adapter, regexEngine: AwkUtf8RegexEngine.Instance);

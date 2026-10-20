@@ -257,7 +257,7 @@ public sealed class AwkSortProjectionMemoryTests
     private static CooperativeTestMemory State(bool observed, string format, string selector)
     {
 
-        var testMemory = new CooperativeTestMemory(Limit, enabled: true && (long)(Limit) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(Limit);
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),

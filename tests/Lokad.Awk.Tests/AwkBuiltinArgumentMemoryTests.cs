@@ -132,7 +132,7 @@ public sealed class AwkBuiltinArgumentMemoryTests
     private static CooperativeTestMemory State(bool observed, CancellationToken token)
     {
 
-        var testMemory = new CooperativeTestMemory(Limit, enabled: (long)(Limit) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(Limit);
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(),

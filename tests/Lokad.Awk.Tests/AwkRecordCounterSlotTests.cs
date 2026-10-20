@@ -123,7 +123,7 @@ public sealed class AwkRecordCounterSlotTests
     private static CooperativeTestMemory CreateState(AwkCompatibilityMode mode, long memory)
     {
 
-        var testMemory = new CooperativeTestMemory(memory, enabled: true && (long)(memory) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(memory);
         var limits = AwkRuntimeLimits.CreateDefault();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,

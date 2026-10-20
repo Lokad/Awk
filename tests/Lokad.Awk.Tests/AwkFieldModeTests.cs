@@ -165,7 +165,7 @@ public sealed class AwkFieldModeTests
         AwkRuntimeLimits? limits = null)
     {
 
-        var testMemory = new CooperativeTestMemory(1 << 20, enabled: (long)(1 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(1 << 20);
         var resolvedLimits = (limits ?? AwkRuntimeLimits.CreateDefault());
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, resolvedLimits, AwkRegexEngineKind.DotNetCompatibility);

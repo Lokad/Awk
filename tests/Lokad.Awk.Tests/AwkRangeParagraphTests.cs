@@ -138,7 +138,7 @@ public sealed class AwkRangeParagraphTests
     private static CooperativeTestMemory State(AwkRuntimeCounters counters, AwkRegexEngineKind backend)
     {
 
-        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(1 << 20);
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits, backend, regexEngine: AwkUtf8RegexEngine.Instance);

@@ -263,7 +263,7 @@ public sealed class AwkPreparedCompoundUpdateTests
     private static CooperativeTestMemory State()
     {
 
-        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
             AwkRuntimeLimits.CreateDefault(),

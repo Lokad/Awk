@@ -195,7 +195,7 @@ public sealed class AwkScanCancellationTests
 
     private static CooperativeTestMemory CreateState(CancellationToken token)
     {
-        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(1 << 20);
         return testMemory.Initialize(AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token,
                     testMemory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                         new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),

@@ -45,11 +45,6 @@ internal sealed class AwkRuntimeResourceMonitor
         _counters.RecordBytesRead(byteCount);
     }
 
-    public void RecordInputBytes(long byteCount)
-    {
-        _counters.RecordBytesRead(byteCount);
-    }
-
     public void RecordRegexMatch()
     {
         Checkpoint();

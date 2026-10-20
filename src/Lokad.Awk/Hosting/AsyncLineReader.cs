@@ -11,7 +11,6 @@ internal sealed class AsyncLineReader
     private readonly CancellationToken _cancellationToken;
     private readonly int _maxLineCount;
     private readonly AwkRuntimeResourceMonitor _resources;
-    private readonly bool _countAsRuntimeInput;
     private readonly bool _exposeHostErrorDetails;
     private readonly int _maxHostErrorBytes;
     private ReadOnlyMemory<byte> _content;
@@ -26,7 +25,6 @@ internal sealed class AsyncLineReader
         CancellationToken cancellationToken,
         int maxLineCount,
         AwkRuntimeResourceMonitor resources,
-        bool countAsRuntimeInput = false,
         bool exposeHostErrorDetails = true,
         int maxHostErrorBytes = 4 << 10)
     {
@@ -39,7 +37,6 @@ internal sealed class AsyncLineReader
         _cancellationToken = cancellationToken;
         _maxLineCount = maxLineCount;
         _resources = resources;
-        _countAsRuntimeInput = countAsRuntimeInput;
 
         _exposeHostErrorDetails = exposeHostErrorDetails;
         _maxHostErrorBytes = maxHostErrorBytes;
@@ -69,10 +66,7 @@ internal sealed class AsyncLineReader
                         _maxHostErrorBytes)));
             }
 
-            if (_countAsRuntimeInput)
-                _resources.RecordInputBytes(result.Content.Length);
-            else
-                _resources.RecordBytesRead(result.Content.Length);
+            _resources.RecordBytesRead(result.Content.Length);
             _content = result.Content;
             _lineStartOffsets = result.LineStartOffsets;
             _lineIndex = 0;

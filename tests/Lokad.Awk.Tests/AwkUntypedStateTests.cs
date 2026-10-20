@@ -158,7 +158,7 @@ public sealed class AwkUntypedStateTests
 
     private static CooperativeTestMemory State(AwkRuntimeCounters counters, AwkRuntimeLimits? limits = null)
     {
-        var testMemory = new CooperativeTestMemory(1 << 20, enabled: true && (long)(1 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(1 << 20);
         return testMemory.Initialize(AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
                     testMemory.Configure(new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                         new AwkRandomGenerator(), counters,

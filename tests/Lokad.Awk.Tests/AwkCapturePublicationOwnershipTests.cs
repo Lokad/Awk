@@ -110,7 +110,7 @@ public sealed class AwkCapturePublicationOwnershipTests(ITestOutputHelper output
     private static CooperativeTestMemory State(bool finite, CancellationToken token = default)
     {
 
-        var testMemory = new CooperativeTestMemory(1 << 20, enabled: finite && (long)(1 << 20) != long.MaxValue);
+        var testMemory = new CooperativeTestMemory(1 << 20, enabled: finite);
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, limits,
