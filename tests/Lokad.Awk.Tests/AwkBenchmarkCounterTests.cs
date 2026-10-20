@@ -9,6 +9,18 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Fact]
+    internal async Task DiscardedFieldCopyKeepsDeferredNumericInputFailures()
+    {
+        foreach (var source in new[] { "{$2=$1;print $0;print typeof($2)}", "{value=($2=$1);print $0;print typeof($2)}" })
+        {
+            var result = await RunAsync(["--non-decimal-data", source], "0x1.8 old tail\n", false);
+            Assert.Equal(2, result.ExitCode);
+            Assert.Equal("0x1.8 0x1.8 tail\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("awk: hexadecimal floating point constants require an exponent\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        }
+    }
+
+    [Fact]
     internal async Task DiscardedInputFieldCopiesAvoidOwnedValueMaterialization()
     {
         const string input = "0007 old tail\ncafé old last\n";
