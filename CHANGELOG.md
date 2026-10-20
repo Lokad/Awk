@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Ordinary package builds use the development identity `0.0.0-dev` and
+  `artifacts/dev/nuget/`, keeping released package filenames untouched. The next release
+  version will be selected and qualified separately.
+
 - Long-lived pipe commands no longer retain memory charges for already-consumed records.
   Command/environment snapshots stay funded through actual command completion, including
   parent environment mutation, cancellation and cleanup.

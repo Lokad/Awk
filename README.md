@@ -71,10 +71,12 @@ Admission uses coarse estimates and can refuse before execution. See the
 and remaining bounds, including responsibilities when executing untrusted scripts.
 
 Release notes and removed work-quota APIs are listed in [CHANGELOG.md](CHANGELOG.md#unreleased).
-The Lokad.Awk package uses version 0.3.0, assembly/file versions 0.3.0.0 and informational version
-`0.3.0+<source commit>`. Package dependencies and SourceLink identify the qualified source;
-the release tag `v0.3.0` must identify that same commit. Before 1.0, minor releases may remove
-public APIs as explicitly described in their release notes.
+Published 0.3.0 corresponds to tag `v0.3.0`; its packages and source are immutable.
+Current source builds development packages as `0.0.0-dev` under `artifacts/dev/nuget/`,
+with assembly/file versions `0.0.0.0` and informational version `0.0.0-dev+<source commit>`.
+This placeholder does not select the next release version. A release must align its package,
+assembly metadata, SourceLink and tag, then qualify the final packages. Before 1.0, minor
+releases may remove public APIs as explicitly described in their release notes.
 
 ## Status
 
