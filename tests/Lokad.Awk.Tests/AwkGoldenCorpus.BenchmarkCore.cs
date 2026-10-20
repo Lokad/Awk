@@ -5,6 +5,8 @@ internal static partial class AwkGoldenCorpus
     // Small canonical controls for the generated, scaled reference benchmark fixtures.
     private static IEnumerable<AwkGoldenCase> BenchmarkCoreCases()
     {
+        yield return Posix(Passing("benchmark-core-field-rewrite",
+            ["{$2=$1;print}"], [], "0007 0007 tail\ncafé café last\n", "0007\told\ttail\ncafé\told\tlast\n"));
         yield return Passing("field-index-keeps-input-before-mutating-needle",
             ["function needle(){$0=\"next another\";return \"timeout\"} {print index($2,needle()),$2}"],
             [], "6 another\n", "id déjà-timeout\n");

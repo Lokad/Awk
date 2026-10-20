@@ -15,7 +15,7 @@ internal static class ReferenceWorkloads
 {
     public static readonly string[] Families =
     [
-        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
+        "local-conditional-text", "local-temporary-call-loop", "projection", "multi-column", "field-rewrite", "filter", "membership", "array-read", "array-read-alternating", "early-fields-wide", "long-fields", "aggregate", "profile-narrow", "profile-wide", "two-file",
         "fs-literal", "fs-regex", "rs-literal", "rs-regex", "substitution", "formatting", "sorting", "unicode",
         "arithmetic-loops", "while-arithmetic", "do-while-arithmetic", "user-functions", "loop-with-calls", "multi-arg-loop", "branching-calls", "branching-unary-calls", "string-functions", "field-index", "case-conversion", "concatenation", "regex-match", "regex-captures"
     ];
@@ -70,6 +70,11 @@ internal static class ReferenceWorkloads
             case "multi-column":
                 program = "{print $1,$3,$2}";
                 Repeat("sku\tvalue\ttail\n", "sku tail value\n");
+                break;
+            case "field-rewrite":
+                // Field assignment invalidates $0; bare print reconstructs it using OFS.
+                program = "{$2=$1;print}";
+                Repeat("sku\tvalue\ttail\n", "sku sku tail\n");
                 break;
             case "long-fields":
                 // Long tokens isolate delimiter traversal from field count and output volume.
