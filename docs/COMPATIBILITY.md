@@ -8,16 +8,19 @@ conformance. The interpreter is the only execution engine; regex defaults to .NE
 implemented with remaining differences. **Deferred** means unsupported, without a delivery
 commitment. Rejection tests do not establish feature support.
 
+Use the [awk references](#qualification) for ordinary language semantics. The notes below
+identify qualified support and Lokad-specific boundaries.
+
 ## Current surface
 
 | Area | Status and boundary | Evidence / details |
 | --- | --- | --- |
 | Sources and command arguments | Supported: inline/repeated sources, `-f`, `-i`, `-F`, `-v`, includes, assignment operands and live ARGV scheduling, within host/policy authority. | [Source cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs), [ARGV](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.ArgvCompatibility.cs) |
 | Expressions and statements | Supported: arithmetic, concatenation, assignments, conditionals, loops and switch; profile/name rules apply. | [Grammar](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.GrammarBoundaries.cs), [profiles](#compatibility-profiles-and-names) |
-| Rules and input phases | Supported: ordinary/range patterns, BEGIN/END, next/nextfile and GNU BEGINFILE/ENDFILE, with phase restrictions. | [Function flow](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FunctionFlow.cs), [records](RECORD_SEMANTICS.md) |
+| Rules and input phases | Supported: ordinary/range patterns, BEGIN/END, next/nextfile and GNU BEGINFILE/ENDFILE, with phase restrictions. | [Function flow](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FunctionFlow.cs) |
 | User functions | Supported: recursion, local scalar parameters, missing arguments and forwarded array aliases; depth/resource limits apply. | [Untyped values](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.UntypedState.cs), [runtime contract](RUNTIME.md) |
 | Scalars and flat arrays | Supported: numeric strings/origins, associative and SUBSEP compound keys, membership, delete and array length. Compound keys are not nested arrays. | [Value rules](#values-numbers-and-formatting), [goldens](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs) |
-| Records and fields | Supported: FS/FPAT/FIELDWIDTHS, character/regex/paragraph RS, RT, lazy fields and NF mutation. | [Field modes](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FieldModes.cs), [record contract](RECORD_SEMANTICS.md) |
+| Records and fields | Supported: FS/FPAT/FIELDWIDTHS, character/regex/paragraph RS, RT, lazy fields and NF mutation. | [Field modes](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FieldModes.cs), [record differences](#fields-and-records) |
 | Getline | Supported: main/redirected/one-way pipe expressions with scalar, array or field destinations; failure and destination rules apply. | [Destinations](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.GetlineDestinations.cs), [failures](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.GetlineFailures.cs), [I/O rules](#host-io-and-getline) |
 | Output and streams | Supported through the host: print/printf, file/one-way pipe redirection, close and logical flush. | [Flush cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FlushCompatibility.cs), [I/O rules](#host-io-and-getline) |
 | Formatting | Partial: common conversions, `%a`/`%A`, positional arguments, width/precision and integer rules. `%C`/`%S`, D/H/w controls and `%P` remain unsupported. | [Formatting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FormattingSyntax.cs), [integers](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.IntegerFormatting.cs) |
@@ -94,11 +97,23 @@ permit aliases/introspection but reject scalar conversion. FUNCTAB metadata is r
 
 ## Fields and records
 
-Captured FS/FPAT/FIELDWIDTHS and case settings, lazy fields, NF/reconstruction, RS/RT and
-input phases are defined in [record semantics](RECORD_SEMANTICS.md), including CRLF paragraph
-rules. Literal one-character FS is case-sensitive. Direct `split(...,/ /)` uses a literal
-space; string `" "` uses whitespace rules. Other direct one-character regex separators use
-literal splitting. A grouped regex is a scalar expression, not a direct pattern argument.
+[UTF-8 policy](UTF8_POLICY.md#units-and-boundaries) defines field units and byte-mode restrictions.
+The record-handling boundaries to account for are:
+
+- In default/GNU mode, default RS removes the CR of CRLF from `$0` and sets `RT="\n"`.
+  Paragraph RS recognizes CRLF as one newline and retains the separator's original bytes
+  in RT; lone CR remains data. This extends the LF-only paragraph behavior of the GNU reference.
+- POSIX RS uses its first UTF-8 byte, but a match consumes the complete scalar with that
+  leading byte, preserving valid UTF-8.
+- Empty FS splits characters in default mode; POSIX/traditional modes keep a nonempty record
+  whole, subject to paragraph LF splitting. Literal single-scalar FS remains case-sensitive,
+  including non-ASCII characters.
+- Direct and SYMTAB access share NF state. The classified GNU 5.2.1 stale indirect-write
+  behavior is not reproduced.
+
+Evidence: [record cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.cs),
+[paragraph/profile cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.RangeParagraph.cs) and
+[NF cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FieldCountValues.cs).
 
 ## Regex semantics
 

@@ -117,4 +117,4 @@ windows. Preserve the full correctness suite and confirm promising changes once 
 Refresh all families at declared milestones. Replace affected rows after qualification,
 identifying their actual measured revision/date if others are retained. Keep this document
 a current performance snapshot; raw data, superseded results and experiment histories stay local.
-See the [runtime and host contract](RUNTIME.md) and [record semantics](RECORD_SEMANTICS.md).
+See the [runtime and host contract](RUNTIME.md) and [compatibility boundaries](COMPATIBILITY.md).

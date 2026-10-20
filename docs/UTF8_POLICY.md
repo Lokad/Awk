@@ -16,7 +16,7 @@ a scalar fails with `awk: regular expression splits a Unicode character`.
 
 `--posix` overrides byte mode with a warning, in either option order. Byte-mode `FS=""`
 requires ASCII. `FIELDWIDTHS` counts scalars normally and bytes in byte mode; a width
-or skip cannot split a scalar. See [record semantics](RECORD_SEMANTICS.md).
+or skip cannot split a scalar. See [record compatibility notes](COMPATIBILITY.md#fields-and-records).
 
 ## Escapes
 

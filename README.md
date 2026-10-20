@@ -115,7 +115,6 @@ Detailed runtime contracts live in:
 - [docs/UTF8_POLICY.md](docs/UTF8_POLICY.md)
 - [docs/RUNTIME.md](docs/RUNTIME.md)
 - [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
-- [docs/RECORD_SEMANTICS.md](docs/RECORD_SEMANTICS.md)
 - [docs/REGEX.md](docs/REGEX.md)
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
 

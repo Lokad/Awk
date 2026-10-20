@@ -62,6 +62,8 @@ or environment dependencies.
 
 - Keep README examples aligned with the actual public API. The package does not provide a default
   filesystem host; examples should make the `IAwkHost` boundary explicit.
+- Document Lokad-specific integration, supported boundaries, known differences and qualification
+  evidence. Link to awk references for ordinary language semantics instead of duplicating the manual.
 - Update docs under `docs/` when changing UTF-8 policy, runtime limits, regex compatibility,
   execution behavior, benchmark workflow, or release readiness assumptions.
 - Maintain `docs/BENCHMARKS.md` as the single current comparison, with at most three tables,

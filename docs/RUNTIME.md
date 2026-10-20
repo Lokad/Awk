@@ -83,5 +83,5 @@ remain pending default-backend construction admission and stack qualification; .
 is indivisible and its internal footprint is only coarsely covered. These are not work quotas.
 There are no fuel, host-call, record-count, regex-work or sorting-work quotas.
 
-[Strict UTF-8](UTF8_POLICY.md), [record semantics](RECORD_SEMANTICS.md) and
-[compatibility](COMPATIBILITY.md) define the independent text-processing guarantees.
+[Strict UTF-8](UTF8_POLICY.md) and [compatibility](COMPATIBILITY.md) define the independent
+text-processing guarantees.
