@@ -280,6 +280,12 @@ internal abstract partial class AwkExpression
     internal virtual AwkExpression PrepareSynchronousCallAction(
         IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction> functions) => this;
 
+    internal virtual bool TryGetFieldCopy(out int source, out int destination)
+    {
+        source = destination = 0;
+        return false;
+    }
+
     internal virtual bool TryGetLocalAssignment(
         out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkExpression value)
     {

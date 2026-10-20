@@ -213,6 +213,32 @@ internal sealed class AwkFieldFrame(
         ClearSplitFields(reuseFieldBuffer: AwkFieldSplitter.SupportsIncrementalFields(splitPlan));
     }
 
+    internal bool TryCopyInputField(AwkFieldIndex source, AwkFieldIndex destination,
+        Func<AwkText> resolveOutputFieldSeparator, Func<AwkText, List<AwkFieldText>> splitFields)
+    {
+        if (fieldSplitter is null || !source.IsNamedField || !destination.IsNamedField) return false;
+        EnsureField(source, splitFields);
+        if (!_fieldsAreSplit || source.Value > _fieldTexts.Count || destination.Value > _fieldTexts.Count)
+            return false;
+        var from = source.Value - 1;
+        var to = destination.Value - 1;
+        var field = _fieldTexts[from];
+        if (field.Kind != AwkFieldTextKind.RecordSlice || _fieldTexts[to].Kind != AwkFieldTextKind.RecordSlice ||
+            _fieldValueCache.ContainsKey(from) || _fieldValueCache.ContainsKey(to)) return false;
+
+        var separator = resolveOutputFieldSeparator();
+        var payloadBytes = AwkRuntimeMemory.CheckedAdd(
+            _fieldPayloadByteLength - _fieldTexts[to].ByteLength(), field.ByteLength());
+        var recordBytes = EstimateComposedRecordByteLength(separator.ByteLength, _fieldTexts.Count, payloadBytes);
+        using var peak = PreflightRecomposition(_retainedMemoryBytes, recordBytes);
+        checkpoint?.Invoke();
+        // Both descriptors still refer to the same funded record; no cached value escapes.
+        _fieldTexts[to] = field;
+        _fieldPayloadByteLength = payloadBytes;
+        MarkRecordForRecomposition(separator);
+        return true;
+    }
+
     public void AssignFieldValue(
         AwkFieldIndex index,
         AwkValue value,

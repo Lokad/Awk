@@ -102,7 +102,9 @@ internal abstract partial class AwkStatement
     public static AwkStatement Assignment(AwkReference target, AwkExpression value) =>
         Expression(AwkExpression.Assignment(target, value));
 
-    public static AwkStatement Expression(AwkExpression expression) => new ExpressionStatement(expression);
+    public static AwkStatement Expression(AwkExpression expression) =>
+        expression.TryGetFieldCopy(out var source, out var destination)
+            ? new FieldCopyStatement(expression, source, destination) : new ExpressionStatement(expression);
 
     public static AwkStatement CompoundAssignment(
         AwkReference target,

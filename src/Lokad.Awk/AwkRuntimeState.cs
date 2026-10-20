@@ -1010,6 +1010,9 @@ internal sealed class AwkRuntimeState : IDisposable
     public void AssignFieldValue(AwkFieldIndex index, AwkValue value) =>
         _recordFields.AssignFieldValue(index, value);
 
+    internal bool TryCopyInputField(int source, int destination) =>
+        _recordFields.TryCopyInputField(new(source), new(destination));
+
     public void ExtendFieldCountForReference(AwkFieldIndex index) =>
         _recordFields.ExtendFieldCountForReference(index);
 

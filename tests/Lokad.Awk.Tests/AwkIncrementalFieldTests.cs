@@ -287,6 +287,73 @@ public sealed class AwkIncrementalFieldTests
         Assert.Equal(0, budget.Reserved);
     }
 
+    [Fact]
+    public async Task RefusedInputSliceCopyPreservesTheRecordWithoutRetryingAdmission()
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        var (frame, splitter) = Frame(accounting, counters, " ");
+        frame.SetRecordText(AwkText.FromSourceLiteralString("first middle café"), splitter.CaptureRecordPlan());
+        Assert.Equal(3, frame.GetFieldCount(line => splitter.SplitRecordFields(line, frame.SplitPlan)));
+        var record = frame.RecordAwkText;
+        var committed = accounting.CurrentCommittedBytes;
+        var separator = AwkText.FromSourceLiteralString("|");
+        budget.RefuseNextAdmissionMinimumGrowth = 1;
+
+        var error = Assert.Throws<AwkRuntimeException>(() => frame.TryCopyInputField(new(1), new(2),
+            () => separator, line => splitter.SplitRecordFields(line, frame.SplitPlan)));
+
+        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
+        Assert.Same(record, frame.RecordAwkText);
+        Assert.Equal("middle", Read(frame, splitter, 2));
+        Assert.Equal(committed, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, accounting.CurrentReservedBytes);
+        Assert.Equal(1, budget.Refusals);
+        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        frame.ResetRecord();
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CanceledInputSliceCopyCannotPublishItsDescriptor(bool governed)
+    {
+        var budget = new CooperativeTestBudget(8 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var accounting = AwkMemoryAccounting.Create(counters, owner);
+        using var cancellation = new CancellationTokenSource();
+        var armed = false;
+        var (frame, splitter) = Frame(accounting, counters, " ", () =>
+        {
+            if (armed) cancellation.Token.ThrowIfCancellationRequested();
+        });
+        frame.SetRecordText(AwkText.FromSourceLiteralString("first middle café"), splitter.CaptureRecordPlan());
+        Assert.Equal(3, frame.GetFieldCount(line => splitter.SplitRecordFields(line, frame.SplitPlan)));
+        var record = frame.RecordAwkText;
+        var committed = accounting.CurrentCommittedBytes;
+        var separator = AwkText.FromSourceLiteralString("|");
+        cancellation.Cancel();
+        armed = true;
+
+        var error = Assert.Throws<OperationCanceledException>(() => frame.TryCopyInputField(new(1), new(2),
+            () => separator, line => splitter.SplitRecordFields(line, frame.SplitPlan)));
+
+        armed = false;
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Same(record, frame.RecordAwkText);
+        Assert.Equal("middle", Read(frame, splitter, 2));
+        Assert.Equal(committed, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, accounting.CurrentReservedBytes);
+        frame.ResetRecord();
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     private static string Read(AwkFieldFrame frame, AwkFieldSplitter splitter, int index)
     {
         Assert.True(frame.TryGetUnmaterializedFieldBytes(new(index), line => splitter.SplitRecordFields(line, frame.SplitPlan), out var bytes));

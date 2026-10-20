@@ -5,6 +5,18 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkStatement
 {
+    private sealed class FieldCopyStatement(AwkExpression expression, int source, int destination) : AwkStatement
+    {
+        private readonly ExpressionStatement _ordinary = new(expression);
+
+        public override ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)
+        {
+            context.State.Checkpoint();
+            return context.State.TryCopyInputField(source, destination)
+                ? ValueTask.FromResult(AwkStatementFlow.Continue) : _ordinary.ExecuteAsync(context);
+        }
+    }
+
     private sealed class DeleteArrayElementStatement(AwkArrayName arrayName, AwkArrayIndex indexExpression) : AwkStatement
     {
         public override async ValueTask<AwkStatementFlow> ExecuteAsync(AwkEvaluationContext context)

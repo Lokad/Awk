@@ -4,6 +4,26 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FieldProjectionCases()
     {
+        yield return Passing("field-copy-keeps-input-type-and-source-snapshot",
+            ["{$2=$1;saved=$2;$1=\"changed\";print typeof($2),saved,$0}"], [],
+            "strnum 0007 changed 0007 tail\nstring café changed café last\n", "0007 old tail\ncafé old last\n");
+        yield return Passing("field-copy-value-survives-getline",
+            ["{$2=$1;saved=$2;getline;print saved,$0;exit}"], [],
+            "café next fresh record\n", "café old tail\nnext fresh record\n");
+        yield return Passing("field-copy-returned-value-survives-record-replacement",
+            ["function keep(x){return x} {$2=$1;saved=keep($2);$0=\"later\";print saved,typeof(saved)}"], [],
+            "0007 strnum\ncafé string\n", "0007 old tail\ncafé old last\n");
+        yield return Passing("field-copy-keeps-cached-and-numeric-assignment-values",
+            ["{saved=$2;$2=$1;print $0;$1=1.25;$2=$1;print typeof($2),$0}"], [],
+            "a a tail\nnumber 1.25 1.25 tail\n", "a old tail\n");
+        yield return Passing("field-copy-assignment-result-stays-owned",
+            ["{$2=$1;saved=($3=$1);$0=\"later\";print saved;exit}"], [], "café\n", "café old tail\n");
+        yield return Passing("field-copy-self-assignment-rebuilds-with-ofs",
+            ["BEGIN{OFS=\"|\"} {$1=$1;$1=$1;print NF,$0}"], [], "3|a|b|c\n", "a\tb\tc\n");
+        yield return Passing("field-copy-missing-source-and-new-destination",
+            ["{$2=$9;print \"[\"$2\"]\",NF;$9=$1;print NF,$1,$9}"], [], "[] 3\n9 a a\n", "a old tail\n");
+        yield return Passing("field-copy-empty-destination-keeps-literal-splitting",
+            ["-F:", "{$2=$1;print}"], [], "a a c\n", "a::c\n");
         // Numeric $0 follows OFMT, as in mawk; GNU's cached CONVFMT spelling differs.
         yield return Passing("record-print-keeps-format-spelling-and-empty-record",
             ["BEGIN{OFMT=\"%.2f\";CONVFMT=\"%.3f\";ORS=\"|\";$0=1.2345;print;print $0;$0=\"0007\";print;print $0;$0=\"café old\";$2=1.2345;print;print $0;NF=0;print;print $0}"],

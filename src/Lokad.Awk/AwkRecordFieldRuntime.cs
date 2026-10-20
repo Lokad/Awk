@@ -121,6 +121,9 @@ internal sealed class AwkRecordFieldRuntime
     public void ExtendFieldCountForReference(AwkFieldIndex index) =>
         _frame.ExtendFieldCountForReference(index, _splitCurrentFields);
 
+    internal bool TryCopyInputField(AwkFieldIndex source, AwkFieldIndex destination) =>
+        _frame.TryCopyInputField(source, destination, _resolveOutputFieldSeparator, _splitCurrentFields);
+
     public void AssignFieldCount(int count)
     {
         if (count < 0)

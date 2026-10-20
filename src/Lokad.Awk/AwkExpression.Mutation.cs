@@ -26,6 +26,14 @@ internal abstract partial class AwkExpression
 
     private sealed class AssignmentExpression(AwkReference target, AwkExpression valueExpression) : AwkExpression
     {
+        internal override bool TryGetFieldCopy(out int source, out int destination)
+        {
+            source = destination = 0;
+            return target is AwkFieldReference field &&
+                field.FieldIndexExpression.TryGetIntegerConstant(out destination) && destination > 0 &&
+                TryGetLiteralFieldIndex(valueExpression, out source);
+        }
+
         internal override bool TryGetLocalAssignment(
             out (AwkVariableName Name, AwkFunctionLocalSlotId Slot) local, out AwkExpression value)
         {

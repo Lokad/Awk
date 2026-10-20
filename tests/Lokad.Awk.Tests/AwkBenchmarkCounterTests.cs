@@ -9,6 +9,23 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Fact]
+    internal async Task DiscardedInputFieldCopiesAvoidOwnedValueMaterialization()
+    {
+        const string input = "0007 old tail\ncafé old last\n";
+        var copied = await RunAsync(["{$2=$1;print}"], input, false);
+        var cached = await RunAsync(["{owned=$1;$2=$1;print}"], input, false);
+        foreach (var result in new[] { copied, cached })
+        {
+            Assert.Equal(0, result.ExitCode);
+            Assert.Equal("0007 0007 tail\ncafé café last\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, result.Counters.StringDecodes);
+            Assert.Equal(0, result.Counters.Utf8Encodes);
+        }
+        Assert.True(copied.Counters.AwkTextAllocations + copied.Counters.RecordsRead <= cached.Counters.AwkTextAllocations);
+    }
+
+    [Fact]
     internal async Task ParsedFieldIndexBorrowsOnlyTheInterpreterInput()
     {
         var result = await RunAsync(["{n+=index($2,\"timeout\")} END{print n}"],
