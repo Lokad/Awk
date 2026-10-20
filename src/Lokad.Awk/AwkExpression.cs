@@ -8,8 +8,6 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkExpression
 {
-    public static AwkExpression FieldIndex(int index) => new FieldIndexExpression(index);
-
     public static AwkExpression FieldIndex(AwkExpression indexExpression) => new DynamicFieldIndexExpression(indexExpression);
 
     internal static int[] PrepareLiteralFieldIndices(AwkExpression[] arguments, int maximum)

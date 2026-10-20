@@ -7,19 +7,6 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkExpression
 {
-    private sealed class FieldIndexExpression(int index) : AwkExpression
-    {
-        private readonly AwkFieldIndex _index = new(index);
-
-        protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
-        {
-            if (!_index.IsNamedField)
-                return ValueTask.FromResult(AwkValue.FromText(string.Empty));
-
-            return ValueTask.FromResult(context.State.GetFieldValue(_index));
-        }
-    }
-
     private sealed class DynamicFieldIndexExpression(AwkExpression indexExpression) : AwkSynchronousExpression
     {
         public AwkExpression IndexExpression => indexExpression;

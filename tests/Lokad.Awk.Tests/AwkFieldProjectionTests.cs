@@ -3,11 +3,9 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkFieldProjectionTests
 {
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task OwnedExpressionsUsePrefixBoundsAndChargeCompletionWork(bool dynamicIndex, bool finite)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OwnedExpressionsUsePrefixBoundsAndChargeCompletionWork(bool finite)
     {
         using var memoryForState = State(finite);
         var state = memoryForState.State;
@@ -19,9 +17,7 @@ public sealed partial class AwkFieldProjectionTests
         state.SetCurrentRecord(source);
         eager.SetCurrentRecord(source);
         Assert.Equal(64, eager.FieldCount);
-        AwkExpression Field(int index) => dynamicIndex
-            ? AwkExpression.FieldIndex(AwkExpression.Number(index))
-            : AwkExpression.FieldIndex(index);
+        AwkExpression Field(int index) => AwkExpression.FieldIndex(AwkExpression.Number(index));
         var first = await Field(1).EvaluateAsync(new(state));
         var firstEager = await Field(1).EvaluateAsync(new(eager));
         Assert.Equal(firstEager, first);
