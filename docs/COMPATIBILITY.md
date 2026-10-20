@@ -25,7 +25,7 @@ identify qualified support and Lokad-specific boundaries.
 | Output and streams | Supported through the host: print/printf, file/one-way pipe redirection, close and logical flush. | [Flush cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FlushCompatibility.cs), [I/O rules](#host-io-and-getline) |
 | Formatting | Partial: common conversions, `%a`/`%A`, positional arguments, width/precision and integer rules. `%C`/`%S`, D/H/w controls and `%P` remain unsupported. | [Formatting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.FormattingSyntax.cs), [integers](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.IntegerFormatting.cs) |
 | Numbers and math | Supported within binary64/invariant-culture policy: numeric coercion, math diagnostics, nondecimal conversion and strtonum. Hexadecimal floating source literals are deferred. | [Numbers](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.NumericSemantics.cs), [strtonum](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.StrtonumConversion.cs) |
-| Strings and escapes | Supported scalar/byte units within strict UTF-8. GNU lowercase `\u` and numeric-byte escapes have profile-aware warnings. | [UTF-8 policy](UTF8_POLICY.md), [escape cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.NumericByteEscapes.cs) |
+| Strings and escapes | Supported scalar/byte units within strict UTF-8. GNU lowercase `\u` and numeric-byte escapes have profile-aware warnings. | [Text boundary](RUNTIME.md#text-boundary), [escape cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.NumericByteEscapes.cs) |
 | Regex | Partial: ERE matching, longest/capture selection, replacements, split and UTF-8 boundary checks. Supplementary folding, inherited backend syntax and minimized repetitions have explicit limits. | [Regex semantics](#regex-semantics), [longest matches](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.LongestRegex.cs) |
 | GNU string/array helpers | Supported in GNU mode: gensub, patsplit, separator/capture arrays, asort/asorti and sorted traversal within flat arrays. | [Splitting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SplitSeparators.cs), [sorting](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SortingCompatibility.cs) |
 | Bitwise and calendar helpers | Supported within unsigned-number and policy clock/time-zone behavior, not every native overflow/locale quirk. | [Bitwise](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.BitwiseCompatibility.cs), [calendar](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.CalendarNormalization.cs) |
@@ -57,9 +57,16 @@ Sources/includes and dynamic input paths require host/policy permission.
 ## Source string escapes
 
 Source strings, options and consumed operands use profile-aware, single-pass decoding;
-include filenames are raw quoted paths. [UTF-8 policy](UTF8_POLICY.md#escapes) defines
-numeric-byte/Unicode escapes; [regex patterns](#regex-patterns) define the
-separate ERE pass. Warning histories and locations are execution-local, including
+include filenames are raw quoted paths. Consecutive numeric-byte escapes decode together
+as UTF-8: `"\303\251"` is é. Malformed/incomplete runs use U+00xx mappings, so `"\377"` is ÿ;
+separate values do not merge runs. Escape-generated text remains valid UTF-8.
+
+Unicode escape support uses lowercase `\u` in default/traditional modes; uppercase `\U`
+is unknown. Invalid scalars become `?` with a warning; missing digits retain `u` and warn.
+POSIX strings retain plain `u`/`x` for `\u`/`\x`.
+
+[Regex patterns](#regex-patterns) have a separate ERE interpretation pass.
+Warning histories and locations are execution-local, including
 unreachable lexical warnings; reusing a prepared program does not share history.
 
 ## Values, numbers and formatting
@@ -97,7 +104,7 @@ permit aliases/introspection but reject scalar conversion. FUNCTAB metadata is r
 
 ## Fields and records
 
-[UTF-8 policy](UTF8_POLICY.md#units-and-boundaries) defines field units and byte-mode restrictions.
+[Text boundaries](RUNTIME.md#text-boundary) define field units and byte-mode restrictions.
 The record-handling boundaries to account for are:
 
 - In default/GNU mode, default RS removes the CR of CRLF from `$0` and sets `RT="\n"`.
@@ -131,7 +138,7 @@ unmatched closing `)` is literal. Private translation groups preserve user captu
 GNU/default mode enables IGNORECASE and GNU word/space/buffer operators. POSIX/traditional
 modes keep the assigned IGNORECASE value but force case-sensitive regex behavior. Unknown
 escapes such as `\d`, `\A`, `\p` and `\q` denote ordinary characters, not .NET operators.
-Numeric-byte/`\u` decoding follows [UTF-8 policy](UTF8_POLICY.md#escapes) before ERE
+Numeric-byte/`\u` decoding follows the [escape conversion rules](#source-string-escapes) before ERE
 interpretation. Numeric metacharacters retain their ERE effect in GNU/POSIX mode;
 traditional mode quotes them. POSIX does not decode hex/Unicode regex escapes.
 

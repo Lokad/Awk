@@ -29,6 +29,23 @@ Unexpected host exceptions become generic awk diagnostics. Policy/admission fail
 awk diagnostics and a nonzero status; caller cancellation propagates as cancellation after cleanup.
 Mutation preflights preserve earlier state/output without rolling back completed effects.
 
+## Text boundary
+
+Awk-visible text is valid UTF-8. Source, records, `getline` and host byte payloads are
+validated before publication; malformed input produces a fatal awk diagnostic. Locale
+values and byte mode do not permit arbitrary raw bytes. Arguments, paths and environment
+arrive as .NET strings and are strictly encoded; their original process bytes are unavailable.
+
+For text, `length`, `index`, `substr` and `FIELDWIDTHS` count Unicode scalars by default;
+regex positions and capture lengths use UTF-16 code units. `--characters-as-bytes` changes these units to UTF-8
+bytes, but results and observable regex ranges must still end at scalar boundaries.
+Byte-mode `FS=""` requires ASCII; field widths/skips cannot split a scalar. `--posix`
+overrides byte mode with a warning, independently of option order.
+
+Regex engines receive valid UTF-8 spans through the [engine contract](REGEX.md#supplying-an-engine).
+Selecting an engine does not change ingress or units. [Compatibility notes](COMPATIBILITY.md#source-string-escapes)
+cover escape-to-text conversion and the remaining language differences.
+
 ## Shared memory admission
 
 `WithMemoryBudget(IMemoryBudget)` borrows an application-owned allowance. An invocation budget
@@ -83,5 +100,4 @@ remain pending default-backend construction admission and stack qualification; .
 is indivisible and its internal footprint is only coarsely covered. These are not work quotas.
 There are no fuel, host-call, record-count, regex-work or sorting-work quotas.
 
-[Strict UTF-8](UTF8_POLICY.md) and [compatibility](COMPATIBILITY.md) define the independent
-text-processing guarantees.
+[Compatibility](COMPATIBILITY.md) describes qualified language support and known differences.

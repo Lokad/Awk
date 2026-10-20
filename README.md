@@ -94,12 +94,8 @@ NuGet package. Newer producer adoption remains postponed.
 Current representative throughput, GNU comparison and managed allocations are maintained in
 [benchmarks](docs/BENCHMARKS.md). CI builds and tests on Windows and Linux.
 
-Compatibility note: `--characters-as-bytes` keeps awk string units in UTF-8 bytes for valid text,
-but `FS=""` in byte mode is intentionally limited to ASCII input. Non-ASCII valid UTF-8 would
-produce invalid one-byte fields, so Lokad.Awk reports an unsupported-policy diagnostic unless a
-future raw-byte field representation is added. Invalid raw input is rejected even under
-`LC_ALL=C`; locale values do not select a different ingress codec. See
-[docs/UTF8_POLICY.md](docs/UTF8_POLICY.md).
+Text remains strict UTF-8 in byte mode and under `LC_ALL=C`. The
+[runtime text boundary](docs/RUNTIME.md#text-boundary) defines units and byte-mode restrictions.
 
 ## Design
 
@@ -112,7 +108,6 @@ The library is intended to stay host-agnostic. The public surface should stay sm
 
 Detailed runtime contracts live in:
 
-- [docs/UTF8_POLICY.md](docs/UTF8_POLICY.md)
 - [docs/RUNTIME.md](docs/RUNTIME.md)
 - [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)
 - [docs/REGEX.md](docs/REGEX.md)
