@@ -1,12 +1,11 @@
 using System.Globalization;
 using System.Text;
-using BenchmarkDotNet.Running;
 using Lokad.Awk;
 using Lokad.Awk.Benchmarking;
 
 if (args.Length > 0 && args[0] == "--governed-profile")
 {
-    BenchmarkSwitcher.FromTypes([typeof(GovernedAllocationProfile)]).Run(args.Skip(1).ToArray());
+    Environment.ExitCode = ReferenceComparison.RunBenchmarks([typeof(GovernedAllocationProfile)], args.Skip(1).ToArray());
     return;
 }
 
@@ -34,10 +33,10 @@ if (args.Length > 0 && args[0] is "--compare" or "--smoke" or "--reference-bench
     return;
 }
 
-BenchmarkSwitcher.FromTypes(
+Environment.ExitCode = ReferenceComparison.RunBenchmarks(
     [typeof(InterpreterLayerBenchmarks), typeof(FrontendLayerBenchmarks),
      typeof(FrontendScalingBenchmarks), typeof(WorkloadAllocationBenchmarks),
-     typeof(FunctionSchedulingBenchmarks)]).Run(args);
+     typeof(FunctionSchedulingBenchmarks)], args);
 
 internal static class BenchmarkCounterReport
 {

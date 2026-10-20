@@ -5,6 +5,21 @@ namespace Lokad.Awk.Benchmarking;
 
 internal static class ReferenceComparison
 {
+    internal static int RunBenchmarks(Type[] types, string[] arguments)
+    {
+        var summaries = BenchmarkSwitcher.FromTypes(types).Run(arguments).ToArray();
+        if (summaries.Length > 0)
+            return summaries.All(summary => !summary.HasCriticalValidationErrors && summary.Reports.Length > 0 &&
+                summary.Reports.All(report => report.Success)) ? 0 : 1;
+
+        // These CLI commands intentionally produce no measurement summaries.
+        var list = Array.IndexOf(arguments, "--list");
+        var isListing = list >= 0 && list + 1 < arguments.Length &&
+            arguments[list + 1].ToLowerInvariant() is "flat" or "tree";
+        return isListing || arguments.Any(argument => argument is "--help" or "--version" or "--info" ||
+            argument.ToLowerInvariant() is "--list=flat" or "--list=tree") ? 0 : 1;
+    }
+
     public static async Task<int> RunCommandAsync(string[] arguments, CancellationToken token)
     {
         if (arguments[0] == "--reference-benchmarks")
@@ -22,9 +37,7 @@ internal static class ReferenceComparison
             var executable = ResolveExecutable(option);
             _ = await IdentifyReferenceAsync(executable, token).ConfigureAwait(false);
             Environment.SetEnvironmentVariable("LOKAD_AWK_ORACLE_EXE", executable);
-            var summaries = BenchmarkSwitcher.FromTypes([typeof(ReferenceAwkBenchmarks)]).Run(forwarded.ToArray()).ToArray();
-            return summaries.Length > 0 && summaries.All(summary => !summary.HasCriticalValidationErrors &&
-                summary.Reports.All(report => report.Success)) ? 0 : 1;
+            return RunBenchmarks([typeof(ReferenceAwkBenchmarks)], forwarded.ToArray());
         }
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
         ConsoleCancelEventHandler handler = (_, e) => { e.Cancel = true; cancellation.Cancel(); };

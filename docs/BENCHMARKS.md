@@ -114,6 +114,8 @@ Invocation and allocation benchmarks share `ReferenceWorkloads` and one in-memor
 Interpreter/frontend isolation uses that catalog too; the counter report retains its small,
 dedicated calibration cases. Its memory peak covers Awk-owned storage; the host governor
 also observes provider-owned admission.
+Benchmark execution failures return nonzero; CLI help, list and environment-info commands
+may succeed without running measurements.
 Existing `--governed-profile` cases measure shared-budget overhead with a 512 MiB thread-safe
 test budget; host budgets can cost differently. Keep transfers/builds outside measurement
 windows. Preserve the full correctness suite and confirm promising changes once in both source orders.
