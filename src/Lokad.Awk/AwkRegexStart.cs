@@ -19,7 +19,4 @@ internal static class AwkRegexStart
             _ => true
         };
     }
-
-    public static bool CanStartAfter(char value) =>
-        value is '(' or ',' or '=' or '!' or '~' or '<' or '>' or '&' or '|' or '+' or '-' or '*' or '/' or '%';
 }

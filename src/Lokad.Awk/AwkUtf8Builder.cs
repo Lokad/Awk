@@ -108,8 +108,6 @@ internal sealed class AwkUtf8Builder : IDisposable
         return this;
     }
 
-    public AwkUtf8Builder Append(ReadOnlyMemory<byte> bytes) => Append(bytes.Span);
-
     public AwkUtf8Builder Append(ReadOnlySpan<AwkFieldText> segments, AwkText record, Action? checkpoint = null)
     {
         ThrowIfDisposed();

@@ -6,11 +6,6 @@ namespace Lokad.Awk;
 
 internal static class AwkStatementLowerer
 {
-    public static AwkLoweringOutcome<IReadOnlyList<AwkStatement>> LowerList(
-        IReadOnlyList<AwkStatementSyntax> syntaxStatements)
-    {
-        return LowerList(syntaxStatements, AwkLoweringScope.Global);
-    }
 
     public static AwkLoweringOutcome<IReadOnlyList<AwkStatement>> LowerList(
         IReadOnlyList<AwkStatementSyntax> syntaxStatements,

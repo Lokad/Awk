@@ -87,12 +87,6 @@ internal abstract partial class AwkStatement
         AwkOutputTarget target) =>
         new PrintfStatement(format, AwkCollectionSnapshots.Copy(arguments), target);
 
-    public static AwkStatement Gsub(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) =>
-        Expression(AwkExpression.Gsub(pattern, replacement, target));
-
-    public static AwkStatement Sub(AwkExpression pattern, AwkExpression replacement, AwkSubstitutionTarget target) =>
-        Expression(AwkExpression.Sub(pattern, replacement, target));
-
     public static AwkStatement DeleteArrayElement(AwkArrayName arrayName, AwkArrayIndex index) =>
         new DeleteArrayElementStatement(arrayName, index);
 
@@ -113,8 +107,6 @@ internal abstract partial class AwkStatement
         Expression(AwkExpression.CompoundAssignment(target, value, operation));
 
     public static AwkStatement PostIncrement(AwkReference target) => Expression(AwkExpression.PostIncrement(target));
-
-    public static AwkStatement PostDecrement(AwkReference target) => Expression(AwkExpression.PostDecrement(target));
 
     public static AwkStatement If(
         AwkCondition condition,

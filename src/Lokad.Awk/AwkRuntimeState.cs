@@ -199,8 +199,6 @@ internal sealed class AwkRuntimeState : IDisposable
         set => AssignSpecialVariableValue(AwkSpecialVariableId.FileRecordNumber, AwkValue.FromNumber(value));
     }
 
-    public string FileName => ResolveSpecialVariableText(AwkSpecialVariableId.FileName).AsString(Counters, CancellationCheckpoint);
-
     public AwkText CurrentRecordByteText => _recordFields.CurrentRecordByteText;
 
     public int FieldCount => _recordFields.FieldCount;
@@ -611,14 +609,8 @@ internal sealed class AwkRuntimeState : IDisposable
     public bool TryGetExitCode(out AwkExitCode exitCode) =>
         _executionControl.TryGetExitCode(out exitCode);
 
-    public bool HasScalar(AwkIdentifier identifier) =>
-        _variableRuntime.HasScalar(identifier);
-
     public bool HasScalar(AwkVariableName name) =>
         _variableRuntime.HasScalar(name);
-
-    public bool IsArray(AwkIdentifier identifier) =>
-        _variableRuntime.IsArray(identifier);
 
     public bool IsArray(AwkArrayName name) =>
         _variableRuntime.IsArray(name);
@@ -767,11 +759,6 @@ internal sealed class AwkRuntimeState : IDisposable
         slots[index] = slot.Value + 1;
     }
 
-    public void AssignVariable(AwkIdentifier identifier, string value)
-    {
-        _variableRuntime.AssignVariable(identifier, value);
-    }
-
     public void AssignVariable(AwkVariableName name, string value)
     {
         _variableRuntime.AssignVariable(name, value);
@@ -815,9 +802,6 @@ internal sealed class AwkRuntimeState : IDisposable
         AssignVariableFromExternalText(assignment.Identifier, assignment.Value);
     }
 
-    public void AssignVariableValue(AwkIdentifier identifier, AwkValue value) =>
-        _variableRuntime.AssignVariableValue(identifier, value);
-
     public void AssignVariableValue(AwkVariableName name, AwkValue value) =>
         _variableRuntime.AssignVariableValue(name, value);
 
@@ -826,14 +810,6 @@ internal sealed class AwkRuntimeState : IDisposable
 
     public void AssignVariableValue(AwkGlobalSlotId id, AwkValue value) =>
         _variableRuntime.AssignGlobalScalarValue(id, value);
-
-    public void AssignFunctionLocal(
-        AwkFunctionLocalSlotId slotId,
-        AwkVariableName name,
-        string value)
-    {
-        _variableRuntime.AssignFunctionLocal(slotId, name, value);
-    }
 
     public void AssignFunctionLocalValue(
         AwkFunctionLocalSlotId slotId,
@@ -1029,9 +1005,6 @@ internal sealed class AwkRuntimeState : IDisposable
         _recordFields.ExtendFieldCountForReference(index);
 
     public void AssignFieldCount(int count) =>
-        _recordFields.AssignFieldCount(count);
-
-    public void AssignFieldCount(AwkFieldCount count) =>
         _recordFields.AssignFieldCount(count);
 
     public AwkText ResolveSubscriptSeparatorText() =>

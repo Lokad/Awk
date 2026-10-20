@@ -13,9 +13,6 @@ internal static class AwkUtf8Codec
     public static string Decode(ReadOnlySpan<byte> bytes) =>
         bytes.IsEmpty ? string.Empty : StrictUtf8.GetString(bytes);
 
-    public static string DecodeRuntimeText(ReadOnlyMemory<byte> bytes) =>
-        DecodeRuntimeText(bytes, AwkRuntimeCounters.Disabled);
-
     public static string DecodeRuntimeText(ReadOnlyMemory<byte> bytes, AwkRuntimeCounters counters)
     {
         try

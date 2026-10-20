@@ -175,16 +175,6 @@ internal sealed class AwkVariables
         SetScalarSlot(name, AwkVariableSlot.FromText(value));
     }
 
-    public void SetScalarText(AwkVariableName name, AwkText value)
-    {
-        if (IsComputedFieldCount(name))
-        {
-            _applyScalarAssignment(name.Text, AwkValue.FromText(value, AwkNumberParsingMode.Decimal, _checkpoint));
-            return;
-        }
-        SetScalarSlot(name, AwkVariableSlot.FromText(value));
-    }
-
     public void SetScalarValue(AwkVariableName name, AwkValue value)
     {
         if (IsComputedFieldCount(name))
@@ -484,12 +474,6 @@ internal sealed class AwkVariables
         if (values.GetAlternateLookup<AwkArrayKey>().TryGetValue(index, out var storedKey, out var slot) && values.Remove(index))
             _memoryAccounting.ReleaseCommitted(AwkRuntimeMemory.EstimateArrayElementPayloadBytes(storedKey, slot));
     }
-
-    public void SetArrayValues<TValue>(
-        AwkArrayName name,
-        IReadOnlyList<TValue> values,
-        Func<TValue, AwkVariableSlot> createSlot) =>
-        SetArrayValues(name, values, createSlot, AwkMemoryLease.Disabled, sourceRetainedTextBytes: 0);
 
     public void SetArrayValues<TValue>(
         AwkArrayName name,

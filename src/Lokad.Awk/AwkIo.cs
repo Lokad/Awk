@@ -53,7 +53,6 @@ internal sealed class AwkIo
             stdErr,
             cancellationToken,
             snapshotEnvironment,
-            counters,
             state.Resources,
             accessiblePathRoot,
             forwardCommandEnvironment,

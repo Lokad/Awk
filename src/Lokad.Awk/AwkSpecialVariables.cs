@@ -66,8 +66,6 @@ internal static class AwkSpecialVariables
             new(id, name, mutationPolicy);
     }
 
-    public static IEnumerable<AwkSpecialVariableDefinition> All => DefinitionsById.Values;
-
     public static IEnumerable<AwkSpecialScalarVariableDefinition> Scalars =>
         DefinitionsById.Values.OfType<AwkSpecialScalarVariableDefinition>();
 
@@ -83,14 +81,6 @@ internal static class AwkSpecialVariables
             return scalar.VariableName;
 
         throw new ArgumentException("The special variable is not a scalar.", nameof(id));
-    }
-
-    public static AwkArrayName ArrayName(AwkSpecialVariableId id)
-    {
-        if (DefinitionsById[id] is AwkSpecialArrayVariableDefinition array)
-            return array.ArrayName;
-
-        throw new ArgumentException("The special variable is not an array.", nameof(id));
     }
 
     public static bool IsName(string name, AwkSpecialVariableId id) =>

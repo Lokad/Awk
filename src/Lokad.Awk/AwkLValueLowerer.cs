@@ -2,10 +2,6 @@ namespace Lokad.Awk;
 
 internal static class AwkLValueLowerer
 {
-    public static AwkLValueLoweringResult Lower(AwkExpressionSyntax expression)
-    {
-        return Lower(expression, AwkLoweringScope.Global);
-    }
 
     public static AwkLValueLoweringResult Lower(
         AwkExpressionSyntax expression,

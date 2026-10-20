@@ -14,7 +14,6 @@ internal sealed class AwkIoHostAdapter(
     AwkFileDescriptor stdErr,
     CancellationToken cancellationToken,
     Func<AwkMemoryLease, IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
-    AwkRuntimeCounters counters,
     AwkRuntimeResourceMonitor resources,
     AwkPath? accessiblePathRoot = null,
     bool forwardCommandEnvironment = true,
@@ -50,14 +49,6 @@ internal sealed class AwkIoHostAdapter(
         var resolved = AwkPathResolution.ResolveRuntimeArgument(path, currentDirectory);
         AwkHostPathPolicy.ThrowIfDenied(resolved.Absolute, accessiblePathRoot);
         return resolved;
-    }
-
-    public Task WriteStandardOutputAsync(string content)
-    {
-        if (content.Length == 0)
-            return Task.CompletedTask;
-
-        return WriteStandardOutputAsync(AwkUtf8Codec.Encode(content, counters));
     }
 
     public async Task WriteStandardOutputAsync(ReadOnlyMemory<byte> content)

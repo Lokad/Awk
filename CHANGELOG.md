@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Removed unused internal helpers and specialized text concatenation to its sole live
+  input type. Interpreter behavior and the public API are unchanged by this cleanup.
+
 - Ordinary package builds use the development identity `0.0.0-dev` and
   `artifacts/dev/nuget/`, keeping released package filenames untouched. The next release
   version will be selected and qualified separately.

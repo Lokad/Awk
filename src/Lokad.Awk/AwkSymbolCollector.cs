@@ -4,8 +4,6 @@ namespace Lokad.Awk;
 
 internal static class AwkSymbolCollector
 {
-    public static IReadOnlyList<AwkSymbolReference> Collect(AwkSyntaxProgram syntax) =>
-        Collect(syntax, out _);
 
     public static IReadOnlyList<AwkSymbolReference> Collect(
         AwkSyntaxProgram syntax,

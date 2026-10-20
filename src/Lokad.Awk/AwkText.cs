@@ -196,37 +196,6 @@ internal sealed class AwkText : IEquatable<AwkText>
         return text;
     }
 
-    internal static AwkText FromTrustedOwnedBytes(
-        byte[] bytes,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor)
-    {
-        if (bytes.Length == 0)
-            return Empty;
-
-        RecordOwnedBytesAllocation(bytes.Length, governor);
-        return CreateTrustedOwnedBytes(bytes, counters);
-
-        static void RecordOwnedBytesAllocation(int length, AwkMemoryAccounting governor)
-        {
-            if (length <= 0)
-                return;
-
-            governor.Reserve(length);
-            try
-            {
-                governor.CommitReserved(length);
-            }
-            catch
-            {
-                governor.ReleaseReserved(length);
-                throw;
-            }
-
-            governor.ReleaseCommitted(length);
-        }
-    }
-
     internal static AwkText CopyTrustedBytes(
         ReadOnlySpan<byte> bytes,
         AwkRuntimeCounters counters,
@@ -355,22 +324,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         ReadOnlySpan<AwkText> parts,
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
-        Action? checkpoint = null) =>
-        Concat<AwkText, AwkTextPartSelector>(parts, counters, governor, checkpoint);
-
-    public static AwkText Concat(
-        ReadOnlySpan<AwkValue> parts,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
-        Action? checkpoint = null) =>
-        Concat<AwkValue, AwkValueTextPartSelector>(parts, counters, governor, checkpoint);
-
-    private static AwkText Concat<TPart, TSelector>(
-        ReadOnlySpan<TPart> parts,
-        AwkRuntimeCounters counters,
-        AwkMemoryAccounting governor,
         Action? checkpoint = null)
-        where TSelector : struct, IAwkTextPartSelector<TPart>
     {
         var totalLength = 0;
         var nonEmptyPartCount = 0;
@@ -380,7 +334,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         {
             if ((index & 1023) == 0)
                 checkpoint?.Invoke();
-            var part = TSelector.Select(parts, index);
+            var part = parts[index];
             if (part.ByteLength == 0)
                 continue;
 
@@ -420,7 +374,7 @@ internal sealed class AwkText : IEquatable<AwkText>
         {
             if ((index & 1023) == 0)
                 checkpoint?.Invoke();
-            var part = TSelector.Select(parts, index);
+            var part = parts[index];
             if (part.ByteLength == 0)
                 continue;
 
@@ -431,24 +385,6 @@ internal sealed class AwkText : IEquatable<AwkText>
 
         counters.RecordConcatenationBytesCopied(totalLength);
         return FromTrustedOwnedBytes(bytes, counters);
-    }
-
-    private interface IAwkTextPartSelector<TPart>
-    {
-        /// <summary>Returns the byte-native text represented by one concatenation input.</summary>
-        static abstract AwkText Select(ReadOnlySpan<TPart> parts, int index);
-    }
-
-    private readonly struct AwkTextPartSelector : IAwkTextPartSelector<AwkText>
-    {
-        public static AwkText Select(ReadOnlySpan<AwkText> parts, int index) =>
-            parts[index];
-    }
-
-    private readonly struct AwkValueTextPartSelector : IAwkTextPartSelector<AwkValue>
-    {
-        public static AwkText Select(ReadOnlySpan<AwkValue> parts, int index) =>
-            parts[index].ByteText;
     }
 
     public AwkText CopyByteSlice(

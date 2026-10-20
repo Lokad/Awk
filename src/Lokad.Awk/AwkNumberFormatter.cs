@@ -120,12 +120,6 @@ internal static class AwkNumberFormatter
         return AwkText.FromTrustedOwnedBytes(owned, counters);
     }
 
-    public static void AppendTo(AwkUtf8Builder builder, double value)
-    {
-        Span<byte> buffer = stackalloc byte[FormattedByteCapacity(value)];
-        builder.Append(Format(value, buffer));
-    }
-
     public static bool IsInteger(double value) =>
         Math.Abs(value % 1) < double.Epsilon;
 

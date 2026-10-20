@@ -990,13 +990,6 @@ internal static partial class AwkExpressionLowerer
 
     public static bool TryLowerArrayIndex(
         IReadOnlyList<AwkExpressionSyntax> children,
-        [NotNullWhen(true)] out AwkArrayIndex? lowered)
-    {
-        return TryLowerArrayIndex(children, AwkLoweringScope.Global, out lowered);
-    }
-
-    public static bool TryLowerArrayIndex(
-        IReadOnlyList<AwkExpressionSyntax> children,
         AwkLoweringScope scope,
         [NotNullWhen(true)] out AwkArrayIndex? lowered)
     {

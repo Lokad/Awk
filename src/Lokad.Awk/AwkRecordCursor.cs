@@ -63,8 +63,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         _lineReader = lineReader;
     }
 
-    public AwkFileDescriptor Descriptor => _descriptor;
-
     public async ValueTask<AwkInputRecordResult> ReadAsync()
     {
         _discardedParagraphLeader = false;
