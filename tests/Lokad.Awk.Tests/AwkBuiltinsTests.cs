@@ -35,9 +35,7 @@ public sealed class AwkBuiltinsTests
     {
         Assert.True(AwkBuiltins.TryGetCallable("gensub", out var gensub));
         Assert.Equal(AwkCallableKind.Function, gensub.Kind);
-        Assert.Empty(gensub.Aliases);
         Assert.Equal(AwkBuiltinCompatibility.Gnu, gensub.Compatibility);
-        Assert.Equal(AwkBuiltinEffects.Pure, gensub.Effects);
         var gensubArity = Assert.IsType<AwkArity.RangeArity>(gensub.Arity);
         Assert.Equal(3, gensubArity.MinimumArgumentCount);
         Assert.Equal(4, gensubArity.MaximumArgumentCount);
@@ -57,7 +55,6 @@ public sealed class AwkBuiltinsTests
         Assert.True(AwkBuiltins.TryGetCallable("match", out var match));
         Assert.Equal(AwkCallableKind.SpecialForm, match.Kind);
         Assert.Equal(AwkBuiltinCompatibility.Posix, match.Compatibility);
-        Assert.Equal(AwkBuiltinEffects.MutatesState, match.Effects);
         Assert.Equal(AwkBuiltinLoweringKind.Match, match.LoweringKind);
         var matchArity = Assert.IsType<AwkArity.RangeArity>(match.Arity);
         Assert.Equal(2, matchArity.MinimumArgumentCount);
@@ -91,10 +88,8 @@ public sealed class AwkBuiltinsTests
 
         Assert.True(AwkBuiltins.TryGetCallable("close", out var close));
         Assert.Equal(AwkCallableKind.Function, close.Kind);
-        Assert.Equal(AwkBuiltinEffects.MutatesState, close.Effects);
 
         Assert.True(AwkBuiltins.TryGetCallable("system", out var system));
-        Assert.Equal(AwkBuiltinEffects.HostPolicyRejection, system.Effects);
 
         foreach (var name in new[]
         {

@@ -17,7 +17,6 @@ public sealed class AwkBitwiseTests
             Assert.True(builtin.Arity.Accepts(257));
             Assert.Equal(AwkBuiltinArgumentRole.ScalarExpression, builtin.GetArgumentRole(256));
             Assert.Equal(AwkBuiltinCompatibility.Gnu, builtin.Compatibility);
-            Assert.Equal(AwkBuiltinEffects.Pure, builtin.Effects);
         }
     }
 

@@ -67,43 +67,43 @@ internal static partial class AwkBuiltins
         Definitions =
         new Dictionary<string, AwkBuiltinDefinition>(StringComparer.Ordinal)
         {
-            [Name(AwkBuiltinId.Length)] = PosixPureWithLowering(
+            [Name(AwkBuiltinId.Length)] = PosixFunctionWithLowering(
                 AwkBuiltinId.Length,
                 AwkArity.Range(0, 1),
                 EvaluateLength,
                 [AwkBuiltinArgumentRole.ScalarOrArray],
                 AwkBuiltinLoweringKind.Length),
-            [Name(AwkBuiltinId.Index)] = PosixPureAsync(AwkBuiltinId.Index, AwkArity.Exact(2), EvaluateIndex),
-            [Name(AwkBuiltinId.Substr)] = PosixPureAsync(AwkBuiltinId.Substr, AwkArity.Range(2, 3), EvaluateSubstr),
-            [Name(AwkBuiltinId.ToLower)] = PosixPureAsync(AwkBuiltinId.ToLower, AwkArity.Exact(1), EvaluateToLower),
-            [Name(AwkBuiltinId.ToUpper)] = PosixPureAsync(AwkBuiltinId.ToUpper, AwkArity.Exact(1), EvaluateToUpper),
-            [Name(AwkBuiltinId.Int)] = PosixPure(AwkBuiltinId.Int, AwkArity.Exact(1), EvaluateInt),
-            [Name(AwkBuiltinId.Sqrt)] = PosixMutatesState(AwkBuiltinId.Sqrt, AwkArity.Exact(1), EvaluateSqrt),
-            [Name(AwkBuiltinId.Sin)] = PosixPure(AwkBuiltinId.Sin, AwkArity.Exact(1), EvaluateSin),
-            [Name(AwkBuiltinId.Cos)] = PosixPure(AwkBuiltinId.Cos, AwkArity.Exact(1), EvaluateCos),
-            [Name(AwkBuiltinId.Exp)] = PosixMutatesState(AwkBuiltinId.Exp, AwkArity.Exact(1), EvaluateExp),
-            [Name(AwkBuiltinId.Log)] = PosixMutatesState(AwkBuiltinId.Log, AwkArity.Exact(1), EvaluateLog),
-            [Name(AwkBuiltinId.Atan2)] = PosixPure(AwkBuiltinId.Atan2, AwkArity.Exact(2), EvaluateAtan2),
-            [Name(AwkBuiltinId.Rand)] = PosixMutatesState(AwkBuiltinId.Rand, AwkArity.Exact(0), EvaluateRand),
-            [Name(AwkBuiltinId.Srand)] = PosixMutatesState(AwkBuiltinId.Srand, AwkArity.Range(0, 1), EvaluateSrand),
-            [Name(AwkBuiltinId.Systime)] = GnuMutatesState(AwkBuiltinId.Systime, AwkArity.Exact(0), EvaluateSystime),
-            [Name(AwkBuiltinId.Mktime)] = GnuPure(AwkBuiltinId.Mktime, AwkArity.Range(1, 2), EvaluateMktime),
-            [Name(AwkBuiltinId.Strftime)] = GnuMutatesState(AwkBuiltinId.Strftime, AwkArity.Range(0, 3), EvaluateStrftime),
-            [Name(AwkBuiltinId.And)] = GnuPure(AwkBuiltinId.And, AwkArity.AtLeast(2), EvaluateAnd),
-            [Name(AwkBuiltinId.Or)] = GnuPure(AwkBuiltinId.Or, AwkArity.AtLeast(2), EvaluateOr),
-            [Name(AwkBuiltinId.Xor)] = GnuPure(AwkBuiltinId.Xor, AwkArity.AtLeast(2), EvaluateXor),
-            [Name(AwkBuiltinId.Compl)] = GnuPure(AwkBuiltinId.Compl, AwkArity.Exact(1), EvaluateCompl),
-            [Name(AwkBuiltinId.Lshift)] = GnuPure(AwkBuiltinId.Lshift, AwkArity.Exact(2), EvaluateLshift),
-            [Name(AwkBuiltinId.Rshift)] = GnuPure(AwkBuiltinId.Rshift, AwkArity.Exact(2), EvaluateRshift),
-            [Name(AwkBuiltinId.Sprintf)] = PosixPure(AwkBuiltinId.Sprintf, AwkArity.AtLeast(1), EvaluateSprintf),
-            [Name(AwkBuiltinId.Strtonum)] = GnuPure(AwkBuiltinId.Strtonum, AwkArity.Exact(1), EvaluateStrtonum),
-            [Name(AwkBuiltinId.Gensub)] = GnuPure(AwkBuiltinId.Gensub, AwkArity.Range(3, 4), EvaluateGensub),
-            [Name(AwkBuiltinId.Close)] = PosixMutatesStateAsync(AwkBuiltinId.Close, AwkArity.Range(1, 2), EvaluateCloseAsync, AwkStatementKind.Close),
-            [Name(AwkBuiltinId.Fflush)] = PosixMutatesStateAsync(AwkBuiltinId.Fflush, AwkArity.Range(0, 1), EvaluateFflushAsync, AwkStatementKind.Fflush),
-            [Name(AwkBuiltinId.System)] = PosixHostPolicyRejection(AwkBuiltinId.System, AwkArity.Exact(1), EvaluateSystem),
-            [Name(AwkBuiltinId.BindTextDomain)] = GnuHostPolicyRejection(AwkBuiltinId.BindTextDomain, AwkArity.Exact(2), EvaluateInternationalization),
-            [Name(AwkBuiltinId.DcGetText)] = GnuHostPolicyRejection(AwkBuiltinId.DcGetText, AwkArity.Exact(3), EvaluateInternationalization),
-            [Name(AwkBuiltinId.DcnGetText)] = GnuHostPolicyRejection(AwkBuiltinId.DcnGetText, AwkArity.Exact(5), EvaluateInternationalization)
+            [Name(AwkBuiltinId.Index)] = PosixFunctionAsync(AwkBuiltinId.Index, AwkArity.Exact(2), EvaluateIndex),
+            [Name(AwkBuiltinId.Substr)] = PosixFunctionAsync(AwkBuiltinId.Substr, AwkArity.Range(2, 3), EvaluateSubstr),
+            [Name(AwkBuiltinId.ToLower)] = PosixFunctionAsync(AwkBuiltinId.ToLower, AwkArity.Exact(1), EvaluateToLower),
+            [Name(AwkBuiltinId.ToUpper)] = PosixFunctionAsync(AwkBuiltinId.ToUpper, AwkArity.Exact(1), EvaluateToUpper),
+            [Name(AwkBuiltinId.Int)] = PosixFunction(AwkBuiltinId.Int, AwkArity.Exact(1), EvaluateInt),
+            [Name(AwkBuiltinId.Sqrt)] = PosixFunction(AwkBuiltinId.Sqrt, AwkArity.Exact(1), EvaluateSqrt),
+            [Name(AwkBuiltinId.Sin)] = PosixFunction(AwkBuiltinId.Sin, AwkArity.Exact(1), EvaluateSin),
+            [Name(AwkBuiltinId.Cos)] = PosixFunction(AwkBuiltinId.Cos, AwkArity.Exact(1), EvaluateCos),
+            [Name(AwkBuiltinId.Exp)] = PosixFunction(AwkBuiltinId.Exp, AwkArity.Exact(1), EvaluateExp),
+            [Name(AwkBuiltinId.Log)] = PosixFunction(AwkBuiltinId.Log, AwkArity.Exact(1), EvaluateLog),
+            [Name(AwkBuiltinId.Atan2)] = PosixFunction(AwkBuiltinId.Atan2, AwkArity.Exact(2), EvaluateAtan2),
+            [Name(AwkBuiltinId.Rand)] = PosixFunction(AwkBuiltinId.Rand, AwkArity.Exact(0), EvaluateRand),
+            [Name(AwkBuiltinId.Srand)] = PosixFunction(AwkBuiltinId.Srand, AwkArity.Range(0, 1), EvaluateSrand),
+            [Name(AwkBuiltinId.Systime)] = GnuFunction(AwkBuiltinId.Systime, AwkArity.Exact(0), EvaluateSystime),
+            [Name(AwkBuiltinId.Mktime)] = GnuFunction(AwkBuiltinId.Mktime, AwkArity.Range(1, 2), EvaluateMktime),
+            [Name(AwkBuiltinId.Strftime)] = GnuFunction(AwkBuiltinId.Strftime, AwkArity.Range(0, 3), EvaluateStrftime),
+            [Name(AwkBuiltinId.And)] = GnuFunction(AwkBuiltinId.And, AwkArity.AtLeast(2), EvaluateAnd),
+            [Name(AwkBuiltinId.Or)] = GnuFunction(AwkBuiltinId.Or, AwkArity.AtLeast(2), EvaluateOr),
+            [Name(AwkBuiltinId.Xor)] = GnuFunction(AwkBuiltinId.Xor, AwkArity.AtLeast(2), EvaluateXor),
+            [Name(AwkBuiltinId.Compl)] = GnuFunction(AwkBuiltinId.Compl, AwkArity.Exact(1), EvaluateCompl),
+            [Name(AwkBuiltinId.Lshift)] = GnuFunction(AwkBuiltinId.Lshift, AwkArity.Exact(2), EvaluateLshift),
+            [Name(AwkBuiltinId.Rshift)] = GnuFunction(AwkBuiltinId.Rshift, AwkArity.Exact(2), EvaluateRshift),
+            [Name(AwkBuiltinId.Sprintf)] = PosixFunction(AwkBuiltinId.Sprintf, AwkArity.AtLeast(1), EvaluateSprintf),
+            [Name(AwkBuiltinId.Strtonum)] = GnuFunction(AwkBuiltinId.Strtonum, AwkArity.Exact(1), EvaluateStrtonum),
+            [Name(AwkBuiltinId.Gensub)] = GnuFunction(AwkBuiltinId.Gensub, AwkArity.Range(3, 4), EvaluateGensub),
+            [Name(AwkBuiltinId.Close)] = PosixFunctionAsync(AwkBuiltinId.Close, AwkArity.Range(1, 2), EvaluateCloseAsync, AwkStatementKind.Close),
+            [Name(AwkBuiltinId.Fflush)] = PosixFunctionAsync(AwkBuiltinId.Fflush, AwkArity.Range(0, 1), EvaluateFflushAsync, AwkStatementKind.Fflush),
+            [Name(AwkBuiltinId.System)] = PosixFunction(AwkBuiltinId.System, AwkArity.Exact(1), EvaluateSystem),
+            [Name(AwkBuiltinId.BindTextDomain)] = GnuFunction(AwkBuiltinId.BindTextDomain, AwkArity.Exact(2), EvaluateInternationalization),
+            [Name(AwkBuiltinId.DcGetText)] = GnuFunction(AwkBuiltinId.DcGetText, AwkArity.Exact(3), EvaluateInternationalization),
+            [Name(AwkBuiltinId.DcnGetText)] = GnuFunction(AwkBuiltinId.DcnGetText, AwkArity.Exact(5), EvaluateInternationalization)
         };
 
         SpecialFormDefinitions =
@@ -112,55 +112,46 @@ internal static partial class AwkBuiltins
             [Name(AwkBuiltinId.Asort)] = GnuSpecialFormWithStatement(
                 AwkBuiltinId.Asort,
                 AwkArity.Range(1, 3),
-                AwkBuiltinEffects.MutatesState,
                 [AwkBuiltinArgumentRole.ArrayName, AwkBuiltinArgumentRole.ArrayName, AwkBuiltinArgumentRole.ScalarExpression],
                 AwkStatementKind.Asort),
             [Name(AwkBuiltinId.Asorti)] = GnuSpecialFormWithStatement(
                 AwkBuiltinId.Asorti,
                 AwkArity.Range(1, 3),
-                AwkBuiltinEffects.MutatesState,
                 [AwkBuiltinArgumentRole.ArrayName, AwkBuiltinArgumentRole.ArrayName, AwkBuiltinArgumentRole.ScalarExpression],
                 AwkStatementKind.Asorti),
             [Name(AwkBuiltinId.Gsub)] = PosixSpecialFormWithStatement(
                 AwkBuiltinId.Gsub,
                 AwkArity.Range(2, 3),
-                AwkBuiltinEffects.MutatesState,
                 [AwkBuiltinArgumentRole.ScalarExpression, AwkBuiltinArgumentRole.ScalarExpression, AwkBuiltinArgumentRole.LValue],
                 AwkStatementKind.Gsub),
             [Name(AwkBuiltinId.IsArray)] = GnuSpecialFormWithStatement(
                 AwkBuiltinId.IsArray,
                 AwkArity.Exact(1),
-                AwkBuiltinEffects.Pure,
                 [AwkBuiltinArgumentRole.ScalarOrArray],
                 AwkStatementKind.Unknown),
             [Name(AwkBuiltinId.Match)] = PosixSpecialFormWithStatement(
                 AwkBuiltinId.Match,
                 AwkArity.Range(2, 3),
-                AwkBuiltinEffects.MutatesState,
                 [AwkBuiltinArgumentRole.ScalarExpression, AwkBuiltinArgumentRole.ScalarExpression, AwkBuiltinArgumentRole.ArrayName],
                 AwkStatementKind.Unknown),
             [Name(AwkBuiltinId.Patsplit)] = GnuSpecialFormWithStatement(
                 AwkBuiltinId.Patsplit,
                 AwkArity.Range(2, 4),
-                AwkBuiltinEffects.MutatesState,
                 [AwkBuiltinArgumentRole.ScalarExpression, AwkBuiltinArgumentRole.ArrayName, AwkBuiltinArgumentRole.ScalarExpression, AwkBuiltinArgumentRole.ArrayName],
                 AwkStatementKind.Patsplit),
             [Name(AwkBuiltinId.Split)] = PosixSpecialFormWithStatement(
                 AwkBuiltinId.Split,
                 AwkArity.Range(2, 4),
-                AwkBuiltinEffects.MutatesState,
                 [AwkBuiltinArgumentRole.ScalarExpression, AwkBuiltinArgumentRole.ArrayName, AwkBuiltinArgumentRole.ScalarExpression, AwkBuiltinArgumentRole.ArrayName],
                 AwkStatementKind.Split),
             [Name(AwkBuiltinId.Sub)] = PosixSpecialFormWithStatement(
                 AwkBuiltinId.Sub,
                 AwkArity.Range(2, 3),
-                AwkBuiltinEffects.MutatesState,
                 [AwkBuiltinArgumentRole.ScalarExpression, AwkBuiltinArgumentRole.ScalarExpression, AwkBuiltinArgumentRole.LValue],
                 AwkStatementKind.Sub),
             [Name(AwkBuiltinId.TypeOf)] = GnuSpecialFormWithStatement(
                 AwkBuiltinId.TypeOf,
                 AwkArity.Exact(1),
-                AwkBuiltinEffects.Pure,
                 [AwkBuiltinArgumentRole.ScalarOrArray],
                 AwkStatementKind.Unknown)
         };
@@ -171,7 +162,6 @@ internal static partial class AwkBuiltins
             [Name(AwkBuiltinId.Getline)] = PosixSpecialSyntax(
                 AwkBuiltinId.Getline,
                 AwkArity.Range(0, 2),
-                AwkBuiltinEffects.MutatesState,
                 [AwkBuiltinArgumentRole.LValue, AwkBuiltinArgumentRole.ScalarExpression],
                 AwkStatementKind.Getline)
         };
@@ -586,82 +576,33 @@ internal static partial class AwkBuiltins
             }
         }
 
-        static AwkBuiltinDefinition PosixPure(
+        static AwkBuiltinDefinition PosixFunction(
             AwkBuiltinId id,
             AwkArity arity,
             AwkBuiltinEvaluator evaluator) =>
-            Function(id, arity, AwkBuiltinEffects.Pure, AwkBuiltinCompatibility.Posix, [], evaluator);
-        static AwkBuiltinDefinition PosixPureAsync(
-            AwkBuiltinId id,
-            AwkArity arity,
-            AwkAsyncBuiltinEvaluator evaluator) =>
-            FunctionAsync(id, arity, AwkBuiltinEffects.Pure, AwkBuiltinCompatibility.Posix, [], evaluator);
-        static AwkBuiltinDefinition GnuPure(
+            Function(id, arity, AwkBuiltinCompatibility.Posix, [], evaluator);
+        static AwkBuiltinDefinition GnuFunction(
             AwkBuiltinId id,
             AwkArity arity,
             AwkBuiltinEvaluator evaluator) =>
-            Function(id, arity, AwkBuiltinEffects.Pure, AwkBuiltinCompatibility.Gnu, [], evaluator);
-
-        static AwkBuiltinDefinition PosixMutatesState(
-            AwkBuiltinId id,
-            AwkArity arity,
-            AwkBuiltinEvaluator evaluator) =>
-            Function(id, arity, AwkBuiltinEffects.MutatesState, AwkBuiltinCompatibility.Posix, [], evaluator);
-
-        static AwkBuiltinDefinition GnuMutatesState(
-            AwkBuiltinId id,
-            AwkArity arity,
-            AwkBuiltinEvaluator evaluator) =>
-            Function(id, arity, AwkBuiltinEffects.MutatesState, AwkBuiltinCompatibility.Gnu, [], evaluator);
-
-        static AwkBuiltinDefinition PosixHostPolicyRejection(
-            AwkBuiltinId id,
-            AwkArity arity,
-            AwkBuiltinEvaluator evaluator) =>
-            Function(id, arity, AwkBuiltinEffects.HostPolicyRejection, AwkBuiltinCompatibility.Posix, [], evaluator);
-
-        static AwkBuiltinDefinition GnuHostPolicyRejection(
-            AwkBuiltinId id,
-            AwkArity arity,
-            AwkBuiltinEvaluator evaluator) =>
-            Function(id, arity, AwkBuiltinEffects.HostPolicyRejection, AwkBuiltinCompatibility.Gnu, [], evaluator);
-
-        static AwkBuiltinDefinition PosixPureWithLowering(
+            Function(id, arity, AwkBuiltinCompatibility.Gnu, [], evaluator);
+        static AwkBuiltinDefinition PosixFunctionWithLowering(
             AwkBuiltinId id,
             AwkArity arity,
             AwkBuiltinEvaluator evaluator,
             IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
-            AwkBuiltinLoweringKind loweringKind)
-        {
-            return FunctionWithLowering(
-                id,
-                arity,
-                AwkBuiltinEffects.Pure,
-                AwkBuiltinCompatibility.Posix,
-                argumentRoles,
-                evaluator,
-                loweringKind: loweringKind);
-            static AwkBuiltinDefinition FunctionWithLowering(
-                AwkBuiltinId id,
-                AwkArity arity,
-                AwkBuiltinEffects effects,
-                AwkBuiltinCompatibility compatibility,
-                IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
-                AwkBuiltinEvaluator evaluator,
-                AwkBuiltinLoweringKind loweringKind) =>
-                Function(id, arity, effects, compatibility, argumentRoles, evaluator, AwkStatementKind.Unknown, loweringKind);
-        }
+            AwkBuiltinLoweringKind loweringKind) =>
+            Function(id, arity, AwkBuiltinCompatibility.Posix, argumentRoles, evaluator,
+                AwkStatementKind.Unknown, loweringKind);
 
         static AwkBuiltinDefinition PosixSpecialFormWithStatement(
             AwkBuiltinId id,
             AwkArity arity,
-            AwkBuiltinEffects effects,
             IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
             AwkStatementKind statementKind) =>
             SpecialForm(
                 id,
                 arity,
-                effects,
                 AwkBuiltinCompatibility.Posix,
                 argumentRoles,
                 statementKind);
@@ -669,13 +610,11 @@ internal static partial class AwkBuiltins
         static AwkBuiltinDefinition GnuSpecialFormWithStatement(
             AwkBuiltinId id,
             AwkArity arity,
-            AwkBuiltinEffects effects,
             IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
             AwkStatementKind statementKind) =>
             SpecialForm(
                 id,
                 arity,
-                effects,
                 AwkBuiltinCompatibility.Gnu,
                 argumentRoles,
                 statementKind);
@@ -767,13 +706,13 @@ internal static partial class AwkBuiltins
         return definition.EvaluateAsync(arguments, context);
     }
 
-    private static AwkBuiltinDefinition PosixMutatesStateAsync(
+    private static AwkBuiltinDefinition PosixFunctionAsync(
         AwkBuiltinId id,
         AwkArity arity,
         AwkAsyncBuiltinEvaluator evaluator) =>
-        PosixMutatesStateAsync(id, arity, evaluator, AwkStatementKind.Unknown);
+        PosixFunctionAsync(id, arity, evaluator, AwkStatementKind.Unknown);
 
-    private static AwkBuiltinDefinition PosixMutatesStateAsync(
+    private static AwkBuiltinDefinition PosixFunctionAsync(
         AwkBuiltinId id,
         AwkArity arity,
         AwkAsyncBuiltinEvaluator evaluator,
@@ -781,7 +720,6 @@ internal static partial class AwkBuiltins
         FunctionAsync(
             id,
             arity,
-            AwkBuiltinEffects.MutatesState,
             AwkBuiltinCompatibility.Posix,
             [],
             evaluator,
@@ -790,20 +728,17 @@ internal static partial class AwkBuiltins
     private static AwkBuiltinDefinition PosixSpecialSyntax(
         AwkBuiltinId id,
         AwkArity arity,
-        AwkBuiltinEffects effects,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles) =>
-        PosixSpecialSyntax(id, arity, effects, argumentRoles, AwkStatementKind.Unknown);
+        PosixSpecialSyntax(id, arity, argumentRoles, AwkStatementKind.Unknown);
 
     private static AwkBuiltinDefinition PosixSpecialSyntax(
         AwkBuiltinId id,
         AwkArity arity,
-        AwkBuiltinEffects effects,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkStatementKind statementKind) =>
         SpecialSyntaxMetadata(
             id,
             arity,
-            effects,
             AwkBuiltinCompatibility.Posix,
             argumentRoles,
             statementKind);
@@ -811,14 +746,12 @@ internal static partial class AwkBuiltins
     private static AwkBuiltinDefinition Function(
         AwkBuiltinId id,
         AwkArity arity,
-        AwkBuiltinEffects effects,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkBuiltinEvaluator evaluator) =>
         Function(
             id,
             arity,
-            effects,
             compatibility,
             argumentRoles,
             evaluator,
@@ -828,17 +761,15 @@ internal static partial class AwkBuiltins
     private static AwkBuiltinDefinition Function(
         AwkBuiltinId id,
         AwkArity arity,
-        AwkBuiltinEffects effects,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkBuiltinEvaluator evaluator,
         AwkStatementKind statementKind) =>
-        Function(id, arity, effects, compatibility, argumentRoles, evaluator, statementKind, AwkBuiltinLoweringKind.Ordinary);
+        Function(id, arity, compatibility, argumentRoles, evaluator, statementKind, AwkBuiltinLoweringKind.Ordinary);
 
     private static AwkBuiltinDefinition Function(
         AwkBuiltinId id,
         AwkArity arity,
-        AwkBuiltinEffects effects,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkBuiltinEvaluator evaluator,
@@ -849,27 +780,23 @@ internal static partial class AwkBuiltins
             Name(id),
             arity,
             AwkCallableKind.Function,
-            effects,
             compatibility,
             statementKind,
             loweringKind,
-            [],
             argumentRoles,
             AwkBuiltinImplementation.Sync(evaluator));
 
     private static AwkBuiltinDefinition FunctionAsync(
         AwkBuiltinId id,
         AwkArity arity,
-        AwkBuiltinEffects effects,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkAsyncBuiltinEvaluator evaluator) =>
-        FunctionAsync(id, arity, effects, compatibility, argumentRoles, evaluator, AwkStatementKind.Unknown);
+        FunctionAsync(id, arity, compatibility, argumentRoles, evaluator, AwkStatementKind.Unknown);
 
     private static AwkBuiltinDefinition FunctionAsync(
         AwkBuiltinId id,
         AwkArity arity,
-        AwkBuiltinEffects effects,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkAsyncBuiltinEvaluator evaluator,
@@ -879,26 +806,22 @@ internal static partial class AwkBuiltins
             Name(id),
             arity,
             AwkCallableKind.Function,
-            effects,
             compatibility,
             statementKind,
             AwkBuiltinLoweringKind.Ordinary,
-            [],
             argumentRoles,
             AwkBuiltinImplementation.Async(evaluator));
 
     private static AwkBuiltinDefinition SpecialForm(
         AwkBuiltinId id,
         AwkArity arity,
-        AwkBuiltinEffects effects,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles) =>
-        SpecialForm(id, arity, effects, compatibility, argumentRoles, AwkStatementKind.Unknown);
+        SpecialForm(id, arity, compatibility, argumentRoles, AwkStatementKind.Unknown);
 
     private static AwkBuiltinDefinition SpecialForm(
         AwkBuiltinId id,
         AwkArity arity,
-        AwkBuiltinEffects effects,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkStatementKind statementKind) =>
@@ -906,7 +829,6 @@ internal static partial class AwkBuiltins
             id,
             arity,
             AwkCallableKind.SpecialForm,
-            effects,
             compatibility,
             argumentRoles,
             statementKind,
@@ -915,15 +837,13 @@ internal static partial class AwkBuiltins
     private static AwkBuiltinDefinition SpecialSyntaxMetadata(
         AwkBuiltinId id,
         AwkArity arity,
-        AwkBuiltinEffects effects,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles) =>
-        SpecialSyntaxMetadata(id, arity, effects, compatibility, argumentRoles, AwkStatementKind.Unknown);
+        SpecialSyntaxMetadata(id, arity, compatibility, argumentRoles, AwkStatementKind.Unknown);
 
     private static AwkBuiltinDefinition SpecialSyntaxMetadata(
         AwkBuiltinId id,
         AwkArity arity,
-        AwkBuiltinEffects effects,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkStatementKind statementKind) =>
@@ -931,7 +851,6 @@ internal static partial class AwkBuiltins
             id,
             arity,
             AwkCallableKind.SpecialSyntax,
-            effects,
             compatibility,
             argumentRoles,
             statementKind,
@@ -941,14 +860,12 @@ internal static partial class AwkBuiltins
         AwkBuiltinId id,
         AwkArity arity,
         AwkCallableKind kind,
-        AwkBuiltinEffects effects,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles) =>
         CallableMetadata(
             id,
             arity,
             kind,
-            effects,
             compatibility,
             argumentRoles,
             AwkStatementKind.Unknown,
@@ -958,7 +875,6 @@ internal static partial class AwkBuiltins
         AwkBuiltinId id,
         AwkArity arity,
         AwkCallableKind kind,
-        AwkBuiltinEffects effects,
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkStatementKind statementKind,
@@ -968,11 +884,9 @@ internal static partial class AwkBuiltins
             Name(id),
             arity,
             kind,
-            effects,
             compatibility,
             statementKind,
             loweringKind,
-            [],
             argumentRoles,
             AwkBuiltinImplementation.MetadataOnly);
 

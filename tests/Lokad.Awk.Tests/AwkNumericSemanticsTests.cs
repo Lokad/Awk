@@ -67,16 +67,6 @@ public sealed class AwkNumericSemanticsTests
     }
 
     [Theory]
-    [InlineData("sqrt")]
-    [InlineData("log")]
-    [InlineData("exp")]
-    public void WarningMathFunctionsDeclareTheirEffects(string name)
-    {
-        Assert.True(AwkBuiltins.TryGetCallable(name, out var definition));
-        Assert.Equal(AwkBuiltinEffects.MutatesState, definition.Effects);
-    }
-
-    [Theory]
     [InlineData(1)]
     [InlineData(4)]
     public async Task DiagnosticAdmissionFailurePreservesTheQueueAndItsMemory(int initialCount)

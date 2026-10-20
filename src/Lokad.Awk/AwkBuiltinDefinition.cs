@@ -140,11 +140,9 @@ internal sealed class AwkBuiltinDefinition(
     string name,
     AwkArity arity,
     AwkCallableKind kind,
-    AwkBuiltinEffects effects,
     AwkBuiltinCompatibility compatibility,
     AwkStatementKind statementKind,
     AwkBuiltinLoweringKind loweringKind,
-    IReadOnlyList<string> aliases,
     IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
     AwkBuiltinImplementation implementation)
 {
@@ -152,13 +150,9 @@ internal sealed class AwkBuiltinDefinition(
 
     public string Name { get; } = name;
 
-    public IReadOnlyList<string> Aliases { get; } = AwkCollectionSnapshots.Copy(aliases);
-
     public AwkArity Arity { get; } = arity;
 
     public AwkCallableKind Kind { get; } = kind;
-
-    public AwkBuiltinEffects Effects { get; } = effects;
 
     public AwkBuiltinCompatibility Compatibility { get; } = compatibility;
 
@@ -279,13 +273,6 @@ internal enum AwkCallableKind
     Function,
     SpecialForm,
     SpecialSyntax
-}
-
-internal enum AwkBuiltinEffects
-{
-    Pure,
-    MutatesState,
-    HostPolicyRejection
 }
 
 internal enum AwkBuiltinCompatibility
