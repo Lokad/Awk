@@ -16,7 +16,6 @@ internal static class AwkBinder
         if (parseResult.Errors.Count > 0)
             return new AwkBindingResult(
                 parseResult.PhaseResult.Phase,
-                parseResult.Syntax,
                 parseResult.Errors,
                 symbols,
                 semanticModel,
@@ -31,7 +30,6 @@ internal static class AwkBinder
         if (semanticDiagnostics.Count > 0)
             return new AwkBindingResult(
                 AwkPipelinePhase.Bind,
-                parseResult.Syntax,
                 semanticDiagnostics,
                 symbols,
                 semanticModel,
@@ -42,7 +40,6 @@ internal static class AwkBinder
         if (lowering.Diagnostics.Count > 0)
             return new AwkBindingResult(
                 lowering.PhaseResult.Phase,
-                parseResult.Syntax,
                 lowering.Diagnostics,
                 symbols,
                 semanticModel,
@@ -52,7 +49,6 @@ internal static class AwkBinder
         checkpoint?.Invoke();
         return new AwkBindingResult(
             lowering.PhaseResult.Phase,
-            parseResult.Syntax,
             [],
             symbols,
             semanticModel,

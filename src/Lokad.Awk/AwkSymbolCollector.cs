@@ -51,7 +51,7 @@ internal static class AwkSymbolCollector
             {
                 _checkpoint?.Invoke();
                 if (function.Identifier.HasValue)
-                    Symbols.Add(new AwkNamedSymbolReference(function.Identifier.Value,
+                    Symbols.Add(new AwkSymbolReference(function.Identifier.Value,
                         AwkSymbolReferenceKind.FunctionDefinition, function.Span));
 
                 foreach (var token in function.ParameterTokens)
@@ -59,7 +59,7 @@ internal static class AwkSymbolCollector
                     _checkpoint?.Invoke();
                     if (token.Kind == AwkTokenKind.Identifier &&
                         AwkIdentifier.TryParse(token.Text, out var identifier))
-                        Symbols.Add(new AwkNamedSymbolReference(identifier,
+                        Symbols.Add(new AwkSymbolReference(identifier,
                             AwkSymbolReferenceKind.FunctionParameter, token.Span, isFunctionLocal: true));
                 }
 
@@ -116,9 +116,6 @@ internal static class AwkSymbolCollector
                         firstChild = 1;
                     }
                     break;
-                case AwkExpressionKind.Field:
-                    Symbols.Add(new AwkFieldSymbolReference(expression.Span));
-                    break;
                 case AwkExpressionKind.FunctionCall:
                     if (AwkExpressionSyntaxFacts.TryGetCallableTarget(expression, out var callable))
                     {
@@ -131,7 +128,7 @@ internal static class AwkSymbolCollector
                                 : !local && _functionNames.Contains(callable.Identifier)
                                     ? AwkSymbolReferenceKind.UserFunction
                                     : AwkSymbolReferenceKind.UnknownFunction;
-                            Symbols.Add(new AwkNamedSymbolReference(callable.Identifier, kind, callable.Span, local));
+                            Symbols.Add(new AwkSymbolReference(callable.Identifier, kind, callable.Span, local));
                         }
                         firstChild = 1;
                     }
@@ -153,7 +150,7 @@ internal static class AwkSymbolCollector
                     ? AwkSymbolReferenceKind.SpecialArray
                     : AwkSymbolReferenceKind.SpecialVariable;
 
-            Symbols.Add(new AwkNamedSymbolReference(identifier.Identifier, kind, identifier.Span, local));
+            Symbols.Add(new AwkSymbolReference(identifier.Identifier, kind, identifier.Span, local));
             if (!local && !(AwkSymbolTableArray.IsName(identifier.Name) &&
                 AwkCompatibilityNames.EnablesSpecial(AwkSpecialVariableId.SymbolTable, _mode)))
                 Globals.Add(name);
@@ -161,32 +158,20 @@ internal static class AwkSymbolCollector
     }
 }
 
-internal abstract class AwkSymbolReference(
-    AwkSymbolReferenceKind kind,
-    AwkTextSpan span)
-{
-    public AwkSymbolReferenceKind Kind { get; } = kind;
-
-    public AwkTextSpan Span { get; } = span;
-}
-
-internal sealed class AwkNamedSymbolReference(
+internal sealed class AwkSymbolReference(
     AwkIdentifier identifier,
     AwkSymbolReferenceKind kind,
     AwkTextSpan span,
     bool isFunctionLocal = false)
-    : AwkSymbolReference(kind, span)
 {
+    public AwkSymbolReferenceKind Kind { get; } = kind;
+
+    public AwkTextSpan Span { get; } = span;
     public AwkIdentifier Identifier { get; } = identifier;
 
     public string Name => Identifier.Text;
 
     public bool IsFunctionLocal { get; } = isFunctionLocal;
-}
-
-internal sealed class AwkFieldSymbolReference(AwkTextSpan span)
-    : AwkSymbolReference(AwkSymbolReferenceKind.Field, span)
-{
 }
 
 internal enum AwkSymbolReferenceKind
@@ -195,7 +180,6 @@ internal enum AwkSymbolReferenceKind
     SpecialVariable,
     Array,
     SpecialArray,
-    Field,
     BuiltinFunction,
     UserFunction,
     UnknownFunction,

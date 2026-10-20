@@ -6,24 +6,16 @@ namespace Lokad.Awk;
 internal sealed class AwkSemanticModel
 {
     private AwkSemanticModel(
-        IReadOnlySet<AwkSemanticSymbol> symbols,
         IReadOnlyList<AwkSemanticSymbol> declarations,
-        IReadOnlyList<AwkSemanticSymbol> usages,
-        bool referencesFields)
+        IReadOnlyList<AwkSemanticSymbol> usages)
     {
-        Symbols = symbols;
         Declarations = declarations;
         Usages = usages;
-        ReferencesFields = referencesFields;
     }
-
-    public IReadOnlySet<AwkSemanticSymbol> Symbols { get; }
 
     public IReadOnlyList<AwkSemanticSymbol> Declarations { get; }
 
     public IReadOnlyList<AwkSemanticSymbol> Usages { get; }
-
-    public bool ReferencesFields { get; }
 
     public static AwkSemanticModel Create(IReadOnlyList<AwkSymbolReference> symbols, Action? checkpoint = null)
     {
@@ -43,40 +35,23 @@ internal sealed class AwkSemanticModel
                 AwkSymbolReferenceKind.UnknownFunction => AwkSemanticSymbolKind.UnknownFunction,
                 AwkSymbolReferenceKind.FunctionDefinition => AwkSemanticSymbolKind.FunctionDefinition,
                 AwkSymbolReferenceKind.FunctionParameter => AwkSemanticSymbolKind.FunctionParameter,
-                AwkSymbolReferenceKind.Field => throw new InvalidOperationException("Field references are not named semantic symbols."),
                 _ => throw new InvalidOperationException("Unknown symbol reference kind.")
             };
 
-        var semanticSymbols = new HashSet<AwkSemanticSymbol>();
         var declarations = new List<AwkSemanticSymbol>();
         var usages = new List<AwkSemanticSymbol>();
-        var referencesFields = false;
 
         for (var index = 0; index < symbols.Count; index++)
         {
             checkpoint?.Invoke();
-            var symbol = symbols[index];
-            if (symbol is AwkFieldSymbolReference)
-            {
-                referencesFields = true;
-                continue;
-            }
-
-            if (symbol is not AwkNamedSymbolReference named)
-                continue;
-
-            var occurrence = IsDeclaration(named.Kind)
-                ? AwkSemanticSymbolOccurrence.Declaration
-                : AwkSemanticSymbolOccurrence.Usage;
+            var named = symbols[index];
             var semanticSymbol = new AwkSemanticSymbol(
                 named.Identifier,
                 ToSemanticKind(named.Kind),
-                occurrence,
                 named.Span,
                 named.IsFunctionLocal);
 
-            semanticSymbols.Add(semanticSymbol);
-            if (occurrence == AwkSemanticSymbolOccurrence.Declaration)
+            if (IsDeclaration(named.Kind))
                 declarations.Add(semanticSymbol);
             else
                 usages.Add(semanticSymbol);
@@ -84,10 +59,8 @@ internal sealed class AwkSemanticModel
 
         checkpoint?.Invoke();
         return new AwkSemanticModel(
-            semanticSymbols,
             declarations,
-            usages,
-            referencesFields);
+            usages);
     }
 
 }
@@ -95,7 +68,6 @@ internal sealed class AwkSemanticModel
 internal readonly record struct AwkSemanticSymbol(
     AwkIdentifier Identifier,
     AwkSemanticSymbolKind Kind,
-    AwkSemanticSymbolOccurrence Occurrence,
     AwkTextSpan Span,
     bool IsFunctionLocal = false)
 {
@@ -113,10 +85,4 @@ internal enum AwkSemanticSymbolKind
     UnknownFunction,
     FunctionDefinition,
     FunctionParameter
-}
-
-internal enum AwkSemanticSymbolOccurrence
-{
-    Declaration,
-    Usage
 }

@@ -9,9 +9,6 @@ internal abstract class AwkSpecialVariableDefinition(
     public string Name { get; } = name;
 
     protected AwkIdentifier Identifier { get; } = AwkIdentifier.FromTrustedName(name);
-
-    /// <summary>Gets whether this special variable occupies scalar or array storage.</summary>
-    public abstract AwkSpecialVariableKind Kind { get; }
 }
 
 internal sealed class AwkSpecialScalarVariableDefinition(
@@ -19,8 +16,6 @@ internal sealed class AwkSpecialScalarVariableDefinition(
     string name,
     AwkSpecialScalarInitialValue initialValue) : AwkSpecialVariableDefinition(id, name)
 {
-    public override AwkSpecialVariableKind Kind => AwkSpecialVariableKind.Scalar;
-
     public AwkVariableName VariableName => new(Identifier);
 
     public AwkSpecialScalarInitialValue InitialValue { get; } = initialValue;
@@ -31,8 +26,6 @@ internal sealed class AwkSpecialArrayVariableDefinition(
     string name,
     AwkSpecialArrayMutationPolicy mutationPolicy) : AwkSpecialVariableDefinition(id, name)
 {
-    public override AwkSpecialVariableKind Kind => AwkSpecialVariableKind.Array;
-
     public AwkArrayName ArrayName => new(Identifier);
 
     public AwkSpecialArrayMutationPolicy MutationPolicy { get; } = mutationPolicy;
@@ -60,12 +53,6 @@ internal readonly struct AwkSpecialScalarInitialValue
     public static AwkSpecialScalarInitialValue None => default;
 
     public static AwkSpecialScalarInitialValue Some(AwkValue value) => new(value);
-}
-
-internal enum AwkSpecialVariableKind
-{
-    Scalar,
-    Array
 }
 
 internal enum AwkSpecialArrayMutationPolicy

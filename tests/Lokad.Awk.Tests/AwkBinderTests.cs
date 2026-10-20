@@ -50,26 +50,23 @@ public sealed class AwkBinderTests
             "BEGIN{print NF, length($1); a[$1]++; helper(a[$2])}"));
 
         Assert.Contains(binding.Symbols, symbol =>
-            symbol is AwkNamedSymbolReference { Name: "helper", Kind: AwkSymbolReferenceKind.FunctionDefinition });
+            symbol is { Name: "helper", Kind: AwkSymbolReferenceKind.FunctionDefinition });
         Assert.Contains(binding.Symbols, symbol =>
-            symbol is AwkNamedSymbolReference { Name: "value", Kind: AwkSymbolReferenceKind.FunctionParameter });
+            symbol is { Name: "value", Kind: AwkSymbolReferenceKind.FunctionParameter });
         Assert.Contains(binding.Symbols, symbol =>
-            symbol is AwkNamedSymbolReference { Name: "NF", Kind: AwkSymbolReferenceKind.SpecialVariable });
+            symbol is { Name: "NF", Kind: AwkSymbolReferenceKind.SpecialVariable });
         Assert.Contains(binding.Symbols, symbol =>
-            symbol is AwkFieldSymbolReference);
+            symbol is { Name: "length", Kind: AwkSymbolReferenceKind.BuiltinFunction });
         Assert.Contains(binding.Symbols, symbol =>
-            symbol is AwkNamedSymbolReference { Name: "length", Kind: AwkSymbolReferenceKind.BuiltinFunction });
+            symbol is { Name: "a", Kind: AwkSymbolReferenceKind.Array });
         Assert.Contains(binding.Symbols, symbol =>
-            symbol is AwkNamedSymbolReference { Name: "a", Kind: AwkSymbolReferenceKind.Array });
-        Assert.Contains(binding.Symbols, symbol =>
-            symbol is AwkNamedSymbolReference { Name: "helper", Kind: AwkSymbolReferenceKind.UserFunction });
+            symbol is { Name: "helper", Kind: AwkSymbolReferenceKind.UserFunction });
         AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.FunctionParameter, "value");
         AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.SpecialVariable, "NF");
         AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.Array, "a");
         AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.BuiltinFunction, "length");
         AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.UserFunction, "helper");
         AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.FunctionDefinition, "helper");
-        Assert.True(binding.SemanticModel.ReferencesFields);
         AssertSemanticDeclaration(binding.SemanticModel, AwkSemanticSymbolKind.FunctionDefinition, "helper");
         AssertSemanticDeclaration(binding.SemanticModel, AwkSemanticSymbolKind.FunctionParameter, "value");
         AssertSemanticUsage(binding.SemanticModel, AwkSemanticSymbolKind.BuiltinFunction, "length");
@@ -106,8 +103,7 @@ public sealed class AwkBinderTests
         {
             AssertSemanticSymbol(binding.SemanticModel, AwkSemanticSymbolKind.BuiltinFunction, name);
             Assert.DoesNotContain(binding.Symbols, symbol =>
-                symbol is AwkNamedSymbolReference { Kind: AwkSymbolReferenceKind.UnknownFunction } named &&
-                named.Name == name);
+                symbol.Kind == AwkSymbolReferenceKind.UnknownFunction && symbol.Name == name);
         }
     }
 
@@ -388,5 +384,5 @@ public sealed class AwkBinderTests
         AwkSemanticModel model,
         AwkSemanticSymbolKind kind,
         string name) =>
-        Assert.Contains(model.Symbols, symbol => symbol.Kind == kind && symbol.Name == name);
+        Assert.Contains(model.Declarations.Concat(model.Usages), symbol => symbol.Kind == kind && symbol.Name == name);
 }

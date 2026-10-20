@@ -4,7 +4,6 @@ namespace Lokad.Awk;
 
 internal sealed class AwkBindingResult(
     AwkPipelinePhase phase,
-    AwkSyntaxProgram syntax,
     IReadOnlyList<AwkDiagnostic> diagnostics,
     IReadOnlyList<AwkSymbolReference> symbols,
     AwkSemanticModel semanticModel,
@@ -17,8 +16,6 @@ internal sealed class AwkBindingResult(
             : AwkPhaseResult<AwkProgramResult>.Failure(phase, program, diagnostics, []);
 
     public AwkPipelinePhase Phase => PhaseResult.Phase;
-
-    public AwkSyntaxProgram Syntax { get; } = syntax;
 
     public IReadOnlyList<AwkDiagnostic> Diagnostics => PhaseResult.Diagnostics;
 
