@@ -1405,6 +1405,24 @@ internal static partial class AwkGoldenCorpus
             "10 0 9 10.5 10\n"),
 
         Passing(
+            "gnu-repeated-source-numeric-literals",
+            ["BEGIN{for(i=0;i<3;i++){a+=010;b+=0x10;c+=09;d+=010.5;e+=0010}print a,b,c,d,e}"],
+            [],
+            "24 48 27 31.5 24\n"),
+
+        Passing(
+            "posix-repeated-source-numeric-literals",
+            ["--posix", "BEGIN{for(i=0;i<3;i++){a+=010;b+=0x10;c+=09;d+=010.5;e+=0010}print a,b,c,d,e}"],
+            [],
+            "30 0 27 31.5 30\n"),
+
+        Passing(
+            "traditional-repeated-source-numeric-literals",
+            ["--traditional", "BEGIN{for(i=0;i<3;i++){a+=010;b+=0x10;c+=09;d+=010.5;e+=0010}print a,b,c,d,e}"],
+            [],
+            "30 0 27 31.5 30\n"),
+
+        Passing(
             "gnu-field-numeric-literals",
             ["BEGIN{$0=\"a b c d e f g h i j\"; print $010, $08, $0x2}"],
             [],

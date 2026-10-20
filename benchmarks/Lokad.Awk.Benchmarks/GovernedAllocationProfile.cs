@@ -8,7 +8,8 @@ public class GovernedAllocationProfile
     private ReferenceWorkload? _workload;
     private AwkExecutionPolicy _policy = AwkExecutionPolicy.CreateDefault();
     private readonly Lokad.Awk.Tests.CooperativeTestBudget _budget = new(512L << 20);
-    [Params("shared-calls", "default-calls", "shared-projection", "shared-aggregate", "default-aggregate")]
+    [Params("shared-calls", "default-calls", "shared-projection", "shared-aggregate", "default-aggregate",
+        "default-arithmetic", "default-posix-arithmetic", "shared-posix-arithmetic")]
     public string Scenario { get; set; } = "shared-calls";
 
     [GlobalSetup]
@@ -16,11 +17,12 @@ public class GovernedAllocationProfile
     {
         var family = Scenario switch
         {
+            "default-arithmetic" or "default-posix-arithmetic" or "shared-posix-arithmetic" => "arithmetic-loops",
             "shared-projection" => "projection",
             "shared-aggregate" or "default-aggregate" => "aggregate",
             _ => "multi-arg-loop"
         };
-        _workload = ReferenceWorkloads.Create(family, "large");
+        _workload = ReferenceWorkloads.Create(family, family == "arithmetic-loops" ? "medium" : "large");
         if (!Scenario.StartsWith("default-", StringComparison.Ordinal)) _policy = _policy.WithMemoryBudget(_budget);
         Execute().GetAwaiter().GetResult();
     }
@@ -31,7 +33,9 @@ public class GovernedAllocationProfile
         var workload = _workload ?? throw new InvalidOperationException("Missing fixture.");
         using var host = new ReferenceBenchmarkHost(workload, false);
         using var deadline = new CancellationTokenSource(ReferenceExecution.InvocationTimeout);
-        var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", workload.Arguments,
+        string[] arguments = Scenario.Contains("-posix-", StringComparison.Ordinal)
+            ? ["--posix", .. workload.Arguments] : workload.Arguments;
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", arguments,
             [new("LC_ALL", workload.Locale), new("TZ", "UTC"), new("PWD", "/")]);
         if (!Awk.TryParse(command, out var awk)) throw new InvalidOperationException("Invalid fixture.");
         var exit = await awk.ExecuteAsync(host, _policy, deadline.Token).ConfigureAwait(false);
