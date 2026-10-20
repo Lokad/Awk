@@ -105,13 +105,6 @@ internal sealed class AwkText : IEquatable<AwkText>
             : MaterializeConcatenation(_concatenation, checkpoint).AsMemory();
     }
 
-    public bool ContainsNonAscii(AwkRuntimeCounters counters, Action? checkpoint = null)
-    {
-        var isAscii = IsAscii(out var inspectedByteCount, checkpoint);
-        counters.RecordRegexPolicyInputBytesInspected(inspectedByteCount);
-        return !isAscii;
-    }
-
     public static AwkText FromSourceLiteralString(string text) =>
         FromString(text, AwkRuntimeCounters.Disabled);
 

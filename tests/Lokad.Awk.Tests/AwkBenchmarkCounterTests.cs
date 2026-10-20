@@ -846,7 +846,6 @@ public sealed class AwkBenchmarkCounterTests
 
         Assert.Equal(0, exitCode);
         Assert.Equal("2\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal(0, counters.RegexPolicyInputBytesInspected);
         Assert.Equal(1_001, counters.RegexMatches);
     }
 

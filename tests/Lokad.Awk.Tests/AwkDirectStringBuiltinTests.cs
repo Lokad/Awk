@@ -21,8 +21,8 @@ public sealed class AwkDirectStringBuiltinTests
             var checks = state.Counters.CancellationChecks;
             Assert.Equal(prefixBytes + changedBytes, result.ByteText.GetRuneLength(state.CancellationCheckpoint));
             Assert.Equal(checks, state.Counters.CancellationChecks);
-            Assert.False(result.ByteText.ContainsNonAscii(state.Counters));
-            Assert.Equal(0, state.Counters.RegexPolicyInputBytesInspected);
+            Assert.True(result.ByteText.IsAscii(out var inspectedBytes));
+            Assert.Equal(0, inspectedBytes);
             Assert.Equal(prefixBytes + changedBytes, state.CountStringUnits(result.ByteText));
             Assert.Equal(prefix + new string(upper ? 'A' : 'a', changedBytes), result.AsString());
             Assert.Equal(changedBytes, state.Counters.AsciiCaseConversionBytes);

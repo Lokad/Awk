@@ -199,7 +199,6 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.False(runtime.IsMatch(regex, input));
         Assert.False(runtime.IsMatch(regex, input));
 
-        Assert.Equal(0, counters.RegexPolicyInputBytesInspected);
     }
 
     [Theory]

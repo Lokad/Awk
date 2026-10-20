@@ -136,8 +136,6 @@ internal sealed class AwkRuntimeCounters
 
     public long RegexStringAdapterMatches { get; private set; }
 
-    public long RegexPolicyInputBytesInspected { get; private set; }
-
     public long RegexGroupsMaterialized { get; private set; }
 
     public long RecordSeparatorResolutions { get; private set; }
@@ -448,15 +446,6 @@ internal sealed class AwkRuntimeCounters
 
         lock (_sync)
             RegexStringAdapterMatches++;
-    }
-
-    public void RecordRegexPolicyInputBytesInspected(int byteCount)
-    {
-        if (!_enabled || byteCount <= 0)
-            return;
-
-        lock (_sync)
-            RegexPolicyInputBytesInspected += byteCount;
     }
 
     public void RecordRegexGroupsMaterialized(int count)

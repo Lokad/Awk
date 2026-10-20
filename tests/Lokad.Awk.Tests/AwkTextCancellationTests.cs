@@ -173,7 +173,7 @@ public sealed class AwkTextCancellationTests
             switch (operation)
             {
                 case "runes": _ = text.GetRuneLength(checkpoint); break;
-                case "ascii": _ = text.ContainsNonAscii(counters, checkpoint); break;
+                case "ascii": _ = text.IsAscii(out _, checkpoint); break;
                 case "number": _ = text.TryParseNumber(AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText, out _, checkpoint); break;
                 case "parsed-value": _ = AwkValue.FromText(text, AwkNumberParsingMode.Decimal, checkpoint); break;
                 case "hash": _ = text.GetHashCode(checkpoint); break;

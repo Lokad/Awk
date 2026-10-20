@@ -16,19 +16,18 @@ public sealed class AwkTextTests
     }
 
     [Theory]
-    [InlineData("ascii", false)]
-    [InlineData("aé", true)]
+    [InlineData("ascii", true)]
+    [InlineData("aé", false)]
     public void AwkText_RuneLengthSharesTextFactsWithAsciiClassification(
         string value,
-        bool expectedNonAscii)
+        bool expectedAscii)
     {
-        var counters = AwkRuntimeCounters.CreateEnabled();
         var text = AwkText.FromString(value);
 
         _ = text.RuneLength;
 
-        Assert.Equal(expectedNonAscii, text.ContainsNonAscii(counters));
-        Assert.Equal(0, counters.RegexPolicyInputBytesInspected);
+        Assert.Equal(expectedAscii, text.IsAscii(out var inspectedBytes));
+        Assert.Equal(0, inspectedBytes);
     }
 
     [Fact]
