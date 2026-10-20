@@ -12,8 +12,8 @@ public sealed class AwkFieldTargetAllocationTests
         state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit tail"));
         var target = AwkReference.ArrayElement(name, AwkArrayIndex.Simple(
-            AwkExpression.FieldIndex(AwkExpression.Number("1", 1))));
-        var right = AwkExpression.Number("1", 1);
+            AwkExpression.FieldIndex(AwkExpression.Number(1))));
+        var right = AwkExpression.Number(1);
         var context = new AwkEvaluationContext(state);
         for (var warm = 0; warm < 32; warm++) Update();
         var before = GC.GetAllocatedBytesForCurrentThread();

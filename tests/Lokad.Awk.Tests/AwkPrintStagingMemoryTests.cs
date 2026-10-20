@@ -129,7 +129,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var io = Io(state, host);
         var values = Numbers("default");
         var payload = values.Sum(value => AwkRuntimeMemory.EstimateTextBytes(state.FormatPrintByteText(value).ByteLength));
-        var operands = values.Select(value => AwkExpression.Number(AwkNumberFormatter.ToString(value.AsNumber()), value.AsNumber())).ToArray();
+        var operands = values.Select(value => AwkExpression.Number(value.AsNumber())).ToArray();
         var redirection = new AwkOutputRedirection(AwkExpression.Literal("result"), AwkOutputRedirectionKind.Write);
         var statement = printf ? AwkStatement.Printf(AwkExpression.Literal("%.2f|%.2f|%.2f!"), operands, redirection)
             : AwkStatement.Print(operands, redirection);
@@ -200,7 +200,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         var io = Io(state, host, cancellation.Token);
         var values = Numbers("default");
         var payload = values.Sum(value => AwkRuntimeMemory.EstimateTextBytes(state.FormatPrintByteText(value).ByteLength));
-        var operands = values.Select(value => AwkExpression.Number(AwkNumberFormatter.ToString(value.AsNumber()), value.AsNumber())).ToArray();
+        var operands = values.Select(value => AwkExpression.Number(value.AsNumber())).ToArray();
         var target = new AwkOutputRedirection(AwkExpression.Literal("result"), AwkOutputRedirectionKind.Write);
         var statement = printf ? AwkStatement.Printf(AwkExpression.Literal("%.2f|%.2f|%.2f!"), operands, target)
             : AwkStatement.Print(operands, target);

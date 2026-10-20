@@ -48,7 +48,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     {
         var name = AwkFunctionName.FromText("step");
         var local = AwkVariableName.FromText("t");
-        var value = AwkExpression.Number("1", 1);
+        var value = AwkExpression.Number(1);
         AwkExpression deep = calls ? new PrefixDeepCallExpression() : new TooDeepExpression();
         var function = new AwkUserFunction(name, new([local]),
             [AwkStatement.Assignment(AwkReference.LocalScalar(local, new(0)), returned ? value : deep),
@@ -83,7 +83,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         try
         {
             var value = await functions[AwkFunctionName.FromText("step")].InvokeAsync(
-                [AwkExpression.Number("7", 7)], new(state, output, io));
+                [AwkExpression.Number(7)], new(state, output, io));
             Assert.Equal(9, value.AsNumber());
             Assert.Equal(prepared ? 1 : 0, counters.SynchronousFunctionRuns);
             Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -148,7 +148,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [function.FunctionName] = function };
         var prepared = Assert.IsAssignableFrom<IReadOnlyDictionary<AwkFunctionName, AwkSynchronousFunction>>(
             AwkSynchronousFunction.Prepare(functions, null));
-        var operands = Enumerable.Range(0, arguments).Select(_ => AwkExpression.Number("1", 1)).ToArray();
+        var operands = Enumerable.Range(0, arguments).Select(_ => AwkExpression.Number(1)).ToArray();
         Assert.Equal(expected, AwkExpression.FunctionCall(function.FunctionName, operands)
             .TryPrepareFunctionCalls(prepared, 16, out _));
     }
@@ -175,7 +175,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         {
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () =>
                 await functions[AwkFunctionName.FromText("step")].InvokeAsync(
-                    [AwkExpression.Number("7", 7)], new(state, output, io)));
+                    [AwkExpression.Number(7)], new(state, output, io)));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
             Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);

@@ -39,7 +39,7 @@ public sealed partial class AwkPrintStagingMemoryTests
             await output.FlushAsync(io);
         }
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
-        await AwkStatement.Print([AwkExpression.Number("1.25", 1.25)]).ExecuteAsync(new(state, output, io));
+        await AwkStatement.Print([AwkExpression.Number(1.25)]).ExecuteAsync(new(state, output, io));
         Assert.Equal((format == "wide" ? new string(' ', 8188) : "") + "1.25\n", output.ToString());
         Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);

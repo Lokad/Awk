@@ -19,7 +19,7 @@ public sealed class AwkGetlineDestinationTests
         if (!field && !memory)
             state.SetArrayAwkValue(array, new AwkArrayKey("kept"), AwkValue.FromNumber(7));
         var key = memory ? new string('k', 600) : "new";
-        var reference = field ? AwkReference.Field(AwkExpression.Number("30", 30)) :
+        var reference = field ? AwkReference.Field(AwkExpression.Number(30)) :
             AwkReference.ArrayElement(array, AwkArrayIndex.Simple(AwkExpression.Literal(key)));
         var host = new MockFileSystem();
         host.AddFile("/data", "record\n");

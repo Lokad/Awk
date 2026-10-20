@@ -9,8 +9,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
     [InlineData(17, 0)]
     public void FieldArrayLeavesKeepTheExistingExpressionDepthLimit(int additions, int expectedDepth)
     {
-        AwkExpression index = AwkExpression.Number("1", 1);
-        for (var i = 0; i < additions; i++) index = AwkExpression.Add(index, AwkExpression.Number("0", 0));
+        AwkExpression index = AwkExpression.Number(1);
+        for (var i = 0; i < additions; i++) index = AwkExpression.Add(index, AwkExpression.Number(0));
         var expression = AwkExpression.ArrayElement(AwkArrayName.FromText("a"),
             AwkArrayIndex.Simple(AwkExpression.FieldIndex(index)));
         Assert.Equal(expectedDepth, Assert.IsAssignableFrom<AwkSynchronousExpression>(expression).SynchronousDepth);
@@ -27,7 +27,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         state.SetArrayAwkValue(name, new("hit"), AwkValue.FromNumber(7));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("hit"));
         _ = state.GetFieldValue(1); // Exclude the separate record-split work charge.
-        var expression = AwkExpression.ArrayElement(name, AwkArrayIndex.Simple(AwkExpression.FieldIndex(AwkExpression.Number("1", 1))));
+        var expression = AwkExpression.ArrayElement(name, AwkArrayIndex.Simple(AwkExpression.FieldIndex(AwkExpression.Number(1))));
         var value = ordinary ? await expression.EvaluateAsync(new(state))
             : Assert.IsAssignableFrom<AwkSynchronousExpression>(expression).EvaluateSynchronous(new(state));
         Assert.Equal(7, value.AsNumber());

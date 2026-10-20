@@ -2,6 +2,35 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkFrontendCancellationTests
 {
+    [Theory]
+    [InlineData("", "24 48\n")]
+    [InlineData("--posix", "30 0\n")]
+    [InlineData("--traditional", "30 0\n")]
+    public async Task PreparedNumbersKeepTheirBoundModeAndUseCurrentExecutionCancellation(string mode, string expected)
+    {
+        const string source = "BEGIN{for(i=0;i<3;i++){a+=010;b+=0x10}print a,b}";
+        var command = mode.Length == 0 ? AwkTestHarness.BuildInvocation("awk", source)
+            : AwkTestHarness.BuildInvocation("awk", mode, source);
+        using var preparation = new CancellationTokenSource();
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), command, preparation.Token);
+        preparation.Cancel();
+
+        using var execution = new CancellationTokenSource();
+        execution.Cancel();
+        var canceledHost = new MockFileSystem();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => compiled.ExecuteAsync(canceledHost, execution.Token));
+        Assert.Equal("", canceledHost.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", canceledHost.GetOutput(AwkFileDescriptor.StdErr));
+
+        foreach (var host in new[] { new MockFileSystem(), new MockFileSystem() })
+        {
+            Assert.Equal(AwkExitCode.Success, await compiled.ExecuteAsync(host, CancellationToken.None));
+            Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+        }
+    }
+
     [Fact]
     public void SourceNumberPreparationObservesItsCancellationCallback()
     {
@@ -13,7 +42,8 @@ public sealed class AwkFrontendCancellationTests
         }
         var text = "1" + new string('0', 12_000);
         var failure = Assert.Throws<OperationCanceledException>(() =>
-            AwkExpression.Number(text, double.PositiveInfinity, Checkpoint));
+            AwkExpressionLowerer.PrepareSourceNumber(text, double.PositiveInfinity,
+                AwkCompatibilityMode.Posix, Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
     }
 
@@ -21,7 +51,9 @@ public sealed class AwkFrontendCancellationTests
     public async Task SourceNumberExecutionDoesNotUseThePreparationCancellationCallback()
     {
         using var preparation = new CancellationTokenSource();
-        var expression = AwkExpression.Number("2", 2, preparation.Token.ThrowIfCancellationRequested);
+        var number = AwkExpressionLowerer.PrepareSourceNumber("2", 2,
+            AwkCompatibilityMode.Posix, preparation.Token.ThrowIfCancellationRequested);
+        var expression = AwkExpression.Number(number);
         preparation.Cancel();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         Assert.Equal(2, (await expression.EvaluateAsync(new(state))).AsNumber());

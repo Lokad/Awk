@@ -31,7 +31,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         var expectedState = CreateState(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Local);
         _ = await EvaluateAsync(
             "srand",
-            [AwkExpression.Number(timestamp.ToString(), timestamp)],
+            [AwkExpression.Number(timestamp)],
             expectedState);
         var expectedFirstRandom = (await EvaluateAsync("rand", [], expectedState)).AsNumber();
 
@@ -102,7 +102,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             "1970-01-01 02:00:00 +02:00",
             (await EvaluateAsync(
                 "strftime",
-                [AwkExpression.Literal("%Y-%m-%d %H:%M:%S %Z"), AwkExpression.Number("0", 0)],
+                [AwkExpression.Literal("%Y-%m-%d %H:%M:%S %Z"), AwkExpression.Number(0)],
                 state)).AsString());
         Assert.Equal(
             "1970-01-01 00:00:00 UTC",
@@ -110,8 +110,8 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
                 "strftime",
                 [
                     AwkExpression.Literal("%Y-%m-%d %H:%M:%S %Z"),
-                    AwkExpression.Number("0", 0),
-                    AwkExpression.Number("1", 1)
+                    AwkExpression.Number(0),
+                    AwkExpression.Number(1)
                 ],
                 state)).AsString());
         Assert.Equal(
@@ -146,13 +146,13 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             "2020-01-01 01:00:00 +01:00",
             (await EvaluateAsync(
                 "strftime",
-                [AwkExpression.Literal("%Y-%m-%d %H:%M:%S %Z"), AwkExpression.Number(winterTimestamp.ToString(), winterTimestamp)],
+                [AwkExpression.Literal("%Y-%m-%d %H:%M:%S %Z"), AwkExpression.Number(winterTimestamp)],
                 state)).AsString());
         Assert.Equal(
             "2020-07-01 02:00:00 +02:00",
             (await EvaluateAsync(
                 "strftime",
-                [AwkExpression.Literal("%Y-%m-%d %H:%M:%S %Z"), AwkExpression.Number(summerTimestamp.ToString(), summerTimestamp)],
+                [AwkExpression.Literal("%Y-%m-%d %H:%M:%S %Z"), AwkExpression.Number(summerTimestamp)],
                 state)).AsString());
         Assert.Equal(
             summerTimestamp,

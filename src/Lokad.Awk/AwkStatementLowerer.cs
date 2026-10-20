@@ -492,7 +492,7 @@ internal static class AwkStatementLowerer
                         if (slot.IsEmpty)
                         {
                             condition = new AwkCondition(
-                                [[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+                                [[AwkConditionClause.Truthy(AwkExpression.Number(1))]]);
                             return true;
                         }
 

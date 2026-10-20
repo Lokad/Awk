@@ -26,7 +26,7 @@ public sealed class AwkPrintfFieldArgumentTests
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options);
         var host = new PendingHost();
         var io = new AwkIo(host, AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr, cancellation.Token, counters, limits, state, static () => []);
-        AwkExpression[] fields = [AwkExpression.FieldIndex(AwkExpression.Number("1", 1)), AwkExpression.FieldIndex(AwkExpression.Number("2", 2))];
+        AwkExpression[] fields = [AwkExpression.FieldIndex(AwkExpression.Number(1)), AwkExpression.FieldIndex(AwkExpression.Number(2))];
         var statement = fieldList ? AwkStatement.Print(fields)
             : AwkStatement.Printf(AwkExpression.Literal("%s:%04d\n"), fields);
         var expected = fieldList ? "before 7\n" : "before:0007\n";

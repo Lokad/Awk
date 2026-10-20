@@ -120,10 +120,10 @@ public sealed class AwkBorrowedSubstringTests
     private static AwkExpression Call(bool whole = false, int length = 2, AwkExpression? start = null)
     {
         Assert.True(AwkBuiltins.TryGetCallable("substr", out var builtin));
-        var field = AwkExpression.FieldIndex(AwkExpression.Number("2", 2));
-        var first = start ?? AwkExpression.Number("1", 1);
+        var field = AwkExpression.FieldIndex(AwkExpression.Number(2));
+        var first = start ?? AwkExpression.Number(1);
         return AwkExpression.BuiltinCall(builtin, whole ? [field, first]
-            : [field, first, AwkExpression.Number(length.ToString(System.Globalization.CultureInfo.InvariantCulture), length)]);
+            : [field, first, AwkExpression.Number(length)]);
     }
 
     private static AwkRuntimeState State(int mode,AwkExecutionMemoryOwner owner,CancellationToken token = default,bool bytes = false,AwkRuntimeLimits? limits = null)

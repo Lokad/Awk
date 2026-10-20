@@ -102,14 +102,14 @@ public sealed partial class AwkSynchronousRegionTests
     [Fact]
     public void RegionsStopAtBoundedDepthAndExcludeSpecialVariables()
     {
-        AwkExpression expression = AwkExpression.Number("1", 1);
+        AwkExpression expression = AwkExpression.Number(1);
         for (var depth = 1; depth < 16; depth++)
-            expression = AwkExpression.Add(expression, AwkExpression.Number("1", 1));
+            expression = AwkExpression.Add(expression, AwkExpression.Number(1));
         Assert.Equal(16, Assert.IsAssignableFrom<AwkSynchronousExpression>(expression).SynchronousDepth);
-        Assert.IsNotAssignableFrom<AwkSynchronousExpression>(AwkExpression.Add(expression, AwkExpression.Number("1", 1)));
+        Assert.IsNotAssignableFrom<AwkSynchronousExpression>(AwkExpression.Add(expression, AwkExpression.Number(1)));
         var nf = AwkExpression.PreparedGlobalVariable(AwkVariableName.FromText("NF"), 0);
         Assert.Equal(0, Assert.IsAssignableFrom<AwkSynchronousExpression>(nf).SynchronousDepth);
-        Assert.IsNotAssignableFrom<AwkSynchronousExpression>(AwkExpression.Add(nf, AwkExpression.Number("1", 1)));
+        Assert.IsNotAssignableFrom<AwkSynchronousExpression>(AwkExpression.Add(nf, AwkExpression.Number(1)));
     }
 
     [Theory]
@@ -125,7 +125,7 @@ public sealed partial class AwkSynchronousRegionTests
         var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
-        var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), AwkExpression.Number("9", 9));
+        var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), AwkExpression.Number(9));
         var loop = Loop(forceLegacy ? new ForwardingStatement(body) : body, whileLoop: whileLoop);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
@@ -192,7 +192,7 @@ public sealed partial class AwkSynchronousRegionTests
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var operand = new PendingOperand(source.Task);
-        var statement = AwkStatement.If(new([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]), [AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), operand)]);
+        var statement = AwkStatement.If(new([[AwkConditionClause.Truthy(AwkExpression.Number(1))]]), [AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), operand)]);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
@@ -224,7 +224,7 @@ public sealed partial class AwkSynchronousRegionTests
     [InlineData(5, false)]
     public void ConditionalPreparationBoundsNesting(int depth, bool eligible)
     {
-        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number(1))]]);
         var statement = AwkStatement.NoOp();
         for (var index = 0; index < depth; index++) statement = AwkStatement.If(condition, [statement]);
         Assert.Equal(eligible, AwkStatementBlockExecutor.TryPrepareActions([statement], null) is not null);
@@ -236,7 +236,7 @@ public sealed partial class AwkSynchronousRegionTests
     public void ConditionalPreparationBoundsStatementsBeforeInspectingBody(int count, bool eligible)
     {
         var probe = new PreparationProbe();
-        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number(1))]]);
         var statement = AwkStatement.If(condition, Enumerable.Repeat<AwkStatement>(probe, count).ToArray());
         Assert.Equal(eligible, AwkStatementBlockExecutor.TryPrepareActions([statement], null) is not null);
         Assert.Equal(eligible ? count : 0, probe.Preparations);
@@ -245,7 +245,7 @@ public sealed partial class AwkSynchronousRegionTests
     [Fact]
     public void ConditionalPreparationSharesStatementBudgetWithFollowingStatements()
     {
-        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number(1))]]);
         var statements = Enumerable.Repeat(AwkStatement.NoOp(), 16).ToArray();
         statements[0] = AwkStatement.If(condition, [AwkStatement.NoOp()]);
         Assert.Null(AwkStatementBlockExecutor.TryPrepareActions(statements, null));
@@ -269,11 +269,11 @@ public sealed partial class AwkSynchronousRegionTests
         var target = AwkReference.PreparedGlobalScalar(name, 1);
         var indexTarget = AwkReference.PreparedGlobalScalar(indexName, 0);
         var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.LogicalOr(
-            AwkExpression.Compare(value,AwkExpression.Number("5",5),AwkComparison.LessThan),            AwkExpression.Compare(indexValue,AwkExpression.Number("0",0),AwkComparison.Equal)))]]);
-        var inner = AwkStatement.If(new([[AwkConditionClause.Comparison(value, AwkExpression.Number("0", 0), AwkComparison.Equal)]]), [AwkStatement.Assignment(indexTarget, AwkExpression.Add(indexValue, AwkExpression.Number("1", 1)))], [AwkStatement.Assignment(indexTarget, AwkExpression.Add(indexValue, AwkExpression.Number("2", 2)))]);
+            AwkExpression.Compare(value,AwkExpression.Number(5),AwkComparison.LessThan),            AwkExpression.Compare(indexValue,AwkExpression.Number(0),AwkComparison.Equal)))]]);
+        var inner = AwkStatement.If(new([[AwkConditionClause.Comparison(value, AwkExpression.Number(0), AwkComparison.Equal)]]), [AwkStatement.Assignment(indexTarget, AwkExpression.Add(indexValue, AwkExpression.Number(1)))], [AwkStatement.Assignment(indexTarget, AwkExpression.Add(indexValue, AwkExpression.Number(2)))]);
         var statement = AwkStatement.If(condition, [inner, AwkStatement.Assignment(target,failMemory ? AwkExpression.Literal(new string('x',2 << 20)) :
-                AwkExpression.Add(value,AwkExpression.Number("3",3)))], [AwkStatement.Assignment(indexTarget,AwkExpression.Add(indexValue,AwkExpression.Number("10",10))),
-                AwkStatement.Assignment(target,AwkExpression.Subtract(value,AwkExpression.Number("1",1)))]);
+                AwkExpression.Add(value,AwkExpression.Number(3)))], [AwkStatement.Assignment(indexTarget,AwkExpression.Add(indexValue,AwkExpression.Number(10))),
+                AwkStatement.Assignment(target,AwkExpression.Subtract(value,AwkExpression.Number(1)))]);
         var action = new AwkAction(null, [forceLegacy ? new ForwardingStatement(statement) : statement]);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
@@ -304,7 +304,7 @@ public sealed partial class AwkSynchronousRegionTests
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
         var value = AwkExpression.Modulo(AwkExpression.Add(AwkExpression.Multiply(
-            AwkExpression.PreparedGlobalVariable(name, 1), AwkExpression.Number("3", 3)), AwkExpression.Number("1", 1)), AwkExpression.Number("101", 101));
+            AwkExpression.PreparedGlobalVariable(name, 1), AwkExpression.Number(3)), AwkExpression.Number(1)), AwkExpression.Number(101));
         var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), failMemory ? AwkExpression.Literal(new string('x', 2 << 20)) : value);
         var loop = Loop(forceLegacy ? new ForwardingStatement(body) : body, whileLoop: whileLoop, doWhileLoop: doWhileLoop);
         var host = new MockFileSystem();
@@ -325,9 +325,9 @@ public sealed partial class AwkSynchronousRegionTests
     public void PreparationBoundsBodyWorkBeforeInspectingStatements(int count, bool eligible)
     {
         var header = new PreparationProbe();
-        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number(1))]]);
         var statement = AwkStatement.Assignment(
-            AwkReference.PreparedGlobalScalar(AwkVariableName.FromText("x"), 0), AwkExpression.Number("1", 1));
+            AwkReference.PreparedGlobalScalar(AwkVariableName.FromText("x"), 0), AwkExpression.Number(1));
         var prepared = AwkSynchronousFor.TryPrepare(header, condition, header,
             Enumerable.Repeat(statement, count).ToArray());
         Assert.Equal(eligible, prepared is not null);
@@ -352,12 +352,12 @@ public sealed partial class AwkSynchronousRegionTests
         var name = AwkVariableName.FromText("i");
         var reference = AwkReference.PreparedGlobalScalar(name, 0);
         var condition = new AwkCondition([[AwkConditionClause.Comparison(AwkExpression.PreparedGlobalVariable(name, 0),
-            AwkExpression.Number(iterations.ToString(System.Globalization.CultureInfo.InvariantCulture), iterations), AwkComparison.LessThan)]]);
+            AwkExpression.Number(iterations), AwkComparison.LessThan)]]);
         if (doWhileLoop)
             return AwkStatement.DoWhile([body, AwkStatement.PostIncrement(reference)], condition);
         if (whileLoop)
             return AwkStatement.While(condition, [body, AwkStatement.PostIncrement(reference)]);
-        return AwkStatement.For(AwkStatement.Assignment(reference, AwkExpression.Number("0", 0)), condition,
+        return AwkStatement.For(AwkStatement.Assignment(reference, AwkExpression.Number(0)), condition,
             AwkStatement.PostIncrement(reference), [body]);
     }
 

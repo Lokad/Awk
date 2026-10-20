@@ -60,7 +60,7 @@ public sealed partial class AwkFieldProjectionTests
 
     private static AwkStatement Statement() => AwkStatement.Print([Field(1), Field(3), Field(2)]);
     private static AwkExpression Field(int index) => AwkExpression.FieldIndex(
-        AwkExpression.Number(index.ToString(System.Globalization.CultureInfo.InvariantCulture), index));
+        AwkExpression.Number(index));
 
     private static async Task<PrintResult> RunPrintAsync(bool owned, AwkRuntimeLimits limits)
     {

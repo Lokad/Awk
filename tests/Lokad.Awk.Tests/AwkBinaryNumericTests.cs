@@ -13,7 +13,7 @@ public sealed class AwkBinaryNumericTests
         _ = state.FieldCount;
         var allocations = counters.AwkTextAllocations;
         var expression = AwkExpression.Add(
-            AwkExpression.Multiply(Field(1), AwkExpression.Number("2", 2)), Field(2));
+            AwkExpression.Multiply(Field(1), AwkExpression.Number(2)), Field(2));
         Assert.Equal(17, (await expression.EvaluateAsync(new AwkEvaluationContext(state))).AsNumber());
         Assert.Equal(allocations, counters.AwkTextAllocations);
         bytes[2] = (byte)'8';
@@ -31,7 +31,7 @@ public sealed class AwkBinaryNumericTests
         var (state, _) = State(true);
         var right = new EffectExpression();
         var expression = AwkExpression.Add(
-            AwkExpression.Divide(AwkExpression.Number("1", 1), AwkExpression.Number("0", 0)), right);
+            AwkExpression.Divide(AwkExpression.Number(1), AwkExpression.Number(0)), right);
         var error = numeric
             ? await Record.ExceptionAsync(async () => { _ = await expression.ResolveNumberAsync(new AwkEvaluationContext(state)); })
             : await Record.ExceptionAsync(async () => { _ = await expression.EvaluateAsync(new AwkEvaluationContext(state)); });
@@ -70,7 +70,7 @@ public sealed class AwkBinaryNumericTests
     }
 
     private static AwkExpression Field(int index) =>
-        AwkExpression.FieldIndex(AwkExpression.Number(index.ToString(System.Globalization.CultureInfo.InvariantCulture), index));
+        AwkExpression.FieldIndex(AwkExpression.Number(index));
 
     private sealed class EffectExpression : AwkExpression
     {

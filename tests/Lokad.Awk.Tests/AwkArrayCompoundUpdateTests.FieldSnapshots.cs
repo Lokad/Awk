@@ -3,7 +3,7 @@ namespace Lokad.Awk.Tests;
 public sealed partial class AwkArrayCompoundUpdateTests
 {
     private static AwkArrayIndex LiteralField(int index) => AwkArrayIndex.Simple(
-        AwkExpression.FieldIndex(AwkExpression.Number(index.ToString(System.Globalization.CultureInfo.InvariantCulture), index)));
+        AwkExpression.FieldIndex(AwkExpression.Number(index)));
 
     [Theory]
     [InlineData(false)]
@@ -162,14 +162,12 @@ public sealed partial class AwkArrayCompoundUpdateTests
     private readonly record struct FieldTargetResult(bool Exists, double Value, int Effects, long Peak, long Snapshots, string Error);
 
     [Theory]
-    [InlineData("1.5", 1.5)]
-    [InlineData("1e0", 1)]
-    [InlineData("01", 1)]
-    [InlineData("0x1", 1)]
-    [InlineData("010", 8)]
-    [InlineData("0", 0)]
-    [InlineData("-1", -1)]
-    public async Task NumericFieldTargetIndicesKeepRuntimeEvaluation(string text, double number)
+    [InlineData(1.5)]
+    [InlineData(1)]
+    [InlineData(8)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task ResolvedNumericFieldTargetIndicesPreserveUpdates(double number)
     {
         var results = new List<(double Value, string Error)>();
         foreach (var original in new[] { false, true })
@@ -181,12 +179,12 @@ public sealed partial class AwkArrayCompoundUpdateTests
             var key = new AwkArrayKey(number == 0 ? record : "hit");
             state.SetArrayAwkValue(name, key, AwkValue.FromNumber(7));
             state.SetCurrentRecord(AwkText.FromSourceLiteralString(record));
-            var index = AwkArrayIndex.Simple(AwkExpression.FieldIndex(AwkExpression.Number(text, number)));
+            var index = AwkArrayIndex.Simple(AwkExpression.FieldIndex(AwkExpression.Number(number)));
             var error = "";
             try
             {
                 await AwkReference.ArrayElement(name, original ? new ForwardingFieldTarget(index) : index)
-                    .ApplyCompoundAssignmentAsync(new(state), AwkExpression.Number("3", 3), AwkCompoundAssignmentOperation.Add);
+                    .ApplyCompoundAssignmentAsync(new(state), AwkExpression.Number(3), AwkCompoundAssignmentOperation.Add);
             }
             catch (AwkRuntimeException failure) { error = AwkUtf8Codec.Decode(failure.MessageBytes); }
             results.Add((state.GetArrayAwkValue(name, key).AsNumber(), error));

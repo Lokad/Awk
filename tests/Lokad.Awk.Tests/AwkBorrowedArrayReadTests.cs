@@ -134,7 +134,7 @@ public sealed class AwkBorrowedArrayReadTests
         state.SetCurrentRecord(record);
         var context = new AwkEvaluationContext(state);
         AwkReference Target(int index) => AwkReference.ArrayElement(name, AwkArrayIndex.Simple(
-            AwkExpression.FieldIndex(AwkExpression.Number(index.ToString(System.Globalization.CultureInfo.InvariantCulture), index))));
+            AwkExpression.FieldIndex(AwkExpression.Number(index))));
         Assert.Equal(8, (await Target(1).ApplyIncrementAsync(context)).AsNumber());
         var count = AwkVariableName.FromText("count");
         state.AssignVariableValue(count, AwkValue.FromNumber(0));

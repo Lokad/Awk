@@ -255,50 +255,25 @@ internal abstract partial class AwkExpression
         }
     }
 
-    private sealed class NumberExpression(string text, double gnuDefaultValue, Action? checkpoint) : AwkSynchronousExpression
+    private sealed class NumberExpression(double number) : AwkSynchronousExpression
     {
-        private readonly double _decimalValue = PrepareDecimalValue(text, checkpoint);
-
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
-            AwkValue.FromNumber(EvaluateNumberSynchronousCore(context));
+            AwkValue.FromNumber(number);
 
-        protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
-            context.State.CompatibilityMode == AwkCompatibilityMode.GnuDefault ? gnuDefaultValue : _decimalValue;
+        protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) => number;
 
         internal override bool TryGetIntegerConstant(out int value)
         {
-            if (IsPortableDecimalLiteral(text) && _decimalValue == gnuDefaultValue &&
-                Math.Abs(_decimalValue % 1) < double.Epsilon &&
-                _decimalValue >= int.MinValue &&
-                _decimalValue <= int.MaxValue)
+            if (Math.Abs(number % 1) < double.Epsilon &&
+                number >= int.MinValue &&
+                number <= int.MaxValue)
             {
-                value = (int)_decimalValue;
+                value = (int)number;
                 return true;
             }
 
             value = 0;
             return false;
-        }
-
-        private static double PrepareDecimalValue(string text, Action? checkpoint) =>
-            AwkValue.TryParseNumber(text, AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText,
-                out var value, checkpoint) ? value : 0;
-
-        private static bool IsPortableDecimalLiteral(string text)
-        {
-            if (text.Length == 0)
-                return false;
-
-            for (var index = 0; index < text.Length; index++)
-            {
-                var ch = text[index];
-                if (ch is >= '0' and <= '9' or '.' or '+' or '-' or 'e' or 'E')
-                    continue;
-
-                return false;
-            }
-
-            return true;
         }
     }
 }

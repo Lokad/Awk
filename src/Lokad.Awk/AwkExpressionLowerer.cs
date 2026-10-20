@@ -6,6 +6,14 @@ namespace Lokad.Awk;
 
 internal static partial class AwkExpressionLowerer
 {
+    internal static double PrepareSourceNumber(string text, double gnuDefaultValue,
+        AwkCompatibilityMode mode, Action? checkpoint = null)
+    {
+        checkpoint?.Invoke();
+        return mode == AwkCompatibilityMode.GnuDefault ? gnuDefaultValue :
+            AwkValue.TryParseNumber(text, AwkNumberParsingMode.Decimal, AwkNumberTextExtent.EntireText,
+                out var value, checkpoint) ? value : 0;
+    }
 
     public static bool TryLower(
         AwkExpressionSyntax expression,
@@ -130,7 +138,8 @@ internal static partial class AwkExpressionLowerer
                 return false;
             }
 
-            lowered = AwkExpression.Number(numberText, numberValue, scope.Checkpoint);
+            lowered = AwkExpression.Number(PrepareSourceNumber(
+                numberText, numberValue, scope.CompatibilityMode, scope.Checkpoint));
             return true;
         }
 

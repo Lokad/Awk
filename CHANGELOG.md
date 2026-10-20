@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-- Source numeric literals now prepare their decimal values once, avoiding repeated parsing
-  in POSIX/traditional execution. Integer classification reuses those values. Preparation
-  observes cancellation under the existing frontend owner; executions use their current token.
+- Source numeric literals resolve once in the program's compatibility mode during lowering,
+  avoiding repeated POSIX/traditional parsing. Numeric nodes retain one value; integer field
+  preparation uses that resolved value. Preparation observes cancellation under the existing
+  frontend owner; executions use their current token.
 
 - Removed `MaxRegexPatternBytes`, `MaxRegexGroups`, `MaxRegexCacheBytes` and their setters.
   Regex providers own admission for their compiled storage and matching workspace, using

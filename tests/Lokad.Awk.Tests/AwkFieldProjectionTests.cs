@@ -20,7 +20,7 @@ public sealed partial class AwkFieldProjectionTests
         eager.SetCurrentRecord(source);
         Assert.Equal(64, eager.FieldCount);
         AwkExpression Field(int index) => dynamicIndex
-            ? AwkExpression.FieldIndex(AwkExpression.Number(index.ToString(System.Globalization.CultureInfo.InvariantCulture), index))
+            ? AwkExpression.FieldIndex(AwkExpression.Number(index))
             : AwkExpression.FieldIndex(index);
         var first = await Field(1).EvaluateAsync(new(state));
         var firstEager = await Field(1).EvaluateAsync(new(eager));

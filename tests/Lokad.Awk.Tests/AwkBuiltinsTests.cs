@@ -11,7 +11,7 @@ public sealed class AwkBuiltinsTests
         Assert.True(AwkBuiltins.TryGetCallable("int", out var definition));
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
         var context = new AwkEvaluationContext(state);
-        AwkExpression[] arguments = [AwkExpression.Number("42", 42)];
+        AwkExpression[] arguments = [AwkExpression.Number(42)];
         _ = await definition.EvaluateAsync(arguments, context);
 
         GC.Collect();

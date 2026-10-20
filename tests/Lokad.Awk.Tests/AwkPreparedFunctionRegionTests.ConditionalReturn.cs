@@ -41,7 +41,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         try
         {
             var value = await functions[AwkFunctionName.FromText("choose")].InvokeAsync(
-                [AwkExpression.Number("7", 7)], new(state, output, io));
+                [AwkExpression.Number(7)], new(state, output, io));
             Assert.Equal(5, value.AsNumber());
             Assert.Equal(prepared ? 1 : 0, counters.SynchronousFunctionRuns);
             Assert.Equal(boundary == "pending" ? "prior" : "", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -73,7 +73,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
     public void ConditionalReturnDepthIncludesConditionAndAlternative(bool alternative)
     {
         var name = AwkFunctionName.FromText("choose");
-        var value = AwkExpression.Number("1", 1);
+        var value = AwkExpression.Number(1);
         var deep = new TooDeepExpression();
         var function = new AwkUserFunction(name, new([]),
             [AwkStatement.If(new([[AwkConditionClause.Truthy(alternative ? value : deep)]]),
@@ -156,7 +156,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         {
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await
                 functions[AwkFunctionName.FromText("choose")].InvokeAsync(
-                    [AwkExpression.Number(branch ? "1" : "0", branch ? 1 : 0)], new(state, output, io)));
+                    [AwkExpression.Number(branch ? 1 : 0)], new(state, output, io)));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
             Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);

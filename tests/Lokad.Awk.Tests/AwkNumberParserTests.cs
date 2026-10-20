@@ -89,7 +89,7 @@ public sealed class AwkNumberParserTests
         foreach (var number in new double[] { 1d / 3, -0d, double.Epsilon, Math.CopySign(double.NaN, -1) })
         {
             var context = new AwkEvaluationContext(state);
-            AwkExpression[] arguments = [AwkExpression.Number("value", number)];
+            AwkExpression[] arguments = [AwkExpression.Number(number)];
             var result = await builtin.EvaluateAsync(arguments, context);
             Assert.Equal(BitConverter.DoubleToUInt64Bits(number), BitConverter.DoubleToUInt64Bits(result.AsNumber()));
         }

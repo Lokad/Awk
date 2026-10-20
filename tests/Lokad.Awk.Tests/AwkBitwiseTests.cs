@@ -36,8 +36,8 @@ public sealed class AwkBitwiseTests
             var state = CreateState(counters, AwkRuntimeLimits.CreateDefault());
             Assert.True(AwkBuiltins.TryGetCallable(name, out var builtin));
             AwkExpression[] expressions = name == "compl"
-                ? [AwkExpression.Number("six", 6)]
-                : [AwkExpression.Number("six", 6), AwkExpression.Number("three", 3)];
+                ? [AwkExpression.Number(6)]
+                : [AwkExpression.Number(6), AwkExpression.Number(3)];
             var context = new AwkEvaluationContext(state);
             for (var index = 0; index < 1_000; index++)
                 Evaluate();

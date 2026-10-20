@@ -114,7 +114,7 @@ public sealed class AwkBorrowedIndexTests
     {
         Assert.True(AwkBuiltins.TryGetCallable("index", out var builtin));
         return AwkExpression.BuiltinCall(builtin,
-            [AwkExpression.FieldIndex(AwkExpression.Number("2", 2)), needle ?? AwkExpression.Literal("timeout")]);
+            [AwkExpression.FieldIndex(AwkExpression.Number(2)), needle ?? AwkExpression.Literal("timeout")]);
     }
 
     private static AwkRuntimeState State(int mode,AwkExecutionMemoryOwner owner,CancellationToken token = default,bool bytes = false,bool lint = false,bool regex = false,AwkRuntimeLimits? limits = null)

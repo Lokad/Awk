@@ -26,7 +26,7 @@ public sealed class AwkSynchronousStringTests
         Assert.Equal(16, Assert.IsAssignableFrom<AwkSynchronousExpression>(value).SynchronousDepth);
         Assert.IsNotAssignableFrom<AwkSynchronousExpression>(Builtin("tolower", value));
         var pending = new PendingOperand(new TaskCompletionSource<AwkValue>().Task);
-        Assert.IsNotAssignableFrom<AwkSynchronousExpression>(Builtin("substr", pending, AwkExpression.Number("1", 1)));
+        Assert.IsNotAssignableFrom<AwkSynchronousExpression>(Builtin("substr", pending, AwkExpression.Number(1)));
         Assert.Equal(0, Assert.IsAssignableFrom<AwkSynchronousExpression>(AwkExpression.FieldIndex(pending)).SynchronousDepth);
     }
 
@@ -38,7 +38,7 @@ public sealed class AwkSynchronousStringTests
         var state = memoryForState.State;
         var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var source = new PendingOperand(completion.Task);
-        var expression = Builtin("substr", source, AwkExpression.Number("2", 2), AwkExpression.Number("2", 2));
+        var expression = Builtin("substr", source, AwkExpression.Number(2), AwkExpression.Number(2));
         var context = new AwkEvaluationContext(state);
         var pending = expression.EvaluateAsync(context).AsTask();
         Assert.False(pending.IsCompleted);
@@ -77,10 +77,10 @@ public sealed class AwkSynchronousStringTests
         var state = memoryForState.State;
         var s = AwkVariableName.FromText("s"); var total = AwkVariableName.FromText("total");
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("id:beta:tail"));
-        AwkExpression Number(string text, int value) => legacy ? new LegacyNumber(text, value) : AwkExpression.Number(text, value);
+        AwkExpression Number(int value) => legacy ? new LegacyNumber(value) : AwkExpression.Number(value);
         AwkExpression Variable() => legacy ? new LegacyVariable(s, 0) : AwkExpression.PreparedGlobalVariable(s, 0);
-        var record = AwkExpression.FieldIndex(Number("0", 0));
-        var first = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(s, 0), Builtin("substr", record, Number("4", 4), Number("4", 4)));
+        var record = AwkExpression.FieldIndex(Number(0));
+        var first = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(s, 0), Builtin("substr", record, Number(4), Number(4)));
         var length = AwkExpression.Length(Variable(), AwkOptionalIdentifier.Some(s.Identifier));
         var index = Builtin("index", record, legacy ? new LegacyLiteral("beta") : AwkExpression.Literal("beta"));
         var lower = AwkExpression.Length(Builtin("tolower", Variable()), AwkOptionalIdentifier.None);
@@ -110,10 +110,10 @@ public sealed class AwkSynchronousStringTests
         return testMemory.Initialize(() => state);
     }
 
-    private sealed class LegacyNumber(string text, int value) : AwkExpression
+    private sealed class LegacyNumber(int value) : AwkExpression
     {
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) =>
-            ValueTask.FromResult(AwkValue.FromNumber(AwkTestHarness.ResolveSourceNumberLiteral(context.State, text, value)));
+            ValueTask.FromResult(AwkValue.FromNumber(value));
     }
     private sealed class LegacyLiteral(string text) : AwkExpression
     {

@@ -47,7 +47,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             var loop = Bind(source).MainActions[0].Statements[0];
             Assert.NotNull(AwkStatementBlockExecutor.TryPrepareActions([loop], null));
             Assert.False(loop.TryPrepareSynchronousAction(out _));
-            var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+            var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number(1))]]);
             Assert.Null(AwkStatementBlockExecutor.TryPrepareActions(
                 [AwkStatement.For(AwkStatement.NoOp(), condition, AwkStatement.NoOp(), [loop])], null));
             Assert.Null(AwkStatementBlockExecutor.TryPrepareActions([AwkStatement.While(condition, [loop])], null));
@@ -221,7 +221,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             Assert.True(reads.TryGetIndex(AwkVariableName.FromText("total"), out var slot));
             var assignment = AwkStatement.Assignment(
                 AwkReference.PreparedGlobalScalar(AwkVariableName.FromText("total"), slot), AwkExpression.Literal(new string('x', 2 << 20)));
-            var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+            var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number(1))]]);
             statements = [statements[0], loop is null ? assignment : loop == "for"
                 ? AwkStatement.For(AwkStatement.NoOp(),condition,AwkStatement.NoOp(),[assignment])
                 : AwkStatement.While(condition,[assignment])];
@@ -450,7 +450,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
              AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(total, totalSlot),
                 multiple
                     ? AwkExpression.FunctionCall(AwkFunctionName.FromText("pair"),
-                        [AwkExpression.FunctionCall(AwkFunctionName.FromText("inc"), [AwkExpression.Number("7", 7)]), operand])
+                        [AwkExpression.FunctionCall(AwkFunctionName.FromText("inc"), [AwkExpression.Number(7)]), operand])
                     : AwkExpression.FunctionCall(AwkFunctionName.FromText("twice"), [operand]))], prepared);
         var host = new MockFileSystem();
         var io = Io(state, host, counters);
@@ -525,8 +525,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
                 var operand = new CancelingOperand(() => { if (++evaluations == 3) cancellation.Cancel(); });
                 var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(total, totalSlot), AwkExpression.Add(
                     AwkExpression.PreparedGlobalVariable(total, totalSlot), AwkExpression.FunctionCall(AwkFunctionName.FromText("inc"), multiple
-                        ? [AwkExpression.Number("1", 1), operand] : [operand])));
-                var loop = AwkStatement.For(AwkStatement.Assignment(indexTarget, AwkExpression.Number("0", 0)), new([[AwkConditionClause.Comparison(index, AwkExpression.Number("8", 8), AwkComparison.LessThan)]]), AwkStatement.PostIncrement(indexTarget), [body], ordinary ? null : prepared);
+                        ? [AwkExpression.Number(1), operand] : [operand])));
+                var loop = AwkStatement.For(AwkStatement.Assignment(indexTarget, AwkExpression.Number(0)), new([[AwkConditionClause.Comparison(index, AwkExpression.Number(8), AwkComparison.LessThan)]]), AwkStatement.PostIncrement(indexTarget), [body], ordinary ? null : prepared);
                 var action = new AwkAction(null, [body, body, body], ordinary ? null : prepared);
                 var host = new MockFileSystem();
                 var io = Io(state, host, counters);
@@ -666,8 +666,8 @@ public sealed partial class AwkPreparedFunctionRegionTests
         {
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await
                 functions[AwkFunctionName.FromText("twice")].InvokeAsync(multiple
-                    ? [AwkExpression.Number("7", 7), AwkExpression.Number("1", 1)]
-                    : [AwkExpression.Number("7", 7)], new(state, output, io)));
+                    ? [AwkExpression.Number(7), AwkExpression.Number(1)]
+                    : [AwkExpression.Number(7)], new(state, output, io)));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
             Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
@@ -703,7 +703,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         if (boundary == "pending") output.Append(AwkText.FromSourceLiteralString("prior"));
         var value = await functions[AwkFunctionName.FromText("twice")].InvokeAsync(
-            [AwkExpression.Number("7", 7)], new(state, output, io));
+            [AwkExpression.Number(7)], new(state, output, io));
         Assert.Equal(9, value.AsNumber());
         if (boundary == "pending")
         {

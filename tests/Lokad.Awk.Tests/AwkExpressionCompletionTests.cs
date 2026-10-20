@@ -479,7 +479,7 @@ public sealed class AwkExpressionCompletionTests
         if (!pendingIndex)
             index.Fail(error);
         var expression = AwkExpression.CompoundAssignment(
-            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(AwkExpression.Number("1", 1))),
+            AwkReference.ArrayElement(array, AwkArrayIndex.Simple(AwkExpression.Number(1))),
             AwkExpression.FieldIndex(new SourceExpression(index)), AwkCompoundAssignmentOperation.Add);
         var result = expression.EvaluateAsync(new AwkEvaluationContext(state)).AsTask();
         if (pendingIndex)

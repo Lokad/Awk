@@ -95,7 +95,7 @@ public sealed partial class AwkSynchronousRegionTests
         var source = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var operand = new PendingOperand(source.Task);
         var condition = new AwkCondition([[AwkConditionClause.Truthy(operand)]]);
-        var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), AwkExpression.Number("9", 9));
+        var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), AwkExpression.Number(9));
         var io = Io(state, new MockFileSystem(), counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
         var pending = AwkStatement.DoWhile([body], condition)
@@ -131,7 +131,7 @@ public sealed partial class AwkSynchronousRegionTests
         var state = memoryForState.State;
         var name = AwkVariableName.FromText("x");
         state.AssignVariableValue(name, AwkValue.FromNumber(7));
-        var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), AwkExpression.Number("9", 9));
+        var body = AwkStatement.Assignment(AwkReference.PreparedGlobalScalar(name, 1), AwkExpression.Number(9));
         var loop = Loop(forceLegacy ? new ForwardingStatement(body) : body, doWhileLoop: true);
         var io = Io(state, new MockFileSystem(), counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
@@ -154,7 +154,7 @@ public sealed partial class AwkSynchronousRegionTests
         var state = memoryForState.State;
         var io = Io(state, new MockFileSystem(), counters);
         using var output = new AwkOutputSink(state.MemoryAccounting, counters);
-        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number("0", 0))]]);
+        var condition = new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number(0))]]);
         var loop = AwkStatement.DoWhile(Enumerable.Repeat(AwkStatement.NoOp(), count).ToArray(), condition);
         Assert.Equal(AwkStatementFlow.Continue, await loop.ExecuteAsync(new AwkEvaluationContext(state, output, io)));
         Assert.Equal(expectedPrepared, counters.SynchronousDoWhileLoopRuns);

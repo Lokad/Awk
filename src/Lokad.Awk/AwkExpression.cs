@@ -35,7 +35,7 @@ internal abstract partial class AwkExpression
         if (expression is not DynamicFieldIndexExpression field)
             throw new InvalidOperationException("Prepared literal field expression is required.");
         context.State.Checkpoint();
-        // Preparation admits only portable numeric literals; preserve their original evaluation/checkpoint.
+        // Preparation admits resolved integer literals; preserve their evaluation/checkpoint.
         field.IndexExpression.EvaluateAsync(context).GetAwaiter().GetResult();
     }
 
@@ -98,8 +98,7 @@ internal abstract partial class AwkExpression
             ? new FieldArrayElementExpression(name, field, globalIndex)
             : new ArrayElementExpression(name, index, globalIndex);
 
-    public static AwkExpression Number(string text, double value, Action? checkpoint = null) =>
-        new NumberExpression(text, value, checkpoint);
+    public static AwkExpression Number(double value) => new NumberExpression(value);
 
     public static AwkExpression Concat(IReadOnlyList<AwkExpression> parts) => new ConcatExpression(parts);
 

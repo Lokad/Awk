@@ -15,7 +15,7 @@ public sealed class AwkFieldLengthTests
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var allocations = counters.AwkTextAllocations;
         var values = counters.ValuesCreated;
-        var expression = Length(AwkExpression.Number("1", 1));
+        var expression = Length(AwkExpression.Number(1));
         for (var index = 0; index < 100; index++)
             Assert.Equal(4, (await expression.EvaluateAsync(new AwkEvaluationContext(state))).AsNumber());
         Assert.Equal(allocations, counters.AwkTextAllocations);
@@ -35,7 +35,7 @@ public sealed class AwkFieldLengthTests
     {
         var (state, counters) = State(finite);
         state.SetCurrentRecord(AwkText.FromString("café 😀"));
-        var expression = Length(AwkExpression.Number("1", 1));
+        var expression = Length(AwkExpression.Number(1));
         Assert.Equal(4, (await expression.EvaluateAsync(new AwkEvaluationContext(state))).AsNumber());
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var allocations = counters.AwkTextAllocations;

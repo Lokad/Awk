@@ -49,7 +49,7 @@ public sealed class AwkProgramTests
         var parameters = new List<AwkVariableName> { VariableName("value") };
         var statements = new List<AwkStatement>
         {
-            AwkStatement.Return(AwkOptionalExpression.Some(AwkExpression.Number("1", 1)))
+            AwkStatement.Return(AwkOptionalExpression.Some(AwkExpression.Number(1)))
         };
         var localLayout = new AwkFunctionLocalLayout(parameters);
         var function = new AwkUserFunction(AwkFunctionName.FromText("f"), localLayout, statements);
@@ -83,7 +83,7 @@ public sealed class AwkProgramTests
         Assert.Equal(AwkStatementFlow.ExitProgram, flow);
 
         static AwkCondition TrueCondition() =>
-            new([[AwkConditionClause.Truthy(AwkExpression.Number("1", 1))]]);
+            new([[AwkConditionClause.Truthy(AwkExpression.Number(1))]]);
     }
 
     [Fact]
@@ -91,11 +91,11 @@ public sealed class AwkProgramTests
     {
         var caseBody = new List<AwkStatement> { AwkStatement.Exit(AwkOptionalExpression.None) };
         var switchCase = new AwkSwitchCase(
-            AwkSwitchCasePattern.FromExpression(AwkExpression.Number("1", 1)),
+            AwkSwitchCasePattern.FromExpression(AwkExpression.Number(1)),
             caseBody);
         caseBody.Clear();
         var arms = new List<AwkSwitchArm> { switchCase };
-        var statement = AwkStatement.Switch(AwkExpression.Number("1", 1), arms);
+        var statement = AwkStatement.Switch(AwkExpression.Number(1), arms);
         arms.Clear();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
 
@@ -109,7 +109,7 @@ public sealed class AwkProgramTests
     {
         var clauses = new List<AwkConditionClause>
         {
-            AwkConditionClause.Truthy(AwkExpression.Number("1", 1))
+            AwkConditionClause.Truthy(AwkExpression.Number(1))
         };
         var alternatives = new List<IReadOnlyList<AwkConditionClause>> { clauses };
         var condition = new AwkCondition(alternatives);
@@ -123,7 +123,7 @@ public sealed class AwkProgramTests
     [Fact]
     public async Task AwkExpression_CopiesCallerOwnedFunctionArguments()
     {
-        var arguments = new List<AwkExpression> { AwkExpression.Number("4", 4) };
+        var arguments = new List<AwkExpression> { AwkExpression.Number(4) };
         Assert.True(AwkBuiltins.TryGetCallable("sqrt", out var definition));
         var expression = AwkExpression.BuiltinCall(definition, arguments);
         arguments.Clear();
