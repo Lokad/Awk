@@ -328,38 +328,6 @@ internal sealed class AwkArrayRuntime
             leasedMatch.RetainedTextMemoryBytes);
     }
 
-    public AwkLeasedReadOnlyList<AwkArrayKey> SnapshotKeyValues(AwkArrayName name)
-    {
-        var arrayName = _variableRuntime.ResolveOrPromoteArrayName(name);
-        if (!TryResolveSortedInOrder(out var order))
-            return SnapshotUnsortedKeyValues(arrayName);
-
-        var reservation = ReserveSortedKeySnapshot(arrayName, order);
-        var lease = reservation.Lease;
-        try
-        {
-            return new AwkLeasedReadOnlyList<AwkArrayKey>(
-                SnapshotKeyValues(arrayName, order, reservation.Count),
-                lease);
-        }
-        catch
-        {
-            reservation.Dispose();
-            throw;
-        }
-
-        AwkArrayKey[] SnapshotKeyValues(
-            AwkArrayName arrayName,
-            AwkArraySortOrder order,
-            int count)
-        {
-            if (count == 0)
-                return [];
-
-            return CopyKeyValues(SortEntries(arrayName, order, count, lease));
-        }
-    }
-
     public async ValueTask<AwkLeasedReadOnlyList<AwkArrayKey>> SnapshotKeyValuesAsync(
         AwkArrayName name,
         AwkEvaluationContext context)

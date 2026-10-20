@@ -6,12 +6,6 @@ namespace Lokad.Awk;
 
 internal static partial class AwkExpressionLowerer
 {
-    public static bool TryLower(
-        AwkExpressionSyntax expression,
-        [NotNullWhen(true)] out AwkExpression? lowered)
-    {
-        return TryLower(expression, AwkLoweringScope.Global, out lowered);
-    }
 
     public static bool TryLower(
         AwkExpressionSyntax expression,
@@ -889,14 +883,6 @@ internal static partial class AwkExpressionLowerer
             default:
                 return false;
         }
-    }
-
-    public static bool TryLower(
-        AwkExpressionSyntax expression,
-        [NotNullWhen(true)] out AwkExpression? lowered,
-        out AwkDiagnostic diagnostic)
-    {
-        return TryLower(expression, AwkLoweringScope.Global, out lowered, out diagnostic);
     }
 
     public static bool TryLower(

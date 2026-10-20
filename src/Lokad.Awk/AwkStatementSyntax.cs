@@ -89,9 +89,6 @@ internal sealed class AwkStatementSyntax
     public IEnumerable<AwkExpressionSyntax> EnumerateChildExpressions() =>
         Payload.EnumerateChildExpressions();
 
-    public AwkStatementSyntax WithDiagnostics(IReadOnlyList<AwkDiagnostic> diagnostics) =>
-        new(Kind, Tokens, Payload, Span, diagnostics);
-
     public AwkStatementSyntax WithPayload(
         IReadOnlyList<AwkToken> tokens,
         AwkStatementSyntaxPayload payload,

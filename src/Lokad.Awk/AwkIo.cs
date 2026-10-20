@@ -82,11 +82,6 @@ internal sealed class AwkIo
         _counters = counters;
     }
 
-    public Task WriteStandardOutputAsync(string content)
-    {
-        return _host.WriteStandardOutputAsync(content);
-    }
-
     public Task WriteStandardOutputAsync(ReadOnlyMemory<byte> content)
     {
         return _host.WriteStandardOutputAsync(content);

@@ -202,8 +202,6 @@ internal static class AwkFrontendDiagnosticPolicy
 
 internal static class AwkRegexSyntaxValidator
 {
-    public static bool IsValidLiteral(AwkToken token)
-        => IsValidLiteral(token, AwkCompatibilityMode.GnuDefault);
 
     public static bool IsValidLiteral(
         AwkToken token,

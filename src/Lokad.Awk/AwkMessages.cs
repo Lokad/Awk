@@ -128,9 +128,6 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: execution failed without exposing host exception details\n");
     internal static readonly ReadOnlyMemory<byte> ErrorSplitSeparatorArrayExtension =
         AwkUtf8Codec.Encode("awk: split: fourth argument is a GNU extension\n");
-
-    internal static readonly ReadOnlyMemory<byte> ErrorLengthArrayArgument =
-        AwkUtf8Codec.Encode("awk: length: received array argument\n");
     internal static readonly ReadOnlyMemory<byte> ErrorSwitchIsGnuExtension =
         AwkUtf8Codec.Encode("awk: switch is a GNU extension\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidCloseMode =

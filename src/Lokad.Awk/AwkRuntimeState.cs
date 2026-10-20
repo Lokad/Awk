@@ -1035,17 +1035,6 @@ internal sealed class AwkRuntimeState : IDisposable
     public void AssignFieldCount(AwkFieldCount count) =>
         _recordFields.AssignFieldCount(count);
 
-    public AwkArrayKey ComposeArrayKey(AwkArrayKey first, AwkText second)
-    {
-        var separator = ResolveSubscriptSeparatorText();
-        using var builder = new AwkUtf8Builder(
-            MemoryAccounting, first.ByteLength + separator.ByteLength + second.ByteLength);
-        first.AppendTo(builder, CancellationCheckpoint);
-        builder.Append(separator, CancellationCheckpoint);
-        builder.Append(second, CancellationCheckpoint);
-        return new AwkArrayKey(builder.CopyToAwkText(Counters, CancellationCheckpoint), CancellationCheckpoint);
-    }
-
     public AwkText ResolveSubscriptSeparatorText() =>
         ResolveSpecialVariableText(AwkSpecialVariableId.SubscriptSeparator);
 
@@ -1186,9 +1175,6 @@ internal sealed class AwkRuntimeState : IDisposable
         return ContainsArrayValue(name, ToArrayKey(value), globalIndex);
     }
 
-    public AwkText GetArgumentVectorByteText(AwkArgvIndex index) =>
-        GetArrayByteText(ArgumentVectorArrayName, AwkArrayKey.FromArgvIndex(index));
-
     public bool TryGetArgumentVectorByteText(AwkArgvIndex index, out AwkText text)
     {
         if (!TryPeekArrayAwkValue(ArgumentVectorArrayName, AwkArrayKey.FromArgvIndex(index), out var value))
@@ -1200,9 +1186,6 @@ internal sealed class AwkRuntimeState : IDisposable
         text = FormatStringByteText(value);
         return true;
     }
-
-    public bool ContainsArgumentVectorValue(AwkArgvIndex index) =>
-        ContainsArrayValue(ArgumentVectorArrayName, AwkArrayKey.FromArgvIndex(index));
 
     public void SetArrayString(AwkArrayName name, AwkArrayKey index, string value)
     {

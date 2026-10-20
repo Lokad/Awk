@@ -18,9 +18,6 @@ internal static class AwkFormattingVariableFacts
             _ => throw new ArgumentOutOfRangeException(nameof(variable), variable, null)
         };
 
-    public static string Name(AwkFormattingVariable variable) =>
-        AwkSpecialVariables.Name(SpecialVariableId(variable));
-
     public static string DefaultFormat(AwkFormattingVariable variable) =>
         variable switch
         {

@@ -18,8 +18,6 @@ internal readonly struct AwkAction
         _synchronous = AwkStatementBlockExecutor.TryPrepareActions(snapshot, functions);
     }
 
-    internal bool IsPatternless => _pattern == null;
-
     internal AwkStatement[] Statements => _statements ?? [];
 
     public ValueTask<bool> MatchesAsync(AwkRuntimeState state) =>

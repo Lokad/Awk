@@ -728,12 +728,6 @@ internal static partial class AwkBuiltins
     private static AwkBuiltinDefinition PosixSpecialSyntax(
         AwkBuiltinId id,
         AwkArity arity,
-        IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles) =>
-        PosixSpecialSyntax(id, arity, argumentRoles, AwkStatementKind.Unknown);
-
-    private static AwkBuiltinDefinition PosixSpecialSyntax(
-        AwkBuiltinId id,
-        AwkArity arity,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkStatementKind statementKind) =>
         SpecialSyntaxMetadata(
@@ -764,15 +758,6 @@ internal static partial class AwkBuiltins
         AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkBuiltinEvaluator evaluator,
-        AwkStatementKind statementKind) =>
-        Function(id, arity, compatibility, argumentRoles, evaluator, statementKind, AwkBuiltinLoweringKind.Ordinary);
-
-    private static AwkBuiltinDefinition Function(
-        AwkBuiltinId id,
-        AwkArity arity,
-        AwkBuiltinCompatibility compatibility,
-        IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
-        AwkBuiltinEvaluator evaluator,
         AwkStatementKind statementKind,
         AwkBuiltinLoweringKind loweringKind) =>
         new(
@@ -785,14 +770,6 @@ internal static partial class AwkBuiltins
             loweringKind,
             argumentRoles,
             AwkBuiltinImplementation.Sync(evaluator));
-
-    private static AwkBuiltinDefinition FunctionAsync(
-        AwkBuiltinId id,
-        AwkArity arity,
-        AwkBuiltinCompatibility compatibility,
-        IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
-        AwkAsyncBuiltinEvaluator evaluator) =>
-        FunctionAsync(id, arity, compatibility, argumentRoles, evaluator, AwkStatementKind.Unknown);
 
     private static AwkBuiltinDefinition FunctionAsync(
         AwkBuiltinId id,
@@ -816,13 +793,6 @@ internal static partial class AwkBuiltins
         AwkBuiltinId id,
         AwkArity arity,
         AwkBuiltinCompatibility compatibility,
-        IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles) =>
-        SpecialForm(id, arity, compatibility, argumentRoles, AwkStatementKind.Unknown);
-
-    private static AwkBuiltinDefinition SpecialForm(
-        AwkBuiltinId id,
-        AwkArity arity,
-        AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkStatementKind statementKind) =>
         CallableMetadata(
@@ -838,13 +808,6 @@ internal static partial class AwkBuiltins
         AwkBuiltinId id,
         AwkArity arity,
         AwkBuiltinCompatibility compatibility,
-        IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles) =>
-        SpecialSyntaxMetadata(id, arity, compatibility, argumentRoles, AwkStatementKind.Unknown);
-
-    private static AwkBuiltinDefinition SpecialSyntaxMetadata(
-        AwkBuiltinId id,
-        AwkArity arity,
-        AwkBuiltinCompatibility compatibility,
         IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles,
         AwkStatementKind statementKind) =>
         CallableMetadata(
@@ -855,21 +818,6 @@ internal static partial class AwkBuiltins
             argumentRoles,
             statementKind,
             ResolveLoweringKind(id));
-
-    private static AwkBuiltinDefinition CallableMetadata(
-        AwkBuiltinId id,
-        AwkArity arity,
-        AwkCallableKind kind,
-        AwkBuiltinCompatibility compatibility,
-        IReadOnlyList<AwkBuiltinArgumentRole> argumentRoles) =>
-        CallableMetadata(
-            id,
-            arity,
-            kind,
-            compatibility,
-            argumentRoles,
-            AwkStatementKind.Unknown,
-            AwkBuiltinLoweringKind.Ordinary);
 
     private static AwkBuiltinDefinition CallableMetadata(
         AwkBuiltinId id,
