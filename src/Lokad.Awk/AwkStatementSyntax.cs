@@ -284,12 +284,9 @@ internal sealed class AwkForHeaderSyntax(
 
 internal sealed class AwkOutputRedirectionSyntax(
     AwkOutputRedirectionKind kind,
-    AwkToken operatorToken,
     AwkExpressionSlotSyntax target)
 {
     public AwkOutputRedirectionKind Kind { get; } = kind;
-
-    public AwkToken OperatorToken { get; } = operatorToken;
 
     public AwkExpressionSlotSyntax Target { get; } = target;
 }
@@ -322,8 +319,7 @@ internal sealed class AwkInputPipeGetlineSyntax(
 
 internal sealed class AwkSwitchCaseSyntax(
     AwkSwitchCaseLabelSyntax label,
-    IReadOnlyList<AwkStatementSyntax> bodyStatements,
-    AwkTextSpan span)
+    IReadOnlyList<AwkStatementSyntax> bodyStatements)
 {
     public AwkSwitchCaseLabelSyntax Label { get; } = label;
 
@@ -332,8 +328,6 @@ internal sealed class AwkSwitchCaseSyntax(
     public AwkSyntaxOptional<AwkExpressionSyntax> Expression => Label.Expression;
 
     public IReadOnlyList<AwkStatementSyntax> BodyStatements { get; } = bodyStatements;
-
-    public AwkTextSpan Span { get; } = span;
 }
 
 internal abstract class AwkSwitchCaseLabelSyntax

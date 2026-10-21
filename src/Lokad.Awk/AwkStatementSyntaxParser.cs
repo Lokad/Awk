@@ -530,15 +530,13 @@ internal sealed class AwkStatementSyntaxParser
         var colonToken = ToToken(AwkTokenKind.Colon, colon);
         var labelTokens = Flatten(label.Select(part => part.Tokens));
         var bodyTokens = Flatten(body.Select(item => item.Tokens));
-        var last = FindLastSignificant(bodyTokens) ?? colonToken;
         var expression = ParseExpression(labelTokens);
         var labelSyntax = expression == null
             ? AwkSwitchCaseLabelSyntax.Missing
             : AwkSwitchCaseLabelSyntax.FromExpression(expression);
         var syntax = new AwkSwitchCaseSyntax(
             labelSyntax,
-            StatementsFrom(body),
-            new AwkTextSpan(keywordToken.Span.Start, last.Span.End - keywordToken.Span.Start));
+            StatementsFrom(body));
         return new SwitchCasePart(
             syntax,
             Flatten([[keywordToken], labelTokens, [colonToken], bodyTokens]));
@@ -554,11 +552,9 @@ internal sealed class AwkStatementSyntaxParser
         var keywordToken = ToToken(AwkTokenKind.Default, keyword);
         var colonToken = ToToken(AwkTokenKind.Colon, colon);
         var bodyTokens = Flatten(body.Select(item => item.Tokens));
-        var last = FindLastSignificant(bodyTokens) ?? colonToken;
         var syntax = new AwkSwitchCaseSyntax(
             AwkSwitchCaseLabelSyntax.Default,
-            StatementsFrom(body),
-            new AwkTextSpan(keywordToken.Span.Start, last.Span.End - keywordToken.Span.Start));
+            StatementsFrom(body));
         return new SwitchCasePart(
             syntax,
             Flatten([[keywordToken, colonToken], bodyTokens]));
@@ -1041,7 +1037,6 @@ internal sealed class AwkStatementSyntaxParser
                 payloadTokens.Count - redirectionIndex - 1, checkpoint: _checkpoint);
             var redirection = new AwkOutputRedirectionSyntax(
                 redirectionKind,
-                payloadTokens[redirectionIndex],
                 new AwkExpressionSlotSyntax(
                     targetTokens,
                     AwkSyntaxOptional<AwkExpressionSyntax>.FromNullable(ParseExpression(targetTokens))));

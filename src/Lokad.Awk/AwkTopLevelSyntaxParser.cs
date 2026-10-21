@@ -296,8 +296,8 @@ internal sealed class AwkTopLevelSyntaxParser
         var tokens = Flatten([startTokens, [commaToken], Flatten(afterComma.Select(gap => gap.Tokens)), endTokens]);
         return new AwkRangePatternSyntax(
             tokens,
-            new AwkPatternPartSyntax(startTokens, ParseExpression(startTokens)),
-            new AwkPatternPartSyntax(endTokens, ParseExpression(endTokens)));
+            new AwkPatternPartSyntax(ParseExpression(startTokens)),
+            new AwkPatternPartSyntax(ParseExpression(endTokens)));
     }
 
     [Rule]

@@ -653,15 +653,6 @@ internal sealed class AwkVariables
 
     public TResult[] SnapshotArrayValues<TState, TResult>(
         AwkArrayName name,
-        TState state,
-        Func<TState, AwkArrayKey, AwkValue, TResult> project)
-    {
-        var count = GetArraySnapshotCount(name);
-        return SnapshotArrayValues(name, count, state, project);
-    }
-
-    public TResult[] SnapshotArrayValues<TState, TResult>(
-        AwkArrayName name,
         int count,
         TState state,
         Func<TState, AwkArrayKey, AwkValue, TResult> project)

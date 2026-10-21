@@ -114,11 +114,8 @@ internal sealed class AwkRangePatternSyntax(
 }
 
 internal sealed class AwkPatternPartSyntax(
-    IReadOnlyList<AwkToken> tokens,
     AwkExpressionSyntax? expression)
 {
-    public IReadOnlyList<AwkToken> Tokens { get; } = tokens;
-
     public AwkExpressionSyntax? Expression { get; } = expression;
 }
 

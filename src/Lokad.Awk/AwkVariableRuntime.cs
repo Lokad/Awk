@@ -8,16 +8,10 @@ internal sealed class AwkVariableRuntime(
     AwkSpecialVariableDispatcher specialVariables,
     Action? checkpoint = null)
 {
-    public bool HasScalar(AwkIdentifier identifier) =>
-        HasScalar(new AwkVariableName(identifier));
-
     public bool HasScalar(AwkVariableName name) =>
         ResolveName(name).Kind is
             AwkVariableNameResolutionKind.LocalScalar or
             AwkVariableNameResolutionKind.GlobalScalar;
-
-    public bool IsArray(AwkIdentifier identifier) =>
-        IsArray(new AwkArrayName(identifier));
 
     public bool IsArray(AwkArrayName name) =>
         ResolveName(new AwkVariableName(name.Identifier)).Kind is
@@ -107,9 +101,6 @@ internal sealed class AwkVariableRuntime(
         return ResolveVariableValue(name);
     }
 
-    public void AssignVariable(AwkIdentifier identifier, string value) =>
-        AssignVariable(new AwkVariableName(identifier), value);
-
     public void AssignVariable(AwkVariableName name, string value)
     {
         if (functions.TryAssignLocal(name, value))
@@ -120,9 +111,6 @@ internal sealed class AwkVariableRuntime(
         var text = AwkText.FromString(value);
         specialVariables.Assign(name, AwkValue.FromText(text, AwkNumberParsingMode.Decimal, checkpoint));
     }
-
-    public void AssignVariableValue(AwkIdentifier identifier, AwkValue value) =>
-        AssignVariableValue(new AwkVariableName(identifier), value);
 
     public void AssignVariableValue(AwkVariableName name, AwkValue value)
     {
@@ -139,29 +127,6 @@ internal sealed class AwkVariableRuntime(
             throw new AwkRuntimeException(AwkMessages.FormatArrayAsScalar(name.Text));
 
         specialVariables.Assign(name, value);
-    }
-
-    public void AssignFunctionLocal(
-        AwkFunctionLocalSlotId slotId,
-        AwkVariableName name,
-        string value)
-    {
-        if (!functions.TryResolveLocal(slotId, out var local))
-        {
-            AssignVariable(name, value);
-            return;
-        }
-
-        if (local.Kind == AwkFunctionLocalSlotKind.ArrayAlias)
-        {
-            ThrowIfArrayAsScalar(name.Text, AwkVariableNameResolution.LocalArrayAlias(local.ArrayName));
-            return;
-        }
-
-        if (functions.TryAssignLocal(slotId, value))
-            return;
-
-        AssignVariable(name, value);
     }
 
     public void AssignFunctionLocalValue(
