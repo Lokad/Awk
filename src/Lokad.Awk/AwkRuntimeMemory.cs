@@ -113,6 +113,12 @@ internal static class AwkRuntimeMemory
             ? CheckedAdd(FunctionLocalEntryBytes, EstimateVariableSlotBytes(slot.Value))
             : FunctionLocalEntryBytes;
 
+    // Size the already-evaluated argument without constructing a local slot first.
+    // Untyped scalar storage may be conservatively retained even when copying empties it.
+    public static long EstimateFunctionArgumentSlotBytes(AwkFunctionArgument argument) =>
+        argument.Kind == AwkFunctionArgumentKind.Array ? FunctionLocalEntryBytes :
+            CheckedAdd(FunctionLocalEntryBytes + VariableSlotBytes, argument.Value.RetainedTextMemoryBytes);
+
     public static long EstimateDictionaryBufferBytes(int count) =>
         count <= 0 ? 0 : CheckedAdd(DictionaryObjectBytes, CheckedMultiply(DictionaryEntryBytes, count));
 

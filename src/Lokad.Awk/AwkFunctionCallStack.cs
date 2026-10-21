@@ -58,11 +58,14 @@ internal sealed class AwkFunctionCallStack(
 
         // Values are already evaluated in the caller. Estimate their slots without creating
         // the frame or its buffers; rejected admission must precede those allocations.
-        var localBytes = 0L;
-        for (var index = 0; index < layout.SlotCount; index++)
+        var supplied = Math.Min(layout.SlotCount, arguments.Length);
+        var localBytes = AwkRuntimeMemory.CheckedMultiply(layout.SlotCount - supplied,
+            (int)AwkRuntimeMemory.EstimateFunctionLocalSlotBytes(AwkFunctionLocalSlot.MissingScalar()));
+        for (var index = 0; index < supplied; index++)
         {
             if ((index & 63) == 63) checkpoint?.Invoke();
-            localBytes = AwkRuntimeMemory.CheckedAdd(localBytes, EstimateLocalSlotBytes(CreateSlot(arguments, index)));
+            localBytes = AwkRuntimeMemory.CheckedAdd(localBytes,
+                AwkRuntimeMemory.EstimateFunctionArgumentSlotBytes(arguments[index]));
         }
         var newFrame = _recycledFrames.Count == 0;
         var retainedBytes = newFrame ? AwkRuntimeMemory.EstimateFunctionFrameBytes() : 0;
