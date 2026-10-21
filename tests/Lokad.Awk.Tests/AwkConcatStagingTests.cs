@@ -4,19 +4,20 @@ public sealed class AwkConcatStagingTests
 {
     public static IEnumerable<object[]> CompletedCases()
     {
-        foreach (var mode in new[] { 0, 1, 2 })
+        foreach (var governed in new[] { false, true })
         foreach (var arity in new[] { 2, 5, 8, 9 })
-            yield return [mode, arity];
+            yield return [governed, arity];
     }
 
     [Theory]
     [MemberData(nameof(CompletedCases))]
-    public async Task CompletedOperandsUseOnlyBoundedTemporaryStorage(int mode, int arity)
+    public async Task CompletedOperandsUseOnlyBoundedTemporaryStorage(bool governed, int arity)
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        await using (var owner = Owner(mode, budget))
+        await using (var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None))
         {
-            var state = State(mode, owner);
+            using var state = State(owner);
+            Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
             var calls = new List<int>();
             var parts = Enumerable.Range(0, arity).Select(index =>
                 (AwkExpression)new Callback(_ =>
@@ -37,19 +38,20 @@ public sealed class AwkConcatStagingTests
 
     public static IEnumerable<object[]> PendingCases()
     {
-        foreach (var mode in new[] { 0, 1, 2 })
+        foreach (var governed in new[] { false, true })
         foreach (var (arity, pendingIndex) in new[] { (8, 0), (8, 3), (8, 7), (9, 3) })
-            yield return [mode, arity, pendingIndex];
+            yield return [governed, arity, pendingIndex];
     }
 
     [Theory]
     [MemberData(nameof(PendingCases))]
-    public async Task PendingOperandTransfersPrefixOnceAndKeepsItDuringOtherConcatenation(int mode, int arity, int pendingIndex)
+    public async Task PendingOperandTransfersPrefixOnceAndKeepsItDuringOtherConcatenation(bool governed, int arity, int pendingIndex)
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        await using (var owner = Owner(mode, budget))
+        await using (var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None))
         {
-            var state = State(mode, owner);
+            using var state = State(owner);
+            Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
             var gate = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
             var calls = new List<int>();
             var parts = Enumerable.Range(0, arity).Select(index =>
@@ -76,18 +78,17 @@ public sealed class AwkConcatStagingTests
     }
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    public async Task FailedPendingOperandStopsLaterEvaluationAndReleasesItsTransport(int mode, bool canceled)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task FailedPendingOperandStopsLaterEvaluationAndReleasesItsTransport(bool governed, bool canceled)
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        await using (var owner = Owner(mode, budget))
+        await using (var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None))
         {
-            var state = State(mode, owner);
+            using var state = State(owner);
+            Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
             var gate = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
             var later = false;
             var expression = AwkExpression.Concat([
@@ -119,9 +120,9 @@ public sealed class AwkConcatStagingTests
     public async Task RefusedResultAdmissionKeepsTheAssignmentAndDoesNotRetry(int arity)
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        await using (var owner = Owner(2, budget))
+        await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
         {
-            var state = State(2, owner);
+            using var state = State(owner);
             var target = AwkVariableName.FromText("kept");
             state.AssignVariableValue(target, AwkValue.FromNumber(7));
             var text = AwkValue.FromText(AwkText.FromSourceLiteralString(new string('x', 8192)));
@@ -143,9 +144,7 @@ public sealed class AwkConcatStagingTests
 
     private static AwkValue Text(int index) => AwkValue.FromText(AwkText.FromSourceLiteralString($"é{index}"));
     private static string Expected(int arity) => string.Concat(Enumerable.Range(0, arity).Select(index => $"é{index}"));
-    private static AwkExecutionMemoryOwner Owner(int mode, CooperativeTestBudget budget) =>
-        mode == 2 ? AwkExecutionMemoryOwner.Create(budget, CancellationToken.None) : AwkExecutionMemoryOwner.Disabled;
-    private static AwkRuntimeState State(int mode,AwkExecutionMemoryOwner owner)
+    private static AwkRuntimeState State(AwkExecutionMemoryOwner owner)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,

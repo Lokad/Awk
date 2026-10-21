@@ -5,14 +5,15 @@ public sealed class AwkBorrowedSubstringTests
     private const long Limit = 8 << 20;
 
     [Theory]
-    [InlineData(0, false)] [InlineData(1, false)] [InlineData(2, false)]
-    [InlineData(0, true)] [InlineData(1, true)] [InlineData(2, true)]
-    public async Task PristineSmallFieldProducesOwnedResult(int mode, bool whole)
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public async Task PristineSmallFieldProducesOwnedResult(bool governed, bool whole)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using (var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None))
+        await using (var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None))
         {
-            var state = State(mode, owner);
+            using var state = State(owner);
+            Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
             var bytes = "key résumé"u8.ToArray();
             state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
             var allocations = state.Counters.AwkTextAllocations;
@@ -37,7 +38,7 @@ public sealed class AwkBorrowedSubstringTests
     [InlineData("variable", 0)]
     public async Task OnlyPristineShortLiteralInputsBorrow(string shape, int expected)
     {
-        var state = State(0, AwkExecutionMemoryOwner.Disabled);
+        using var state = State(AwkExecutionMemoryOwner.Disabled);
         var ascii = int.TryParse(shape, out var size);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("key " + (ascii ? new string('a', size) : "résumé")));
         if (shape == "cached") _ = state.GetFieldValue(2);
@@ -56,13 +57,15 @@ public sealed class AwkBorrowedSubstringTests
     [InlineData(true, 1, null)]
     public async Task ByteSlicesKeepStrictUtf8AndScalarBoundaries(bool bytes, int length, string? expected)
     {
-        var state = State(0, AwkExecutionMemoryOwner.Disabled, bytes: bytes);
+        using var state = State(AwkExecutionMemoryOwner.Disabled, bytes: bytes);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("key é😀z"));
         if (expected is null)
         {
-            var baseline = State(0, AwkExecutionMemoryOwner.Disabled, bytes: bytes);
+            using var baseline = State(AwkExecutionMemoryOwner.Disabled, bytes: bytes);
             baseline.SetCurrentRecord(AwkText.FromSourceLiteralString("key é😀z"));
+            _ = baseline.GetFieldValue(2);
             var ordinary = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await Call(length: length).EvaluateAsync(new(baseline)));
+            Assert.Equal(0, baseline.Counters.BorrowedFieldSubstrings);
             var error = await Assert.ThrowsAsync<AwkRuntimeException>(async () => await Call(length: length).EvaluateAsync(new(state)));
             Assert.Equal(ordinary.MessageBytes.ToArray(), error.MessageBytes.ToArray());
             Assert.Equal("key é😀z", state.CurrentRecordByteText.AsString());
@@ -73,14 +76,13 @@ public sealed class AwkBorrowedSubstringTests
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
     }
 
-    [Theory]
-    [InlineData(1)] [InlineData(2)]
-    public async Task ResourceFailureKeepsAssignmentAndInput(int mode)
+    [Fact]
+    public async Task ResourceFailureKeepsAssignmentAndInput()
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using (var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None))
+        await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
         {
-            var state = State(mode, owner);
+            using var state = State(owner);
             var record = AwkText.FromSourceLiteralString("key résumé");
             state.SetCurrentRecord(record);
             _ = state.FieldCount;
@@ -105,7 +107,7 @@ public sealed class AwkBorrowedSubstringTests
     public async Task CancellationDoesNotPublishResult()
     {
         using var cancellation = new CancellationTokenSource();
-        var state = State(0, AwkExecutionMemoryOwner.Disabled, cancellation.Token);
+        using var state = State(AwkExecutionMemoryOwner.Disabled, cancellation.Token);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("key résumé"));
         var target = AwkVariableName.FromText("saved");
         state.AssignVariableValue(target, AwkValue.FromText("keep"));
@@ -126,7 +128,8 @@ public sealed class AwkBorrowedSubstringTests
             : [field, first, AwkExpression.Number(length)]);
     }
 
-    private static AwkRuntimeState State(int mode,AwkExecutionMemoryOwner owner,CancellationToken token = default,bool bytes = false,AwkRuntimeLimits? limits = null)
+    private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, CancellationToken token = default,
+        bool bytes = false, AwkRuntimeLimits? limits = null)
     {
         limits ??= AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),

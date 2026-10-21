@@ -7,10 +7,14 @@ public sealed class AwkFieldLengthTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AsciiLengthReadsAvoidFieldCopiesAndRetainedCacheGrowth(bool finite)
+    public async Task AsciiLengthReadsAvoidFieldCopiesAndRetainedCacheGrowth(bool governed)
     {
-        var (state, counters) = State(finite);
+        using var memory = State(governed);
+        var state = memory.State;
+        var counters = state.Counters;
+        Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
         state.SetCurrentRecord(AwkText.FromString("0007 alpha beta"));
+        Assert.Equal(governed, memory.Budget.Reserved > 0);
         _ = state.FieldCount;
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
         var allocations = counters.AwkTextAllocations;
@@ -26,15 +30,21 @@ public sealed class AwkFieldLengthTests
         Assert.Equal(0, counters.Utf8Encodes);
         Assert.Equal("0007", state.GetFieldValue(1).AsString());
         Assert.Equal(allocations + 1, counters.AwkTextAllocations);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task NonAsciiReadsRetainTheExistingCachedValue(bool finite)
+    public async Task NonAsciiReadsRetainTheExistingCachedValue(bool governed)
     {
-        var (state, counters) = State(finite);
+        using var memory = State(governed);
+        var state = memory.State;
+        var counters = state.Counters;
+        Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
         state.SetCurrentRecord(AwkText.FromString("café 😀"));
+        Assert.Equal(governed, memory.Budget.Reserved > 0);
         var expression = Length(AwkExpression.Number(1));
         Assert.Equal(4, (await expression.EvaluateAsync(new AwkEvaluationContext(state))).AsNumber());
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
@@ -44,6 +54,8 @@ public sealed class AwkFieldLengthTests
         Assert.Equal(allocations, counters.AwkTextAllocations);
         Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]
@@ -51,7 +63,10 @@ public sealed class AwkFieldLengthTests
     [InlineData(true)]
     public async Task IndexEffectsCompleteBeforeReadingTheCurrentRecordAndConsumeOnce(bool pending)
     {
-        var (state, counters) = State(true);
+        using var memory = State(true);
+        var state = memory.State;
+        var counters = state.Counters;
+        Assert.True(state.MemoryAccounting.IsEnabled);
         state.SetCurrentRecord(AwkText.FromString("before"));
         var source = new IndexSource(pending);
         var expression = Length(new IndexExpression(source));
@@ -65,6 +80,8 @@ public sealed class AwkFieldLengthTests
         Assert.Equal(pending ? 5 : 6, (await result).AsNumber());
         Assert.Equal(1, source.Consumptions);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]
@@ -72,7 +89,10 @@ public sealed class AwkFieldLengthTests
     [InlineData(true)]
     public async Task FailedIndexDoesNotSplitOrChargeTheRecord(bool canceled)
     {
-        var (state, counters) = State(true);
+        using var memory = State(true);
+        var state = memory.State;
+        var counters = state.Counters;
+        Assert.True(state.MemoryAccounting.IsEnabled);
         state.SetCurrentRecord(AwkText.FromString("before next"));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
         var source = new IndexSource(true);
@@ -86,6 +106,8 @@ public sealed class AwkFieldLengthTests
         Assert.Equal(0, counters.FieldSplits);
         Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     private static AwkExpression Length(AwkExpression index) =>
@@ -119,12 +141,14 @@ public sealed class AwkFieldLengthTests
         }
     }
 
-    private static (AwkRuntimeState, AwkRuntimeCounters) State(bool finite)
+    private static CooperativeTestMemory State(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits);
-        return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options), counters);
+        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options)));
     }
 }

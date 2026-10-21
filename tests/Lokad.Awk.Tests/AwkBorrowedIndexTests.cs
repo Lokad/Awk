@@ -5,13 +5,14 @@ public sealed class AwkBorrowedIndexTests
     private const long Limit = 8 << 20;
 
     [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)]
-    public async Task SearchDoesNotRetainFieldBytesOrPopulateValueCache(int mode)
+    [InlineData(false)] [InlineData(true)]
+    public async Task SearchDoesNotRetainFieldBytesOrPopulateValueCache(bool governed)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using (var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None))
+        await using (var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None))
         {
-            var state = State(mode, owner);
+            using var state = State(owner);
+            Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
             var bytes = "id déjà-timeout"u8.ToArray();
             state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
             _ = state.FieldCount;
@@ -40,7 +41,7 @@ public sealed class AwkBorrowedIndexTests
     [InlineData("regex", 0)]
     public async Task ExistingFallbacksStayOrdinary(string shape, int expected)
     {
-        var state = State(0, AwkExecutionMemoryOwner.Disabled, lint: shape == "lint", regex: shape == "regex");
+        using var state = State(AwkExecutionMemoryOwner.Disabled, lint: shape == "lint", regex: shape == "regex");
         var ascii = int.TryParse(shape, out var size);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("id " + (ascii ? new string('a', size) : "déjà-timeout")));
         if (shape == "cached") _ = state.GetFieldValue(2);
@@ -57,7 +58,7 @@ public sealed class AwkBorrowedIndexTests
     [InlineData(false, true, 6)] [InlineData(true, true, 8)]
     public async Task SearchKeepsCaseAndCoordinateRules(bool bytes, bool ignoreCase, int expected)
     {
-        var state = State(0, AwkExecutionMemoryOwner.Disabled, bytes: bytes);
+        using var state = State(AwkExecutionMemoryOwner.Disabled, bytes: bytes);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(ignoreCase ? "id déjà-TIMEOUT😀" : "id déjà-timeout😀"));
         if (ignoreCase) state.AssignVariableValue(AwkVariableName.FromText("IGNORECASE"), AwkValue.FromNumber(1));
         Assert.Equal(expected, (await Call().EvaluateAsync(new(state))).AsNumber());
@@ -70,14 +71,13 @@ public sealed class AwkBorrowedIndexTests
     }
 
     [Theory]
-    [InlineData(1, false)] [InlineData(2, false)]
-    [InlineData(1, true)] [InlineData(2, true)]
-    public async Task ExistingFieldCapacityNeedsNoSearchAdmissionButUnparsedFieldsDo(int mode, bool parsed)
+    [InlineData(false)] [InlineData(true)]
+    public async Task ExistingFieldCapacityNeedsNoSearchAdmissionButUnparsedFieldsDo(bool parsed)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using (var owner = AwkExecutionMemoryOwner.Create(mode != 0 ? budget : null, CancellationToken.None))
+        await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
         {
-            var state = State(mode, owner);
+            using var state = State(owner);
             var record = AwkText.FromSourceLiteralString("id déjà-timeout");
             state.SetCurrentRecord(record);
             if (parsed) _ = state.FieldCount;
@@ -102,7 +102,7 @@ public sealed class AwkBorrowedIndexTests
     public async Task CancellationDoesNotStartSearch()
     {
         using var cancellation = new CancellationTokenSource();
-        var state = State(0, AwkExecutionMemoryOwner.Disabled, cancellation.Token);
+        using var state = State(AwkExecutionMemoryOwner.Disabled, cancellation.Token);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("id déjà-timeout"));
         cancellation.Cancel();
         var error = await Assert.ThrowsAsync<OperationCanceledException>(async () => await Call().EvaluateAsync(new(state)));
@@ -117,7 +117,8 @@ public sealed class AwkBorrowedIndexTests
             [AwkExpression.FieldIndex(AwkExpression.Number(2)), needle ?? AwkExpression.Literal("timeout")]);
     }
 
-    private static AwkRuntimeState State(int mode,AwkExecutionMemoryOwner owner,CancellationToken token = default,bool bytes = false,bool lint = false,bool regex = false,AwkRuntimeLimits? limits = null)
+    private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, CancellationToken token = default,
+        bool bytes = false, bool lint = false, bool regex = false, AwkRuntimeLimits? limits = null)
     {
         limits ??= AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),

@@ -62,6 +62,11 @@ UTF-8/byte slicing, cancellation, mutation refusal and refunds.
 prefix lifetime during nested work, cancellation, refused result admission and refunds.
 `AwkConcatAllocationTests` bounds argument-staging allocations after warmup.
 
+Memory-mode tests distinguish ungoverned execution from a shared host budget using the
+existing owned fixtures. Assert the selected mode and refunds; do not retain the removed
+private-memory mode as a duplicate theory case. `AwkSourceCloseTests` exercises failed
+source closes with hosts that retain the descriptor until cleanup, including cancellation.
+
 ## Benchmarks
 
 `Lokad.Awk.Benchmarks` is not a correctness suite. Benchmark scripts should either reference canonical golden scenarios or document generated workloads, and benchmark smoke checks should not create independent behavior expectations. Use `AwkBenchmarkCounterTests` for deterministic counter invariants that belong in the correctness suite.

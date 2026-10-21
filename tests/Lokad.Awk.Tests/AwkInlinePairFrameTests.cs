@@ -6,15 +6,14 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkInlinePairFrameTests
 {
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task OneTwoAndThreeLocalLayoutsRecycleAndKeepMissingValues(int mode)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OneTwoAndThreeLocalLayoutsRecycleAndKeepMissingValues(bool governed)
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        await using var owner = mode == 2
-            ? AwkExecutionMemoryOwner.Create(budget, CancellationToken.None) : AwkExecutionMemoryOwner.Disabled;
-        var accounting = Accounting(mode, owner);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        Assert.Equal(governed, accounting.IsEnabled);
         var stack = Stack(accounting);
         AwkVariableName[] names = [AwkVariableName.FromText("a"), AwkVariableName.FromText("b"), AwkVariableName.FromText("c")];
         foreach (var count in new[] { 2, 1, 3, 0, 2 })
@@ -46,22 +45,22 @@ public sealed class AwkInlinePairFrameTests
             finally { stack.PopFrame(static _ => { }); }
             Assert.False(stack.IsInsideFunction);
             Assert.Equal(0, accounting.CurrentReservedBytes);
-            if (mode == 2) Assert.True(budget.Reserved > 0); // Cached frame, not its released payload.
+            if (governed) Assert.True(budget.Reserved > 0); // Cached frame, not its released payload.
         }
         await owner.DisposeAsync();
         Assert.Equal(0, budget.Reserved);
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task RecycledPairReleasesTheSecondPayloadAfterActualUse(int mode)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RecycledPairReleasesTheSecondPayloadAfterActualUse(bool governed)
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        await using var owner = mode == 2
-            ? AwkExecutionMemoryOwner.Create(budget, CancellationToken.None) : AwkExecutionMemoryOwner.Disabled;
-        var stack = Stack(Accounting(mode, owner));
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        Assert.Equal(governed, accounting.IsEnabled);
+        var stack = Stack(accounting);
         var weak = RunPairWithOwnedPayload(stack);
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -77,7 +76,7 @@ public sealed class AwkInlinePairFrameTests
     {
         var budget = new CooperativeTestBudget(1 << 20);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var accounting = Accounting(2, owner);
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
         var stack = Stack(accounting);
         var name = AwkVariableName.FromText("parent");
         stack.PushFrame(new([name]), [AwkFunctionArgument.Scalar(AwkValue.FromNumber(19))]);
@@ -113,12 +112,6 @@ public sealed class AwkInlinePairFrameTests
         Assert.Equal(17_000, local.Value.ByteText.ByteLength);
         stack.PopFrame(static _ => { });
         return weak;
-    }
-
-    private static AwkMemoryAccounting Accounting(int mode,AwkExecutionMemoryOwner owner)
-    {
-        var limits = AwkRuntimeLimits.CreateDefault();
-        return AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
     }
 
     private static AwkFunctionCallStack Stack(AwkMemoryAccounting accounting) =>

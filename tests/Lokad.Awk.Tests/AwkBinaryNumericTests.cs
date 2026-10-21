@@ -5,12 +5,16 @@ public sealed class AwkBinaryNumericTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task NumericSubtreesConsumeFieldBytesWithoutCachingAndKeepWork(bool finite)
+    public async Task NumericSubtreesReadBorrowedFieldsAndRespectMutations(bool governed)
     {
-        var (state, counters) = State(finite);
+        using var memory = State(governed);
+        var state = memory.State;
+        var counters = state.Counters;
+        Assert.Equal(governed, state.MemoryAccounting.IsEnabled);
         var bytes = "007 3 tail"u8.ToArray();
         state.SetCurrentRecord(AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length));
         _ = state.FieldCount;
+        Assert.Equal(governed, memory.Budget.Reserved > 0);
         var allocations = counters.AwkTextAllocations;
         var expression = AwkExpression.Add(
             AwkExpression.Multiply(Field(1), AwkExpression.Number(2)), Field(2));
@@ -21,6 +25,8 @@ public sealed class AwkBinaryNumericTests
         state.AssignFieldValue(1, AwkValue.FromNumber(1.25));
         Assert.Equal(5.5, await expression.ResolveNumberAsync(new AwkEvaluationContext(state)));
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]
@@ -28,7 +34,9 @@ public sealed class AwkBinaryNumericTests
     [InlineData(true)]
     public async Task LeftNumericFailureStopsTheRightOperand(bool numeric)
     {
-        var (state, _) = State(true);
+        using var memory = State(true);
+        var state = memory.State;
+        Assert.True(state.MemoryAccounting.IsEnabled);
         var right = new EffectExpression();
         var expression = AwkExpression.Add(
             AwkExpression.Divide(AwkExpression.Number(1), AwkExpression.Number(0)), right);
@@ -38,6 +46,8 @@ public sealed class AwkBinaryNumericTests
         Assert.IsType<AwkRuntimeException>(error);
         Assert.Equal(0, right.Effects);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     [Theory]
@@ -45,7 +55,9 @@ public sealed class AwkBinaryNumericTests
     [InlineData(true)]
     public async Task SynchronousConversionFailureStopsTheRightOperand(bool numeric)
     {
-        var (state, counters) = State(true);
+        using var memory = State(true);
+        var state = memory.State;
+        Assert.True(state.MemoryAccounting.IsEnabled);
         var left = new SynchronousOperand(AwkValue.FromNumericString("0x1.5", AwkNumberParsingMode.NonDecimalData));
         var right = new SynchronousOperand(AwkValue.FromNumber(3));
         var expression = AwkExpression.Add(left, right);
@@ -57,6 +69,8 @@ public sealed class AwkBinaryNumericTests
         Assert.Equal(1, left.Entries);
         Assert.Equal(0, right.Entries);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        memory.Dispose();
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     private sealed class SynchronousOperand(AwkValue value) : AwkSynchronousExpression
@@ -82,12 +96,14 @@ public sealed class AwkBinaryNumericTests
         }
     }
 
-    private static (AwkRuntimeState, AwkRuntimeCounters) State(bool finite)
+    private static CooperativeTestMemory State(bool governed)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), counters, limits);
-        return (AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options), counters);
+        var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
+            AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options)));
     }
 }

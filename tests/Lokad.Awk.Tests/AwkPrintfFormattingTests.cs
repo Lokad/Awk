@@ -82,7 +82,7 @@ public sealed class AwkPrintfFormattingTests
     }
 
     [Fact]
-    public void HexadecimalUsesItsExactOutputSizeAtTheValueLimit()
+    public void HexadecimalFormattingKeepsDigitsInUtf8WithoutDecoding()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
