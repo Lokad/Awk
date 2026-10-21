@@ -82,7 +82,7 @@ returns, branches, local temporaries and nested calls.
 ## Managed policy controls
 
 GNU/default arithmetic and call rows were measured **2026-10-21 UTC** at
-[`b0487e9`](https://github.com/Lokad/Awk/commit/b0487e922567af000ccb2f78f2eb37db900d8594).
+[`c141d86`](https://github.com/Lokad/Awk/commit/c141d86ba0bc7be9fd9d053dd04816db1c8be586).
 POSIX arithmetic rows retain **2026-10-20 UTC** measurements at
 [`bd58a8f`](https://github.com/Lokad/Awk/commit/bd58a8f11c9723b0c437fd7d2b68ee8dd6d067bf);
 they have not been rerun. Arithmetic processes 4,096 records; calls process 65,536 records
@@ -92,11 +92,11 @@ The budget is supplied by a thread-safe test host; application budgets can cost 
 
 | Script | Mode | Shared admission | Lokad ms | Lokad allocated MiB |
 | --- | --- | --- | ---: | ---: |
-| Arithmetic | GNU/default | None | 4.969 | 0.718 |
+| Arithmetic | GNU/default | None | 4.902 | 0.718 |
 | Arithmetic | POSIX | None | 4.910 | 0.711 |
 | Arithmetic | POSIX | 512 MiB | 5.733 | 0.712 |
-| Two-argument calls | GNU/default | None | 141.283 | 9.623 |
-| Two-argument calls | GNU/default | 512 MiB | 183.748 | 9.624 |
+| Two-argument calls | GNU/default | None | 129.522 | 9.623 |
+| Two-argument calls | GNU/default | 512 MiB | 170.723 | 9.624 |
 
 Current rows use three warmups; retained POSIX rows use four. All use five 500 ms iterations
 and one launch. Their source/binary
