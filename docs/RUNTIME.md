@@ -42,6 +42,8 @@ Unicode scalars by default; regex positions and capture lengths use UTF-16 code 
 regex ranges must still end at scalar boundaries.
 Byte-mode `FS=""` requires ASCII; field widths/skips cannot split a scalar. `--posix`
 overrides byte mode with a warning, independently of option order.
+Case conversion uses invariant Unicode casing in scalar mode; byte mode changes ASCII
+letters only and preserves all other UTF-8 bytes.
 
 Selecting a [regex engine](#regex-engines) does not change ingress or units.
 [Compatibility notes](COMPATIBILITY.md#source-string-escapes) cover escape-to-text conversion

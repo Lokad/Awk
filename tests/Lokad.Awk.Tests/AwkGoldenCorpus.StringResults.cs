@@ -4,6 +4,14 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> StringResultCases()
     {
+        foreach (var option in new[] { "", "--posix", "--traditional", "-b", "--characters-as-bytes" })
+        {
+            const string program = "BEGIN{print toupper(\"éaΩ\"),tolower(\"ÉAΩ\");print toupper(\"é09Ω\"),tolower(\"é09ω\");print (toupper(\"0\")?1:0),(tolower(\"0\")?1:0)}";
+            var bytes = option is "-b" or "--characters-as-bytes";
+            yield return Passing("case-conversion-units-" + (option.Length == 0 ? "default" : option.TrimStart('-')),
+                option.Length == 0 ? [program] : [option, program], [],
+                (bytes ? "éAΩ ÉaΩ\né09Ω é09ω\n" : "ÉAΩ éaω\nÉ09Ω é09ω\n") + "1 1\n");
+        }
         yield return Passing("field-substrings-own-partial-and-whole-results-across-getline",
             ["{a=substr($2,1,2);b=substr($2,1);getline;print a,b,$2;exit}"],
             [], "ré résumé replaced\n", "café résumé\nnext replaced\n");

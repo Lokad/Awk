@@ -37,6 +37,7 @@ internal static partial class AwkBuiltins
         static bool TryConvertAsciiCase(
             AwkText source,
             AwkCaseConversion conversion,
+            bool byteMode,
             AwkRuntimeCounters counters,
             AwkMemoryAccounting governor,
             Action checkpoint,
@@ -44,6 +45,7 @@ internal static partial class AwkBuiltins
         {
             var bytes = source.AsSpan(checkpoint);
             var firstChange = -1;
+            var isAscii = true;
             for (var index = 0; index < bytes.Length;)
             {
                 checkpoint();
@@ -51,8 +53,12 @@ internal static partial class AwkBuiltins
                 var chunk = bytes.Slice(index, length);
                 if (!Ascii.IsValid(chunk))
                 {
-                    result = AwkText.Empty;
-                    return false;
+                    if (!byteMode)
+                    {
+                        result = AwkText.Empty;
+                        return false;
+                    }
+                    isAscii = false;
                 }
                 counters.RecordAsciiCasePreparationChunk(length);
                 if (firstChange < 0)
@@ -81,22 +87,36 @@ internal static partial class AwkBuiltins
                     checkpoint();
                 var length = Math.Min(converted.Length - index, AwkRuntimeLimits.CancellationCheckBytes - chunkOffset);
                 var chunk = converted.AsSpan(index, length);
-                var status = conversion is AwkCaseConversion.Upper
-                    ? Ascii.ToUpperInPlace(chunk, out var written)
-                    : Ascii.ToLowerInPlace(chunk, out written);
-                if (status != OperationStatus.Done || written != length)
-                    throw new InvalidOperationException("Previously validated ASCII conversion failed.");
+                if (isAscii)
+                {
+                    var status = conversion is AwkCaseConversion.Upper
+                        ? Ascii.ToUpperInPlace(chunk, out var written)
+                        : Ascii.ToLowerInPlace(chunk, out written);
+                    if (status != OperationStatus.Done || written != length)
+                        throw new InvalidOperationException("Previously validated ASCII conversion failed.");
+                }
+                else
+                {
+                    var lower = conversion is AwkCaseConversion.Upper ? (byte)'a' : (byte)'A';
+                    var delta = conversion is AwkCaseConversion.Upper ? -32 : 32;
+                    for (var offset = 0; offset < chunk.Length; offset++)
+                        if ((uint)(chunk[offset] - lower) <= 25)
+                            chunk[offset] = (byte)(chunk[offset] + delta);
+                }
                 counters.RecordAsciiCaseConversionChunk(length);
                 index += length;
             }
 
-            result = AwkText.FromTrustedAsciiOwnedBytes(converted, counters);
+            result = isAscii
+                ? AwkText.FromTrustedAsciiOwnedBytes(converted, counters)
+                : AwkText.FromTrustedOwnedBytes(converted, counters);
             return true;
         }
 
         if (TryConvertAsciiCase(
             source,
             conversion,
+            state.StringUnitMode is AwkStringUnitMode.Byte,
             state.Counters,
             state.MemoryAccounting,
             state.CancellationCheckpoint,
@@ -108,6 +128,10 @@ internal static partial class AwkBuiltins
         state.Counters.RecordStringInteropFallback();
         var decoded = source.AsString(state.Counters, state.CancellationCheckpoint);
         state.ThrowIfCancellationRequested();
+        // Invariant casing preserves UTF-16 length. Keep the conversion result funded
+        // until its UTF-8 copy is constructed; the source owns its decoding cache.
+        using var scratch = state.MemoryAccounting.ReserveAllocationPeak(
+            AwkRuntimeMemory.EstimateUtf16StringBytes(decoded.Length));
         var converted = conversion is AwkCaseConversion.Upper
             ? decoded.ToUpperInvariant()
             : decoded.ToLowerInvariant();

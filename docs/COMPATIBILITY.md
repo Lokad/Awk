@@ -106,6 +106,8 @@ Case-insensitive strings use invariant scalar folding (ASCII in byte mode), with
 normalization or multi-scalar expansion. Array keys remain case-sensitive. Sorting uses
 a total order with original-byte/index tie-breaks; mixed keys and Unicode folding can
 differ from GNU. Regex folding follows the [regex profile rules](#regex-patterns).
+`tolower`/`toupper` also use invariant Unicode casing by default and ASCII-only changes
+in byte mode, preserving valid UTF-8.
 
 ## Special array reads
 
