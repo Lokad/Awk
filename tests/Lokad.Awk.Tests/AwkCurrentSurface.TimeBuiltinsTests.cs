@@ -8,6 +8,47 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBase
 {
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task OnlyImplicitSeedRequestsTheHostClock(bool explicitSeed, bool throwing)
+    {
+        var clock = new SeedClock(throwing);
+        var host = new MockFileSystem();
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
+            "BEGIN{print srand(" + (explicitSeed ? "7" : "") + ");print \"ok\"}"));
+        var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithTimeProvider(clock), CancellationToken.None);
+        var fails = throwing && !explicitSeed;
+        Assert.Equal(fails ? 2 : 0, exit.Value);
+        Assert.Equal(fails ? "" : "1\nok\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(fails ? "awk: execution failed without exposing host exception details\n" : "", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(explicitSeed ? 0 : 1, clock.Calls);
+    }
+
+    [Fact]
+    public async Task ExplicitSeedDoesNotAdvanceTheNextTimeObservation()
+    {
+        var clock = new SeedClock(false);
+        var host = new MockFileSystem();
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{srand(7);print systime();print strftime(\"%s\")}"));
+        var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithTimeProvider(clock), CancellationToken.None);
+        Assert.Equal(0, exit.Value);
+        Assert.Equal("1\n2\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(2, clock.Calls);
+    }
+
+    private sealed class SeedClock(bool throwing) : TimeProvider
+    {
+        public int Calls { get; private set; }
+        public override DateTimeOffset GetUtcNow()
+        {
+            Calls++;
+            if (throwing) throw new InvalidOperationException("Private clock details");
+            return DateTimeOffset.FromUnixTimeSeconds(Calls);
+        }
+    }
+
     [Fact]
     public async Task Awk_TimeBuiltinsUseInjectedClock()
     {

@@ -30,6 +30,6 @@ internal readonly record struct AwkRandomSeedRequest
 
     public bool HasExplicitSeed { get; }
 
-    public AwkRandomSeed Resolve(AwkUnixTimestampSeconds currentTime) =>
-        HasExplicitSeed ? _seed : AwkRandomSeed.FromTimestamp(currentTime);
+    public AwkRandomSeed Resolve(AwkTimeRuntime time) =>
+        HasExplicitSeed ? _seed : AwkRandomSeed.FromTimestamp(time.CurrentUnixTimeSeconds());
 }

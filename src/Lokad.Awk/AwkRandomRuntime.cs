@@ -6,7 +6,7 @@ internal sealed class AwkRandomRuntime(AwkRandomGenerator generator, AwkTimeRunt
 
     public AwkRandomSeed Seed(AwkRandomSeedRequest seed)
     {
-        var resolvedSeed = seed.Resolve(timeRuntime.CurrentUnixTimeSeconds());
+        var resolvedSeed = seed.Resolve(timeRuntime);
         return generator.Seed(resolvedSeed);
     }
 }
