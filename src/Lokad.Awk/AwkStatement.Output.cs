@@ -47,19 +47,24 @@ internal abstract partial class AwkStatement
             if (!target.IsRedirected && expressions.Length is >= 2 and <= 4)
             {
                 var first = await expressions[0].EvaluateAsync(context).ConfigureAwait(false);
+                using var heldFirst = expressions[0].IsTextLiteral ? AwkMemoryLease.Disabled : state.MemoryAccounting.RetainValue(first);
                 var second = await expressions[1].EvaluateAsync(context).ConfigureAwait(false);
+                using var heldSecond = expressions[1].IsTextLiteral ? AwkMemoryLease.Disabled : state.MemoryAccounting.RetainValue(second);
                 var third = expressions.Length >= 3
                     ? await expressions[2].EvaluateAsync(context).ConfigureAwait(false) : default;
+                using var heldThird = expressions.Length < 3 || expressions[2].IsTextLiteral
+                    ? AwkMemoryLease.Disabled : state.MemoryAccounting.RetainValue(third);
                 var fourth = expressions.Length == 4
                     ? await expressions[3].EvaluateAsync(context).ConfigureAwait(false) : default;
                 AwkPrintRuntime.AppendSmall(execution.Output, [first, second, third, fourth], expressions.Length, state);
                 return AwkStatementFlow.Continue;
             }
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
+            using var heldTarget = RetainOutputTarget(resolvedTarget, state.MemoryAccounting);
             using var buffer = AwkValueBuffer.Rent(expressions.Length, state.MemoryAccounting);
             var values = buffer.Values;
             for (var index = 0; index < expressions.Length; index++)
-                values[index] = await expressions[index].EvaluateAsync(context).ConfigureAwait(false);
+                buffer.Set(index, await expressions[index].EvaluateAsync(context).ConfigureAwait(false));
 
             await EmitPrintAsync(
                     execution.Output,
@@ -114,7 +119,10 @@ internal abstract partial class AwkStatement
             var state = context.State;
             var execution = RequireExecutionContext(context);
             var resolvedTarget = await ResolveOutputTargetAsync(target, context).ConfigureAwait(false);
+            using var heldTarget = RetainOutputTarget(resolvedTarget, state.MemoryAccounting);
             var formatText = await format.ResolveStringAsync(context).ConfigureAwait(false);
+            using var heldFormat = format.IsTextLiteral ? AwkMemoryLease.Disabled : state.MemoryAccounting.ReserveTransient(
+                AwkRuntimeMemory.EstimateUtf16StringBytes(formatText.Length));
             AwkUtf8Builder? formatted = null;
             try
             {
@@ -136,7 +144,7 @@ internal abstract partial class AwkStatement
                     using var buffer = AwkValueBuffer.Rent(arguments.Length, state.MemoryAccounting);
                     var resolvedArguments = buffer.Values;
                     for (var i = 0; i < arguments.Length; i++)
-                        resolvedArguments[i] = await arguments[i].EvaluateAsync(context).ConfigureAwait(false);
+                        buffer.Set(i, await arguments[i].EvaluateAsync(context).ConfigureAwait(false));
 
                     var values = new AwkValueArrayPrintfArguments(resolvedArguments, arguments.Length, state);
                     if (!resolvedTarget.HasValue && execution.Output.TryFormatPrintf(formatText, values, state))
@@ -155,6 +163,11 @@ internal abstract partial class AwkStatement
             }
         }
     }
+
+    private static AwkMemoryLease RetainOutputTarget(
+        AwkOptionalResolvedOutputRedirection target, AwkMemoryAccounting memory) =>
+        memory.ReserveTransient(target.TryGetValue(out var redirection)
+            ? AwkRuntimeMemory.EstimateUtf16StringBytes(redirection.Path.Text.Length) : 0);
 
     private static async Task EmitOutputAsync(
         AwkOutputSink output,

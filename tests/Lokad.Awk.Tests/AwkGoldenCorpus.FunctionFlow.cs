@@ -4,6 +4,16 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("output-captures-values-and-format-before-later-mutation",
+            ["""
+                function wipe(){x="";print "held";return 0}
+                BEGIN{
+                    x="abc";print x,wipe()
+                    x="abc";print x,wipe(),1,2,3
+                    x="abc";printf "%s%s\n",x,wipe()
+                    x="[%s]\n";printf x,wipe()
+                }
+                """], [], "held\nabc 0\nheld\nabc 0 1 2 3\nheld\nabc0\nheld\n[0]\n");
         yield return Passing("evaluation-captures-values-before-later-global-mutation",
             ["""
                 function wipe(){x="";print "held";return 0}

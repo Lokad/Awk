@@ -14,6 +14,8 @@ public sealed class AwkEvaluationOwnershipTests
             "a[wipe()]=x", "$(wipe()+1)=x",
             "print x~wipe()", "print match(x,wipe())", "print split(x,a,wipe()+1)",
             "print patsplit(x,a,wipe()+1)", "sub(/z/,x,a[wipe()])", "gsub(/z/,x,a[wipe()])",
+            "print x,wipe()", "print x,wipe(),1", "print x,1,wipe(),2", "print x,wipe(),1,2,3",
+            "printf \"%s%s\\n\",x,wipe()", "printf x,wipe()",
             "print length(x wipe())",
             "print length(x wipe() \"a\" \"b\" \"c\" \"d\" \"e\" \"f\" \"g\")"
         }) yield return [expression];
@@ -83,6 +85,9 @@ public sealed class AwkEvaluationOwnershipTests
     [InlineData(false, "assignment")] [InlineData(true, "assignment")]
     [InlineData(false, "compound")] [InlineData(true, "compound")]
     [InlineData(false, "pattern")] [InlineData(true, "pattern")]
+    [InlineData(false, "print")] [InlineData(true, "print")]
+    [InlineData(false, "printf-values")] [InlineData(true, "printf-values")]
+    [InlineData(false, "printf-format")] [InlineData(true, "printf-format")]
     public async Task PendingOperandKeepsTextFundedUntilHostCompletion(bool cancel, string kind)
     {
         using var cancellation = new CancellationTokenSource();
@@ -101,6 +106,9 @@ public sealed class AwkEvaluationOwnershipTests
                   "assignment" => "a[wipe()]=x",
                   "compound" => "a[x]=2;a[x]+=wipe()",
                   "pattern" => "print match(x,wipe())",
+                  "print" => "print x,wipe()",
+                  "printf-values" => "printf \"%s%s\\n\",x,wipe()",
+                  "printf-format" => "printf x,wipe()",
                   _ => throw new ArgumentOutOfRangeException(nameof(kind))
               }) + "}";
         var execution = ExecuteAsync(script, host, budget, cancellation.Token);

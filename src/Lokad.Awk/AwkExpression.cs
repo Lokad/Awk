@@ -8,6 +8,9 @@ namespace Lokad.Awk;
 
 internal abstract partial class AwkExpression
 {
+    // The prepared program keeps literal text alive throughout execution.
+    internal bool IsTextLiteral => this is LiteralExpression;
+
     public static AwkExpression FieldIndex(AwkExpression indexExpression) => new DynamicFieldIndexExpression(indexExpression);
 
     internal static int[] PrepareLiteralFieldIndices(AwkExpression[] arguments, int maximum)
