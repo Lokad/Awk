@@ -152,7 +152,7 @@ internal static class PrintfEvaluation
                 }
                 else
                 {
-                    var estimatedBytes = EstimateFloatByteCount(number, directive.Conversion, precision);
+                    var estimatedBytes = EstimateFloatByteCount(number, directive.Conversion, precision, flags.AlternateForm);
                     using var scratch = governor.ReserveAllocationPeak(
                         AwkRuntimeMemory.EstimatePrintfConversionScratchBytes(estimatedBytes));
                     output.PreflightAdditionalBytes(Math.Max(width.Value, estimatedBytes));
@@ -500,12 +500,18 @@ internal static class PrintfEvaluation
         static int EstimateFloatByteCount(
             double value,
             PrintfConversion conversion,
-            PrintfPrecisionValue precision)
+            PrintfPrecisionValue precision,
+            bool alternateForm)
         {
             if (!double.IsFinite(value))
                 return 4;
 
             var digits = precision.HasValue ? precision.Value : 6;
+            // Without #, general precision does not pad trailing zeroes. A binary64
+            // value has at most 309 integral and 1074 fractional decimal places;
+            // this simple bound also leaves room for signs/point/exponent below.
+            if (!alternateForm && conversion is PrintfConversion.GeneralLower or PrintfConversion.GeneralUpper)
+                digits = Math.Min(digits, 309 + 1074);
             var overhead = 16;
             if (conversion is PrintfConversion.FixedLower or PrintfConversion.FixedUpper)
             {

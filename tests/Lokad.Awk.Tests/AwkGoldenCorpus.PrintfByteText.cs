@@ -4,6 +4,18 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> PrintfByteTextCases()
     {
+        foreach (var option in new[] { "default", "--posix", "--traditional", "-b", "--characters-as-bytes" })
+        {
+            string[] flags = option == "default" ? [] : [option];
+            yield return Passing("printf-general-large-precision-no-padding-" + option,
+                [.. flags, """
+                    BEGIN {
+                        printf "[%.1000000g]|[%.1000000G]\n", 1.25, 1.25
+                        print sprintf("[%+.1000000g]|[%#.6g]", 1.25, 1.25)
+                    }
+                    """], [], "[1.25]|[1.25]\n[+1.25]|[1.25000]\n");
+        }
+
         foreach (var option in new[] { "-b", "--characters-as-bytes" })
         {
             yield return Passing("printf-byte-units-width-precision-" + option,

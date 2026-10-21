@@ -2,6 +2,32 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkPrintfAdmissionTests
 {
+    public static IEnumerable<object[]> GeneralPrecisionValues()
+    {
+        foreach (var upper in new[] { false, true })
+        foreach (var number in new[] { 0d, -0d, 1.25, double.Epsilon, double.MaxValue,
+            -double.MaxValue, 1e-300, 1e-4, 1e20 })
+            yield return [upper, number];
+    }
+
+    [Theory]
+    [MemberData(nameof(GeneralPrecisionValues))]
+    public void GeneralPrecisionDoesNotRequirePaddingStorage(bool upper, double number)
+    {
+        using var memory = new CooperativeTestMemory(64 << 10);
+        using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 0))
+        {
+            PrintfEvaluation.FormatToBuilder(builder, upper ? "%.1000000G" : "%.1000000g",
+                new AwkSingleValuePrintfArguments(AwkValue.FromNumber(number), AwkRuntimeCounters.Disabled),
+                PrintfMissingArgumentPolicy.Throw, AwkRuntimeCounters.Disabled, memory.Accounting);
+            Assert.InRange(builder.Length, 1, 2_000);
+            var parsed = double.Parse(builder.AsSpan(), System.Globalization.CultureInfo.InvariantCulture);
+            Assert.Equal(BitConverter.DoubleToInt64Bits(number), BitConverter.DoubleToInt64Bits(parsed));
+        }
+        Assert.Equal(0, memory.Accounting.CurrentCommittedBytes);
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Theory]
     [InlineData("%.*f")] [InlineData("%+.*e")]
     [InlineData("%#.*g")] [InlineData("%.*a")]

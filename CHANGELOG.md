@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Evaluation arguments, operands and array snapshots retain shared memory admission when
+  later script work clears their original owner, including suspended host calls. Insufficient
+  allowance can now fail earlier; values, evaluation order and the public API are unchanged.
+- Large `%g`/`%G` precision without `#` no longer reserves precision-sized output and scratch
+  for a short result. Real large conversions retain their allocation preflights.
+
 - Correct `%s` width and precision under `-b` / `--characters-as-bytes`, including `sprintf`.
   Precision must end at a UTF-8 scalar boundary; a partial scalar fails without publishing
   the current formatted output. Scalar mode is unchanged.

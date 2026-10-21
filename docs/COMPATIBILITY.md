@@ -95,6 +95,8 @@ for single-record printing is not reproduced.
 Formatting preflights publication. Bitwise, calendar and nonfinite/range behavior follow
 the golden contract, not every libc quirk. Time comes from the policy's clock/zone, with
 system/local defaults and epoch/UTC in the restricted preset.
+Large `%g`/`%G` precision without `#` does not require precision-sized padding storage;
+alternate-form and other conversions still admit storage for their actual large results.
 
 Case-insensitive strings use invariant scalar folding (ASCII in byte mode), without
 normalization or multi-scalar expansion. Array keys remain case-sensitive. Sorting uses
