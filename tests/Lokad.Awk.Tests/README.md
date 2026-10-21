@@ -47,6 +47,9 @@ frame/alias caches, setup cancellation and final refunds. `AwkPartialCloseTests`
 public-boundary partial-close failures and cleanup without replaying successful closes.
 `AwkEvaluationOwnershipTests` covers retained scalar/key/snapshot funding after source mutation,
 nested-call refusal, and funding through actual completion of pending/canceled host users.
+`AwkOutputOwnershipTests` covers nested print/printf argument admission with output digests,
+and resolved output names surviving pending/canceled operands. `AwkFormattingOwnershipTests`
+covers relinquished format text and reuse of AwkText's decode cache.
 
 `AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
 mutation refusal/cancellation and refunds using a shared host budget.

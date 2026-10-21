@@ -92,6 +92,10 @@ Numeric OFS/ORS use current CONVFMT; use string separators to preserve assigned 
 Printing a numerically assigned `$0` uses OFMT, as in mawk. GNU's cached CONVFMT spelling
 for single-record printing is not reproduced.
 
+Switch accepts numeric/string constants and regex literals. Nonconstant or duplicate scalar/default
+labels fail before execution; repeated regex labels remain valid. Unary signed numbers are handled
+without reproducing native reference crashes.
+
 Formatting preflights publication. Bitwise, calendar and nonfinite/range behavior follow
 the golden contract, not every libc quirk. Time comes from the policy's clock/zone, with
 system/local defaults and epoch/UTC in the restricted preset.

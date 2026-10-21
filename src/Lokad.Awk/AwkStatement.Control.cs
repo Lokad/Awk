@@ -229,6 +229,7 @@ internal abstract partial class AwkStatement
             var defaultArmIndex = -1;
             for (var index = 0; index < arms.Length; index++)
             {
+                state.Checkpoint();
                 if (arms[index] is AwkDefaultSwitchArm)
                 {
                     defaultArmIndex = index;
@@ -236,7 +237,7 @@ internal abstract partial class AwkStatement
                 }
 
                 var candidate = (AwkSwitchCase)arms[index];
-                if (!await candidate.Pattern.MatchesAsync(value, context).ConfigureAwait(false))
+                if (!candidate.Pattern.Matches(value, state))
                     continue;
 
                 selectedArmIndex = index;

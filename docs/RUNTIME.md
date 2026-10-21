@@ -74,6 +74,8 @@ capacity remain funded until execution ends; unwinding releases active locals an
 Evaluation staging and iteration/sort snapshots fund text they retain even when a later operand,
 loop body or comparator clears its original owner. These scoped estimates can temporarily count
 shared text twice; Awk does not track object aliases.
+Output staging includes captured values, decoded formats and redirection names. Replacing OFMT
+or CONVFMT does not leave a separate formatter cache retaining the old text.
 File redirections admit normalized paths and table growth before host opens. Logical flush
 retains path ownership; close refunds the path after the host finishes, while reusable table
 capacity stays funded until execution cleanup.

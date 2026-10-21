@@ -560,10 +560,10 @@ internal static class AwkStatementLowerer
                         continue;
                     }
 
-                    if (!AwkExpressionLowerer.TryLower(caseExpression, scope, out var expression))
+                    if (!AwkExpressionLowerer.TryReadSwitchConstant(caseExpression, scope, out var constant))
                         return false;
 
-                    arms.Add(new AwkSwitchCase(AwkSwitchCasePattern.FromExpression(expression), body));
+                    arms.Add(new AwkSwitchCase(AwkSwitchCasePattern.FromValue(constant), body));
                 }
 
                 statement = AwkStatement.Switch(value, arms);

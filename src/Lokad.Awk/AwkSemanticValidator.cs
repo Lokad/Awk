@@ -399,6 +399,7 @@ internal static class AwkSemanticValidator
                 ValidateExpressionSemantics(expression, context, diagnostics);
 
             ValidateDeleteStatement(statement, context, diagnostics);
+            ValidateSwitchLabels(statement, context.Scope, diagnostics);
             ValidateStatements(statement.BodyStatements, context.EnterBody(statement.Kind), diagnostics);
             ValidateStatements(statement.ElseStatements, context, diagnostics);
             for (var caseIndex = 0; caseIndex < statement.SwitchCases.Count; caseIndex++)
@@ -406,6 +407,41 @@ internal static class AwkSemanticValidator
                 context.Scope.CheckCancellation();
                 ValidateExpressionSemantics(statement.SwitchCases[caseIndex].Expression, context, diagnostics);
                 ValidateStatements(statement.SwitchCases[caseIndex].BodyStatements, context.EnterSwitch(), diagnostics);
+            }
+        }
+
+        static void ValidateSwitchLabels(AwkStatementSyntax statement, AwkLoweringScope scope,
+            List<AwkDiagnostic> diagnostics)
+        {
+            if (statement.SwitchCases.Count == 0) return;
+            var values = new HashSet<string>(System.StringComparer.Ordinal);
+            var hasDefault = false;
+            foreach (var arm in statement.SwitchCases)
+            {
+                scope.CheckCancellation();
+                if (arm.IsDefault)
+                {
+                    if (hasDefault) diagnostics.Add(new AwkDiagnostic(statement.Span,
+                        "Duplicate default label in switch.", AwkDiagnosticId.BindInvalidProgram));
+                    hasDefault = true;
+                    continue;
+                }
+                if (!arm.Expression.TryGetValue(out var expression)) continue;
+                // Repeated regex patterns are permitted; scalar labels have distinct textual values.
+                if (expression.Kind == AwkExpressionKind.Regex) continue;
+                if (!AwkExpressionLowerer.TryReadSwitchConstant(expression, scope, out var value))
+                {
+                    diagnostics.Add(new AwkDiagnostic(expression.Span,
+                        "Switch case label must be a numeric, string or regex constant.", AwkDiagnosticId.BindInvalidProgram));
+                    continue;
+                }
+                var key = value.TryGetNumber(out var number)
+                    ? AwkNumberFormatter.IsInteger(number) ? AwkNumberFormatter.ToString(number)
+                        : AwkNumberFormatter.ToDefaultFormatAwkText(number, AwkRuntimeCounters.Disabled,
+                            AwkMemoryAccounting.Disabled).AsString(AwkRuntimeCounters.Disabled, scope.Checkpoint)
+                    : value.ByteText.AsString(AwkRuntimeCounters.Disabled, scope.Checkpoint);
+                if (!values.Add(key)) diagnostics.Add(new AwkDiagnostic(expression.Span,
+                    "Duplicate case value in switch.", AwkDiagnosticId.BindInvalidProgram));
             }
         }
 

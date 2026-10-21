@@ -4,6 +4,33 @@ namespace Lokad.Awk;
 
 internal static partial class AwkExpressionLowerer
 {
+    internal static bool TryReadSwitchConstant(AwkExpressionSyntax expression, AwkLoweringScope scope,
+        out AwkValue value)
+    {
+        value = default;
+        var tokens = expression.GetTokens(scope.Checkpoint);
+        if (expression.Kind == AwkExpressionKind.String && tokens.Count == 1 && tokens[0].Kind == AwkTokenKind.String)
+        {
+            var position = 0;
+            if (!TryReadStringLiteralToken(tokens[0].Text, ref position, out var text, scope.CompatibilityMode, scope.Checkpoint) ||
+                position != tokens[0].Text.Length) return false;
+            value = AwkValue.FromText(AwkText.FromSourceLiteralString(text), AwkNumberParsingMode.Decimal, scope.Checkpoint);
+            return true;
+        }
+
+        var signed = expression.Kind == AwkExpressionKind.Unary && tokens.Count == 2 &&
+            tokens[0].Kind is AwkTokenKind.Plus or AwkTokenKind.Minus && tokens[1].Kind == AwkTokenKind.Number;
+        if (!signed && !(expression.Kind == AwkExpressionKind.Number && tokens.Count == 1 && tokens[0].Kind == AwkTokenKind.Number))
+            return false;
+        var token = tokens[signed ? 1 : 0];
+        var index = 0;
+        if (!TryReadNumericLiteralToken(token.Text, ref index, out var numberText, out var number, scope.Checkpoint) ||
+            index != token.Text.Length) return false;
+        number = PrepareSourceNumber(numberText, number, scope.CompatibilityMode, scope.Checkpoint);
+        value = AwkValue.FromNumber(signed && tokens[0].Kind == AwkTokenKind.Minus ? -number : number);
+        return true;
+    }
+
     public static bool TryReadNumericLiteralToken(
         string text,
         ref int index,

@@ -91,7 +91,7 @@ public sealed class AwkProgramTests
     {
         var caseBody = new List<AwkStatement> { AwkStatement.Exit(AwkOptionalExpression.None) };
         var switchCase = new AwkSwitchCase(
-            AwkSwitchCasePattern.FromExpression(AwkExpression.Number(1)),
+            AwkSwitchCasePattern.FromValue(AwkValue.FromNumber(1)),
             caseBody);
         caseBody.Clear();
         var arms = new List<AwkSwitchArm> { switchCase };

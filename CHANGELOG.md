@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `print`/`printf` keep captured arguments, decoded formats and redirection names funded
+  during later operand evaluation and pending host work. Previously under-accounted commands
+  may now refuse earlier; evaluation order, earlier output and cleanup are preserved.
+- Removed redundant OFMT/CONVFMT decoding caches that kept obsolete large formats alive.
+  Reused text retains its existing decode cache; newly constructed equal formats can decode again.
+- Switch labels are prepared constants. Nonconstant labels and duplicate scalar/default labels
+  now fail before execution; repeated regex labels remain valid. Removed asynchronous label
+  evaluation while preserving signed constants, matching and fallthrough.
+
 - Evaluation arguments, operands and array snapshots retain shared memory admission when
   later script work clears their original owner, including suspended host calls. Insufficient
   allowance can now fail earlier; values, evaluation order and the public API are unchanged.
