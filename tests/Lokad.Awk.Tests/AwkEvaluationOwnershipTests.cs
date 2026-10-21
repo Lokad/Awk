@@ -14,6 +14,7 @@ public sealed class AwkEvaluationOwnershipTests
             "a[wipe()]=x", "$(wipe()+1)=x",
             "print x~wipe()", "print match(x,wipe())", "print split(x,a,wipe()+1)",
             "print patsplit(x,a,wipe()+1)", "sub(/z/,x,a[wipe()])", "gsub(/z/,x,a[wipe()])",
+            "print close(x,substr(\"to\"wipe(),1,2))",
             "print x,wipe()", "print x,wipe(),1", "print x,1,wipe(),2", "print x,wipe(),1,2,3",
             "printf \"%s%s\\n\",x,wipe()", "printf x,wipe()",
             "print length(x wipe())",
@@ -79,6 +80,27 @@ public sealed class AwkEvaluationOwnershipTests
     }
 
     [Theory]
+    [InlineData(16, false)] [InlineData(128, true)]
+    public async Task NestedCloseNamesStayFundedDuringDirectionEvaluation(int megabytes, bool succeeds)
+    {
+        var budget = new CooperativeTestBudget(megabytes << 20);
+        var host = new OwnershipHost();
+        var exit = await ExecuteAsync("""
+            function fill(n){
+                if(!n){x="";print "held";return "to"}
+                x=sprintf("%01000000d",0)
+                if(close(x,fill(n-1))<0)failures++
+                return "to"
+            }
+            BEGIN{print "base";fill(32);print failures;print "done"}
+            """, host, budget);
+        Assert.Equal(succeeds ? 0 : 2, exit.Value);
+        Assert.Equal(succeeds ? "base\nheld\n32\ndone\n" : "base\n", host.Output);
+        Assert.Equal(succeeds ? "" : "awk: memory limit exceeded\n", host.Error);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(false, "arguments")] [InlineData(true, "arguments")]
     [InlineData(false, "snapshot")] [InlineData(true, "snapshot")]
     [InlineData(false, "concat")] [InlineData(true, "concat")]
@@ -88,6 +110,7 @@ public sealed class AwkEvaluationOwnershipTests
     [InlineData(false, "print")] [InlineData(true, "print")]
     [InlineData(false, "printf-values")] [InlineData(true, "printf-values")]
     [InlineData(false, "printf-format")] [InlineData(true, "printf-format")]
+    [InlineData(false, "close")] [InlineData(true, "close")]
     public async Task PendingOperandKeepsTextFundedUntilHostCompletion(bool cancel, string kind)
     {
         using var cancellation = new CancellationTokenSource();
@@ -109,6 +132,7 @@ public sealed class AwkEvaluationOwnershipTests
                   "print" => "print x,wipe()",
                   "printf-values" => "printf \"%s%s\\n\",x,wipe()",
                   "printf-format" => "printf x,wipe()",
+                  "close" => "print close(x,substr(\"to\"wipe(),1,2))",
                   _ => throw new ArgumentOutOfRangeException(nameof(kind))
               }) + "}";
         var execution = ExecuteAsync(script, host, budget, cancellation.Token);

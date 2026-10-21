@@ -218,6 +218,8 @@ internal static partial class AwkBuiltins
                 return AwkValue.FromNumber(-1);
 
             var path = await context.GetStringAsync(0).ConfigureAwait(false);
+            using var heldName = context.State.MemoryAccounting.ReserveTransient(
+                AwkRuntimeMemory.EstimateUtf16StringBytes(path.Length));
             var direction = AwkOptionalCloseDirection.None;
             if (context.ArgumentCount == 2)
             {
