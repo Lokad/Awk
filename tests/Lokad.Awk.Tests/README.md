@@ -59,6 +59,8 @@ admission/cancellation lifetimes and the ordinary borrowed newline path.
 `AwkRecordCursorContextTests` runs canonical record cases with stdin, files and pipes,
 different host batch sizes, shared admission and the prepared adapter. A focused counter/
 allocation check guards against copying or decoding every shrinking unread tail.
+`AwkRecordInputMemoryTests` covers decoded batch admission, direct UTF-8 and fallback routes,
+refusal before record effects, view invalidation and pending/canceled output lifetimes.
 
 `AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
 mutation refusal/cancellation and refunds using a shared host budget.

@@ -57,11 +57,11 @@ internal sealed partial class AwkRegexRuntime
     }
 
     public AwkRegexMatchSpan MatchRecordSeparatorSpan(AwkRegex regex, AwkText input,
-        AwkRegexSearchOffset recordStart, AwkRegexSearchOffset searchOffset)
+        AwkRegexSearchOffset recordStart, AwkRegexSearchOffset searchOffset, Action? admitDecodedInput)
     {
-        var context = CaptureInputContext(regex, input);
+        var context = CaptureInputContext(regex, input, admitDecodedInput: admitDecodedInput);
         return context.UsesUtf8Adapter
-            ? MatchProvidedSpan(regex, input, searchOffset, recordStart)
+            ? MatchProvidedSpan(regex, input, searchOffset, recordStart, admitDecodedInput)
             : MatchRecordDotNetSpan(regex, context, recordStart, searchOffset);
     }
 

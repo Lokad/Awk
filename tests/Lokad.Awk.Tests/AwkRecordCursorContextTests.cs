@@ -36,15 +36,17 @@ public sealed class AwkRecordCursorContextTests
         Assert.Equal(0, budget.Reserved);
     }
 
-    [Fact]
-    public async Task RegexRecordWindowsReuseTheDecodedBatch()
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task RegexRecordWindowsReuseTheDecodedBatch(bool governed)
     {
         const int count = 2048;
+        var budget = new CooperativeTestBudget(8 << 20);
         var input = string.Concat(Enumerable.Repeat("ax", count)) + "q\n";
         var host = new CursorHost(input, 128, "stdin");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            AwkRuntimeLimits.CreateDefault());
+            AwkRuntimeLimits.CreateDefault(), memoryBudget: governed ? budget : null);
         var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk",
             ["BEGIN{RS=\"x|\\\\<b\"}{n++}END{print n}"], []);
         var compiled = await AwkExecutor.CompileAsync(host, command, CancellationToken.None);
@@ -58,6 +60,8 @@ public sealed class AwkRecordCursorContextTests
         // rather than decode/copy every shrinking unread tail.
         Assert.InRange(counters.AwkTextPayloadBytes, input.Length, input.Length * 2L);
         Assert.InRange(counters.StringDecodes, 1, 8);
+        if (governed) Assert.True(budget.Peak > 0);
+        Assert.Equal(0, budget.Reserved);
     }
 
     private sealed class CursorHost(string input, int batchLines, string source) : IAwkHost

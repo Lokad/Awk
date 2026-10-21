@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Regex record splitting admits its retained UTF-16 input cache before decoding, including
+  provider fallbacks, and refunds it when the cached view ends. Previously underfunded commands
+  can fail earlier; direct UTF-8 provider searches keep their byte-only input path.
+
 - Record-separator word assertions use the current record's context consistently across
   host read batches. Changing `RS` after newline input no longer re-anchors `^` midway
   through a descriptor. The interpreter reuses borrowed UTF-8 and cached UTF-16 batch

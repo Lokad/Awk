@@ -83,6 +83,8 @@ Dirty records fund their captured `OFS` until reconstruction or replacement, ind
 the variable's current value. Zero- and one-field records do not retain an unused separator.
 Using stdin aliases alongside main input can retain admitted unread batches; hosts may still
 reuse the previous read buffer when the next read on that descriptor begins.
+Regex record splitting funds its cached decoded input until the view is invalidated or the
+cursor closes. Direct UTF-8 provider searches do not reserve an unused decoded copy.
 File redirections admit normalized paths and table growth before host opens. Logical flush
 retains path ownership; close refunds the path after the host finishes, while reusable table
 capacity stays funded until execution cleanup.

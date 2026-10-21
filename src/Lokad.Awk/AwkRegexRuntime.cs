@@ -358,10 +358,11 @@ internal sealed partial class AwkRegexRuntime : IDisposable
     }
 
     internal AwkRegexInputContext CaptureInputContext(AwkRegex regex, AwkText input,
-        bool needsLongest = true, bool needsCaptures = false)
+        bool needsLongest = true, bool needsCaptures = false, Action? admitDecodedInput = null)
     {
         _throwIfCancellationRequested();
         var executionPolicy = ResolveExecutionPolicy(regex, input);
+        if (!executionPolicy.UsesUtf8Adapter) admitDecodedInput?.Invoke();
         return new AwkRegexInputContext(
             executionPolicy,
             executionPolicy.UsesUtf8Adapter ? string.Empty : input.AsString(_counters, _throwIfCancellationRequested));

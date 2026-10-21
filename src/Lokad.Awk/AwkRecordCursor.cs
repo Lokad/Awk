@@ -42,6 +42,8 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     // General regex searches borrow the batch and slice its decoded text at the
     // current record. The offset pair avoids repeated byte-to-UTF-16 conversion.
     private AwkText? _regexInput;
+    private AwkMemoryLease? _regexInputMemory;
+    private readonly Action? _admitRegexInputDecoding;
     private int _regexOffsetBufferStart = -1;
     private int _regexOffsetUtf16Index;
     private SeparatorCache _separatorCache;
@@ -59,6 +61,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         _paragraphLeaderPolicy = paragraphLeaderPolicy;
         _scanCheckpoint = scanCheckpoint ?? state.CancellationCheckpoint;
         _lineReader = lineReader;
+        if (state.MemoryAccounting.IsEnabled) _admitRegexInputDecoding = AdmitRegexInputDecoding;
     }
 
     public async ValueTask<AwkInputRecordResult> ReadAsync()
@@ -111,8 +114,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             var buffer = _buffer ?? throw new InvalidOperationException("Buffered input is not initialized.");
             _state.ThrowIfCancellationRequested();
             // Drop borrowed regex views before append can resize their backing buffer.
-            _regexInput = null;
-            _regexOffsetBufferStart = -1;
+            ClearRegexInput();
             buffer.Append(_pendingBatch.Content.Span, _state.CancellationCheckpoint);
             _descriptorReachedEof = _pendingBatch.ReachedEof;
             _pendingBatch = default;
@@ -138,8 +140,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     _pendingSeparatorStart -= removedLength;
                     _pendingSeparatorEnd -= removedLength;
                 }
-                _regexInput = null;
-                _regexOffsetBufferStart = -1;
+                ClearRegexInput();
             }
         }
 
@@ -151,8 +152,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 buffer.Clear();
                 _bufferStart = 0;
                 ResetSeparatorSearch();
-                _regexInput = null;
-                _regexOffsetBufferStart = -1;
+                ClearRegexInput();
                 return _descriptorReachedEof
                     ? ParagraphEndOfFile(separator)
                     : BufferedReadResult.NeedMoreData;
@@ -365,7 +365,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 {
                     _state.Resources.RecordRegexRecordSeparatorBytesScanned(
                         input.ByteLength - searchOffset.ByteIndex);
-                    match = _state.MatchRecordSeparatorSpan(regex, input, recordStart, searchOffset);
+                    match = _state.MatchRecordSeparatorSpan(regex, input, recordStart, searchOffset, _admitRegexInputDecoding);
                     if (!match.Success || match.ByteLength > 0)
                         break;
                     if (match.ByteIndex >= input.ByteLength)
@@ -794,12 +794,30 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
     public void Dispose()
     {
+        ClearRegexInput();
         _buffer?.Dispose();
         _buffer = null;
         _lineReader = null;
-        _regexInput = null;
         _pendingBatch = default;
         _hasPendingBatch = false;
+    }
+
+    private void AdmitRegexInputDecoding()
+    {
+        if (_regexInputMemory is not null) return;
+        var input = _regexInput ?? throw new InvalidOperationException("Regex input is not initialized.");
+        // The builder already funds the UTF-8 backing. Admit the UTF-16 cache only
+        // when matching needs it; UTF-8 providers do not retain this extra storage.
+        _regexInputMemory = _state.MemoryAccounting.ReserveTransient(
+            AwkRuntimeMemory.EstimateUtf16StringBytes(input.ByteLength));
+    }
+
+    private void ClearRegexInput()
+    {
+        _regexInput = null;
+        _regexOffsetBufferStart = -1;
+        _regexInputMemory?.Dispose();
+        _regexInputMemory = null;
     }
 
     private BufferedReadResult FinalRecordOrNeedMore(
