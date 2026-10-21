@@ -12,7 +12,7 @@ public sealed class AwkDirectStringBuiltinTests
         const int changedBytes = 2 * AwkRuntimeLimits.CancellationCheckBytes + 37;
         foreach (var prefixBytes in new[] { 0, 1, 4_095, 4_096, 4_097 })
         {
-            var state = State(shared: false, AwkExecutionMemoryOwner.Disabled);
+            var state = State(AwkExecutionMemoryOwner.Disabled);
             var prefix = new string('_', prefixBytes);
             var source = AwkValue.FromText(prefix + new string(upper ? 'a' : 'A', changedBytes));
             var result = AwkBuiltins.EvaluateCaseValue(state, source, upper);
@@ -34,7 +34,7 @@ public sealed class AwkDirectStringBuiltinTests
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         }
         var alphabet = new string(Enumerable.Range(0, 128).Select(value => (char)value).ToArray());
-        var alphabetState = State(shared: false, AwkExecutionMemoryOwner.Disabled);
+        var alphabetState = State(AwkExecutionMemoryOwner.Disabled);
         var converted = AwkBuiltins.EvaluateCaseValue(alphabetState, AwkValue.FromText(alphabet), upper);
         Assert.Equal(upper ? alphabet.ToUpperInvariant() : alphabet.ToLowerInvariant(), converted.AsString());
     }
@@ -44,7 +44,7 @@ public sealed class AwkDirectStringBuiltinTests
     [InlineData(true)]
     public void CaseChunksKeepUnchangedSharingAndUnicodeFallback(bool upper)
     {
-        var state = State(shared: false, AwkExecutionMemoryOwner.Disabled);
+        var state = State(AwkExecutionMemoryOwner.Disabled);
         var stable = AwkText.FromString(upper ? "ALREADY-09" : "already-09");
         var result = AwkBuiltins.EvaluateCaseValue(state, AwkValue.FromText(stable), upper);
         Assert.Same(stable, result.ByteText);
@@ -67,7 +67,7 @@ public sealed class AwkDirectStringBuiltinTests
         var budget = new CooperativeTestBudget(Limit);
         await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
         {
-            var state = State(shared: true, owner);
+            var state = State(owner);
             Assert.True(AwkBuiltins.TryGetCallable(name, out var builtin));
             var values = name == "index"
                 ? new[] { AwkValue.FromText("abcdef"), AwkValue.FromText("bc") }
@@ -113,7 +113,7 @@ public sealed class AwkDirectStringBuiltinTests
         var budget = new CooperativeTestBudget(Limit);
         await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
         {
-            var state = State(shared: true, owner);
+            var state = State(owner);
             Assert.True(AwkBuiltins.TryGetCallable(name, out var builtin));
             var effects = 0;
             var count = name == "index" ? 2 : name == "substr" ? 3 : 1;
@@ -136,16 +136,14 @@ public sealed class AwkDirectStringBuiltinTests
     }
 
     [Theory]
-    [InlineData(false, "tolower")]
-    [InlineData(true, "tolower")]
-    [InlineData(false, "toupper")]
-    [InlineData(true, "toupper")]
-    public async Task ActualResultRefusalPreservesTargetAndRefundsForRetry(bool shared, string name)
+    [InlineData("tolower")]
+    [InlineData("toupper")]
+    public async Task ActualResultRefusalPreservesTargetAndRefundsForRetry(string name)
     {
         var budget = new CooperativeTestBudget(Limit);
         await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
         {
-            var state = State(shared, owner);
+            var state = State(owner);
             var target = AwkVariableName.FromText("target");
             state.AssignVariableValue(target, AwkValue.FromText("keep"));
             Assert.True(AwkBuiltins.TryGetCallable(name, out var builtin));
@@ -178,7 +176,7 @@ public sealed class AwkDirectStringBuiltinTests
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context) => evaluate();
     }
 
-    private static AwkRuntimeState State(bool shared,AwkExecutionMemoryOwner owner)
+    private static AwkRuntimeState State(AwkExecutionMemoryOwner owner)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
