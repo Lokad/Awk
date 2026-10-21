@@ -480,10 +480,9 @@ internal sealed class AwkPosixRegex : IDisposable
         schedule();
     }
 
-    internal AwkPosixMatch Match(string text, int startAt, int groupCount,
+    internal AwkPosixMatch Match(ReadOnlySpan<char> text, int startAt, int groupCount,
         AwkMemoryAccounting governor, Action checkCancellation)
     {
-        ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(governor);
         ArgumentNullException.ThrowIfNull(checkCancellation);
         AwkRegexScalarBoundary.ThrowIfSplit(text, startAt, 0);
@@ -523,7 +522,10 @@ internal sealed class AwkPosixRegex : IDisposable
                 Array.Clear(characterSeen);
                 queue.Clear();
                 var characterCount = 0;
-                var width = offset < text.Length ? Rune.GetRuneAt(text, offset).Utf16SequenceLength : 0;
+                var width = 0;
+                if (offset < text.Length &&
+                    Rune.DecodeFromUtf16(text[offset..], out _, out width) != System.Buffers.OperationStatus.Done)
+                    throw new ArgumentException("Invalid UTF-16 regex input.", nameof(text));
                 void Check()
                 {
                     if ((++work & 1023) != 0) return;
@@ -584,7 +586,7 @@ internal sealed class AwkPosixRegex : IDisposable
                         case Op.Literal:
                         case Op.Dot:
                         case Op.Class:
-                            if (!characterSeen[index] && offset < text.Length && Matches(node, text.AsSpan(offset, width)))
+                            if (!characterSeen[index] && offset < text.Length && Matches(node, text.Slice(offset, width)))
                             {
                                 characterSeen[index] = true;
                                 characterNodes[characterCount++] = index;

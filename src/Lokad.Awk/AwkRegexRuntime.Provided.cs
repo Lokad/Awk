@@ -47,20 +47,24 @@ internal sealed partial class AwkRegexRuntime
                 _stringUnitMode == AwkStringUnitMode.Byte ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Utf16),
             input.AsString(_counters, _throwIfCancellationRequested));
 
-    private AwkRegexMatchSpan MatchProvidedSpan(AwkRegex regex, AwkText input, AwkRegexSearchOffset offset)
+    private AwkRegexMatchSpan MatchProvidedSpan(AwkRegex regex, AwkText input, AwkRegexSearchOffset offset,
+        AwkRegexSearchOffset inputStart = default)
     {
         try
         {
             var compiled = ResolveProvidedRegex(regex.Pattern, regex.ResolveCaseSensitivity(_resolveCaseSensitivity));
             if (compiled is null)
-                return MatchSpan(regex, input, offset, CaptureDotNetInputContext(input));
+                return MatchRecordDotNetSpan(regex, CaptureDotNetInputContext(input), inputStart, offset);
             _resources.RecordRegexMatch();
-            var bytes = input.AsSpan(_throwIfCancellationRequested);
-            var whole = compiled.Match(bytes, offset.Utf16Index, [], _cancellationToken);
+            var bytes = input.AsSpan(_throwIfCancellationRequested)[inputStart.ByteIndex..];
+            var relativeOffset = new AwkRegexSearchOffset(offset.ByteIndex - inputStart.ByteIndex,
+                offset.Utf16Index - inputStart.Utf16Index);
+            var whole = compiled.Match(bytes, relativeOffset.Utf16Index, [], _cancellationToken);
             _throwIfCancellationRequested();
             if (!whole.Success) return AwkRegexMatchSpan.NoMatch;
-            AwkRegexMatch.ValidateProvidedRanges(bytes, whole, [], offset, _memoryAccounting, _throwIfCancellationRequested);
-            return AwkRegexMatchSpan.Match(whole.ByteIndex, whole.ByteLength, whole.Utf16Index, whole.Utf16Length);
+            AwkRegexMatch.ValidateProvidedRanges(bytes, whole, [], relativeOffset, _memoryAccounting, _throwIfCancellationRequested);
+            return AwkRegexMatchSpan.Match(inputStart.ByteIndex + whole.ByteIndex, whole.ByteLength,
+                inputStart.Utf16Index + whole.Utf16Index, whole.Utf16Length);
         }
         catch (AwkRegexAdmissionException)
         {

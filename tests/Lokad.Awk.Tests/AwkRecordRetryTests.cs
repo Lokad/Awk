@@ -137,7 +137,8 @@ public sealed class AwkRecordRetryTests
         using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn));
         Assert.Equal("ok", (await cursor.ReadAsync()).RecordText.AsString());
         var before = state.MemoryAccounting.CurrentCommittedBytes;
-        var pressure = ReserveLeaving(memoryForState, 1024);
+        // Refuse the delivered batch's backing allocation, independently of buffer rounding.
+        var pressure = ReserveLeaving(memoryForState, batch.Length - 1);
 
         await MemoryFailure(cursor);
         Assert.Equal(2, host.ReadLineBatchLineCounts.Count);

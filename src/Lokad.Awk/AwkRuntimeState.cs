@@ -1050,6 +1050,13 @@ internal sealed class AwkRuntimeState : IDisposable
         AwkRegexSearchOffset searchOffset) =>
         _regexRuntime.MatchSpan(regex, input, searchOffset);
 
+    public AwkRegex PrepareContinuingRecordSeparator(AwkRegex regex) =>
+        _regexRuntime.PrepareContinuingRecordSeparator(regex);
+
+    public AwkRegexMatchSpan MatchRecordSeparatorSpan(AwkRegex regex, AwkText input,
+        AwkRegexSearchOffset recordStart, AwkRegexSearchOffset searchOffset) =>
+        _regexRuntime.MatchRecordSeparatorSpan(regex, input, recordStart, searchOffset);
+
     public AwkRegex CreateRegex(AwkRegexPattern pattern) =>
         _regexRuntime.Create(pattern);
 

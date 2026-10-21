@@ -495,7 +495,7 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         }
     }
 
-    private AwkPosixMatch MatchPosix(AwkPosixRegex program, string input, int startAt,
+    private AwkPosixMatch MatchPosix(AwkPosixRegex program, ReadOnlySpan<char> input, int startAt,
         int groupCount, AwkMemoryAccounting governor)
     {
         _throwIfCancellationRequested();
@@ -638,7 +638,8 @@ internal sealed partial class AwkRegexRuntime : IDisposable
         Literal,
         FixedPattern,
         FixedLiteral,
-        TranslatedPattern
+        TranslatedPattern,
+        RecordSeparator
     }
 
     internal readonly record struct AwkRegexExecutionPolicy(

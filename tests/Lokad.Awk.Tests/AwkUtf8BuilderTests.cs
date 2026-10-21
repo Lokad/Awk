@@ -54,25 +54,22 @@ public sealed class AwkUtf8BuilderTests
     }
 
     [Fact]
-    public void AwkUtf8Builder_ReservedPrefixSupportsBorrowedRegexViews()
+    public void AwkUtf8Builder_OwnedCopySurvivesBorrowedBufferReuse()
     {
-        using var builder = AwkUtf8Builder.CreateWithReservedPrefix(
-            AwkMemoryAccounting.Disabled, capacity: 2, prefix: 0x01);
+        using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled, capacity: 2);
         builder.Append("abc"u8);
 
-        var inputStart = builder.BorrowAsAwkText(AwkUtf8BorrowRange.Content);
-        var continuedInput = builder.BorrowAsAwkText(AwkUtf8BorrowRange.ReservedPrefixAndContent);
-        var ownedCopy = continuedInput.CopyByteSlice(
+        var input = builder.BorrowAsAwkText();
+        var ownedCopy = input.CopyByteSlice(
             0,
-            continuedInput.ByteLength,
+            input.ByteLength,
             AwkRuntimeCounters.Disabled,
             AwkMemoryAccounting.Disabled);
 
-        Assert.Equal("abc"u8.ToArray(), inputStart.AsSpan().ToArray());
-        Assert.Equal([0x01, (byte)'a', (byte)'b', (byte)'c'], continuedInput.AsSpan().ToArray());
+        Assert.Equal("abc"u8.ToArray(), input.AsSpan().ToArray());
         builder.RemovePrefix(3);
         builder.Append("replacement"u8);
-        Assert.Equal([0x01, (byte)'a', (byte)'b', (byte)'c'], ownedCopy.AsSpan().ToArray());
+        Assert.Equal("abc"u8.ToArray(), ownedCopy.AsSpan().ToArray());
     }
 
     [Fact]

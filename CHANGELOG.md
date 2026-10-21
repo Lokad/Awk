@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Record-separator word assertions use the current record's context consistently across
+  host read batches. Changing `RS` after newline input no longer re-anchors `^` midway
+  through a descriptor. The interpreter reuses borrowed UTF-8 and cached UTF-16 batch
+  views; removed the artificial input-prefix mechanism.
+
 - Dirty records keep captured `OFS` text funded after the variable changes, through
   reconstruction or replacement. Zero- and one-field records no longer retain an unused
   separator. Existing mutation preflights, cancellation and pending-user lifetimes remain.

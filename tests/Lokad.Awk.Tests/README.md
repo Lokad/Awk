@@ -56,6 +56,9 @@ Unicode conversion preflights and byte-native mixed-text casing; `AwkGensubAlloc
 bounds sparse replacement instruction storage.
 `AwkStdinBorrowingTests` covers independent stdin streams with reusable host buffers,
 admission/cancellation lifetimes and the ordinary borrowed newline path.
+`AwkRecordCursorContextTests` runs canonical record cases with stdin, files and pipes,
+different host batch sizes, shared admission and the prepared adapter. A focused counter/
+allocation check guards against copying or decoding every shrinking unread tail.
 
 `AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
 mutation refusal/cancellation and refunds using a shared host budget.

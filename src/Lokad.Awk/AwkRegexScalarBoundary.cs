@@ -2,7 +2,7 @@ namespace Lokad.Awk;
 
 internal static class AwkRegexScalarBoundary
 {
-    public static void ThrowIfSplit(string input, int start, int length) =>
+    public static void ThrowIfSplit(ReadOnlySpan<char> input, int start, int length) =>
         ThrowIfUnaligned(IsBoundary(input, start) && IsBoundary(input, start + length));
 
     public static void ThrowIfUnaligned(bool isAligned)
@@ -15,6 +15,6 @@ internal static class AwkRegexScalarBoundary
         }
     }
 
-    private static bool IsBoundary(string input, int index) =>
+    private static bool IsBoundary(ReadOnlySpan<char> input, int index) =>
         index == input.Length || !char.IsLowSurrogate(input[index]);
 }

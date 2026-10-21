@@ -23,6 +23,7 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(FieldCompatibilityRepairs(), AwkGoldenTag.Field),
         .. Tagged(RecordOwnershipCases(), AwkGoldenTag.Field, AwkGoldenTag.Record),
+        .. Tagged(RecordCursorContextCases(), AwkGoldenTag.Record, AwkGoldenTag.Regex, AwkGoldenTag.Io),
 
         .. Tagged(FieldCountValueCompatibilityRepairs(), AwkGoldenTag.Field, AwkGoldenTag.Variable),
 

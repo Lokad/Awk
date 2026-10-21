@@ -128,6 +128,8 @@ The record-handling boundaries to account for are:
   in RT; lone CR remains data. This extends the LF-only paragraph behavior of the GNU reference.
 - POSIX RS uses its first UTF-8 byte, but a match consumes the complete scalar with that
   leading byte, preserving valid UTF-8.
+- Host batch boundaries do not change regex RS records or RT. Word assertions use the
+  current record's context; `^` retains descriptor-start context, including after RS changes.
 - Empty FS splits characters in default mode; POSIX/traditional modes keep a nonempty record
   whole, subject to paragraph LF splitting. Literal single-scalar FS remains case-sensitive,
   including non-ASCII characters.

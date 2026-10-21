@@ -39,11 +39,9 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private bool _hasConsumedDescriptorBytes;
     private bool _discardedParagraphLeader;
     private int _paragraphLeaderScanLength;
-    // General regex searches borrow the current buffer. The optional reserved
-    // prefix prevents ^ from re-anchoring after a record has been consumed;
-    // the offset pair caches the byte-to-UTF-16 coordinate conversion.
+    // General regex searches borrow the batch and slice its decoded text at the
+    // current record. The offset pair avoids repeated byte-to-UTF-16 conversion.
     private AwkText? _regexInput;
-    private int _regexInputPrefixLength;
     private int _regexOffsetBufferStart = -1;
     private int _regexOffsetUtf16Index;
     private SeparatorCache _separatorCache;
@@ -83,6 +81,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     _state.CancellationCheckpoint);
                 _state.ThrowIfCancellationRequested();
                 reader.ReadLine();
+                _hasConsumedDescriptorBytes = true;
                 return AwkInputRecordResult.Record(
                     record,
                     line.Terminator,
@@ -360,12 +359,13 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 var input = GetRegexInput(buffer);
                 var recordStart = GetRegexSearchOffset(buffer);
                 var searchOffset = recordStart;
+                var regex = _hasConsumedDescriptorBytes ? separator.Continuing : separator.Value;
                 AwkRegexMatchSpan match;
                 while (true)
                 {
                     _state.Resources.RecordRegexRecordSeparatorBytesScanned(
                         input.ByteLength - searchOffset.ByteIndex);
-                    match = _state.MatchRegexSpan(separator.Value, input, searchOffset);
+                    match = _state.MatchRecordSeparatorSpan(regex, input, recordStart, searchOffset);
                     if (!match.Success || match.ByteLength > 0)
                         break;
                     if (match.ByteIndex >= input.ByteLength)
@@ -440,11 +440,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     if (_regexInput is not null)
                         return _regexInput;
 
-                    _regexInputPrefixLength = _hasConsumedDescriptorBytes ? 1 : 0;
-                    _regexInput = buffer.BorrowAsAwkText(
-                        _regexInputPrefixLength != 0
-                            ? AwkUtf8BorrowRange.ReservedPrefixAndContent
-                            : AwkUtf8BorrowRange.Content);
+                    _regexInput = buffer.BorrowAsAwkText();
                     return _regexInput;
                 }
 
@@ -453,17 +449,16 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     if (_regexOffsetBufferStart == _bufferStart)
                     {
                         return new AwkRegexSearchOffset(
-                            _regexInputPrefixLength + _bufferStart,
+                            _bufferStart,
                             _regexOffsetUtf16Index);
                     }
 
-                    var utf16Index = _regexInputPrefixLength +
-                        GetUtf16Length(buffer.AsSpan()[.._bufferStart], _scanCheckpoint);
+                    var utf16Index = GetUtf16Length(buffer.AsSpan()[.._bufferStart], _scanCheckpoint);
                     _scanCheckpoint();
                     _regexOffsetUtf16Index = utf16Index;
                     _regexOffsetBufferStart = _bufferStart;
                     return new AwkRegexSearchOffset(
-                        _regexInputPrefixLength + _bufferStart,
+                        _bufferStart,
                         _regexOffsetUtf16Index);
                 }
             }
@@ -712,7 +707,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                                 Math.Min(0x10FFFF, ((first & 0x07) << 18) + 0x3FFFF))
                         };
                         var pattern = "[" + char.ConvertFromUtf32(minimum) + "-" + char.ConvertFromUtf32(maximum) + "]";
-                        return new RegexSeparator(_state.CreateRegex(new AwkRegexPattern(pattern, warningSite: this)));
+                        return Regex(_state.CreateRegex(new AwkRegexPattern(pattern, warningSite: this)));
                     }
                     return first == (byte)'\n'
                         ? NewlineSeparator.Instance
@@ -741,9 +736,11 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     (separatorText.GetRuneLength(_state.CancellationCheckpoint) == 1 || IsLiteralPattern(separatorBytes, _scanCheckpoint)))
                     return new LiteralSeparator(separatorText, AwkRecordTerminator.FromText(separatorText));
 
-                return new RegexSeparator(_state.CreateRegex(
+                return Regex(_state.CreateRegex(
                     new AwkRegexPattern(separatorText.AsString(_state.Counters, _state.CancellationCheckpoint), warningSite: _state),
                     _state.ResolveRegexCaseSensitivity()));
+
+                RegexSeparator Regex(AwkRegex regex) => new(regex, _state.PrepareContinuingRecordSeparator(regex));
 
                 bool TryCreateByteSet(ReadOnlySpan<byte> separatorText, out ByteSetSeparator separator)
                 {
@@ -776,10 +773,8 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         var reader = _lineReader;
         var tail = reader?.PeekBufferedTail() ?? default;
         _state.ThrowIfCancellationRequested();
-        // SOH stays outside the record bytes and the regex search window. Including it after
-        // compaction keeps ^ anchored to the descriptor start rather than the compacted tail.
-        var buffer = AwkUtf8Builder.CreateWithReservedPrefix(
-            _state.MemoryAccounting, Math.Max(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, tail.Content.Length), 0x01);
+        var buffer = new AwkUtf8Builder(
+            _state.MemoryAccounting, Math.Max(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, tail.Content.Length));
         try
         {
             buffer.Append(tail.Content.Span, _state.CancellationCheckpoint);
@@ -1253,7 +1248,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         AwkText Value,
         AwkRecordTerminator Terminator) : RecordSeparator;
 
-    private sealed record RegexSeparator(AwkRegex Value) : RecordSeparator;
+    private sealed record RegexSeparator(AwkRegex Value, AwkRegex Continuing) : RecordSeparator;
 }
 
 internal readonly record struct AwkInputRecordResult
