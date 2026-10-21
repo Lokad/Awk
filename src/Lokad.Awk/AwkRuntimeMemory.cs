@@ -20,7 +20,8 @@ internal static class AwkRuntimeMemory
     private const int AwkValueBytes = 32;
     private const int AwkArrayKeyBytes = 32;
     private const int ArraySortEntryBytes = 96;
-    private const int FunctionFrameBytes = 160;
+    // Frame object, inline slots and amortized backing of active/recycled reference stacks.
+    private const int FunctionFrameBytes = 320;
     private const int FunctionLocalEntryBytes = 64;
     private const int ConcatenatedTextNodeBytes = 80;
     private const int SymbolMetadataBytes = 160;
@@ -120,6 +121,9 @@ internal static class AwkRuntimeMemory
 
     public static long EstimateAwkValueArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, AwkValueBytes);
+
+    public static long EstimateFunctionArgumentArrayBytes(int count) =>
+        EstimateArrayBufferBytes(count, 64);
 
     public static long EstimateAwkArrayKeyArrayBytes(int count) =>
         EstimateArrayBufferBytes(count, AwkArrayKeyBytes);

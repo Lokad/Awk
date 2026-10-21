@@ -86,11 +86,12 @@ internal sealed class AwkUserFunction
                     : AwkFunctionArgument.FromValue(await expression.EvaluateAsync(context).ConfigureAwait(false));
                 PushArguments([argument], context);
             }
-            else using (var buffer = RentedFunctionArguments.Rent(arguments.Count, state.Counters))
+            else using (var buffer = RentedFunctionArguments.Rent(arguments.Count, state))
             {
                 var values = buffer.Values;
                 for (var index = 0; index < arguments.Count; index++)
                 {
+                    if ((index & 63) == 0) state.CancellationCheckpoint();
                     var argument = arguments[index];
                     if (argument.TryGetVariableName(out var variableName) &&
                         state.TryResolveArrayArgument(variableName, out var arrayArgument))
@@ -139,11 +140,14 @@ internal sealed class AwkUserFunction
             {
                 PushArguments([AwkFunctionArgument.FromValue(arguments[0])], context);
             }
-            else using (var buffer = RentedFunctionArguments.Rent(arguments.Count, state.Counters))
+            else using (var buffer = RentedFunctionArguments.Rent(arguments.Count, state))
             {
                 var values = buffer.Values;
                 for (var index = 0; index < arguments.Count; index++)
+                {
+                    if ((index & 63) == 0) state.CancellationCheckpoint();
                     values[index] = AwkFunctionArgument.FromValue(arguments[index]);
+                }
 
                 PushArguments(values.AsSpan(0, arguments.Count), context);
             }
@@ -218,28 +222,45 @@ internal sealed class AwkUserFunction
 
     private readonly struct RentedFunctionArguments : IDisposable
     {
-        private readonly bool _isPooled;
         private readonly AwkFunctionArgument[]? _values;
+        private readonly AwkMemoryLease? _memory;
+        private readonly bool _pooled;
 
-        private RentedFunctionArguments(int count, AwkRuntimeCounters counters)
+        private RentedFunctionArguments(AwkFunctionArgument[] values, AwkMemoryLease memory, bool pooled)
         {
-            _isPooled = count > 0;
-            _values = _isPooled
-                ? ArrayPool<AwkFunctionArgument>.Shared.Rent(count)
-                : [];
-            if (_isPooled) counters.RecordFunctionArgumentBufferRent();
+            _values = values;
+            _memory = memory;
+            _pooled = pooled;
         }
 
         public AwkFunctionArgument[] Values => _values ?? [];
 
-        public static RentedFunctionArguments Rent(int count, AwkRuntimeCounters counters) => new(count, counters);
+        public static RentedFunctionArguments Rent(int count, AwkRuntimeState state)
+        {
+            if (count == 0) return new([], AwkMemoryLease.Disabled, false);
+            var memory = state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.EstimateFunctionArgumentArrayBytes(count));
+            var pooled = !state.MemoryAccounting.IsEnabled;
+            try
+            {
+                var values = pooled ? ArrayPool<AwkFunctionArgument>.Shared.Rent(count) : new AwkFunctionArgument[count];
+                state.Counters.RecordFunctionArgumentBufferRent();
+                return new(values, memory, pooled);
+            }
+            catch
+            {
+                memory.Dispose();
+                throw;
+            }
+        }
 
         public void Dispose()
         {
-            if (_isPooled)
-                ArrayPool<AwkFunctionArgument>.Shared.Return(Values, clearArray: true);
+            if (_pooled) ArrayPool<AwkFunctionArgument>.Shared.Return(Values, clearArray: true);
+            else Array.Clear(Values);
+            _memory?.Dispose();
         }
     }
+
 }
 
 internal readonly struct AwkFunctionArgument

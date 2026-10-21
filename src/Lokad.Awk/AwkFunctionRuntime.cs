@@ -15,14 +15,16 @@ internal sealed class AwkFunctionRuntime
         AwkMemoryAccounting memoryAccounting,
         Func<AwkVariableSlot, AwkValue> createValue,
         Func<AwkArrayName, bool> containsArray,
-        Action<AwkArrayName> removeFunctionLocalArray)
+        Action<AwkArrayName> removeFunctionLocalArray,
+        Action? checkpoint = null)
     {
         _removeFunctionLocalArray = removeFunctionLocalArray;
         _calls = new AwkFunctionCallStack(
             maxFunctionCallDepth,
             memoryAccounting,
             createValue,
-            containsArray);
+            containsArray,
+            checkpoint);
     }
 
     public bool IsInsideFunction => _calls.IsInsideFunction;
@@ -81,9 +83,6 @@ internal sealed class AwkFunctionRuntime
 
     public bool TryAssignLocal(AwkVariableName name, AwkValue value) =>
         _calls.TryAssignLocal(name, value);
-
-    public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, string value) =>
-        _calls.TryAssignLocal(slotId, value);
 
     public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value) =>
         _calls.TryAssignLocal(slotId, value);

@@ -202,13 +202,19 @@ internal sealed class AwkPipeRuntime(
         AwkFileDescriptor writeDescriptor,
         Task<AwkExitCode> commandCompletion, AwkMemoryLease memory, long order)
     {
+        private bool _closed;
+
         public long Order { get; } = order;
 
         public AwkFileDescriptor WriteDescriptor { get; } = writeDescriptor;
 
         public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host)
         {
-            await host.CloseDescriptorAsync(WriteDescriptor).ConfigureAwait(false);
+            if (!_closed)
+            {
+                await host.CloseDescriptorAsync(WriteDescriptor).ConfigureAwait(false);
+                _closed = true;
+            }
             try { return await commandCompletion.ConfigureAwait(false); }
             finally { memory.Dispose(); }
         }
@@ -217,7 +223,8 @@ internal sealed class AwkPipeRuntime(
         {
             try
             {
-                await host.CloseDescriptorForCleanupAsync(WriteDescriptor).ConfigureAwait(false);
+                if (!_closed)
+                    await host.CloseDescriptorForCleanupAsync(WriteDescriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -234,6 +241,9 @@ internal sealed class AwkPipeRuntime(
         AwkRecordCursor reader,
         Task<AwkExitCode> commandCompletion, AwkMemoryLease memory, long order)
     {
+        private bool _readClosed;
+        private bool _writeClosed;
+
         public long Order { get; } = order;
 
         public AwkRecordCursor Reader { get; } = reader;
@@ -241,8 +251,16 @@ internal sealed class AwkPipeRuntime(
         public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host)
         {
             Reader.Dispose();
-            await host.CloseDescriptorAsync(readDescriptor).ConfigureAwait(false);
-            await host.CloseDescriptorAsync(writeDescriptor).ConfigureAwait(false);
+            if (!_readClosed)
+            {
+                await host.CloseDescriptorAsync(readDescriptor).ConfigureAwait(false);
+                _readClosed = true;
+            }
+            if (!_writeClosed)
+            {
+                await host.CloseDescriptorAsync(writeDescriptor).ConfigureAwait(false);
+                _writeClosed = true;
+            }
             try { return await commandCompletion.ConfigureAwait(false); }
             finally { memory.Dispose(); }
         }
@@ -252,7 +270,8 @@ internal sealed class AwkPipeRuntime(
             Reader.Dispose();
             try
             {
-                await host.CloseDescriptorForCleanupAsync(readDescriptor).ConfigureAwait(false);
+                if (!_readClosed)
+                    await host.CloseDescriptorForCleanupAsync(readDescriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -261,7 +280,8 @@ internal sealed class AwkPipeRuntime(
 
             try
             {
-                await host.CloseDescriptorForCleanupAsync(writeDescriptor).ConfigureAwait(false);
+                if (!_writeClosed)
+                    await host.CloseDescriptorForCleanupAsync(writeDescriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {

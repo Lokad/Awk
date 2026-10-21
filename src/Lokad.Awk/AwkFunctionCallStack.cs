@@ -9,7 +9,8 @@ internal sealed class AwkFunctionCallStack(
     int maxFunctionCallDepth,
     AwkMemoryAccounting memoryAccounting,
     Func<AwkVariableSlot, AwkValue> createValue,
-    Func<AwkArrayName, bool>? containsArray = null)
+    Func<AwkArrayName, bool>? containsArray = null,
+    Action? checkpoint = null)
 {
     private readonly Func<AwkArrayName, bool> _containsArray = containsArray ?? (static _ => false);
     private readonly Stack<AwkFunctionFrame> _frames = new();
@@ -17,6 +18,7 @@ internal sealed class AwkFunctionCallStack(
     // Most potential aliases are independent function arguments. Counting live
     // references lets those promote directly; only forwarded aliases need a scan.
     private readonly Dictionary<AwkArrayName, int> _potentialArrayAliasCounts = new();
+    private long _aliasCapacityBytes;
     private long _nextFrameId;
     private int _localScopeFloor;
 
@@ -51,82 +53,76 @@ internal sealed class AwkFunctionCallStack(
 
     public bool PushFrame(AwkFunctionLocalLayout layout, ReadOnlySpan<AwkFunctionArgument> arguments)
     {
-        static long EstimateFrameBytes(AwkFunctionFrame frame)
-        {
-            var bytes = AwkRuntimeMemory.EstimateFunctionFrameBytes();
-            for (var index = 0; index < frame.Layout.SlotCount; index++)
-            {
-                bytes = AwkRuntimeMemory.CheckedAdd(
-                    bytes,
-                    EstimateLocalSlotBytes(frame.GetSlot(index)));
-            }
-
-            return bytes;
-        }
-
         if (_frames.Count >= maxFunctionCallDepth)
             throw new AwkRuntimeException(AwkMessages.ErrorFunctionRecursionLimit);
 
-        var frame = _recycledFrames.Count == 0
-            ? new AwkFunctionFrame()
-            : _recycledFrames.Pop();
+        // Values are already evaluated in the caller. Estimate their slots without creating
+        // the frame or its buffers; rejected admission must precede those allocations.
+        var localBytes = 0L;
+        for (var index = 0; index < layout.SlotCount; index++)
+        {
+            if ((index & 63) == 0) checkpoint?.Invoke();
+            localBytes = AwkRuntimeMemory.CheckedAdd(localBytes, EstimateLocalSlotBytes(CreateSlot(arguments, index)));
+        }
+        checkpoint?.Invoke();
+        var newFrame = _recycledFrames.Count == 0;
+        var retainedBytes = newFrame ? AwkRuntimeMemory.EstimateFunctionFrameBytes() : 0;
+        using var storage = memoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(retainedBytes, localBytes));
+        AwkFunctionFrame? frame = null;
         var potentialAliasesRegistered = false;
         try
         {
-            frame.Initialize(++_nextFrameId, layout);
+            if (newFrame)
+            {
+                if (memoryAccounting.IsEnabled)
+                {
+                    // The coarse frame charge covers both reference stacks. Prepare the
+                    // recycle capacity now so failure/unwind needs no new admission/allocation.
+                    _frames.EnsureCapacity(_frames.Count + 1);
+                    _recycledFrames.EnsureCapacity(_frames.Count + 1);
+                }
+                frame = new AwkFunctionFrame();
+                storage.Transfer(retainedBytes); // Retained with the execution's frame cache.
+            }
+            else frame = _recycledFrames.Pop();
+            frame.Initialize(++_nextFrameId, layout, pooled: !memoryAccounting.IsEnabled);
             for (var index = 0; index < layout.SlotCount; index++)
             {
-                ref var slot = ref frame.GetSlot(index);
-                if (index >= arguments.Length)
-                {
-                    slot = AwkFunctionLocalSlot.MissingScalar();
-                    continue;
-                }
-
-                var argument = arguments[index];
-                slot = argument.Kind switch
-                {
-                    AwkFunctionArgumentKind.Array => AwkFunctionLocalSlot.ArrayAlias(argument.ArrayName),
-                    AwkFunctionArgumentKind.PotentialArray =>
-                        AwkFunctionLocalSlot.PotentialArrayAlias(argument.ArrayName, argument.Value),
-                    AwkFunctionArgumentKind.UntypedScalar => AwkFunctionLocalSlot.UntypedScalar(argument.Value),
-                    _ => AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(argument.Value))
-                };
+                if ((index & 63) == 0) checkpoint?.Invoke();
+                frame.GetSlot(index) = CreateSlot(arguments, index);
             }
 
             RegisterPotentialArrayAliases(frame);
             potentialAliasesRegistered = true;
-            frame.RetainedMemoryBytes = EstimateFrameBytes(frame);
-            memoryAccounting.Reserve(frame.RetainedMemoryBytes);
-            try
-            {
-                _frames.Push(frame);
-            }
-            catch
-            {
-                memoryAccounting.ReleaseReserved(frame.RetainedMemoryBytes);
-                throw;
-            }
-
-            try
-            {
-                memoryAccounting.CommitReserved(frame.RetainedMemoryBytes);
-            }
-            catch
-            {
-                _frames.Pop();
-                memoryAccounting.ReleaseReserved(frame.RetainedMemoryBytes);
-                throw;
-            }
-
+            checkpoint?.Invoke();
+            _frames.Push(frame);
+            frame.RetainedMemoryBytes = localBytes;
+            storage.Transfer(localBytes);
             return frame.UsesInlineSlots;
         }
         catch
         {
-            if (potentialAliasesRegistered)
-                UnregisterPotentialArrayAliases(frame);
-            RecycleFrame(frame);
+            if (frame is not null)
+            {
+                if (potentialAliasesRegistered)
+                    UnregisterPotentialArrayAliases(frame);
+                RecycleFrame(frame);
+            }
             throw;
+        }
+
+        static AwkFunctionLocalSlot CreateSlot(ReadOnlySpan<AwkFunctionArgument> arguments, int index)
+        {
+            if (index >= arguments.Length) return AwkFunctionLocalSlot.MissingScalar();
+            var argument = arguments[index];
+            return argument.Kind switch
+            {
+                AwkFunctionArgumentKind.Array => AwkFunctionLocalSlot.ArrayAlias(argument.ArrayName),
+                AwkFunctionArgumentKind.PotentialArray =>
+                    AwkFunctionLocalSlot.PotentialArrayAlias(argument.ArrayName, argument.Value),
+                AwkFunctionArgumentKind.UntypedScalar => AwkFunctionLocalSlot.UntypedScalar(argument.Value),
+                _ => AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(argument.Value))
+            };
         }
 
         void RegisterPotentialArrayAliases(AwkFunctionFrame frame)
@@ -136,6 +132,7 @@ internal sealed class AwkFunctionCallStack(
             {
                 for (; registeredSlotCount < frame.Layout.SlotCount; registeredSlotCount++)
                 {
+                    if ((registeredSlotCount & 63) == 0) checkpoint?.Invoke();
                     var slot = frame.GetSlot(registeredSlotCount);
                     if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
                         RegisterPotentialArrayAlias(slot.ArrayName);
@@ -465,9 +462,6 @@ internal sealed class AwkFunctionCallStack(
         return true;
     }
 
-    public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, string value) =>
-        TryAssignLocal(slotId, AwkVariableSlot.FromText(value));
-
     public bool TryAssignLocal(AwkFunctionLocalSlotId slotId, AwkValue value) =>
         TryAssignLocal(slotId, AwkVariableSlot.FromValue(value));
 
@@ -549,7 +543,7 @@ internal sealed class AwkFunctionCallStack(
     private void RecycleFrame(AwkFunctionFrame frame)
     {
         var slots = frame.Reset();
-        if (slots.Length > 0)
+        if (slots.Length > 0 && !memoryAccounting.IsEnabled)
             ArrayPool<AwkFunctionLocalSlot>.Shared.Return(slots, clearArray: true);
         _recycledFrames.Push(frame);
     }
@@ -585,6 +579,20 @@ internal sealed class AwkFunctionCallStack(
     private void RegisterPotentialArrayAlias(AwkArrayName arrayName)
     {
         _potentialArrayAliasCounts.TryGetValue(arrayName, out var count);
+        if (memoryAccounting.IsEnabled && count == 0 &&
+            _potentialArrayAliasCounts.Count == _potentialArrayAliasCounts.EnsureCapacity(0))
+        {
+            var target = (int)Math.Min(Array.MaxLength,
+                Math.Max(3L, 2L * _potentialArrayAliasCounts.Count));
+            // Dictionary prime rounding stays below this conservative bound. Admit the
+            // new backing while the old backing is live; keep its actual capacity funded.
+            var bound = (int)Math.Min(Array.MaxLength, 2L * target + 4);
+            using var growth = memoryAccounting.AdmitMutation(AwkRuntimeMemory.EstimateDictionaryBufferBytes(bound));
+            var capacity = _potentialArrayAliasCounts.EnsureCapacity(target);
+            var bytes = AwkRuntimeMemory.EstimateDictionaryBufferBytes(capacity);
+            memoryAccounting.ReserveAndCommit(bytes - _aliasCapacityBytes);
+            _aliasCapacityBytes = bytes;
+        }
         _potentialArrayAliasCounts[arrayName] = checked(count + 1);
     }
 

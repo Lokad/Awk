@@ -220,7 +220,7 @@ public sealed class AwkOpaquePipeTests
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             awk.ExecuteAsync(host, cancellation.Token).WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Contains(new AwkFileDescriptor(81), closed);
+        Assert.Equal(new[] { new AwkFileDescriptor(81) }, closed);
         Assert.Equal("", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetAppendedOutput(AwkFileDescriptor.StdErr));
     }

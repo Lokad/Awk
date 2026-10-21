@@ -60,13 +60,14 @@ internal sealed class AwkFunctionFrame
 
     public long Id { get; private set; }
 
-    public void Initialize(long id, AwkFunctionLocalLayout layout)
+    public void Initialize(long id, AwkFunctionLocalLayout layout, bool pooled)
     {
         Id = id;
         Layout = layout;
         _slots = layout.SlotCount <= 2
             ? []
-            : ArrayPool<AwkFunctionLocalSlot>.Shared.Rent(layout.SlotCount);
+            : pooled ? ArrayPool<AwkFunctionLocalSlot>.Shared.Rent(layout.SlotCount)
+            : new AwkFunctionLocalSlot[layout.SlotCount];
     }
 
     public AwkFunctionLocalSlot[] Reset()

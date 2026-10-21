@@ -41,6 +41,7 @@ public sealed class AwkFunctionLocalSlotTests
             Assert.Throws<AwkRuntimeException>(() => stack.SetReturnValue(AwkValue.FromNumber(99)));
             Assert.False(stack.TryConsumeReturnValue(out _));
             stack.PushFrame(layout, [AwkFunctionArgument.Scalar(AwkValue.FromNumber(3))]);
+            var nestedBytes = memory.CurrentCommittedBytes;
             try
             {
                 Assert.True(stack.TryResolveLocalValue(name, out var nested));
@@ -56,12 +57,14 @@ public sealed class AwkFunctionLocalSlotTests
             }
             finally { stack.PopFrame(static _ => { }); }
             Assert.False(stack.TryResolveLocal(name, out _));
-            Assert.Equal(retained, memory.CurrentCommittedBytes);
+            Assert.InRange(memory.CurrentCommittedBytes, retained, nestedBytes - 1);
         }
         Assert.True(stack.TryResolveLocalValue(name, out var restored));
         Assert.Equal(7, restored.Value.AsNumber());
         stack.PopFrame(static _ => { });
-        Assert.Equal(initial, memory.CurrentCommittedBytes);
+        Assert.True(memory.CurrentCommittedBytes > initial); // Cached frames remain funded.
+        memoryForMemory.Dispose();
+        Assert.Equal(0, memoryForMemory.Budget.Reserved);
     }
 
     [Fact]

@@ -860,7 +860,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     public void Awk_FunctionLocalMemoryLimitFailsBeforeReplacingValue()
     {
         var variableName = AwkVariableName.FromText("x");
-        using var memoryForState = CreateGovernedState(500);
+        using var memoryForState = CreateGovernedState(1_024);
         var state = memoryForState.State;
         state.PushFunctionFrame(
             new AwkFunctionLocalLayout([variableName]),
@@ -868,6 +868,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
 
         try
         {
+            memoryForState.Budget.RefuseNextAdmissionMinimumGrowth = 1;
             var exception = Assert.Throws<AwkRuntimeException>(
                 () => state.AssignVariable(variableName, new string('v', 400)));
 
@@ -881,8 +882,10 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             state.PopFunctionFrame();
         }
 
-        Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.True(state.MemoryAccounting.CurrentCommittedBytes > 0); // The frame cache remains owned.
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        memoryForState.Dispose();
+        Assert.Equal(0, memoryForState.Budget.Reserved);
     }
 
     [Fact]
@@ -924,12 +927,14 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
         state.SetArrayAwkValue(arrayName, AwkArrayKey.FromOrdinal(1), AwkValue.FromNumber(7));
 
         Assert.True(state.IsArray(arrayName));
-        Assert.True(state.MemoryAccounting.CurrentCommittedBytes > 0);
+        var active = state.MemoryAccounting.CurrentCommittedBytes;
         state.PopFunctionFrame();
 
         Assert.False(state.IsArray(arrayName));
-        Assert.Equal(0, state.MemoryAccounting.CurrentCommittedBytes);
+        Assert.InRange(state.MemoryAccounting.CurrentCommittedBytes, 1, active - 1);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
+        memoryForState.Dispose();
+        Assert.Equal(0, memoryForState.Budget.Reserved);
     }
 
     [Fact]

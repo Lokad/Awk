@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Function arguments and frame storage are admitted before allocation. Recycled frames,
+  stack capacity and alias-index capacity remain funded until execution ends; cancellation
+  during frame setup preserves the caller and refunds unpublished storage.
+
+- Cleanup no longer closes an endpoint again after a confirmed successful close, including
+  partial file/input-pipe close failures and command failure after closing a pipe.
+
 - Removed unused internal helpers and specialized text concatenation to its sole live
   input type. Interpreter behavior and the public API are unchanged by this cleanup.
 

@@ -159,7 +159,9 @@ public sealed partial class AwkPreparedFunctionRegionTests
                     [AwkExpression.Number(branch ? 1 : 0)], new(state, output, io)));
             Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
             Assert.Equal(42, state.ResolveVariableValue(x).AsNumber());
-            Assert.Equal(before, state.MemoryAccounting.CurrentCommittedBytes);
+            // An admitted child may remain in the funded frame cache after unwind.
+            Assert.InRange(state.MemoryAccounting.CurrentCommittedBytes, before,
+                before + AwkRuntimeMemory.EstimateFunctionFrameBytes());
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.True(state.IsInsideFunction);
             Assert.Equal(1, counters.SynchronousFunctionRuns);

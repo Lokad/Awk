@@ -44,7 +44,6 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         host.EnqueueCommandExitCodes(resultCount == 0 ? [] : [0, 1]);
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
-        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
         host.EnqueueAppendExitCode(0);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",

@@ -42,6 +42,10 @@ without retry or fallback, and reuse by later commands after actual cleanup. Low
 memory tests inspect unchanged reservations and refunds after false; that primitive contract
 does not authorize a running command to recover from refusal.
 
+`AwkFunctionStorageTests` covers pre-admission of large argument/frame buffers, funded
+frame/alias caches, setup cancellation and final refunds. `AwkPartialCloseTests` covers
+public-boundary partial-close failures and cleanup without replaying successful closes.
+
 `AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
 mutation refusal/cancellation and refunds using a shared host budget.
 

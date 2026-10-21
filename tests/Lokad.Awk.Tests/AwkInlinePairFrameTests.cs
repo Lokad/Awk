@@ -46,9 +46,10 @@ public sealed class AwkInlinePairFrameTests
             finally { stack.PopFrame(static _ => { }); }
             Assert.False(stack.IsInsideFunction);
             Assert.Equal(0, accounting.CurrentReservedBytes);
-            Assert.Equal(0, accounting.CurrentCommittedBytes);
-            Assert.Equal(0, budget.Reserved);
+            if (mode == 2) Assert.True(budget.Reserved > 0); // Cached frame, not its released payload.
         }
+        await owner.DisposeAsync();
+        Assert.Equal(0, budget.Reserved);
     }
 
     [Theory]
@@ -67,6 +68,7 @@ public sealed class AwkInlinePairFrameTests
         GC.Collect();
         Assert.False(weak.TryGetTarget(out _));
         GC.KeepAlive(stack);
+        await owner.DisposeAsync();
         Assert.Equal(0, budget.Reserved);
     }
 
@@ -95,6 +97,8 @@ public sealed class AwkInlinePairFrameTests
         Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
         stack.PopFrame(static _ => { });
         Assert.False(stack.IsInsideFunction);
+        Assert.True(budget.Reserved > 0);
+        await owner.DisposeAsync();
         Assert.Equal(0, budget.Reserved);
     }
 

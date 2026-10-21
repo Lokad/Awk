@@ -86,7 +86,8 @@ internal sealed class AwkRuntimeState : IDisposable
             MemoryAccounting,
             _variables.CreateValue,
             _variables.ContainsArray,
-            _variables.RemoveFunctionLocalArray);
+            _variables.RemoveFunctionLocalArray,
+            CancellationCheckpoint);
         _regexRuntime = new AwkRegexRuntime(
             ResolveRegexCaseSensitivity,
             stringUnitMode,

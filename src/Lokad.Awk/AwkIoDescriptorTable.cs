@@ -85,21 +85,13 @@ internal sealed class AwkIoDescriptorTable
 
     public async Task CloseAllAsync(AwkIoHostAdapter host)
     {
-        foreach (var output in _outputFiles.Values)
-        {
-            if (output.HasDescriptor)
-                await host.CloseDescriptorAsync(output.Descriptor).ConfigureAwait(false);
-        }
+        // Retire each successful close immediately. If a later close fails, cleanup
+        // owns only the endpoints that still need closing.
+        foreach (var path in _outputFiles.Keys.ToArray())
+            await CloseOutputAsync(host, path).ConfigureAwait(false);
 
-        _outputFiles.Clear();
-
-        foreach (var input in _inputFiles.Values)
-        {
-            input.Reader.Dispose();
-            await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
-        }
-
-        _inputFiles.Clear();
+        foreach (var path in _inputFiles.Keys.ToArray())
+            await CloseInputAsync(host, path).ConfigureAwait(false);
     }
 
     public async Task CloseAllForCleanupAsync(AwkIoHostAdapter host)
