@@ -4,6 +4,60 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> CalendarNormalizationCases()
     {
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-0",
+            ["BEGIN{print strftime(\"%Y\",0,1)}"], [])
+            .WithStdOut("1970\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-1",
+            ["BEGIN{print strftime(\"%5Y\",0,1)}"], [])
+            .WithStdOut("01970\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-2",
+            ["BEGIN{print strftime(\"%١Y\",0,1)}"], [])
+            .WithStdOut("%١Y\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-3",
+            ["BEGIN{print strftime(\"%１Y\",0,1)}"], [])
+            .WithStdOut("%１Y\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-4",
+            ["BEGIN{print strftime(\"%١%\",0,1)}"], [])
+            .WithStdOut("%١%\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-5",
+            ["BEGIN{print strftime(\"%١\",0,1)}"], [])
+            .WithStdOut("%١\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-6",
+            ["BEGIN{print strftime(\"%Q\",0,1)}"], [])
+            .WithStdOut("%Q\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-7",
+            ["BEGIN{print strftime(\"%5Q\",0,1)}"], [])
+            .WithStdOut("  %5Q\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-8",
+            ["BEGIN{print strftime(\"%05Q\",0,1)}"], [])
+            .WithStdOut("0%05Q\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-9",
+            ["BEGIN{print strftime(\"%_5Q\",0,1)}"], [])
+            .WithStdOut(" %_5Q\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-10",
+            ["BEGIN{print strftime(\"%-5Q\",0,1)}"], [])
+            .WithStdOut(" %-5Q\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-11",
+            ["BEGIN{print strftime(\"%^v\",0,1)}"], [])
+            .WithStdOut("%^V\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-12",
+            ["BEGIN{print strftime(\"%#v\",0,1)}"], [])
+            .WithStdOut("%#v\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-13",
+            ["BEGIN{print strftime(\"%:Y\",0,1)}"], [])
+            .WithStdOut("%:Y\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-14",
+            ["BEGIN{print strftime(\"%EQ\",0,1)}"], [])
+            .WithStdOut("%EQ\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-15",
+            ["BEGIN{print strftime(\"%E\",0,1)}"], [])
+            .WithStdOut("%E\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-16",
+            ["BEGIN{print strftime(\"%１\",0,1)}"], [])
+            .WithStdOut("%１\n").Build();
+        yield return AwkGoldenCaseBuilder.Create("calendar-directive-literal-17",
+            ["BEGIN{print strftime(\"%5١Y\",0,1)}"], [])
+            .WithStdOut("  %5١Y\n").Build();
         yield return AwkGoldenCaseBuilder
             .Create("calendar-date-0",
                 ["BEGIN{printf \"%.0f\\n\",mktime(\"1970 1 1 0 0 0\",1)}"], [])

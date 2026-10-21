@@ -54,6 +54,8 @@ covers relinquished format text and reuse of AwkText's decode cache.
 input phases, pending users, cancellation, refusal and refunds. `AwkCaseMemoryTests` covers
 Unicode conversion preflights and byte-native mixed-text casing; `AwkGensubAllocationTests`
 bounds sparse replacement instruction storage.
+`AwkStdinBorrowingTests` covers independent stdin streams with reusable host buffers,
+admission/cancellation lifetimes and the ordinary borrowed newline path.
 
 `AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
 mutation refusal/cancellation and refunds using a shared host budget.

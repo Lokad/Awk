@@ -78,6 +78,9 @@ loop body or comparator clears its original owner. These scoped estimates can te
 shared text twice; Awk does not track object aliases.
 Output staging includes captured values, decoded formats and redirection names. Replacing OFMT
 or CONVFMT does not leave a separate formatter cache retaining the old text.
+Captured `close()` names remain funded across later argument evaluation and pending users.
+Using stdin aliases alongside main input can retain admitted unread batches; hosts may still
+reuse the previous read buffer when the next read on that descriptor begins.
 File redirections admit normalized paths and table growth before host opens. Logical flush
 retains path ownership; close refunds the path after the host finishes, while reusable table
 capacity stays funded until execution cleanup.

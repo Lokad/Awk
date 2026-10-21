@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Stdin aliases preserve unread input before another logical stream reads the same host
+  descriptor. Hosts can reuse read buffers under the existing lifetime contract.
+- `close(name, direction)` retains shared admission for the captured name through later
+  argument evaluation and pending users; insufficient allowance can now fail earlier.
+- Explicit `srand(seed)` no longer queries the embedding application's time provider.
+- `strftime` accepts ASCII width digits and retains unknown directives with qualified GNU
+  padding/case behavior, avoiding spurious large widths and generic runtime failures.
+
 - Resolved getline source names and destination keys retain shared admission through
   later evaluation, input phases and pending host operations. Previously under-accounted
   programs can now fail earlier; recoverable read failures still return -1 without stderr.

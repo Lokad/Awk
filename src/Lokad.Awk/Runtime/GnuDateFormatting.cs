@@ -66,11 +66,18 @@ internal static class GnuDateFormatting
                 break;
             }
 
-            PreflightAppend(0, Math.Max(64, directive.Padding == GnuDatePadding.None ? 0 : directive.Width.Value));
-            var text = ApplyCaseConversion(
-                FormatDirective(value, directive),
-                directive.CaseConversion);
-            text = ApplyPadding(text, directive.Padding, directive.Width);
+            var recognized = TryFormatDirective(value, directive, out var text);
+            var padding = !recognized && directive.Padding != GnuDatePadding.Zero
+                ? GnuDatePadding.Space : directive.Padding;
+            var temporaryCharacters = recognized ? 64 : AwkRuntimeMemory.CheckedAdd(directive.Text.Length, 1);
+            if (padding != GnuDatePadding.None)
+                temporaryCharacters = Math.Max(temporaryCharacters, directive.Width.Value);
+            PreflightAppend(0, temporaryCharacters);
+            if (!recognized)
+                text = "%" + directive.Text;
+            if (recognized || directive.CaseConversion == GnuDateCaseConversion.Uppercase)
+                text = ApplyCaseConversion(text, directive.CaseConversion);
+            text = ApplyPadding(text, padding, directive.Width);
             PreflightAppend(text.Length, text.Length);
             builder.Append(text);
         }
@@ -127,7 +134,7 @@ internal static class GnuDateFormatting
             }
 
             var width = 0;
-            while (index < format.Length && char.IsDigit(format[index]))
+            while (index < format.Length && format[index] is >= '0' and <= '9')
             {
                 checkpoint?.Invoke();
                 var digit = format[index] - '0';
@@ -158,16 +165,16 @@ internal static class GnuDateFormatting
             return true;
         }
 
-        static string FormatDirective(
+        static bool TryFormatDirective(
             DateTimeOffset value,
-            GnuDateDirective directive)
+            GnuDateDirective directive,
+            out string text)
         {
+            text = string.Empty;
             if (directive.ColonCount.Value > 0 && directive.Specifier != 'z')
-            {
-                throw new GnuDateFormatException(directive.Text);
-            }
+                return false;
 
-            return directive.Specifier switch
+            var formatted = directive.Specifier switch
             {
                 '%' => "%",
                 'n' => "\n",
@@ -213,8 +220,11 @@ internal static class GnuDateFormatting
                 'x' => Format(value, "%m/%d/%y"),
                 'y' => value.ToString("yy", Culture),
                 'Y' => value.ToString("yyyy", Culture),
-                _ => throw new GnuDateFormatException(directive.Text)
+                _ => null
             };
+            if (formatted is null) return false;
+            text = formatted;
+            return true;
 
             static string FormatNanoseconds(DateTimeOffset value)
             {
@@ -368,6 +378,3 @@ internal enum GnuDateCaseConversion
     Uppercase,
     SwapCase
 }
-
-internal sealed class GnuDateFormatException(string directive)
-    : Exception($"'%{directive}' is not supported on this system.");

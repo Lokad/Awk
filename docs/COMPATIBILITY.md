@@ -101,6 +101,8 @@ the golden contract, not every libc quirk. Time comes from the policy's clock/zo
 system/local defaults and epoch/UTC in the restricted preset.
 Large `%g`/`%G` precision without `#` does not require precision-sized padding storage;
 alternate-form and other conversions still admit storage for their actual large results.
+`strftime` widths use ASCII digits. Unknown directives retain their literal spelling with
+qualified GNU padding/case handling; this does not emulate every libc or locale variant.
 
 Case-insensitive strings use invariant scalar folding (ASCII in byte mode), without
 normalization or multi-scalar expansion. Array keys remain case-sensitive. Sorting uses
