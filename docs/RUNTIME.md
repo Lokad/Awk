@@ -87,6 +87,8 @@ Awk awaits actual completion. Acquired descriptors and delivered buffers remain 
 cancellation unwinds. Essential cleanup uses an uncancelled token, attempts every acquired
 descriptor and awaits outstanding users before refunds. A host that never completes can
 delay completion indefinitely; hard process/container isolation belongs to the embedding host.
+Confirmed successful closes are not repeated; failed closes may receive one best-effort
+cleanup attempt, including source-file descriptors.
 
 Parent failure cancels owned pipe commands before cleanup waits. Cleanup still awaits actual
 command completion; successful `close()` preserves command exit statuses.

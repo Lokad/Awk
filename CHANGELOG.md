@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Failed source-file closes retain ownership through a best-effort cleanup attempt, including
+  after read failure or cancellation. Confirmed successful closes are not repeated.
+
+- `printf` and `sprintf` preserve backslashes in evaluated format strings. Removed a second
+  escape-decoding pass that incorrectly turned literal `\\n` into a newline or dropped
+  dynamically constructed backslashes. Source string escapes still decode once.
+
 - Function calls skip unused memory estimates when no shared governor is supplied and
   construct local slots directly. Governed admission and retained-cache ownership are preserved.
 

@@ -60,6 +60,7 @@ Source strings, options and consumed operands use profile-aware, single-pass dec
 include filenames are raw quoted paths. Consecutive numeric-byte escapes decode together
 as UTF-8: `"\303\251"` is é. Malformed/incomplete runs use U+00xx mappings, so `"\377"` is ÿ;
 separate values do not merge runs. Escape-generated text remains valid UTF-8.
+`printf`/`sprintf` consume evaluated formats without decoding their backslashes again.
 
 Unicode escape support uses lowercase `\u` in default/traditional modes; uppercase `\U`
 is unknown. Invalid scalars become `?` with a warning; missing digits retain `u` and warn.

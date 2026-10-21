@@ -66,34 +66,6 @@ internal static class PrintfEvaluation
                 nextCheckpoint = (long)index + AwkRuntimeLimits.CancellationCheckBytes;
             }
             var current = format[index];
-            if (current == '\\')
-            {
-                if (index + 1 >= format.Length)
-                {
-                    output.AppendAscii('\\');
-                    continue;
-                }
-
-                var escaped = format[++index];
-                var escapedByte = escaped switch
-                {
-                    'n' => (byte)'\n',
-                    'r' => (byte)'\r',
-                    't' => (byte)'\t',
-                    'b' => (byte)'\b',
-                    'f' => (byte)'\f',
-                    'v' => (byte)'\v',
-                    '\\' => (byte)'\\',
-                    _ => byte.MaxValue
-                };
-                if (escapedByte != byte.MaxValue)
-                    output.AppendAscii(escapedByte);
-                else
-                    AppendFormatCharacter(output, format, ref index);
-
-                continue;
-            }
-
             if (current != '%')
             {
                 AppendFormatCharacter(output, format, ref index);

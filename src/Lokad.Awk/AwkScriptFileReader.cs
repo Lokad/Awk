@@ -148,9 +148,12 @@ internal static class AwkScriptFileReader
                 resources.RecordHostCall();
                 var closed = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
                     .ConfigureAwait(false);
-                if (closed != AwkOperationStatus.Success &&
-                    readResult is not AwkScriptTextReadResult.Failed)
+                if (closed != AwkOperationStatus.Success)
                 {
+                    await CloseForCleanupAsync(opened.FileDescriptor).ConfigureAwait(false);
+                    if (readResult is AwkScriptTextReadResult.Failed)
+                        return readResult;
+
                     return AwkScriptTextReadResult.Failure(
                         AwkMessages.FormatPathError(path.Display, "Close failed."),
                         AwkDiagnosticId.SourceLoadFailure);
