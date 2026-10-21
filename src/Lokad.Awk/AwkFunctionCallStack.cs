@@ -61,13 +61,14 @@ internal sealed class AwkFunctionCallStack(
         var localBytes = 0L;
         for (var index = 0; index < layout.SlotCount; index++)
         {
-            if ((index & 63) == 0) checkpoint?.Invoke();
+            if ((index & 63) == 63) checkpoint?.Invoke();
             localBytes = AwkRuntimeMemory.CheckedAdd(localBytes, EstimateLocalSlotBytes(CreateSlot(arguments, index)));
         }
-        checkpoint?.Invoke();
         var newFrame = _recycledFrames.Count == 0;
         var retainedBytes = newFrame ? AwkRuntimeMemory.EstimateFunctionFrameBytes() : 0;
-        using var storage = memoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(retainedBytes, localBytes));
+        // Keep synchronous staging local: no lease object on every ordinary call.
+        var unpublishedBytes = AwkRuntimeMemory.CheckedAdd(retainedBytes, localBytes);
+        memoryAccounting.ReserveAndCommit(unpublishedBytes);
         AwkFunctionFrame? frame = null;
         var potentialAliasesRegistered = false;
         try
@@ -82,13 +83,13 @@ internal sealed class AwkFunctionCallStack(
                     _recycledFrames.EnsureCapacity(_frames.Count + 1);
                 }
                 frame = new AwkFunctionFrame();
-                storage.Transfer(retainedBytes); // Retained with the execution's frame cache.
+                unpublishedBytes -= retainedBytes; // Retained with the execution's frame cache.
             }
             else frame = _recycledFrames.Pop();
             frame.Initialize(++_nextFrameId, layout, pooled: !memoryAccounting.IsEnabled);
             for (var index = 0; index < layout.SlotCount; index++)
             {
-                if ((index & 63) == 0) checkpoint?.Invoke();
+                if ((index & 63) == 63) checkpoint?.Invoke();
                 frame.GetSlot(index) = CreateSlot(arguments, index);
             }
 
@@ -97,7 +98,7 @@ internal sealed class AwkFunctionCallStack(
             checkpoint?.Invoke();
             _frames.Push(frame);
             frame.RetainedMemoryBytes = localBytes;
-            storage.Transfer(localBytes);
+            unpublishedBytes -= localBytes;
             return frame.UsesInlineSlots;
         }
         catch
@@ -109,6 +110,10 @@ internal sealed class AwkFunctionCallStack(
                 RecycleFrame(frame);
             }
             throw;
+        }
+        finally
+        {
+            memoryAccounting.ReleaseCommitted(unpublishedBytes);
         }
 
         static AwkFunctionLocalSlot CreateSlot(ReadOnlySpan<AwkFunctionArgument> arguments, int index)
@@ -132,7 +137,7 @@ internal sealed class AwkFunctionCallStack(
             {
                 for (; registeredSlotCount < frame.Layout.SlotCount; registeredSlotCount++)
                 {
-                    if ((registeredSlotCount & 63) == 0) checkpoint?.Invoke();
+                    if ((registeredSlotCount & 63) == 63) checkpoint?.Invoke();
                     var slot = frame.GetSlot(registeredSlotCount);
                     if (slot.Kind == AwkFunctionLocalSlotKind.PotentialArrayAlias)
                         RegisterPotentialArrayAlias(slot.ArrayName);
