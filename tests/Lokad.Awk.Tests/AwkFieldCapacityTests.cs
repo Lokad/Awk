@@ -47,7 +47,8 @@ public sealed class AwkFieldCapacityTests
         var capacity = target >= 2048 ? target : 128;
         var cacheBytes = operation == "field" ? 320 : 0;
         Assert.Equal(target, frame.GetFieldCount(NoSplit));
-        Assert.Equal(AwkRuntimeMemory.EstimateTextBytes(record) + Buffer(capacity) + cacheBytes,
+        Assert.Equal(AwkRuntimeMemory.EstimateTextBytes(record) + Buffer(capacity) + cacheBytes +
+            (operation == "reference" ? 0 : Space.EstimatedRetainedMemoryBytes),
             accounting.CurrentCommittedBytes);
         Assert.Equal(0, accounting.CurrentReservedBytes);
         Assert.Equal(target, counters.FieldsMaterialized);
@@ -145,7 +146,8 @@ public sealed class AwkFieldCapacityTests
         Assert.Equal(100, fields.Count);
         Assert.Equal(128, fields.Capacity);
         Assert.Equal(AwkRuntimeMemory.EstimateTextBytes(record) + Buffer(128) +
-            (operation == "field" ? 320 : 0), accounting.CurrentCommittedBytes);
+            (operation == "field" ? 320 : 0) +
+            (operation == "reference" ? 0 : Space.EstimatedRetainedMemoryBytes), accounting.CurrentCommittedBytes);
         frame.ResetRecord();
         AssertRefunded(accounting, budget);
     }
@@ -160,7 +162,8 @@ public sealed class AwkFieldCapacityTests
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, record, _) = Frame(accounting, counters, 1);
         for (var count = 2; count <= 513; count++) frame.AssignFieldCount(new(count), Space, NoSplit);
-        Assert.Equal(AwkRuntimeMemory.EstimateTextBytes(record) + Buffer(1024), accounting.CurrentCommittedBytes);
+        Assert.Equal(AwkRuntimeMemory.EstimateTextBytes(record) + Buffer(1024) + Space.EstimatedRetainedMemoryBytes,
+            accounting.CurrentCommittedBytes);
         Assert.Equal(513, counters.FieldsMaterialized);
         frame.AssignFieldCount(new(0), Space, NoSplit);
         Assert.Equal(AwkRuntimeMemory.EstimateTextBytes(record) + Buffer(1024), accounting.CurrentCommittedBytes);

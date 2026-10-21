@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Dirty records keep captured `OFS` text funded after the variable changes, through
+  reconstruction or replacement. Zero- and one-field records no longer retain an unused
+  separator. Existing mutation preflights, cancellation and pending-user lifetimes remain.
+
 - Stdin aliases preserve unread input before another logical stream reads the same host
   descriptor. Hosts can reuse read buffers under the existing lifetime contract.
 - `close(name, direction)` retains shared admission for the captured name through later

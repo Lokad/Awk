@@ -59,6 +59,8 @@ admission/cancellation lifetimes and the ordinary borrowed newline path.
 
 `AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
 mutation refusal/cancellation and refunds using a shared host budget.
+`AwkRecordOwnershipTests` covers dirty-record separator funding, unused retention, refusal
+and pending/canceled output lifetimes.
 
 `AwkArrayEstimateTests` covers representable/overflow totals with lazy text and verifies
 array replacement preflights and refunds without constructing enormous dictionaries.

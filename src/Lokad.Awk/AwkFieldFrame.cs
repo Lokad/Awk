@@ -230,8 +230,10 @@ internal sealed class AwkFieldFrame(
         var payloadBytes = AwkRuntimeMemory.CheckedAdd(
             _fieldPayloadByteLength - _fieldTexts[to].ByteLength(), field.ByteLength());
         var recordBytes = EstimateComposedRecordByteLength(separator.ByteLength, _fieldTexts.Count, payloadBytes);
-        using var peak = PreflightRecomposition(_retainedMemoryBytes, recordBytes);
+        var retainedBytes = ReplaceSeparatorEstimate(_retainedMemoryBytes, separator, _fieldTexts.Count);
+        using var peak = PreflightRecomposition(retainedBytes, recordBytes);
         checkpoint?.Invoke();
+        ReplaceRetainedMemory(retainedBytes);
         // Both descriptors still refer to the same funded record; no cached value escapes.
         _fieldTexts[to] = field;
         _fieldPayloadByteLength = payloadBytes;
@@ -275,6 +277,7 @@ internal sealed class AwkFieldFrame(
             newPayloadByteLength);
         if (newFieldCount > oldFieldCount)
             newRetainedBytes = AdjustEstimate(newRetainedBytes, _fieldCountValue.RetainedTextMemoryBytes, 0);
+        newRetainedBytes = ReplaceSeparatorEstimate(newRetainedBytes, outputFieldSeparator, newFieldCount);
         using var recompositionPeak = PreflightRecomposition(newRetainedBytes, composedRecordByteLength);
         var addedFields = newFieldCount - oldFieldCount;
         if (addedFields >= MutationCheckpointFields || newCapacity != _fieldTexts.Capacity)
@@ -427,6 +430,7 @@ internal sealed class AwkFieldFrame(
             outputFieldSeparator.ByteLength,
             newFieldCount,
             newPayloadByteLength);
+        newRetainedBytes = ReplaceSeparatorEstimate(newRetainedBytes, outputFieldSeparator, newFieldCount);
         using var recompositionPeak = PreflightRecomposition(newRetainedBytes, composedRecordByteLength);
         if (Math.Abs(newFieldCount - oldFieldCount) >= MutationCheckpointFields || newCapacity != _fieldTexts.Capacity)
         {
@@ -796,8 +800,14 @@ internal sealed class AwkFieldFrame(
         _recordValue = AwkValue.FromText(string.Empty);
         _recordValueIsCurrent = false;
         _recordTextIsCurrent = false;
-        _recompositionSeparator = outputFieldSeparator;
+        _recompositionSeparator = _fieldTexts.Count > 1 ? outputFieldSeparator : AwkText.Empty;
     }
+
+    // The frame can outlive the OFS variable's value. Its existing owner funds that
+    // captured text independently, and zero/one-field records never need the separator.
+    private long ReplaceSeparatorEstimate(long retainedBytes, AwkText separator, int fieldCount) =>
+        AdjustEstimate(retainedBytes, _recompositionSeparator.EstimatedRetainedMemoryBytes,
+            fieldCount > 1 ? separator.EstimatedRetainedMemoryBytes : 0);
 
     private void ReplaceRetainedMemory(long newBytes)
     {
