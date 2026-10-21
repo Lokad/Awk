@@ -6,12 +6,12 @@ public sealed class AwkFieldCapacityTests
     private static readonly AwkText Space = AwkText.FromSourceLiteralString(" ");
 
     [Theory]
-    [InlineData(true, 65)]
-    [InlineData(true, 4097)]
-    public async Task RetainedCapacitySurvivesShrinkUntilStorageIsReplaced(bool governed, int count)
+    [InlineData(65)]
+    [InlineData(4097)]
+    public async Task RetainedCapacitySurvivesShrinkUntilStorageIsReplaced(int count)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, record, fields) = Frame(accounting, counters, count);
@@ -28,18 +28,17 @@ public sealed class AwkFieldCapacityTests
 
     public static IEnumerable<object[]> GrowthCases()
     {
-        foreach (var mode in new[] { 1, 2 })
-            foreach (var operation in new[] { "field", "count", "reference" })
-                foreach (var target in new[] { 65, 128, 2048 })
-                    yield return [mode, operation, target];
+        foreach (var operation in new[] { "field", "count", "reference" })
+            foreach (var target in new[] { 65, 128, 2048 })
+                yield return [operation, target];
     }
 
     [Theory]
     [MemberData(nameof(GrowthCases))]
-    public async Task EveryGrowthRouteChargesPlannedCapacity(bool governed, string operation, int target)
+    public async Task EveryGrowthRouteChargesPlannedCapacity(string operation, int target)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, record, _) = Frame(accounting, counters, 64);
@@ -59,17 +58,16 @@ public sealed class AwkFieldCapacityTests
 
     public static IEnumerable<object[]> MutationCases()
     {
-        foreach (var mode in new[] { 1, 2 })
-            foreach (var operation in new[] { "field", "count", "reference" })
-                yield return [mode, operation];
+        foreach (var operation in new[] { "field", "count", "reference" })
+            yield return [operation];
     }
 
     [Theory]
     [MemberData(nameof(MutationCases))]
-    public async Task RefusedCapacityGrowthPreservesTheRecordAndBackingStorage(bool governed, string operation)
+    public async Task RefusedCapacityGrowthPreservesTheRecordAndBackingStorage(string operation)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, record, fields) = Frame(accounting, counters, 64);
@@ -100,7 +98,9 @@ public sealed class AwkFieldCapacityTests
     }
 
     [Theory]
-    [MemberData(nameof(MutationCases))]
+    [InlineData(false, "field")] [InlineData(true, "field")]
+    [InlineData(false, "count")] [InlineData(true, "count")]
+    [InlineData(false, "reference")] [InlineData(true, "reference")]
     public async Task CanceledCapacityGrowthCannotPublishAPrefix(bool governed, string operation)
     {
         var budget = new CooperativeTestBudget(Limit);
@@ -135,10 +135,10 @@ public sealed class AwkFieldCapacityTests
 
     [Theory]
     [MemberData(nameof(MutationCases))]
-    public async Task SpareCapacityIsKeptAndChargedWithoutReplacingTheList(bool governed, string operation)
+    public async Task SpareCapacityIsKeptAndChargedWithoutReplacingTheList(string operation)
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, record, fields) = Frame(accounting, counters, 65);
@@ -152,12 +152,11 @@ public sealed class AwkFieldCapacityTests
         AssertRefunded(accounting, budget);
     }
 
-    [Theory]
-    [InlineData(true)]
-    public async Task RepeatedGrowthAdmitsOnlyGeometricBuffersAndZeroNfKeepsCapacityUntilRecomposition(bool governed)
+    [Fact]
+    public async Task RepeatedGrowthAdmitsOnlyGeometricBuffersAndZeroNfKeepsCapacityUntilRecomposition()
     {
         var budget = new CooperativeTestBudget(Limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         var (frame, record, _) = Frame(accounting, counters, 1);
