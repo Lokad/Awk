@@ -4,6 +4,17 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> FunctionFlowCompatibilityRepairs()
     {
+        yield return Passing("evaluation-captures-values-before-later-global-mutation",
+            ["""
+                function wipe(){x="";print "held";return 0}
+                function f(a,b){print length(a)}
+                BEGIN{
+                    x="abc";f(x,wipe())
+                    x="abc";print index(x,wipe())
+                    x="abc";print x==wipe()
+                    x="abc";print length(x wipe())
+                }
+                """], [], "held\n3\nheld\n0\nheld\n0\nheld\n4\n");
         yield return Passing("file-action-cold-scalar-uses-global-binding",
             ["function readNext(x){getline line;print \"function\",x} BEGIN{readNext(\"local\")} BEGINFILE{print \"file\",x;x=\"global\"}"],
             [], "file \nfunction local\n", "record\n");

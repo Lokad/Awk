@@ -6,11 +6,11 @@ namespace Lokad.Awk;
 
 internal sealed class AwkArrayRuntime
 {
-    private readonly struct AwkArrayReservation(int count, AwkMemoryLease? lease, long newKeyTextBytes) : IDisposable
+    private readonly struct AwkArrayReservation(int count, AwkMemoryLease? lease, long keyTextBytes) : IDisposable
     {
         public int Count { get; } = count;
 
-        public long NewKeyTextBytes { get; } = newKeyTextBytes;
+        public long KeyTextBytes { get; } = keyTextBytes;
 
         public AwkMemoryLease Lease => lease ??
             throw new InvalidOperationException("The default array reservation has no memory lease.");
@@ -270,7 +270,7 @@ internal sealed class AwkArrayRuntime
             entries,
             static entry => AwkVariableSlot.FromText(entry.KeyText),
             reservation.Lease,
-            reservation.NewKeyTextBytes);
+            reservation.KeyTextBytes);
         return entries.Length;
     }
 
@@ -369,7 +369,7 @@ internal sealed class AwkArrayRuntime
         var size = _variables.MeasureArraySnapshot(arrayName, materializeOrdinalKeys: false);
         var count = size.Count;
         var lease = _state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
-            AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count), size.NewKeyTextBytes));
+            AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count), size.KeyTextBytes));
         try
         {
             var result = new AwkArrayKey[count];
@@ -389,20 +389,20 @@ internal sealed class AwkArrayRuntime
         AwkArraySortOrder order,
         AwkArraySortOutput output)
     {
-        var size = _variables.MeasureArraySnapshot(sourceArrayName, materializeOrdinalKeys: true);
+        var size = _variables.MeasureArraySnapshot(sourceArrayName, materializeOrdinalKeys: true, retainValues: true);
         var lease = _state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
-            EstimateSortOperationBytes(size.Count, order, output), size.NewKeyTextBytes));
-        return new AwkArrayReservation(size.Count, lease, size.NewKeyTextBytes);
+            EstimateSortOperationBytes(size.Count, order, output), size.TextBytes));
+        return new AwkArrayReservation(size.Count, lease, size.KeyTextBytes);
     }
 
     private AwkArrayReservation ReserveSortedKeySnapshot(
         AwkArrayName arrayName,
         AwkArraySortOrder order)
     {
-        var size = _variables.MeasureArraySnapshot(arrayName, materializeOrdinalKeys: true);
+        var size = _variables.MeasureArraySnapshot(arrayName, materializeOrdinalKeys: true, retainValues: true);
         var lease = _state.MemoryAccounting.ReserveTransient(AwkRuntimeMemory.CheckedAdd(
-            EstimateSortOperationBytes(size.Count, order, AwkArraySortOutput.KeySnapshot), size.NewKeyTextBytes));
-        return new AwkArrayReservation(size.Count, lease, size.NewKeyTextBytes);
+            EstimateSortOperationBytes(size.Count, order, AwkArraySortOutput.KeySnapshot), size.TextBytes));
+        return new AwkArrayReservation(size.Count, lease, size.KeyTextBytes);
     }
 
     private void SetValuesFromExternalText(AwkArrayName name, IReadOnlyList<AwkText> values)
@@ -718,7 +718,7 @@ internal sealed class AwkArrayRuntime
             AwkValue value)
         {
             var runtime = projection.Runtime;
-            // The enclosing snapshot lease has already admitted every new key payload.
+            // Snapshot ownership survives source mutation, including existing text keys/values.
             var keyText = key.ToByteText(runtime._state.Counters, AwkMemoryAccounting.Disabled);
             var stringValueOrder = projection.Mode is AwkArraySortMode.ValueStringAscending or AwkArraySortMode.ValueStringDescending;
             var typeValueOrder = projection.Mode is AwkArraySortMode.ValueTypeAscending or AwkArraySortMode.ValueTypeDescending;
@@ -735,7 +735,7 @@ internal sealed class AwkArrayRuntime
                 projectedValue,
                 valueText,
                 ResolveNumericSortKey(keyText, value, projection.Mode, runtime._state),
-                materializeNonfinite ? AwkRuntimeMemory.EstimateTextBytes(valueText.ByteLength) : 0);
+                projectedValue.RetainedTextMemoryBytes);
         }
 
         return _variables.SnapshotArrayValues(

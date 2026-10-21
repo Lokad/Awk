@@ -101,6 +101,11 @@ internal sealed class AwkMemoryAccounting
         return new AwkMemoryLease(this, byteCount);
     }
 
+    // Evaluation can keep a scalar after a later operand replaces its original slot.
+    // A scoped duplicate estimate avoids tracking aliases between storage owners.
+    public AwkMemoryLease RetainValue(AwkValue value) =>
+        ReserveTransient(IsEnabled ? value.RetainedTextMemoryBytes : 0);
+
     // Only for immediate charges. Allocation/publication stages keep their
     // separate reservation and commit so failure can preserve prior state.
     public void ReserveAndCommit(long byteCount)

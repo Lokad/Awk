@@ -209,7 +209,7 @@ internal abstract class AwkBuiltinImplementation
                     if (!pending.IsCompletedSuccessfully)
                         return EvaluateRemainingAsync(arguments, context, buffer, argumentCount, index, pending);
 
-                    values[index] = pending.Result;
+                    buffer.Set(index, pending.Result);
                 }
 
                 var result = evaluator(new AwkBuiltinContext(arguments, values, argumentCount, context));
@@ -233,9 +233,9 @@ internal abstract class AwkBuiltinImplementation
                 var values = buffer.Values;
                 try
                 {
-                    values[currentIndex] = await pending.ConfigureAwait(false);
+                    buffer.Set(currentIndex, await pending.ConfigureAwait(false));
                     for (var index = currentIndex + 1; index < argumentCount; index++)
-                        values[index] = await arguments[index].EvaluateAsync(context).ConfigureAwait(false);
+                        buffer.Set(index, await arguments[index].EvaluateAsync(context).ConfigureAwait(false));
 
                     return evaluator(new AwkBuiltinContext(arguments, values, argumentCount, context));
                 }

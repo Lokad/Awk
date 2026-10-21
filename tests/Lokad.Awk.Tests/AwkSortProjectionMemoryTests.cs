@@ -23,7 +23,7 @@ public sealed class AwkSortProjectionMemoryTests
         var state = memoryForState.State;
         var expected = Values(state, format, 32);
         var payload = expected.Sum(static value => AwkRuntimeMemory.EstimateTextBytes(value.Text.ByteLength));
-        var containers = SnapshotContainers(expected.Length);
+        var containers = SnapshotStorage(state, expected.Select(static item => item.Key).ToArray());
         var scratch = format == "wide" ? 8_192 : 0;
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - containers - payload - scratch);
@@ -51,7 +51,7 @@ public sealed class AwkSortProjectionMemoryTests
         var state = memoryForState.State;
         var expected = Values(state, format, 32);
         var payload = expected.Sum(static value => AwkRuntimeMemory.EstimateTextBytes(value.Text.ByteLength));
-        var containers = SnapshotContainers(expected.Length);
+        var containers = SnapshotStorage(state, expected.Select(static item => item.Key).ToArray());
         var scratch = format == "wide" ? 8_192 : 0;
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - containers - payload - scratch + 1))
@@ -90,7 +90,7 @@ public sealed class AwkSortProjectionMemoryTests
         state.SetArrayAwkValue(Source, left, AwkValue.FromNumber(1.25));
         state.SetArrayAwkValue(Source, right, AwkValue.FromNumber(1.25));
         var payload = AwkRuntimeMemory.EstimateTextBytes(state.FormatStringByteText(AwkValue.FromNumber(1.25)).ByteLength) * 2;
-        var required = SnapshotContainers(2) + payload + (format == "wide" ? 8_192 : 0);
+        var required = SnapshotStorage(state, [left, right]) + payload + (format == "wide" ? 8_192 : 0);
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using (var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - required + 1))
         {
@@ -119,7 +119,7 @@ public sealed class AwkSortProjectionMemoryTests
         state.SetArrayAwkValue(Source, new AwkArrayKey("a"), AwkValue.FromNumber(1.25));
         state.SetArrayAwkValue(Source, new AwkArrayKey("b"), AwkValue.FromNumber(1.25));
         var payload = AwkRuntimeMemory.EstimateTextBytes(state.FormatStringByteText(AwkValue.FromNumber(1.25)).ByteLength) * 2;
-        var containers = SnapshotContainers(2);
+        var containers = SnapshotStorage(state, [new AwkArrayKey("a"), new AwkArrayKey("b")]);
         var required = containers + payload + (format == "wide" ? 8_192 : 0);
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - required);
@@ -193,13 +193,13 @@ public sealed class AwkSortProjectionMemoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task StringSortingReusesAlreadyOwnedValueTextAtItsExactBudget(bool observed)
+    public async Task StringSortingRetainsExistingTextWithoutCopyingAtItsAdmittedBudget(bool observed)
     {
         using var memoryForState = State(observed, "default", "@val_str_asc");
         var state = memoryForState.State;
         state.SetArrayString(Source, new AwkArrayKey("a"), new string('x', 16_000));
         state.SetArrayString(Source, new AwkArrayKey("b"), new string('y', 16_000));
-        var containers = SnapshotContainers(2);
+        var containers = SnapshotStorage(state, [new AwkArrayKey("a"), new AwkArrayKey("b")]);
         var baseline = state.MemoryAccounting.CurrentCommittedBytes;
         using var pressure = state.MemoryAccounting.ReserveTransient(Limit - baseline - containers);
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -250,6 +250,11 @@ public sealed class AwkSortProjectionMemoryTests
             state.SetArrayAwkValue(Source, key, AwkValue.FromNumber(number));
             return (key, state.FormatStringByteText(AwkValue.FromNumber(number)));
         }).ToArray();
+
+    private static long SnapshotStorage(AwkRuntimeState state, IReadOnlyCollection<AwkArrayKey> keys) =>
+        SnapshotContainers(keys.Count) + keys.Sum(key =>
+            (key.IsOrdinal ? AwkRuntimeMemory.EstimateTextBytes(key.ByteLength) : key.RetainedTextMemoryBytes) +
+            state.GetArrayAwkValue(Source, key).RetainedTextMemoryBytes);
 
     private static long SnapshotContainers(int count) =>
         AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(count) + AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(count);

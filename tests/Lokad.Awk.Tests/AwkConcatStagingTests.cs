@@ -142,6 +142,26 @@ public sealed class AwkConcatStagingTests
         Assert.Equal(0, budget.Reserved);
     }
 
+    [Theory]
+    [InlineData(2)] [InlineData(9)]
+    public async Task RefusedStagingDoesNotStartAPendingOperand(int arity)
+    {
+        var budget = new CooperativeTestBudget(1 << 20);
+        await using (var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None))
+        {
+            using var state = State(owner);
+            var started = false;
+            var completion = new TaskCompletionSource<AwkValue>();
+            var operand = new Callback(_ => { started = true; return new(completion.Task); });
+            var expression = AwkExpression.Concat(Enumerable.Repeat<AwkExpression>(operand, arity).ToArray());
+            budget.RefuseNextAdmissionMinimumGrowth = 1;
+            await Assert.ThrowsAsync<AwkRuntimeException>(async () => await expression.EvaluateAsync(new(state)));
+            Assert.False(started);
+            Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        }
+        Assert.Equal(0, budget.Reserved);
+    }
+
     private static AwkValue Text(int index) => AwkValue.FromText(AwkText.FromSourceLiteralString($"é{index}"));
     private static string Expected(int arity) => string.Concat(Enumerable.Range(0, arity).Select(index => $"é{index}"));
     private static AwkRuntimeState State(AwkExecutionMemoryOwner owner)

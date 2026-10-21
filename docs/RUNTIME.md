@@ -71,6 +71,9 @@ An open command funds its command/environment snapshot; it does not retain charg
 unrelated records or completed writes. Closing it releases that snapshot after command completion.
 Function argument/slot buffers are admitted before allocation. Cached frames and alias-index
 capacity remain funded until execution ends; unwinding releases active locals and their payloads.
+Evaluation staging and iteration/sort snapshots fund text they retain even when a later operand,
+loop body or comparator clears its original owner. These scoped estimates can temporarily count
+shared text twice; Awk does not track object aliases.
 File redirections admit normalized paths and table growth before host opens. Logical flush
 retains path ownership; close refunds the path after the host finishes, while reusable table
 capacity stays funded until execution cleanup.

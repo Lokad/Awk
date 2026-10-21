@@ -22,14 +22,24 @@ internal abstract partial class AwkExpression
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
-            var rented = _parts.Length > 8 ? RentParts(context) : null;
+            var memory = context.State.MemoryAccounting;
+            long retainedBytes = 0;
+            AwkText[]? rented = null;
             // Short completed expressions keep references on the managed stack. Pending
             // operands transfer the evaluated prefix to the existing continuation owner.
-            Span<AwkText> formattedParts = rented is { } buffer ? buffer.AsSpan() :
+            Span<AwkText> formattedParts =
                 [AwkText.Empty, AwkText.Empty, AwkText.Empty, AwkText.Empty,
                  AwkText.Empty, AwkText.Empty, AwkText.Empty, AwkText.Empty];
             try
             {
+                // A later operand can suspend before we know that a buffer is needed.
+                // Admit its small staging allowance before starting any such work.
+                Retain(memory, ref retainedBytes, AwkRuntimeMemory.EstimateAwkTextArrayBytes(_parts.Length));
+                if (_parts.Length > 8)
+                {
+                    rented = RentParts(context);
+                    formattedParts = rented;
+                }
                 for (var index = 0; index < _parts.Length; index++)
                 {
                     var pending = _parts[index].EvaluateAsync(context);
@@ -40,19 +50,23 @@ internal abstract partial class AwkExpression
                             rented = RentParts(context);
                             formattedParts[..index].CopyTo(rented);
                         }
-                        return EvaluateRemainingAsync(context, rented, index, pending);
+                        return EvaluateRemainingAsync(context, rented, index, pending, retainedBytes);
                     }
 
-                    formattedParts[index] = context.State.FormatStringByteText(pending.Result);
+                    var text = context.State.FormatStringByteText(pending.Result);
+                    Retain(memory, ref retainedBytes, text.EstimatedRetainedMemoryBytes);
+                    formattedParts[index] = text;
                 }
 
                 var result = CreateValue(context, formattedParts);
-                ReturnParts(rented);
+                ReturnParts(rented, memory);
+                memory.ReleaseCommitted(retainedBytes);
                 return ValueTask.FromResult(result);
             }
             catch
             {
-                ReturnParts(rented);
+                ReturnParts(rented, memory);
+                memory.ReleaseCommitted(retainedBytes);
                 throw;
             }
 
@@ -60,23 +74,27 @@ internal abstract partial class AwkExpression
                 AwkEvaluationContext context,
                 AwkText[] formattedParts,
                 int currentIndex,
-                ValueTask<AwkValue> pending)
+                ValueTask<AwkValue> pending, long retainedBytes)
             {
+                var memory = context.State.MemoryAccounting;
                 try
                 {
                     var current = await pending.ConfigureAwait(false);
                     formattedParts[currentIndex] = context.State.FormatStringByteText(current);
+                    Retain(memory, ref retainedBytes, formattedParts[currentIndex].EstimatedRetainedMemoryBytes);
                     for (var index = currentIndex + 1; index < _parts.Length; index++)
                     {
                         var value = await _parts[index].EvaluateAsync(context).ConfigureAwait(false);
                         formattedParts[index] = context.State.FormatStringByteText(value);
+                        Retain(memory, ref retainedBytes, formattedParts[index].EstimatedRetainedMemoryBytes);
                     }
 
                     return CreateValue(context, formattedParts);
                 }
                 finally
                 {
-                    ReturnParts(formattedParts);
+                    ReturnParts(formattedParts, memory);
+                    memory.ReleaseCommitted(retainedBytes);
                 }
             }
         }
@@ -90,15 +108,32 @@ internal abstract partial class AwkExpression
 
         private AwkText[] RentParts(AwkEvaluationContext context)
         {
-            var parts = ArrayPool<AwkText>.Shared.Rent(_parts.Length);
+            var memory = context.State.MemoryAccounting;
+            // Small pooled metadata can differ from the estimate by a few slots. Large
+            // governed buffers have exact backing admitted before allocation.
+            var parts = UsePool(memory) ? ArrayPool<AwkText>.Shared.Rent(_parts.Length) : new AwkText[_parts.Length];
             context.State.Counters.RecordConcatenationArgumentBufferRent();
             return parts;
         }
 
-        private static void ReturnParts(AwkText[]? formattedParts)
+        private bool UsePool(AwkMemoryAccounting memory) =>
+            !memory.IsEnabled || AwkRuntimeMemory.EstimateAwkTextArrayBytes(_parts.Length) < AwkRuntimeLimits.CancellationCheckBytes;
+
+        private void ReturnParts(AwkText[]? formattedParts, AwkMemoryAccounting memory)
         {
-            if (formattedParts is not null)
-                ArrayPool<AwkText>.Shared.Return(formattedParts, clearArray: true);
+            if (formattedParts is null) return;
+            if (UsePool(memory)) ArrayPool<AwkText>.Shared.Return(formattedParts, clearArray: true);
+            else Array.Clear(formattedParts);
+        }
+
+        // Keep this batch's live charge in local state: completed short concatenations
+        // need neither a heap-allocated lease nor a separate temporary buffer.
+        private static void Retain(AwkMemoryAccounting memory, ref long retainedBytes, long bytes)
+        {
+            if (!memory.IsEnabled) return;
+            var total = AwkRuntimeMemory.CheckedAdd(retainedBytes, bytes);
+            memory.ReserveAndCommit(bytes);
+            retainedBytes = total;
         }
     }
 
@@ -193,12 +228,34 @@ internal abstract partial class AwkExpression
                 : AwaitConditionLeftAsync(context, pending);
         }
 
-        protected virtual ValueTask<bool> EvaluateConditionRight(AwkEvaluationContext context, AwkValue leftValue)
+        private ValueTask<bool> EvaluateConditionRight(AwkEvaluationContext context, AwkValue leftValue)
+        {
+            var retained = context.State.MemoryAccounting.RetainValue(leftValue);
+            try
+            {
+                var pending = EvaluateConditionRightCore(context, leftValue);
+                if (!pending.IsCompletedSuccessfully) return AwaitRetainedRightAsync(pending, retained);
+                retained.Dispose();
+                return pending;
+            }
+            catch
+            {
+                retained.Dispose();
+                throw;
+            }
+        }
+
+        protected virtual ValueTask<bool> EvaluateConditionRightCore(AwkEvaluationContext context, AwkValue leftValue)
         {
             var pending = right.EvaluateAsync(context);
             return pending.IsCompletedSuccessfully
                 ? ValueTask.FromResult(AwkComparisonOperations.Evaluate(leftValue, pending.Result, comparison, context.State))
                 : AwaitConditionRightAsync(context, leftValue, pending);
+        }
+
+        private static async ValueTask<bool> AwaitRetainedRightAsync(ValueTask<bool> pending, AwkMemoryLease retained)
+        {
+            using (retained) return await pending.ConfigureAwait(false);
         }
 
         private async ValueTask<bool> AwaitConditionLeftAsync(AwkEvaluationContext context, ValueTask<AwkValue> pending) =>
@@ -216,24 +273,19 @@ internal abstract partial class AwkExpression
                 : AwaitLeftAsync(context, pending);
         }
 
-        protected virtual ValueTask<AwkValue> EvaluateRight(AwkEvaluationContext context, AwkValue leftValue)
+        private ValueTask<AwkValue> EvaluateRight(AwkEvaluationContext context, AwkValue leftValue)
         {
-            var pending = right.EvaluateAsync(context);
+            var pending = EvaluateConditionRight(context, leftValue);
             return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(Apply(context, leftValue, pending.Result))
-                : AwaitRightAsync(context, leftValue, pending);
+                ? ValueTask.FromResult(AwkValue.FromNumber(pending.Result ? 1 : 0))
+                : AwaitComparisonAsync(pending);
         }
 
         private async ValueTask<AwkValue> AwaitLeftAsync(AwkEvaluationContext context, ValueTask<AwkValue> pending) =>
             await EvaluateRight(context, await pending.ConfigureAwait(false)).ConfigureAwait(false);
 
-        private async ValueTask<AwkValue> AwaitRightAsync(
-            AwkEvaluationContext context, AwkValue leftValue, ValueTask<AwkValue> pending) =>
-            Apply(context, leftValue, await pending.ConfigureAwait(false));
-
-        private AwkValue Apply(AwkEvaluationContext context, AwkValue leftValue, AwkValue rightValue) =>
-            AwkValue.FromNumber(AwkComparisonOperations.Evaluate(
-                leftValue, rightValue, comparison, context.State) ? 1 : 0);
+        private static async ValueTask<AwkValue> AwaitComparisonAsync(ValueTask<bool> pending) =>
+            AwkValue.FromNumber(await pending.ConfigureAwait(false) ? 1 : 0);
 
     }
 
@@ -242,19 +294,8 @@ internal abstract partial class AwkExpression
         DynamicFieldIndexExpression field,
         AwkComparison comparison) : ComparisonExpression(left, field, comparison)
     {
-        protected override ValueTask<bool> EvaluateConditionRight(AwkEvaluationContext context, AwkValue leftValue) =>
+        protected override ValueTask<bool> EvaluateConditionRightCore(AwkEvaluationContext context, AwkValue leftValue) =>
             field.CompareLeftAsync(context, leftValue, Comparison);
-
-        protected override ValueTask<AwkValue> EvaluateRight(AwkEvaluationContext context, AwkValue leftValue)
-        {
-            var pending = field.CompareLeftAsync(context, leftValue, Comparison);
-            return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(AwkValue.FromNumber(pending.Result ? 1 : 0))
-                : AwaitComparisonAsync(pending);
-        }
-
-        private static async ValueTask<AwkValue> AwaitComparisonAsync(ValueTask<bool> pending) =>
-            AwkValue.FromNumber(await pending.ConfigureAwait(false) ? 1 : 0);
     }
 
     private sealed class FieldLiteralComparisonExpression(
@@ -327,6 +368,7 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
+            using var heldInput = context.State.MemoryAccounting.ReserveTransient(input.EstimatedRetainedMemoryBytes);
             var pattern = await patternExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             var matched = context.State.IsRegexMatch(
                 context.State.CreateRegex(pattern),

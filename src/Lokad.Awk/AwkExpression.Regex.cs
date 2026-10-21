@@ -11,7 +11,10 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var regexPattern = await pattern.ResolveRegexPatternAsync(context).ConfigureAwait(false);
+            using var heldPattern = context.State.MemoryAccounting.ReserveTransient(
+                AwkRuntimeMemory.EstimateUtf16StringBytes(regexPattern.Text.Length));
             var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
+            using var heldReplacement = context.State.MemoryAccounting.ReserveTransient(replacementText.EstimatedRetainedMemoryBytes);
             var regex = context.State.CreateRegex(regexPattern);
             var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
             var replaced = AwkRegexSubstitution.ReplaceAll(
@@ -34,7 +37,10 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var regexPattern = await pattern.ResolveRegexPatternAsync(context).ConfigureAwait(false);
+            using var heldPattern = context.State.MemoryAccounting.ReserveTransient(
+                AwkRuntimeMemory.EstimateUtf16StringBytes(regexPattern.Text.Length));
             var replacementText = await replacement.ResolveByteTextAsync(context).ConfigureAwait(false);
+            using var heldReplacement = context.State.MemoryAccounting.ReserveTransient(replacementText.EstimatedRetainedMemoryBytes);
             var regex = context.State.CreateRegex(regexPattern);
             var resolvedTarget = await target.ResolveAsync(context).ConfigureAwait(false);
             var replaced = AwkRegexSubstitution.ReplaceAll(
@@ -74,6 +80,7 @@ internal abstract partial class AwkExpression
             }
 
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
+            using var heldInput = context.State.MemoryAccounting.ReserveTransient(input.EstimatedRetainedMemoryBytes);
             var regex = context.State.CreateRegex(
                 await patternExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false));
             if (!captureArrayName.HasValue)

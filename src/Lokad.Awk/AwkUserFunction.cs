@@ -100,8 +100,9 @@ internal sealed class AwkUserFunction
                         continue;
                     }
 
-                    values[index] = AwkFunctionArgument.FromValue(
-                        await argument.EvaluateAsync(context).ConfigureAwait(false));
+                    var value = await argument.EvaluateAsync(context).ConfigureAwait(false);
+                    buffer.Retain(value);
+                    values[index] = AwkFunctionArgument.FromValue(value);
                 }
 
                 PushArguments(values.AsSpan(0, arguments.Count), context);
@@ -146,6 +147,7 @@ internal sealed class AwkUserFunction
                 for (var index = 0; index < arguments.Count; index++)
                 {
                     if ((index & 63) == 0) state.CancellationCheckpoint();
+                    buffer.Retain(arguments[index]);
                     values[index] = AwkFunctionArgument.FromValue(arguments[index]);
                 }
 
@@ -234,6 +236,8 @@ internal sealed class AwkUserFunction
         }
 
         public AwkFunctionArgument[] Values => _values ?? [];
+
+        public void Retain(AwkValue value) => _memory?.ReserveAdditional(value.RetainedTextMemoryBytes);
 
         public static RentedFunctionArguments Rent(int count, AwkRuntimeState state)
         {

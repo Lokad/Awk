@@ -469,6 +469,7 @@ internal static partial class AwkBuiltins
                 return AwkValue.FromNumber(0);
 
             var source = await context.GetValueAsync(0).ConfigureAwait(false);
+            using var sourceLease = context.State.MemoryAccounting.RetainValue(source);
             var needle = await context.GetValueAsync(1).ConfigureAwait(false);
             return EvaluateIndexValues(context.State, source, needle);
         }
@@ -480,7 +481,9 @@ internal static partial class AwkBuiltins
                 return AwkValue.FromText(string.Empty);
 
             var sourceValue = await context.GetValueAsync(0).ConfigureAwait(false);
+            using var sourceLease = context.State.MemoryAccounting.RetainValue(sourceValue);
             var startValue = await context.GetValueAsync(1).ConfigureAwait(false);
+            using var startLease = context.State.MemoryAccounting.RetainValue(startValue);
             var lengthValue = argumentCount == 3
                 ? await context.GetValueAsync(2).ConfigureAwait(false) : default;
             return EvaluateSubstrValues(context.State, sourceValue, startValue, lengthValue, argumentCount);

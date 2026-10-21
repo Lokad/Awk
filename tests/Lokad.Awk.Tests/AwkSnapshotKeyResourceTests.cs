@@ -20,15 +20,16 @@ public sealed class AwkSnapshotKeyResourceTests
     {
         foreach (var observed in new[] { false, true })
         {
+            foreach (var source in new[] { "symbols", "texts" })
             foreach (var selector in new[] { "", "@unsorted", "@ind_str_asc" })
-                yield return [observed, "symbols", selector];
+                yield return [observed, source, selector];
             yield return [observed, "ordinals", "@ind_str_asc"];
         }
     }
 
     [Theory]
     [MemberData(nameof(Snapshots))]
-    public async Task SnapshotHoldsItsNewKeyPayloadUntilDisposalAndAcceptsExactAdmission(bool observed, string source, string selector)
+    public async Task SnapshotHoldsItsKeyPayloadUntilDisposalAndAcceptsExactAdmission(bool observed, string source, string selector)
     {
         var (memory, name) = CreateState(observed, source, selector);
         using var ownedMemory = memory;
@@ -52,7 +53,7 @@ public sealed class AwkSnapshotKeyResourceTests
 
     [Theory]
     [MemberData(nameof(NewPayloads))]
-    public async Task NewKeyPayloadShortfallFailsBeforeSnapshotAllocationAndAllowsRetry(bool observed, string source, string selector)
+    public async Task KeyPayloadShortfallFailsBeforeSnapshotAllocationAndAllowsRetry(bool observed, string source, string selector)
     {
         var (memory, name) = CreateState(observed, source, selector);
         using var ownedMemory = memory;
@@ -86,6 +87,8 @@ public sealed class AwkSnapshotKeyResourceTests
     [InlineData(true, "symbols")]
     [InlineData(false, "ordinals")]
     [InlineData(true, "ordinals")]
+    [InlineData(false, "texts")]
+    [InlineData(true, "texts")]
     public async Task KeySortTransfersTemporaryPayloadAndRefundsDestination(bool observed, string source)
     {
         var (memory, name) = CreateState(observed, source, "@ind_str_asc");
@@ -189,10 +192,10 @@ public sealed class AwkSnapshotKeyResourceTests
         armed = false;
         var measured = variables.MeasureArraySnapshot(name, materializeOrdinalKeys: true);
         Assert.Equal(512, measured.Count);
-        var expectedPayload = source == "texts" ? 0 : Enumerable.Range(1, 512).Sum(index =>
+        var expectedPayload = Enumerable.Range(1, 512).Sum(index =>
             AwkRuntimeMemory.EstimateTextBytes(index.ToString(System.Globalization.CultureInfo.InvariantCulture).Length +
-                (source == "symbols" ? 1 : 0)));
-        Assert.Equal(expectedPayload, measured.NewKeyTextBytes);
+                (source == "ordinals" ? 0 : 1)));
+        Assert.Equal(expectedPayload, measured.KeyTextBytes);
         Assert.Equal(before, governor.CurrentCommittedBytes);
     }
 
@@ -205,7 +208,10 @@ public sealed class AwkSnapshotKeyResourceTests
         var containers = AwkRuntimeMemory.EstimateAwkArrayKeyArrayBytes(keys.Length) +
             (sorted ? AwkRuntimeMemory.EstimateArraySortEntryArrayBytes(keys.Length) : 0);
         var payload = source == "symbols" || source == "ordinals" && sorted
-            ? keys.Sum(static key => AwkRuntimeMemory.EstimateTextBytes(key.ByteLength)) : 0;
+            ? keys.Sum(static key => AwkRuntimeMemory.EstimateTextBytes(key.ByteLength))
+            : keys.Sum(static key => key.RetainedTextMemoryBytes);
+        if (sorted)
+            payload += keys.Sum(key => state.GetArrayAwkValue(name, key).RetainedTextMemoryBytes);
         return (keys, containers, payload);
     }
 

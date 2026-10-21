@@ -17,6 +17,7 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
+            using var heldInput = context.State.MemoryAccounting.ReserveTransient(input.EstimatedRetainedMemoryBytes);
             var separator = await separatorExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             return AwkValue.FromNumber(context.State.SplitIntoArray(
                 input,
@@ -38,6 +39,7 @@ internal abstract partial class AwkExpression
                 throw new AwkRuntimeException(AwkMessages.FormatUndefinedFunction(AwkBuiltins.Name(AwkBuiltinId.Patsplit)));
 
             var input = await valueExpression.ResolveByteTextAsync(context).ConfigureAwait(false);
+            using var heldInput = context.State.MemoryAccounting.ReserveTransient(input.EstimatedRetainedMemoryBytes);
             var pattern = await patternExpression.ResolveRegexPatternAsync(context).ConfigureAwait(false);
             return AwkValue.FromNumber(context.State.PatsplitIntoArray(
                 input,

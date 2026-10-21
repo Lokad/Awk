@@ -52,6 +52,7 @@ internal sealed record AwkCompositeArrayIndex(IReadOnlyList<AwkExpression> Expre
     public override async ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context)
     {
         var separator = context.State.ResolveSubscriptSeparatorText();
+        using var heldSeparator = context.State.MemoryAccounting.ReserveTransient(separator.EstimatedRetainedMemoryBytes);
         using var builder = new AwkUtf8Builder(context.State.MemoryAccounting);
         for (var index = 0; index < Expressions.Count; index++)
         {

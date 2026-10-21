@@ -90,6 +90,7 @@ internal abstract partial class AwkExpression
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context)
         {
             var leftValue = left.EvaluateSynchronous(context);
+            using var leftLease = context.State.MemoryAccounting.RetainValue(leftValue);
             var rightValue = right.EvaluateSynchronous(context);
             return AwkValue.FromNumber(AwkComparisonOperations.Evaluate(leftValue, rightValue, comparison, context.State) ? 1 : 0);
         }

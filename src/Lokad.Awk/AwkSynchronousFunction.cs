@@ -136,14 +136,25 @@ internal abstract partial class AwkExpression
             {
                 // Preparation bounds arity to four; each nested call has its own temporary.
                 Span<AwkFunctionArgument> arguments = [default, default, default, default];
-                for (var index = 0; index < _operands.Length; index++)
+                AwkMemoryLease? staged = null;
+                try
                 {
-                    var operand = _operands[index];
-                    arguments[index] = operand.TryResolveArrayArgument(state, out var alias)
-                        ? alias : AwkFunctionArgument.FromValue(operand.EvaluateSynchronous(context));
+                    for (var index = 0; index < _operands.Length; index++)
+                    {
+                        var operand = _operands[index];
+                        arguments[index] = operand.TryResolveArrayArgument(state, out var alias)
+                            ? alias : AwkFunctionArgument.FromValue(operand.EvaluateSynchronous(context));
+                        var bytes = arguments[index].Value.RetainedTextMemoryBytes;
+                        if (state.MemoryAccounting.IsEnabled && bytes > 0)
+                        {
+                            staged ??= state.MemoryAccounting.CreateTransientLease();
+                            staged.ReserveAdditional(bytes);
+                        }
+                    }
+                    state.ThrowIfCancellationRequested();
+                    state.PushFunctionFrame(_function.Layout, arguments[.._operands.Length]);
                 }
-                state.ThrowIfCancellationRequested();
-                state.PushFunctionFrame(_function.Layout, arguments[.._operands.Length]);
+                finally { staged?.Dispose(); }
             }
             try { return _function.EvaluateBody(context); }
             finally { state.PopFunctionFrame(); }

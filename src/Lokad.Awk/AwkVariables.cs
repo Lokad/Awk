@@ -688,29 +688,33 @@ internal sealed class AwkVariables
         return GetOrCreateArraySlots(name).Count;
     }
 
-    public AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayName name, bool materializeOrdinalKeys)
+    public AwkArraySnapshotSize MeasureArraySnapshot(AwkArrayName name, bool materializeOrdinalKeys, bool retainValues = false)
     {
         if (!name.IsFunctionLocal && IsSymbolTable(name.Text))
             return _memoryAccounting.IsEnabled
-                ? _symbolTable.MeasureSnapshot()
+                ? _symbolTable.MeasureSnapshot(retainValues)
                 : new AwkArraySnapshotSize(_symbolTable.Count, 0);
 
         var count = GetArraySnapshotCount(name);
-        if (!_memoryAccounting.IsEnabled || !materializeOrdinalKeys)
+        if (!_memoryAccounting.IsEnabled)
             return new AwkArraySnapshotSize(count, 0);
 
         var keyTextBytes = 0L;
+        var valueTextBytes = 0L;
         var visited = 0;
-        foreach (var key in GetOrCreateArraySlots(name).Keys)
+        foreach (var pair in GetOrCreateArraySlots(name))
         {
             if ((visited++ & 63) == 0)
                 _checkpoint?.Invoke();
-            if (key.IsOrdinal)
-                keyTextBytes = AwkRuntimeMemory.CheckedAdd(keyTextBytes,
-                    AwkRuntimeMemory.EstimateTextBytes(key.ByteLength));
+            var key = pair.Key;
+            keyTextBytes = AwkRuntimeMemory.CheckedAdd(keyTextBytes,
+                key.IsOrdinal && materializeOrdinalKeys
+                    ? AwkRuntimeMemory.EstimateTextBytes(key.ByteLength) : key.RetainedTextMemoryBytes);
+            if (retainValues)
+                valueTextBytes = AwkRuntimeMemory.CheckedAdd(valueTextBytes, pair.Value.RetainedTextMemoryBytes);
         }
         _checkpoint?.Invoke();
-        return new AwkArraySnapshotSize(count, keyTextBytes);
+        return new AwkArraySnapshotSize(count, keyTextBytes, valueTextBytes);
     }
 
     private Dictionary<AwkArrayKey, AwkVariableSlot> GetOrCreateArraySlots(AwkArrayName name)

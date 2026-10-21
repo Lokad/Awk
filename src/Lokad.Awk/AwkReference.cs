@@ -28,6 +28,7 @@ internal abstract record AwkReference
 
     public virtual async ValueTask AssignValueAsync(AwkEvaluationContext context, AwkValue value)
     {
+        using var heldValue = context.State.MemoryAccounting.RetainValue(value);
         var target = await ResolveTargetAsync(context).ConfigureAwait(false);
         target.AssignValue(context.State, value);
     }
@@ -51,11 +52,18 @@ internal abstract record AwkReference
             return AwaitCompoundTargetAsync(context, value, operation, pending);
 
         var target = pending.Result;
-        var currentValue = target.Evaluate(context.State).AsNumber(context.State.CancellationCheckpoint);
-        var right = value.EvaluateAsync(context);
-        return right.IsCompletedSuccessfully
-            ? ValueTask.FromResult(AssignCompound(context, target, currentValue, right.Result, operation))
-            : AwaitCompoundValueAsync(context, target, currentValue, right, operation);
+        var heldKey = context.State.MemoryAccounting.ReserveTransient(target.RetainedKeyBytes);
+        try
+        {
+            var currentValue = target.Evaluate(context.State).AsNumber(context.State.CancellationCheckpoint);
+            var right = value.EvaluateAsync(context);
+            if (!right.IsCompletedSuccessfully)
+                return AwaitCompoundValueAsync(context, target, currentValue, right, operation, heldKey);
+            var result = AssignCompound(context, target, currentValue, right.Result, operation);
+            heldKey.Dispose();
+            return ValueTask.FromResult(result);
+        }
+        catch { heldKey.Dispose(); throw; }
     }
 
     private static async ValueTask<AwkValue> AwaitCompoundTargetAsync(
@@ -63,6 +71,7 @@ internal abstract record AwkReference
         ValueTask<AwkResolvedReference> pending)
     {
         var target = await pending.ConfigureAwait(false);
+        using var heldKey = context.State.MemoryAccounting.ReserveTransient(target.RetainedKeyBytes);
         var currentValue = target.Evaluate(context.State).AsNumber(context.State.CancellationCheckpoint);
         var rightValue = await value.EvaluateAsync(context).ConfigureAwait(false);
         return AssignCompound(context, target, currentValue, rightValue, operation);
@@ -70,8 +79,11 @@ internal abstract record AwkReference
 
     private static async ValueTask<AwkValue> AwaitCompoundValueAsync(
         AwkEvaluationContext context, AwkResolvedReference target, double currentValue,
-        ValueTask<AwkValue> pending, AwkCompoundAssignmentOperation operation) =>
-        AssignCompound(context, target, currentValue, await pending.ConfigureAwait(false), operation);
+        ValueTask<AwkValue> pending, AwkCompoundAssignmentOperation operation, AwkMemoryLease heldKey)
+    {
+        using (heldKey)
+            return AssignCompound(context, target, currentValue, await pending.ConfigureAwait(false), operation);
+    }
 
     private static AwkValue AssignCompound(
         AwkEvaluationContext context, AwkResolvedReference target, double currentValue,
@@ -251,6 +263,7 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
     public override async ValueTask AssignValueAsync(AwkEvaluationContext context, AwkValue value)
     {
         // Plain assignment commonly inserts a new key; keep its owned-key path.
+        using var heldValue = context.State.MemoryAccounting.RetainValue(value);
         var index = await IndexExpression.ResolveKeyAsync(context).ConfigureAwait(false);
         context.State.SetArrayAwkValue(Variable, index, value, GlobalIndex);
     }
@@ -296,15 +309,25 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
         double current, AwkExpression value, AwkCompoundAssignmentOperation operation)
     {
         var state = context.State;
-        var right = value.ResolveNumberAsync(context);
-        return right.IsCompletedSuccessfully
-            ? ValueTask.FromResult(AssignCompound(state, key, current, right.Result, operation))
-            : AwaitCompoundValueAsync(state, key, current, right, operation);
+        var heldKey = state.MemoryAccounting.ReserveTransient(key.RetainedTextMemoryBytes);
+        try
+        {
+            var right = value.ResolveNumberAsync(context);
+            if (!right.IsCompletedSuccessfully)
+                return AwaitCompoundValueAsync(state, key, current, right, operation, heldKey);
+            var result = AssignCompound(state, key, current, right.Result, operation);
+            heldKey.Dispose();
+            return ValueTask.FromResult(result);
+        }
+        catch { heldKey.Dispose(); throw; }
     }
 
     private async ValueTask<AwkValue> AwaitCompoundValueAsync(AwkRuntimeState state, AwkArrayKey key,
-        double current, ValueTask<double> pending, AwkCompoundAssignmentOperation operation) =>
-        AssignCompound(state, key, current, await pending.ConfigureAwait(false), operation);
+        double current, ValueTask<double> pending, AwkCompoundAssignmentOperation operation, AwkMemoryLease heldKey)
+    {
+        using (heldKey)
+            return AssignCompound(state, key, current, await pending.ConfigureAwait(false), operation);
+    }
 
     private AwkValue AssignCompound(AwkRuntimeState state, AwkArrayKey key, double current,
         double right, AwkCompoundAssignmentOperation operation)
@@ -342,6 +365,9 @@ internal sealed record AwkFieldReference(AwkExpression FieldIndexExpression) : A
 
 internal readonly struct AwkResolvedReference
 {
+    internal long RetainedKeyBytes =>
+        _kind == AwkResolvedReferenceKind.ArrayElement ? _arrayIndex.RetainedTextMemoryBytes : 0;
+
     private readonly AwkResolvedReferenceKind _kind;
     private readonly AwkVariableName _scalarVariable;
     private readonly AwkFunctionLocalSlotId _localScalarSlotId;

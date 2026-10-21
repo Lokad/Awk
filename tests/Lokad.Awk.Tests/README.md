@@ -45,6 +45,8 @@ does not authorize a running command to recover from refusal.
 `AwkFunctionStorageTests` covers pre-admission of large argument/frame buffers, funded
 frame/alias caches, setup cancellation and final refunds. `AwkPartialCloseTests` covers
 public-boundary partial-close failures and cleanup without replaying successful closes.
+`AwkEvaluationOwnershipTests` covers retained scalar/key/snapshot funding after source mutation,
+nested-call refusal, and funding through actual completion of pending/canceled host users.
 
 `AwkFieldCapacityTests` covers retained descriptor capacity, geometric growth, `NF` shrink,
 mutation refusal/cancellation and refunds using a shared host budget.

@@ -5,7 +5,10 @@ namespace Lokad.Awk;
 
 internal readonly record struct AwkScalarInventoryItem(AwkGlobalSlotId SlotId, AwkVariableName Name);
 
-internal readonly record struct AwkArraySnapshotSize(int Count, long NewKeyTextBytes);
+internal readonly record struct AwkArraySnapshotSize(int Count, long KeyTextBytes, long ValueTextBytes = 0)
+{
+    public long TextBytes => AwkRuntimeMemory.CheckedAdd(KeyTextBytes, ValueTextBytes);
+}
 
 internal delegate bool AwkTryResolveScalarSlot(AwkVariableName name, out AwkGlobalSlotId slotId);
 
@@ -36,18 +39,22 @@ internal sealed class AwkSymbolTableArray(
         }
     }
 
-    public AwkArraySnapshotSize MeasureSnapshot()
+    public AwkArraySnapshotSize MeasureSnapshot(bool retainValues = false)
     {
         var count = 0;
         var keyTextBytes = 0L;
+        var valueTextBytes = 0L;
         foreach (var name in EnumerateNames())
         {
             count = AwkRuntimeMemory.CheckedAdd(count, 1);
             // AwkIdentifier admits ASCII names, so byte length equals character length.
             keyTextBytes = AwkRuntimeMemory.CheckedAdd(keyTextBytes,
                 AwkRuntimeMemory.EstimateTextBytes(name.Text.Length));
+            if (retainValues && !containsArray(new AwkArrayName(name.Identifier)) &&
+                tryResolveScalar(name, out var slotId) && tryGetScalar(slotId, out var slot))
+                valueTextBytes = AwkRuntimeMemory.CheckedAdd(valueTextBytes, slot.RetainedTextMemoryBytes);
         }
-        return new AwkArraySnapshotSize(count, keyTextBytes);
+        return new AwkArraySnapshotSize(count, keyTextBytes, valueTextBytes);
     }
 
     public AwkValue GetValue(string name)

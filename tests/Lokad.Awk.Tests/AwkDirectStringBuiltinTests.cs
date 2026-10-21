@@ -85,7 +85,7 @@ public sealed class AwkDirectStringBuiltinTests
             {
                 Assert.False(pending.IsCompleted);
                 Assert.Equal(Enumerable.Range(0, pendingIndex + 1), entered);
-                Assert.Equal(committed, state.MemoryAccounting.CurrentCommittedBytes);
+                Assert.True(state.MemoryAccounting.CurrentCommittedBytes >= committed);
                 completion.SetResult(values[pendingIndex]);
                 Assert.Equal(name == "index" ? "2" : "bcd", (await pending).AsString());
                 Assert.Equal(Enumerable.Range(0, values.Length), entered);

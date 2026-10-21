@@ -61,8 +61,10 @@ internal abstract partial class AwkExpression
                 first = ((AwkSynchronousExpression)arguments[0]).EvaluateSynchronous(context);
             if (id is AwkBuiltinId.ToLower or AwkBuiltinId.ToUpper)
                 return AwkBuiltins.EvaluateCaseValue(context.State, first, id == AwkBuiltinId.ToUpper);
+            using var firstLease = context.State.MemoryAccounting.RetainValue(first);
             var second = ((AwkSynchronousExpression)arguments[1]).EvaluateSynchronous(context);
             if (id == AwkBuiltinId.Index) return AwkBuiltins.EvaluateIndexValues(context.State, first, second);
+            using var secondLease = context.State.MemoryAccounting.RetainValue(second);
             var third = arguments.Count == 3 ? ((AwkSynchronousExpression)arguments[2]).EvaluateSynchronous(context) : default;
             return AwkBuiltins.EvaluateSubstrValues(context.State, first, second, third, arguments.Count);
         }
