@@ -11,9 +11,9 @@ internal readonly record struct AwkFormatString
 
     public AwkText Text => _text ?? AwkText.Empty;
 
-    public string AsString(AwkRuntimeCounters counters)
+    public string AsString(AwkRuntimeCounters counters, Action? checkpoint = null)
     {
         counters.RecordFormattingStringInteropInput();
-        return Text.AsString(counters);
+        return Text.AsString(counters, checkpoint);
     }
 }

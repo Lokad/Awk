@@ -266,7 +266,7 @@ public sealed class AwkTextCancellationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void CanceledFormatDecodePreservesThePreviousCacheAndAllowsRetry(bool output)
+    public void CanceledFormatDecodeIsNotPublishedAndAllowsRetry(bool output)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();

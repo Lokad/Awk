@@ -9,13 +9,6 @@ internal sealed class AwkFormattingRuntime(
     AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
     Action? checkpoint = null)
 {
-    private AwkText _outputFormatText = AwkText.Empty;
-    private string _outputFormatString = string.Empty;
-    private bool _hasOutputFormatString;
-    private AwkText _conversionFormatText = AwkText.Empty;
-    private string _conversionFormatString = string.Empty;
-    private bool _hasConversionFormatString;
-
     public AwkText FormatPrintByteText(AwkValue value) => FormatPrintByteText(value, null);
 
     public AwkText FormatPrintByteText(AwkValue value, AwkMemoryLease? retainedTextLease)
@@ -32,7 +25,7 @@ internal sealed class AwkFormattingRuntime(
 
         counters.RecordFormattingFallback();
         return PrintfEvaluation.FormatByteText(
-            ResolveFormatString(AwkFormattingVariable.OutputFormat), new AwkSingleValuePrintfArguments(value, counters, checkpoint), PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
+            resolveVariable(AwkFormattingVariable.OutputFormat).AsString(counters, checkpoint), new AwkSingleValuePrintfArguments(value, counters, checkpoint), PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
     }
 
     public AwkText FormatStringByteText(AwkValue value) => FormatStringByteText(value, null);
@@ -50,7 +43,7 @@ internal sealed class AwkFormattingRuntime(
 
         counters.RecordFormattingFallback();
         return PrintfEvaluation.FormatByteText(
-            ResolveFormatString(AwkFormattingVariable.ConversionFormat), new AwkSingleValuePrintfArguments(value, counters, checkpoint), PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
+            resolveVariable(AwkFormattingVariable.ConversionFormat).AsString(counters, checkpoint), new AwkSingleValuePrintfArguments(value, counters, checkpoint), PrintfMissingArgumentPolicy.OmitDirective, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
     }
 
     public static AwkText FormatPrintfStrictByteText<TArguments>(
@@ -89,57 +82,6 @@ internal sealed class AwkFormattingRuntime(
         var format = resolveVariable(variable);
         var text = format.Text;
         return text.EqualsAscii(AwkFormattingVariableFacts.DefaultFormat(variable), checkpoint);
-    }
-
-    private string ResolveFormatString(AwkFormattingVariable variable)
-    {
-        string ResolveConversionFormatString(AwkText text)
-        {
-            if (_hasConversionFormatString && _conversionFormatText.Equals(text, checkpoint))
-                return _conversionFormatString;
-
-            var defaultFormat = AwkFormattingVariableFacts.DefaultFormat(AwkFormattingVariable.ConversionFormat);
-            if (text.EqualsAscii(defaultFormat, checkpoint))
-            {
-                _conversionFormatText = text;
-                _conversionFormatString = defaultFormat;
-                _hasConversionFormatString = true;
-                return _conversionFormatString;
-            }
-
-            counters.RecordFormattingStringInteropInput();
-            var decoded = text.AsString(counters, checkpoint);
-            checkpoint?.Invoke();
-            _conversionFormatText = text;
-            _conversionFormatString = decoded;
-            _hasConversionFormatString = true;
-            return _conversionFormatString;
-        }
-
-        var format = resolveVariable(variable);
-        var text = format.Text;
-        if (variable == AwkFormattingVariable.ConversionFormat)
-            return ResolveConversionFormatString(text);
-
-        if (_hasOutputFormatString && _outputFormatText.Equals(text, checkpoint))
-            return _outputFormatString;
-
-        var defaultFormat = AwkFormattingVariableFacts.DefaultFormat(variable);
-        if (text.EqualsAscii(defaultFormat, checkpoint))
-        {
-            _outputFormatText = text;
-            _outputFormatString = defaultFormat;
-            _hasOutputFormatString = true;
-            return _outputFormatString;
-        }
-
-        counters.RecordFormattingStringInteropInput();
-        var decoded = text.AsString(counters, checkpoint);
-        checkpoint?.Invoke();
-        _outputFormatText = text;
-        _outputFormatString = decoded;
-        _hasOutputFormatString = true;
-        return _outputFormatString;
     }
 
 }
