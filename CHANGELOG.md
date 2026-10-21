@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Resolved getline source names and destination keys retain shared admission through
+  later evaluation, input phases and pending host operations. Previously under-accounted
+  programs can now fail earlier; recoverable read failures still return -1 without stderr.
+- `tolower`/`toupper` honor byte mode by changing ASCII letters only. Scalar Unicode
+  conversion now admits its temporary result before allocation.
+- Sparse nonliteral `gensub` replacements size scratch by parsed parts rather than input
+  bytes; literal runs use chunked scanning with cancellation checkpoints.
+
 - `print`/`printf` keep captured arguments, decoded formats and redirection names funded
   during later operand evaluation and pending host work. Previously under-accounted commands
   may now refuse earlier; evaluation order, earlier output and cleanup are preserved.

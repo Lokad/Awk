@@ -43,9 +43,9 @@ internal readonly struct AwkGensubReplacementPlan : IDisposable
         governor ??= AwkMemoryAccounting.Disabled;
         var bytes = replacement.AsSpan(checkpoint);
         var pooled = !governor.IsEnabled;
-        // Finite budgets count the actual parts and allocate their exact capacity.
+        // Size instructions by parsed parts, not by the bytes in literal runs.
         // ArrayPool only promises a minimum length, so its capacity is not an admission bound.
-        var capacity = pooled ? bytes.Length : Parse(bytes, [], checkpoint).PartCount;
+        var capacity = Parse(bytes, [], checkpoint).PartCount;
         var memoryLease = governor.ReserveTransient(
             AwkRuntimeMemory.EstimateGensubReplacementPartArrayBytes(capacity));
         AwkGensubReplacementPart[]? parts = null;
@@ -94,15 +94,23 @@ internal readonly struct AwkGensubReplacementPlan : IDisposable
             if (current != EscapeByte)
             {
                 var literalStart = index;
-                while (index + 1 < bytes.Length &&
-                    bytes[index + 1] is not (byte)'&' and not EscapeByte)
+                while (index < bytes.Length)
                 {
-                    index++;
                     CheckProgress(index);
+                    var chunk = bytes.Slice(index, Math.Min(bytes.Length - index,
+                        AwkRuntimeLimits.CancellationCheckBytes));
+                    var marker = chunk.IndexOfAny((byte)'&', EscapeByte);
+                    if (marker >= 0)
+                    {
+                        index += marker;
+                        break;
+                    }
+                    index += chunk.Length;
                 }
 
                 AddPart(parts, ref partCount, AwkGensubReplacementPart.Literal(
-                    literalStart, index - literalStart + 1));
+                    literalStart, index - literalStart));
+                index--;
                 continue;
             }
 
