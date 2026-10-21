@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Function calls skip unused memory estimates when no shared governor is supplied and
+  construct local slots directly. Governed admission and retained-cache ownership are preserved.
+
 - Function arguments and frame storage are admitted before allocation. Recycled frames,
   stack capacity and alias-index capacity remain funded until execution ends; cancellation
   during frame setup preserves the caller and refunds unpublished storage.

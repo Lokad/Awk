@@ -58,14 +58,18 @@ internal sealed class AwkFunctionCallStack(
 
         // Values are already evaluated in the caller. Estimate their slots without creating
         // the frame or its buffers; rejected admission must precede those allocations.
-        var supplied = Math.Min(layout.SlotCount, arguments.Length);
-        var localBytes = AwkRuntimeMemory.CheckedMultiply(layout.SlotCount - supplied,
-            (int)AwkRuntimeMemory.EstimateFunctionLocalSlotBytes(AwkFunctionLocalSlot.MissingScalar()));
-        for (var index = 0; index < supplied; index++)
+        var localBytes = 0L;
+        if (memoryAccounting.IsEnabled)
         {
-            if ((index & 63) == 63) checkpoint?.Invoke();
-            localBytes = AwkRuntimeMemory.CheckedAdd(localBytes,
-                AwkRuntimeMemory.EstimateFunctionArgumentSlotBytes(arguments[index]));
+            var supplied = Math.Min(layout.SlotCount, arguments.Length);
+            localBytes = AwkRuntimeMemory.CheckedMultiply(layout.SlotCount - supplied,
+                (int)AwkRuntimeMemory.EstimateFunctionLocalSlotBytes(AwkFunctionLocalSlot.MissingScalar()));
+            for (var index = 0; index < supplied; index++)
+            {
+                if ((index & 63) == 63) checkpoint?.Invoke();
+                localBytes = AwkRuntimeMemory.CheckedAdd(localBytes,
+                    AwkRuntimeMemory.EstimateFunctionArgumentSlotBytes(arguments[index]));
+            }
         }
         var newFrame = _recycledFrames.Count == 0;
         var retainedBytes = newFrame ? AwkRuntimeMemory.EstimateFunctionFrameBytes() : 0;
@@ -93,7 +97,21 @@ internal sealed class AwkFunctionCallStack(
             for (var index = 0; index < layout.SlotCount; index++)
             {
                 if ((index & 63) == 63) checkpoint?.Invoke();
-                frame.GetSlot(index) = CreateSlot(arguments, index);
+                ref var slot = ref frame.GetSlot(index);
+                if (index >= arguments.Length)
+                {
+                    slot = AwkFunctionLocalSlot.MissingScalar();
+                    continue;
+                }
+                var argument = arguments[index];
+                slot = argument.Kind switch
+                {
+                    AwkFunctionArgumentKind.Array => AwkFunctionLocalSlot.ArrayAlias(argument.ArrayName),
+                    AwkFunctionArgumentKind.PotentialArray =>
+                        AwkFunctionLocalSlot.PotentialArrayAlias(argument.ArrayName, argument.Value),
+                    AwkFunctionArgumentKind.UntypedScalar => AwkFunctionLocalSlot.UntypedScalar(argument.Value),
+                    _ => AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(argument.Value))
+                };
             }
 
             RegisterPotentialArrayAliases(frame);
@@ -117,20 +135,6 @@ internal sealed class AwkFunctionCallStack(
         finally
         {
             memoryAccounting.ReleaseCommitted(unpublishedBytes);
-        }
-
-        static AwkFunctionLocalSlot CreateSlot(ReadOnlySpan<AwkFunctionArgument> arguments, int index)
-        {
-            if (index >= arguments.Length) return AwkFunctionLocalSlot.MissingScalar();
-            var argument = arguments[index];
-            return argument.Kind switch
-            {
-                AwkFunctionArgumentKind.Array => AwkFunctionLocalSlot.ArrayAlias(argument.ArrayName),
-                AwkFunctionArgumentKind.PotentialArray =>
-                    AwkFunctionLocalSlot.PotentialArrayAlias(argument.ArrayName, argument.Value),
-                AwkFunctionArgumentKind.UntypedScalar => AwkFunctionLocalSlot.UntypedScalar(argument.Value),
-                _ => AwkFunctionLocalSlot.Scalar(AwkVariableSlot.FromValue(argument.Value))
-            };
         }
 
         void RegisterPotentialArrayAliases(AwkFunctionFrame frame)
@@ -507,9 +511,9 @@ internal sealed class AwkFunctionCallStack(
         if (addsPotentialAlias)
             RegisterPotentialArrayAlias(newSlot.ArrayName);
 
-        var oldBytes = EstimateLocalSlotBytes(oldSlot);
-        var newBytes = EstimateLocalSlotBytes(newSlot);
-        var growth = newBytes - oldBytes;
+        var growth = memoryAccounting.IsEnabled
+            ? EstimateLocalSlotBytes(newSlot) - EstimateLocalSlotBytes(oldSlot)
+            : 0;
         try
         {
             if (growth > 0)
