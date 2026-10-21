@@ -61,6 +61,8 @@ include filenames are raw quoted paths. Consecutive numeric-byte escapes decode 
 as UTF-8: `"\303\251"` is é. Malformed/incomplete runs use U+00xx mappings, so `"\377"` is ÿ;
 separate values do not merge runs. Escape-generated text remains valid UTF-8.
 `printf`/`sprintf` consume evaluated formats without decoding their backslashes again.
+Their `%s` width and precision follow scalar/byte mode. Byte precision that cuts a scalar
+is a fatal UTF-8 error, preserving earlier output, rather than emitting a partial byte sequence.
 
 Unicode escape support uses lowercase `\u` in default/traditional modes; uppercase `\U`
 is unknown. Invalid scalars become `?` with a warning; missing digits retain `u` and warn.

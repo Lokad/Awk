@@ -36,9 +36,10 @@ validated before publication; malformed input produces a fatal awk diagnostic. L
 values and byte mode do not permit arbitrary raw bytes. Arguments, paths and environment
 arrive as .NET strings and are strictly encoded; their original process bytes are unavailable.
 
-For text, `length`, `index`, `substr` and `FIELDWIDTHS` count Unicode scalars by default;
-regex positions and capture lengths use UTF-16 code units. `--characters-as-bytes` changes these units to UTF-8
-bytes, but results and observable regex ranges must still end at scalar boundaries.
+For text, `length`, `index`, `substr`, `FIELDWIDTHS` and `%s` format width/precision count
+Unicode scalars by default; regex positions and capture lengths use UTF-16 code units.
+`--characters-as-bytes` changes these units to UTF-8 bytes, but results and observable
+regex ranges must still end at scalar boundaries.
 Byte-mode `FS=""` requires ASCII; field widths/skips cannot split a scalar. `--posix`
 overrides byte mode with a warning, independently of option order.
 
@@ -73,6 +74,8 @@ capacity remain funded until execution ends; unwinding releases active locals an
 File redirections admit normalized paths and table growth before host opens. Logical flush
 retains path ownership; close refunds the path after the host finishes, while reusable table
 capacity stays funded until execution cleanup.
+Large numeric-format conversion strings and overlapping copies receive temporary admission
+before allocation; encoding releases this scratch charge independently of pending output.
 
 ```csharp
 // memoryBudget and cancellationToken belong to the embedding application.

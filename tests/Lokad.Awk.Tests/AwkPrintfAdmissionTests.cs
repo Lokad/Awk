@@ -3,16 +3,53 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkPrintfAdmissionTests
 {
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task AdmittedCapacityNeedsNoAdditionalMemoryToFormat(int mode)
+    [InlineData("%.*f")] [InlineData("%+.*e")]
+    [InlineData("%#.*g")] [InlineData("%.*a")]
+    public async Task LargeConversionScratchRefusesWithoutPublishingPartialOutput(string format)
+    {
+        var budget = new CooperativeTestBudget(1_200_000);
+        var host = new TestOperationVisitor([]);
+        host.EnqueueAppendExitCode(0); // Earlier output.
+        host.EnqueueAppendExitCode(0); // Admission diagnostic.
+        var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk",
+            ["BEGIN{print \"before\";printf \"" + format + "\",1000000,1.25;print \"after\"}"], []));
+        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+        Assert.Equal(2, exit.Value);
+        Assert.Equal("before\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData("%.*f", 1_000_002)] [InlineData("%+.*e", 1_000_007)]
+    [InlineData("%#.*g", 1_000_001)] [InlineData("%.*a", 1_000_007)]
+    public async Task LargeConversionsReleaseScratchAfterEncoding(string format, int expectedLength)
+    {
+        var budget = new CooperativeTestBudget(16 << 20);
+        await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
+        var accounting = AwkMemoryAccounting.Create(AwkRuntimeCounters.Disabled, owner);
+        using (var builder = new AwkUtf8Builder(accounting, capacity: 0))
+        {
+            PrintfEvaluation.FormatToBuilder(builder, format.Replace("*", "1000000", StringComparison.Ordinal),
+                new AwkSingleValuePrintfArguments(AwkValue.FromNumber(1.25), AwkRuntimeCounters.Disabled),
+                PrintfMissingArgumentPolicy.Throw, AwkRuntimeCounters.Disabled, accounting);
+            Assert.Equal(expectedLength, builder.Length);
+            Assert.Equal(accounting.CurrentCommittedBytes, budget.Reserved);
+            Assert.True(budget.Peak >= 3_000_000);
+        }
+        Assert.Equal(0, accounting.CurrentCommittedBytes);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AdmittedCapacityNeedsNoAdditionalMemoryToFormat(bool governed)
     {
         const int limit = 1024;
         var budget = new CooperativeTestBudget(limit);
-        await using var owner = AwkExecutionMemoryOwner.Create(mode == 0 ? null : budget, CancellationToken.None);
+        await using var owner = AwkExecutionMemoryOwner.Create(governed ? budget : null, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         using (var builder = new AwkUtf8Builder(accounting, capacity: 16))
         using (var pressure = accounting.ReserveTransient(limit - accounting.CurrentCommittedBytes))
@@ -36,7 +73,6 @@ public sealed class AwkPrintfAdmissionTests
         var budget = new CooperativeTestBudget(limit);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var limits = AwkRuntimeLimits.CreateDefault();
         var accounting = AwkMemoryAccounting.Create(counters, owner);
         using (var builder = new AwkUtf8Builder(accounting, capacity: 16))
         {
@@ -59,11 +95,4 @@ public sealed class AwkPrintfAdmissionTests
         Assert.Equal(0, budget.Reserved);
     }
 
-    private sealed class UnreachableArguments : IPrintfArguments
-    {
-        public int Count => 1;
-        public AwkText GetByteText(int index) => throw new InvalidOperationException("Conversion happened before bounds validation.");
-        public double GetNumber(int index) => throw new InvalidOperationException("Unexpected numeric conversion.");
-        public bool IsNumeric(int index) => false;
-    }
 }

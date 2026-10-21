@@ -194,7 +194,9 @@ internal static partial class AwkBuiltins
 
             var formatText = context.GetString(0);
             return context.State.CreateByteTextValue(AwkFormattingRuntime.FormatPrintfStrictByteText(
-                formatText, new AwkBuiltinContextPrintfArguments(context, startIndex: 1), context.State.Counters, context.State.MemoryAccounting, context.State.CompatibilityMode, context.State.CancellationCheckpoint));
+                formatText, new AwkBuiltinContextPrintfArguments(context, startIndex: 1), context.State.Counters,
+                context.State.MemoryAccounting, context.State.CompatibilityMode, context.State.CancellationCheckpoint,
+                stringUnitMode: context.State.StringUnitMode));
         }
         static AwkValue EvaluateSystem(AwkBuiltinContext context)
         {

@@ -20,7 +20,8 @@ internal static class PrintfEvaluation
         AwkMemoryAccounting governor,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null,
-        AwkMemoryLease? retainedTextLease = null)
+        AwkMemoryLease? retainedTextLease = null,
+        AwkStringUnitMode stringUnitMode = AwkStringUnitMode.Utf8Rune)
         where TArguments : IPrintfArguments
     {
         if (format.Length == 0)
@@ -30,7 +31,7 @@ internal static class PrintfEvaluation
         }
 
         using var builder = new AwkUtf8Builder(governor, capacity: 0);
-        FormatToBuilder(builder, format, arguments, missingArgumentPolicy, counters, governor, compatibilityMode, checkpoint);
+        FormatToBuilder(builder, format, arguments, missingArgumentPolicy, counters, governor, compatibilityMode, checkpoint, stringUnitMode);
         var output = new PrintfByteOutput(builder, counters, checkpoint, retainedTextLease);
         var result = output.ToAwkText();
         checkpoint?.Invoke();
@@ -45,7 +46,8 @@ internal static class PrintfEvaluation
         AwkRuntimeCounters counters,
         AwkMemoryAccounting governor,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null)
+        Action? checkpoint = null,
+        AwkStringUnitMode stringUnitMode = AwkStringUnitMode.Utf8Rune)
         where TArguments : IPrintfArguments
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -112,10 +114,12 @@ internal static class PrintfEvaluation
 
                     counters.RecordFormattingStringInteropInput();
                     var value = text.AsString(counters, checkpoint);
-                    if (precision.HasValue)
-                        value = TruncateToRuneCount(value, precision.Value, checkpoint);
+                    var characters = precision.HasValue
+                        ? PrecisionCharacterCount(value, precision.Value, stringUnitMode, checkpoint)
+                        : value.Length;
 
-                    AppendWithWidth(output, value, width.Value, flags.LeftJustify, zeroPad: false, checkpoint);
+                    AppendWithWidth(output, value.AsSpan(0, characters), width.Value, flags.LeftJustify,
+                        zeroPad: false, checkpoint, stringUnitMode);
                 }
 
                 continue;
@@ -138,6 +142,8 @@ internal static class PrintfEvaluation
                 else if (directive.Conversion is PrintfConversion.HexFloatLower or PrintfConversion.HexFloatUpper)
                 {
                     var hexadecimal = AwkHexFloatFormat.CreateFinite(number, precision, flags, directive.Conversion.IsUppercase());
+                    using var scratch = governor.ReserveAllocationPeak(
+                        AwkRuntimeMemory.EstimatePrintfConversionScratchBytes(hexadecimal.ByteCount));
                     output.PreflightAdditionalBytes(Math.Max(width.Value, hexadecimal.ByteCount));
                     checkpoint?.Invoke();
                     var formatted = hexadecimal.Format();
@@ -146,8 +152,10 @@ internal static class PrintfEvaluation
                 }
                 else
                 {
-                    output.PreflightAdditionalBytes(Math.Max(
-                        width.Value, EstimateFloatByteCount(number, directive.Conversion, precision)));
+                    var estimatedBytes = EstimateFloatByteCount(number, directive.Conversion, precision);
+                    using var scratch = governor.ReserveAllocationPeak(
+                        AwkRuntimeMemory.EstimatePrintfConversionScratchBytes(estimatedBytes));
+                    output.PreflightAdditionalBytes(Math.Max(width.Value, estimatedBytes));
                     var formatted = FormatFloat(number, directive.Conversion, precision, flags, checkpoint);
                     AppendWithWidth(output, formatted, width.Value, flags.LeftJustify, flags.ZeroPad, checkpoint);
                 }
@@ -422,9 +430,10 @@ internal static class PrintfEvaluation
             }
         }
 
-        static void AppendWithWidth(PrintfByteOutput output, string text, int width, bool leftJustify, bool zeroPad, Action? checkpoint)
+        static void AppendWithWidth(PrintfByteOutput output, ReadOnlySpan<char> text, int width, bool leftJustify, bool zeroPad,
+            Action? checkpoint, AwkStringUnitMode unitMode = AwkStringUnitMode.Utf8Rune)
         {
-            var textWidth = CountRunes(text, checkpoint);
+            var textWidth = CountUnits(text, unitMode, checkpoint);
             if (width <= 0 || textWidth >= width)
             {
                 output.Append(text);
@@ -438,21 +447,21 @@ internal static class PrintfEvaluation
                 return;
             }
 
-            var prefixLength = text.StartsWith('-') || text.StartsWith('+') || text.StartsWith(' ') ? 1 : 0;
-            if (text.AsSpan(prefixLength).StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            var prefixLength = text.Length > 0 && text[0] is '-' or '+' or ' ' ? 1 : 0;
+            if (text[prefixLength..].StartsWith("0x", StringComparison.OrdinalIgnoreCase))
                 prefixLength += 2;
             if (zeroPad && prefixLength > 0)
             {
-                output.Append(text.AsSpan(0, prefixLength));
+                output.Append(text[..prefixLength]);
                 output.AppendAscii('0', width - textWidth);
-                output.Append(text.AsSpan(prefixLength));
+                output.Append(text[prefixLength..]);
                 return;
             }
 
             output.AppendAscii(zeroPad ? '0' : ' ', width - textWidth);
             output.Append(text);
 
-            static int CountRunes(string text, Action? checkpoint)
+            static int CountUnits(ReadOnlySpan<char> text, AwkStringUnitMode unitMode, Action? checkpoint)
             {
                 checkpoint?.Invoke();
                 var count = 0;
@@ -465,7 +474,8 @@ internal static class PrintfEvaluation
                         checkpoint?.Invoke();
                         nextCheckpoint = (long)utf16Length + AwkRuntimeLimits.CancellationCheckBytes;
                     }
-                    count++;
+                    count = AwkRuntimeMemory.CheckedAdd(count,
+                        unitMode == AwkStringUnitMode.Byte ? rune.Utf8SequenceLength : 1);
                     utf16Length += rune.Utf16SequenceLength;
                 }
                 checkpoint?.Invoke();
@@ -509,13 +519,13 @@ internal static class PrintfEvaluation
             return AwkRuntimeMemory.CheckedAdd(digits, overhead);
         }
 
-        static string TruncateToRuneCount(string text, int maximumRuneCount, Action? checkpoint)
+        static int PrecisionCharacterCount(string text, int maximumUnits, AwkStringUnitMode unitMode, Action? checkpoint)
         {
             checkpoint?.Invoke();
-            if (maximumRuneCount <= 0 || text.Length == 0)
-                return string.Empty;
+            if (maximumUnits <= 0 || text.Length == 0)
+                return 0;
 
-            var runeCount = 0;
+            var unitCount = 0;
             var utf16Length = 0;
             long nextCheckpoint = 0;
             foreach (var rune in text.EnumerateRunes())
@@ -525,17 +535,19 @@ internal static class PrintfEvaluation
                     checkpoint?.Invoke();
                     nextCheckpoint = (long)utf16Length + AwkRuntimeLimits.CancellationCheckBytes;
                 }
-                if (runeCount == maximumRuneCount)
+                if (unitCount == maximumUnits)
                     break;
 
-                runeCount++;
+                var nextUnits = AwkRuntimeMemory.CheckedAdd(unitCount,
+                    unitMode == AwkStringUnitMode.Byte ? rune.Utf8SequenceLength : 1);
+                if (nextUnits > maximumUnits)
+                    throw new AwkRuntimeException(AwkMessages.ErrorInvalidUtf8Input);
+                unitCount = nextUnits;
                 utf16Length += rune.Utf16SequenceLength;
             }
 
             checkpoint?.Invoke();
-            var truncated = utf16Length == text.Length ? text : text[..utf16Length];
-            checkpoint?.Invoke();
-            return truncated;
+            return utf16Length;
         }
 
         static string FormatCharacter(IPrintfArguments arguments, int index, AwkRuntimeCounters counters, Action? checkpoint)
@@ -638,8 +650,6 @@ internal static class PrintfEvaluation
         public void Append(ReadOnlySpan<char> text)
         {
             var longText = text.Length >= AwkRuntimeLimits.CancellationCheckBytes;
-            if (longText)
-                _checkpoint?.Invoke();
             if (longText)
                 _checkpoint?.Invoke();
             _builder.AppendUtf8(text);

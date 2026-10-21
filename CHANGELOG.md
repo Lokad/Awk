@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Correct `%s` width and precision under `-b` / `--characters-as-bytes`, including `sprintf`.
+  Precision must end at a UTF-8 scalar boundary; a partial scalar fails without publishing
+  the current formatted output. Scalar mode is unchanged.
+- Admit large floating-point formatting conversion strings and overlapping copies before
+  allocation. Refusal preserves earlier output; string precision uses slices without a copy.
+
 - Admit retained file-redirection paths and table growth before opening or truncating a target.
   Large sets of long paths now consume the shared allowance; logical flush retains their funding,
   and completed closes release path ownership.

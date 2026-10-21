@@ -44,6 +44,12 @@ internal static class AwkRuntimeMemory
     public static long EstimateEscapeDecodingBytes(int characterCount) =>
         CheckedAdd(128, CheckedMultiply(characterCount, sizeof(char) * 2));
 
+    // Numeric formatting crosses to UTF-16. Cover substantial results plus overlapping
+    // mantissa/exponent, alternate-form and sign copies, not tiny ordinary temporaries.
+    public static long EstimatePrintfConversionScratchBytes(int characterCount) =>
+        characterCount < AwkRuntimeLimits.CancellationCheckBytes ? 0 :
+            CheckedAdd(128, CheckedMultiply(characterCount, sizeof(char) * 4));
+
     // Regex.Escape uses stack scratch for at most 85 input characters. Larger
     // inputs rent a buffer initially sized input + 200 and may grow it. This
     // conservative bound covers pool rounding and old/new buffers during growth;

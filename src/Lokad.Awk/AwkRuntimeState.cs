@@ -70,7 +70,8 @@ internal sealed class AwkRuntimeState : IDisposable
         _stringEscapeWarnings = stringEscapeWarnings ?? new AwkStringEscapeWarnings();
         LintMode = compatibilityProfile.LintMode;
         NonDecimalData = compatibilityProfile.NonDecimalData;
-        var stringUnitMode = compatibilityProfile.StringUnitMode;
+        StringUnitMode = compatibilityProfile.StringUnitMode;
+        var stringUnitMode = StringUnitMode;
         _timeRuntime = new AwkTimeRuntime(runtimeOptions.CurrentUnixTimeSeconds, runtimeOptions.TimeZone);
         _randomRuntime = new AwkRandomRuntime(runtimeOptions.CreateRandomGenerator(), _timeRuntime);
         _cancellationToken = cancellationToken;
@@ -207,6 +208,8 @@ internal sealed class AwkRuntimeState : IDisposable
     public bool ExitRequested => _executionControl.ExitRequested;
 
     public AwkCompatibilityMode CompatibilityMode { get; }
+
+    public AwkStringUnitMode StringUnitMode { get; }
 
     public AwkLintMode LintMode { get; }
 

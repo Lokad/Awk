@@ -4,6 +4,28 @@ internal static partial class AwkGoldenCorpus
 {
     private static IEnumerable<AwkGoldenCase> PrintfByteTextCases()
     {
+        foreach (var option in new[] { "-b", "--characters-as-bytes" })
+        {
+            yield return Passing("printf-byte-units-width-precision-" + option,
+                [option, """
+                    BEGIN {
+                        print length("é")
+                        printf "[%5s]|[%.2s]\n", "é", "éx"
+                        print sprintf("[%.4s]", "ééx")
+                        printf "[%-6s]|[%4.0s]\n", "éé", "é"
+                        printf "[%5s]|[%.2s]\n", "abc", "abc"
+                        printf "[%6.4s]|", "😀x"
+                        printf "[%2$*1$.*3$s]\n", 6, "ééx", 4
+                    }
+                    """], [], "2\n[   é]|[é]\n[éé]\n[éé  ]|[    ]\n[  abc]|[ab]\n[  😀]|[  éé]\n");
+            yield return Failing("printf-byte-precision-rejects-partial-scalar-" + option,
+                [option, "BEGIN{print \"before\";printf \"prefix %.1s\",\"éx\"}"], [],
+                2, "before\n", "awk: invalid UTF-8 input\n");
+            yield return Failing("sprintf-byte-precision-rejects-partial-scalar-" + option,
+                [option, "BEGIN{print \"before\";print sprintf(\"%.3s\",\"ééx\")}"], [],
+                2, "before\n", "awk: invalid UTF-8 input\n");
+        }
+
         foreach (var profile in new[] { "default", "posix", "traditional" })
         {
             string[] options = profile == "default" ? [] : ["--" + profile];

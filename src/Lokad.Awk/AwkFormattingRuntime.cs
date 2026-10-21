@@ -60,13 +60,15 @@ internal sealed class AwkFormattingRuntime(
         AwkMemoryAccounting governor,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
         Action? checkpoint = null,
-        AwkMemoryLease? retainedTextLease = null)
+        AwkMemoryLease? retainedTextLease = null,
+        AwkStringUnitMode stringUnitMode = AwkStringUnitMode.Utf8Rune)
         where TArguments : IPrintfArguments
     {
         counters.RecordFormattingFallback();
         counters.RecordFormattingStringInteropInput();
         return PrintfEvaluation.FormatByteText(
-            formatText, arguments, PrintfMissingArgumentPolicy.Throw, counters, governor, compatibilityMode, checkpoint, retainedTextLease);
+            formatText, arguments, PrintfMissingArgumentPolicy.Throw, counters, governor, compatibilityMode, checkpoint,
+            retainedTextLease, stringUnitMode);
     }
 
     public static void FormatPrintfToBuilder<TArguments>(
@@ -78,7 +80,8 @@ internal sealed class AwkFormattingRuntime(
     {
         state.Counters.RecordFormattingFallback();
         state.Counters.RecordFormattingStringInteropInput();
-        PrintfEvaluation.FormatToBuilder(output, format, arguments, PrintfMissingArgumentPolicy.Throw, state.Counters, state.MemoryAccounting, state.CompatibilityMode, state.CancellationCheckpoint);
+        PrintfEvaluation.FormatToBuilder(output, format, arguments, PrintfMissingArgumentPolicy.Throw, state.Counters,
+            state.MemoryAccounting, state.CompatibilityMode, state.CancellationCheckpoint, state.StringUnitMode);
     }
 
     private bool UsesDefaultFormat(AwkFormattingVariable variable)
