@@ -15,12 +15,29 @@ internal sealed class AwkIoHostAdapter(
     CancellationToken cancellationToken,
     Func<AwkMemoryLease, IReadOnlyList<AwkEnvironmentVariable>> snapshotEnvironment,
     AwkRuntimeResourceMonitor resources,
+    AwkMemoryAccounting accounting,
     AwkPath? accessiblePathRoot = null,
     bool forwardCommandEnvironment = true,
     bool exposeHostErrorDetails = true,
     int maxHostErrorBytes = 4 << 10)
 {
     private CancellationTokenSource? _commandCancellation;
+
+    public AwkMemoryPeakAdmission AdmitPathResolution(string path)
+    {
+        if (!accounting.IsEnabled || !AwkRawPath.IsValid(path)) return default;
+        var characters = AwkRuntimeMemory.CheckedAdd(
+            AwkRuntimeMemory.CheckedAdd(path.Length, currentDirectory.Path.Length), 1);
+        // Combined/canonical UTF-16 strings, display UTF-8 and segment-list growth.
+        var separators = 0;
+        foreach (var character in path)
+            if (character == '/') separators++;
+        foreach (var character in currentDirectory.Path)
+            if (character == '/') separators++;
+        return accounting.ReserveAllocationPeak(AwkRuntimeMemory.CheckedAdd(128,
+            AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedMultiply(characters, 8),
+                AwkRuntimeMemory.CheckedMultiply(separators, 32))));
+    }
 
     // A lookup only inspects already admitted streams; it never opens a host path.
     public AwkPath ResolveExistingPath(string path) =>

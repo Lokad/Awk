@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Admit retained file-redirection paths and table growth before opening or truncating a target.
+  Large sets of long paths now consume the shared allowance; logical flush retains their funding,
+  and completed closes release path ownership.
+
 - Failed source-file closes retain ownership through a best-effort cleanup attempt, including
   after read failure or cancellation. Confirmed successful closes are not repeated.
 

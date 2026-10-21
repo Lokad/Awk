@@ -148,7 +148,7 @@ public sealed partial class AwkPrintStagingMemoryTests
         Assert.Equal("1.25|2.25|3.25!", host.Inner.ReadFile("/result"));
         var retained = printf ? host.BufferCapacity :
             AwkRuntimeMemory.EstimateAwkValueArrayBytes(3) + SegmentBytes(3) + payload + AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity;
-        Assert.Equal(baseline + retained, duringWrite);
+        Assert.True(duringWrite >= baseline + retained);
         Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
         Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
         Assert.Equal(string.Empty, output.ToString());
@@ -214,7 +214,8 @@ public sealed partial class AwkPrintStagingMemoryTests
             Assert.False(pending.IsCompleted);
             var retained = printf ? host.BufferCapacity :
                 AwkRuntimeMemory.EstimateAwkValueArrayBytes(3) + SegmentBytes(3) + payload + AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity;
-            Assert.Equal(baseline + retained, state.MemoryAccounting.CurrentCommittedBytes);
+            var duringWrite = state.MemoryAccounting.CurrentCommittedBytes;
+            Assert.True(duringWrite >= baseline + retained);
             Assert.Equal("kept:", output.ToString());
             if (cancel)
             {
@@ -228,7 +229,7 @@ public sealed partial class AwkPrintStagingMemoryTests
                 await pending.WaitAsync(TimeSpan.FromSeconds(10));
             }
             await host.Finished.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
+            Assert.InRange(state.MemoryAccounting.CurrentCommittedBytes, baseline, duringWrite - 1);
             Assert.Equal(0, state.MemoryAccounting.CurrentReservedBytes);
             Assert.Equal("kept:", output.ToString());
         }
@@ -237,6 +238,7 @@ public sealed partial class AwkPrintStagingMemoryTests
             host.Allow.TrySetResult();
             await io.CloseForCleanupAsync();
         }
+        Assert.Equal(baseline, state.MemoryAccounting.CurrentCommittedBytes);
         if (!cancel) Assert.Equal("1.25|2.25|3.25!", host.Inner.ReadFile("/result"));
         Assert.Equal(0, host.Inner.OpenFileCount);
     }

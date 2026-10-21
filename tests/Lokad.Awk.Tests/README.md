@@ -66,6 +66,8 @@ Memory-mode tests distinguish ungoverned execution from a shared host budget usi
 existing owned fixtures. Assert the selected mode and refunds; do not retain the removed
 private-memory mode as a duplicate theory case. `AwkSourceCloseTests` exercises failed
 source closes with hosts that retain the descriptor until cleanup, including cancellation.
+`AwkFileRedirectionMemoryTests` covers long-path admission before host opens, retained logical
+flush state, alias/reopen behavior and refunds after actual close completion.
 
 ## Benchmarks
 

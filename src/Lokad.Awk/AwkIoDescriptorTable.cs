@@ -6,10 +6,11 @@ using System.Threading.Tasks;
 
 namespace Lokad.Awk;
 
-internal sealed class AwkIoDescriptorTable
+internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
 {
-    private readonly Dictionary<AwkPath, AwkOutputFile> _outputFiles = [];
-    private readonly Dictionary<AwkPath, AwkInputFile> _inputFiles = [];
+    private Dictionary<AwkPath, AwkOutputFile> _outputFiles = [];
+    private Dictionary<AwkPath, AwkInputFile> _inputFiles = [];
+    private readonly AwkMemoryLease _memory = accounting.CreateTransientLease();
 
     public int OutputFileCount => _outputFiles.Count;
 
@@ -28,10 +29,19 @@ internal sealed class AwkIoDescriptorTable
         return false;
     }
 
-    public void AddOutput(AwkPath path, AwkFileDescriptor descriptor, long openedOrder)
+    public void PrepareOutput(AwkPath path, AwkMemoryLease pending)
     {
-        var order = _outputFiles.TryGetValue(path, out var previous) ? previous.Order : openedOrder;
+        if (_outputFiles.ContainsKey(path)) return;
+        pending.ReserveAdditional(EstimatePathBytes(path));
+        PrepareCapacity(_outputFiles);
+    }
+
+    public void AddOutput(AwkPath path, AwkFileDescriptor descriptor, long openedOrder, AwkMemoryLease pending)
+    {
+        var exists = _outputFiles.TryGetValue(path, out var previous);
+        var order = exists ? previous.Order : openedOrder;
         _outputFiles[path] = new AwkOutputFile(descriptor, true, order);
+        if (!exists) pending.MoveTo(_memory, EstimatePathBytes(path));
     }
 
     public AwkOpenRedirection GetRedirection(AwkPath path)
@@ -60,9 +70,46 @@ internal sealed class AwkIoDescriptorTable
         return false;
     }
 
-    public void AddInput(AwkPath path, AwkFileDescriptor descriptor, AwkRecordCursor reader, long openedOrder)
+    public void PrepareInput(AwkPath path, AwkMemoryLease pending)
+    {
+        pending.ReserveAdditional(EstimatePathBytes(path));
+        PrepareCapacity(_inputFiles);
+    }
+
+    public void AddInput(AwkPath path, AwkFileDescriptor descriptor, AwkRecordCursor reader, long openedOrder,
+        AwkMemoryLease pending)
     {
         _inputFiles[path] = new AwkInputFile(descriptor, reader, openedOrder);
+        pending.MoveTo(_memory, EstimatePathBytes(path));
+    }
+
+    // One coarse owner funds retained keys, cursor metadata and backing capacity.
+    // Deleted entries leave reusable backing, so only their payload is refunded.
+    private static long EstimatePathBytes(AwkPath path) =>
+        AwkRuntimeMemory.CheckedAdd(512, AwkRuntimeMemory.EstimateUtf16StringBytes(path.Path.Length));
+
+    private static long EstimateBackingBytes(int capacity) =>
+        capacity == 0 ? 0 : AwkRuntimeMemory.CheckedAdd(128,
+            AwkRuntimeMemory.CheckedMultiply(capacity, 96));
+
+    private void PrepareCapacity<T>(Dictionary<AwkPath, T> files)
+    {
+        if (!accounting.IsEnabled) return;
+        var previous = files.EnsureCapacity(0);
+        if (files.Count < previous) return;
+        var target = (int)Math.Min(Array.MaxLength, Math.Max(3L, 2L * files.Count));
+        var bound = (int)Math.Min(Array.MaxLength, 2L * target + 4);
+        // Admit new backing while old backing is live, including prime rounding.
+        using var growth = accounting.AdmitMutation(EstimateBackingBytes(bound));
+        var capacity = files.EnsureCapacity(target);
+        _memory.ReserveAdditional(EstimateBackingBytes(capacity) - EstimateBackingBytes(previous));
+    }
+
+    private void ReleaseStorage()
+    {
+        _outputFiles = [];
+        _inputFiles = [];
+        _memory.Dispose();
     }
 
     public AwkPath[] SnapshotOutputPaths() =>
@@ -92,6 +139,7 @@ internal sealed class AwkIoDescriptorTable
 
         foreach (var path in _inputFiles.Keys.ToArray())
             await CloseInputAsync(host, path).ConfigureAwait(false);
+        ReleaseStorage();
     }
 
     public async Task CloseAllForCleanupAsync(AwkIoHostAdapter host)
@@ -126,6 +174,7 @@ internal sealed class AwkIoDescriptorTable
                 // Continue closing the remaining descriptors while preserving the primary failure.
             }
         }
+        ReleaseStorage();
     }
 
     public async Task<bool> CloseOutputAsync(
@@ -138,6 +187,7 @@ internal sealed class AwkIoDescriptorTable
         if (output.HasDescriptor)
             await host.CloseDescriptorAsync(output.Descriptor).ConfigureAwait(false);
         _outputFiles.Remove(path);
+        _memory.Release(EstimatePathBytes(path));
         return true;
     }
 
@@ -151,6 +201,7 @@ internal sealed class AwkIoDescriptorTable
         input.Reader.Dispose();
         await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
         _inputFiles.Remove(path);
+        _memory.Release(EstimatePathBytes(path));
         return true;
     }
 
