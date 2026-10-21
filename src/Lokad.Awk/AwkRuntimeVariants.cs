@@ -119,6 +119,7 @@ internal readonly struct AwkResolvedGetlineTarget
     public static AwkResolvedGetlineTarget CurrentRecord => default;
     public static AwkResolvedGetlineTarget ReferenceTarget(AwkResolvedReference reference) => new(reference);
     public bool IsCurrentRecord => !_hasReference;
+    public long RetainedKeyBytes => _hasReference ? _reference.RetainedKeyBytes : 0;
 
     public void AssignRecord(AwkRuntimeState state, AwkText record, AwkRecordFieldSplittingMode fieldSplittingMode)
     {
@@ -191,6 +192,7 @@ internal readonly struct AwkResolvedGetlineSource
     public static AwkResolvedGetlineSource MainInput => default;
     public static AwkResolvedGetlineSource Redirection(string name) => new(AwkGetlineSourceKind.RedirectedFile, name);
     public static AwkResolvedGetlineSource InputPipe(string name) => new(AwkGetlineSourceKind.InputPipe, name);
+    public long RetainedNameBytes => _name is { } name ? AwkRuntimeMemory.EstimateUtf16StringBytes(name.Length) : 0;
 
     public ValueTask<AwkGetlineResult> ReadAsync(AwkExecutionContext execution) => _kind switch
     {
