@@ -81,19 +81,25 @@ returns, branches, local temporaries and nested calls.
 
 ## Managed policy controls
 
-Current measurements at
-[`bd58a8f`](https://github.com/Lokad/Awk/commit/bd58a8f11c9723b0c437fd7d2b68ee8dd6d067bf),
-2026-10-20 UTC. The same portable arithmetic script processes 4,096 records. These embedded
-execution controls use the existing `--governed-profile` fixture and have no native timing.
+GNU/default arithmetic and call rows were measured **2026-10-21 UTC** at
+[`b0487e9`](https://github.com/Lokad/Awk/commit/b0487e922567af000ccb2f78f2eb37db900d8594).
+POSIX arithmetic rows retain **2026-10-20 UTC** measurements at
+[`bd58a8f`](https://github.com/Lokad/Awk/commit/bd58a8f11c9723b0c437fd7d2b68ee8dd6d067bf);
+they have not been rerun. Arithmetic processes 4,096 records; calls process 65,536 records
+with eight two-argument calls per record. These embedded controls use the existing
+`--governed-profile` fixture and have no native timing.
 The budget is supplied by a thread-safe test host; application budgets can cost differently.
 
-| Mode | Shared admission | Lokad ms | Lokad allocated MiB |
-| --- | --- | ---: | ---: |
-| GNU/default | None | 5.212 | 0.718 |
-| POSIX | None | 4.910 | 0.711 |
-| POSIX | 512 MiB | 5.733 | 0.712 |
+| Script | Mode | Shared admission | Lokad ms | Lokad allocated MiB |
+| --- | --- | --- | ---: | ---: |
+| Arithmetic | GNU/default | None | 4.969 | 0.718 |
+| Arithmetic | POSIX | None | 4.910 | 0.711 |
+| Arithmetic | POSIX | 512 MiB | 5.733 | 0.712 |
+| Two-argument calls | GNU/default | None | 141.283 | 9.623 |
+| Two-argument calls | GNU/default | 512 MiB | 183.748 | 9.624 |
 
-These controls use four warmups, five 500 ms iterations and one launch. Their source/binary
+Current rows use three warmups; retained POSIX rows use four. All use five 500 ms iterations
+and one launch. Their source/binary
 identities and pre/post idle checks pass. Single-launch medians vary between runs and do
 not establish a speedup. They do not refresh the reference rows above.
 
@@ -108,7 +114,7 @@ isolate evaluator cost or predict large-input parity. The driver bounds each inv
 
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
 BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Unmarked reference rows use
-three warmups; marked rows and policy controls use four. Marked Lokad rows measure time and
+three warmups; marked rows and retained POSIX controls use four. Marked Lokad rows measure time and
 allocations together through the shared full-invocation fixture; other reference rows use separate
 runs. All use five 500 ms iterations and one launch. Single-launch medians are observational baseline
 estimates; small differences need bounded repeat confirmation.
