@@ -146,9 +146,7 @@ internal static class ReferenceComparison
         var scale = options.GetValueOrDefault("--scale", smoke ? "small" : "all");
         if (!int.TryParse(options.GetValueOrDefault("--pairs", "11"), out var pairs) || pairs < 9 || pairs > 31)
             throw new ArgumentException("--pairs must be between 9 and 31.");
-        var workloads = ReferenceWorkloads.CreateAll().Where(workload =>
-            (name == "*" || workload.Name == name) &&
-            (scale == "all" || workload.Scale == scale || smoke && workload.Scale == "control")).ToArray();
+        var workloads = ReferenceWorkloads.CreateAll(name, scale, includeControls: smoke).ToArray();
         if (workloads.Length == 0)
             throw new ArgumentException("No workloads match --case/--scale.");
         var host = await ReferenceReport.IdentifyHostAsync(token).ConfigureAwait(false);

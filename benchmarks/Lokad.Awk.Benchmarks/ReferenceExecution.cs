@@ -187,7 +187,7 @@ internal static class ReferenceExecution
         Verify(host.Finish(exit.Value), workload.ExpectedDigest);
         return new(counters.HostCalls, counters.RecordsRead, counters.FieldSplits,
             counters.StringDecodes, counters.Utf8Encodes, counters.RegexMatches, counters.RegexCompiles,
-            counters.MemoryPeakLiveBytes, counters.FieldsMaterialized);
+            counters.FieldsMaterialized);
     }
 
     public static void Verify(ReferenceExecutionResult result, OutputDigest expected)
@@ -204,4 +204,4 @@ internal static class ReferenceExecution
 
 internal sealed record ReferenceCounters(long HostCalls, long Records,
     long FieldSplits, long StringDecodes, long Utf8Encodes, long RegexMatches, long RegexCompiles,
-    long MemoryPeakBytes, long FieldsMaterialized);
+    long FieldsMaterialized);

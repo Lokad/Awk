@@ -21,13 +21,21 @@ internal static class ReferenceWorkloads
     ];
     public static readonly string[] Scales = ["small", "medium", "large"];
 
-    public static IEnumerable<ReferenceWorkload> CreateAll()
+    public static IEnumerable<ReferenceWorkload> CreateAll(
+        string name = "*", string scale = "all", bool includeControls = false)
     {
         foreach (var family in Families)
-            foreach (var scale in Scales)
-                yield return Create(family, scale);
-        yield return new("startup-empty", "control", 0, 0, "BEGIN{}", [], [], []);
-        yield return new("startup-tiny", "control", 1, 3, "{print $2}", Bytes("a b c\n"), [], Bytes("b\n"));
+            if (name == "*" || family == name)
+                foreach (var size in Scales)
+                    if (scale == "all" || size == scale)
+                        yield return Create(family, size);
+        if (scale == "all" || scale == "control" || includeControls)
+        {
+            if (name is "*" or "startup-empty")
+                yield return new("startup-empty", "control", 0, 0, "BEGIN{}", [], [], []);
+            if (name is "*" or "startup-tiny")
+                yield return new("startup-tiny", "control", 1, 3, "{print $2}", Bytes("a b c\n"), [], Bytes("b\n"));
+        }
     }
 
     public static ReferenceWorkload Create(string name, string scale)

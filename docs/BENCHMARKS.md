@@ -146,6 +146,8 @@ dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.
 
 The [Linux wrapper](../benchmarks/run-reference-linux.sh) pins the toolchain/reference.
 Invocation and allocation benchmarks share `ReferenceWorkloads` and one in-memory host.
+Compare/smoke filters select family/scale identifiers before constructing input fixtures.
+Their comparison counters omit memory peaks because those runs do not enable admission.
 Interpreter/frontend isolation uses that catalog too; the counter report retains its small,
 dedicated calibration cases. Its memory peak covers Awk-owned storage; the host governor
 also observes provider-owned admission.
