@@ -92,7 +92,7 @@ internal static class AwkRuntime
             runtimeOptions.AllowDynamicMainInputPaths,
             runtimeOptions.ExposeHostErrorDetails,
             runtimeOptions.MaxHostErrorBytes);
-        io.BindMainInputReader(inputScheduler);
+        io.BindMainInputReader(inputScheduler, inputScheduler.PreserveStandardInput);
         using var execution = state.PushExecutionContext(actionExecutor.Output, io);
         try
         {

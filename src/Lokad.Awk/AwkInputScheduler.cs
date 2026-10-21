@@ -31,6 +31,12 @@ internal sealed class AwkInputScheduler(
     private bool _usedStandardInputFallback;
     private MainInputReadProhibition _mainInputReadProhibition;
 
+    public void PreserveStandardInput()
+    {
+        if (_currentInput is { } input && !input.Descriptor.TryGetValue(out _))
+            input.Cursor.PreserveBorrowedInput();
+    }
+
     public async ValueTask<AwkInputRecordResult> ReadAsync()
     {
         if (_mainInputReadProhibition == MainInputReadProhibition.BeginFile)
@@ -233,10 +239,13 @@ internal sealed class AwkInputScheduler(
                     state.Resources,
                     exposeHostErrorDetails,
                     maxHostErrorBytes);
-                return new AwkRecordCursor(
+                var cursor = new AwkRecordCursor(
                     state,
                     descriptorReader,
                     descriptorReader.CreateLineReader(descriptor));
+                if (descriptor == invocation.Stdio.StdIn)
+                    io.PreserveStandardInputIfRedirected(cursor);
+                return cursor;
             }
         }
     }

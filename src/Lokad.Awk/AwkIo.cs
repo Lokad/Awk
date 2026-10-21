@@ -25,6 +25,7 @@ internal sealed class AwkIo
     private long _standardInputOrder;
     private long _redirectionOrder;
     private MainInputReaderBinding _mainInputReader = MainInputReaderBinding.Unbound;
+    private Action? _preserveMainStandardInput;
 
     internal AwkIo(
         IAwkHost host,
@@ -152,11 +153,13 @@ internal sealed class AwkIo
 
             if (_specialPaths.TryResolveInput(path, out var specialDescriptor))
             {
+                _preserveMainStandardInput?.Invoke();
                 if (_standardInputReader is null)
                 {
                     _standardInputReader = CreateRecordCursor(specialDescriptor);
                     _standardInputOrder = NextRedirectionOrder();
                 }
+                _standardInputReader.PreserveBorrowedInput();
                 return AwkInputReaderResult.Success(_standardInputReader);
             }
 
@@ -202,11 +205,22 @@ internal sealed class AwkIo
         return await ReadGetlineRecordAsync(reader).ConfigureAwait(false);
     }
 
-    public void BindMainInputReader(IAwkInputRecordReader reader) =>
+    public void BindMainInputReader(IAwkInputRecordReader reader, Action? preserveStandardInput = null)
+    {
         _mainInputReader = MainInputReaderBinding.Bind(reader);
+        _preserveMainStandardInput = preserveStandardInput;
+    }
 
-    public void ClearMainInputReader() =>
+    public void ClearMainInputReader()
+    {
         _mainInputReader = MainInputReaderBinding.Unbound;
+        _preserveMainStandardInput = null;
+    }
+
+    public void PreserveStandardInputIfRedirected(AwkRecordCursor cursor)
+    {
+        if (_standardInputReader is not null) cursor.PreserveBorrowedInput();
+    }
 
     public Task<AwkGetlineResult> ReadMainRecordAsync()
     {

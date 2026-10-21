@@ -89,41 +89,12 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                     AwkRecordFieldSplittingMode.Ordinary);
             }
 
-            EnsureBufferedMode();
+            PreserveBorrowedInput();
             var result = TryReadBuffered(separator);
             if (result.Status != BufferedReadStatus.NeedMoreData)
                 return result.Record;
 
             await AppendNextBatchAsync().ConfigureAwait(false);
-        }
-
-        void EnsureBufferedMode()
-        {
-            if (_buffer is not null)
-                return;
-
-            var reader = _lineReader;
-            var tail = reader?.PeekBufferedTail() ?? default;
-            _state.ThrowIfCancellationRequested();
-            // SOH stays outside the record bytes and the regex search window. Including it after
-            // compaction keeps ^ anchored to the descriptor start rather than the compacted tail.
-            var buffer = AwkUtf8Builder.CreateWithReservedPrefix(
-                _state.MemoryAccounting, Math.Max(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, tail.Content.Length), 0x01);
-            try
-            {
-                buffer.Append(tail.Content.Span, _state.CancellationCheckpoint);
-                _state.ThrowIfCancellationRequested();
-            }
-            catch
-            {
-                buffer.Dispose();
-                throw;
-            }
-
-            reader?.TakeBufferedTail();
-            _buffer = buffer;
-            _lineReader = null;
-            _descriptorReachedEof = tail.DescriptorReachedEof;
         }
 
         async Task AppendNextBatchAsync()
@@ -793,6 +764,37 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
             _discardedParagraphLeader && separator is ParagraphSeparator
                 ? BufferedReadResult.EndOfFileClearingTerminator
                 : BufferedReadResult.EndOfFile;
+    }
+
+    // Independent stdin streams may read the same host descriptor. Own this tail
+    // before another read invalidates the host's borrowed batch, then stay buffered.
+    public void PreserveBorrowedInput()
+    {
+        if (_buffer is not null)
+            return;
+
+        var reader = _lineReader;
+        var tail = reader?.PeekBufferedTail() ?? default;
+        _state.ThrowIfCancellationRequested();
+        // SOH stays outside the record bytes and the regex search window. Including it after
+        // compaction keeps ^ anchored to the descriptor start rather than the compacted tail.
+        var buffer = AwkUtf8Builder.CreateWithReservedPrefix(
+            _state.MemoryAccounting, Math.Max(AwkRuntimeLimits.DefaultUtf8BuilderInitialCapacity, tail.Content.Length), 0x01);
+        try
+        {
+            buffer.Append(tail.Content.Span, _state.CancellationCheckpoint);
+            _state.ThrowIfCancellationRequested();
+        }
+        catch
+        {
+            buffer.Dispose();
+            throw;
+        }
+
+        reader?.TakeBufferedTail();
+        _buffer = buffer;
+        _lineReader = null;
+        _descriptorReachedEof = tail.DescriptorReachedEof;
     }
 
     public void Dispose()
