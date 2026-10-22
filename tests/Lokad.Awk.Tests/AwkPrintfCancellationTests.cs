@@ -129,16 +129,17 @@ public sealed class AwkPrintfCancellationTests
     }
 
     [Theory]
-    [InlineData("%s")]
-    [InlineData("%c")]
-    public void CancellationAfterStringConversionDiscardsThePendingPrintf(string conversion)
+    [InlineData("%s", "界")]
+    [InlineData("%c", "界")]
+    [InlineData("%c", "")]
+    public void CancellationAfterStringConversionDiscardsThePendingPrintf(string conversion, string text)
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 20, counters);
         var governor = memoryForGovernor.Accounting;
-        var arguments = new TestArguments("界", 0, onString: cancellation.Cancel);
+        var arguments = new TestArguments(text, 0, onString: cancellation.Cancel);
         var failure = Assert.Throws<OperationCanceledException>(() => PrintfEvaluation.FormatByteText(
             "prefix" + conversion, arguments, PrintfMissingArgumentPolicy.Throw, counters, governor, checkpoint: cancellation.Token.ThrowIfCancellationRequested));
         Assert.Equal(cancellation.Token, failure.CancellationToken);

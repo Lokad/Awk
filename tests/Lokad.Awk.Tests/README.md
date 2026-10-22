@@ -50,6 +50,8 @@ nested-call refusal, and funding through actual completion of pending/canceled h
 `AwkOutputOwnershipTests` covers nested print/printf argument admission with output digests,
 and resolved output names surviving pending/canceled operands. `AwkFormattingOwnershipTests`
 covers relinquished format text and reuse of AwkText's decode cache.
+`AwkPrintfFormattingTests` guards character selection against whole-value decoding and
+input-sized allocation; the character semantics live in the golden corpus.
 `AwkGetlineOwnershipTests` covers source/key captures across destination evaluation and
 input phases, pending users, cancellation, refusal and refunds. `AwkCaseMemoryTests` covers
 Unicode conversion preflights and byte-native mixed-text casing; `AwkGensubAllocationTests`

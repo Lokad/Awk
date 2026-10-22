@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `%c` emits NUL for empty strings and uninitialized values, including width/precision
+  formatting. Character selection reads UTF-8 directly without decoding the rest of the value.
+
 - Regex record splitting admits its retained UTF-16 input cache before decoding, including
   provider fallbacks, and refunds it when the cached view ends. Previously underfunded commands
   can fail earlier; direct UTF-8 provider searches keep their byte-only input path.

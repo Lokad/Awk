@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Globalization;
 using System.Text;
 
@@ -166,7 +167,7 @@ internal static class PrintfEvaluation
             {
                 if (argumentCursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
                 {
-                    var formatted = FormatCharacter(arguments, argumentIndex, counters, checkpoint);
+                    var formatted = FormatCharacter(arguments, argumentIndex, checkpoint);
                     output.PreflightAdditionalBytes(Math.Max(
                         width.Value,
                         AwkUtf8Codec.GetEncodedByteCount(formatted)));
@@ -556,7 +557,7 @@ internal static class PrintfEvaluation
             return utf16Length;
         }
 
-        static string FormatCharacter(IPrintfArguments arguments, int index, AwkRuntimeCounters counters, Action? checkpoint)
+        static string FormatCharacter(IPrintfArguments arguments, int index, Action? checkpoint)
         {
             checkpoint?.Invoke();
             if (arguments.IsNumeric(index))
@@ -568,10 +569,12 @@ internal static class PrintfEvaluation
                     : string.Empty;
             }
 
-            counters.RecordFormattingStringInteropInput();
-            var value = arguments.GetByteText(index).AsString(counters, checkpoint);
+            var value = arguments.GetByteText(index).AsSpan(checkpoint);
             checkpoint?.Invoke();
-            return value.Length == 0 ? string.Empty : Rune.GetRuneAt(value, 0).ToString();
+            if (value.IsEmpty) return "\0";
+            if (Rune.DecodeFromUtf8(value, out var rune, out _) != OperationStatus.Done)
+                throw new InvalidOperationException("AwkText contains invalid UTF-8.");
+            return rune.ToString();
         }
     }
 

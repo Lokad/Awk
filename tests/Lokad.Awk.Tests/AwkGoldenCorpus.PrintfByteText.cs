@@ -14,6 +14,18 @@ internal static partial class AwkGoldenCorpus
                         print sprintf("[%+.1000000g]|[%#.6g]", 1.25, 1.25)
                     }
                     """], [], "[1.25]|[1.25]\n[+1.25]|[1.25000]\n");
+            yield return Passing("printf-empty-character-" + option,
+                [.. flags, "BEGIN{s=sprintf(\"%c\",\"\");print length(s);printf \"[%c]\\n\",\"\"}"],
+                [], "1\n[\0]\n");
+            yield return Passing("printf-empty-character-uninitialized-" + option,
+                [.. flags, "BEGIN{s=sprintf(\"%c\",x);print length(s);printf \"[%c]\\n\",x}"],
+                [], "1\n[\0]\n");
+            yield return Passing("printf-empty-character-width-" + option,
+                [.. flags, "BEGIN{printf \"[%3c][%-3c]\\n\",\"\",\"\"}"],
+                [], "[  \0][\0  ]\n");
+            yield return Passing("printf-empty-character-precision-" + option,
+                [.. flags, "BEGIN{s=sprintf(\"%.0c\",\"\");print length(s)}"],
+                [], "1\n");
         }
 
         foreach (var option in new[] { "-b", "--characters-as-bytes" })

@@ -5,6 +5,34 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkPrintfFormattingTests
 {
+    [Theory]
+    [InlineData(false, "a")] [InlineData(true, "a")]
+    [InlineData(false, "é")] [InlineData(true, "é")]
+    [InlineData(false, "😀")] [InlineData(true, "😀")]
+    public void CharacterConversionDoesNotDecodeTheRemainingText(bool governed, string first)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+        using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 16))
+        {
+            // Prime formatter code without warming the large input's decode cache.
+            var warm = new AwkSingleValuePrintfArguments(AwkValue.FromText(first), AwkRuntimeCounters.Disabled);
+            PrintfEvaluation.FormatToBuilder(builder, "%c", warm, PrintfMissingArgumentPolicy.Throw,
+                AwkRuntimeCounters.Disabled, memory.Accounting);
+            builder.Clear();
+            var input = AwkText.FromString(first + new string('q', 1_000_000));
+            var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(input), counters);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            PrintfEvaluation.FormatToBuilder(builder, "%c", arguments, PrintfMissingArgumentPolicy.Throw,
+                counters, memory.Accounting);
+            Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 8192);
+            Assert.Equal(System.Text.Encoding.UTF8.GetBytes(first), builder.AsSpan().ToArray());
+            Assert.Equal(0, counters.StringDecodes);
+            Assert.Equal(0, counters.FormattingStringInteropInputs);
+        }
+        Assert.Equal(0, memory.Budget.Reserved);
+    }
+
     [Fact]
     public void SignedDecimalDigitsMatchFixedFormatAcrossBinary64Boundaries()
     {

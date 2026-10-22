@@ -90,6 +90,7 @@ retains path ownership; close refunds the path after the host finishes, while re
 capacity stays funded until execution cleanup.
 Large numeric-format conversion strings and overlapping copies receive temporary admission
 before allocation; encoding releases this scratch charge independently of pending output.
+Character formatting does not create a decoded cache for the rest of its string input.
 
 ```csharp
 // memoryBudget and cancellationToken belong to the embedding application.

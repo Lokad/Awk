@@ -2,6 +2,24 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkPrintfAdmissionTests
 {
+    [Theory]
+    [InlineData("")]
+    [InlineData("😀tail")]
+    public async Task CharacterWidthRefusalPreservesEarlierOutput(string value)
+    {
+        var budget = new CooperativeTestBudget(128 << 10);
+        var host = new TestOperationVisitor([]);
+        host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendExitCode(0);
+        var script = "BEGIN{print \"before\";printf \"prefix%1000000c\",\"" + value +
+            "\";print \"after\"}END{print \"end\"}";
+        var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []));
+        Assert.Equal(2, (await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None)).Value);
+        Assert.Equal("before\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, budget.Reserved);
+    }
+
     public static IEnumerable<object[]> GeneralPrecisionValues()
     {
         foreach (var upper in new[] { false, true })
