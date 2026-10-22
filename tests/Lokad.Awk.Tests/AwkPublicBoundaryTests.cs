@@ -39,6 +39,32 @@ public sealed class AwkPublicBoundaryTests
     }
 
     [Theory]
+    [InlineData("", false)] [InlineData("", true)]
+    [InlineData("--posix", false)] [InlineData("--posix", true)]
+    [InlineData("--traditional", false)] [InlineData("--traditional", true)]
+    public async Task TriviaTextBoundariesPreserveLineEndingsAndInvalidSpace(string profile, bool governed)
+    {
+        foreach (var source in new[] { "# comment\n", "# comment\r\n", " \t\n", "\u0085" })
+        {
+            var host = new MockFileSystem();
+            host.SetStandardInput("DATA\n");
+            var budget = new CooperativeTestBudget(16 << 20);
+            var policy = AwkExecutionPolicy.CreateDefault();
+            if (governed) policy = policy.WithMemoryBudget(budget);
+            string[] arguments = profile.Length == 0 ? [source] : [profile, source];
+            var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments));
+
+            var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
+
+            Assert.Equal(source == "\u0085" ? AwkExitCode.FatalError : AwkExitCode.Success, exit);
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal(source == "\u0085" ? "awk: unrecognized awk token.\n" : "", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
