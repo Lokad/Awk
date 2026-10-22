@@ -7,8 +7,8 @@ namespace Lokad.Awk;
 
 /// <summary>
 /// Owns the lazy, ordered main-input stream shared by ordinary record processing and plain
-/// <c>getline</c>. Command-line assignments and paths are resolved only when the stream reaches
-/// them, so <c>BEGIN</c> can still change <c>ARGV</c> before the first read.
+/// <c>getline</c>. Command-line assignments and input selection take effect only when the stream
+/// reaches them, so <c>BEGIN</c> can still change <c>ARGV</c> before the first read.
 /// </summary>
 internal sealed class AwkInputScheduler(
     IAwkHost host,

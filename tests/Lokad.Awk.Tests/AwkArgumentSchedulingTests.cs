@@ -5,6 +5,113 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkArgumentSchedulingTests
 {
+    public static IEnumerable<object[]> EmptyOperandBoundaryCases()
+    {
+        foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Name.StartsWith("empty-input-operand-", StringComparison.Ordinal)))
+        foreach (var restricted in new[] { false, true })
+        foreach (var governed in new[] { false, true })
+            yield return [test, restricted, governed];
+    }
+
+    [Theory]
+    [MemberData(nameof(EmptyOperandBoundaryCases))]
+    public async Task EmptyOperandsPreserveInputSelectionAndOriginalCapabilities(
+        AwkGoldenCase test, bool restricted, bool governed)
+    {
+        var host = AwkTestHarness.BuildFileSystem(test);
+        var budget = new CooperativeTestBudget(16 << 20);
+        var policy = restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", test.Arguments, test.Environment));
+
+        var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(test.ExpectedExitCode, exit.Value);
+        Assert.Equal(test.ExpectedStdOut, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(test.ExpectedStdErr, host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(governed, budget.ScopesCreated > 0);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ReplacingAnEmptyOperandStillRequiresDynamicPathPermission(bool restricted, bool governed)
+    {
+        var host = Files();
+        var budget = new CooperativeTestBudget(16 << 20);
+        var policy = restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
+            "BEGIN{ARGV[1]=\"/b.txt\"}{print $0}", ""));
+
+        var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(restricted ? AwkExitCode.FatalError : AwkExitCode.Success, exit);
+        Assert.Equal(restricted ? "" : "b\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(restricted ? "awk: dynamic main-input paths are disabled by execution policy\n" : "",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(restricted ? 0 : 1, host.ReadOpenCount);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task CancellationBetweenFilesStillStopsAfterEmptyOperands(bool restricted, bool governed)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var host = Files();
+        host.AfterCloseDescriptor = cancellation.Cancel;
+        var budget = new CooperativeTestBudget(16 << 20);
+        var policy = restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
+            "{print $0}END{print \"end\"}", "", "/a.txt", "", "/b.txt"));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => awk.ExecuteAsync(host, policy, cancellation.Token));
+
+        Assert.Equal("a\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(1, host.ReadOpenCount);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EmptyOperandsDoNotLetExecutionRecoverFromRefusedAdmission(bool restricted)
+    {
+        var host = Files();
+        host.AddFile("/large.txt", new string('x', 64 << 10) + "\n");
+        var budget = new CooperativeTestBudget(16 << 20);
+        host.AfterAppend = () =>
+        {
+            if (host.GetOutput(AwkFileDescriptor.StdOut) == "before\n" && budget.Refusals == 0)
+                budget.RefuseNextAdmissionMinimumGrowth = 1;
+        };
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault())
+            .WithMemoryBudget(budget);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
+            "BEGIN{print \"before\"}{print \"after\"}END{print \"end\"}", "", "/large.txt", ""));
+
+        var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exit);
+        Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(budget.Refusals > 0);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
     [Theory]
     [InlineData("BEGIN{ARGV[ARGC++]=\"/b.txt\"}{print $0}", "/a.txt", "a\n", 1)]
     [InlineData("BEGIN{ARGV[ARGC++]=ARGV[1]}{print $0}", "/a.txt", "a\n", 1)]

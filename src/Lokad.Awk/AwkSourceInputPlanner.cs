@@ -89,6 +89,11 @@ internal sealed class AwkSourceInputPlanner
     public void AddInputArgument(string value)
     {
         var argvIndex = AddRuntimeArgument(value);
+        if (value.Length == 0)
+        {
+            _inputArguments.Add(AwkInputArgument.Empty(argvIndex));
+            return;
+        }
         if (AwkVariableAssignment.TryParse(
                 value,
                 AwkVariableAssignmentSource.InputArgument,

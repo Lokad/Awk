@@ -51,6 +51,7 @@ in either option order. Admitted invocation warnings precede runtime effects.
 `-v`/`-F` apply before execution in original option order under the final profile.
 Assignment operands apply when the input scheduler reaches them, including through
 `getline` in a function, and target globals. BEGIN exit can skip later operands.
+Empty input operands retain their `ARGV` positions and select no input file.
 Sources/includes and dynamic input paths require host/policy permission.
 `TryParse` recognizes the invocation; source parsing and binding occur during execution.
 Bare source/include names follow explicit `AWKPATH` order; slash-qualified paths bypass search.

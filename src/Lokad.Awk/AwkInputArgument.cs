@@ -13,6 +13,9 @@ internal abstract record AwkInputArgument
 
     public AwkArgvIndex ArgvIndex { get; }
 
+    public static AwkInputArgument Empty(int argvIndex) =>
+        new EmptyArgument(new AwkArgvIndex(argvIndex));
+
     public static AwkInputArgument File(AwkResolvedPath path, int argvIndex) =>
         new FileArgument(path, new AwkArgvIndex(argvIndex));
 
@@ -21,6 +24,11 @@ internal abstract record AwkInputArgument
 
     public static AwkInputArgument Assignment(AwkVariableAssignment assignment, int argvIndex) =>
         new VariableAssignmentArgument(assignment, new AwkArgvIndex(argvIndex));
+
+    internal sealed record EmptyArgument(AwkArgvIndex EmptyArgvIndex) : AwkInputArgument(EmptyArgvIndex)
+    {
+        public override AwkInputArgumentKind Kind => AwkInputArgumentKind.Empty;
+    }
 
     internal sealed record FileArgument(
         AwkResolvedPath Path,
@@ -45,6 +53,7 @@ internal abstract record AwkInputArgument
 
 internal enum AwkInputArgumentKind
 {
+    Empty,
     File,
     StandardInput,
     VariableAssignment
