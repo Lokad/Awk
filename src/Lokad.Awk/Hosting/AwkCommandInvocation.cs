@@ -34,7 +34,7 @@ public readonly record struct AwkEnvironmentVariable
 }
 
 /// <summary>
-/// Represents a single awk command invocation with resolved arguments and descriptors.
+/// Represents an entry invocation or a host-mediated pipe command with resolved descriptors.
 /// </summary>
 public sealed class AwkCommandInvocation
 {
@@ -122,7 +122,24 @@ public sealed class AwkCommandInvocation
         MemoryBudget = memoryBudget;
     }
 
-    /// <summary>Gets the executable name supplied by the caller.</summary>
+    // Public construction snapshots mutable caller collections. Internal budget
+    // forwarding can share those immutable snapshots without copying them again.
+    private AwkCommandInvocation(AwkCommandInvocation source, IMemoryBudget memoryBudget)
+    {
+        CommandName = source.CommandName;
+        Arguments = source.Arguments;
+        Environment = source.Environment;
+        CurrentDirectory = source.CurrentDirectory;
+        StdIn = source.StdIn;
+        StdOut = source.StdOut;
+        StdErr = source.StdErr;
+        MemoryBudget = memoryBudget;
+    }
+
+    internal AwkCommandInvocation WithMemoryBudget(IMemoryBudget memoryBudget) =>
+        new(this, memoryBudget);
+
+    /// <summary>Gets the entry executable name, or the opaque command text of a pipe request.</summary>
     public string CommandName { get; }
 
     /// <summary>Gets the borrowed budget associated with this command by its caller.</summary>

@@ -8,9 +8,7 @@ internal sealed class AwkBudgetHost(IAwkHost host, AwkExecutionMemoryOwner owner
         var forwarded = new AwkCommandInvocation[commands.Count];
         for (var index = 0; index < commands.Count; index++)
         {
-            var command = commands[index];
-            forwarded[index] = new(command.CommandName, command.Arguments, command.Environment,
-                command.CurrentDirectory, command.StdIn, command.StdOut, command.StdErr, owner.Scope);
+            forwarded[index] = commands[index].WithMemoryBudget(owner.Scope);
         }
         return owner.Track(host.RunCommandsAsync(forwarded, cancellationToken));
     }

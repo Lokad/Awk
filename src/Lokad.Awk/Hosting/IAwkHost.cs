@@ -13,6 +13,8 @@ public interface IAwkHost
     /// <summary>
     /// Runs commands and returns one exit code in the same position as each submitted command.
     /// Pipe commands remain active until their corresponding task completes.
+    /// A pipe request carries opaque command text in <see cref="AwkCommandInvocation.CommandName"/>
+    /// and no arguments; the host interprets and authorizes that text.
     /// </summary>
     Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
         IReadOnlyList<AwkCommandInvocation> commands,

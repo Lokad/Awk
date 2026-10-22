@@ -56,6 +56,8 @@ live in the golden corpus. `AwkBoundedSubstringTests` bounds short-result alloca
 and preserves lazy length conversion, mutation refusal and refunds.
 `AwkRuntimeStartupTests` bounds default random setup and unused/UTC time-zone preparation;
 calendar and text-cancellation tests cover lazy date materialization and local DST behavior.
+`AwkCommandForwardingTests` bounds metadata copying during budget forwarding while preserving
+caller snapshots, command context and the active budget; pipe/cooperative tests cover pending users.
 `AwkGetlineOwnershipTests` covers source/key captures across destination evaluation and
 input phases, pending users, cancellation, refusal and refunds. `AwkCaseMemoryTests` covers
 Unicode conversion preflights and byte-native mixed-text casing; `AwkGensubAllocationTests`

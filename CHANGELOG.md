@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Forwarding a pipe command's shared memory budget reuses its immutable argument and
+  environment snapshots. Public invocation construction still snapshots caller collections.
+  Host command behavior, budget association and pending-user lifetimes are unchanged.
+
 - Correct command-line value boundaries: `-fprogram.awk` and `-iinclude.awk` use their
   attached filenames; bare `-L` leaves the program argument intact. Use `-Lfatal` or
   `--lint=fatal` instead of the former `-L fatal` shortcut. Literal `--` input operands

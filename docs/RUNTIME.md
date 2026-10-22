@@ -65,6 +65,8 @@ aggregate memory cap.
 
 Invocation input snapshots belong to the caller. `TryParse` only recognizes and wraps the
 command; execution admits Awk-owned argument/environment preparation before copies.
+Forwarding a pipe command reuses its immutable argument/environment snapshots when attaching
+the active shared budget; it does not copy those snapshots again.
 Major frontend, prepared-program and runtime owners admit retained capacity and growth peaks
 before allocation or mutation. Estimates are coarse, not a process-heap cap or per-object tracking.
 Replacement may need old/new overlap; streaming charges live storage, not cumulative I/O.
