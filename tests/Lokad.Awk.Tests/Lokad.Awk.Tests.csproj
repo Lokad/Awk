@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceOutput.cs" Link="Benchmarking\ReferenceOutput.cs" />
+    <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceBenchmarkHost.cs" Link="Benchmarking\ReferenceBenchmarkHost.cs" />
     <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceWorkloads.cs" Link="Benchmarking\ReferenceWorkloads.cs" />
     <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceClaimPolicy.cs" Link="Benchmarking\ReferenceClaimPolicy.cs" />
     <Compile Include="..\..\benchmarks\Lokad.Awk.Benchmarks\ReferenceContracts.cs" Link="Benchmarking\ReferenceContracts.cs" />

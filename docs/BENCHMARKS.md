@@ -112,6 +112,11 @@ file fixtures. Both consume and hash all output; startup is not subtracted. Thes
 embedding versus CLI execution. CLR process startup is excluded. Small cases do not
 isolate evaluator cost or predict large-input parity. The driver bounds each invocation to 15 seconds.
 
+The current performance host borrows immutable fixture bytes rather than copying each read
+batch. Retained rows above used the host at their stated source revisions; changes to host
+storage must not be attributed to interpreter improvements. Runtime tests independently
+exercise mutable/reused host buffers under the same public lifetime contract.
+
 Ubuntu 24.04.4, four EPYC 9V45 vCPUs, 16 GiB/no swap; SDK 10.0.401/.NET 10.0.12,
 BenchmarkDotNet 0.15.8, C locale (C.UTF-8 for Unicode), UTC. Unmarked reference rows use
 three warmups; marked rows and retained POSIX controls use four. Marked Lokad rows measure time and

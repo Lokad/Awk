@@ -47,6 +47,10 @@ frame/alias caches, setup cancellation and final refunds. `AwkPartialCloseTests`
 public-boundary partial-close failures and cleanup without replaying successful closes.
 `AwkEvaluationOwnershipTests` covers retained scalar/key/snapshot funding after source mutation,
 nested-call refusal, and funding through actual completion of pending/canceled host users.
+`AwkMainInputOwnershipTests` covers sequential main files, main getline, nextfile/exit,
+refusal after open and funding through pending/canceled closes. Partial-close tests also
+suspend table retirement and logical flush, preserving every remaining stream and avoiding
+successful-close replay.
 `AwkOutputOwnershipTests` covers nested print/printf argument admission with output digests,
 and resolved output names surviving pending/canceled operands. `AwkFormattingOwnershipTests`
 covers relinquished format text and reuse of AwkText's decode cache.
@@ -113,6 +117,9 @@ Oracle comparison remains opt-in so CI stays deterministic unless a developer ex
 `AwkBenchmarkHarnessTests` checks raw byte consumption, output bounds, paired statistics,
 quiet-machine gates, and report claim qualification. It compile-links the pure helpers
 from benchmark tooling without referencing BenchmarkDotNet or an external process.
+`AwkBenchmarkInputTests` checks the shared performance host's borrowed immutable fixtures,
+line offsets, independent descriptor positions, batching and EOF. Mutable/reused host-buffer
+contracts remain covered independently by runtime host/record tests.
 The optional native driver's `--driver-smoke` integration checks require explicitly
 selected GNU awk and stay outside ordinary test execution.
 
