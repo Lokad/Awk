@@ -76,7 +76,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         var value = AwkExpression.Number(1);
         var deep = new TooDeepExpression();
         var function = new AwkUserFunction(name, new([]),
-            [AwkStatement.If(new([[AwkConditionClause.Truthy(alternative ? value : deep)]]),
+            [AwkStatement.If(new(alternative ? value : deep),
                 [AwkStatement.Return(AwkOptionalExpression.Some(value))]),
              AwkStatement.Return(AwkOptionalExpression.Some(alternative ? deep : value))]);
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [name] = function };

@@ -58,6 +58,10 @@ and preserves lazy length conversion, mutation refusal and refunds.
 calendar and text-cancellation tests cover lazy date materialization and local DST behavior.
 `AwkCommandForwardingTests` bounds metadata copying during budget forwarding while preserving
 caller snapshots, command context and the active budget; pipe/cooperative tests cover pending users.
+Public-boundary tests cover malformed host strings and authorization of actual source-search
+candidates. Source-search semantics live in the golden corpus; pipe tests cover empty-name
+`ENVIRON` export. Condition completion tests exercise expression truth/short-circuit behavior
+directly, including suspended and failed operands.
 `AwkGetlineOwnershipTests` covers source/key captures across destination evaluation and
 input phases, pending users, cancellation, refusal and refunds. `AwkCaseMemoryTests` covers
 Unicode conversion preflights and byte-native mixed-text casing; `AwkGensubAllocationTests`

@@ -214,7 +214,7 @@ internal static partial class AwkProgramLowerer
                         return false;
                     }
 
-                    condition = new AwkCondition([[AwkConditionClause.Truthy(expression)]]);
+                    condition = new AwkCondition(expression);
                     return true;
                 }
 
@@ -247,7 +247,7 @@ internal static partial class AwkProgramLowerer
                     return false;
                 }
 
-                condition = new AwkCondition([[AwkConditionClause.Truthy(expression)]]);
+                condition = new AwkCondition(expression);
                 return true;
             }
 

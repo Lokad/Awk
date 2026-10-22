@@ -247,11 +247,12 @@ public sealed class AwkExpressionCompletionTests
         var last = new ValueSource(1, pending: false);
         var fallback = new ValueSource(0, pending: false);
         AwkCondition condition = general
-            ? new([
-                [AwkConditionClause.Truthy(new SourceExpression(guard)), AwkConditionClause.Truthy(new SourceExpression(skipped))],
-                [AwkConditionClause.Truthy(new SourceExpression(chosen)), AwkConditionClause.Truthy(new SourceExpression(last))],
-                [AwkConditionClause.Truthy(new SourceExpression(fallback))]])
-            : new([[AwkConditionClause.Truthy(new SourceExpression(chosen))]]);
+            ? new(AwkExpression.LogicalOr(
+                AwkExpression.LogicalAnd(new SourceExpression(guard), new SourceExpression(skipped)),
+                AwkExpression.LogicalOr(
+                    AwkExpression.LogicalAnd(new SourceExpression(chosen), new SourceExpression(last)),
+                    new SourceExpression(fallback))))
+            : new(new SourceExpression(chosen));
         var result = condition.EvaluateAsync(new AwkEvaluationContext(state));
         if (pending)
         {
@@ -286,8 +287,8 @@ public sealed class AwkExpressionCompletionTests
         if (!pending)
             first.Fail(error);
         AwkCondition condition = general
-            ? new([[AwkConditionClause.Truthy(new SourceExpression(first)), AwkConditionClause.Truthy(new SourceExpression(later))]])
-            : new([[AwkConditionClause.Truthy(new SourceExpression(first))]]);
+            ? new(AwkExpression.LogicalAnd(new SourceExpression(first), new SourceExpression(later)))
+            : new(new SourceExpression(first));
         var result = condition.EvaluateAsync(new AwkEvaluationContext(state));
         if (pending)
             first.Fail(error);
@@ -298,31 +299,21 @@ public sealed class AwkExpressionCompletionTests
     }
 
     [Theory]
-    [InlineData(false, false, false, false)]
-    [InlineData(false, false, false, true)]
-    [InlineData(false, false, true, false)]
-    [InlineData(false, false, true, true)]
-    [InlineData(false, true, false, false)]
-    [InlineData(false, true, false, true)]
-    [InlineData(false, true, true, false)]
-    [InlineData(false, true, true, true)]
-    [InlineData(true, false, false, false)]
-    [InlineData(true, false, false, true)]
-    [InlineData(true, false, true, false)]
-    [InlineData(true, false, true, true)]
-    [InlineData(true, true, false, false)]
-    [InlineData(true, true, false, true)]
-    [InlineData(true, true, true, false)]
-    [InlineData(true, true, true, true)]
-    public async Task ComparisonConditionsKeepOrderConsumptionAndSteps(bool truthy, bool pendingLeft, bool pendingRight, bool factory)
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task ComparisonConditionsKeepOrderAndSingleConsumption(bool truthy, bool pendingLeft, bool pendingRight)
     {
         var (state, counters) = CreateState();
         var left = new ValueSource(truthy ? 2 : 4, pendingLeft);
         var right = new ValueSource(3, pendingRight);
-        var clause = factory
-            ? AwkConditionClause.Comparison(new SourceExpression(left), new SourceExpression(right), AwkComparison.LessThan)
-            : AwkConditionClause.Truthy(AwkExpression.Compare(new SourceExpression(left), new SourceExpression(right), AwkComparison.LessThan));
-        var result = clause.EvaluateAsync(new AwkEvaluationContext(state));
+        var condition = new AwkCondition(AwkExpression.Compare(new SourceExpression(left), new SourceExpression(right), AwkComparison.LessThan));
+        var result = condition.EvaluateAsync(new AwkEvaluationContext(state));
         if (pendingLeft)
         {
             Assert.False(right.Started.Task.IsCompleted);
@@ -357,7 +348,7 @@ public sealed class AwkExpressionCompletionTests
         if (!pending) failed.Fail(error);
         var left = failRight ? new SourceExpression(other) : new SourceExpression(failed);
         var right = failRight ? new SourceExpression(failed) : new SourceExpression(other);
-        var result = AwkConditionClause.Truthy(AwkExpression.Compare(left, right, AwkComparison.Equal))
+        var result = new AwkCondition(AwkExpression.Compare(left, right, AwkComparison.Equal))
             .EvaluateAsync(new AwkEvaluationContext(state)).AsTask();
         if (pending) failed.Fail(error);
         var observed = await Record.ExceptionAsync(() => result);

@@ -53,7 +53,7 @@ public sealed class AwkFieldLoopRegionTests
             AwkExpression.Compare(AwkExpression.FieldIndex(index), AwkExpression.Literal("a"), AwkComparison.Equal)
         })
         {
-            var condition = new AwkCondition([[AwkConditionClause.Truthy(expression)]]);
+            var condition = new AwkCondition(expression);
             Assert.Equal(eligible, condition.TryGetSynchronousExpression(out _));
         }
     }
@@ -81,7 +81,7 @@ public sealed class AwkFieldLoopRegionTests
             : AwkExpression.Length(field, AwkOptionalIdentifier.None);
         var reference = AwkReference.PreparedGlobalScalar(i, 0);
         var loop = AwkStatement.For(AwkStatement.Assignment(reference, AwkExpression.Number(1)),
-            new([[AwkConditionClause.Comparison(AwkExpression.PreparedGlobalVariable(i, 0), AwkExpression.Number(2), AwkComparison.LessThan)]]),
+            new(AwkExpression.Compare(AwkExpression.PreparedGlobalVariable(i, 0), AwkExpression.Number(2), AwkComparison.LessThan)),
             AwkStatement.PostIncrement(reference), [AwkStatement.CompoundAssignment(AwkReference.PreparedGlobalScalar(total, 1),
                 value, AwkCompoundAssignmentOperation.Add)]);
         var host = new MockFileSystem(); var io = Io(state, host, counters);

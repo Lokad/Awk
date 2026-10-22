@@ -16,15 +16,4 @@ internal static class AwkCollectionSnapshots
 
         return copy;
     }
-
-    public static T[][] CopyNested<T>(IReadOnlyList<IReadOnlyList<T>> values)
-    {
-        var copy = new T[values.Count][];
-        for (var index = 0; index < values.Count; index++)
-        {
-            copy[index] = Copy(values[index]);
-        }
-
-        return copy;
-    }
 }

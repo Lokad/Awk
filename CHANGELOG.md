@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Conditions retain one expression directly. Removed nested clause lists, duplicate logical
+  evaluation and associated construction copies; execution semantics and prepared paths remain.
+
 - Malformed .NET argument/environment text produces a strict-text awk diagnostic instead of
   leaking encoding exceptions or using a generic unexpected-failure message.
 - Source/include lookup honors explicit `AWKPATH` order and bypasses search for slash-qualified

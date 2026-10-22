@@ -30,7 +30,7 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
             static _ => []);
         var statement = AwkStatement.For(
             AwkStatement.Assignment(AwkReference.Scalar(AwkVariableName.FromText("i")), AwkExpression.Number(0)),
-            new AwkCondition([[AwkConditionClause.Truthy(AwkExpression.Number(1))]]),
+            new AwkCondition(AwkExpression.Number(1)),
             AwkStatement.PostIncrement(AwkReference.Scalar(AwkVariableName.FromText("i"))),
             [AwkStatement.PostIncrement(AwkReference.Scalar(AwkVariableName.FromText("x")))]);
 

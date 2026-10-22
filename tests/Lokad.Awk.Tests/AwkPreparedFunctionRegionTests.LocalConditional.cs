@@ -56,7 +56,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
         AwkExpression deep = calls ? new PrefixDeepCallExpression() : new TooDeepExpression();
         var function = new AwkUserFunction(name, new([local]),
             [AwkStatement.Assignment(AwkReference.LocalScalar(local, new(0)), part == "prefix" ? deep : value),
-             AwkStatement.If(new([[AwkConditionClause.Truthy(part == "condition" ? deep : value)]]),
+             AwkStatement.If(new(part == "condition" ? deep : value),
                 [AwkStatement.Return(AwkOptionalExpression.Some(part == "return" ? deep : value))]),
              AwkStatement.Return(AwkOptionalExpression.Some(part == "alternative" ? deep : value))]);
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction> { [name] = function };

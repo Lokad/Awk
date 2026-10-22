@@ -486,15 +486,14 @@ internal static class AwkStatementLowerer
                         condition = default;
                         if (slot.IsEmpty)
                         {
-                            condition = new AwkCondition(
-                                [[AwkConditionClause.Truthy(AwkExpression.Number(1))]]);
+                            condition = new AwkCondition(AwkExpression.Number(1));
                             return true;
                         }
 
                         if (!TryLowerExpressionSlot(slot, scope, out var expression))
                             return false;
 
-                        condition = new AwkCondition([[AwkConditionClause.Truthy(expression)]]);
+                        condition = new AwkCondition(expression);
                         return true;
                     }
 
@@ -610,7 +609,7 @@ internal static class AwkStatementLowerer
             return false;
         }
 
-        condition = new AwkCondition([[AwkConditionClause.Truthy(lowered)]]);
+        condition = new AwkCondition(lowered);
         return true;
     }
 

@@ -83,7 +83,7 @@ public sealed class AwkProgramTests
         Assert.Equal(AwkStatementFlow.ExitProgram, flow);
 
         static AwkCondition TrueCondition() =>
-            new([[AwkConditionClause.Truthy(AwkExpression.Number(1))]]);
+            new(AwkExpression.Number(1));
     }
 
     [Fact]
@@ -102,22 +102,6 @@ public sealed class AwkProgramTests
         var flow = await statement.ExecuteAsync(state, AwkTestHarness.CreateOutputSink(), CreateIo());
 
         Assert.Equal(AwkStatementFlow.ExitProgram, flow);
-    }
-
-    [Fact]
-    public async Task AwkCondition_CopiesCallerOwnedClauseLists()
-    {
-        var clauses = new List<AwkConditionClause>
-        {
-            AwkConditionClause.Truthy(AwkExpression.Number(1))
-        };
-        var alternatives = new List<IReadOnlyList<AwkConditionClause>> { clauses };
-        var condition = new AwkCondition(alternatives);
-        clauses.Clear();
-        alternatives.Clear();
-        var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
-
-        Assert.True(await condition.EvaluateAsync(new AwkEvaluationContext(state)));
     }
 
     [Fact]
