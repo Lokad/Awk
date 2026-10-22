@@ -13,25 +13,6 @@ internal static class AwkOptionValueReader
         return parser.TryReadRaw(out value);
     }
 
-    public static bool TryReadShortRaw(
-        CommandLineOptionParser parser,
-        out string value) =>
-        parser.TryReadRaw(out value);
-
-    public static bool TryReadOptionalShortAttachedOrRaw(
-        CommandLineOptionParser parser,
-        out string value)
-    {
-        if (TryReadShortAttachedOrRaw(parser, out value))
-            return true;
-
-        value = string.Empty;
-        return false;
-    }
-
-    public static bool TryDiscardShortAttached(CommandLineOptionParser parser) =>
-        parser.TryReadShortGroupRemainder(out _);
-
     public static bool TryReadLong(
         CommandLineOptionParser parser,
         CommandLineOptionItem.LongOption item,

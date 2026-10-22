@@ -53,21 +53,19 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
     }
 
     [Theory]
-    [InlineData('F', "FieldSeparator", "Required", "AttachedOrRaw")]
-    [InlineData('f', "AddSourceFile", "Required", "Raw")]
-    [InlineData('L', "Lint", "Optional", "AttachedOrRaw")]
-    [InlineData('W', "ExpandWOption", "Required", "AttachedOrRaw")]
+    [InlineData('F', "FieldSeparator", "Required")]
+    [InlineData('f', "AddSourceFile", "Required")]
+    [InlineData('L', "Lint", "Optional")]
+    [InlineData('W', "ExpandWOption", "Required")]
     public void AwkOptions_ResolvesShortOptionMetadata(
         char optionName,
         string expectedAction,
-        string expectedCardinality,
-        string expectedPlacement)
+        string expectedCardinality)
     {
         Assert.True(AwkOptions.TryResolveShortOption(optionName, out var option));
 
         Assert.Equal(expectedAction, option.Action.ToString());
         Assert.Equal(expectedCardinality, option.ValueCardinality.ToString());
-        Assert.Equal(expectedPlacement, option.ShortValuePlacement.ToString());
     }
 
     [Fact]

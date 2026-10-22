@@ -40,6 +40,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(CompatibilityContractCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Io, AwkGoldenTag.Record),
 
         .. Tagged(OptionCompatibilityCases(), AwkGoldenTag.CommandLine),
+        .. Tagged(OptionValueBoundaryCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Io),
 
         .. Tagged(ArgumentSchedulingCompatibilityRepairs(), AwkGoldenTag.CommandLine, AwkGoldenTag.Record),
 
@@ -1343,7 +1344,7 @@ internal static partial class AwkGoldenCorpus
 
         Passing(
             "option-terminator-leading-dash-file",
-            ["{print $1}", "--", "-data.txt"],
+            ["--", "{print $1}", "-data.txt"],
             [File("/-data.txt", "alpha beta\n")],
             "alpha\n"),
 
@@ -2004,8 +2005,8 @@ internal static partial class AwkGoldenCorpus
             "awk: fatal: function `missing_function' called but never defined\n"),
 
         Failing(
-            "undefined-function-short-lint-separated-fatal",
-            ["-L", "fatal", "BEGIN{print missing_function(1)}"],
+            "undefined-function-short-lint-attached-fatal",
+            ["-Lfatal", "BEGIN{print missing_function(1)}"],
             [],
             2,
             string.Empty,

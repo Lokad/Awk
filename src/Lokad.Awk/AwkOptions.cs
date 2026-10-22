@@ -10,14 +10,12 @@ internal readonly struct AwkOptionSpec
         AwkOptionAction action,
         string longName,
         char shortName,
-        AwkOptionValueCardinality valueCardinality,
-        AwkShortOptionValuePlacement shortValuePlacement)
+        AwkOptionValueCardinality valueCardinality)
     {
         Action = action;
         _longName = longName;
         ShortName = shortName;
         ValueCardinality = valueCardinality;
-        ShortValuePlacement = shortValuePlacement;
     }
 
     public AwkOptionAction Action { get; }
@@ -27,8 +25,6 @@ internal readonly struct AwkOptionSpec
     public char ShortName { get; }
 
     public AwkOptionValueCardinality ValueCardinality { get; }
-
-    public AwkShortOptionValuePlacement ShortValuePlacement { get; }
 
     public bool IsUnsupportedGnuOption =>
         Action is
@@ -69,59 +65,51 @@ internal enum AwkOptionValueCardinality
     Optional
 }
 
-internal enum AwkShortOptionValuePlacement
-{
-    None,
-    AttachedOnly,
-    AttachedOrRaw,
-    Raw
-}
-
 internal static class AwkOptions
 {
     private static readonly AwkOptionSpec[] LongOptions =
     [
-        new(AwkOptionAction.AddVariableAssignment, "assign", 'v', AwkOptionValueCardinality.Required, AwkShortOptionValuePlacement.AttachedOrRaw),
-        new(AwkOptionAction.RejectUnsupportedGnuOption, "bignum", '\0', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.CharactersAsBytes, "characters-as-bytes", 'b', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.RejectUnsupportedGnuOption, "copyright", '\0', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.RejectUnsupportedGnuOption, "debug", 'd', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.AttachedOnly),
-        new(AwkOptionAction.RejectUnsupportedGnuOption, "dump-variables", 'D', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.AttachedOnly),
-        new(AwkOptionAction.EnterInputArguments, "exec", 'E', AwkOptionValueCardinality.Required, AwkShortOptionValuePlacement.AttachedOrRaw),
-        new(AwkOptionAction.FieldSeparator, "field-separator", 'F', AwkOptionValueCardinality.Required, AwkShortOptionValuePlacement.AttachedOrRaw),
-        new(AwkOptionAction.AddSourceFile, "file", 'f', AwkOptionValueCardinality.Required, AwkShortOptionValuePlacement.Raw),
-        new(AwkOptionAction.RejectUnsupportedGnuOption, "gen-pot", '\0', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.PrintHelp, "help", 'h', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.AddIncludeFile, "include", 'i', AwkOptionValueCardinality.Required, AwkShortOptionValuePlacement.Raw),
-        new(AwkOptionAction.Lint, "lint", 'L', AwkOptionValueCardinality.Optional, AwkShortOptionValuePlacement.AttachedOrRaw),
-        new(AwkOptionAction.LintOld, "lint-old", 't', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.RejectDynamicLoad, "load", 'l', AwkOptionValueCardinality.Required, AwkShortOptionValuePlacement.AttachedOrRaw),
-        new(AwkOptionAction.NoOptimize, "no-optimize", 's', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.NonDecimalData, "non-decimal-data", 'n', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.Optimize, "optimize", 'O', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.Posix, "posix", 'P', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.RejectUnsupportedGnuOption, "pretty-print", 'o', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.AttachedOnly),
-        new(AwkOptionAction.RejectUnsupportedGnuOption, "profile", 'p', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.AttachedOnly),
-        new(AwkOptionAction.ReInterval, "re-interval", 'r', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.Sandbox, "sandbox", 'S', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.AddInlineScript, "source", 'e', AwkOptionValueCardinality.Required, AwkShortOptionValuePlacement.AttachedOrRaw),
-        new(AwkOptionAction.Traditional, "traditional", 'c', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.RejectUnsupportedGnuOption, "trace", '\0', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.UseLcNumeric, "use-lc-numeric", 'N', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.PrintVersion, "version", 'V', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None)
+        new(AwkOptionAction.AddVariableAssignment, "assign", 'v', AwkOptionValueCardinality.Required),
+        new(AwkOptionAction.RejectUnsupportedGnuOption, "bignum", '\0', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.CharactersAsBytes, "characters-as-bytes", 'b', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.RejectUnsupportedGnuOption, "copyright", '\0', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.RejectUnsupportedGnuOption, "debug", 'd', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.RejectUnsupportedGnuOption, "dump-variables", 'D', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.EnterInputArguments, "exec", 'E', AwkOptionValueCardinality.Required),
+        new(AwkOptionAction.FieldSeparator, "field-separator", 'F', AwkOptionValueCardinality.Required),
+        new(AwkOptionAction.AddSourceFile, "file", 'f', AwkOptionValueCardinality.Required),
+        new(AwkOptionAction.RejectUnsupportedGnuOption, "gen-pot", '\0', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.PrintHelp, "help", 'h', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.AddIncludeFile, "include", 'i', AwkOptionValueCardinality.Required),
+        new(AwkOptionAction.Lint, "lint", 'L', AwkOptionValueCardinality.Optional),
+        new(AwkOptionAction.LintOld, "lint-old", 't', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.RejectDynamicLoad, "load", 'l', AwkOptionValueCardinality.Required),
+        new(AwkOptionAction.NoOptimize, "no-optimize", 's', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.NonDecimalData, "non-decimal-data", 'n', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.Optimize, "optimize", 'O', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.Posix, "posix", 'P', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.RejectUnsupportedGnuOption, "pretty-print", 'o', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.RejectUnsupportedGnuOption, "profile", 'p', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.ReInterval, "re-interval", 'r', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.Sandbox, "sandbox", 'S', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.AddInlineScript, "source", 'e', AwkOptionValueCardinality.Required),
+        new(AwkOptionAction.Traditional, "traditional", 'c', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.RejectUnsupportedGnuOption, "trace", '\0', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.UseLcNumeric, "use-lc-numeric", 'N', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.PrintVersion, "version", 'V', AwkOptionValueCardinality.None)
     ];
 
     private static readonly AwkOptionSpec[] ShortOnlyOptions =
     [
-        new(AwkOptionAction.RejectUnsupportedGnuOption, string.Empty, 'C', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.RejectUnsupportedGnuOption, string.Empty, 'g', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.RejectUnsupportedGnuOption, string.Empty, 'I', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.RejectUnsupportedGnuOption, string.Empty, 'M', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None),
-        new(AwkOptionAction.ExpandWOption, string.Empty, 'W', AwkOptionValueCardinality.Required, AwkShortOptionValuePlacement.AttachedOrRaw)
+        new(AwkOptionAction.RejectUnsupportedGnuOption, string.Empty, 'C', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.RejectUnsupportedGnuOption, string.Empty, 'g', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.RejectUnsupportedGnuOption, string.Empty, 'I', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.RejectUnsupportedGnuOption, string.Empty, 'M', AwkOptionValueCardinality.None),
+        new(AwkOptionAction.ExpandWOption, string.Empty, 'W', AwkOptionValueCardinality.Required)
     ];
 
     private static readonly AwkOptionSpec CompatOption =
-        new(AwkOptionAction.Traditional, "compat", '\0', AwkOptionValueCardinality.None, AwkShortOptionValuePlacement.None);
+        new(AwkOptionAction.Traditional, "compat", '\0', AwkOptionValueCardinality.None);
 
     public static bool TryResolveShortOption(char name, out AwkOptionSpec resolved)
     {

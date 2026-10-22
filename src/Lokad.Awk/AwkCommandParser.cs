@@ -94,9 +94,6 @@ internal static class AwkCommandParser
                 while (parser.TryReadRaw(out var argument))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    if (argument == "--")
-                        continue;
-
                     _sourceInputPlanner.AddInputArgument(argument);
                 }
             }
@@ -148,35 +145,16 @@ internal static class AwkCommandParser
                     CommandLineOptionParser optionParser,
                     AwkOptionSpec optionSpec)
                 {
-                    switch (optionSpec.ShortValuePlacement)
+                    switch (optionSpec.ValueCardinality)
                     {
-                        case AwkShortOptionValuePlacement.None:
+                        case AwkOptionValueCardinality.None:
                             return AwkOptionValueResult.Empty;
-                        case AwkShortOptionValuePlacement.AttachedOnly:
-                            AwkOptionValueReader.TryDiscardShortAttached(optionParser);
-                            return AwkOptionValueResult.Empty;
-                        case AwkShortOptionValuePlacement.AttachedOrRaw:
-                            if (optionSpec.ValueCardinality == AwkOptionValueCardinality.Optional)
-                            {
-                                AwkOptionValueReader.TryReadOptionalShortAttachedOrRaw(
-                                    optionParser,
-                                    out var optionalValue);
-                                return AwkOptionValueResult.Success(optionalValue);
-                            }
-
-                            if (AwkOptionValueReader.TryReadShortAttachedOrRaw(
-                                    optionParser,
-                                    out var attachedOrRawValue))
-                            {
-                                return AwkOptionValueResult.Success(attachedOrRawValue);
-                            }
-
-                            return AwkOptionValueResult.Fail(
-                                AwkMessages.ErrorMissingValue,
-                                AwkDiagnosticId.OptionMissingValue);
-                        case AwkShortOptionValuePlacement.Raw:
-                            if (AwkOptionValueReader.TryReadShortRaw(optionParser, out var rawValue))
-                                return AwkOptionValueResult.Success(rawValue);
+                        case AwkOptionValueCardinality.Optional:
+                            optionParser.TryReadShortGroupRemainder(out var optionalValue);
+                            return AwkOptionValueResult.Success(optionalValue);
+                        case AwkOptionValueCardinality.Required:
+                            if (AwkOptionValueReader.TryReadShortAttachedOrRaw(optionParser, out var value))
+                                return AwkOptionValueResult.Success(value);
 
                             return AwkOptionValueResult.Fail(
                                 AwkMessages.ErrorMissingValue,

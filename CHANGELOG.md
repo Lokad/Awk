@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Correct command-line value boundaries: `-fprogram.awk` and `-iinclude.awk` use their
+  attached filenames; bare `-L` leaves the program argument intact. Use `-Lfatal` or
+  `--lint=fatal` instead of the former `-L fatal` shortcut. Literal `--` input operands
+  are preserved after a positional program or an earlier end-of-options marker.
+  These fixes can change which source and input files are selected.
+
 - Lazy `mktime` input preparation observes caller cancellation before copying text.
   Default execution creates one independent random generator without redundant snapshots.
   Unused and UTC-only time services no longer copy the host's time-zone adjustment rules;
