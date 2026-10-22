@@ -8,9 +8,6 @@ internal abstract record AwkInputArgument
         ArgvIndex = argvIndex;
     }
 
-    /// <summary>Gets the input-scheduler action represented by this argument.</summary>
-    public abstract AwkInputArgumentKind Kind { get; }
-
     public AwkArgvIndex ArgvIndex { get; }
 
     public static AwkInputArgument Empty(int argvIndex) =>
@@ -22,39 +19,18 @@ internal abstract record AwkInputArgument
     public static AwkInputArgument StandardInput(int argvIndex) =>
         new StandardInputArgument(new AwkArgvIndex(argvIndex));
 
-    public static AwkInputArgument Assignment(AwkVariableAssignment assignment, int argvIndex) =>
-        new VariableAssignmentArgument(assignment, new AwkArgvIndex(argvIndex));
+    public static AwkInputArgument Assignment(int argvIndex) =>
+        new VariableAssignmentArgument(new AwkArgvIndex(argvIndex));
 
-    internal sealed record EmptyArgument(AwkArgvIndex EmptyArgvIndex) : AwkInputArgument(EmptyArgvIndex)
-    {
-        public override AwkInputArgumentKind Kind => AwkInputArgumentKind.Empty;
-    }
+    internal sealed record EmptyArgument(AwkArgvIndex EmptyArgvIndex) : AwkInputArgument(EmptyArgvIndex);
 
     internal sealed record FileArgument(
         AwkResolvedPath Path,
-        AwkArgvIndex FileArgvIndex) : AwkInputArgument(FileArgvIndex)
-    {
-        public override AwkInputArgumentKind Kind => AwkInputArgumentKind.File;
-    }
+        AwkArgvIndex FileArgvIndex) : AwkInputArgument(FileArgvIndex);
 
     internal sealed record StandardInputArgument(
-        AwkArgvIndex StandardInputArgvIndex) : AwkInputArgument(StandardInputArgvIndex)
-    {
-        public override AwkInputArgumentKind Kind => AwkInputArgumentKind.StandardInput;
-    }
+        AwkArgvIndex StandardInputArgvIndex) : AwkInputArgument(StandardInputArgvIndex);
 
     internal sealed record VariableAssignmentArgument(
-        AwkVariableAssignment VariableAssignment,
-        AwkArgvIndex VariableAssignmentArgvIndex) : AwkInputArgument(VariableAssignmentArgvIndex)
-    {
-        public override AwkInputArgumentKind Kind => AwkInputArgumentKind.VariableAssignment;
-    }
-}
-
-internal enum AwkInputArgumentKind
-{
-    Empty,
-    File,
-    StandardInput,
-    VariableAssignment
+        AwkArgvIndex VariableAssignmentArgvIndex) : AwkInputArgument(VariableAssignmentArgvIndex);
 }

@@ -19,7 +19,6 @@ internal sealed class AwkSourcePlan
 }
 
 internal sealed record AwkInputPlan(
-    IReadOnlyList<AwkResolvedPath> Paths,
     IReadOnlyList<AwkInputArgument> InputArguments);
 
 internal sealed record AwkRuntimeArgumentPlan(

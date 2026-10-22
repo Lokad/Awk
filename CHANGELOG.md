@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Comment-only programs now succeed, including file and repeated-source inputs. Invalid empty-rule
+  syntax remains rejected; parsing no longer rescans raw source to recognize whitespace-only programs.
+- Removed unused invocation path snapshots, assignment payloads and source/input tags. Initial
+  assignment classification no longer copies the value before the live `ARGV` scheduler consumes it.
+- Function-inventory entries reuse one UTF-8 text representation for their key and value.
+
 - Empty input operands remain in `ARGV` and are skipped during input selection instead of
   failing as invalid paths before `BEGIN`. Original-path authorization and stdin fallback remain.
 - Ordinary and special arrays share one storage table, removing duplicate routing metadata;

@@ -6,7 +6,6 @@ namespace Lokad.Awk;
 internal sealed class AwkSourceInputPlanner
 {
     private readonly AwkPath _currentDirectory;
-    private readonly List<AwkResolvedPath> _paths = [];
     private readonly List<AwkInputArgument> _inputArguments = [];
     private readonly List<AwkSourceReference> _sources = [];
     private readonly List<string> _runtimeArguments;
@@ -42,9 +41,7 @@ internal sealed class AwkSourceInputPlanner
     public AwkInvocationPlan BuildPlan(IReadOnlyList<AwkEnvironmentVariable> environment) =>
         new(
             new AwkSourcePlan(AwkCollectionSnapshots.Copy(_sources, _cancellationToken)),
-            new AwkInputPlan(
-                AwkCollectionSnapshots.Copy(_paths, _cancellationToken),
-                AwkCollectionSnapshots.Copy(_inputArguments, _cancellationToken)),
+            new AwkInputPlan(AwkCollectionSnapshots.Copy(_inputArguments, _cancellationToken)),
             new AwkRuntimeArgumentPlan(
                 AwkCollectionSnapshots.Copy(_runtimeArguments, _cancellationToken),
                 AwkCollectionSnapshots.Copy(_variables, _cancellationToken),
@@ -94,12 +91,10 @@ internal sealed class AwkSourceInputPlanner
             _inputArguments.Add(AwkInputArgument.Empty(argvIndex));
             return;
         }
-        if (AwkVariableAssignment.TryParse(
-                value,
-                AwkVariableAssignmentSource.InputArgument,
-                out var assignment))
+        var equalsIndex = value.IndexOf('=', StringComparison.Ordinal);
+        if (equalsIndex > 0 && AwkNameFacts.IsValidVariableName(value.AsSpan(0, equalsIndex)))
         {
-            _inputArguments.Add(AwkInputArgument.Assignment(assignment, argvIndex));
+            _inputArguments.Add(AwkInputArgument.Assignment(argvIndex));
             return;
         }
 
@@ -114,7 +109,6 @@ internal sealed class AwkSourceInputPlanner
             }
 
             var path = AwkPathResolution.ResolveArgument(value, _currentDirectory);
-            _paths.Add(path);
             _inputArguments.Add(AwkInputArgument.File(path, argvIndex));
         }
 

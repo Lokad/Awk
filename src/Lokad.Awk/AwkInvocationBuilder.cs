@@ -8,7 +8,7 @@ internal sealed class AwkInvocationBuilder
     private readonly AwkFileDescriptor _stdOut;
     private readonly AwkFileDescriptor _stdErr;
     private AwkSourcePlan _sourcePlan = new([]);
-    private AwkInputPlan _inputPlan = new([], []);
+    private AwkInputPlan _inputPlan = new([]);
     private AwkRuntimeArgumentPlan _runtimeArgumentsPlan;
     private AwkTerminalInvocationResult _terminalResult = AwkTerminalInvocationResult.None;
     private AwkFieldSeparatorSpec _fieldSeparator = AwkFieldSeparatorSpec.Default;

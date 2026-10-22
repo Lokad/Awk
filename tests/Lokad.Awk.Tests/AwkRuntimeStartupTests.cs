@@ -3,6 +3,37 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkRuntimeStartupTests
 {
+    [Theory]
+    [InlineData(128)]
+    [InlineData(1 << 20)]
+    public void PlanningDoesNotCopyUnconsumedAssignmentValues(int length)
+    {
+        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{exit}", "a=" + new string('x', length));
+        _ = AwkCommandParser.Parse(command);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        var invocation = AwkCommandParser.Parse(command);
+
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 16 << 10);
+        Assert.False(invocation.TerminalResult.IsTerminal);
+        Assert.Equal(2, invocation.RuntimeArgumentsPlan.RuntimeArguments.Count);
+    }
+
+    [Fact]
+    public void FunctionInventoryHasBoundedInitializationAllocation()
+    {
+        var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithTimeZone(TimeZoneInfo.Utc));
+        var functions = new Dictionary<AwkFunctionName, AwkUserFunction>();
+        using (var warm = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options))
+            warm.InitializeFunctions(functions);
+        using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        state.InitializeFunctions(functions);
+
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 8 << 10);
+    }
+
     [Fact]
     public void DefaultOptionsDoNotCopyRandomState()
     {

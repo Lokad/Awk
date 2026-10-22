@@ -365,7 +365,10 @@ internal sealed class AwkVariables
             AwkRuntimeMemory.EstimateArrayBackingBytes(BoundArrayCapacity(count)));
         var slots = CreateArraySlots(count);
         foreach (var value in names)
-            slots[new AwkArrayKey(value, _checkpoint)] = AwkVariableSlot.FromText(value);
+        {
+            var text = AwkText.FromString(value, AwkRuntimeCounters.Disabled, _checkpoint);
+            slots[new AwkArrayKey(text, _checkpoint)] = AwkVariableSlot.FromText(text);
+        }
 
         ReplaceArraySlots(name, slots);
     }
