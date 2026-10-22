@@ -51,7 +51,9 @@ nested-call refusal, and funding through actual completion of pending/canceled h
 and resolved output names surviving pending/canceled operands. `AwkFormattingOwnershipTests`
 covers relinquished format text and reuse of AwkText's decode cache.
 `AwkPrintfFormattingTests` guards character selection against whole-value decoding and
-input-sized allocation; the character semantics live in the golden corpus.
+input-sized allocation, and string precision against whole-value decoding. The semantics
+live in the golden corpus. `AwkBoundedSubstringTests` bounds short-result allocation/scanning
+and preserves lazy length conversion, mutation refusal and refunds.
 `AwkGetlineOwnershipTests` covers source/key captures across destination evaluation and
 input phases, pending users, cancellation, refusal and refunds. `AwkCaseMemoryTests` covers
 Unicode conversion preflights and byte-native mixed-text casing; `AwkGensubAllocationTests`

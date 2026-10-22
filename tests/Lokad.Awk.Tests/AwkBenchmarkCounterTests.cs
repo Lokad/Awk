@@ -637,8 +637,8 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(direct.FileSystem.GetOutput(AwkFileDescriptor.StdOut), general.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", direct.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal("", general.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
-        Assert.Equal(2, general.Counters.StringDecodes - direct.Counters.StringDecodes);
-        Assert.Equal(2, general.Counters.FormattingStringInteropInputs - direct.Counters.FormattingStringInteropInputs);
+        Assert.Equal(direct.Counters.StringDecodes, general.Counters.StringDecodes);
+        Assert.Equal(direct.Counters.FormattingStringInteropInputs, general.Counters.FormattingStringInteropInputs);
         Assert.Equal(general.Counters.OutputBytes, direct.Counters.OutputBytes);
         Assert.Equal(general.Counters.Utf8Encodes, direct.Counters.Utf8Encodes);
     }

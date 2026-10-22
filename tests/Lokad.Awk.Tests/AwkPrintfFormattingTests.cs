@@ -5,6 +5,53 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkPrintfFormattingTests
 {
+    [Fact]
+    public void ZeroStringPrecisionDoesNotMaterializeConcatenatedText()
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        var text = AwkText.FromString(new string('q', 1_000_000))
+            .Concat(AwkText.FromString("tail"), counters, AwkMemoryAccounting.Disabled);
+        var arguments = new AwkSingleValuePrintfArguments(
+            AwkValue.FromDeferredText(text, AwkNumberParsingMode.Decimal), counters);
+        using var builder = new AwkUtf8Builder(AwkMemoryAccounting.Disabled, capacity: 0);
+        PrintfEvaluation.FormatToBuilder(builder, "%.0s", arguments, PrintfMissingArgumentPolicy.Throw,
+            counters, AwkMemoryAccounting.Disabled);
+        Assert.Equal(0, builder.Length);
+        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, counters.StringDecodes);
+    }
+
+    [Theory]
+    [InlineData(false, "a")] [InlineData(true, "a")]
+    [InlineData(false, "é")] [InlineData(true, "é")]
+    [InlineData(false, "😀")] [InlineData(true, "😀")]
+    public void StringPrecisionDoesNotDecodeTheRemainingText(bool governed, string first)
+    {
+        foreach (var format in new[] { "%.0s", "%.1s", "%6.1s" })
+        {
+            var counters = AwkRuntimeCounters.CreateEnabled();
+            using var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
+            using (var builder = new AwkUtf8Builder(memory.Accounting, capacity: 16))
+            {
+                var warm = new AwkSingleValuePrintfArguments(AwkValue.FromText(first), AwkRuntimeCounters.Disabled);
+                PrintfEvaluation.FormatToBuilder(builder, format, warm, PrintfMissingArgumentPolicy.Throw,
+                    AwkRuntimeCounters.Disabled, memory.Accounting);
+                builder.Clear();
+                var text = AwkText.FromString(first + new string('q', 1_000_000));
+                var arguments = new AwkSingleValuePrintfArguments(AwkValue.FromText(text), counters);
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                PrintfEvaluation.FormatToBuilder(builder, format, arguments, PrintfMissingArgumentPolicy.Throw,
+                    counters, memory.Accounting);
+                Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 8192);
+                var expected = format == "%.0s" ? "" : (format == "%6.1s" ? "     " : "") + first;
+                Assert.Equal(System.Text.Encoding.UTF8.GetBytes(expected), builder.AsSpan().ToArray());
+                Assert.Equal(0, counters.StringDecodes);
+                Assert.Equal(0, counters.FormattingStringInteropInputs);
+            }
+            Assert.Equal(0, memory.Budget.Reserved);
+        }
+    }
+
     [Theory]
     [InlineData(false, "a")] [InlineData(true, "a")]
     [InlineData(false, "é")] [InlineData(true, "é")]

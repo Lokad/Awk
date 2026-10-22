@@ -105,7 +105,7 @@ public sealed class AwkPrintfAdmissionTests
             Assert.Equal(committed, accounting.CurrentCommittedBytes);
             Assert.Equal(0, accounting.CurrentReservedBytes);
             Assert.Equal(1, counters.Utf8Encodes);
-            Assert.Equal(1, counters.StringDecodes);
+            Assert.Equal(0, counters.StringDecodes);
         }
         Assert.Equal(0, accounting.CurrentCommittedBytes);
         Assert.Equal(0, budget.Reserved);

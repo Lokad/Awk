@@ -430,6 +430,9 @@ internal sealed class AwkRuntimeState : IDisposable
     public int CountStringUnits(AwkText value) =>
         _stringRuntime.CountUnits(value);
 
+    internal bool HasStringUnitAt(AwkText value, int index) =>
+        _stringRuntime.IsByteMode ? index < value.ByteLength : value.HasRuneAt(index, CancellationCheckpoint);
+
     internal AwkValue IndexOfShortField(ReadOnlySpan<byte> source, AwkValue needle)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThan(source.Length, AwkRuntimeMemory.TextRuneCheckpointStride);

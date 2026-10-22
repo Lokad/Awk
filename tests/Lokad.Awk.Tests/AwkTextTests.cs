@@ -6,6 +6,16 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkTextTests
 {
     [Fact]
+    public void AwkText_FullRuneSliceOwnsBorrowedBytes()
+    {
+        var bytes = "é😀q"u8.ToArray();
+        var text = AwkText.FromTrustedBorrowedBytes(bytes, 0, bytes.Length);
+        var copy = text.CopyRuneSlice(0, int.MaxValue, AwkRuntimeCounters.Disabled, AwkMemoryAccounting.Disabled);
+        Array.Fill(bytes, (byte)'x');
+        Assert.Equal("é😀q", copy.AsString());
+    }
+
+    [Fact]
     public void AwkText_CountsBytesAndRunesForValidUtf8()
     {
         var text = AwkText.FromHostBytes("caf\u00e9"u8.ToArray());
@@ -154,7 +164,7 @@ public sealed class AwkTextTests
         var source = AwkText.FromString(new string('\u00e9', 128));
 
         var exception = Assert.Throws<AwkRuntimeException>(
-            () => source.CopyRuneSlice(1, 1, counters, governor));
+            () => source.CopyRuneSlice(65, 1, counters, governor));
 
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(exception.MessageBytes));
         Assert.Equal(0, counters.RuneSliceIndexAllocations);
@@ -208,7 +218,7 @@ public sealed class AwkTextTests
         var retainedBytes = text.EstimatedRetainedMemoryBytes;
 
         _ = text.AsString(counters);
-        _ = text.CopyRuneSlice(1, 1, counters, AwkMemoryAccounting.Disabled);
+        _ = text.CopyRuneSlice(65, 1, counters, AwkMemoryAccounting.Disabled);
 
         Assert.True(retainedBytes > text.ByteLength);
         Assert.Equal(retainedBytes, text.EstimatedRetainedMemoryBytes);

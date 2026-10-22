@@ -411,6 +411,27 @@ internal sealed class AwkText : IEquatable<AwkText>
         return FromOwnedBytes(bytes, counters, checkpoint);
     }
 
+    internal bool HasRuneAt(int index, Action? checkpoint)
+    {
+        if (index >= ByteLength) return false;
+        if (index == 0) return true;
+        var facts = Volatile.Read(ref _textFacts);
+        if (facts > UnknownTextFacts) return index < facts - 1;
+        if (index >= RuneCheckpointStride) return index < GetRuneLength(checkpoint);
+
+        var span = AsSpan(checkpoint);
+        if (Ascii.IsValid(span[..index])) return true;
+        var offset = 0;
+        for (var rune = 0; rune < index && offset < span.Length; rune++)
+        {
+            if (Rune.DecodeFromUtf8(span[offset..], out _, out var consumed) != OperationStatus.Done)
+                throw new InvalidOperationException("AwkText contains invalid UTF-8.");
+            offset += consumed;
+        }
+        checkpoint?.Invoke();
+        return offset < span.Length;
+    }
+
     public AwkText CopyRuneSlice(
         int start,
         int length,
@@ -418,46 +439,76 @@ internal sealed class AwkText : IEquatable<AwkText>
         AwkMemoryAccounting governor,
         Action? checkpoint = null)
     {
-        ResolveRuneByteRange(out var byteStart, out var byteEnd);
+        ArgumentOutOfRangeException.ThrowIfNegative(start);
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        var knownAscii = Volatile.Read(ref _textFacts) - 1 == ByteLength;
+        int byteStart, byteEnd;
+        if (knownAscii)
+        {
+            byteStart = Math.Min(start, ByteLength);
+            byteEnd = (int)Math.Min((long)start + length, ByteLength);
+        }
+        else ResolveRuneByteRange(out byteStart, out byteEnd);
 
-        if (length == 0)
+        if (byteStart == byteEnd)
             return Empty;
 
-        if (byteStart == 0 && byteEnd == ByteLength)
+        if (!_isBorrowed && byteStart == 0 && byteEnd == ByteLength)
             return this;
 
         var byteLength = byteEnd - byteStart;
         var bytes = AllocateOwnedBytes(byteLength, governor);
         CopyBytes(AsSpan(checkpoint)[byteStart..byteEnd], bytes, checkpoint);
-        return FromTrustedOwnedBytes(bytes, counters);
+        return knownAscii ? FromTrustedAsciiOwnedBytes(bytes, counters) : FromTrustedOwnedBytes(bytes, counters);
 
         void ResolveRuneByteRange(out int resolvedByteStart, out int resolvedByteEnd)
         {
-            ArgumentOutOfRangeException.ThrowIfNegative(start);
-            ArgumentOutOfRangeException.ThrowIfNegative(length);
-
             var endRuneIndex = (long)start + length;
+            // A bounded prefix needs neither total rune count nor a whole-text index.
+            // Keep the index for nonlocal/repeated access once it is available.
+            if (ByteLength > RuneCheckpointStride && endRuneIndex <= RuneCheckpointStride &&
+                Volatile.Read(ref _runeByteCheckpoints) is null)
+            {
+                var span = AsSpan(checkpoint);
+                var prefix = span[..(int)Math.Min(endRuneIndex, span.Length)];
+                if (Ascii.IsValid(prefix))
+                {
+                    resolvedByteStart = Math.Min(start, prefix.Length);
+                    resolvedByteEnd = prefix.Length;
+                    counters.RecordRuneSliceBytesScanned(prefix.Length);
+                    checkpoint?.Invoke();
+                    return;
+                }
+                var runeIndex = 0;
+                var offset = 0;
+                resolvedByteStart = 0;
+                while (runeIndex < endRuneIndex && offset < span.Length)
+                {
+                    if (runeIndex == start) resolvedByteStart = offset;
+                    if (Rune.DecodeFromUtf8(span[offset..], out _, out var consumed) != OperationStatus.Done)
+                        throw new InvalidOperationException("AwkText contains invalid UTF-8.");
+                    offset += consumed;
+                    runeIndex++;
+                }
+                if (start >= runeIndex) resolvedByteStart = offset;
+                resolvedByteEnd = offset;
+                counters.RecordRuneSliceBytesScanned(offset);
+                checkpoint?.Invoke();
+                return;
+            }
             if (IsAscii(out var inspectedByteCount, checkpoint))
             {
                 counters.RecordRuneSliceBytesScanned(inspectedByteCount);
-                ArgumentOutOfRangeException.ThrowIfGreaterThan(start, ByteLength);
-
-                if (endRuneIndex > ByteLength)
-                    throw new ArgumentOutOfRangeException(nameof(length));
-
-                resolvedByteStart = start;
-                resolvedByteEnd = (int)endRuneIndex;
+                resolvedByteStart = Math.Min(start, ByteLength);
+                resolvedByteEnd = (int)Math.Min(endRuneIndex, ByteLength);
                 return;
             }
 
             counters.RecordRuneSliceBytesScanned(inspectedByteCount);
             var checkpoints = GetRuneByteCheckpoints();
             var runeLength = GetRuneLength(checkpoint);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(start, runeLength);
-
-            if (endRuneIndex > runeLength)
-                throw new ArgumentOutOfRangeException(nameof(length));
-
+            start = Math.Min(start, runeLength);
+            endRuneIndex = Math.Min(endRuneIndex, runeLength);
             resolvedByteStart = ResolveRuneByteOffset(start, checkpoints);
             resolvedByteEnd = ResolveRuneByteOffset((int)endRuneIndex, checkpoints);
         }

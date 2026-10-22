@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `%s` width and precision use UTF-8 directly, including borrowed fields, without decoding
+  the entire argument. Short `substr` prefixes avoid whole-input counting and rune indexing;
+  nonlocal access retains its existing index. Formatting, UTF-8 boundaries, argument effects,
+  cancellation and shared admission are preserved. No public API changes.
+
 - `%c` emits NUL for empty strings and uninitialized values, including width/precision
   formatting. Character selection reads UTF-8 directly without decoding the rest of the value.
 

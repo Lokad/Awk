@@ -16,14 +16,17 @@ internal static partial class AwkBuiltins
         var source = state.FormatStringByteText(sourceValue);
         var start = (int)startValue.AsNumber(state.CancellationCheckpoint);
         if (start < 1) start = 1;
-        var sourceLength = state.CountStringUnits(source);
-        if (start > sourceLength) return AwkValue.FromText(string.Empty);
         var zeroBasedStart = start - 1;
-        if (argumentCount == 2)
-            return state.CreateDeferredTextValue(state.SubstringByStringUnits(source, zeroBasedStart, sourceLength - zeroBasedStart));
-        var length = (int)lengthValue.AsNumber(state.CancellationCheckpoint);
+        // Preserve the short-string path; prefix preparation only matters on larger inputs.
+        var hasStart = source.ByteLength <= AwkRuntimeMemory.TextRuneCheckpointStride
+            ? start <= state.CountStringUnits(source)
+            : state.HasStringUnitAt(source, zeroBasedStart);
+        // Check the start before converting length: an out-of-range start has always
+        // returned empty without demanding a potentially invalid numeric conversion.
+        if (!hasStart) return AwkValue.FromText(string.Empty);
+        var length = argumentCount == 2 ? int.MaxValue : (int)lengthValue.AsNumber(state.CancellationCheckpoint);
         if (length <= 0) return AwkValue.FromText(string.Empty);
-        return state.CreateDeferredTextValue(state.SubstringByStringUnits(source, zeroBasedStart, Math.Min(length, sourceLength - zeroBasedStart)));
+        return state.CreateDeferredTextValue(state.SubstringByStringUnits(source, zeroBasedStart, length));
     }
 
     internal static AwkValue EvaluateCaseValue(AwkRuntimeState state, AwkValue value, bool upper) =>

@@ -70,9 +70,10 @@ internal sealed class AwkStringRuntime
         AwkMemoryAccounting governor)
     {
         _checkpoint?.Invoke();
-        return _unitMode is AwkStringUnitMode.Byte
-            ? source.CopyByteSlice(start, length, counters, governor, _checkpoint)
-            : source.CopyRuneSlice(start, length, counters, governor, _checkpoint);
+        if (_unitMode is not AwkStringUnitMode.Byte)
+            return source.CopyRuneSlice(start, length, counters, governor, _checkpoint);
+        start = Math.Min(start, source.ByteLength);
+        return source.CopyByteSlice(start, Math.Min(length, source.ByteLength - start), counters, governor, _checkpoint);
     }
 
 }

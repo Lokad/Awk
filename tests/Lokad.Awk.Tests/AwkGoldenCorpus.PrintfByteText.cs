@@ -7,6 +7,19 @@ internal static partial class AwkGoldenCorpus
         foreach (var option in new[] { "default", "--posix", "--traditional", "-b", "--characters-as-bytes" })
         {
             string[] flags = option == "default" ? [] : [option];
+            var byteMode = option is "-b" or "--characters-as-bytes";
+            var precision = byteMode ? 2 : 1;
+            var padding = byteMode ? "    " : "     ";
+            yield return Passing("printf-string-prefix-argument-effects-" + option,
+                [.. flags, "function value(){n++;return \"é😀z\"} BEGIN{" +
+                    "printf \"[%.*s][%.*s][%6.*s]\\n\",0,value()," + precision + ",value()," + precision + ",value();" +
+                    "print n;print sprintf(\"[%-6.*s]\"," + precision + ",value());print n}"],
+                [], "[][é][" + padding + "é]\n3\n[é" + padding + "]\n4\n");
+            yield return Passing("substring-bounded-prefix-effects-" + option,
+                [.. flags, "function mark(x){n++;return x} BEGIN{s=\"é😀z\";" +
+                    "print \"[\" substr(s,mark(1),mark(0)) \"][\" substr(s,1,-1) \"]\";" +
+                    "print \"[\" substr(s,1," + precision + ") \"][\" substr(s," + (byteMode ? 3 : 2) + ",1e99) \"][\" substr(s,1e99,1) \"]\";print n}"],
+                [], "[][]\n[é][😀z][]\n2\n");
             yield return Passing("printf-general-large-precision-no-padding-" + option,
                 [.. flags, """
                     BEGIN {

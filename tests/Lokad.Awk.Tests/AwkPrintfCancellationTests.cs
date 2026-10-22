@@ -130,6 +130,9 @@ public sealed class AwkPrintfCancellationTests
 
     [Theory]
     [InlineData("%s", "界")]
+    [InlineData("%.0s", "界")]
+    [InlineData("%.1s", "界")]
+    [InlineData("%6.1s", "界")]
     [InlineData("%c", "界")]
     [InlineData("%c", "")]
     public void CancellationAfterStringConversionDiscardsThePendingPrintf(string conversion, string text)

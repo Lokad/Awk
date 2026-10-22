@@ -99,10 +99,11 @@ internal static class PrintfEvaluation
                 if (argumentCursor.TryReadIndex(directive.ArgumentPosition, out var argumentIndex))
                 {
                     output.PreflightAdditionalBytes(width.Value);
-                    if (width.Value == 0 && !precision.HasValue && arguments.TryGetBorrowedBytes(argumentIndex, out var borrowed))
+                    if (arguments.TryGetBorrowedBytes(argumentIndex, out var borrowed))
                     {
                         checkpoint?.Invoke();
-                        output.Append(borrowed);
+                        if (width.Value == 0 && !precision.HasValue) output.Append(borrowed);
+                        else AppendString(output, borrowed, width.Value, precision, flags.LeftJustify, stringUnitMode, checkpoint);
                         continue;
                     }
                     var text = arguments.GetByteText(argumentIndex);
@@ -113,14 +114,8 @@ internal static class PrintfEvaluation
                         continue;
                     }
 
-                    counters.RecordFormattingStringInteropInput();
-                    var value = text.AsString(counters, checkpoint);
-                    var characters = precision.HasValue
-                        ? PrecisionCharacterCount(value, precision.Value, stringUnitMode, checkpoint)
-                        : value.Length;
-
-                    AppendWithWidth(output, value.AsSpan(0, characters), width.Value, flags.LeftJustify,
-                        zeroPad: false, checkpoint, stringUnitMode);
+                    AppendString(output, precision.HasValue && precision.Value == 0 ? ReadOnlySpan<byte>.Empty : text.AsSpan(checkpoint), width.Value, precision,
+                        flags.LeftJustify, stringUnitMode, checkpoint);
                 }
 
                 continue;
@@ -432,9 +427,9 @@ internal static class PrintfEvaluation
         }
 
         static void AppendWithWidth(PrintfByteOutput output, ReadOnlySpan<char> text, int width, bool leftJustify, bool zeroPad,
-            Action? checkpoint, AwkStringUnitMode unitMode = AwkStringUnitMode.Utf8Rune)
+            Action? checkpoint)
         {
-            var textWidth = CountUnits(text, unitMode, checkpoint);
+            var textWidth = CountUnits(text, checkpoint);
             if (width <= 0 || textWidth >= width)
             {
                 output.Append(text);
@@ -462,7 +457,7 @@ internal static class PrintfEvaluation
             output.AppendAscii(zeroPad ? '0' : ' ', width - textWidth);
             output.Append(text);
 
-            static int CountUnits(ReadOnlySpan<char> text, AwkStringUnitMode unitMode, Action? checkpoint)
+            static int CountUnits(ReadOnlySpan<char> text, Action? checkpoint)
             {
                 checkpoint?.Invoke();
                 var count = 0;
@@ -475,8 +470,7 @@ internal static class PrintfEvaluation
                         checkpoint?.Invoke();
                         nextCheckpoint = (long)utf16Length + AwkRuntimeLimits.CancellationCheckBytes;
                     }
-                    count = AwkRuntimeMemory.CheckedAdd(count,
-                        unitMode == AwkStringUnitMode.Byte ? rune.Utf8SequenceLength : 1);
+                    count++;
                     utf16Length += rune.Utf16SequenceLength;
                 }
                 checkpoint?.Invoke();
@@ -526,35 +520,45 @@ internal static class PrintfEvaluation
             return AwkRuntimeMemory.CheckedAdd(digits, overhead);
         }
 
-        static int PrecisionCharacterCount(string text, int maximumUnits, AwkStringUnitMode unitMode, Action? checkpoint)
+        static void AppendString(PrintfByteOutput output, ReadOnlySpan<byte> text, int width,
+            PrintfPrecisionValue precision, bool leftJustify, AwkStringUnitMode unitMode, Action? checkpoint)
         {
             checkpoint?.Invoke();
-            if (maximumUnits <= 0 || text.Length == 0)
-                return 0;
-
-            var unitCount = 0;
-            var utf16Length = 0;
-            long nextCheckpoint = 0;
-            foreach (var rune in text.EnumerateRunes())
+            var byteLength = text.Length;
+            int units;
+            if (unitMode == AwkStringUnitMode.Byte)
             {
-                if (utf16Length >= nextCheckpoint)
-                {
-                    checkpoint?.Invoke();
-                    nextCheckpoint = (long)utf16Length + AwkRuntimeLimits.CancellationCheckBytes;
-                }
-                if (unitCount == maximumUnits)
-                    break;
-
-                var nextUnits = AwkRuntimeMemory.CheckedAdd(unitCount,
-                    unitMode == AwkStringUnitMode.Byte ? rune.Utf8SequenceLength : 1);
-                if (nextUnits > maximumUnits)
+                if (precision.HasValue)
+                    byteLength = Math.Min(byteLength, precision.Value);
+                if (byteLength < text.Length && (text[byteLength] & 0xC0) == 0x80)
                     throw new AwkRuntimeException(AwkMessages.ErrorInvalidUtf8Input);
-                unitCount = nextUnits;
-                utf16Length += rune.Utf16SequenceLength;
+                units = byteLength;
             }
-
+            else
+            {
+                var maximumUnits = precision.HasValue ? precision.Value : int.MaxValue;
+                units = 0;
+                byteLength = 0;
+                long nextCheckpoint = 0;
+                while (byteLength < text.Length && units < maximumUnits)
+                {
+                    if (byteLength >= nextCheckpoint)
+                    {
+                        checkpoint?.Invoke();
+                        nextCheckpoint = (long)byteLength + AwkRuntimeLimits.CancellationCheckBytes;
+                    }
+                    if (Rune.DecodeFromUtf8(text[byteLength..], out _, out var consumed) != OperationStatus.Done)
+                        throw new InvalidOperationException("AwkText contains invalid UTF-8.");
+                    byteLength += consumed;
+                    units++;
+                }
+            }
             checkpoint?.Invoke();
-            return utf16Length;
+            var padding = Math.Max(0, width - units);
+            output.PreflightAdditionalBytes(AwkRuntimeMemory.CheckedAdd(byteLength, padding));
+            if (!leftJustify) output.AppendAscii(' ', padding);
+            output.Append(text[..byteLength]);
+            if (leftJustify) output.AppendAscii(' ', padding);
         }
 
         static string FormatCharacter(IPrintfArguments arguments, int index, Action? checkpoint)
