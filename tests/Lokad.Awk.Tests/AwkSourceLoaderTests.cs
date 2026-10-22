@@ -9,6 +9,31 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkSourceLoaderTests
 {
+    [Theory]
+    [InlineData("@include \"/empty.awk\"; BEGIN{break}")]
+    [InlineData("BEGIN{}; @include \"/empty.awk\"; BEGIN{break}")]
+    [InlineData("@include \"/empty.awk\"\nBEGIN{break}")]
+    [InlineData("@include \\\n\"/empty.awk\"; BEGIN{break}")]
+    [InlineData("# first\r\n@include \"/empty.awk\"; BEGIN{break}")]
+    [InlineData("@include \"/empty.awk\"; \\\n BEGIN{break}")]
+    public async Task EmptyIncludesKeepOriginalTailCoordinates(string source)
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/empty.awk", "");
+        host.AddFile("/main.awk", source);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/main.awk"));
+        var position = source.IndexOf("break", StringComparison.Ordinal);
+        var line = source.AsSpan(0, position).Count('\n') + 1;
+        var column = position - source.LastIndexOf('\n', position);
+
+        var exit = await awk.ExecuteAsync(host, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exit);
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal($"awk: /main.awk:{line}:{column}: break used outside loop or switch\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+    }
+
     [Fact]
     public async Task CanceledSourceLoadingAwaitsTheActualCloseBeforeRefund()
     {
@@ -126,14 +151,12 @@ public sealed class AwkSourceLoaderTests
         var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
-        var segment = Assert.Single(source.Segments);
-        Assert.Equal(includeCount, segment.LineContinuations.Count);
-        for (var index = 1; index < segment.LineContinuations.Count; index++)
-        {
-            Assert.True(
-                segment.LineContinuations[index - 1].NormalizedOffset <
-                segment.LineContinuations[index].NormalizedOffset);
-        }
+        Assert.Equal(includeCount, source.Segments.Sum(segment => segment.LineContinuations.Count));
+        var position = source.Text.LastIndexOf("value", StringComparison.Ordinal);
+        var mapped = Assert.Single(AwkSourceDiagnosticMap.MapDiagnostics(source,
+            [new AwkDiagnostic(new AwkTextSpan(position, 1), "test")]));
+        Assert.Equal((includeCount - 1) * 3 + 1, mapped.SourceLocation?.LineNumber.Value);
+        Assert.Equal(1, mapped.SourceLocation?.ColumnNumber.Value);
         Assert.Equal(1, fileSystem.ReadOpenCount);
         Assert.DoesNotContain("@include", source.Text);
     }

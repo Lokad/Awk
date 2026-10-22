@@ -4,23 +4,6 @@ namespace Lokad.Awk;
 
 internal static class AwkDirectiveParser
 {
-    public static bool TryParseLine(string line, out AwkParsedDirective directive, Action? checkpoint = null)
-    {
-        checkpoint?.Invoke();
-        IReadOnlyList<AwkToken> tokens = AwkLexer.Tokenize(line, checkpoint);
-        var atIndex = FindNextSignificantIndex(tokens, 0, checkpoint);
-        checkpoint?.Invoke();
-        tokens = AwkTokenNavigation.ForIndexedAccess(tokens, checkpoint);
-        if (atIndex < 0 || tokens[atIndex].Kind != AwkTokenKind.At)
-        {
-            directive = default;
-            return false;
-        }
-
-        return TryParseAtCore(tokens, atIndex, out directive, checkpoint);
-
-    }
-
     public static bool TryParseAt(
         IReadOnlyList<AwkToken> tokens,
         int atIndex,
@@ -48,20 +31,22 @@ internal static class AwkDirectiveParser
                 if (token.Kind == AwkTokenKind.Comment)
                     continue;
 
-                return token.Kind is AwkTokenKind.EndOfFile or AwkTokenKind.NewLine or AwkTokenKind.Semicolon;
+                return token.Kind is AwkTokenKind.EndOfFile or AwkTokenKind.NewLine or
+                    AwkTokenKind.Semicolon or AwkTokenKind.RightBrace;
             }
 
             return true;
         }
     }
 
-    public static bool TryParseIncludeLine(string line, out string path, Action? checkpoint = null)
+    public static bool TryGetIncludePath(AwkParsedDirective directive, out string path)
     {
         path = string.Empty;
-        if (!TryParseLine(line, out var directive, checkpoint) ||
-            directive.Kind != AwkDirectiveKind.Include ||
+        if (directive.Kind != AwkDirectiveKind.Include ||
             directive.ArgumentTokens.Count == 0 ||
-            directive.ArgumentTokens[0].Kind != AwkTokenKind.String)
+            directive.ArgumentTokens[0].Kind != AwkTokenKind.String ||
+            (directive.ArgumentTokens.Count != 1 &&
+                (directive.ArgumentTokens.Count != 2 || directive.ArgumentTokens[1].Kind != AwkTokenKind.Comment)))
         {
             return false;
         }
@@ -70,9 +55,7 @@ internal static class AwkDirectiveParser
         if (tokenText.Length < 2)
             return false;
 
-        checkpoint?.Invoke();
         path = tokenText[1..^1];
-        checkpoint?.Invoke();
         return true;
     }
 

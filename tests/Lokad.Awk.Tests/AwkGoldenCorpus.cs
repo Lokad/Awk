@@ -44,6 +44,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(EmptyInputOperandCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Io),
         .. Tagged(TriviaProgramCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.SourceLoading),
         .. Tagged(SourceSearchCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Io),
+        .. Tagged(DirectiveCases(), AwkGoldenTag.SourceLoading),
 
         .. Tagged(ArgumentSchedulingCompatibilityRepairs(), AwkGoldenTag.CommandLine, AwkGoldenTag.Record),
 

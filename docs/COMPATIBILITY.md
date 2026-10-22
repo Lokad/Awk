@@ -60,6 +60,10 @@ An empty search component names the current directory. Without `AWKPATH`, lookup
 directory. Includes support `.awk` suffix fallback; `-f` suffix fallback and stdin program source
 (`-f -`) remain unsupported.
 
+Top-level includes preserve subsequent same-line source. Malformed/unknown directives and
+includes inside actions/functions are rejected before execution; see the
+[directive cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.Directives.cs).
+
 ## Source string escapes
 
 Source strings, options and consumed operands use profile-aware, single-pass decoding;

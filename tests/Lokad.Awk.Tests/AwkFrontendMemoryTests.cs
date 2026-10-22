@@ -2,6 +2,36 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkFrontendMemoryTests
 {
+    [Fact]
+    public async Task PendingIncludeReadKeepsSourceAdmissionUntilActualCompletion()
+    {
+        var budget = new CooperativeTestBudget(1 << 20);
+        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var host = new MockFileSystem
+        {
+            ReadLinesAsyncOverride = (_, _, _) => { entered.TrySetResult(); return pending.Task; }
+        };
+        host.AddFile("/lib.awk", "BEGIN{print 42}");
+        var awk = AwkTestHarness.ParseAwk(Command("BEGIN{}; @include \"/lib.awk\"; BEGIN{print 1}", budget));
+        using var cancellation = new CancellationTokenSource();
+        var execution = awk.ExecuteAsync(host, cancellation.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            cancellation.Cancel();
+            Assert.False(execution.IsCompleted);
+            Assert.True(budget.Reserved > 0);
+            Assert.Equal(1, host.OpenFileCount);
+        }
+        finally { pending.TrySetResult(AwkReadResult.EndOfFile); }
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Source includes preserve subsequent same-line actions/directives and work after other
+  top-level items. Malformed/unknown directives and includes inside actions/functions fail
+  before execution. Source locations survive removed directives, including empty includes.
+  Directive preprocessing uses shared frontend admission before large token allocations;
+  previously underfunded commands may fail earlier.
+
 - **Host API change:** `IAwkHost.CloseDescriptorAsync` now returns
   `AwkDescriptorCloseResult`, carrying a structured cause and explicit descriptor retirement.
   Hosts return `Closed()` for success, or `Failure(error, descriptorRetired)` for an expected

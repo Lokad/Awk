@@ -29,6 +29,10 @@ Use lexer, syntax parser, parser, and binder tests for internal structure: token
 
 Use `AwkSourceLoaderTests` for source-unit assembly, include ordering, AWKPATH lookup, source segments, continuation normalization, and structured source-load failures. Shell-facing source-load diagnostics still need golden or end-to-end coverage.
 
+Directive goldens and public-boundary cases cover same-line source, malformed directives and
+top-level context. Source-loader checks preserve original tail coordinates after empty includes;
+`AwkDirectiveAdmissionTests` bounds allocation before refused preprocessing and verifies cleanup.
+
 ## Property Tests
 
 Use property-style tests for broad invariants such as malformed-program robustness, no CLR exception leakage, generated expression arithmetic, and parser/runtime consistency over many small inputs. Keep generated cases small and deterministic.

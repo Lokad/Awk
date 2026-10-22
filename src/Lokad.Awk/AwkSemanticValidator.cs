@@ -251,6 +251,14 @@ internal static class AwkSemanticValidator
         }
 
         var diagnostics = new List<AwkDiagnostic>();
+        foreach (var directive in syntax.Directives)
+        {
+            checkpoint?.Invoke();
+            if (directive.Kind is AwkDirectiveKind.Include or AwkDirectiveKind.Unknown)
+                diagnostics.Add(new AwkDiagnostic(directive.Span,
+                    directive.Kind == AwkDirectiveKind.Include ? "Invalid @include directive." : "Unknown awk directive.",
+                    AwkDiagnosticId.ParseSyntax));
+        }
         ValidateFunctionDeclarations(syntax, compatibilityProfile.Mode, diagnostics);
         ValidateFunctionVariableConflicts(semanticModel, diagnostics);
         ValidateUndefinedFunctions(semanticModel, compatibilityProfile.LintMode, diagnostics);

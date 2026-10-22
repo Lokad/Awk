@@ -9,6 +9,36 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkPublicBoundaryTests
 {
+    public static IEnumerable<object[]> DirectiveBoundaryCases()
+    {
+        foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Name.StartsWith("directive-", StringComparison.Ordinal)))
+        foreach (var restricted in new[] { false, true })
+        foreach (var governed in new[] { false, true })
+            yield return [test, restricted, governed];
+    }
+
+    [Theory]
+    [MemberData(nameof(DirectiveBoundaryCases))]
+    public async Task DirectivesPreserveSourceEffectsAndCleanup(AwkGoldenCase test, bool restricted, bool governed)
+    {
+        var host = AwkTestHarness.BuildFileSystem(test);
+        var budget = new CooperativeTestBudget(16 << 20);
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault())
+            .WithSourceIncludes(true);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", test.Arguments, test.Environment));
+
+        var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(test.ExpectedExitCode, exit.Value);
+        Assert.Equal(test.ExpectedStdOut, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(test.ExpectedStdErr, host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(governed, budget.ScopesCreated > 0);
+        Assert.Empty(host.AwkCommandInvocations);
+    }
+
     public static IEnumerable<object[]> TriviaProgramBoundaryCases()
     {
         foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Name.StartsWith("trivia-program-", StringComparison.Ordinal)))
