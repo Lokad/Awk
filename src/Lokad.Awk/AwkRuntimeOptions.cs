@@ -9,7 +9,7 @@ internal sealed record AwkRuntimeOptions
     public AwkRuntimeOptions(
         Func<AwkUnixTimestampSeconds> currentUnixTimeSeconds,
         TimeZoneInfo timeZone,
-        AwkRandomGenerator randomGenerator,
+        AwkRandomGenerator? randomGenerator,
         AwkRuntimeCounters counters,
         AwkRuntimeLimits limits,
         bool allowFileRedirections = true,
@@ -24,10 +24,11 @@ internal sealed record AwkRuntimeOptions
         IMemoryBudget? memoryBudget = null,
         IAwkRegexEngine? regexEngine = null)
     {
-        var randomGeneratorSnapshot = randomGenerator.Clone();
         CurrentUnixTimeSeconds = currentUnixTimeSeconds;
         TimeZone = timeZone;
-        _createRandomGenerator = randomGeneratorSnapshot.Clone;
+        _createRandomGenerator = randomGenerator is null
+            ? static () => new AwkRandomGenerator()
+            : randomGenerator.Clone().Clone;
         Counters = counters;
         Limits = limits;
         AllowFileRedirections = allowFileRedirections;
@@ -85,7 +86,7 @@ internal sealed record AwkRuntimeOptions
         new(
             () => new AwkUnixTimestampSeconds(policy.TimeProvider.GetUtcNow().ToUnixTimeSeconds()),
             policy.TimeZone,
-            new AwkRandomGenerator(),
+            null,
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.FromPolicy(policy),
             policy.AllowFileRedirections,

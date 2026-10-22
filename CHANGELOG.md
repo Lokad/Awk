@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Lazy `mktime` input preparation observes caller cancellation before copying text.
+  Default execution creates one independent random generator without redundant snapshots.
+  Unused and UTC-only time services no longer copy the host's time-zone adjustment rules;
+  explicit local DST flags acquire their rule view once on demand. No public API changes.
+
 - `%s` width and precision use UTF-8 directly, including borrowed fields, without decoding
   the entire argument. Short `substr` prefixes avoid whole-input counting and rune indexing;
   nonlocal access retains its existing index. Formatting, UTF-8 boundaries, argument effects,

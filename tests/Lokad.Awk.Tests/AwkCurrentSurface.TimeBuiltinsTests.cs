@@ -101,17 +101,23 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
     {
         var random = new AwkRandomGenerator();
         random.Seed(new AwkRandomSeed(17828));
+        var expected = random.Clone();
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
             random,
             AwkRuntimeCounters.Disabled,
             AwkRuntimeLimits.CreateDefault());
-        var first = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
-        var second = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        random.Seed(new AwkRandomSeed(7));
+        using var first = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
+        using var second = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
 
         for (var index = 0; index < 32; index++)
-            Assert.Equal(first.NextRandomNumber(), second.NextRandomNumber());
+        {
+            var next = expected.NextDouble();
+            Assert.Equal(next, first.NextRandomNumber());
+            Assert.Equal(next, second.NextRandomNumber());
+        }
     }
 
     [Fact]

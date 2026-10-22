@@ -29,6 +29,11 @@ Unexpected host exceptions become generic awk diagnostics. Policy/admission fail
 awk diagnostics and a nonzero status; caller cancellation propagates as cancellation after cleanup.
 Mutation preflights preserve earlier state/output without rolling back completed effects.
 
+Clock and time-zone configuration is borrowed from the policy. Each execution has an independent
+random sequence; unused and UTC-only time services do not copy adjustment rules. Explicit local
+`mktime` DST flags can acquire one cached BCL rule-array copy. The BCL exposes no size-before-copy
+API, so this metadata remains outside coarse admission, including unusually large custom zones.
+
 ## Text boundary
 
 Awk-visible text is valid UTF-8. Source, records, `getline` and host byte payloads are

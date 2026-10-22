@@ -10,8 +10,7 @@ internal static class AwkCalendarTime
     public static long MakeTime(
         ReadOnlySpan<byte> specification,
         bool utc,
-        TimeZoneInfo timeZone,
-        TimeZoneInfo.AdjustmentRule[] rules,
+        AwkTimeRuntime timeRuntime,
         AwkRuntimeResourceMonitor resources,
         AwkMemoryAccounting memoryAccounting)
     {
@@ -43,7 +42,8 @@ internal static class AwkCalendarTime
 
         // Fixed zones do not need DateTime's narrower year range. Dynamic zone
         // rules are defined by TimeZoneInfo only for years 1 through 9999.
-        if (rules.Length == 0)
+        var timeZone = timeRuntime.TimeZone;
+        if (!timeZone.SupportsDaylightSavingTime)
             return seconds - OffsetSeconds(timeZone.BaseUtcOffset) - (values[6] > 0 ? 3600 : 0);
         if (seconds is < -62_135_596_800 or > 253_402_300_799)
             return -1;
@@ -62,7 +62,7 @@ internal static class AwkCalendarTime
         {
             offset = timeZone.BaseUtcOffset;
             var daylightDelta = TimeSpan.FromHours(1);
-            if (FindRule(local.Date, rules) is { } rule)
+            if (FindRule(local.Date, timeRuntime.AdjustmentRules) is { } rule)
             {
                 offset += rule.BaseUtcOffsetDelta;
                 if (rule.DaylightDelta != TimeSpan.Zero)
@@ -77,7 +77,7 @@ internal static class AwkCalendarTime
 
     private static long OffsetSeconds(TimeSpan offset) => offset.Ticks / TimeSpan.TicksPerSecond;
 
-    private static TimeZoneInfo.AdjustmentRule? FindRule(DateTime date, TimeZoneInfo.AdjustmentRule[] rules)
+    private static TimeZoneInfo.AdjustmentRule? FindRule(DateTime date, ReadOnlySpan<TimeZoneInfo.AdjustmentRule> rules)
     {
         var first = 0;
         var last = rules.Length - 1;

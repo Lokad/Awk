@@ -54,6 +54,8 @@ covers relinquished format text and reuse of AwkText's decode cache.
 input-sized allocation, and string precision against whole-value decoding. The semantics
 live in the golden corpus. `AwkBoundedSubstringTests` bounds short-result allocation/scanning
 and preserves lazy length conversion, mutation refusal and refunds.
+`AwkRuntimeStartupTests` bounds default random setup and unused/UTC time-zone preparation;
+calendar and text-cancellation tests cover lazy date materialization and local DST behavior.
 `AwkGetlineOwnershipTests` covers source/key captures across destination evaluation and
 input phases, pending users, cancellation, refusal and refunds. `AwkCaseMemoryTests` covers
 Unicode conversion preflights and byte-native mixed-text casing; `AwkGensubAllocationTests`

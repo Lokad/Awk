@@ -62,6 +62,21 @@ public sealed class AwkCalendarTimeTests
     }
 
     [Fact]
+    public void BaseOffsetOnlyRulesRetainDynamicRangeAndExplicitFlagBehavior()
+    {
+        var start = TimeZoneInfo.TransitionTime.CreateFixedDateRule(new DateTime(1, 1, 1, 2, 0, 0), 3, 1);
+        var end = TimeZoneInfo.TransitionTime.CreateFixedDateRule(new DateTime(1, 1, 1, 2, 0, 0), 10, 1);
+        var rule = TimeZoneInfo.AdjustmentRule.CreateAdjustmentRule(new DateTime(2020, 1, 1), new DateTime(2020, 12, 31),
+            TimeSpan.Zero, start, end, TimeSpan.FromMinutes(15));
+        var zone = TimeZoneInfo.CreateCustomTimeZone("base-only", TimeSpan.FromHours(1), "base-only", "standard", "daylight", [rule]);
+        using var state = State(zone);
+        foreach (var suffix in new[] { "", " 0" })
+            Assert.Equal(1577846700, state.MakeCalendarTime(AwkText.FromString("2020 1 1 4 0 0" + suffix), false));
+        Assert.Equal(1577843100, state.MakeCalendarTime(AwkText.FromString("2020 1 1 4 0 0 1"), false));
+        Assert.Equal(-1, state.MakeCalendarTime(AwkText.FromString("10000 1 1 0 0 0"), false));
+    }
+
+    [Fact]
     public void DateConversionRemainsByteNativeWithBoundedWork()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -101,6 +116,30 @@ public sealed class AwkCalendarTimeTests
             new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
                 new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault()));
         Assert.Throws<OperationCanceledException>(() => state.MakeCalendarTime(AwkText.FromString("1970 1 1 0 0 0"), true));
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void CanceledDatePreparationDoesNotMaterializeLazyText(bool governed)
+    {
+        var counters = AwkRuntimeCounters.CreateEnabled();
+        using var memory = new CooperativeTestMemory(8 << 20, counters, enabled: governed);
+        var text = AwkText.FromString("1970 1 1 0 0 0 ")
+            .Concat(AwkText.FromString(new string(' ', 1_000_000)), counters, memory.Accounting);
+        var runtime = new AwkTimeRuntime(static () => new(0), TimeZoneInfo.Utc);
+        using var cancellation = new CancellationTokenSource();
+        var resources = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters, cancellation.Token);
+        cancellation.Cancel();
+
+        var error = Assert.Throws<OperationCanceledException>(() => runtime.MakeTime(text, true, resources, memory.Accounting));
+
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.Equal(0, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, memory.Budget.Reserved);
+        var active = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
+        Assert.Equal(0, runtime.MakeTime(text, true, active, memory.Accounting));
+        Assert.Equal(text.ByteLength, counters.ConcatenationBytesCopied);
+        Assert.Equal(0, memory.Budget.Reserved);
     }
 
     private static TimeZoneInfo Zone(bool negative)
