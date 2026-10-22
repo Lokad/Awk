@@ -29,6 +29,16 @@ Unexpected host exceptions become generic awk diagnostics. Policy/admission fail
 awk diagnostics and a nonzero status; caller cancellation propagates as cancellation after cleanup.
 Mutation preflights preserve earlier state/output without rolling back completed effects.
 
+`CloseDescriptorAsync` returns `AwkDescriptorCloseResult`. `Closed()` reports success and
+ends ownership. `Failure(error, descriptorRetired: true)` reports an expected close/final-flush
+failure after retirement; Awk reports the filtered host cause and never closes that descriptor
+again. Use `descriptorRetired: false` when the resource remains owned and can receive the
+existing best-effort cleanup attempt. Default means failure with ownership retained.
+Close diagnostics identify the file operand/path or pipe command where available. Earlier
+read/write/evaluation failures remain primary while other resources are cleaned up; failed
+diagnostic output does not turn failure into success. Unexpected host exceptions keep the
+generic diagnostic channel. Caller-owned standard descriptors remain borrowed.
+
 Clock and time-zone configuration is borrowed from the policy. Each execution has an independent
 random sequence; unused and UTC-only time services do not copy adjustment rules. Explicit local
 `mktime` DST flags can acquire one cached BCL rule-array copy. The BCL exposes no size-before-copy
@@ -120,7 +130,7 @@ cancellation unwinds. Essential cleanup uses an uncancelled token, attempts ever
 descriptor and awaits outstanding users before refunds. A host that never completes can
 delay completion indefinitely; hard process/container isolation belongs to the embedding host.
 Confirmed successful closes are not repeated; failed closes may receive one best-effort
-cleanup attempt, including source-file descriptors.
+cleanup attempt only when the host retained ownership, including source-file descriptors.
 
 Parent failure cancels owned pipe commands before cleanup waits. Cleanup still awaits actual
 command completion; successful `close()` preserves command exit statuses.

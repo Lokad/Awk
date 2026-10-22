@@ -27,4 +27,15 @@ internal static class AwkHostBoundaryPolicy
 
         return error.Message;
     }
+
+    public static AwkRuntimeException CloseFailure(AwkFileDescriptor descriptor,
+        AwkDescriptorCloseResult result, bool exposeDetails, int maxErrorBytes,
+        ReadOnlyMemory<byte> identity = default)
+    {
+        var detail = result.Error.HasMessage ? ResolveError(result.Error, exposeDetails, maxErrorBytes) : null;
+        var message = identity.IsEmpty
+            ? AwkMessages.FormatDescriptorCloseError(descriptor, detail)
+            : AwkMessages.FormatPathError(identity, "close failed" + (detail is null ? "" : ": " + detail));
+        return new AwkRuntimeException(message, AwkDiagnosticId.HostIoFailure);
+    }
 }

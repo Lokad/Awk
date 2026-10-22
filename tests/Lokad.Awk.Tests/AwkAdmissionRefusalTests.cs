@@ -144,7 +144,7 @@ public sealed class AwkAdmissionRefusalTests
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(90), new AwkFileDescriptor(91)));
         host.EnqueueAppendExitCode(0);
-        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueAppendExitCode(0);
         host.RunCommandsOverride = (commands, token) =>
         {

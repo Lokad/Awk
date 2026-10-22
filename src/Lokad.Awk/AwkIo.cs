@@ -352,7 +352,7 @@ internal sealed class AwkIo
             case AwkOpenRedirectionKind.OutputPipe:
                 return AwkFlushStatus.Success;
             case AwkOpenRedirectionKind.OutputFile:
-                await _descriptors.FlushOutputAsync(_host, absolutePath).ConfigureAwait(false);
+                await _descriptors.FlushOutputAsync(_host, absolutePath, path).ConfigureAwait(false);
                 return AwkFlushStatus.Success;
         }
 
@@ -403,10 +403,10 @@ internal sealed class AwkIo
                 var read = await _pipes.CloseInputAsync(path).ConfigureAwait(false);
                 return AwkIoOperationResult.SuccessWithStatusCode(read.ExitCode.Value);
             case AwkOpenRedirectionKind.OutputFile:
-                await _descriptors.CloseOutputAsync(_host, absolutePath).ConfigureAwait(false);
+                await _descriptors.CloseOutputAsync(_host, absolutePath, path).ConfigureAwait(false);
                 return AwkIoOperationResult.Success;
             case AwkOpenRedirectionKind.InputFile:
-                await _descriptors.CloseInputAsync(_host, absolutePath).ConfigureAwait(false);
+                await _descriptors.CloseInputAsync(_host, absolutePath, path).ConfigureAwait(false);
                 return AwkIoOperationResult.Success;
             case AwkOpenRedirectionKind.StandardInput:
                 _standardInputReader?.Dispose();

@@ -51,6 +51,9 @@ nested-call refusal, and funding through actual completion of pending/canceled h
 refusal after open and funding through pending/canceled closes. Partial-close tests also
 suspend table retirement and logical flush, preserving every remaining stream and avoiding
 successful-close replay.
+`AwkStructuredCloseTests` covers structured close causes and disclosure, retained versus
+retired failures across source/main/redirected/pipe inputs and output, primary failures,
+failed stderr, suspended cancellation and actual command completion before refunds.
 `AwkOutputOwnershipTests` covers nested print/printf argument admission with output digests,
 and resolved output names surviving pending/canceled operands. `AwkFormattingOwnershipTests`
 covers relinquished format text and reuse of AwkText's decode cache.

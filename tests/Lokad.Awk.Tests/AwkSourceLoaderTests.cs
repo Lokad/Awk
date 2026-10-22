@@ -15,7 +15,7 @@ public sealed class AwkSourceLoaderTests
         using var cancellation = new CancellationTokenSource();
         var budget = new CooperativeTestBudget(1 << 20);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var pendingClose = new TaskCompletionSource<AwkOperationStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pendingClose = new TaskCompletionSource<AwkDescriptorCloseResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var closeCount = 0;
         var host = new TestOperationVisitor([])
         {
@@ -39,7 +39,7 @@ public sealed class AwkSourceLoaderTests
             Assert.True(budget.Reserved > 0);
             Assert.Equal(0, budget.ScopesDisposed);
         }
-        finally { pendingClose.TrySetResult(AwkOperationStatus.Success); }
+        finally { pendingClose.TrySetResult(AwkDescriptorCloseResult.Closed()); }
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution.WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(1, closeCount);

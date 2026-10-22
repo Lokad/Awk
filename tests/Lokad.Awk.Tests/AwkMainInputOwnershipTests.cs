@@ -26,7 +26,7 @@ public sealed class AwkMainInputOwnershipTests
     {
         using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var completion = new TaskCompletionSource<AwkOperationStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = new TaskCompletionSource<AwkDescriptorCloseResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new MainHost { FirstClose = () => { entered.SetResult(); return completion.Task; } };
         var budget = new CooperativeTestBudget(1 << 20);
         var run = Tool("{print FILENAME,$0}").ExecuteAsync(host,
@@ -39,7 +39,7 @@ public sealed class AwkMainInputOwnershipTests
             Assert.Single(host.Active);
             Assert.True(budget.Reserved > 0);
         }
-        finally { completion.TrySetResult(fail ? AwkOperationStatus.Failure : AwkOperationStatus.Success); }
+        finally { completion.TrySetResult(fail ? AwkDescriptorCloseResult.Failure(default, descriptorRetired: false) : AwkDescriptorCloseResult.Closed()); }
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal("one row\n", host.Files.GetOutput(AwkFileDescriptor.StdOut));
@@ -76,7 +76,7 @@ public sealed class AwkMainInputOwnershipTests
         public int MaximumActive { get; private set; }
         public int CloseAttempts { get; private set; }
         public Action? AfterOpen { get; init; }
-        public Func<Task<AwkOperationStatus>>? FirstClose { get; init; }
+        public Func<Task<AwkDescriptorCloseResult>>? FirstClose { get; init; }
 
         public MainHost()
         {
@@ -93,17 +93,17 @@ public sealed class AwkMainInputOwnershipTests
             }
             return result;
         }
-        public async Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
+        public async Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {
             Assert.False(token.CanBeCanceled);
             Assert.Contains(descriptor, Active);
             if (++CloseAttempts == 1 && FirstClose is { } first)
             {
                 var status = await first();
-                if (status != AwkOperationStatus.Success) return status;
+                if (!status.Success) return status;
             }
             var closed = await Files.CloseDescriptorAsync(descriptor, token);
-            if (closed == AwkOperationStatus.Success) Assert.True(Active.Remove(descriptor));
+            if (closed.DescriptorRetired) Assert.True(Active.Remove(descriptor));
             return closed;
         }
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => Files.ReadLinesAsync(descriptor, count, token);

@@ -156,13 +156,13 @@ public sealed class MockFileSystem : IAwkHost
         }
     }
 
-    public Task<AwkOperationStatus> CloseDescriptorAsync(
+    public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(
         AwkFileDescriptor descriptor,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (descriptor.IsDevNull)
-            return Task.FromResult(AwkOperationStatus.Success);
+            return Task.FromResult(AwkDescriptorCloseResult.Closed());
 
         var closed = _descriptors.Close(descriptor);
         AfterCloseDescriptor?.Invoke();
@@ -171,7 +171,7 @@ public sealed class MockFileSystem : IAwkHost
             ? closed
             : closeDescriptorResultOverride(descriptor, closed);
         return Task.FromResult(
-            succeeded ? AwkOperationStatus.Success : AwkOperationStatus.Failure);
+            succeeded ? AwkDescriptorCloseResult.Closed() : AwkDescriptorCloseResult.Failure(default, descriptorRetired: closed));
     }
 
     public Task<AwkReadResult> ReadLinesAsync(

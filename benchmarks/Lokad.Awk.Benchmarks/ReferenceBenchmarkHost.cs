@@ -54,15 +54,15 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
         return Task.FromResult(state.ReadLines(limit));
     }
 
-    public Task<AwkOperationStatus> CloseDescriptorAsync(
+    public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(
         AwkFileDescriptor descriptor,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(
             _openFiles.Remove(descriptor)
-                ? AwkOperationStatus.Success
-                : AwkOperationStatus.Failure);
+                ? AwkDescriptorCloseResult.Closed()
+                : AwkDescriptorCloseResult.Failure(default, descriptorRetired: false));
     }
 
     public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(

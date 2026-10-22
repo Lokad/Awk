@@ -196,7 +196,7 @@ public sealed class AwkCompiledWarningTests
             CancellationToken token) => Files.OpenFileAsync(path, mode, token);
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count,
             CancellationToken token) => Files.ReadLinesAsync(descriptor, count, token);
-        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor,
+        public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor,
             CancellationToken token) => Files.CloseDescriptorAsync(descriptor, token);
         public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode,
             CancellationToken token) => Files.CreatePipeAsync(mode, token);

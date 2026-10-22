@@ -167,12 +167,12 @@ public sealed class AwkFileRedirectionMemoryTests
             return Task.FromResult(AwkOpenedFile.Opened(descriptor));
         }
 
-        public async Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
+        public async Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {
             if (BeforeClose is { } beforeClose) await beforeClose();
             Closes++;
             Assert.True(OpenDescriptors.Remove(descriptor));
-            return AwkOperationStatus.Success;
+            return AwkDescriptorCloseResult.Closed();
         }
 
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>

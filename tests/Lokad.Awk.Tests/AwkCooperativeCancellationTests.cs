@@ -71,7 +71,7 @@ bool observed, bool delayed)
             {
                 Assert.False(token.CanBeCanceled);
                 closed.Add(descriptor);
-                return Task.FromResult(AwkOperationStatus.Success);
+                return Task.FromResult(AwkDescriptorCloseResult.Closed());
             }
         };
         var pipe = kind.EndsWith("-pipe", StringComparison.Ordinal);

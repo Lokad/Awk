@@ -150,7 +150,7 @@ bool utf8)
             CancellationToken token) => _pipes.AppendAsync(descriptor, content, token);
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode,
             CancellationToken token) => _pipes.OpenFileAsync(path, mode, token);
-        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor,
+        public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor,
             CancellationToken token) => _pipes.CloseDescriptorAsync(descriptor, token);
         public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode,
             CancellationToken token) => _pipes.CreatePipeAsync(mode, token);

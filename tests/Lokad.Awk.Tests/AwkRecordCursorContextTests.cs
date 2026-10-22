@@ -101,10 +101,10 @@ public sealed class AwkRecordCursorContextTests
             OpenDescriptors.Add(descriptor);
             return Task.FromResult(AwkOpenedFile.Opened(descriptor));
         }
-        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
+        public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {
             OpenDescriptors.Remove(descriptor);
-            return Task.FromResult(AwkOperationStatus.Success);
+            return Task.FromResult(AwkDescriptorCloseResult.Closed());
         }
         public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token)
         {

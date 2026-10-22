@@ -104,7 +104,7 @@ internal sealed class AwkPipeRuntime(
         if (!_outputPipes.TryGetValue(command, out var pipe))
             return AwkPipeCloseResult.NotOpened;
 
-        var exitCode = await pipe.CloseAsync(host).ConfigureAwait(false);
+        var exitCode = await pipe.CloseAsync(host, command).ConfigureAwait(false);
         _outputPipes.Remove(command);
         return AwkPipeCloseResult.Closed(exitCode);
     }
@@ -120,7 +120,7 @@ internal sealed class AwkPipeRuntime(
         if (!_inputPipes.TryGetValue(command, out var pipe))
             return AwkPipeCloseResult.NotOpened;
 
-        var exitCode = await pipe.CloseAsync(host).ConfigureAwait(false);
+        var exitCode = await pipe.CloseAsync(host, command).ConfigureAwait(false);
         _inputPipes.Remove(command);
         return AwkPipeCloseResult.Closed(exitCode);
     }
@@ -197,12 +197,13 @@ internal sealed class AwkPipeRuntime(
 
         public AwkFileDescriptor WriteDescriptor { get; } = writeDescriptor;
 
-        public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host)
+        public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host, string command)
         {
             if (!_closed)
             {
-                await host.CloseDescriptorAsync(WriteDescriptor).ConfigureAwait(false);
-                _closed = true;
+                var closed = await host.CloseDescriptorAsync(WriteDescriptor).ConfigureAwait(false);
+                _closed = closed.DescriptorRetired;
+                host.ThrowIfCloseFailed(WriteDescriptor, closed, command);
             }
             try { return await commandCompletion.ConfigureAwait(false); }
             finally { memory.Dispose(); }
@@ -237,18 +238,20 @@ internal sealed class AwkPipeRuntime(
 
         public AwkRecordCursor Reader { get; } = reader;
 
-        public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host)
+        public async Task<AwkExitCode> CloseAsync(AwkIoHostAdapter host, string command)
         {
             Reader.Dispose();
             if (!_readClosed)
             {
-                await host.CloseDescriptorAsync(readDescriptor).ConfigureAwait(false);
-                _readClosed = true;
+                var closed = await host.CloseDescriptorAsync(readDescriptor).ConfigureAwait(false);
+                _readClosed = closed.DescriptorRetired;
+                host.ThrowIfCloseFailed(readDescriptor, closed, command);
             }
             if (!_writeClosed)
             {
-                await host.CloseDescriptorAsync(writeDescriptor).ConfigureAwait(false);
-                _writeClosed = true;
+                var closed = await host.CloseDescriptorAsync(writeDescriptor).ConfigureAwait(false);
+                _writeClosed = closed.DescriptorRetired;
+                host.ThrowIfCloseFailed(writeDescriptor, closed, command);
             }
             try { return await commandCompletion.ConfigureAwait(false); }
             finally { memory.Dispose(); }

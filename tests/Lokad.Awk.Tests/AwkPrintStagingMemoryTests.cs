@@ -426,7 +426,7 @@ public sealed partial class AwkPrintStagingMemoryTests
 
         public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token) => Inner.RunCommandsAsync(commands, token);
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) => Inner.OpenFileAsync(path, mode, token);
-        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => Inner.CloseDescriptorAsync(descriptor, token);
+        public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => Inner.CloseDescriptorAsync(descriptor, token);
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => Inner.ReadLinesAsync(descriptor, count, token);
         public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) => Inner.CreatePipeAsync(mode, token);
     }

@@ -16,8 +16,8 @@ public sealed class AwkParagraphEofTests
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(AwkUtf8Codec.Encode(first), [], AwkReadCompletion.MoreData));
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(AwkUtf8Codec.Encode(last), [], AwkReadCompletion.EndOfFile));
         host.EnqueueAppendExitCode(0);
-        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
-        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
+        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var counters = AwkRuntimeCounters.CreateEnabled();
         var compiled = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk",
             "BEGIN{RS=\"\";RT=\"sentinel\";$0=\"seed fields\";v=\"kept\";\"producer\"|getline v;" +

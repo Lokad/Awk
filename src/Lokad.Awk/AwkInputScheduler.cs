@@ -24,6 +24,8 @@ internal sealed class AwkInputScheduler(
 {
     private static readonly AwkText StandardInputFileName = AwkText.FromSourceLiteralString("-");
     private OwnedInputDescriptor _ownedDescriptor;
+    private ReadOnlyMemory<byte> _ownedInputDisplay;
+    private readonly AwkMemoryLease _inputDisplayMemory = state.MemoryAccounting.CreateTransientLease();
     private readonly AwkRecordProcessor _recordProcessor = new(state);
     private OpenMainInput? _currentInput;
     private long _nextArgvIndex = 1;
@@ -122,6 +124,8 @@ internal sealed class AwkInputScheduler(
                     ? argumentText
                     : AwkText.CopyTrustedBytes(path.Display.Span, state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
                 state.BeginInputFile(fileName, argumentIndex, actionExecutor.HasBeginFileActions);
+                var displayBytes = AwkRuntimeMemory.CheckedAdd(32, path.Display.Length);
+                using var pendingDisplay = state.MemoryAccounting.ReserveTransient(displayBytes);
                 state.Resources.RecordHostCall();
                 var opened = await host.OpenFileAsync(path.Absolute, AwkFileOpenMode.Read, cancellationToken)
                     .ConfigureAwait(false);
@@ -134,6 +138,8 @@ internal sealed class AwkInputScheduler(
                 }
 
                 _ownedDescriptor = OwnedInputDescriptor.Owned(opened.FileDescriptor);
+                _ownedInputDisplay = path.Display;
+                pendingDisplay.MoveTo(_inputDisplayMemory, displayBytes);
                 if (await TryActivateInputAsync(
                         CreateRecordCursor(opened.FileDescriptor))
                     .ConfigureAwait(false))
@@ -288,6 +294,7 @@ internal sealed class AwkInputScheduler(
         await CloseOwnedDescriptorAsync().ConfigureAwait(false);
 
         io.ClearMainInputReader();
+        _inputDisplayMemory.Dispose();
     }
 
     public async Task CloseRemainingDescriptorsForCleanupAsync()
@@ -305,10 +312,11 @@ internal sealed class AwkInputScheduler(
             {
                 // Cleanup must preserve the exception that interrupted execution.
             }
-            finally { _ownedDescriptor = OwnedInputDescriptor.None; }
+            finally { RetireOwnedDescriptor(); }
         }
 
         io.ClearMainInputReader();
+        _inputDisplayMemory.Dispose();
     }
 
     private async ValueTask<AwkStatementFlow> CompleteCurrentInputAsync(EndFileAction endFileAction)
@@ -362,12 +370,20 @@ internal sealed class AwkInputScheduler(
         state.Resources.RecordHostCall();
         var closed = await host.CloseDescriptorAsync(descriptor, CancellationToken.None)
             .ConfigureAwait(false);
-        if (closed != AwkOperationStatus.Success)
+        if (closed.DescriptorRetired) _ownedDescriptor = OwnedInputDescriptor.None;
+        try
         {
-            throw new AwkRuntimeException(
-                AwkMessages.FormatDescriptorCloseError(descriptor),
-                AwkDiagnosticId.HostIoFailure);
+            if (!closed.Success)
+                throw AwkHostBoundaryPolicy.CloseFailure(descriptor, closed, exposeHostErrorDetails, maxHostErrorBytes, _ownedInputDisplay);
         }
+        finally { if (closed.DescriptorRetired) RetireOwnedDescriptor(); }
+    }
+
+    private void RetireOwnedDescriptor()
+    {
+        if (!_ownedInputDisplay.IsEmpty)
+            _inputDisplayMemory.Release(AwkRuntimeMemory.CheckedAdd(32, _ownedInputDisplay.Length));
+        _ownedInputDisplay = default;
         _ownedDescriptor = OwnedInputDescriptor.None;
     }
 

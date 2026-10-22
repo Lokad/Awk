@@ -39,8 +39,13 @@ public interface IAwkHost
     /// </summary>
     Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken cancellationToken);
 
-    /// <summary>Closes a descriptor and returns the host operation status.</summary>
-    Task<AwkOperationStatus> CloseDescriptorAsync(
+    /// <summary>
+    /// Closes a descriptor. Expected failures carry a structured cause and state whether
+    /// the descriptor was retired. A retired descriptor must not receive another close;
+    /// a still-owned failure may receive a best-effort cleanup attempt. Completion ends
+    /// the host's use of descriptor storage; cancellation alone does not end ownership.
+    /// </summary>
+    Task<AwkDescriptorCloseResult> CloseDescriptorAsync(
         AwkFileDescriptor descriptor,
         CancellationToken cancellationToken);
 

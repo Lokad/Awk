@@ -229,11 +229,11 @@ internal static class AwkMessages
             count +
             " command results for one command\n");
 
-    internal static ReadOnlyMemory<byte> FormatDescriptorCloseError(AwkFileDescriptor descriptor) =>
+    internal static ReadOnlyMemory<byte> FormatDescriptorCloseError(AwkFileDescriptor descriptor, string? detail = null) =>
         AwkUtf8Codec.Encode(
             "awk: file descriptor " +
             descriptor.Id +
-            ": close failed\n");
+            ": close failed" + (detail is null ? "" : ": " + detail) + "\n");
 
     internal static ReadOnlyMemory<byte> FormatInvalidOption(string option)
     {

@@ -53,7 +53,7 @@ internal sealed class AwkGetlinePipeTestHost(MockFileSystem files) : IAwkHost
     public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken cancellationToken) =>
         files.OpenFileAsync(path, mode, cancellationToken);
 
-    public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken cancellationToken)
+    public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!_pipes.TryGetValue(descriptor, out var pipe))
@@ -65,7 +65,7 @@ internal sealed class AwkGetlinePipeTestHost(MockFileSystem files) : IAwkHost
             pipe.WriteOpen = false;
             pipe.Completion.TrySetResult(AwkExitCode.Success);
         }
-        return Task.FromResult(AwkOperationStatus.Success);
+        return Task.FromResult(AwkDescriptorCloseResult.Closed());
     }
 
     public Task<AwkReadResult> ReadLinesAsync(

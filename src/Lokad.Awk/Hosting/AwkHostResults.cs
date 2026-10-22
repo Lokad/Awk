@@ -16,6 +16,8 @@ public readonly struct AwkOperationError
 
     /// <summary>Gets the host-provided diagnostic message.</summary>
     public string Message => _message ?? "Operation failed.";
+
+    internal bool HasMessage => _message is not null;
 }
 
 /// <summary>Identifies whether a host operation succeeded.</summary>
@@ -26,6 +28,36 @@ public enum AwkOperationStatus
 
     /// <summary>The operation succeeded.</summary>
     Success
+}
+
+/// <summary>Reports a descriptor close, including whether ownership ended despite a failure.</summary>
+/// <remarks>The default result is a failure that leaves the descriptor owned by the caller.</remarks>
+public readonly struct AwkDescriptorCloseResult
+{
+    private readonly AwkOperationStatus _status;
+
+    private AwkDescriptorCloseResult(AwkOperationStatus status, bool descriptorRetired, AwkOperationError error)
+    {
+        _status = status;
+        DescriptorRetired = descriptorRetired;
+        Error = error;
+    }
+
+    /// <summary>Gets whether the host completed the close successfully.</summary>
+    public bool Success => _status == AwkOperationStatus.Success;
+
+    /// <summary>Gets whether this descriptor is no longer owned and must not be closed again.</summary>
+    public bool DescriptorRetired { get; }
+
+    /// <summary>Gets the expected host failure cause, if supplied.</summary>
+    public AwkOperationError Error { get; }
+
+    /// <summary>Creates a successful result that retires the descriptor.</summary>
+    public static AwkDescriptorCloseResult Closed() => new(AwkOperationStatus.Success, true, default);
+
+    /// <summary>Creates a failure and states whether the host nevertheless retired the descriptor.</summary>
+    public static AwkDescriptorCloseResult Failure(AwkOperationError error, bool descriptorRetired) =>
+        new(AwkOperationStatus.Failure, descriptorRetired, error);
 }
 
 /// <summary>Identifies whether a successful host read reached the end of its input.</summary>

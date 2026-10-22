@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Host API change:** `IAwkHost.CloseDescriptorAsync` now returns
+  `AwkDescriptorCloseResult`, carrying a structured cause and explicit descriptor retirement.
+  Hosts return `Closed()` for success, or `Failure(error, descriptorRetired)` for an expected
+  failure. A terminal close/flush error remains observable without closing that descriptor again;
+  a still-owned failure can receive the existing cleanup attempt. Details follow host-error
+  disclosure/size policy, with file/command identity when available. Earlier failures and
+  caller cancellation remain primary; cleanup awaits actual host/command completion.
+
 - Simplified main-input ownership and file/pipe retirement, removing descriptor sets and
   shutdown snapshots. Close ordering, failed-close cleanup, cancellation and shared-memory
   lifetimes are preserved; no public API changes.

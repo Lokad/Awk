@@ -29,7 +29,7 @@ public sealed class AwkPartialCloseTests
         else
         {
             Assert.Equal(2, (await execution).Value);
-            Assert.Equal("awk: file descriptor 11: close failed\n", host.Error);
+            Assert.Equal(kind == "pipe" ? "awk: source: close failed\n" : "awk: /two: close failed\n", host.Error);
         }
         Assert.Equal(kind == "pipe" ? new[] { 10, 11, 11 } : new[] { 10, 11, 11, 12 }, host.Closes);
         Assert.All(host.CloseTokens.Skip(2), token => Assert.False(token.CanBeCanceled));
@@ -98,7 +98,7 @@ public sealed class AwkPartialCloseTests
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) =>
             Task.FromResult(AwkOpenedFile.Opened(new(_next++)));
 
-        public async Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
+        public async Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {
             if (SuspendCloses) await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
             Closes.Add(descriptor.Id);
@@ -107,9 +107,9 @@ public sealed class AwkPartialCloseTests
             {
                 Cancellation?.Cancel();
                 token.ThrowIfCancellationRequested();
-                return AwkOperationStatus.Failure;
+                return AwkDescriptorCloseResult.Failure(default, descriptorRetired: false);
             }
-            return AwkOperationStatus.Success;
+            return AwkDescriptorCloseResult.Closed();
         }
 
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>

@@ -227,7 +227,7 @@ public sealed class AwkCooperativeMemoryTests
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(90), new AwkFileDescriptor(91)));
         host.EnqueueCommandExitCodes([0]);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{print 42 | \"child\";exit}"));
         var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget),
             CancellationToken.None);
@@ -244,7 +244,7 @@ public sealed class AwkCooperativeMemoryTests
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(90), new AwkFileDescriptor(91)));
         host.EnqueueAppendExitCode(0);
-        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var parentCharge = 0L;
         var nestedPeak = 0L;
         host.RunCommandsOverride = async (commands, token) =>

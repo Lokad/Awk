@@ -121,7 +121,7 @@ public sealed class AwkFlushTests
             return Release.Task;
         }
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) => _files.OpenFileAsync(path, mode, token);
-        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => _files.CloseDescriptorAsync(descriptor, token);
+        public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => _files.CloseDescriptorAsync(descriptor, token);
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => _files.ReadLinesAsync(descriptor, count, token);
         public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token) => _files.RunCommandsAsync(commands, token);
         public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) => _files.CreatePipeAsync(mode, token);
@@ -192,13 +192,11 @@ public sealed class AwkFlushTests
     public async Task FlushHostFailurePreservesPriorOutputAndCleansUp(bool statement)
     {
         var files = new MockFileSystem();
-        var failedDescriptor = new AwkFileDescriptor(0);
         var failures = 0;
-        files.CloseDescriptorResultOverride = (descriptor, closed) =>
+        files.CloseDescriptorResultOverride = (_, closed) =>
         {
             if (failures++ == 0)
             {
-                failedDescriptor = descriptor;
                 return false;
             }
             return closed;
@@ -207,9 +205,9 @@ public sealed class AwkFlushTests
         var exit = await Run(files, "BEGIN{p=\"one\";print \"before\";print \"x\">p;" + call + ";print \"after\"}");
         Assert.Equal(2, exit.Value);
         Assert.Equal("before\n", files.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal($"awk: file descriptor {failedDescriptor.Id}: close failed\n", files.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal("awk: one: close failed\n", files.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, files.OpenFileCount);
-        Assert.True(failures >= 2);
+        Assert.Equal(1, failures);
     }
 
     [Fact]

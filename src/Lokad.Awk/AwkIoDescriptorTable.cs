@@ -119,15 +119,17 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
 
     public async Task<bool> FlushOutputAsync(
         AwkIoHostAdapter host,
-        AwkPath path)
+        AwkPath path, string? identity = null)
     {
         if (!_outputFiles.TryGetValue(path, out var output))
             return false;
 
         if (output.HasDescriptor)
         {
-            await host.CloseDescriptorAsync(output.Descriptor).ConfigureAwait(false);
-            _outputFiles[path] = output with { Descriptor = default, HasDescriptor = false };
+            var closed = await host.CloseDescriptorAsync(output.Descriptor).ConfigureAwait(false);
+            if (closed.DescriptorRetired)
+                _outputFiles[path] = output with { Descriptor = default, HasDescriptor = false };
+            host.ThrowIfCloseFailed(output.Descriptor, closed, identity ?? path.Path);
         }
         return true;
     }
@@ -176,29 +178,38 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
 
     public async Task<bool> CloseOutputAsync(
         AwkIoHostAdapter host,
-        AwkPath path)
+        AwkPath path, string? identity = null)
     {
         if (!_outputFiles.TryGetValue(path, out var output))
             return false;
 
-        if (output.HasDescriptor)
-            await host.CloseDescriptorAsync(output.Descriptor).ConfigureAwait(false);
-        _outputFiles.Remove(path);
-        _memory.Release(EstimatePathBytes(path));
+        var closed = output.HasDescriptor
+            ? await host.CloseDescriptorAsync(output.Descriptor).ConfigureAwait(false)
+            : AwkDescriptorCloseResult.Closed();
+        if (closed.DescriptorRetired)
+        {
+            _outputFiles.Remove(path);
+            _memory.Release(EstimatePathBytes(path));
+        }
+        host.ThrowIfCloseFailed(output.Descriptor, closed, identity ?? path.Path);
         return true;
     }
 
     public async Task<bool> CloseInputAsync(
         AwkIoHostAdapter host,
-        AwkPath path)
+        AwkPath path, string? identity = null)
     {
         if (!_inputFiles.TryGetValue(path, out var input))
             return false;
 
         input.Reader.Dispose();
-        await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
-        _inputFiles.Remove(path);
-        _memory.Release(EstimatePathBytes(path));
+        var closed = await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
+        if (closed.DescriptorRetired)
+        {
+            _inputFiles.Remove(path);
+            _memory.Release(EstimatePathBytes(path));
+        }
+        host.ThrowIfCloseFailed(input.Descriptor, closed, identity ?? path.Path);
         return true;
     }
 

@@ -41,7 +41,7 @@ public sealed class AwkSourceCloseTests
     public async Task CancellationDuringFailedCloseAwaitsCompletionAndCleansUp(bool governed)
     {
         using var cancellation = new CancellationTokenSource();
-        var pending = new TaskCompletionSource<AwkOperationStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<AwkDescriptorCloseResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new CloseHost("failure", false) { PendingClose = pending.Task };
         var budget = new CooperativeTestBudget(1 << 20);
         var policy = AwkExecutionPolicy.CreateDefault();
@@ -54,7 +54,7 @@ public sealed class AwkSourceCloseTests
             Assert.False(run.IsCompleted);
             Assert.Equal(1, host.Files.OpenFileCount);
             Assert.Equal(governed, budget.Reserved > 0);
-            pending.TrySetResult(AwkOperationStatus.Failure);
+            pending.TrySetResult(AwkDescriptorCloseResult.Failure(default, descriptorRetired: false));
             var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 run.WaitAsync(TimeSpan.FromSeconds(10)));
             Assert.Equal(cancellation.Token, error.CancellationToken);
@@ -66,7 +66,7 @@ public sealed class AwkSourceCloseTests
         }
         finally
         {
-            pending.TrySetResult(AwkOperationStatus.Failure);
+            pending.TrySetResult(AwkDescriptorCloseResult.Failure(default, descriptorRetired: false));
             try { await run; }
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         }
@@ -82,7 +82,7 @@ public sealed class AwkSourceCloseTests
         public MockFileSystem Files { get; } = new();
         public int CloseAttempts { get; private set; }
         public int SuccessfulCloseReplays { get; private set; }
-        public Task<AwkOperationStatus>? PendingClose { get; init; }
+        public Task<AwkDescriptorCloseResult>? PendingClose { get; init; }
         public TaskCompletionSource CloseEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public CloseHost(string outcome, bool readFailure)
@@ -92,7 +92,7 @@ public sealed class AwkSourceCloseTests
             if (readFailure) Files.ReadLinesOverride = static (_, _) => AwkReadResult.Failure(new("read denied"));
         }
 
-        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
+        public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {
             Assert.False(token.CanBeCanceled);
             if (_closed) SuccessfulCloseReplays++;
@@ -100,7 +100,7 @@ public sealed class AwkSourceCloseTests
             {
                 CloseEntered.TrySetResult();
                 if (PendingClose is { } pending) return pending;
-                if (_outcome == "failure") return Task.FromResult(AwkOperationStatus.Failure);
+                if (_outcome == "failure") return Task.FromResult(AwkDescriptorCloseResult.Failure(default, descriptorRetired: false));
                 if (_outcome == "throw") throw new IOException("Private host close details");
             }
             _closed = true;

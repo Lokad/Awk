@@ -161,7 +161,7 @@ public sealed class AwkGetlineOwnershipTests
             if (Input && !_read) { _read = true; return AwkReadResult.FromContent("a\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile); }
             return AwkReadResult.EndOfFile;
         }
-        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => Task.FromResult(AwkOperationStatus.Success);
+        public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => Task.FromResult(AwkDescriptorCloseResult.Closed());
         public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token) => Task.FromResult<IReadOnlyList<AwkExitCode>>([AwkExitCode.Success]);
         public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token)
         { Pipes++; return Task.FromResult(AwkPipeCreationResult.Created(new(new(10), new(11)))); }

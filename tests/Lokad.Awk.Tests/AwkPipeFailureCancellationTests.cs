@@ -70,13 +70,13 @@ public sealed class AwkPipeFailureCancellationTests
         public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) =>
             Task.FromResult(AwkPipeCreationResult.Created(new(new(80), new(81))));
 
-        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
+        public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {
             Assert.False(token.CanBeCanceled);
             ObservedUncanceledCommandDuringCleanup |= !CommandToken.IsCancellationRequested;
             Closed.Add(descriptor);
             Closing.TrySetResult();
-            return Task.FromResult(AwkOperationStatus.Success);
+            return Task.FromResult(AwkDescriptorCloseResult.Closed());
         }
 
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)

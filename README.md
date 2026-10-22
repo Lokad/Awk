@@ -54,6 +54,10 @@ read, and pipe creation. Open, read, and pipe creation report unsupported capabi
 as structured results so the runtime can apply those semantics without leaking host exceptions.
 Append and command outcomes use `AwkExitCode`; a batch command response must contain exactly one
 result per submitted command.
+Descriptor close returns `AwkDescriptorCloseResult`: expected failures carry an
+`AwkOperationError` and explicitly state whether the descriptor was retired. Retired failures
+are reported without a duplicate close; still-owned failures can receive cleanup. This is an
+unreleased host API change; published 0.3.0 uses the earlier status-only result.
 
 `AwkExecutionPolicy.CreateRestricted()` disables script-created file redirections and command
 pipes, `@include`, and changed `ARGV` input paths; hides the invocation environment and host-error

@@ -113,7 +113,7 @@ internal static class AwkRuntime
             try
             {
                 try { await actionExecutor.Output.FlushDiagnosticsAsync(io).ConfigureAwait(false); }
-                catch (AwkRuntimeException warningFailure) { exception = warningFailure; }
+                catch (AwkRuntimeException) { /* Preserve the failure that triggered cleanup. */ }
             }
             finally { await CleanupAfterFailureAsync(inputScheduler, io).ConfigureAwait(false); }
             var failure = AwkDiagnostics.Runtime(exception);

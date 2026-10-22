@@ -43,7 +43,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             new AwkFileDescriptor(11)));
         host.EnqueueCommandExitCodes(resultCount == 0 ? [] : [0, 1]);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueAppendExitCode(0);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
@@ -88,8 +88,8 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             new AwkFileDescriptor(21)));
         host.EnqueueCommandExitCodes([0]);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Failure);
-        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Failure(default, descriptorRetired: false));
+        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueAppendExitCode(0);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
@@ -99,7 +99,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(
-            "awk: file descriptor 21: close failed\n",
+            "awk: consumer: close failed\n",
             host.GetAppendedOutput(AwkFileDescriptor.StdErr));
     }
 

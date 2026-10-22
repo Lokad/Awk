@@ -33,7 +33,7 @@ public sealed class TestOperationVisitor : IAwkHost
     public Func<IReadOnlyList<AwkCommandInvocation>, CancellationToken, Task<IReadOnlyList<AwkExitCode>>>?
         RunCommandsOverride { get; set; }
 
-    public Func<AwkFileDescriptor, CancellationToken, Task<AwkOperationStatus>>?
+    public Func<AwkFileDescriptor, CancellationToken, Task<AwkDescriptorCloseResult>>?
         CloseDescriptorOverride { get; set; }
 
     public string GetAppendedOutput(AwkFileDescriptor descriptor)
@@ -98,14 +98,14 @@ public sealed class TestOperationVisitor : IAwkHost
         return Task.FromResult(AwkOpenedFile.Opened(operation.Descriptor));
     }
 
-    public Task<AwkOperationStatus> CloseDescriptorAsync(
+    public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(
         AwkFileDescriptor descriptor,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (descriptor.IsDevNull)
         {
-            return Task.FromResult(AwkOperationStatus.Success);
+            return Task.FromResult(AwkDescriptorCloseResult.Closed());
         }
 
         if (CloseDescriptorOverride is { } closeDescriptorOverride)
@@ -164,7 +164,7 @@ public sealed class TestOperationVisitor : IAwkHost
         _operations.Enqueue(new TestHostOperation.OpenFile(new AwkFileDescriptor(descriptor)));
     }
 
-    public void EnqueueCloseDescriptorResult(AwkOperationStatus status)
+    public void EnqueueCloseDescriptorResult(AwkDescriptorCloseResult status)
     {
         _operations.Enqueue(new TestHostOperation.CloseDescriptor(status));
     }
@@ -200,7 +200,7 @@ public sealed class TestOperationVisitor : IAwkHost
 
         public sealed record OpenFile(AwkFileDescriptor Descriptor) : TestHostOperation;
 
-        public sealed record CloseDescriptor(AwkOperationStatus Status) : TestHostOperation;
+        public sealed record CloseDescriptor(AwkDescriptorCloseResult Status) : TestHostOperation;
 
         public sealed record ReadLines(AwkReadResult Result) : TestHostOperation;
 

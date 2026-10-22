@@ -75,8 +75,10 @@ internal static class AwkScriptFileReader
             CancellationToken cancellationToken,
             AwkSourceLoadPlan plan)
         {
+            var descriptorRetired = false;
             async Task CloseForCleanupAsync(AwkFileDescriptor descriptor)
             {
+                if (descriptorRetired) return;
                 try
                 {
                     resources.RecordCleanupHostCall();
@@ -86,6 +88,7 @@ internal static class AwkScriptFileReader
                 {
                     // Cleanup cannot replace the failure that interrupted source loading.
                 }
+                finally { descriptorRetired = true; }
             }
 
             resources.RecordHostCall();
@@ -125,14 +128,16 @@ internal static class AwkScriptFileReader
                 resources.RecordHostCall();
                 var closed = await host.CloseDescriptorAsync(opened.FileDescriptor, CancellationToken.None)
                     .ConfigureAwait(false);
-                if (closed != AwkOperationStatus.Success)
+                descriptorRetired = closed.DescriptorRetired;
+                if (!closed.Success)
                 {
                     await CloseForCleanupAsync(opened.FileDescriptor).ConfigureAwait(false);
                     if (readResult is AwkScriptTextReadResult.Failed)
                         return readResult;
 
                     return AwkScriptTextReadResult.Failure(
-                        AwkMessages.FormatPathError(path.Display, "Close failed."),
+                        AwkMessages.FormatPathError(path.Display, closed.Error.HasMessage
+                            ? "Close failed: " + plan.ResolveHostError(closed.Error) : "Close failed."),
                         AwkDiagnosticId.SourceLoadFailure);
                 }
             }

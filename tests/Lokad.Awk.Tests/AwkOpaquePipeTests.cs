@@ -212,7 +212,7 @@ public sealed class AwkOpaquePipeTests
         {
             closed.Add(descriptor);
             if (descriptor.Id == 81) cancellation.Cancel();
-            return Task.FromResult(AwkOperationStatus.Success);
+            return Task.FromResult(AwkDescriptorCloseResult.Closed());
         };
         host.EnqueueAppendExitCode(0);
         Assert.True(Awk.TryParse(AwkTestHarness.BuildInvocation("awk",

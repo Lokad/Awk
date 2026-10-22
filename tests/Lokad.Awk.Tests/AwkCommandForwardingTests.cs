@@ -63,7 +63,7 @@ public sealed class AwkCommandForwardingTests
             throw new InvalidOperationException("Unexpected file open.");
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>
             throw new InvalidOperationException("Unexpected read.");
-        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) =>
+        public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) =>
             throw new InvalidOperationException("Unexpected close.");
         public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) =>
             throw new InvalidOperationException("Unexpected pipe creation.");

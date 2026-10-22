@@ -143,7 +143,7 @@ public sealed class AwkPipeMemoryTests
             return Task.FromResult(AwkPipeCreationResult.Created(new(read, write)));
         }
 
-        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
+        public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {
             _open.Remove(descriptor);
             if (descriptor == new AwkFileDescriptor(11))
@@ -151,7 +151,7 @@ public sealed class AwkPipeMemoryTests
                 _open.Remove(new(10));
                 _command.TrySetResult(AwkExitCode.Success);
             }
-            return Task.FromResult(AwkOperationStatus.Success);
+            return Task.FromResult(AwkDescriptorCloseResult.Closed());
         }
 
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) =>
