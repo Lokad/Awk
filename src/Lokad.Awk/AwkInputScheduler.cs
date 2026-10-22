@@ -23,7 +23,7 @@ internal sealed class AwkInputScheduler(
     int maxHostErrorBytes = 4 << 10) : IAwkInputRecordReader
 {
     private static readonly AwkText StandardInputFileName = AwkText.FromSourceLiteralString("-");
-    private readonly HashSet<AwkFileDescriptor> _ownedDescriptors = [];
+    private OwnedInputDescriptor _ownedDescriptor;
     private readonly AwkRecordProcessor _recordProcessor = new(state);
     private OpenMainInput? _currentInput;
     private long _nextArgvIndex = 1;
@@ -33,7 +33,7 @@ internal sealed class AwkInputScheduler(
 
     public void PreserveStandardInput()
     {
-        if (_currentInput is { } input && !input.Descriptor.TryGetValue(out _))
+        if (_currentInput is { } input && !_ownedDescriptor.TryGetValue(out _))
             input.Cursor.PreserveBorrowedInput();
     }
 
@@ -104,8 +104,7 @@ internal sealed class AwkInputScheduler(
                 {
                     state.BeginInputFile(argumentText, argumentIndex, actionExecutor.HasBeginFileActions);
                     if (await TryActivateInputAsync(
-                            CreateRecordCursor(invocation.Stdio.StdIn),
-                            OwnedInputDescriptor.None)
+                            CreateRecordCursor(invocation.Stdio.StdIn))
                         .ConfigureAwait(false))
                     {
                         return true;
@@ -134,10 +133,9 @@ internal sealed class AwkInputScheduler(
                     continue;
                 }
 
-                _ownedDescriptors.Add(opened.FileDescriptor);
+                _ownedDescriptor = OwnedInputDescriptor.Owned(opened.FileDescriptor);
                 if (await TryActivateInputAsync(
-                        CreateRecordCursor(opened.FileDescriptor),
-                        OwnedInputDescriptor.Owned(opened.FileDescriptor))
+                        CreateRecordCursor(opened.FileDescriptor))
                     .ConfigureAwait(false))
                 {
                     return true;
@@ -153,8 +151,7 @@ internal sealed class AwkInputScheduler(
             _usedStandardInputFallback = true;
             state.BeginInputFile(StandardInputFileName, new AwkArgvIndex(0), actionExecutor.HasBeginFileActions);
             return await TryActivateInputAsync(
-                    CreateRecordCursor(invocation.Stdio.StdIn),
-                    OwnedInputDescriptor.None)
+                    CreateRecordCursor(invocation.Stdio.StdIn))
                 .ConfigureAwait(false);
 
             AwkInputArgument? GetOriginalInputArgument(AwkArgvIndex index)
@@ -192,10 +189,9 @@ internal sealed class AwkInputScheduler(
                         invocation.RuntimeArgumentsPlan.CurrentDirectory);
 
             async ValueTask<bool> TryActivateInputAsync(
-                AwkRecordCursor cursor,
-                OwnedInputDescriptor descriptor)
+                AwkRecordCursor cursor)
             {
-                _currentInput = new OpenMainInput(cursor, descriptor);
+                _currentInput = new OpenMainInput(cursor);
                 var beginFileFlow = await ExecuteBeginFileActionsAsync().ConfigureAwait(false);
                 if (beginFileFlow == AwkStatementFlow.Continue)
                     return true;
@@ -289,9 +285,7 @@ internal sealed class AwkInputScheduler(
     public async Task CloseRemainingDescriptorsAsync()
     {
         await CompleteCurrentInputAsync(EndFileAction.Skip).ConfigureAwait(false);
-        var descriptors = SnapshotOwnedDescriptors(OwnedDescriptorRetention.Retain);
-        for (var index = 0; index < descriptors.Length; index++)
-            await CloseOwnedDescriptorAsync(descriptors[index]).ConfigureAwait(false);
+        await CloseOwnedDescriptorAsync().ConfigureAwait(false);
 
         io.ClearMainInputReader();
     }
@@ -300,18 +294,18 @@ internal sealed class AwkInputScheduler(
     {
         _currentInput?.Cursor.Dispose();
         _currentInput = null;
-        var descriptors = SnapshotOwnedDescriptors(OwnedDescriptorRetention.Clear);
-        for (var index = 0; index < descriptors.Length; index++)
+        if (_ownedDescriptor.TryGetValue(out var descriptor))
         {
             try
             {
                 state.Resources.RecordCleanupHostCall();
-                await host.CloseDescriptorAsync(descriptors[index], CancellationToken.None).ConfigureAwait(false);
+                await host.CloseDescriptorAsync(descriptor, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception)
             {
                 // Cleanup must preserve the exception that interrupted execution.
             }
+            finally { _ownedDescriptor = OwnedInputDescriptor.None; }
         }
 
         io.ClearMainInputReader();
@@ -328,8 +322,7 @@ internal sealed class AwkInputScheduler(
         var input = _currentInput;
         _currentInput = null;
         input.Cursor.Dispose();
-        if (input.Descriptor.TryGetValue(out var descriptor))
-            await CloseOwnedDescriptorAsync(descriptor).ConfigureAwait(false);
+        await CloseOwnedDescriptorAsync().ConfigureAwait(false);
 
         return flow;
 
@@ -360,38 +353,22 @@ internal sealed class AwkInputScheduler(
         }
     }
 
-    private AwkFileDescriptor[] SnapshotOwnedDescriptors(OwnedDescriptorRetention retention)
+    private async Task CloseOwnedDescriptorAsync()
     {
-        var descriptors = new AwkFileDescriptor[_ownedDescriptors.Count];
-        _ownedDescriptors.CopyTo(descriptors);
-        if (retention == OwnedDescriptorRetention.Clear)
-            _ownedDescriptors.Clear();
-
-        return descriptors;
-    }
-
-    private async Task CloseOwnedDescriptorAsync(AwkFileDescriptor descriptor)
-    {
-        if (!_ownedDescriptors.Remove(descriptor))
+        if (!_ownedDescriptor.TryGetValue(out var descriptor))
             return;
 
-        try
+        // Keep ownership through pending or failed closes; cleanup can retry a failure.
+        state.Resources.RecordHostCall();
+        var closed = await host.CloseDescriptorAsync(descriptor, CancellationToken.None)
+            .ConfigureAwait(false);
+        if (closed != AwkOperationStatus.Success)
         {
-            state.Resources.RecordHostCall();
-            var closed = await host.CloseDescriptorAsync(descriptor, CancellationToken.None)
-                .ConfigureAwait(false);
-            if (closed != AwkOperationStatus.Success)
-            {
-                throw new AwkRuntimeException(
-                    AwkMessages.FormatDescriptorCloseError(descriptor),
-                    AwkDiagnosticId.HostIoFailure);
-            }
+            throw new AwkRuntimeException(
+                AwkMessages.FormatDescriptorCloseError(descriptor),
+                AwkDiagnosticId.HostIoFailure);
         }
-        catch
-        {
-            _ownedDescriptors.Add(descriptor);
-            throw;
-        }
+        _ownedDescriptor = OwnedInputDescriptor.None;
     }
 
     private static string ResolveHostErrorCore(
@@ -425,13 +402,10 @@ internal sealed class AwkInputScheduler(
         }
     }
 
-    private sealed class OpenMainInput(
-        AwkRecordCursor cursor,
-        OwnedInputDescriptor descriptor)
+    private sealed class OpenMainInput(AwkRecordCursor cursor)
     {
         public AwkRecordCursor Cursor { get; } = cursor;
 
-        public OwnedInputDescriptor Descriptor { get; } = descriptor;
     }
 
     private enum MainInputReadProhibition
@@ -445,12 +419,6 @@ internal sealed class AwkInputScheduler(
     {
         Skip,
         Execute
-    }
-
-    private enum OwnedDescriptorRetention
-    {
-        Retain,
-        Clear
     }
 
     private enum OwnedInputDescriptorKind

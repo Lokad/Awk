@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace Lokad.Awk;
@@ -112,8 +111,11 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
         _memory.Dispose();
     }
 
-    public AwkPath[] SnapshotOutputPaths() =>
-        _outputFiles.Keys.ToArray();
+    public async Task FlushAllAsync(AwkIoHostAdapter host)
+    {
+        foreach (var path in _outputFiles.Keys)
+            await FlushOutputAsync(host, path).ConfigureAwait(false);
+    }
 
     public async Task<bool> FlushOutputAsync(
         AwkIoHostAdapter host,
@@ -134,27 +136,22 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
     {
         // Retire each successful close immediately. If a later close fails, cleanup
         // owns only the endpoints that still need closing.
-        foreach (var path in _outputFiles.Keys.ToArray())
+        foreach (var path in _outputFiles.Keys)
             await CloseOutputAsync(host, path).ConfigureAwait(false);
 
-        foreach (var path in _inputFiles.Keys.ToArray())
+        foreach (var path in _inputFiles.Keys)
             await CloseInputAsync(host, path).ConfigureAwait(false);
         ReleaseStorage();
     }
 
     public async Task CloseAllForCleanupAsync(AwkIoHostAdapter host)
     {
-        var outputDescriptors = _outputFiles.Values.Where(output => output.HasDescriptor)
-            .Select(output => output.Descriptor).ToArray();
-        var inputFiles = _inputFiles.Values.ToArray();
-        _outputFiles.Clear();
-        _inputFiles.Clear();
-
-        for (var index = 0; index < outputDescriptors.Length; index++)
+        foreach (var output in _outputFiles.Values)
         {
+            if (!output.HasDescriptor) continue;
             try
             {
-                await host.CloseDescriptorForCleanupAsync(outputDescriptors[index]).ConfigureAwait(false);
+                await host.CloseDescriptorForCleanupAsync(output.Descriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -162,12 +159,12 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
             }
         }
 
-        for (var index = 0; index < inputFiles.Length; index++)
+        foreach (var input in _inputFiles.Values)
         {
-            inputFiles[index].Reader.Dispose();
+            input.Reader.Dispose();
             try
             {
-                await host.CloseDescriptorForCleanupAsync(inputFiles[index].Descriptor).ConfigureAwait(false);
+                await host.CloseDescriptorForCleanupAsync(input.Descriptor).ConfigureAwait(false);
             }
             catch (Exception)
             {

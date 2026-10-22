@@ -11,7 +11,7 @@ public sealed class AwkPartialCloseTests
     {
         using var cancellation = new CancellationTokenSource();
         var budget = new CooperativeTestBudget(1 << 20);
-        var host = new CloseHost { Cancellation = cancel ? cancellation : null };
+        var host = new CloseHost { Cancellation = cancel ? cancellation : null, SuspendCloses = true };
         var source = kind switch
         {
             "output" => "BEGIN{print 1>\"one\";print 2>\"two\";print 3>\"three\"}",
@@ -50,12 +50,40 @@ public sealed class AwkPartialCloseTests
         Assert.Equal("awk: host returned 0 command results for one command\n", host.Error);
     }
 
+    [Theory]
+    [InlineData("output")] [InlineData("input")] [InlineData("output-pipe")] [InlineData("input-pipe")]
+    public async Task SuspendedRetirementVisitsEveryStreamWithoutReplayingSuccessfulCloses(string kind)
+    {
+        var operation = kind switch
+        {
+            "output" => "print i > (\"file\" i)",
+            "input" => "getline x < (\"file\" i)",
+            "output-pipe" => "print i | (\"sink\" i)",
+            _ => "(\"source\" i) | getline x"
+        };
+        var host = new CloseHost { SucceedCloses = true, SuspendCloses = true };
+        var budget = new CooperativeTestBudget(1 << 20);
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation(operation));
+        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host,
+            AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None));
+        Assert.Equal(kind == "input-pipe" ? 16 : 8, host.Closes.Count);
+        Assert.Equal(host.Closes.Count, host.Closes.Distinct().Count());
+        Assert.Equal("", host.Error);
+        Assert.Equal(0, budget.Reserved);
+
+        static AwkCommandInvocation BuildInvocation(string operation) =>
+            AwkCommandInvocation.CreateWithStandardDescriptors("awk",
+                ["BEGIN{for(i=0;i<8;i++){" + operation + "};fflush();fflush()}"], []);
+    }
+
     private sealed class CloseHost : IAwkHost
     {
         private int _next = 10;
         private readonly StringBuilder _error = new();
         public CancellationTokenSource? Cancellation { get; init; }
         public bool FailCommand { get; init; }
+        public bool SucceedCloses { get; init; }
+        public bool SuspendCloses { get; init; }
         public List<int> Closes { get; } = [];
         public List<CancellationToken> CloseTokens { get; } = [];
         public string Error => _error.ToString();
@@ -70,17 +98,18 @@ public sealed class AwkPartialCloseTests
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) =>
             Task.FromResult(AwkOpenedFile.Opened(new(_next++)));
 
-        public Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
+        public async Task<AwkOperationStatus> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
         {
+            if (SuspendCloses) await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
             Closes.Add(descriptor.Id);
             CloseTokens.Add(token);
-            if (!FailCommand && Closes.Count == 2)
+            if (!SucceedCloses && !FailCommand && Closes.Count == 2)
             {
                 Cancellation?.Cancel();
                 token.ThrowIfCancellationRequested();
-                return Task.FromResult(AwkOperationStatus.Failure);
+                return AwkOperationStatus.Failure;
             }
-            return Task.FromResult(AwkOperationStatus.Success);
+            return AwkOperationStatus.Success;
         }
 
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>
@@ -90,6 +119,6 @@ public sealed class AwkPartialCloseTests
             Task.FromResult<IReadOnlyList<AwkExitCode>>(FailCommand ? [] : [AwkExitCode.Success]);
 
         public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) =>
-            Task.FromResult(AwkPipeCreationResult.Created(new(new(10), new(11))));
+            Task.FromResult(AwkPipeCreationResult.Created(new(new(_next++), new(_next++))));
     }
 }

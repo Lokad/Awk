@@ -330,9 +330,7 @@ internal sealed class AwkIo
 
     public async Task<AwkFlushStatus> FlushAllAsync()
     {
-        var paths = _descriptors.SnapshotOutputPaths();
-        for (var index = 0; index < paths.Length; index++)
-            await _descriptors.FlushOutputAsync(_host, paths[index]).ConfigureAwait(false);
+        await _descriptors.FlushAllAsync(_host).ConfigureAwait(false);
         return AwkFlushStatus.Success;
     }
 

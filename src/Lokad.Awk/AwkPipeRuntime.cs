@@ -127,37 +127,26 @@ internal sealed class AwkPipeRuntime(
 
     public async Task CloseAllAsync()
     {
-        if (_outputPipes.Count != 0)
-        {
-            var outputCommands = new string[_outputPipes.Count];
-            _outputPipes.Keys.CopyTo(outputCommands, 0);
-            for (var index = 0; index < outputCommands.Length; index++)
-                await CloseOutputAsync(outputCommands[index]).ConfigureAwait(false);
-        }
+        foreach (var command in _outputPipes.Keys)
+            await CloseOutputAsync(command).ConfigureAwait(false);
 
-        if (_inputPipes.Count != 0)
-        {
-            var inputCommands = new string[_inputPipes.Count];
-            _inputPipes.Keys.CopyTo(inputCommands, 0);
-            for (var index = 0; index < inputCommands.Length; index++)
-                await CloseInputAsync(inputCommands[index]).ConfigureAwait(false);
-        }
+        foreach (var command in _inputPipes.Keys)
+            await CloseInputAsync(command).ConfigureAwait(false);
     }
 
     public async Task CloseAllForCleanupAsync()
     {
-        var outputPipes = new AwkOutputPipe[_outputPipes.Count];
-        _outputPipes.Values.CopyTo(outputPipes, 0);
-        var inputPipes = new AwkInputPipe[_inputPipes.Count];
-        _inputPipes.Values.CopyTo(inputPipes, 0);
-        _outputPipes.Clear();
-        _inputPipes.Clear();
+        foreach (var pipe in _outputPipes)
+        {
+            await pipe.Value.CloseForCleanupAsync(host).ConfigureAwait(false);
+            _outputPipes.Remove(pipe.Key);
+        }
 
-        for (var index = 0; index < outputPipes.Length; index++)
-            await outputPipes[index].CloseForCleanupAsync(host).ConfigureAwait(false);
-
-        for (var index = 0; index < inputPipes.Length; index++)
-            await inputPipes[index].CloseForCleanupAsync(host).ConfigureAwait(false);
+        foreach (var pipe in _inputPipes)
+        {
+            await pipe.Value.CloseForCleanupAsync(host).ConfigureAwait(false);
+            _inputPipes.Remove(pipe.Key);
+        }
     }
 
     private async Task CloseCreatedDescriptorsForCleanupAsync(AwkPipeDescriptors descriptors)

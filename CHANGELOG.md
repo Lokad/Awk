@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Simplified main-input ownership and file/pipe retirement, removing descriptor sets and
+  shutdown snapshots. Close ordering, failed-close cleanup, cancellation and shared-memory
+  lifetimes are preserved; no public API changes.
+
 - Comment-only programs now succeed, including file and repeated-source inputs. Invalid empty-rule
   syntax remains rejected; parsing no longer rescans raw source to recognize whitespace-only programs.
 - Removed unused invocation path snapshots, assignment payloads and source/input tags. Initial
