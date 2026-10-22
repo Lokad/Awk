@@ -42,6 +42,10 @@ public sealed class AwkArrayStorageCacheTests
         storage.SetSlots(global, globalSlots);
         storage.SetSlots(first, firstSlots);
         storage.SetSlots(second, secondSlots);
+        var special = AwkArrayName.FromText("ARGV");
+        storage.SetSlots(special, Values(5));
+        Assert.Equal(new[] { global, special }.OrderBy(name => name.ToString()),
+            storage.Names.OrderBy(name => name.ToString()));
         Assert.True(storage.TryGetSlots(first, out var selected));
         Assert.Same(firstSlots, selected);
         Assert.True(storage.TryGetSlots(second, out selected));

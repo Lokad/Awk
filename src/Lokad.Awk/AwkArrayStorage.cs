@@ -6,11 +6,7 @@ namespace Lokad.Awk;
 
 internal sealed class AwkArrayStorage
 {
-    private readonly Dictionary<AwkArrayName, Dictionary<AwkArrayKey, AwkVariableSlot>> _ordinaryArrays = new();
-
-    private readonly Dictionary<AwkArrayName, Dictionary<AwkArrayKey, AwkVariableSlot>> _specialArrays = new();
-
-    private readonly HashSet<AwkArrayName> _storedSpecialArrayNames = [];
+    private readonly Dictionary<AwkArrayName, Dictionary<AwkArrayKey, AwkVariableSlot>> _arrays = new();
 
     private readonly IEqualityComparer<AwkArrayKey> _keyComparer;
     private readonly AwkRuntimeCounters _counters;
@@ -31,30 +27,22 @@ internal sealed class AwkArrayStorage
     {
         _keyComparer = keyComparer;
         _counters = counters;
-        foreach (var definition in AwkSpecialVariables.Arrays)
-        {
-            if (definition.Id != AwkSpecialVariableId.SymbolTable)
-                _storedSpecialArrayNames.Add(definition.ArrayName);
-        }
     }
 
     public IEnumerable<AwkArrayName> Names
     {
         get
         {
-            foreach (var name in _ordinaryArrays.Keys)
+            foreach (var name in _arrays.Keys)
             {
                 if (!name.IsFunctionLocal)
                     yield return name;
             }
-
-            foreach (var name in _specialArrays.Keys)
-                yield return name;
         }
     }
 
     public bool Contains(AwkArrayName name) =>
-        TryGetCachedSlots(name, out _) || SelectTable(name).ContainsKey(name);
+        TryGetCachedSlots(name, out _) || _arrays.ContainsKey(name);
 
     public bool TryGetSlots(
         AwkArrayName name,
@@ -62,7 +50,7 @@ internal sealed class AwkArrayStorage
     {
         if (TryGetCachedSlots(name, out slots))
             return true;
-        if (!SelectTable(name).TryGetValue(name, out slots))
+        if (!_arrays.TryGetValue(name, out slots))
             return false;
         _cachedName = name;
         _cachedSlots = slots;
@@ -71,18 +59,17 @@ internal sealed class AwkArrayStorage
 
     public Dictionary<AwkArrayKey, AwkVariableSlot> ResolveSlots(AwkArrayName name)
     {
-        var table = SelectTable(name);
-        if (table.TryGetValue(name, out var slots))
+        if (_arrays.TryGetValue(name, out var slots))
             return slots;
 
         slots = new Dictionary<AwkArrayKey, AwkVariableSlot>(_keyComparer);
-        table[name] = slots;
+        _arrays[name] = slots;
         return slots;
     }
 
     public void SetSlots(AwkArrayName name, Dictionary<AwkArrayKey, AwkVariableSlot> slots)
     {
-        SelectTable(name)[name] = slots;
+        _arrays[name] = slots;
         if (_cachedSlots != null && _cachedName == name)
             _cachedSlots = slots;
     }
@@ -96,7 +83,7 @@ internal sealed class AwkArrayStorage
         AwkArrayName name,
         [NotNullWhen(true)] out Dictionary<AwkArrayKey, AwkVariableSlot>? slots)
     {
-        var removed = SelectTable(name).Remove(name, out slots);
+        var removed = _arrays.Remove(name, out slots);
         if (removed && _cachedName == name)
         {
             _cachedName = default;
@@ -117,7 +104,4 @@ internal sealed class AwkArrayStorage
         slots = null;
         return false;
     }
-
-    private Dictionary<AwkArrayName, Dictionary<AwkArrayKey, AwkVariableSlot>> SelectTable(AwkArrayName name) =>
-        _storedSpecialArrayNames.Contains(name) ? _specialArrays : _ordinaryArrays;
 }

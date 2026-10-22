@@ -4,6 +4,8 @@
 
 - Empty input operands remain in `ARGV` and are skipped during input selection instead of
   failing as invalid paths before `BEGIN`. Original-path authorization and stdin fallback remain.
+- Ordinary and special arrays share one storage table, removing duplicate routing metadata;
+  special-array restrictions, aliases and the existing container cache remain.
 
 - Conditions retain one expression directly. Removed nested clause lists, duplicate logical
   evaluation and associated construction copies; execution semantics and prepared paths remain.
