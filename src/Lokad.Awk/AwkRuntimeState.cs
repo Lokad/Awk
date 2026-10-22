@@ -325,7 +325,7 @@ internal sealed class AwkRuntimeState : IDisposable
     {
         Counters.RecordStringInteropFallback();
         var count = _variables.GetArraySnapshotCount(EnvironmentArrayName);
-        // Snapshot plus invocation copies (including shared-budget forwarding). Keep their
+        // Snapshot plus the public invocation copy. Keep their
         // strings funded even if ENVIRON is subsequently changed by the parent program.
         commandMemory.ReserveAdditional(AwkRuntimeMemory.CheckedAdd(256,
             AwkRuntimeMemory.CheckedMultiply(count, 48)));
@@ -336,6 +336,9 @@ internal sealed class AwkRuntimeState : IDisposable
             static (context, key, value) =>
             {
                 var (state, memory) = context;
+                // ENVIRON remains an ordinary array. Empty names cannot be exported;
+                // leave their default slot out of the sorted view passed to the host.
+                if (key.ByteLength == 0) return default(AwkEnvironmentVariable);
                 memory.ReserveAdditional(AwkRuntimeMemory.EstimateUtf16StringBytes(key.ByteLength));
                 var name = key.AsString(state.Counters, state.CancellationCheckpoint);
                 var text = state.FormatStringByteText(value, memory);
@@ -345,7 +348,9 @@ internal sealed class AwkRuntimeState : IDisposable
         Array.Sort(
             result,
             static (left, right) => StringComparer.Ordinal.Compare(left.Name, right.Name));
-        return result;
+        return result.Length > 0 && result[0].Name.Length == 0
+            ? new ArraySegment<AwkEnvironmentVariable>(result, 1, result.Length - 1)
+            : result;
     }
 
     public void InitializeGlobalNames(IReadOnlySet<AwkVariableName> names) =>

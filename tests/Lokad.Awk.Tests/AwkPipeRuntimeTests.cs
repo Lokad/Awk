@@ -4,6 +4,56 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
 {
+    public static IEnumerable<object[]> EmptyEnvironmentKeyCases()
+    {
+        foreach (var mutation in new[] { "read", "set", "delete" })
+        foreach (var input in new[] { false, true })
+        foreach (var forward in new[] { false, true })
+        foreach (var governed in new[] { false, true })
+            yield return [mutation, input, forward, governed];
+    }
+
+    [Theory]
+    [MemberData(nameof(EmptyEnvironmentKeyCases))]
+    public async Task EmptyEnvironmentKeysStayInAwkWithoutBreakingPipes(string mutation, bool input, bool forward, bool governed)
+    {
+        var host = new TestOperationVisitor([]);
+        host.EnqueueAwkPipeDescriptors(new(new(10), new(11)));
+        host.EnqueueCommandExitCodes([17]);
+        if (input)
+        {
+            host.EnqueueAwkReadResult(AwkReadResult.FromContent("PIPE\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
+            host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        }
+        else host.EnqueueAppendExitCode(0);
+        host.EnqueueCloseDescriptorResult(AwkOperationStatus.Success);
+        host.EnqueueAppendExitCode(0);
+        var change = mutation switch
+        {
+            "read" => "x=ENVIRON[\"\"]",
+            "set" => "ENVIRON[\"\"]=\"value\"",
+            _ => "ENVIRON[\"\"]=\"value\";delete ENVIRON[\"\"]"
+        };
+        var operation = input ? "\"worker\"|getline value" : "print \"payload\"|\"worker\"";
+        var script = "BEGIN{" + change + ";ENVIRON[\"NUMBER\"]=1.234;CONVFMT=\"%.2f\";" + operation +
+            ";r=close(\"worker\");print r,(\"\" in ENVIRON)" + (input ? ",value" : "") + ";exit}";
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []);
+        Assert.True(Awk.TryParse(command, out var tool));
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault().WithCommandEnvironment(forward);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+
+        var result = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+        Assert.True(result.Succeeded, host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        var expected = "17 " + (mutation == "delete" ? "0" : "1") + (input ? " PIPE\n" : "\n");
+        Assert.Equal(expected, host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        var child = Assert.Single(host.CommandInvocations);
+        if (forward) Assert.Equal(new AwkEnvironmentVariable("NUMBER", "1.23"), Assert.Single(child.Environment));
+        else Assert.Empty(child.Environment);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Fact]
     public async Task Awk_RestrictedPolicyDoesNotForwardMutableEnvironmentToCommands()
     {

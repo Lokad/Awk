@@ -17,7 +17,7 @@ internal readonly struct AwkResolvedPath(ReadOnlyMemory<byte> display, AwkPath? 
 /// <summary>Provides canonical path resolution at the awk host boundary.</summary>
 public static class AwkPathResolution
 {
-    /// <summary>Resolves the current directory from the first valid exported <c>PWD</c>, or returns root.</summary>
+    /// <summary>Resolves the current directory from the first exported <c>PWD</c> if canonical, or returns root.</summary>
     public static AwkPath ResolveCurrentDirectory(IReadOnlyList<AwkEnvironmentVariable> environment)
     {
         ArgumentNullException.ThrowIfNull(environment);

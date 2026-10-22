@@ -28,14 +28,18 @@ internal static class AwkUtf8Codec
     }
 
     public static ReadOnlyMemory<byte> Encode(string text) =>
-        text.Length == 0 ? ReadOnlyMemory<byte>.Empty : StrictUtf8.GetBytes(text);
+        EncodeOwned(text);
 
     public static byte[] EncodeOwned(string text)
     {
         if (text.Length == 0)
             return [];
 
-        return StrictUtf8.GetBytes(text);
+        try { return StrictUtf8.GetBytes(text); }
+        catch (EncoderFallbackException)
+        {
+            throw new AwkRuntimeException(AwkMessages.ErrorInvalidUtf8Input);
+        }
     }
 
     public static byte[] EncodeOwned(string text, AwkRuntimeCounters counters)
@@ -47,8 +51,14 @@ internal static class AwkUtf8Codec
         return EncodeOwned(text);
     }
 
-    public static int GetEncodedByteCount(ReadOnlySpan<char> text) =>
-        StrictUtf8.GetByteCount(text);
+    public static int GetEncodedByteCount(ReadOnlySpan<char> text)
+    {
+        try { return StrictUtf8.GetByteCount(text); }
+        catch (EncoderFallbackException)
+        {
+            throw new AwkRuntimeException(AwkMessages.ErrorInvalidUtf8Input);
+        }
+    }
 
     public static int Encode(
         ReadOnlySpan<char> text,
@@ -59,12 +69,18 @@ internal static class AwkUtf8Codec
             return 0;
 
         counters.RecordUtf8Encode();
-        return StrictUtf8.GetBytes(text, destination);
+        return EncodeWithoutCounting(text, destination);
     }
 
     public static int EncodeWithoutCounting(
         ReadOnlySpan<char> text,
-        Span<byte> destination) =>
-        StrictUtf8.GetBytes(text, destination);
+        Span<byte> destination)
+    {
+        try { return StrictUtf8.GetBytes(text, destination); }
+        catch (EncoderFallbackException)
+        {
+            throw new AwkRuntimeException(AwkMessages.ErrorInvalidUtf8Input);
+        }
+    }
 
 }

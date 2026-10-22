@@ -105,7 +105,7 @@ public sealed class AwkSourceLoaderTests
             source.Segments.Select(segment => segment.Kind).ToArray());
         Assert.Equal(new AwkSourceName("/lib/common.awk"), source.Segments[0].SourceName);
         Assert.Equal(new AwkSourceName("<inline:1>"), source.Segments[1].SourceName);
-        Assert.Equal(4, fileSystem.ReadOpenCount);
+        Assert.Equal(2, fileSystem.ReadOpenCount);
     }
 
     [Fact]

@@ -40,6 +40,7 @@ Awk-visible text is valid UTF-8. Source, records, `getline` and host byte payloa
 validated before publication; malformed input produces a fatal awk diagnostic. Locale
 values and byte mode do not permit arbitrary raw bytes. Arguments, paths and environment
 arrive as .NET strings and are strictly encoded; their original process bytes are unavailable.
+Unpaired UTF-16 surrogates fail with an awk text diagnostic rather than leaking encoding exceptions.
 
 For text, `length`, `index`, `substr`, `FIELDWIDTHS` and `%s` format width/precision count
 Unicode scalars by default; regex positions and capture lengths use UTF-16 code units.
@@ -67,6 +68,7 @@ Invocation input snapshots belong to the caller. `TryParse` only recognizes and 
 command; execution admits Awk-owned argument/environment preparation before copies.
 Forwarding a pipe command reuses its immutable argument/environment snapshots when attaching
 the active shared budget; it does not copy those snapshots again.
+Empty-name `ENVIRON` entries remain valid array elements but are omitted from command export.
 Major frontend, prepared-program and runtime owners admit retained capacity and growth peaks
 before allocation or mutation. Estimates are coarse, not a process-heap cap or per-object tracking.
 Replacement may need old/new overlap; streaming charges live storage, not cumulative I/O.

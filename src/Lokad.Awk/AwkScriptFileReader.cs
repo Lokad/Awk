@@ -14,61 +14,38 @@ internal static class AwkScriptFileReader
         AwkRuntimeResourceMonitor resources,
         CancellationToken cancellationToken)
     {
-        plan.ThrowIfDenied(path.Absolute);
-        static async Task<AwkScriptFileReadResult> TryReadFromAwkPathAsync(
-            IAwkHost host,
-            AwkSourceLoadPlan plan,
-            string rawPath,
-            AwkRuntimeResourceMonitor resources,
-            CancellationToken cancellationToken)
-        {
-            var entries = plan.AwkPathEntries;
-            for (var index = 0; index < entries.Count; index++)
-            {
-                var entry = entries[index];
-                var candidate = entry == "."
-                    ? rawPath
-                    : entry + "/" + rawPath;
-                var resolved = plan.ResolvePath(candidate);
-                var script = await TryReadResolvedAsync(host, plan, resolved, resources, cancellationToken)
-                    .ConfigureAwait(false);
-                if (script is AwkScriptTextReadResult.Found found)
-                {
-                    return AwkScriptFileReadResult.FoundScript(new AwkScriptFile(
-                        found.Text,
-                        new AwkSourceName(AwkUtf8Codec.Decode(resolved.Display)),
-                        new AwkSourceIdentity(resolved.Absolute.Path)));
-                }
-
-                if (script is AwkScriptTextReadResult.Failed failed)
-                    return AwkScriptFileReadResult.Failure(failed.ErrorMessage, failed.Id);
-            }
-
-            return AwkScriptFileReadResult.MissingFile;
-        }
-
-        var direct = await TryReadResolvedAsync(host, plan, path, resources, cancellationToken).ConfigureAwait(false);
-        if (direct is AwkScriptTextReadResult.Found found)
-        {
-            return AwkScriptFileReadResult.FoundScript(new AwkScriptFile(
-                found.Text,
-                new AwkSourceName(AwkUtf8Codec.Decode(path.Display)),
-                new AwkSourceIdentity(path.Absolute.Path)));
-        }
-
-        if (direct is AwkScriptTextReadResult.Failed failed)
-            return AwkScriptFileReadResult.Failure(failed.ErrorMessage, failed.Id);
-
         var rawPath = AwkUtf8Codec.Decode(path.Display);
-        if (!rawPath.StartsWith('/'))
-        {
-            var fromAwkPath = await TryReadFromAwkPathAsync(host, plan, rawPath, resources, cancellationToken)
-                .ConfigureAwait(false);
-            if (fromAwkPath is not AwkScriptFileReadResult.Missing)
-                return fromAwkPath;
-        }
+        var entries = plan.AwkPathEntries;
+        if (rawPath.Contains('/') || entries.Count == 0)
+            return await ReadCandidateAsync(path).ConfigureAwait(false);
 
+        for (var index = 0; index < entries.Count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var entry = entries[index];
+            var candidate = entry.Length == 0 || entry == "."
+                ? path
+                : plan.ResolvePath(entry + "/" + rawPath);
+            var result = await ReadCandidateAsync(candidate).ConfigureAwait(false);
+            if (result is not AwkScriptFileReadResult.Missing)
+                return result;
+        }
         return AwkScriptFileReadResult.MissingFile;
+
+        async Task<AwkScriptFileReadResult> ReadCandidateAsync(AwkResolvedPath candidate)
+        {
+            plan.ThrowIfDenied(candidate.Absolute);
+            var result = await TryReadResolvedAsync(host, plan, candidate, resources, cancellationToken)
+                .ConfigureAwait(false);
+            return result switch
+            {
+                AwkScriptTextReadResult.Found found => AwkScriptFileReadResult.FoundScript(new AwkScriptFile(
+                    found.Text, new AwkSourceName(AwkUtf8Codec.Decode(candidate.Display)),
+                    new AwkSourceIdentity(candidate.Absolute.Path))),
+                AwkScriptTextReadResult.Failed failed => AwkScriptFileReadResult.Failure(failed.ErrorMessage, failed.Id),
+                _ => AwkScriptFileReadResult.MissingFile
+            };
+        }
     }
 
     private static async Task<AwkScriptTextReadResult> TryReadResolvedAsync(

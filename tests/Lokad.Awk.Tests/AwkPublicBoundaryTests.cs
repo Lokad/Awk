@@ -9,6 +9,107 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkPublicBoundaryTests
 {
+    [Theory]
+    [InlineData("file", false, false)] [InlineData("file", false, true)]
+    [InlineData("file", true, false)] [InlineData("file", true, true)]
+    [InlineData("include", false, false)] [InlineData("include", false, true)]
+    [InlineData("include", true, false)] [InlineData("include", true, true)]
+    [InlineData("include-option", false, false)] [InlineData("include-option", false, true)]
+    [InlineData("include-option", true, false)] [InlineData("include-option", true, true)]
+    public async Task SourceSearchAuthorizesTheActualCandidate(string kind, bool deniedFirst, bool governed)
+    {
+        string[] arguments = kind switch
+        {
+            "file" => ["-f", "common.awk"],
+            "include-option" => ["-i", "common.awk", "BEGIN{}"],
+            _ => ["@include \"common.awk\"\nBEGIN{}"]
+        };
+        var host = new MockFileSystem();
+        host.AddFile("/lib/common.awk", "BEGIN{print \"LIB\"}");
+        host.AddFile("/common.awk", "BEGIN{print \"WRONG\"}");
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", arguments,
+            [new("AWKPATH", deniedFirst ? "/outside:/lib" : "/lib")]);
+        Assert.True(Awk.TryParse(command, out var tool));
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault().WithAccessiblePathRoot(new AwkPath("/lib"));
+        if (governed) policy = policy.WithMemoryBudget(budget);
+
+        Assert.Equal(deniedFirst ? AwkExitCode.FatalError : AwkExitCode.Success,
+            await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal(deniedFirst ? "" : "LIB\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(deniedFirst ? "awk: path is outside the execution policy root\n" : "", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(deniedFirst ? 0 : 1, host.ReadOpenCount);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    public static IEnumerable<object[]> MalformedHostTextCases()
+    {
+        foreach (var placement in new[] { "path", "file-source", "include-source", "separator", "assignment", "inline", "environment-name", "environment-value" })
+        foreach (var lowSurrogate in new[] { false, true })
+        foreach (var governed in new[] { false, true })
+            yield return [placement, lowSurrogate, governed];
+    }
+
+    [Theory]
+    [MemberData(nameof(MalformedHostTextCases))]
+    public async Task MalformedHostTextProducesAnAwkFailure(string placement, bool lowSurrogate, bool governed)
+    {
+        var invalid = new string(lowSurrogate ? (char)0xdc00 : (char)0xd800, 1);
+        const string program = "BEGIN{print \"unreachable\"}";
+        string[] arguments = placement switch
+        {
+            "path" => [program, "bad" + invalid],
+            "file-source" => ["-f", "bad" + invalid],
+            "include-source" => ["-i", "bad" + invalid, program],
+            "separator" => ["-F", invalid, program],
+            "assignment" => ["-v", "x=" + invalid, program],
+            "inline" => ["BEGIN{print \"" + invalid + "\"}"],
+            _ => ["BEGIN{print ENVIRON[\"BAD\"]}"]
+        };
+        AwkEnvironmentVariable[] environment = placement switch
+        {
+            "environment-name" => [new("BAD" + invalid, "value")],
+            "environment-value" => [new("BAD", invalid)],
+            _ => []
+        };
+        var budget = new CooperativeTestBudget(8 << 20);
+        var host = new MockFileSystem();
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", arguments, environment);
+        Assert.True(Awk.TryParse(command, out var tool));
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: invalid UTF-8 input\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.ReadOpenCount);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Empty(host.AwkCommandInvocations);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task ValidSupplementaryHostTextRemainsIntact(bool governed)
+    {
+        const string text = "\U0001f603";
+        var host = new MockFileSystem();
+        host.AddFile("/" + text, "left" + text + "right\n");
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk",
+            ["-F", text, "-v", "x=" + text, "{print $1,$2,x,ENVIRON[\"TEXT\"]}", text],
+            [new("TEXT", text)]);
+        Assert.True(Awk.TryParse(command, out var tool));
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+
+        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal("left right " + text + " " + text + "\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Fact]
     public void AwkExecutionPolicy_ProvidesImmutableCompatibleAndRestrictedPresets()
     {

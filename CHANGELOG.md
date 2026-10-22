@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Malformed .NET argument/environment text produces a strict-text awk diagnostic instead of
+  leaking encoding exceptions or using a generic unexpected-failure message.
+- Source/include lookup honors explicit `AWKPATH` order and bypasses search for slash-qualified
+  names. Current-directory files no longer override configured entries; this can change which
+  program is selected. Empty search components and root-directory entries retain their meaning.
+- Empty-name `ENVIRON` entries retain ordinary array semantics and are omitted from pipe-command
+  export, so reading or assigning `ENVIRON[""]` no longer causes a later pipe to fail.
+
 - Forwarding a pipe command's shared memory budget reuses its immutable argument and
   environment snapshots. Public invocation construction still snapshots caller collections.
   Host command behavior, budget association and pending-user lifetimes are unchanged.

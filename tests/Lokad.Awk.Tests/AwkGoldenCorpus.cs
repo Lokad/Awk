@@ -41,6 +41,7 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(OptionCompatibilityCases(), AwkGoldenTag.CommandLine),
         .. Tagged(OptionValueBoundaryCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Io),
+        .. Tagged(SourceSearchCases(), AwkGoldenTag.CommandLine, AwkGoldenTag.Io),
 
         .. Tagged(ArgumentSchedulingCompatibilityRepairs(), AwkGoldenTag.CommandLine, AwkGoldenTag.Record),
 
@@ -4677,6 +4678,12 @@ internal static partial class AwkGoldenCorpus
             [],
             [new AwkEnvironmentVariable("SKU", "A1"), new AwkEnvironmentVariable("EMPTY", string.Empty)],
             "A1:\n")),
+
+        Passing(
+            "environ-empty-key-remains-an-array-element",
+            ["BEGIN{x=ENVIRON[\"\"];print(\"\" in ENVIRON);ENVIRON[\"\"]=\"value\";print ENVIRON[\"\"];delete ENVIRON[\"\"];print(\"\" in ENVIRON)}"],
+            [],
+            "1\nvalue\n0\n"),
 
         Passing(
             "environ-does-not-inherit-ambient-host-values",

@@ -53,6 +53,10 @@ Assignment operands apply when the input scheduler reaches them, including throu
 `getline` in a function, and target globals. BEGIN exit can skip later operands.
 Sources/includes and dynamic input paths require host/policy permission.
 `TryParse` recognizes the invocation; source parsing and binding occur during execution.
+Bare source/include names follow explicit `AWKPATH` order; slash-qualified paths bypass search.
+An empty search component names the current directory. Without `AWKPATH`, lookup uses the current
+directory. Includes support `.awk` suffix fallback; `-f` suffix fallback and stdin program source
+(`-f -`) remain unsupported.
 
 ## Source string escapes
 

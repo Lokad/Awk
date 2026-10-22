@@ -44,16 +44,7 @@ internal sealed class AwkSourceLoadPlan
                     return [];
 
                 memory.AdmitTextCopy(awkPath.Length);
-                var entries = awkPath.Split(':', StringSplitOptions.None);
-                for (var entryIndex = 0; entryIndex < entries.Length; entryIndex++)
-                {
-                    if ((entryIndex & 255) == 0) cancellationToken.ThrowIfCancellationRequested();
-                    entries[entryIndex] = entries[entryIndex].Length == 0
-                        ? "."
-                        : entries[entryIndex].TrimEnd('/');
-                }
-
-                return entries;
+                return awkPath.Split(':', StringSplitOptions.None);
             }
 
             return [];
@@ -112,12 +103,10 @@ internal sealed class AwkSourceLoadPlan
 
     public AwkSourceReference GetSource(int index) => _sources[index];
 
-    public AwkResolvedPath ResolvePath(string path)
-    {
-        var resolved = AwkPathResolution.ResolveRuntimeArgument(path, _currentDirectory);
-        ThrowIfDenied(resolved.Absolute);
-        return resolved;
-    }
+    // A bare name can resolve through AWKPATH instead. Authorize the actual candidate
+    // in the reader before consulting its cache or opening a host descriptor.
+    public AwkResolvedPath ResolvePath(string path) =>
+        AwkPathResolution.ResolveRuntimeArgument(path, _currentDirectory);
 
     public void ThrowIfDenied(AwkPath path) =>
         AwkHostPathPolicy.ThrowIfDenied(path, _accessiblePathRoot);
