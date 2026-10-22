@@ -54,6 +54,7 @@ Assignment operands apply when the input scheduler reaches them, including throu
 Empty input operands retain their `ARGV` positions and select no input file.
 Sources/includes and dynamic input paths require host/policy permission.
 `TryParse` recognizes the invocation; source parsing and binding occur during execution.
+Empty/comment-only sources are accepted, including file, include and repeated-source fragments.
 Bare source/include names follow explicit `AWKPATH` order; slash-qualified paths bypass search.
 An empty search component names the current directory. Without `AWKPATH`, lookup uses the current
 directory. Includes support `.awk` suffix fallback; `-f` suffix fallback and stdin program source

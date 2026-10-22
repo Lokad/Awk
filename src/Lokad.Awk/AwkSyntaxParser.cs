@@ -73,6 +73,17 @@ internal static class AwkSyntaxParser
             if (AwkTopLevelSyntaxParser.TryParse(_source, _tokens, out var parsedProgram, checkpoint))
             {
                 AddTopLevelItems(parsedProgram.Items);
+                if (parsedProgram.Items.Count == 0)
+                {
+                    foreach (var token in _tokens)
+                    {
+                        checkpoint?.Invoke();
+                        if (token.Kind != AwkTokenKind.Semicolon)
+                            continue;
+                        _diagnostics.Add(new AwkDiagnostic(default, "Expected awk pattern or action."));
+                        break;
+                    }
+                }
                 checkpoint?.Invoke();
                 var program = new AwkSyntaxProgram(
                     _source.Text,

@@ -17,23 +17,6 @@ internal static partial class AwkProgramLowerer
         Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        if (IsWhiteSpace(syntax.SourceText, checkpoint))
-        {
-            return AwkLoweringResult.SuccessResult(AwkProgram.Empty);
-        }
-
-        static bool IsWhiteSpace(string text, Action? checkpoint)
-        {
-            for (var index = 0; index < text.Length; index++)
-            {
-                if ((index & 1023) == 0)
-                    checkpoint?.Invoke();
-                if (!char.IsWhiteSpace(text[index]))
-                    return false;
-            }
-            return true;
-        }
-
         List<AwkDiagnostic>? syntaxErrors = null;
         for (var diagnosticIndex = 0; diagnosticIndex < syntax.Diagnostics.Count; diagnosticIndex++)
         {
@@ -48,6 +31,13 @@ internal static partial class AwkProgramLowerer
         if (syntaxErrors != null)
         {
             return AwkLoweringResult.Failure(syntaxErrors);
+        }
+
+        if (syntax.Rules.Count == 0 && syntax.Functions.Count == 0)
+        {
+            return syntax.Directives.Count == 0
+                ? AwkLoweringResult.SuccessResult(AwkProgram.Empty)
+                : AwkLoweringResult.Failure(syntax, "Expected awk pattern or action.");
         }
 
         var beginActions = new List<AwkAction>();
@@ -102,16 +92,6 @@ internal static partial class AwkProgramLowerer
                     mainActions.Add(action);
                     break;
             }
-        }
-
-        if (beginActions.Count == 0 &&
-            mainActions.Count == 0 &&
-            endActions.Count == 0 &&
-            beginFileActions.Count == 0 &&
-            endFileActions.Count == 0 &&
-            functions.Count == 0)
-        {
-            return AwkLoweringResult.Failure(syntax, "Expected awk pattern or action.");
         }
 
         checkpoint?.Invoke();

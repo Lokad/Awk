@@ -9,6 +9,84 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkPublicBoundaryTests
 {
+    public static IEnumerable<object[]> TriviaProgramBoundaryCases()
+    {
+        foreach (var test in AwkGoldenCorpus.DirectCases.Where(test => test.Name.StartsWith("trivia-program-", StringComparison.Ordinal)))
+        foreach (var restricted in new[] { false, true })
+        foreach (var governed in new[] { false, true })
+            yield return [test, restricted, governed];
+    }
+
+    [Theory]
+    [MemberData(nameof(TriviaProgramBoundaryCases))]
+    public async Task TriviaProgramsKeepDiagnosticsAndHostLifetime(AwkGoldenCase test, bool restricted, bool governed)
+    {
+        var host = AwkTestHarness.BuildFileSystem(test);
+        var budget = new CooperativeTestBudget(16 << 20);
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault())
+            .WithSourceIncludes(true);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", test.Arguments, test.Environment));
+
+        var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(test.ExpectedExitCode, exit.Value);
+        Assert.Equal(test.ExpectedStdOut, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(test.ExpectedStdErr, host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(governed, budget.ScopesCreated > 0);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task CommentOnlySourceCancellationClosesTheSource(bool restricted, bool governed)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var host = new MockFileSystem();
+        host.AddFile("/comments.awk", "# " + new string('x', 64 << 10));
+        host.AfterReadLines = cancellation.Cancel;
+        var budget = new CooperativeTestBudget(16 << 20);
+        var policy = restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/comments.awk"));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => awk.ExecuteAsync(host, policy, cancellation.Token));
+
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CommentOnlySourceRefusalStillFailsWithoutOpeningInput(bool restricted)
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/comments.awk", "# " + new string('x', 64 << 10));
+        host.AddFile("/data", "data\n");
+        var budget = new CooperativeTestBudget(16 << 20);
+        host.AfterReadLines = () => budget.RefuseNextAdmissionMinimumGrowth = 1;
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault())
+            .WithMemoryBudget(budget);
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/comments.awk", "/data"));
+
+        var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exit);
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(1, host.ReadOpenCount);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+        Assert.True(budget.Refusals > 0);
+    }
+
     [Theory]
     [InlineData("file", false, false)] [InlineData("file", false, true)]
     [InlineData("file", true, false)] [InlineData("file", true, true)]
