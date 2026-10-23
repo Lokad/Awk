@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Regex expressions can directly follow `if`, `while` and `for` headers, including nested
+  conditions and slash-containing patterns. Ordinary division keeps its existing interpretation.
+- Prepared programs retain regex metadata; execution-local caches own and admit compiled
+  handles for the selected provider. Removed duplicate .NET backend construction during lowering
+  and restored cancellation checkpoints in regex operator/switch preparation. Early literal
+  syntax diagnostics remain unchanged. Previously underfunded literal handles may now refuse.
+
 - File redirections use exact evaluated stream names. Spellings such as `data` and
   `./data` have independent cursors, opening modes and close/flush targets, even when the
   host resolves them to one file. This corrects the former canonical-alias behavior.

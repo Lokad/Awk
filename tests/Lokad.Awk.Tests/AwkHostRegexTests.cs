@@ -5,6 +5,28 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkHostRegexTests
 {
+    [Theory]
+    [InlineData("BEGIN{print \"before\";if(0)print (\"a\"~/(/)}")]
+    [InlineData("BEGIN{print \"before\";if(0)/(/}")]
+    [InlineData("BEGIN{print \"before\";if(0)print match(\"a\",/(/)}")]
+    [InlineData("BEGIN{print \"before\"}/(/{print}")]
+    [InlineData("BEGIN{print \"before\";switch(\"a\"){case /(/:print 1}}")]
+    public async Task InvalidLiteralsFailBeforeEffectsOrProviderHandoff(string source)
+    {
+        var engine = new RecordingEngine();
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(1 << 20);
+        var exit = await Tool(source).ExecuteAsync(host,
+            AwkExecutionPolicy.CreateDefault().WithRegexEngine(engine).WithMemoryBudget(budget),
+            CancellationToken.None);
+        Assert.Equal(AwkExitCode.FatalError, exit);
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: invalid regular expression\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Empty(engine.Patterns);
+        Assert.Equal(0, engine.Compiles);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Fact]
     public void PolicyIsImmutableAndCoreAssemblyHasNoProducerReference()
     {
@@ -18,15 +40,23 @@ public sealed class AwkHostRegexTests
         Assert.Equal(24, Unsafe.SizeOf<AwkRegexCaptureRange>());
     }
 
-    [Fact]
-    public async Task PublicExecutionCompilesOnceAndDisposesHandlesButBorrowsEngine()
+    [Theory]
+    [InlineData("BEGIN{r=\"a\";for(i=0;i<3;i++)n+=(\"a\"~r);print n}", "3\n")]
+    [InlineData("BEGIN{for(i=0;i<3;i++)n+=(\"a\"~/a/);print n}", "3\n")]
+    [InlineData("BEGIN{$0=\"a\";for(i=0;i<3;i++)n+=/a/;print n}", "3\n")]
+    [InlineData("BEGIN{for(i=0;i<3;i++)n+=match(\"a\",/a/);print n}", "3\n")]
+    [InlineData("/a/{n++}END{print n}", "3\n")]
+    [InlineData("/a/,/a/{n++}END{print n}", "3\n")]
+    [InlineData("BEGIN{switch(\"a\"){case /a/:print 3;break}}", "3\n")]
+    public async Task PublicExecutionCompilesOnceAndDisposesHandlesButBorrowsEngine(string source, string output)
     {
         var engine = new RecordingEngine();
         var host = new MockFileSystem();
-        var exit = await Tool("BEGIN{r=\"a\";for(i=0;i<3;i++)n+=(\"a\"~r);print n}")
+        host.SetStandardInput("a\na\na\n");
+        var exit = await Tool(source)
             .ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(engine), CancellationToken.None);
         Assert.Equal(AwkExitCode.Success, exit);
-        Assert.Equal("3\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(output, host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(1, engine.Compiles);
         Assert.Single(engine.Patterns);
@@ -124,10 +154,12 @@ public sealed class AwkHostRegexTests
         Assert.All(engine.Patterns, pattern => Assert.True(pattern.Disposed));
     }
 
-    [Fact]
-    public async Task PreparedProgramReuseKeepsEngineCachesSeparate()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PreparedProgramReuseKeepsEngineCachesSeparate(bool literal)
     {
-        var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{r=\"a\";print (\"a\"~r)}");
+        var command = AwkTestHarness.BuildInvocation("awk", literal ? "BEGIN{print (\"a\"~/a/)}" : "BEGIN{r=\"a\";print (\"a\"~r)}");
         await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), command, CancellationToken.None);
         var first = new RecordingEngine();
         var second = new RecordingEngine(Behavior.Unsupported);

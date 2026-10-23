@@ -15,6 +15,10 @@ source locations, warning admission and pending/failed host appends.
 lifetimes. Governed internal compilation needs a caller budget that survives artifact reuse;
 dispose the artifact after its users finish. Warning views borrow that lifetime.
 
+Control-header regex goldens cover statement-start context and division controls. Lexer checks
+pin token spans. Provider ownership tests cover literal/dynamic admission; host-engine tests
+cover selected handles across literal forms and separate caches for prepared-program reuse.
+
 Failing golden cases must assert the awk exit code, exact stderr, expected stdout preservation, and no CLR exception leakage through `AwkTestHarness.AssertFriendlyAwkFailure`.
 
 ## End-to-End Host Tests

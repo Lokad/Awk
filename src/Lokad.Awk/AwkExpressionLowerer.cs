@@ -763,7 +763,7 @@ internal static partial class AwkExpressionLowerer
                 return false;
 
             if (operatorKind is AwkTokenKind.Tilde or AwkTokenKind.BangTilde &&
-                TryLowerRegexLiteralPattern(rightSyntax, out var literalRegex, scope.CompatibilityMode))
+                TryLowerRegexLiteralPattern(rightSyntax, out var literalRegex, scope.CompatibilityMode, scope.Checkpoint))
             {
                 lowered = AwkExpression.RegexMatch(
                     left,

@@ -155,16 +155,18 @@ public sealed class AwkRegexBracketClassTests
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
         var captured = runtime.Create(new AwkRegexPattern("([[:digit:]])([[:alpha:]])"));
-        Assert.Equal(3, captured.GroupCount);
+        using var captures = runtime.MatchCaptureValue(captured, AwkText.FromString("7A"), AwkMemoryAccounting.Disabled);
+        Assert.Equal(3, captures.Match.Groups.Count);
+        Assert.Equal("7", captures.Match.Groups[1].Value.AsString());
+        Assert.Equal("A", captures.Match.Groups[2].Value.AsString());
         var punctuation = runtime.Create(new AwkRegexPattern("[[:punct:]]"));
-        Assert.Equal(1, punctuation.GroupCount);
         Assert.True(runtime.IsMatch(punctuation, AwkText.FromString("$", counters)));
         Assert.False(runtime.IsMatch(punctuation, AwkText.FromString("A", counters)));
-        Assert.Equal(utf8 ? 0 : 2, counters.StringDecodes);
-        Assert.Equal(utf8 ? 0 : 2, counters.AwkTextAsStringCalls);
+        Assert.Equal(utf8 ? 0 : 3, counters.StringDecodes);
+        Assert.Equal(utf8 ? 0 : 3, counters.AwkTextAsStringCalls);
         Assert.Equal(0, counters.RegexPatternGapFallbacks);
-        Assert.Equal(utf8 ? 0 : 2, counters.RegexDotNetTextMatches);
-        Assert.Equal(2, counters.RegexMatches);
+        Assert.Equal(utf8 ? 0 : 3, counters.RegexDotNetTextMatches);
+        Assert.Equal(3, counters.RegexMatches);
         Assert.Equal(2, counters.RegexCompiles);
     }
 

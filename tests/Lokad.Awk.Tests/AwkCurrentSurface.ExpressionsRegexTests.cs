@@ -143,7 +143,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             counters, regexEngine: useUtf8Adapter ? AwkUtf8RegexEngine.Instance : null);
         // Construct an untranslated backend pattern to exercise the publication guard.
         var pattern = splitCaptureOnly ? @"(\uD83D)(\uDE00)" : @"[\uD800-\uDBFF]";
-        var regex = AwkRegex.CreateDotNet(pattern, AwkRegexCaseSensitivity.CaseSensitive);
+        var regex = new AwkRegex(pattern, AwkRegexCaseSensitivity.CaseSensitive);
         var input = AwkText.FromString("😀");
         var exception = Assert.Throws<AwkRuntimeException>(() =>
             runtime.MatchValue(regex, input, governor, AwkRegexCapturePlan.All));

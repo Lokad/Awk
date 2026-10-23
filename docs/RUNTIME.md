@@ -170,7 +170,10 @@ predicts a supplied engine's footprint nor transfers ownership of the budget.
 
 The default .NET provider uses coarse construction/storage admission and retains its fixed
 two-second match protection because .NET matching cannot poll the token. Literal syntax
-validation uses the same provider and releases its temporary handle. These estimates are
+validation uses the same provider and releases its temporary handle before execution,
+including with a supplied engine. Prepared programs retain Awk pattern metadata, while each
+execution admits and owns its engine handles through the existing caches. Reusing a prepared
+program shares no compiled handles between executions or providers. These estimates are
 not a heap cap. Core has no pattern-byte, group-count or regex-cache byte quota.
 
 The repository's internal, non-packable `Lokad.Awk.Utf8Regex` adapter pins producer **0.2.0**.

@@ -4,6 +4,41 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkRegexProviderOwnershipTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LiteralAndDynamicDefaultHandlesRequireExecutionAdmission(bool literal)
+    {
+        var pattern = new string('a', 1024);
+        var source = literal
+            ? $"BEGIN{{print \"before\";print (\"x\"~/{pattern}/);print \"after\"}}"
+            : $"BEGIN{{r=\"{pattern}\";print \"before\";print (\"x\"~r);print \"after\"}}";
+        var budget = new CooperativeTestBudget(16 << 20);
+        IMemoryReservation? pressure = null;
+        var host = new MockFileSystem
+        {
+            AfterAppend = () =>
+            {
+                if (pressure is not null) return;
+                Assert.True(budget.TryReserve(budget.Limit - budget.Reserved - (16 << 10), out var reserved));
+                pressure = reserved;
+            }
+        };
+        try
+        {
+            var command = AwkTestHarness.BuildInvocation("awk", source);
+            Assert.True(Awk.TryParse(command, out var awk));
+            var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget),
+                CancellationToken.None);
+            Assert.Equal(AwkExitCode.FatalError, exit);
+            Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+        }
+        finally { pressure?.Dispose(); }
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Fact]
     public void DefaultProviderOwnsAdmissionAndRefundsInvalidConstruction()
     {
@@ -31,11 +66,9 @@ public sealed class AwkRegexProviderOwnershipTests
             memoryBudget: budget))
         {
             var first = runtime.Create(new AwkRegexPattern("a"));
-            var backend = Assert.IsType<AwkDotNetRegexBackend>(first.Backend);
-            Assert.NotNull(backend.Value);
-            for (var index = 0; index <= AwkRuntimeLimits.DefaultRegexCacheSize; index++)
+            Assert.True(runtime.IsMatch(first, AwkText.FromString("a")));
+            for (var index = 0; index <= 8 * AwkRuntimeLimits.DefaultRegexCacheSize; index++)
                 runtime.Create(new AwkRegexPattern("key" + index));
-            Assert.Null(backend.Value);
             Assert.True(runtime.IsMatch(first, AwkText.FromString("a")));
             Assert.True(budget.Reserved > 0);
         }

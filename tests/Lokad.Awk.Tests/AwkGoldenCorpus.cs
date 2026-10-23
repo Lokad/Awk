@@ -47,6 +47,8 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(DirectiveCases(), AwkGoldenTag.SourceLoading),
         .. Tagged(StreamIdentityCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
 
+        .. Tagged(ControlHeaderRegexCases(), AwkGoldenTag.Statement, AwkGoldenTag.Regex),
+
         .. Tagged(ArgumentSchedulingCompatibilityRepairs(), AwkGoldenTag.CommandLine, AwkGoldenTag.Record),
 
         .. Tagged(PatternCases(), AwkGoldenTag.Pattern),

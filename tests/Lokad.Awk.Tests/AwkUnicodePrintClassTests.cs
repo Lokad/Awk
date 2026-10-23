@@ -19,8 +19,6 @@ public sealed class AwkUnicodePrintClassTests
         var printable = runtime.Create(printPattern);
         Assert.Same(graph, runtime.Create(graphPattern));
         Assert.Same(printable, runtime.Create(printPattern));
-        Assert.Equal(1, graph.GroupCount);
-        Assert.Equal(1, printable.GroupCount);
         (string Text, bool Graph, bool Print)[] samples =
         [
             ("é", true, true), ("\U0001F600", true, true), ("\U00010400", true, true),
@@ -59,7 +57,10 @@ public sealed class AwkUnicodePrintClassTests
         var runtime = Runtime(profile, utf8, AwkRuntimeCounters.Disabled);
         var pattern = new AwkRegexPattern("([[:graph:]]+)([[:print:]])");
         var regex = runtime.Create(pattern);
-        Assert.Equal(3, regex.GroupCount);
+        using var captures = runtime.MatchCaptureValue(regex, AwkText.FromString("\né😀 "), AwkMemoryAccounting.Disabled);
+        Assert.Equal(3, captures.Match.Groups.Count);
+        Assert.Equal("é😀", captures.Match.Groups[1].Value.AsString());
+        Assert.Equal(" ", captures.Match.Groups[2].Value.AsString());
         Assert.Same(regex, runtime.Create(pattern));
         var match = runtime.MatchSpan(regex, AwkText.FromString("\né\U0001F600 ", AwkRuntimeCounters.Disabled));
         Assert.True(match.Success);

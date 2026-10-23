@@ -415,19 +415,6 @@ public sealed class AwkCurrentSurfaceCancellationResourceTests : AwkCurrentSurfa
     }
 
     [Fact]
-    public void Awk_RegexFactoryAppliesMatchTimeout()
-    {
-        var regex = AwkRegex.Create(
-            new AwkRegexPattern("a+"),
-            AwkRegexCaseSensitivity.CaseSensitive);
-
-        var backend = Assert.IsType<AwkDotNetRegexBackend>(regex.Backend);
-        Assert.Equal(AwkRegexCaseSensitivity.CaseSensitive, backend.SeedCaseSensitivity);
-        Assert.NotNull(backend.Value);
-        Assert.Equal(TimeSpan.FromSeconds(2), backend.Value.MatchTimeout);
-    }
-
-    [Fact]
     public async Task Awk_RecursiveFunctionEntryObservesCancellation()
     {
         using var cancellation = new CancellationTokenSource();

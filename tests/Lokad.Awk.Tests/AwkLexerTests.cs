@@ -8,6 +8,22 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkLexerTests
 {
+    [Theory]
+    [InlineData("if((f(8)/2)==4)")]
+    [InlineData("while((f(8)/2)==4)")]
+    [InlineData("for(i=0;i<f(8)/2;i++)")]
+    [InlineData("for(i in a)")]
+    public void ControlHeaderStartsARegexBodyWithoutChangingDivision(string header)
+    {
+        var source = "BEGIN{" + header + @" /[/]/ && (x=1);print f(8)/2,(8)/2}";
+        var tokens = AwkLexer.Tokenize(source);
+        var regex = Assert.Single(tokens, token => token.Kind == AwkTokenKind.Regex);
+        Assert.Equal("/[/]/", regex.Text);
+        Assert.Equal(new AwkTextSpan(source.IndexOf("/[/]/", StringComparison.Ordinal), 5), regex.Span);
+        Assert.Equal(header.Contains("/2", StringComparison.Ordinal) ? 3 : 2,
+            tokens.Count(token => token.Kind == AwkTokenKind.Slash));
+    }
+
     [Fact]
     public void PowerAliasesPreserveOperatorTextAndSourceSpans()
     {

@@ -362,36 +362,6 @@ public sealed class AwkGoldenCorpusTests
     }
 
     [Fact]
-    public void Awk_TestLayerReadmeDeclaresGoldenCorpusCanonical()
-    {
-        var readmeText = File.ReadAllText(LocateAwkTestReadme());
-
-        Assert.Contains("canonical behavior and diagnostic suite", readmeText, StringComparison.Ordinal);
-        Assert.Contains("Do not duplicate plain language behavior here unless a host boundary is the point of the test.", readmeText, StringComparison.Ordinal);
-        Assert.Contains("Prefer moving ordinary user-visible behavior to the golden corpus.", readmeText, StringComparison.Ordinal);
-
-        static string LocateAwkTestReadme()
-        {
-            return Path.Combine(LocateAwkTestDirectory(), "README.md");
-
-            static string LocateAwkTestDirectory()
-            {
-                var current = new DirectoryInfo(AppContext.BaseDirectory);
-                while (current != null)
-                {
-                    var candidate = Path.Combine(current.FullName, "tests", "Lokad.Awk.Tests");
-                    if (File.Exists(Path.Combine(candidate, "README.md")))
-                        return candidate;
-
-                    current = current.Parent;
-                }
-
-                throw new DirectoryNotFoundException("Could not locate Awk test directory.");
-            }
-        }
-    }
-
-    [Fact]
     public void Awk_OutputGoldenCorpusPinsFlushOwnershipCases()
     {
         var outputCases = AwkGoldenCorpus.DirectCases

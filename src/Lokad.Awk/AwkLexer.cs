@@ -41,6 +41,9 @@ internal static class AwkLexer
         private int _position;
         private int _lexemeIndex;
         private bool _canStartRegex = true;
+        private AwkTokenKind _previousSignificant;
+        private int _parenthesisDepth;
+        private List<int>? _controlHeaders;
         private readonly AwkLexicalNames _names;
 
         public Lexer(string source, Action? checkpoint, AwkCompatibilityMode compatibilityMode,
@@ -309,6 +312,25 @@ internal static class AwkLexer
             _tokens.Add(AwkToken.FromSource(kind, _source, new AwkTextSpan(start, length)));
             _position = start + length;
             _canStartRegex = AwkRegexStart.CanStartAfter(kind);
+            if (AwkTokenNavigation.IsSignificant(kind))
+            {
+                if (kind == AwkTokenKind.LeftParen)
+                {
+                    _parenthesisDepth++;
+                    if (_previousSignificant is AwkTokenKind.If or AwkTokenKind.While or AwkTokenKind.For)
+                        (_controlHeaders ??= []).Add(_parenthesisDepth);
+                }
+                else if (kind == AwkTokenKind.RightParen)
+                {
+                    if (_controlHeaders is { Count: > 0 } headers && headers[^1] == _parenthesisDepth)
+                    {
+                        headers.RemoveAt(headers.Count - 1);
+                        _canStartRegex = true;
+                    }
+                    _parenthesisDepth = Math.Max(0, _parenthesisDepth - 1);
+                }
+                _previousSignificant = kind;
+            }
             SkipLexemesBeforePosition();
         }
 

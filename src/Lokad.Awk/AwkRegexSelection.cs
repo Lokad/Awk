@@ -312,10 +312,10 @@ internal sealed class AwkLongestRegex
     public Regex Regex { get; }
     public int[] Groups { get; }
 
-    public static AwkLongestRegex Create(AwkRegex source, AwkRegexCaseSensitivity caseSensitivity, Action? checkpoint = null, IMemoryBudget? memoryBudget = null)
+    public static AwkLongestRegex Create(AwkRegex source, AwkRegexCaseSensitivity caseSensitivity, IReadOnlyList<string> names,
+        Action? checkpoint = null, IMemoryBudget? memoryBudget = null)
     {
         checkpoint?.Invoke();
-        var names = source.Backend.GroupNames;
         var prefixName = UniqueName(names, "LokadPrefix", checkpoint);
         var wholeName = UniqueName(names, "LokadWhole", checkpoint);
         var maximum = source.Selection.MaximumScalars;

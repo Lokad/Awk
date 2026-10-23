@@ -197,16 +197,11 @@ public sealed class AwkRegexPreparationCancellationTests
         {
             if (armed) throw new InvalidOperationException("Construction callback was retained.");
         }
-        var regex = utf8 ? AwkRegex.CreateProvided("a", AwkRegexCaseSensitivity.CaseSensitive,
-            ["0"], checkpoint: Checkpoint) : AwkRegex.CreateDotNet("a", AwkRegexCaseSensitivity.CaseSensitive,
+        var regex = AwkRegex.Create(new AwkRegexPattern("a"), AwkRegexCaseSensitivity.CaseSensitive,
             checkpoint: Checkpoint);
         armed = true;
-        switch (regex.Backend)
-        {
-            case AwkDotNetRegexBackend { Value: { } value }: Assert.Matches(value, "a"); break;
-            case AwkProvidedRegexBackend provided: Assert.Equal(["0"], provided.GroupNames); break;
-            default: throw new InvalidOperationException("Unknown backend.");
-        }
+        using var runtime = Runtime(utf8, AwkRuntimeCounters.Disabled, static () => { });
+        Assert.True(runtime.IsMatch(regex, AwkText.FromString("a")));
     }
 
     [Theory]

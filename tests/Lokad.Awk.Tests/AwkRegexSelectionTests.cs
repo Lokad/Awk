@@ -164,7 +164,7 @@ public sealed class AwkRegexSelectionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = Runtime(true, counters, AwkRuntimeLimits.CreateDefault());
         var regex = runtime.Create(new AwkRegexPattern("(a+)+b|c"));
-        var compiled = AwkLongestRegex.Create(regex, AwkRegexCaseSensitivity.CaseSensitive);
+        var compiled = AwkLongestRegex.Create(regex, AwkRegexCaseSensitivity.CaseSensitive, ["0", "1"]);
         Assert.Equal(TimeSpan.FromSeconds(2), compiled.Regex.MatchTimeout);
 
         Assert.False(runtime.MatchSpan(regex, AwkText.FromString(new string('a', 100_000))).Success);
