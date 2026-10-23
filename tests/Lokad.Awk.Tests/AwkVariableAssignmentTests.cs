@@ -4,16 +4,22 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkVariableAssignmentTests
 {
-    [Fact]
-    public void AwkVariableAssignment_ParsesOptionWithEscapeDecoding()
+    [Theory]
+    [InlineData(nameof(AwkCompatibilityMode.GnuDefault), "line\nnextA")]
+    [InlineData(nameof(AwkCompatibilityMode.Posix), "line\nnextu0041")]
+    [InlineData(nameof(AwkCompatibilityMode.Traditional), "line\nnextA")]
+    public void AwkVariableAssignment_PreparesEscapesUnderTheFinalProfile(string modeName, string expected)
     {
+        var mode = Enum.Parse<AwkCompatibilityMode>(modeName);
         Assert.True(AwkVariableAssignment.TryParse(
-            "name=line\\nnext",
+            "name=line\\nnext\\u0041",
             AwkVariableAssignmentSource.Option,
-            out var assignment));
+            out var parsed));
+        var assignment = parsed.WithCompatibilityMode(mode, null);
 
         Assert.Equal("name", assignment.Identifier.Text);
-        Assert.Equal("line\nnext", assignment.Value);
+        Assert.Equal(expected, assignment.Value);
+        Assert.Equal("line\\nnext\\u0041", assignment.RawValue);
         Assert.Equal(AwkVariableAssignmentSource.Option, assignment.Source);
     }
 
