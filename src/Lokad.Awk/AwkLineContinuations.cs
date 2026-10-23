@@ -8,12 +8,12 @@ namespace Lokad.Awk;
 internal static class AwkLineContinuations
 {
     public static AwkLineContinuationNormalization Normalize(string text, CancellationToken cancellationToken,
-        AwkFrontendMemory? memory = null)
+        AwkFrontendMemory? memory = null, AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
         => NormalizeWithCheckpoint(text,
-            cancellationToken.CanBeCanceled ? cancellationToken.ThrowIfCancellationRequested : null, memory);
+            cancellationToken.CanBeCanceled ? cancellationToken.ThrowIfCancellationRequested : null, memory, compatibilityMode);
 
     public static AwkLineContinuationNormalization NormalizeWithCheckpoint(string text, Action? checkpoint,
-        AwkFrontendMemory? memory = null)
+        AwkFrontendMemory? memory = null, AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault)
     {
         checkpoint?.Invoke();
         var firstContinuation = 0;
@@ -32,7 +32,7 @@ internal static class AwkLineContinuations
         frontend.AdmitTextCopy(text.Length);
         var builder = new StringBuilder(text.Length);
         var continuations = new List<AwkLineContinuationPoint>();
-        var tokens = AwkLexer.Tokenize(text, checkpoint, memory: frontend);
+        var tokens = AwkLexer.Tokenize(text, checkpoint, compatibilityMode, frontend);
         var tokenIndex = 0;
         var segmentStart = 0;
         var index = firstContinuation;
@@ -154,104 +154,28 @@ internal readonly record struct AwkLineContinuationNormalization
 
 internal sealed class AwkLineContinuationMap
 {
-    private readonly AwkLineContinuationMapNode _node;
-    private readonly int _count;
-    private AwkLineContinuationPoint[]? _materializedPoints;
+    private readonly IReadOnlyList<AwkLineContinuationPoint> _points;
 
-    public AwkLineContinuationMap(IReadOnlyList<AwkLineContinuationPoint> points)
-    {
-        _node = new AwkLineContinuationMapNode.Leaf(points);
-        _count = points.Count;
-    }
-
-    private AwkLineContinuationMap(
-        AwkLineContinuationMap first,
-        AwkLineContinuationMap second,
-        int secondOffset)
-    {
-        _node = new AwkLineContinuationMapNode.Concat(first, second, secondOffset);
-        _count = checked(first.Count + second.Count);
-    }
+    public AwkLineContinuationMap(IReadOnlyList<AwkLineContinuationPoint> points) => _points = points;
 
     public static AwkLineContinuationMap Empty { get; } = new([]);
 
-    public int Count => _count;
+    public int Count => _points.Count;
 
     public bool IsEmpty => Count == 0;
 
-    private IReadOnlyList<AwkLineContinuationPoint> GetPoints(Action? checkpoint = null)
+    public AwkLineContinuationPoint this[int index] => _points[index];
+
+    public AwkLineContinuationPoint GetPoint(int index, Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        if (_node is AwkLineContinuationMapNode.Leaf leaf)
-            return leaf.Points;
-
-        var materialized = Volatile.Read(ref _materializedPoints);
-        if (materialized != null)
-            return materialized;
-
-        materialized = MaterializePoints();
-        checkpoint?.Invoke();
-        return Interlocked.CompareExchange(ref _materializedPoints, materialized, null) ?? materialized;
-
-        AwkLineContinuationPoint[] MaterializePoints()
-        {
-            var points = new AwkLineContinuationPoint[Count];
-            var writeIndex = 0;
-            var pending = new Stack<PendingMap>();
-            pending.Push(new PendingMap(this, 0));
-            while (pending.Count > 0)
-            {
-                checkpoint?.Invoke();
-                var (map, offset) = pending.Pop();
-                if (map._node is AwkLineContinuationMapNode.Concat concat)
-                {
-                    pending.Push(new PendingMap(concat.Second, checked(offset + concat.SecondOffset)));
-                    pending.Push(new PendingMap(concat.First, offset));
-                    continue;
-                }
-
-                var leaf = (AwkLineContinuationMapNode.Leaf)map._node;
-                for (var index = 0; index < leaf.Points.Count; index++)
-                {
-                    checkpoint?.Invoke();
-                    points[writeIndex++] = new AwkLineContinuationPoint(
-                        checked(offset + leaf.Points[index].NormalizedOffset));
-                }
-            }
-
-            return points;
-        }
+        return _points[index];
     }
-
-    private readonly struct PendingMap
-    {
-        private readonly AwkLineContinuationMap? _map;
-
-        public PendingMap(AwkLineContinuationMap map, int offset)
-        {
-            _map = map;
-            Offset = offset;
-        }
-
-        public AwkLineContinuationMap Map => _map ?? Empty;
-
-        public int Offset { get; }
-
-        public void Deconstruct(out AwkLineContinuationMap map, out int offset)
-        {
-            map = Map;
-            offset = Offset;
-        }
-    }
-
-    public AwkLineContinuationPoint this[int index] => GetPoint(index);
-
-    public AwkLineContinuationPoint GetPoint(int index, Action? checkpoint = null) => GetPoints(checkpoint)[index];
 
     public AwkLineContinuationMap Slice(int start, int length, Action? checkpoint = null)
     {
         checkpoint?.Invoke();
-        var indexed = GetPoints(checkpoint);
+        var indexed = _points;
         if (IsEmpty)
             return Empty;
 
@@ -291,39 +215,10 @@ internal sealed class AwkLineContinuationMap
 
     public int CountAtOrBefore(int normalizedOffset, Action? checkpoint = null) => FindFirstAfter(normalizedOffset, checkpoint);
 
-    public AwkLineContinuationMap Append(AwkLineContinuationMap next, int nextOffset, Action? checkpoint = null)
-    {
-        checkpoint?.Invoke();
-        static AwkLineContinuationMap Shift(
-            AwkLineContinuationMap map,
-            int offset, Action? checkpoint)
-        {
-            if (map.IsEmpty || offset == 0)
-                return map;
-
-            var shiftedPoints = new List<AwkLineContinuationPoint>(map.Count);
-            for (var index = 0; index < map.Count; index++)
-            {
-                checkpoint?.Invoke();
-                shiftedPoints.Add(new AwkLineContinuationPoint(
-                    offset + map.GetPoint(index, checkpoint).NormalizedOffset));
-            }
-
-            return new AwkLineContinuationMap(shiftedPoints);
-        }
-
-        if (IsEmpty)
-            return Shift(next, nextOffset, checkpoint);
-
-        if (next.IsEmpty)
-            return this;
-
-        return new AwkLineContinuationMap(this, next, nextOffset);
-    }
-
     private int FindFirstAfter(int offset, Action? checkpoint = null)
     {
-        var indexed = GetPoints(checkpoint);
+        checkpoint?.Invoke();
+        var indexed = _points;
         var low = 0;
         var high = indexed.Count;
         while (low < high)
@@ -337,16 +232,6 @@ internal sealed class AwkLineContinuationMap
         }
 
         return low;
-    }
-
-    private abstract record AwkLineContinuationMapNode
-    {
-        internal sealed record Leaf(IReadOnlyList<AwkLineContinuationPoint> Points) : AwkLineContinuationMapNode;
-
-        internal sealed record Concat(
-            AwkLineContinuationMap First,
-            AwkLineContinuationMap Second,
-            int SecondOffset) : AwkLineContinuationMapNode;
     }
 }
 

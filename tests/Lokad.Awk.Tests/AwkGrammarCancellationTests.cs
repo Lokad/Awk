@@ -209,42 +209,27 @@ public sealed class AwkGrammarCancellationTests
         Assert.Equal(tokens[0].Span.Length, restored.Tokens[0].Length);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ContinuationMapCancellationLeavesReusableCompleteState(bool beforePublication)
+    [Fact]
+    public void ContinuationMapSliceObservesCancellationWithoutMutatingInput()
     {
-        AwkLineContinuationMap Build()
-        {
-            var result = AwkLineContinuationMap.Empty;
-            for (var index = 0; index < 256; index++)
-                result = result.Append(new AwkLineContinuationMap([new AwkLineContinuationPoint(0)]), index * 2);
-            return result;
-        }
-        var total = 0;
-        Assert.Equal(510, Build().GetPoint(255, () => total++).NormalizedOffset);
-        var map = Build();
+        var map = new AwkLineContinuationMap(Enumerable.Range(0, 256)
+            .Select(index => new AwkLineContinuationPoint(index * 2)).ToArray());
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
-        var cancelAt = beforePublication ? total : total / 2;
         void Checkpoint()
         {
-            if (++calls == cancelAt)
-                cancellation.Cancel();
+            if (++calls == 32) cancellation.Cancel();
             cancellation.Token.ThrowIfCancellationRequested();
         }
-        var failure = Assert.Throws<OperationCanceledException>(() => map.GetPoint(255, Checkpoint));
+        var failure = Assert.Throws<OperationCanceledException>(() => map.Slice(100, 100, Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
-        var retryCalls = 0;
-        Assert.Equal(256, map.CountAtOrBefore(510, () => retryCalls++));
-        Assert.True(retryCalls > 256);
         Assert.Equal(Enumerable.Range(0, 256).Select(index => index * 2),
             Enumerable.Range(0, map.Count).Select(index => map[index].NormalizedOffset));
         var sliced = map.Slice(100, 100);
         Assert.Equal(51, sliced.Count);
         Assert.Equal(0, sliced[0].NormalizedOffset);
         Assert.Equal(100, sliced[^1].NormalizedOffset);
-        Assert.Equal(cancelAt, calls);
+        Assert.Equal(256, map.CountAtOrBefore(510));
     }
 
     [Theory]

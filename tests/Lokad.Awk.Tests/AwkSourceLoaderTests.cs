@@ -9,29 +9,55 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkSourceLoaderTests
 {
+    public static IEnumerable<object[]> SourceCoordinateCases()
+    {
+        foreach (var source in new[]
+        {
+            "@include \"/empty.awk\"; BEGIN{break}",
+            "BEGIN{}; @include \"/empty.awk\"; BEGIN{break}",
+            "@include \"/empty.awk\"\nBEGIN{break}",
+            "@include \\\n\"/empty.awk\"; BEGIN{break}",
+            "# first\r\n@include \"/empty.awk\"; BEGIN{break}",
+            "@include \"/empty.awk\"; \\\n BEGIN{break}",
+            "# first\n@include \"/empty.awk\"; BEGIN{print \"\\u\";exit}",
+            "BEGIN{x=1}; \\\n@include \"/empty.awk\"; BEGIN{break}"
+        })
+        foreach (var depth in new[] { 0, 1, 2 })
+        foreach (var governed in new[] { false, true })
+            yield return [source, depth, governed];
+    }
+
     [Theory]
-    [InlineData("@include \"/empty.awk\"; BEGIN{break}")]
-    [InlineData("BEGIN{}; @include \"/empty.awk\"; BEGIN{break}")]
-    [InlineData("@include \"/empty.awk\"\nBEGIN{break}")]
-    [InlineData("@include \\\n\"/empty.awk\"; BEGIN{break}")]
-    [InlineData("# first\r\n@include \"/empty.awk\"; BEGIN{break}")]
-    [InlineData("@include \"/empty.awk\"; \\\n BEGIN{break}")]
-    public async Task EmptyIncludesKeepOriginalTailCoordinates(string source)
+    [MemberData(nameof(SourceCoordinateCases))]
+    public async Task EmptyIncludesKeepOriginalTailCoordinates(string source, int depth, bool governed)
     {
         var host = new MockFileSystem();
         host.AddFile("/empty.awk", "");
         host.AddFile("/main.awk", source);
-        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/main.awk"));
-        var position = source.IndexOf("break", StringComparison.Ordinal);
+        var path = "/main.awk";
+        for (var index = 0; index < depth; index++)
+        {
+            var wrapper = $"/wrapper{index}.awk";
+            host.AddFile(wrapper, $"@include \"{path}\"\n");
+            path = wrapper;
+        }
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", path));
+        var warning = source.Contains("\\u", StringComparison.Ordinal);
+        var position = source.IndexOf(warning ? "\"\\u\"" : "break", StringComparison.Ordinal);
         var line = source.AsSpan(0, position).Count('\n') + 1;
         var column = position - source.LastIndexOf('\n', position);
 
-        var exit = await awk.ExecuteAsync(host, CancellationToken.None);
+        var budget = new CooperativeTestBudget(16 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
 
-        Assert.Equal(AwkExitCode.FatalError, exit);
-        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.Equal($"awk: /main.awk:{line}:{column}: break used outside loop or switch\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(warning ? AwkExitCode.Success : AwkExitCode.FatalError, exit);
+        Assert.Equal(warning ? "u\n" : "", host.GetOutput(AwkFileDescriptor.StdOut));
+        var message = warning ? "warning: no hex digits in `\\u' escape sequence" : "break used outside loop or switch";
+        Assert.Equal($"awk: /main.awk:{line}:{column}: {message}\n", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
     }
 
     [Fact]
@@ -71,6 +97,34 @@ public sealed class AwkSourceLoaderTests
         Assert.Equal(0, budget.Reserved);
         Assert.Empty(host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.Empty(host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SourceRoleConflictUsesResolvedSearchIdentityBeforeEffects(bool includeFirst)
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/lib/same.awk", "BEGIN{print \"LEAK\"; print 1 > \"/effect\"; \"cmd\" | getline x}");
+        string[] arguments = includeFirst
+            ? ["-i", "same.awk", "-f", "/lib/./same.awk"]
+            : ["-f", "same.awk", "-i", "/lib/./same.awk"];
+        var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments,
+            [new AwkEnvironmentVariable("AWKPATH", "/lib")]));
+        var budget = new CooperativeTestBudget(16 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget)
+            .WithAccessiblePathRoot(new AwkPath("/lib"));
+
+        var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exit);
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: /lib/./same.awk: cannot use a file as both program source and include\n",
+            host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.False(host.FileExists("/effect"));
+        Assert.Empty(host.AwkCommandInvocations);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
     }
 
     [Fact]
@@ -126,15 +180,17 @@ public sealed class AwkSourceLoaderTests
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{marker=1}\nBEGIN{print marker}", source.Text);
         Assert.Equal(
-            [AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Inline],
+            [AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Inline],
             source.Segments.Select(segment => segment.Kind).ToArray());
         Assert.Equal(new AwkSourceName("/lib/common.awk"), source.Segments[0].SourceName);
-        Assert.Equal(new AwkSourceName("<inline:1>"), source.Segments[1].SourceName);
+        Assert.Equal(new AwkSourceName("<inline:1>"), source.Segments[^1].SourceName);
         Assert.Equal(2, fileSystem.ReadOpenCount);
     }
 
-    [Fact]
-    public async Task AwkSourceLoader_BatchesContinuationMapsAcrossRepeatedEmptyIncludes()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AwkSourceLoader_PreservesContinuationCoordinatesAcrossRepeatedEmptyIncludes(bool nested)
     {
         const int includeCount = 256;
         var fileSystem = new MockFileSystem();
@@ -146,7 +202,8 @@ public sealed class AwkSourceLoaderTests
             program.Append("@include \"/empty.awk\"\n");
         }
 
-        var invocation = Parse(program.ToString());
+        fileSystem.AddFile("/many.awk", program.ToString());
+        var invocation = Parse(nested ? "@include \"/many.awk\"" : program.ToString());
 
         var result = await LoadAsync(fileSystem, invocation);
 
@@ -157,7 +214,7 @@ public sealed class AwkSourceLoaderTests
             [new AwkDiagnostic(new AwkTextSpan(position, 1), "test")]));
         Assert.Equal((includeCount - 1) * 3 + 1, mapped.SourceLocation?.LineNumber.Value);
         Assert.Equal(1, mapped.SourceLocation?.ColumnNumber.Value);
-        Assert.Equal(1, fileSystem.ReadOpenCount);
+        Assert.Equal(nested ? 2 : 1, fileSystem.ReadOpenCount);
         Assert.DoesNotContain("@include", source.Text);
     }
 
@@ -245,7 +302,7 @@ public sealed class AwkSourceLoaderTests
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{marker=\"relative\"}\nBEGIN{print marker}", source.Text);
         Assert.Equal(new AwkSourceName("lib/common.awk"), source.Segments[0].SourceName);
-        Assert.Equal(new AwkSourceName("<inline:1>"), source.Segments[1].SourceName);
+        Assert.Equal(new AwkSourceName("<inline:1>"), source.Segments[^1].SourceName);
     }
 
     [Fact]
@@ -260,7 +317,7 @@ public sealed class AwkSourceLoaderTests
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{marker=\"in\" \"clude\"}\nBEGIN{print marker}", source.Text);
         Assert.Equal(
-            [AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Inline],
+            [AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Include, AwkSourceSegmentKind.Inline],
             source.Segments.Select(segment => segment.Kind).ToArray());
     }
 

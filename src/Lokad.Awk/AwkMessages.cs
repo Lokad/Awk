@@ -257,6 +257,9 @@ internal static class AwkMessages
         return buffer;
     }
 
+    internal static ReadOnlyMemory<byte> FormatSourceRoleConflict(string name) =>
+        AwkUtf8Codec.Encode("awk: " + name + ": cannot use a file as both program source and include\n");
+
     internal static ReadOnlyMemory<byte> FormatUndefinedFunction(string name)
         => AwkUtf8Codec.Encode(FormatUndefinedFunctionText(name));
 

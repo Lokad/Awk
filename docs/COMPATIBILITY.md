@@ -68,6 +68,11 @@ directory. Includes support `.awk` suffix fallback; `-f` suffix fallback and std
 Top-level includes preserve subsequent same-line source. Malformed/unknown directives and
 includes inside actions/functions are rejected before execution; see the
 [directive cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.Directives.cs).
+One resolved virtual file cannot be both program source and an include, regardless of order
+or path alias; conflicts fail before script effects. Repeated `-f` files still execute repeatedly,
+while include-only uses deduplicate. Nested includes preserve original diagnostic coordinates.
+Continuation preprocessing follows the selected lexical profile, including keyword-shaped
+variables; see [source composition cases](../tests/Lokad.Awk.Tests/AwkGoldenCorpus.SourceComposition.cs).
 
 ## Source string escapes
 

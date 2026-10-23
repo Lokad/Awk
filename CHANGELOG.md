@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Source preprocessing uses the selected lexical profile, preserving division and token
+  separation around continued lines when GNU keyword names are ordinary variables.
+- A resolved file cannot be both program source and an include; conflicting uses fail
+  before script effects. Repeated `-f` sources and include-only deduplication remain supported.
+- Nested includes preserve original diagnostic and warning coordinates. Removed destructive
+  source-fragment coalescing and continuation-map concatenation machinery.
+
 - Computed field indices reject NaN and infinities before record access or mutation,
   consistently across ordinary and prepared paths. Finite indices retain truncation and
   absent-field reads; field growth remains subject to representable storage and shared admission.

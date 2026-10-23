@@ -20,7 +20,7 @@ internal static partial class AwkSourceLoader
     {
         Action checkpoint = cancellationToken.ThrowIfCancellationRequested;
         checkpoint();
-        var normalization = AwkLineContinuations.Normalize(source, cancellationToken, plan.Memory);
+        var normalization = AwkLineContinuations.Normalize(source, cancellationToken, plan.Memory, plan.CompatibilityMode);
         var normalizedSource = normalization.Text;
         IReadOnlyList<IncludeDirective> includes = plan.CompatibilityMode == AwkCompatibilityMode.GnuDefault &&
             normalizedSource.Contains("@include", StringComparison.Ordinal)
@@ -182,15 +182,13 @@ internal static partial class AwkSourceLoader
             {
                 checkpoint();
                 var segment = source.Segments[index];
-                AddSegment(
-                    segments,
-                    new AwkSourceSegment(
-                        segment.SourceName,
-                        segment.Kind,
-                        new AwkTextSpan(segment.Span.Start + offset, segment.Span.Length),
-                        segment.SourceLineOffset,
-                        segment.SourceColumnOffset,
-                        segment.LineContinuations), checkpoint: checkpoint);
+                segments.Add(new AwkSourceSegment(
+                    segment.SourceName,
+                    segment.Kind,
+                    new AwkTextSpan(segment.Span.Start + offset, segment.Span.Length),
+                    segment.SourceLineOffset,
+                    segment.SourceColumnOffset,
+                    segment.LineContinuations));
             }
         }
 
@@ -204,15 +202,13 @@ internal static partial class AwkSourceLoader
             builder.Append('\n');
             if (sourceSegment is { } segment)
             {
-                AddSegment(
-                    segments,
-                    new AwkSourceSegment(
-                        segment.SourceName,
-                        segment.Kind,
-                        new AwkTextSpan(start, 1),
-                        segment.SourceLineOffset,
-                        segment.SourceColumnOffset,
-                        AwkLineContinuationMap.Empty), checkpoint: checkpoint);
+                segments.Add(new AwkSourceSegment(
+                    segment.SourceName,
+                    segment.Kind,
+                    new AwkTextSpan(start, 1),
+                    segment.SourceLineOffset,
+                    segment.SourceColumnOffset,
+                    AwkLineContinuationMap.Empty));
             }
         }
     }

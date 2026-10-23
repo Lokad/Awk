@@ -55,7 +55,11 @@ internal static partial class AwkSourceLoader
                 AwkDiagnosticId.SourceLoadFailure);
         }
 
-        if (!plan.TryMarkIncluded(found.Script))
+        var registration = plan.RegisterSource(found.Script, AwkSourceSegmentKind.Include);
+        if (registration == AwkSourceRegistration.Conflict)
+            return SourceExpansionResult.Failure(
+                AwkMessages.FormatSourceRoleConflict(found.Script.SourceName.Text), AwkDiagnosticId.SourceLoadFailure);
+        if (registration == AwkSourceRegistration.Repeated)
             return SourceExpansionResult.FromSource(AwkExpandedSource.Empty);
 
         return await ExpandIncludesAsync(

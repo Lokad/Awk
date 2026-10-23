@@ -14,7 +14,7 @@ internal sealed class AwkSourceLoadPlan
     private readonly bool _exposeHostErrorDetails;
     private readonly int _maxHostErrorBytes;
     private readonly AwkCompatibilityMode _compatibilityMode;
-    private readonly HashSet<AwkSourceIdentity> _includedIdentities = [];
+    private readonly Dictionary<AwkSourceIdentity, AwkSourceSegmentKind> _sourceRoles = [];
     private readonly Dictionary<AwkPath, AwkScriptTextReadResult> _scriptTextByPath = [];
 
     private AwkSourceLoadPlan(
@@ -111,11 +111,13 @@ internal sealed class AwkSourceLoadPlan
     public void ThrowIfDenied(AwkPath path) =>
         AwkHostPathPolicy.ThrowIfDenied(path, _accessiblePathRoot);
 
-    public bool TryMarkIncluded(AwkScriptFile script)
+    public AwkSourceRegistration RegisterSource(AwkScriptFile script, AwkSourceSegmentKind kind)
     {
-        if (_includedIdentities.Contains(script.SourceIdentity)) return false;
+        if (_sourceRoles.TryGetValue(script.SourceIdentity, out var previous))
+            return previous == kind ? AwkSourceRegistration.Repeated : AwkSourceRegistration.Conflict;
         Memory.AdmitSourceUnits(1);
-        return _includedIdentities.Add(script.SourceIdentity);
+        _sourceRoles.Add(script.SourceIdentity, kind);
+        return AwkSourceRegistration.Added;
     }
 
     public bool TryGetScriptText(
@@ -138,3 +140,5 @@ internal sealed class AwkSourceLoadPlan
         }
     }
 }
+
+internal enum AwkSourceRegistration { Added, Repeated, Conflict }

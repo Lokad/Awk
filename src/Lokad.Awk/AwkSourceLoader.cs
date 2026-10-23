@@ -100,6 +100,10 @@ internal static partial class AwkSourceLoader
                     AwkDiagnosticId.SourceLoadFailure);
             }
 
+            if (plan.RegisterSource(found.Script, AwkSourceSegmentKind.File) == AwkSourceRegistration.Conflict)
+                return AwkSourceLoadResult.Failure(
+                    AwkMessages.FormatSourceRoleConflict(found.Script.SourceName.Text), AwkDiagnosticId.SourceLoadFailure);
+
             var expandedScript = await ExpandIncludesAsync(
                     host,
                     plan,
