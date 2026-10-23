@@ -82,10 +82,9 @@ internal static class AwkCommandParser
             if (!_sourceInputPlanner.HasScript)
                 return BuildErrorInvocation(AwkMessages.ErrorMissingScript, AwkDiagnosticId.OptionMissingScript);
 
-            var fieldSeparator = _sourceInputPlanner.PrepareCompatibility(_profile.Mode);
+            _sourceInputPlanner.PrepareCompatibility(_profile.Mode);
             return CreateInvocationBuilder()
                 .WithPlan(_sourceInputPlanner.BuildPlan(invocation.Environment))
-                .WithFieldSeparator(fieldSeparator)
                 .WithCompatibilityProfile(_profile)
                 .Build();
 

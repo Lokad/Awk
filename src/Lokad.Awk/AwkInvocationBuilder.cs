@@ -11,7 +11,6 @@ internal sealed class AwkInvocationBuilder
     private AwkInputPlan _inputPlan = new([]);
     private AwkRuntimeArgumentPlan _runtimeArgumentsPlan;
     private AwkTerminalInvocationResult _terminalResult = AwkTerminalInvocationResult.None;
-    private AwkFieldSeparatorSpec _fieldSeparator = AwkFieldSeparatorSpec.Default;
     private AwkCompatibilityProfile _compatibilityProfile = AwkCompatibilityProfile.Default;
     private bool _sandbox;
 
@@ -28,12 +27,6 @@ internal sealed class AwkInvocationBuilder
         _sourcePlan = plan.Source;
         _inputPlan = plan.Input;
         _runtimeArgumentsPlan = plan.RuntimeArguments;
-        return this;
-    }
-
-    public AwkInvocationBuilder WithFieldSeparator(AwkFieldSeparatorSpec fieldSeparator)
-    {
-        _fieldSeparator = fieldSeparator;
         return this;
     }
 
@@ -73,7 +66,7 @@ internal sealed class AwkInvocationBuilder
             _inputPlan,
             _runtimeArgumentsPlan,
             new AwkStdioPlan(_stdIn, _stdOut, _stdErr),
-            new AwkExecutionOptions(_fieldSeparator, _compatibilityProfile, _sandbox),
+            new AwkExecutionOptions(_compatibilityProfile, _sandbox),
             _terminalResult);
 
 }

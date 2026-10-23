@@ -38,15 +38,8 @@ internal static class AwkRuntime
         var executionOptions = invocation.ExecutionOptions;
         var runtimeArguments = invocation.RuntimeArgumentsPlan;
         var stdio = invocation.Stdio;
-        var initialSeparator = executionOptions.FieldSeparator;
-        foreach (var assignment in runtimeArguments.Variables)
-            if (assignment.Source == AwkVariableAssignmentSource.FieldSeparatorOption)
-            {
-                initialSeparator = AwkFieldSeparatorSpec.Default;
-                break;
-            }
         using var state = new AwkRuntimeState(
-            initialSeparator,
+            AwkFieldSeparatorSpec.Default,
             cancellationToken,
             runtimeOptions,
             resources,

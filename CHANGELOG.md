@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Option values decode once under the final compatibility profile and observe caller
+  cancellation during decoding. Terminal commands skip decoding unused assignments.
+  Removed the discarded field-separator snapshot; invalid `-F` text still fails before source loading.
+
 - Source preprocessing uses the selected lexical profile, preserving division and token
   separation around continued lines when GNU keyword names are ordinary variables.
 - A resolved file cannot be both program source and an include; conflicting uses fail

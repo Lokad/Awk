@@ -49,6 +49,8 @@ environment data, not codec/culture selectors. POSIX overrides byte mode with a 
 in either option order. Admitted invocation warnings precede runtime effects.
 
 `-v`/`-F` apply before execution in original option order under the final profile.
+Their escapes decode once under that profile. Terminal commands skip interpreting unused values;
+otherwise malformed `-F` text fails before source files open.
 Assignment operands apply when the input scheduler reaches them, including through
 `getline` in a function, and target globals. BEGIN exit can skip later operands.
 Empty input operands retain their `ARGV` positions and select no input file. Main-file paths

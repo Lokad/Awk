@@ -70,7 +70,8 @@ input-sized allocation, and string precision against whole-value decoding. The s
 live in the golden corpus. `AwkBoundedSubstringTests` bounds short-result allocation/scanning
 and preserves lazy length conversion, mutation refusal and refunds.
 `AwkRuntimeStartupTests` bounds default random setup and unused/UTC time-zone preparation;
-it also bounds unconsumed assignment planning and function-inventory text construction.
+it also bounds option preparation, terminal assignments, unconsumed assignment planning and
+function-inventory text construction, with early text validation and decoding cancellation checks.
 Calendar and text-cancellation tests cover lazy date materialization and local DST behavior.
 `AwkCommandForwardingTests` bounds metadata copying during budget forwarding while preserving
 caller snapshots, command context and the active budget; pipe/cooperative tests cover pending users.

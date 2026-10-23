@@ -85,17 +85,16 @@ internal readonly record struct AwkVariableAssignment
     public AwkVariableAssignmentSource Source { get; }
 
     public static AwkVariableAssignment Option(AwkIdentifier identifier, string rawValue) =>
-        new(identifier, AwkEscapes.DecodeSourceString(rawValue, AwkCompatibilityMode.GnuDefault),
-            AwkVariableAssignmentSource.Option, rawValue);
+        new(identifier, rawValue, AwkVariableAssignmentSource.Option);
 
     public static AwkVariableAssignment FieldSeparatorOption(string rawValue) =>
         new(AwkIdentifier.FromTrustedName("FS"), rawValue, AwkVariableAssignmentSource.FieldSeparatorOption);
 
-    public AwkVariableAssignment WithCompatibilityMode(AwkCompatibilityMode mode) =>
+    public AwkVariableAssignment WithCompatibilityMode(AwkCompatibilityMode mode, Action? checkpoint) =>
         Source == AwkVariableAssignmentSource.InputArgument ? this :
         new(Identifier, Source == AwkVariableAssignmentSource.FieldSeparatorOption &&
             mode == AwkCompatibilityMode.Traditional && RawValue == "t" ? "\t" :
-            AwkEscapes.DecodeSourceString(RawValue, mode), Source, RawValue);
+            AwkEscapes.DecodeSourceString(RawValue, mode, checkpoint), Source, RawValue);
 
     public static AwkVariableAssignment InputArgument(AwkIdentifier identifier, string rawValue) =>
         new(identifier, rawValue, AwkVariableAssignmentSource.InputArgument);

@@ -4,6 +4,112 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRuntimeStartupTests
 {
     [Theory]
+    [InlineData("--version", false)] [InlineData("--version", true)]
+    [InlineData("--help", false)] [InlineData("--help", true)]
+    public async Task TerminalOptionAssignmentsHaveBoundedAllocation(string terminal, bool governed)
+    {
+        var raw = "\\t" + new string('x', 1 << 20);
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-v", "x=" + raw, terminal));
+        var budget = new CooperativeTestBudget(64 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var expected = terminal == "--version" ? "Lokad awk " + AwkVersion.Text + "\n" : AwkUtf8Codec.Decode(global::Lokad.Awk.AwkMessages.HelpMessage);
+        await RunAsync();
+        var allocated = await RunAsync();
+        Assert.InRange(allocated, 0, raw.Length * 2L + (128 << 10));
+
+        async Task<long> RunAsync()
+        {
+            var host = new MockFileSystem();
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var exit = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+            var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(AwkExitCode.Success, exit);
+            Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+            return bytes;
+        }
+    }
+
+    [Fact]
+    public void LargeFieldSeparatorPreparationHasBoundedAllocation()
+    {
+        var raw = new string('x', 1 << 20);
+        var command = AwkTestHarness.BuildInvocation("awk", "-F", raw, "-F", raw, "-F", raw, "BEGIN{exit}");
+        _ = AwkCommandParser.Parse(command);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        var invocation = AwkCommandParser.Parse(command);
+
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 64 << 10);
+        Assert.False(invocation.TerminalResult.IsTerminal);
+    }
+
+    [Fact]
+    public void LargeEscapedOptionPreparationHasBoundedAllocation()
+    {
+        var raw = "\\t" + new string('x', 1 << 20);
+        var command = AwkTestHarness.BuildInvocation("awk", "-v", "x=" + raw, "--posix", "BEGIN{exit}");
+        _ = AwkCommandParser.Parse(command);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        var invocation = AwkCommandParser.Parse(command);
+
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, raw.Length * 6L + (128 << 10));
+        var assignment = Assert.Single(invocation.RuntimeArgumentsPlan.Variables);
+        Assert.Equal('\t', assignment.Value[0]);
+        Assert.Equal(raw.Length - 1, assignment.Value.Length);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OptionValuePreparationForwardsCancellationToDecoding(bool fieldSeparator)
+    {
+        var raw = "\\t" + new string('x', 1 << 20);
+        var assignment = fieldSeparator ? AwkVariableAssignment.FieldSeparatorOption(raw)
+            : AwkVariableAssignment.Option(AwkIdentifier.FromTrustedName("x"), raw);
+        using var cancellation = new CancellationTokenSource();
+        void Checkpoint()
+        {
+            cancellation.Cancel();
+            cancellation.Token.ThrowIfCancellationRequested();
+        }
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        var error = Assert.Throws<OperationCanceledException>(() =>
+            assignment.WithCompatibilityMode(AwkCompatibilityMode.Posix, Checkpoint));
+
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 32 << 10);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task FieldSeparatorTextValidationPrecedesSourceOpensButSkipsTerminalCommands(bool terminal, bool governed)
+    {
+        var host = new MockFileSystem();
+        host.AddFile("/source.awk", "BEGIN{print \"EFFECT\"}");
+        string[] arguments = terminal ? ["-F", "\uD800", "--version"] : ["-F", "\uD800", "-f", "/source.awk"];
+        var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments));
+        var budget = new CooperativeTestBudget(1 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+
+        var exit = await tool.ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(terminal ? AwkExitCode.Success : AwkExitCode.FatalError, exit);
+        Assert.Equal(terminal ? "Lokad awk " + AwkVersion.Text + "\n" : "", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(terminal ? "" : "awk: invalid UTF-8 input\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.ReadOpenCount);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(128)]
     [InlineData(1 << 20)]
     public void PlanningDoesNotCopyUnconsumedAssignmentValues(int length)

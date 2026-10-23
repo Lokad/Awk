@@ -132,6 +132,7 @@ var exitCode = await awk.ExecuteAsync(host, policy, cancellationToken);
 Source loading checks cancellation before decoding returned or buffered text and before
 materializing the assembled source, including after memory admission. Pending reads still
 complete before source descriptors close and their storage is refunded.
+Option preparation observes caller cancellation while decoding escaped `-v`/`-F` values.
 
 CPU control uses the caller's `CancellationToken`, including caller-owned `CancelAfter`
 deadlines. Checkpoints remain active with observational counters disabled. Cancellation

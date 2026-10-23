@@ -24,18 +24,19 @@ internal sealed class AwkSourceInputPlanner
     public void AddFieldSeparatorOption(string rawValue) =>
         _variables.Add(AwkVariableAssignment.FieldSeparatorOption(rawValue));
 
-    public AwkFieldSeparatorSpec PrepareCompatibility(AwkCompatibilityMode mode)
+    public void PrepareCompatibility(AwkCompatibilityMode mode)
     {
-        var separator = AwkFieldSeparatorSpec.Default;
+        Action? checkpoint = _cancellationToken.CanBeCanceled ? _cancellationToken.ThrowIfCancellationRequested : null;
         for (var index = 0; index < _variables.Count; index++)
         {
             _cancellationToken.ThrowIfCancellationRequested();
-            var assignment = _variables[index].WithCompatibilityMode(mode);
-            _variables[index] = assignment;
+            var assignment = _variables[index].WithCompatibilityMode(mode, checkpoint);
             if (assignment.Source == AwkVariableAssignmentSource.FieldSeparatorOption)
-                separator = AwkFieldSeparatorSpec.FromText(assignment.Value);
+                // Preserve strict text validation before source IO without retaining a UTF-8 copy.
+                _ = AwkUtf8Codec.GetEncodedByteCount(assignment.Value);
+            _cancellationToken.ThrowIfCancellationRequested();
+            _variables[index] = assignment;
         }
-        return separator;
     }
 
     public AwkInvocationPlan BuildPlan(IReadOnlyList<AwkEnvironmentVariable> environment) =>

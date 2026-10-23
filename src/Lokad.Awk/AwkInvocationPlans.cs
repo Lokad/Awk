@@ -33,7 +33,6 @@ internal readonly record struct AwkStdioPlan(
     AwkFileDescriptor StdErr);
 
 internal sealed record AwkExecutionOptions(
-    AwkFieldSeparatorSpec FieldSeparator,
     AwkCompatibilityProfile CompatibilityProfile,
     bool Sandbox);
 
