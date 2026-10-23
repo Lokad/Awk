@@ -84,8 +84,11 @@ internal sealed class AwkInputScheduler(
                 }
 
                 var inputArgument = GetOriginalInputArgument(argumentIndex);
-                var isUnchangedFile = inputArgument is AwkInputArgument.FileArgument originalFile &&
-                    argumentText.AsSpan(state.CancellationCheckpoint).SequenceEqual(originalFile.Path.Display.Span);
+                var originalFile = inputArgument as AwkInputArgument.FileArgument;
+                if (originalFile is not null &&
+                    !argumentText.AsSpan(state.CancellationCheckpoint).SequenceEqual(originalFile.Display.Span))
+                    originalFile = null;
+                var isUnchangedFile = originalFile is not null;
                 if (!isUnchangedFile && argumentText.AsSpan(state.CancellationCheckpoint).Contains((byte)'=') &&
                     AwkVariableAssignment.TryParse(
                         ResolveArgumentString(argumentText),
@@ -99,7 +102,9 @@ internal sealed class AwkInputScheduler(
                 }
 
                 _selectedInputSource = true;
-                if (!allowDynamicMainInputPaths && !IsOriginalInputArgument(inputArgument, argumentText))
+                if (!allowDynamicMainInputPaths && !isUnchangedFile &&
+                    !(inputArgument is AwkInputArgument.StandardInputArgument &&
+                        AwkSpecialPathPolicy.IsStandardInput(argumentText)))
                     throw new AwkRuntimeException(AwkMessages.ErrorDynamicMainInputPathsDisabled);
 
                 if (AwkSpecialPathPolicy.IsStandardInput(argumentText))
@@ -118,12 +123,12 @@ internal sealed class AwkInputScheduler(
                     continue;
                 }
 
-                var path = ResolveRuntimePath(inputArgument, argumentText);
+                var rawPath = originalFile?.RawPath ?? ResolveArgumentString(argumentText);
+                using var resolution = io.AdmitPathResolution(rawPath);
+                var path = AwkPathResolution.ResolveRuntimeArgument(rawPath,
+                    invocation.RuntimeArgumentsPlan.CurrentDirectory, originalFile?.Display ?? default);
                 AwkHostPathPolicy.ThrowIfDenied(path.Absolute, accessiblePathRoot);
-                var fileName = argumentText.AsSpan(state.CancellationCheckpoint).SequenceEqual(path.Display.Span)
-                    ? argumentText
-                    : AwkText.CopyTrustedBytes(path.Display.Span, state.Counters, state.MemoryAccounting, state.CancellationCheckpoint);
-                state.BeginInputFile(fileName, argumentIndex, actionExecutor.HasBeginFileActions);
+                state.BeginInputFile(argumentText, argumentIndex, actionExecutor.HasBeginFileActions);
                 var displayBytes = AwkRuntimeMemory.CheckedAdd(32, path.Display.Length);
                 using var pendingDisplay = state.MemoryAccounting.ReserveTransient(displayBytes);
                 state.Resources.RecordHostCall();
@@ -175,24 +180,6 @@ internal sealed class AwkInputScheduler(
                 state.Counters.RecordStringInteropFallback();
                 return text.AsString(state.Counters, state.CancellationCheckpoint);
             }
-
-            bool IsOriginalInputArgument(AwkInputArgument? inputArgument, AwkText text) =>
-                inputArgument switch
-                {
-                    AwkInputArgument.StandardInputArgument => AwkSpecialPathPolicy.IsStandardInput(text),
-                    AwkInputArgument.FileArgument file => text.AsSpan(state.CancellationCheckpoint).SequenceEqual(file.Path.Display.Span),
-                    _ => false
-                };
-
-            AwkResolvedPath ResolveRuntimePath(
-                AwkInputArgument? inputArgument,
-                AwkText argumentText) =>
-                inputArgument is AwkInputArgument.FileArgument file &&
-                argumentText.AsSpan(state.CancellationCheckpoint).SequenceEqual(file.Path.Display.Span)
-                    ? file.Path
-                    : AwkPathResolution.ResolveRuntimeArgument(
-                        ResolveArgumentString(argumentText),
-                        invocation.RuntimeArgumentsPlan.CurrentDirectory);
 
             async ValueTask<bool> TryActivateInputAsync(
                 AwkRecordCursor cursor)

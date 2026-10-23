@@ -317,7 +317,7 @@ public sealed class AwkGoldenCorpusTests
     }
 
     [Fact]
-    public void Awk_GoldenCorpusHasLayerBehaviorAndOracleTags()
+    public void Awk_GoldenCorpusHasLayerAndBehaviorTags()
     {
         var missingLayer = AwkGoldenCorpus.DirectCases
             .Where(testCase => !testCase.Tags.Contains(AwkGoldenTag.DirectLayer))
@@ -325,10 +325,6 @@ public sealed class AwkGoldenCorpusTests
             .ToArray();
         var missingBehavior = AwkGoldenCorpus.DirectCases
             .Where(testCase => !testCase.Tags.Any(tag => BehaviorTags.Contains(tag)))
-            .Select(testCase => testCase.Name)
-            .ToArray();
-        var missingOracle = AwkGoldenCorpus.DirectCases
-            .Where(testCase => !testCase.Tags.Contains(AwkGoldenTag.OracleReviewed))
             .Select(testCase => testCase.Name)
             .ToArray();
         var missingHostBehavior = AwkGoldenCorpus.DirectCases
@@ -344,7 +340,6 @@ public sealed class AwkGoldenCorpusTests
 
         Assert.Empty(missingLayer);
         Assert.Empty(missingBehavior);
-        Assert.Empty(missingOracle);
         Assert.Empty(missingHostBehavior);
         Assert.Empty(missingCaveat);
 

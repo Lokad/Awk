@@ -25,7 +25,7 @@ public sealed class AwkRawPath : IParsable<AwkRawPath>
 
         for (var index = 0; index < s.Length; index++)
         {
-            if (AwkPath.IsForbiddenChar(s[index]) || s[index] is '*' or '\\' or ':')
+            if (AwkPath.IsForbiddenChar(s[index]))
                 return false;
         }
 

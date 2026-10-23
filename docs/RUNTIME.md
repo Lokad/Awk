@@ -21,6 +21,12 @@ virtual paths lexically; a filesystem host enforces its root against symlinks, r
 and races. Supported `/dev/*` aliases name supplied descriptors. Main input accepts `-`,
 `/dev/stdin` and `/dev/fd/0` without opening a host path or taking ownership of stdin.
 
+Main-input operands remain text until the scheduler selects them. Unused or discarded operands
+are not validated as paths; selected paths receive shared admission and canonical authorization
+before opening. Source/include paths are resolved while preparing the program. Virtual filenames
+accept literal `:`, `*` and `\`; only `/` separates segments. There is no glob expansion or drive
+syntax. Hosts determine whether their backing store supports these names.
+
 Pipes require policy and host permission. Awk passes opaque command text to the host without
 invoking a shell. Hosts control command allowlists, parsing, environment and process limits.
 Unsupported effects remain explicit; see [compatibility](COMPATIBILITY.md).

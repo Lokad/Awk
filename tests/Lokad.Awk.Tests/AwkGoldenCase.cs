@@ -319,7 +319,6 @@ public enum AwkGoldenTag
 {
     CurrentPass,
     DirectLayer,
-    OracleReviewed,
     RuntimeBehavior,
     DiagnosticBehavior,
     HostBehavior,

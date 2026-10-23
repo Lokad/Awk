@@ -139,9 +139,9 @@ public sealed class AwkOpaquePipeTests
     }
 
     [Theory]
-    [InlineData("echo a:b")]
-    [InlineData(@"file\name")]
-    [InlineData("*.csv")]
+    [InlineData("../../file")]
+    [InlineData("file\tname")]
+    [InlineData("file\u007fname")]
     public async Task InvalidFileRedirectsRemainInvalid(string path)
     {
         var files = new MockFileSystem();

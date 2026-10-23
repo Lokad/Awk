@@ -49,6 +49,8 @@ internal static partial class AwkGoldenCorpus
 
         .. Tagged(ControlHeaderRegexCases(), AwkGoldenTag.Statement, AwkGoldenTag.Regex),
 
+        .. Tagged(OperandPathCases(), AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
+
         .. Tagged(ArgumentSchedulingCompatibilityRepairs(), AwkGoldenTag.CommandLine, AwkGoldenTag.Record),
 
         .. Tagged(PatternCases(), AwkGoldenTag.Pattern),
@@ -3048,7 +3050,7 @@ internal static partial class AwkGoldenCorpus
             ["BEGIN{print}", "../../secret"],
             [],
             2,
-            string.Empty,
+            "\n",
             "awk: invalid path\n"),
 
         Failing(
@@ -4772,7 +4774,6 @@ internal static partial class AwkGoldenCorpus
         static void AddDerivedTags(AwkGoldenCase testCase, List<AwkGoldenTag> tags)
         {
             AddTag(tags, AwkGoldenTag.DirectLayer);
-            AddTag(tags, AwkGoldenTag.OracleReviewed);
 
             if (testCase.ExpectedStdErr.Length > 0 ||
                 testCase.ExpectedExitCode != 0 ||

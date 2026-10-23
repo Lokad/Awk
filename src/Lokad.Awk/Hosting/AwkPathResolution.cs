@@ -39,17 +39,19 @@ public static class AwkPathResolution
         return AwkPath.Root;
     }
 
-    internal static AwkResolvedPath ResolveArgument(string raw, AwkPath currentDirectory)
+    internal static AwkResolvedPath ResolveArgument(string raw, AwkPath currentDirectory,
+        ReadOnlyMemory<byte> display = default)
     {
         var absolute = AwkRawPath.Parse(raw, CultureInfo.InvariantCulture).ToAbsolute(currentDirectory);
-        return new AwkResolvedPath(AwkUtf8Codec.Encode(raw), absolute);
+        return new AwkResolvedPath(display.IsEmpty ? AwkUtf8Codec.Encode(raw) : display, absolute);
     }
 
-    internal static AwkResolvedPath ResolveRuntimeArgument(string raw, AwkPath currentDirectory)
+    internal static AwkResolvedPath ResolveRuntimeArgument(string raw, AwkPath currentDirectory,
+        ReadOnlyMemory<byte> display = default)
     {
         try
         {
-            return ResolveArgument(raw, currentDirectory);
+            return ResolveArgument(raw, currentDirectory, display);
         }
         catch (Exception exception) when (exception is FormatException or AwkPathException)
         {

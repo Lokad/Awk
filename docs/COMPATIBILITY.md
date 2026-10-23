@@ -51,7 +51,10 @@ in either option order. Admitted invocation warnings precede runtime effects.
 `-v`/`-F` apply before execution in original option order under the final profile.
 Assignment operands apply when the input scheduler reaches them, including through
 `getline` in a function, and target globals. BEGIN exit can skip later operands.
-Empty input operands retain their `ARGV` positions and select no input file.
+Empty input operands retain their `ARGV` positions and select no input file. Main-file paths
+are resolved when selected; discarded operands remain usable as `ARGV` text. Invalid selected
+paths fail before opening and preserve prior effects. Literal virtual filenames can contain
+colons, stars and backslashes; `/` alone separates segments, without globbing or drive syntax.
 Sources/includes and dynamic input paths require host/policy permission.
 `TryParse` recognizes the invocation; source parsing and binding occur during execution.
 Empty/comment-only sources are accepted, including file, include and repeated-source fragments.

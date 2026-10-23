@@ -209,6 +209,9 @@ public sealed class AwkArgumentSchedulingTests
     [InlineData("/a.txt")]
     [InlineData("/a=b.txt")]
     [InlineData("/données= space.txt")]
+    [InlineData("/a:b.txt")]
+    [InlineData("/a*.txt")]
+    [InlineData("/a\\b.txt")]
     public async Task OriginalPathsStayByteNativeAndDynamicPathsUseTheCompatibilityBoundary(string originalPath)
     {
         foreach (var dynamic in new[] { false, true })
@@ -236,6 +239,9 @@ public sealed class AwkArgumentSchedulingTests
         host.AddFile("/a.txt", "a\n");
         host.AddFile("/a=b.txt", "a\n");
         host.AddFile("/données= space.txt", "a\n");
+        host.AddFile("/a:b.txt", "a\n");
+        host.AddFile("/a*.txt", "a\n");
+        host.AddFile("/a\\b.txt", "a\n");
         host.AddFile("/b.txt", "b\n");
         host.SetStandardInput("stdin\n");
         return host;

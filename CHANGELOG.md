@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Main-input paths are resolved only when selected. `BEGIN` can inspect, replace or discard
+  malformed operands, or exit before reaching them. A selected invalid or denied path still
+  fails before opening it, preserving earlier output. Source/include loading still precedes execution.
+- Virtual filenames accept literal colons, stars and backslashes, consistently with canonical
+  host paths. Only `/` separates segments; this adds no globbing or operating-system drive syntax.
+  Hosts retain authority over their backing store and return structured failures when unsupported.
+
 - Regex expressions can directly follow `if`, `while` and `for` headers, including nested
   conditions and slash-containing patterns. Ordinary division keeps its existing interpretation.
 - Prepared programs retain regex metadata; execution-local caches own and admit compiled

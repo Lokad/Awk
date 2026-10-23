@@ -102,7 +102,7 @@ public sealed class AwkUnicodeCallerTests
     [Theory]
     [InlineData(@"\u0041.awk")]
     [InlineData(@"\ud800.awk")]
-    public async Task InvalidRawIncludeNameReturnsStructuredFailureWithoutOpeningDecodedNames(string name)
+    public async Task MissingRawIncludeNameReturnsStructuredFailureWithoutOpeningDecodedNames(string name)
     {
         var host = new MockFileSystem();
         host.AddFile("/A.awk", "BEGIN{print \"unread\"}");
@@ -110,9 +110,9 @@ public sealed class AwkUnicodeCallerTests
         var resources = new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled);
         var result = await AwkSourceLoader.LoadAsync(host, invocation, resources, CancellationToken.None);
         var failure = Assert.IsType<AwkSourceLoadResult.Failed>(result);
-        Assert.Equal(AwkDiagnosticId.HostIoFailure, failure.Id);
-        Assert.Equal("awk: invalid path\n", AwkUtf8Codec.Decode(failure.ErrorMessage));
-        Assert.Equal(0, host.ReadOpenCount);
+        Assert.Equal(AwkDiagnosticId.SourceLoadFailure, failure.Id);
+        Assert.Equal($"awk: {name}: No such file or directory\n", AwkUtf8Codec.Decode(failure.ErrorMessage));
+        Assert.Equal(1, host.ReadOpenCount);
         Assert.Equal(0, host.OpenFileCount);
     }
 

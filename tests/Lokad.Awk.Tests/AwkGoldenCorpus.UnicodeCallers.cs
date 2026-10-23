@@ -1275,31 +1275,31 @@ internal static partial class AwkGoldenCorpus
             .WithStandardInput("").WithStdOut("start\n").WithStdErr("awk: division by zero attempted\n").ExitsWith(2).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-0504",
             ["@include \"\\u0041.awk\"\nBEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u0041.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-0505",
             ["@include \"\\u1f600.awk\"\nBEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u1f600.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-0506",
             ["@include \"\\u00e9.awk\"\nBEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u00e9.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-0507",
             ["@include \"\\u.awk\"\nBEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-0508",
             ["@include \"\\ud800.awk\"\nBEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\ud800.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-0509",
             ["@include \"\\U0041.awk\"\nBEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\U0041.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-0510",
             ["@include \"\\x41.awk\"\nBEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\x41.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-0511",
             ["@include \"\\x.awk\"\nBEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\x.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-0512",
             ["@include \"\\101.awk\"\nBEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\101.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-0513",
             ["--posix", "@include \"\\u0041.awk\"\nBEGIN{print \"main\";exit}"], [])
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: @include is a GNU extension\n").ExitsWith(2).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build();
@@ -1356,40 +1356,40 @@ internal static partial class AwkGoldenCorpus
             .WithStandardInput("").WithStdOut("").WithStdErr("awk: @include is a GNU extension\n").ExitsWith(2).WithTags([AwkGoldenTag.CompilerDiagnostic]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-source-option-0531",
             ["-f", "\\u0041.awk"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u0041.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-option-0532",
             ["-i", "\\u0041.awk", "BEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u0041.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-source-option-0533",
             ["-f", "\\u1f600.awk"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u1f600.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-option-0534",
             ["-i", "\\u1f600.awk", "BEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u1f600.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-source-option-0535",
             ["--posix", "-f", "\\u0041.awk"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u0041.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-option-0536",
             ["--posix", "-i", "\\u0041.awk", "BEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u0041.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-source-option-0537",
             ["--posix", "-f", "\\u1f600.awk"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u1f600.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-option-0538",
             ["--posix", "-i", "\\u1f600.awk", "BEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u1f600.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-source-option-0539",
             ["--traditional", "-f", "\\u0041.awk"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u0041.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-option-0540",
             ["--traditional", "-i", "\\u0041.awk", "BEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u0041.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-source-option-0541",
             ["--traditional", "-f", "\\u1f600.awk"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u1f600.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-include-option-0542",
             ["--traditional", "-i", "\\u1f600.awk", "BEGIN{print \"main\";exit}"], [])
-            .WithStandardInput("").WithStdOut("").WithStdErr("awk: invalid path\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
+            .WithStandardInput("").WithStdOut("").WithStdErr("awk: \\u1f600.awk: No such file or directory\n").ExitsWith(2).WithTags([AwkGoldenTag.SourceLoading]).Build();
         yield return AwkGoldenCaseBuilder.Create("unicode-callers-startup-order-0543",
             ["-F", ",", "-v", "FS=;", "BEGIN{printf \"[%s] [%s]\\n\",FS,v;exit}"], [])
             .WithStandardInput("").WithStdOut("[;] []\n").WithStdErr("").ExitsWith(0).Build();

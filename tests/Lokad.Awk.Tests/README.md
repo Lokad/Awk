@@ -120,6 +120,12 @@ Stream-identity goldens compare exact names independently of canonical host path
 concurrent-resource bounds and supplied stdin aliases, including custom descriptors and pending
 cancellation. Stdin-borrowing tests also cover explicit main `/dev/fd/0` with reusable buffers.
 
+Operand-path goldens cover selection timing and literal filenames across input, source and
+redirection paths. `AwkOperandPathBoundaryTests` preserves restricted original-operand authority,
+root confinement, resolution refusal, cancellation and refunds. Argument-scheduling counters
+keep original paths byte-native. Metadata tags describe test layers and behavior; they do not
+certify oracle review. Native comparisons retain separate receipts through the opt-in workflow.
+
 ## Benchmarks
 
 `Lokad.Awk.Benchmarks` is not a correctness suite. Benchmark scripts should either reference canonical golden scenarios or document generated workloads, and benchmark smoke checks should not create independent behavior expectations. Use `AwkBenchmarkCounterTests` for deterministic counter invariants that belong in the correctness suite.

@@ -90,6 +90,8 @@ internal sealed class AwkIo
         return _host.WriteStandardOutputAsync(content);
     }
 
+    internal AwkMemoryPeakAdmission AdmitPathResolution(string path) => _host.AdmitPathResolution(path);
+
     public Task WriteStandardErrorAsync(ReadOnlyMemory<byte> content)
     {
         return _host.WriteStandardErrorAsync(content);

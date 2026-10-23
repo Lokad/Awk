@@ -108,8 +108,7 @@ internal sealed class AwkSourceInputPlanner
                 return;
             }
 
-            var path = AwkPathResolution.ResolveArgument(value, _currentDirectory);
-            _inputArguments.Add(AwkInputArgument.File(path, argvIndex));
+            _inputArguments.Add(AwkInputArgument.File(value, argvIndex));
         }
 
         int AddRuntimeArgument(string value)
