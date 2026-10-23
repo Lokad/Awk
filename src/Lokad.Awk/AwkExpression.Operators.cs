@@ -312,7 +312,7 @@ internal abstract partial class AwkExpression
             if (indexExpression is not AwkSynchronousExpression index)
                 throw new InvalidOperationException("Synchronous field index is required.");
             context.State.Checkpoint(); // The original field expression, before its index.
-            var field = (int)index.ResolveNumberSynchronous(context);
+            var field = AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value;
             return AwkValue.FromNumber(context.State.CompareFieldLiteral(field, literal.LiteralText, comparison) ? 1 : 0);
         }
 
@@ -334,7 +334,7 @@ internal abstract partial class AwkExpression
         {
             // Retain field-expression admission before evaluating its index once.
             context.State.Checkpoint();
-            var index = (int)await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
+            var index = AwkFieldIndex.FromNumber(await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false)).Value;
             return context.State.CompareFieldLiteral(index, literal.LiteralText, comparison);
         }
 
@@ -395,7 +395,7 @@ internal abstract partial class AwkExpression
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             context.State.Checkpoint(); // The field expression still has its ordinary checkpoint.
-            var index = (int)await field.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
+            var index = AwkFieldIndex.FromNumber(await field.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false)).Value;
             return AwkValue.FromNumber(context.State.ContainsArrayField(arrayName, index, globalIndex) ? 1 : 0);
         }
     }

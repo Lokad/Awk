@@ -13,6 +13,18 @@ internal readonly record struct AwkFieldIndex
         Value = value;
     }
 
+    public static AwkFieldIndex FromNumber(double number)
+    {
+        if (!double.IsFinite(number))
+            throw new AwkRuntimeException(AwkMessages.ErrorNonfiniteFieldReference);
+        if (number <= -1)
+            throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
+
+        // Every finite positive out-of-range read is an absent field. Growth still
+        // preflights representable storage; saturation never aliases an existing field.
+        return new(number >= int.MaxValue ? int.MaxValue : (int)number);
+    }
+
     public int Value { get; }
 
     public bool IsCurrentRecord => Value == 0;

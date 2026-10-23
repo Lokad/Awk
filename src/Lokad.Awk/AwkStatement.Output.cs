@@ -13,7 +13,7 @@ internal abstract partial class AwkStatement
             var output = RequireExecutionContext(context).Output;
             // Keep the ordinary field-expression checkpoint before its index.
             context.State.Checkpoint();
-            var index = (int)await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
+            var index = AwkFieldIndex.FromNumber(await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false)).Value;
             context.State.AppendFieldPrint(output, index);
             return AwkStatementFlow.Continue;
         }

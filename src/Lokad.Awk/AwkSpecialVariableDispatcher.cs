@@ -20,7 +20,7 @@ internal sealed class AwkSpecialVariableDispatcher(
     private static readonly KeyValuePair<AwkArrayKey, AwkValue>[] InitialProcInfo =
     [
         new(new AwkArrayKey(AwkText.FromSourceLiteralString("version")),
-            AwkValue.FromText(AwkText.FromSourceLiteralString("Lokad awk"))),
+            AwkValue.FromText(AwkText.FromSourceLiteralString(AwkVersion.Text))),
         new(FieldModeKey, SeparatorMode)
     ];
     private FieldParser _parser;

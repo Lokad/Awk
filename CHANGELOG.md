@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Computed field indices reject NaN and infinities before record access or mutation,
+  consistently across ordinary and prepared paths. Finite indices retain truncation and
+  absent-field reads; field growth remains subject to representable storage and shared admission.
+- Source loading observes cancellation before decoding returned/cached source and publishing
+  the assembled text. Cleanup still awaits actual host users before closing/refunding.
+- Version queries report the brief artifact version: `Lokad awk <version>` for `--version`
+  and `<version>` for GNU `PROCINFO["version"]`, omitting build metadata and source hashes.
+
 - Main-input paths are resolved only when selected. `BEGIN` can inspect, replace or discard
   malformed operands, or exit before reaching them. A selected invalid or denied path still
   fails before opening it, preserving earlier output. Source/include loading still precedes execution.

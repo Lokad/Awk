@@ -178,6 +178,7 @@ internal static class AwkScriptFileReader
                         maxHostErrorBytes: plan.MaxHostErrorBytes);
                     while (await reader.TryBufferLineAsync().ConfigureAwait(false))
                     {
+                        resources.Checkpoint();
                         var line = reader.ReadLine();
                         if (line.IsEmpty)
                             continue;
@@ -185,6 +186,7 @@ internal static class AwkScriptFileReader
                         try
                         {
                             plan.Memory.AdmitTextCopy(line.Length);
+                            resources.Checkpoint();
                             builder.Append(AwkUtf8Codec.Decode(line));
                         }
                         catch (DecoderFallbackException)
@@ -195,6 +197,7 @@ internal static class AwkScriptFileReader
                         }
                     }
 
+                    resources.Checkpoint();
                     return AwkScriptTextReadResult.FoundText(builder.ToString());
                 }
                 catch (AwkHostReadException exception)

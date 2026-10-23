@@ -17,12 +17,12 @@ internal abstract partial class AwkExpression
 
         protected override AwkValue EvaluateSynchronousCore(AwkEvaluationContext context) =>
             indexExpression is AwkSynchronousExpression index
-                ? ResolveField(context, (int)index.ResolveNumberSynchronous(context))
+                ? ResolveField(context, AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
                 : throw new InvalidOperationException("Synchronous field index is required.");
 
         protected override double EvaluateNumberSynchronousCore(AwkEvaluationContext context) =>
             indexExpression is AwkSynchronousExpression index
-                ? context.State.GetFieldNumber((int)index.ResolveNumberSynchronous(context))
+                ? context.State.GetFieldNumber(AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value)
                 : throw new InvalidOperationException("Synchronous field index is required.");
 
         public ValueTask<bool> CompareLeftAsync(AwkEvaluationContext context, AwkValue left, AwkComparison comparison)
@@ -30,46 +30,43 @@ internal abstract partial class AwkExpression
             context.State.Checkpoint();
             var pending = indexExpression.ResolveNumberAsync(context);
             return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(context.State.CompareValueField(left, (int)pending.Result, comparison))
+                ? ValueTask.FromResult(context.State.CompareValueField(left, AwkFieldIndex.FromNumber(pending.Result).Value, comparison))
                 : AwaitComparisonIndexAsync(context, left, comparison, pending);
         }
 
         private static async ValueTask<bool> AwaitComparisonIndexAsync(
             AwkEvaluationContext context, AwkValue left, AwkComparison comparison, ValueTask<double> pending) =>
-            context.State.CompareValueField(left, (int)await pending.ConfigureAwait(false), comparison);
+            context.State.CompareValueField(left, AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value, comparison);
 
         public override ValueTask<double> ResolveNumberAsync(AwkEvaluationContext context)
         {
             context.State.Checkpoint();
             var pending = indexExpression.ResolveNumberAsync(context);
             return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(context.State.GetFieldNumber((int)pending.Result))
+                ? ValueTask.FromResult(context.State.GetFieldNumber(AwkFieldIndex.FromNumber(pending.Result).Value))
                 : AwaitNumericIndexAsync(context, pending);
         }
 
         private static async ValueTask<double> AwaitNumericIndexAsync(
             AwkEvaluationContext context, ValueTask<double> pending) =>
-            context.State.GetFieldNumber((int)await pending.ConfigureAwait(false));
+            context.State.GetFieldNumber(AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value);
 
         protected override ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             var pending = indexExpression.ResolveNumberAsync(context);
             return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(ResolveField(context, (int)pending.Result))
+                ? ValueTask.FromResult(ResolveField(context, AwkFieldIndex.FromNumber(pending.Result).Value))
                 : AwaitIndexAsync(context, pending);
         }
 
         private static async ValueTask<AwkValue> AwaitIndexAsync(
             AwkEvaluationContext context, ValueTask<double> pending) =>
-            ResolveField(context, (int)await pending.ConfigureAwait(false));
+            ResolveField(context, AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value);
 
         private static AwkValue ResolveField(AwkEvaluationContext context, int index)
         {
             if (index == 0)
                 return context.State.GetCurrentRecordValue();
-
-            if (index < 0)
-                throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
 
             return context.State.GetFieldValue(new AwkFieldIndex(index));
         }
@@ -221,14 +218,14 @@ internal abstract partial class AwkExpression
         {
             context.State.Checkpoint(); // Field expression, before its index.
             return fieldOperand.IndexExpression is AwkSynchronousExpression index
-                ? context.State.GetArrayFieldValue(name, (int)index.ResolveNumberSynchronous(context), globalIndex)
+                ? context.State.GetArrayFieldValue(name, AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value, globalIndex)
                 : throw new InvalidOperationException("Synchronous field index is required.");
         }
 
         protected override async ValueTask<AwkValue> EvaluateCoreAsync(AwkEvaluationContext context)
         {
             context.State.Checkpoint();
-            var index = (int)await fieldOperand.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
+            var index = AwkFieldIndex.FromNumber(await fieldOperand.IndexExpression.ResolveNumberAsync(context).ConfigureAwait(false)).Value;
             return context.State.GetArrayFieldValue(name, index, globalIndex);
         }
     }

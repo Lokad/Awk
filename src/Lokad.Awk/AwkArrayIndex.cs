@@ -42,7 +42,7 @@ internal sealed record AwkSimpleArrayIndex(AwkExpression Expression) : AwkArrayI
             return await ResolveKeyAsync(context).ConfigureAwait(false);
         // Retain the field expression's checkpoint before evaluating its index.
         context.State.Checkpoint();
-        var index = (int)await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false);
+        var index = AwkFieldIndex.FromNumber(await indexExpression.ResolveNumberAsync(context).ConfigureAwait(false)).Value;
         return context.State.GetArrayFieldKey(array, index);
     }
 }

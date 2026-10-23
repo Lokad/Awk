@@ -18,8 +18,11 @@ internal sealed class CooperativeTestBudget(long limit) : IMemoryBudget
     public int GrowthAttemptsAfterRefusal { get; private set; }
     public Action? OnRefusal { get; set; }
 
+    public Action<long>? OnGrowth { get; set; }
+
     private bool Refuse(long growth)
     {
+        if (growth > 0) OnGrowth?.Invoke(growth);
         if (RefuseNextAdmissionMinimumGrowth is { } minimum && growth >= minimum)
         {
             RefuseNextAdmissionMinimumGrowth = null;

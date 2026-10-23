@@ -129,6 +129,10 @@ var exitCode = await awk.ExecuteAsync(host, policy, cancellationToken);
 
 ## Cancellation and cleanup
 
+Source loading checks cancellation before decoding returned or buffered text and before
+materializing the assembled source, including after memory admission. Pending reads still
+complete before source descriptors close and their storage is refunded.
+
 CPU control uses the caller's `CancellationToken`, including caller-owned `CancelAfter`
 deadlines. Checkpoints remain active with observational counters disabled. Cancellation
 requests that runtime and host work stop; it cannot forcibly terminate a non-cooperating host.

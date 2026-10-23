@@ -283,7 +283,7 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
             var state = context.State;
             state.Checkpoint(); // Field expression, before its numeric index literal.
             // The shape check admits only NumberExpression, whose evaluation always completes synchronously.
-            var field = (int)indexExpression.ResolveNumberAsync(context).GetAwaiter().GetResult();
+            var field = AwkFieldIndex.FromNumber(indexExpression.ResolveNumberAsync(context).GetAwaiter().GetResult()).Value;
             state.GetArrayFieldTarget(Variable, field, out var fieldKey, out var currentValue);
             return ApplyCompoundForValue(context, fieldKey, currentValue.AsNumber(state.CancellationCheckpoint), value, operation);
         }
@@ -350,16 +350,8 @@ internal sealed record AwkFieldReference(AwkExpression FieldIndexExpression) : A
 {
     protected override async ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context)
     {
-        var fieldIndex = (int)(await FieldIndexExpression.ResolveNumberAsync(context).ConfigureAwait(false));
-        return ResolveField(fieldIndex);
-
-        static AwkResolvedReference ResolveField(int fieldIndex)
-        {
-            if (fieldIndex < 0)
-                throw new AwkRuntimeException(AwkMessages.ErrorNegativeFieldReference);
-
-            return AwkResolvedReference.Field(new AwkFieldIndex(fieldIndex));
-        }
+        return AwkResolvedReference.Field(AwkFieldIndex.FromNumber(
+            await FieldIndexExpression.ResolveNumberAsync(context).ConfigureAwait(false)));
     }
 }
 

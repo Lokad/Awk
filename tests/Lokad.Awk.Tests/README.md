@@ -126,6 +126,12 @@ root confinement, resolution refusal, cancellation and refunds. Argument-schedul
 keep original paths byte-native. Metadata tags describe test layers and behavior; they do not
 certify oracle review. Native comparisons retain separate receipts through the opt-in workflow.
 
+Computed-field goldens cover nonfinite references through reads, targets, array keys and
+prepared calls. `AwkComputedFieldIndexTests` adds public execution and suspended-target state
+checks. `AwkSourceCancellationTests` bounds post-cancel source copying and preserves pending
+read ownership. `AwkVersionTests` compares brief output with the actual assembly metadata,
+excluding build details.
+
 ## Benchmarks
 
 `Lokad.Awk.Benchmarks` is not a correctness suite. Benchmark scripts should either reference canonical golden scenarios or document generated workloads, and benchmark smoke checks should not create independent behavior expectations. Use `AwkBenchmarkCounterTests` for deterministic counter invariants that belong in the correctness suite.

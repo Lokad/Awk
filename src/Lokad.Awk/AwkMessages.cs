@@ -19,6 +19,8 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: system() is unsupported in Lokad awk\n");
     internal static readonly ReadOnlyMemory<byte> ErrorSandboxRedirection =
         AwkUtf8Codec.Encode("awk: redirections are disabled in sandbox mode\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorNonfiniteFieldReference =
+        AwkUtf8Codec.Encode("awk: non-finite field index\n");
     internal static readonly ReadOnlyMemory<byte> ErrorNegativeFieldReference =
         AwkUtf8Codec.Encode("awk: negative field index\n");
     internal static readonly ReadOnlyMemory<byte> ErrorNegativeBitOperand =
@@ -147,7 +149,7 @@ internal static class AwkMessages
         "                                assign a variable before program execution\n" +
         "  -h, --help                    display this help and exit\n" +
         "  -V, --version                 display Lokad awk version and exit\n");
-    internal static readonly ReadOnlyMemory<byte> VersionMessage = AwkUtf8Codec.Encode("Lokad awk\n");
+    internal static readonly ReadOnlyMemory<byte> VersionMessage = AwkUtf8Codec.Encode("Lokad awk " + AwkVersion.Text + "\n");
     private static readonly ReadOnlyMemory<byte> ErrorNoSuchFilePrefix = AwkUtf8Codec.Encode("awk: ");
     private static readonly ReadOnlyMemory<byte> ErrorNoSuchFileSuffix =
         AwkUtf8Codec.Encode(": No such file or directory\n");

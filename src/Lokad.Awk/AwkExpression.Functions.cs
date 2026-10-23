@@ -129,7 +129,7 @@ internal abstract partial class AwkExpression
             if (indexExpression is not AwkSynchronousExpression index)
                 throw new InvalidOperationException("Synchronous field index is required.");
             context.State.Checkpoint(); // The original field expression, before its index.
-            var field = (int)index.ResolveNumberSynchronous(context);
+            var field = AwkFieldIndex.FromNumber(index.ResolveNumberSynchronous(context)).Value;
             return AwkValue.FromNumber(context.State.CountFieldStringUnits(field));
         }
 
@@ -139,13 +139,13 @@ internal abstract partial class AwkExpression
             context.State.Checkpoint();
             var pending = indexExpression.ResolveNumberAsync(context);
             return pending.IsCompletedSuccessfully
-                ? ValueTask.FromResult(AwkValue.FromNumber(context.State.CountFieldStringUnits((int)pending.Result)))
+                ? ValueTask.FromResult(AwkValue.FromNumber(context.State.CountFieldStringUnits(AwkFieldIndex.FromNumber(pending.Result).Value)))
                 : AwaitIndexAsync(context, pending);
         }
 
         private static async ValueTask<AwkValue> AwaitIndexAsync(
             AwkEvaluationContext context, ValueTask<double> pending) =>
-            AwkValue.FromNumber(context.State.CountFieldStringUnits((int)await pending.ConfigureAwait(false)));
+            AwkValue.FromNumber(context.State.CountFieldStringUnits(AwkFieldIndex.FromNumber(await pending.ConfigureAwait(false)).Value));
     }
 
     private sealed class LengthExpression(AwkExpression valueExpression, AwkOptionalIdentifier arrayName) : AwkSynchronousExpression

@@ -55,6 +55,8 @@ Empty input operands retain their `ARGV` positions and select no input file. Mai
 are resolved when selected; discarded operands remain usable as `ARGV` text. Invalid selected
 paths fail before opening and preserve prior effects. Literal virtual filenames can contain
 colons, stars and backslashes; `/` alone separates segments, without globbing or drive syntax.
+`--version` prints `Lokad awk <version>`; GNU `PROCINFO["version"]` contains `<version>`.
+Both omit build metadata, source hashes and host details.
 Sources/includes and dynamic input paths require host/policy permission.
 `TryParse` recognizes the invocation; source parsing and binding occur during execution.
 Empty/comment-only sources are accepted, including file, include and repeated-source fragments.
@@ -134,6 +136,12 @@ permit aliases/introspection but reject scalar conversion. FUNCTAB metadata is r
 ## Fields and records
 
 [Text boundaries](RUNTIME.md#text-boundary) define field units and byte-mode restrictions.
+Computed field indices must be finite and truncate toward zero, including negative fractions
+between -1 and 0 selecting `$0`. Finite positive indices beyond the record read as empty;
+indices beyond the runtime's 32-bit field storage retain that absent-field behavior. Extending
+fields still preflights representable storage and shared admission. NaN/infinities fail before
+access or mutation, including substitution and getline destinations.
+
 The record-handling boundaries to account for are:
 
 - In default/GNU mode, default RS removes the CR of CRLF from `$0` and sets `RT="\n"`.

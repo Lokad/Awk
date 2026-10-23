@@ -14,6 +14,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(VariableCases(), AwkGoldenTag.Variable),
 
         .. Tagged(FieldCases(), AwkGoldenTag.Field),
+        .. Tagged(ComputedFieldCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression),
         .. Tagged(FieldLengthCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression),
         .. Tagged(FieldProjectionCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression, AwkGoldenTag.Io),
         .. Tagged(FieldLiteralComparisonCases(), AwkGoldenTag.Field, AwkGoldenTag.Expression),
@@ -4710,7 +4711,7 @@ internal static partial class AwkGoldenCorpus
             "procinfo-version",
             ["BEGIN{print PROCINFO[\"version\"]}"],
             [],
-            "Lokad awk\n"),
+            AwkVersion.Text + "\n"),
 
         Passing(
             "builtin-variable-defaults",

@@ -363,5 +363,5 @@ internal static class AwkMessages
         "  -h, --help                    display this help and exit\n" +
         "  -V, --version                 display Lokad awk version and exit\n";
 
-    public const string VersionMessageText = "Lokad awk\n";
+    public static string VersionMessageText => "Lokad awk " + Lokad.Awk.AwkVersion.Text + "\n";
 }
