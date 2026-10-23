@@ -4,6 +4,30 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkStdinBorrowingTests
 {
+    [Theory]
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    public async Task ExplicitMainFdAliasPreservesMixedReusableBuffers(bool buffered, bool moreData, bool governed)
+    {
+        var script = (buffered ? "BEGIN{RS=\"[\\n]\"}" : "") +
+            "{print;if(NR==1){s=getline x<\"/dev/stdin\";print \"alias\",s,\"[\"x\"]\"}}";
+        var expected = "a\nalias " + (moreData ? "1 [d]" : "0 []") + "\nb\nc\n";
+        foreach (var reuse in new[] { false, true })
+        {
+            var budget = new CooperativeTestBudget(16 << 20);
+            var host = new AliasHost(reuse, moreData);
+            var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script, "/dev/fd/0"], []));
+            var policy = AwkExecutionPolicy.CreateDefault();
+            if (governed) policy = policy.WithMemoryBudget(budget);
+            Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+            Assert.Equal(expected, host.Output);
+            Assert.Equal("", host.Error);
+            Assert.Equal(0, budget.Reserved);
+        }
+    }
+
     public static IEnumerable<object[]> Configurations()
     {
         foreach (var alias in new[] { "/dev/stdin", "/dev/fd/0" })

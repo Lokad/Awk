@@ -9,6 +9,21 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkBenchmarkCounterTests
 {
     [Fact]
+    public async Task MainStdinAliasesKeepByteNativeSelection()
+    {
+        foreach (var alias in new[] { "-", "/dev/stdin", "/dev/fd/0" })
+        {
+            var result = await RunAsync(["{print}", alias], "one\ntwo\n", false);
+            Assert.Equal(0, result.ExitCode);
+            Assert.Equal("one\ntwo\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(0, result.FileSystem.ReadOpenCount);
+            Assert.Equal(0, result.Counters.StringDecodes);
+            Assert.Equal(0, result.Counters.Utf8Encodes);
+        }
+    }
+
+    [Fact]
     internal async Task DiscardedFieldCopyKeepsDeferredNumericInputFailures()
     {
         foreach (var source in new[] { "{$2=$1;print $0;print typeof($2)}", "{value=($2=$1);print $0;print typeof($2)}" })

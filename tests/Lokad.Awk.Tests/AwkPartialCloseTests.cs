@@ -7,6 +7,8 @@ public sealed class AwkPartialCloseTests
     [Theory]
     [InlineData("output", false)] [InlineData("input", false)] [InlineData("pipe", false)]
     [InlineData("output", true)] [InlineData("input", true)] [InlineData("pipe", true)]
+    [InlineData("output-alias", false)] [InlineData("input-alias", false)]
+    [InlineData("output-alias", true)] [InlineData("input-alias", true)]
     public async Task PartialFailureKeepsOnlyUnclosedEndpointsForCleanup(string kind, bool cancel)
     {
         using var cancellation = new CancellationTokenSource();
@@ -16,6 +18,8 @@ public sealed class AwkPartialCloseTests
         {
             "output" => "BEGIN{print 1>\"one\";print 2>\"two\";print 3>\"three\"}",
             "input" => "BEGIN{getline x<\"one\";getline y<\"two\";getline z<\"three\"}",
+            "output-alias" => "BEGIN{print 1>\"one\";print 2>\"./one\";print 3>\"d/../one\"}",
+            "input-alias" => "BEGIN{getline x<\"one\";getline y<\"./one\";getline z<\"d/../one\"}",
             _ => "BEGIN{\"source\"|getline x}"
         };
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [source], []));
@@ -29,7 +33,8 @@ public sealed class AwkPartialCloseTests
         else
         {
             Assert.Equal(2, (await execution).Value);
-            Assert.Equal(kind == "pipe" ? "awk: source: close failed\n" : "awk: /two: close failed\n", host.Error);
+            var name = kind == "pipe" ? "source" : kind.EndsWith("-alias", StringComparison.Ordinal) ? "./one" : "two";
+            Assert.Equal("awk: " + name + ": close failed\n", host.Error);
         }
         Assert.Equal(kind == "pipe" ? new[] { 10, 11, 11 } : new[] { 10, 11, 11, 12 }, host.Closes);
         Assert.All(host.CloseTokens.Skip(2), token => Assert.False(token.CanBeCanceled));

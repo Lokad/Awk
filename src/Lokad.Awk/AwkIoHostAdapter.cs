@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -37,28 +36,6 @@ internal sealed class AwkIoHostAdapter(
         return accounting.ReserveAllocationPeak(AwkRuntimeMemory.CheckedAdd(128,
             AwkRuntimeMemory.CheckedAdd(AwkRuntimeMemory.CheckedMultiply(characters, 8),
                 AwkRuntimeMemory.CheckedMultiply(separators, 32))));
-    }
-
-    // A lookup only inspects already admitted streams; it never opens a host path.
-    public AwkPath ResolveExistingPath(string path) =>
-        AwkPathResolution.ResolveRuntimeArgument(path, currentDirectory).Absolute;
-
-    public bool TryResolveExistingPath(string path, [NotNullWhen(true)] out AwkPath? resolved)
-    {
-        if (AwkRawPath.TryParse(path, out var raw))
-        {
-            try
-            {
-                resolved = raw.ToAbsolute(currentDirectory);
-                return true;
-            }
-            catch (AwkPathException)
-            {
-                // An admitted pipe command need not be a resolvable filesystem path.
-            }
-        }
-        resolved = null;
-        return false;
     }
 
     public AwkResolvedPath ResolvePath(string path)

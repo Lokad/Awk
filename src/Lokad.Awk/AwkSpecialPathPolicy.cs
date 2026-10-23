@@ -7,17 +7,26 @@ internal sealed class AwkSpecialPathPolicy(
     AwkFileDescriptor stdOut,
     AwkFileDescriptor stdErr)
 {
+    private static readonly string[] InputAliases = ["-", "/dev/stdin", "/dev/fd/0"];
+
+    public static bool IsStandardInput(AwkText path)
+    {
+        foreach (var alias in InputAliases)
+            if (path.EqualsAscii(alias)) return true;
+        return false;
+    }
+
+    public static bool IsStandardInput(string path)
+    {
+        foreach (var alias in InputAliases)
+            if (string.Equals(path, alias, StringComparison.Ordinal)) return true;
+        return false;
+    }
+
     public bool TryResolveInput(string path, out AwkFileDescriptor descriptor)
     {
         descriptor = stdIn;
-        switch (path)
-        {
-            case "/dev/stdin":
-            case "/dev/fd/0":
-                return true;
-            default:
-                return false;
-        }
+        return IsStandardInput(path);
     }
 
     public bool TryResolveOutput(string path, out AwkFileDescriptor descriptor)

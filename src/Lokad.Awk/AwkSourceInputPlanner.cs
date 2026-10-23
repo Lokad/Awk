@@ -102,7 +102,7 @@ internal sealed class AwkSourceInputPlanner
 
         void AddInputPath(string value, int argvIndex)
         {
-            if (value is "-" or "/dev/stdin")
+            if (AwkSpecialPathPolicy.IsStandardInput(value))
             {
                 _inputArguments.Add(AwkInputArgument.StandardInput(argvIndex));
                 return;

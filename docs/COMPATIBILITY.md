@@ -246,7 +246,11 @@ missing-location admission can occur without a value assignment. Direct postfix 
 destinations are rejected; use `getline $(i++)` for explicit index mutation.
 
 Open-pipe commands are opaque host input, including colons, backslashes, wildcards and
-quotes. Same-name streams select the latest opening. Output-pipe fflush succeeds without
+quotes. File streams use exact evaluated names with ordinal comparison; canonical host paths
+are not stream identities. Different spellings of one file have independent cursors and opens.
+Redirected `getline < "-"` borrows stdin; `"./-"` reads the literal file. Output `> "-"`
+still names a literal file, differing from GNU; use `/dev/stdout` for supplied stdout.
+Same-name streams select the latest opening. Output-pipe fflush succeeds without
 closing/awaiting the command; input-only fflush warns and returns -1. close returns the
 command status. Flush/close follow logical-stream and host outcomes. Failures preserve
 committed output without exposing CLR exception text. Caller cancellation propagates after

@@ -111,6 +111,11 @@ source closes with hosts that retain the descriptor until cleanup, including can
 `AwkFileRedirectionMemoryTests` covers long-path admission before host opens, retained logical
 flush state, alias/reopen behavior and refunds after actual close completion.
 
+Stream-identity goldens compare exact names independently of canonical host paths.
+`AwkStreamIdentityBoundaryTests` covers governed execution, ordinal names, host authorization,
+concurrent-resource bounds and supplied stdin aliases, including custom descriptors and pending
+cancellation. Stdin-borrowing tests also cover explicit main `/dev/fd/0` with reusable buffers.
+
 ## Benchmarks
 
 `Lokad.Awk.Benchmarks` is not a correctness suite. Benchmark scripts should either reference canonical golden scenarios or document generated workloads, and benchmark smoke checks should not create independent behavior expectations. Use `AwkBenchmarkCounterTests` for deterministic counter invariants that belong in the correctness suite.

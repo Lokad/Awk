@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- File redirections use exact evaluated stream names. Spellings such as `data` and
+  `./data` have independent cursors, opening modes and close/flush targets, even when the
+  host resolves them to one file. This corrects the former canonical-alias behavior.
+  Canonical authorization still precedes host opens; close failures identify the original name.
+- Main input and plain getline recognize `/dev/fd/0` as the supplied stdin descriptor,
+  consistently with `/dev/stdin`; aliases stay borrowed. Redirected getline also borrows
+  stdin for `-`; use `./-` to read a literal file with that name.
+
 - Source includes preserve subsequent same-line actions/directives and work after other
   top-level items. Malformed/unknown directives and includes inside actions/functions fail
   before execution. Source locations survive removed directives, including empty includes.

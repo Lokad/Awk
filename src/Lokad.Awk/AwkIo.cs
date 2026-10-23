@@ -116,19 +116,18 @@ internal sealed class AwkIo
             return;
         }
 
-        using var resolution = _host.AdmitPathResolution(path.Text);
-        var targetPath = _host.ResolvePath(path.Text);
-        var absolutePath = targetPath.Absolute;
-        if (!_descriptors.TryGetOutput(absolutePath, out var descriptor))
+        if (!_descriptors.TryGetOutput(path.Text, out var descriptor))
         {
-            if (!_descriptors.HasOutput(absolutePath) &&
+            using var resolution = _host.AdmitPathResolution(path.Text);
+            var targetPath = _host.ResolvePath(path.Text);
+            if (!_descriptors.HasOutput(path.Text) &&
                 _descriptors.OutputFileCount + _pipes.OutputPipeCount >= _maxOutputFiles)
                 throw new AwkRuntimeException(AwkMessages.ErrorOutputFileLimit, AwkDiagnosticId.HostIoFailure);
 
-            var mode = _descriptors.ResolveOutputOpenMode(absolutePath, output.Kind);
+            var mode = _descriptors.ResolveOutputOpenMode(path.Text, output.Kind);
             using var pending = _state.MemoryAccounting.CreateTransientLease();
-            _descriptors.PrepareOutput(absolutePath, pending);
-            var opened = await _host.OpenFileAsync(absolutePath, mode).ConfigureAwait(false);
+            _descriptors.PrepareOutput(path.Text, pending);
+            var opened = await _host.OpenFileAsync(targetPath.Absolute, mode).ConfigureAwait(false);
             if (!opened.Success)
             {
                 throw new AwkRuntimeException(opened.Failed
@@ -138,7 +137,7 @@ internal sealed class AwkIo
             }
 
             descriptor = opened.FileDescriptor;
-            _descriptors.AddOutput(absolutePath, descriptor, NextRedirectionOrder(), pending);
+            _descriptors.AddOutput(path.Text, descriptor, NextRedirectionOrder(), pending);
         }
 
         await _host.AppendAsync(descriptor, output.Content).ConfigureAwait(false);
@@ -163,17 +162,16 @@ internal sealed class AwkIo
                 return AwkInputReaderResult.Success(_standardInputReader);
             }
 
-            using var resolution = _host.AdmitPathResolution(path);
-            var targetPath = _host.ResolvePath(path);
-            var absolutePath = targetPath.Absolute;
-            if (_descriptors.TryGetInput(absolutePath, out var existing))
+            if (_descriptors.TryGetInput(path, out var existing))
                 return AwkInputReaderResult.Success(existing);
 
+            using var resolution = _host.AdmitPathResolution(path);
+            var targetPath = _host.ResolvePath(path);
             if (_descriptors.InputFileCount >= _maxInputFiles)
                 throw new AwkRuntimeException(AwkMessages.ErrorInputFileLimit, AwkDiagnosticId.RuntimeResourceLimit);
 
             using var pending = _state.MemoryAccounting.CreateTransientLease();
-            _descriptors.PrepareInput(absolutePath, pending);
+            _descriptors.PrepareInput(path, pending);
             var opened = await _host.OpenFileAsync(targetPath.Absolute, AwkFileOpenMode.Read).ConfigureAwait(false);
             if (!opened.Success)
             {
@@ -184,7 +182,7 @@ internal sealed class AwkIo
             }
 
             var reader = CreateRecordCursor(opened.FileDescriptor);
-            _descriptors.AddInput(absolutePath, opened.FileDescriptor, reader, NextRedirectionOrder(), pending);
+            _descriptors.AddInput(path, opened.FileDescriptor, reader, NextRedirectionOrder(), pending);
             return AwkInputReaderResult.Success(reader);
         }
 
@@ -303,29 +301,17 @@ internal sealed class AwkIo
 
     private long NextRedirectionOrder() => ++_redirectionOrder;
 
-    private AwkOpenRedirection GetRedirection(string path, out AwkPath absolutePath)
+    private AwkOpenRedirection GetRedirection(string path)
     {
-        absolutePath = AwkPath.Root;
         if (path.Length == 0)
             return default;
-        var pipe = _pipes.GetRedirection(path);
+        var redirection = _pipes.GetRedirection(path).Newer(_descriptors.GetRedirection(path));
         if (_specialPaths.TryResolveInput(path, out _))
         {
-            return _standardInputReader is null ? pipe : pipe.Newer(
+            return _standardInputReader is null ? redirection : redirection.Newer(
                 new AwkOpenRedirection(AwkOpenRedirectionKind.StandardInput, _standardInputOrder));
         }
-        if (_specialPaths.TryResolveOutput(path, out _))
-            return pipe;
-
-        if (pipe.Kind != AwkOpenRedirectionKind.None)
-        {
-            if (!_host.TryResolveExistingPath(path, out var absolute)) return pipe;
-            absolutePath = absolute;
-        }
-        else
-            absolutePath = _host.ResolveExistingPath(path);
-
-        return pipe.Newer(_descriptors.GetRedirection(absolutePath));
+        return redirection;
     }
 
     public async Task<AwkFlushStatus> FlushAllAsync()
@@ -340,8 +326,7 @@ internal sealed class AwkIo
         if (path.Length == 0)
             throw new ArgumentException("A targeted flush requires a non-empty path.", nameof(path));
 
-        using var resolution = _host.AdmitPathResolution(path);
-        var redirection = GetRedirection(path, out var absolutePath);
+        var redirection = GetRedirection(path);
         switch (redirection.Kind)
         {
             case AwkOpenRedirectionKind.InputPipe:
@@ -352,7 +337,7 @@ internal sealed class AwkIo
             case AwkOpenRedirectionKind.OutputPipe:
                 return AwkFlushStatus.Success;
             case AwkOpenRedirectionKind.OutputFile:
-                await _descriptors.FlushOutputAsync(_host, absolutePath, path).ConfigureAwait(false);
+                await _descriptors.FlushOutputAsync(_host, path).ConfigureAwait(false);
                 return AwkFlushStatus.Success;
         }
 
@@ -360,7 +345,6 @@ internal sealed class AwkIo
         if (_specialPaths.TryResolveOutput(path, out _))
             return AwkFlushStatus.Success;
 
-        _ = _host.ResolvePath(path);
         return AwkFlushStatus.Unopened;
     }
 
@@ -392,8 +376,7 @@ internal sealed class AwkIo
     {
         if (path.Length == 0)
             return AwkIoOperationResult.Failure(AwkIoError.RedirectionNeverOpened);
-        using var resolution = _host.AdmitPathResolution(path);
-        var redirection = GetRedirection(path, out var absolutePath);
+        var redirection = GetRedirection(path);
         switch (redirection.Kind)
         {
             case AwkOpenRedirectionKind.OutputPipe:
@@ -403,10 +386,10 @@ internal sealed class AwkIo
                 var read = await _pipes.CloseInputAsync(path).ConfigureAwait(false);
                 return AwkIoOperationResult.SuccessWithStatusCode(read.ExitCode.Value);
             case AwkOpenRedirectionKind.OutputFile:
-                await _descriptors.CloseOutputAsync(_host, absolutePath, path).ConfigureAwait(false);
+                await _descriptors.CloseOutputAsync(_host, path).ConfigureAwait(false);
                 return AwkIoOperationResult.Success;
             case AwkOpenRedirectionKind.InputFile:
-                await _descriptors.CloseInputAsync(_host, absolutePath, path).ConfigureAwait(false);
+                await _descriptors.CloseInputAsync(_host, path).ConfigureAwait(false);
                 return AwkIoOperationResult.Success;
             case AwkOpenRedirectionKind.StandardInput:
                 _standardInputReader?.Dispose();
@@ -417,7 +400,6 @@ internal sealed class AwkIo
         if (_specialPaths.TryResolveOutput(path, out _))
             return AwkIoOperationResult.Success;
 
-        _ = _host.ResolvePath(path);
         return AwkIoOperationResult.Failure(AwkIoError.RedirectionNeverOpened);
     }
 
@@ -455,18 +437,15 @@ internal sealed class AwkIo
                 : AwkIoOperationResult.Failure(AwkIoError.RedirectionNeverOpened);
         }
 
-        using var resolution = _host.AdmitPathResolution(path);
-        var targetPath = _host.ResolvePath(path);
-        var absolutePath = targetPath.Absolute;
         if (direction == AwkCloseDirection.To)
         {
-            var closed = await _descriptors.CloseOutputAsync(_host, absolutePath).ConfigureAwait(false);
+            var closed = await _descriptors.CloseOutputAsync(_host, path).ConfigureAwait(false);
             return AwkIoOperationResult.FromSuccess(closed, AwkIoError.RedirectionNeverOpened);
         }
 
         if (direction == AwkCloseDirection.From)
         {
-            var closed = await _descriptors.CloseInputAsync(_host, absolutePath).ConfigureAwait(false);
+            var closed = await _descriptors.CloseInputAsync(_host, path).ConfigureAwait(false);
             return AwkIoOperationResult.FromSuccess(closed, AwkIoError.RedirectionNeverOpened);
         }
 

@@ -776,8 +776,8 @@ internal static partial class AwkGoldenCorpus
                 ["BEGIN{ERRNO=\"keep\";print \"x\">\"out.txt\";print fflush(\"./out.txt\"),ERRNO;close(\"out.txt\")}"], [])
             .WithInputDirectories([new AwkGoldenPath("/d")])
             .WithStandardInput("")
-            .WithStdOut("0 keep\n")
-            .WithStdErr("")
+            .WithStdOut("-1 keep\n")
+            .WithStdErr("awk: warning: fflush: `./out.txt' is not an open file, pipe or co-process\n")
             .WithExpectedFiles([File("/out.txt", "x\n")])
             .Build();
 
@@ -786,8 +786,8 @@ internal static partial class AwkGoldenCorpus
                 ["BEGIN{ERRNO=\"keep\";print \"x\">\"out.txt\";print fflush(\"/out.txt\"),ERRNO;close(\"out.txt\")}"], [])
             .WithInputDirectories([new AwkGoldenPath("/d")])
             .WithStandardInput("")
-            .WithStdOut("0 keep\n")
-            .WithStdErr("")
+            .WithStdOut("-1 keep\n")
+            .WithStdErr("awk: warning: fflush: `/out.txt' is not an open file, pipe or co-process\n")
             .WithExpectedFiles([File("/out.txt", "x\n")])
             .Build();
 
@@ -796,8 +796,8 @@ internal static partial class AwkGoldenCorpus
                 ["BEGIN{ERRNO=\"keep\";print \"x\">\"out.txt\";print fflush(\"d/../out.txt\"),ERRNO;close(\"out.txt\")}"], [])
             .WithInputDirectories([new AwkGoldenPath("/d")])
             .WithStandardInput("")
-            .WithStdOut("0 keep\n")
-            .WithStdErr("")
+            .WithStdOut("-1 keep\n")
+            .WithStdErr("awk: warning: fflush: `d/../out.txt' is not an open file, pipe or co-process\n")
             .WithExpectedFiles([File("/out.txt", "x\n")])
             .Build();
 

@@ -18,7 +18,8 @@ for resource control; the preset supplies neither an aggregate memory allowance 
 
 `--sandbox` disables file and command redirections. `AccessiblePathRoot` checks canonical
 virtual paths lexically; a filesystem host enforces its root against symlinks, reparse points
-and races. Supported `/dev/*` aliases name supplied descriptors.
+and races. Supported `/dev/*` aliases name supplied descriptors. Main input accepts `-`,
+`/dev/stdin` and `/dev/fd/0` without opening a host path or taking ownership of stdin.
 
 Pipes require policy and host permission. Awk passes opaque command text to the host without
 invoking a shell. Hosts control command allowlists, parsing, environment and process limits.
@@ -107,8 +108,8 @@ Using stdin aliases alongside main input can retain admitted unread batches; hos
 reuse the previous read buffer when the next read on that descriptor begins.
 Regex record splitting funds its cached decoded input until the view is invalidated or the
 cursor closes. Direct UTF-8 provider searches do not reserve an unused decoded copy.
-File redirections admit normalized paths and table growth before host opens. Logical flush
-retains path ownership; close refunds the path after the host finishes, while reusable table
+File redirections admit open-path scratch, retained exact stream names and table growth before
+host opens. Logical flush retains name ownership; close refunds the name after the host finishes, while reusable table
 capacity stays funded until execution cleanup.
 Large numeric-format conversion strings and overlapping copies receive temporary admission
 before allocation; encoding releases this scratch charge independently of pending output.

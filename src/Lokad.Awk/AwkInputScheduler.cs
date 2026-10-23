@@ -102,7 +102,7 @@ internal sealed class AwkInputScheduler(
                 if (!allowDynamicMainInputPaths && !IsOriginalInputArgument(inputArgument, argumentText))
                     throw new AwkRuntimeException(AwkMessages.ErrorDynamicMainInputPathsDisabled);
 
-                if (argumentText.EqualsAscii("-") || argumentText.EqualsAscii("/dev/stdin"))
+                if (AwkSpecialPathPolicy.IsStandardInput(argumentText))
                 {
                     state.BeginInputFile(argumentText, argumentIndex, actionExecutor.HasBeginFileActions);
                     if (await TryActivateInputAsync(
@@ -179,7 +179,7 @@ internal sealed class AwkInputScheduler(
             bool IsOriginalInputArgument(AwkInputArgument? inputArgument, AwkText text) =>
                 inputArgument switch
                 {
-                    AwkInputArgument.StandardInputArgument => text.EqualsAscii("-") || text.EqualsAscii("/dev/stdin"),
+                    AwkInputArgument.StandardInputArgument => AwkSpecialPathPolicy.IsStandardInput(text),
                     AwkInputArgument.FileArgument file => text.AsSpan(state.CancellationCheckpoint).SequenceEqual(file.Path.Display.Span),
                     _ => false
                 };

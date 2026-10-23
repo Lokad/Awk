@@ -6,6 +6,26 @@ public sealed class AwkFileRedirectionMemoryTests
 {
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    public async Task RefusedSecondSpellingDoesNotOpenOrTruncateTheFirstStream(bool input)
+    {
+        var budget = new CooperativeTestBudget(1 << 20);
+        var host = new FileHost { OnOutput = () => budget.RefuseNextAdmissionMinimumGrowth = 1000 };
+        var first = input ? "getline x<(\"./\" p)" : "print \"x\">(\"./\" p)";
+        var second = input ? "getline x<p" : "print \"y\">p";
+        var exit = await ExecuteAsync("BEGIN{p=sprintf(\"%04096d\",0);" + first +
+            ";print \"opened\";" + second + ";print \"unreachable\"}", host, budget);
+        Assert.Equal(AwkExitCode.FatalError, exit);
+        Assert.Equal("opened\n", host.Output);
+        Assert.Equal("awk: memory limit exceeded\n", host.Error);
+        Assert.Equal(1, host.Opens);
+        Assert.Equal(1, host.Closes);
+        Assert.Empty(host.OpenDescriptors);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
     public async Task RefusedPathAdmissionDoesNotOpenOrTruncateTheTarget(bool input)
     {
         var budget = new CooperativeTestBudget(1 << 20);
@@ -90,7 +110,7 @@ public sealed class AwkFileRedirectionMemoryTests
     }
 
     [Fact]
-    public async Task FlushRetainsTheLogicalPathAndReopensInAppendMode()
+    public async Task FlushRetainsTheExactLogicalNameAndReopensInAppendMode()
     {
         var budget = new CooperativeTestBudget(256 << 10);
         var snapshots = new List<long>();
@@ -105,10 +125,10 @@ public sealed class AwkFileRedirectionMemoryTests
                 p=sprintf("%04096d",0)
                 print "base"
                 print "x" > ("./" p); print "open"
-                fflush(p); print "flushed"
-                print "y" > p
+                fflush("./" p); print "flushed"
+                print "y" > ("./" p)
                 close("./" p); print "closed"
-                print "z" > p
+                print "z" > ("./" p)
             }
             """, host, budget);
 
