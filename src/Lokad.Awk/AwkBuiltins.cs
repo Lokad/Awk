@@ -220,20 +220,15 @@ internal static partial class AwkBuiltins
             var path = await context.GetStringAsync(0).ConfigureAwait(false);
             using var heldName = context.State.MemoryAccounting.ReserveTransient(
                 AwkRuntimeMemory.EstimateUtf16StringBytes(path.Length));
-            var direction = AwkOptionalCloseDirection.None;
             if (context.ArgumentCount == 2)
             {
                 var directionText = await context.GetStringAsync(1).ConfigureAwait(false);
-                if (!AwkCloseDirectionParser.TryParse(directionText, out var parsedDirection))
+                if (directionText is not ("to" or "from"))
                     throw new AwkRuntimeException(AwkMessages.ErrorInvalidCloseMode);
-
-                direction = AwkOptionalCloseDirection.Some(parsedDirection);
             }
 
             await execution.Output.FlushDiagnosticsAsync(execution.Io).ConfigureAwait(false);
-            var result = !direction.HasValue
-                ? await execution.Io.CloseAsync(path).ConfigureAwait(false)
-                : await execution.Io.CloseAsync(path, direction.Value).ConfigureAwait(false);
+            var result = await execution.Io.CloseAsync(path).ConfigureAwait(false);
             if (result.Failed)
                 context.State.SetErrno(result.Error.Errno);
 

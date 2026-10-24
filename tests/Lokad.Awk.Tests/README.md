@@ -23,6 +23,11 @@ Failing golden cases must assert the awk exit code, exact stderr, expected stdou
 
 ## End-to-End Host Tests
 
+The mock filesystem publishes successful file creation/truncation at open; appended
+data stays buffered until descriptor close. Close-mode goldens cover files;
+`AwkIoCloseDirectionTests` runs file/pipe contracts through public execution with
+shared admission and cleanup checks. `MockFileSystemTests` checks open-time effects.
+
 Use host-facing tests when the risk includes command quoting, pipelines, command substitution, descriptor wiring, working-directory behavior, source-file paths, or integration with other host tools. Do not duplicate plain language behavior here unless a host boundary is the point of the test.
 
 ## Lexer, Syntax, Parser, and Binder Tests

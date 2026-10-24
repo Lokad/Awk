@@ -27,10 +27,6 @@ internal sealed class AwkPipeRuntime(
         return output.Newer(input);
     }
 
-    public bool HasOutputPipe(string command) => _outputPipes.ContainsKey(command);
-
-    public bool HasInputPipe(string command) => _inputPipes.ContainsKey(command);
-
     public async Task WriteOutputAsync(AwkRedirectionPath command, ReadOnlyMemory<byte> content)
     {
         var pipe = await GetOrOpenOutputPipeAsync(command.Text).ConfigureAwait(false);
@@ -99,14 +95,11 @@ internal sealed class AwkPipeRuntime(
         }
     }
 
-    public async Task<AwkPipeCloseResult> CloseOutputAsync(string command)
+    public async Task<AwkExitCode> CloseOutputAsync(string command)
     {
-        if (!_outputPipes.TryGetValue(command, out var pipe))
-            return AwkPipeCloseResult.NotOpened;
-
-        var exitCode = await pipe.CloseAsync(host, command).ConfigureAwait(false);
+        var exitCode = await _outputPipes[command].CloseAsync(host, command).ConfigureAwait(false);
         _outputPipes.Remove(command);
-        return AwkPipeCloseResult.Closed(exitCode);
+        return exitCode;
     }
 
     private void ThrowIfPipeLimitReached()
@@ -115,14 +108,11 @@ internal sealed class AwkPipeRuntime(
             throw new AwkRuntimeException(AwkMessages.ErrorPipeLimit, AwkDiagnosticId.RuntimeResourceLimit);
     }
 
-    public async Task<AwkPipeCloseResult> CloseInputAsync(string command)
+    public async Task<AwkExitCode> CloseInputAsync(string command)
     {
-        if (!_inputPipes.TryGetValue(command, out var pipe))
-            return AwkPipeCloseResult.NotOpened;
-
-        var exitCode = await pipe.CloseAsync(host, command).ConfigureAwait(false);
+        var exitCode = await _inputPipes[command].CloseAsync(host, command).ConfigureAwait(false);
         _inputPipes.Remove(command);
-        return AwkPipeCloseResult.Closed(exitCode);
+        return exitCode;
     }
 
     public async Task CloseAllAsync()
@@ -283,21 +273,4 @@ internal sealed class AwkPipeRuntime(
             await AwaitCommandForCleanupAsync(commandCompletion, memory).ConfigureAwait(false);
         }
     }
-}
-
-internal readonly struct AwkPipeCloseResult
-{
-    private AwkPipeCloseResult(bool closed, AwkExitCode exitCode)
-    {
-        ClosedPipe = closed;
-        ExitCode = exitCode;
-    }
-
-    public static AwkPipeCloseResult NotOpened => default;
-
-    public static AwkPipeCloseResult Closed(AwkExitCode exitCode) => new(true, exitCode);
-
-    public bool ClosedPipe { get; }
-
-    public AwkExitCode ExitCode { get; }
 }

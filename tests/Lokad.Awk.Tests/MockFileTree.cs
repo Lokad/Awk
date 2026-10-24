@@ -108,6 +108,8 @@ internal sealed class MockFileTree
             ? file.Content
             : [];
 
+        // Opening creates/truncates immediately; appended bytes remain buffered until close.
+        parent.Children[name] = new FileNode(initialContent, AwkFileTreePermission.ReadWrite);
         return new MockWriteOpenResult.Opened(initialContent, content =>
         {
             parent.Children[name] = new FileNode(content, AwkFileTreePermission.ReadWrite);

@@ -1,5 +1,3 @@
-using System;
-
 namespace Lokad.Awk;
 
 internal enum AwkGetlineStatus
@@ -13,53 +11,6 @@ internal enum AwkIoOperationStatus
 {
     Failure,
     Success
-}
-
-internal enum AwkCloseDirection
-{
-    To,
-    From
-}
-
-internal readonly record struct AwkOptionalCloseDirection
-{
-    private readonly AwkCloseDirection _direction;
-
-    private AwkOptionalCloseDirection(AwkCloseDirection direction)
-    {
-        HasValue = true;
-        _direction = direction;
-    }
-
-    public static AwkOptionalCloseDirection None => default;
-
-    public static AwkOptionalCloseDirection Some(AwkCloseDirection direction) => new(direction);
-
-    public bool HasValue { get; }
-
-    public AwkCloseDirection Value =>
-        HasValue ? _direction : throw new InvalidOperationException("No awk close direction is present.");
-}
-
-internal static class AwkCloseDirectionParser
-{
-    public static bool TryParse(string text, out AwkCloseDirection direction)
-    {
-        if (text == "to")
-        {
-            direction = AwkCloseDirection.To;
-            return true;
-        }
-
-        if (text == "from")
-        {
-            direction = AwkCloseDirection.From;
-            return true;
-        }
-
-        direction = default;
-        return false;
-    }
 }
 
 internal readonly struct AwkIoError(AwkErrno errno)
@@ -84,9 +35,6 @@ internal readonly struct AwkIoOperationResult(AwkIoOperationStatus status, AwkIo
 
     public static AwkIoOperationResult Failure(AwkIoError error) =>
         new(AwkIoOperationStatus.Failure, error, -1);
-
-    public static AwkIoOperationResult FromSuccess(bool success, AwkIoError failureError) =>
-        success ? Success : Failure(failureError);
 
     public AwkIoOperationStatus Status { get; } = status;
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The optional `close(name, "to"/"from")` argument is validated and ignored for
+  supported files and one-way pipes. Closing uses the latest matching stream and
+  preserves command exit statuses; coprocesses remain unsupported.
+
 - Option values decode once under the final compatibility profile and observe caller
   cancellation during decoding. Terminal commands skip decoding unused assignments.
   Removed the discarded field-separator snapshot; invalid `-F` text still fails before source loading.

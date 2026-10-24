@@ -176,12 +176,12 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
         ReleaseStorage();
     }
 
-    public async Task<bool> CloseOutputAsync(
+    public async Task CloseOutputAsync(
         AwkIoHostAdapter host,
         string path)
     {
         if (!_outputFiles.TryGetValue(path, out var output))
-            return false;
+            return;
 
         var closed = output.HasDescriptor
             ? await host.CloseDescriptorAsync(output.Descriptor).ConfigureAwait(false)
@@ -191,7 +191,6 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
         try
         {
             host.ThrowIfCloseFailed(output.Descriptor, closed, path);
-            return true;
         }
         finally
         {
@@ -199,12 +198,12 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
         }
     }
 
-    public async Task<bool> CloseInputAsync(
+    public async Task CloseInputAsync(
         AwkIoHostAdapter host,
         string path)
     {
         if (!_inputFiles.TryGetValue(path, out var input))
-            return false;
+            return;
 
         input.Reader.Dispose();
         var closed = await host.CloseDescriptorAsync(input.Descriptor).ConfigureAwait(false);
@@ -213,7 +212,6 @@ internal sealed class AwkIoDescriptorTable(AwkMemoryAccounting accounting)
         try
         {
             host.ThrowIfCloseFailed(input.Descriptor, closed, path);
-            return true;
         }
         finally
         {

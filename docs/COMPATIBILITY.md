@@ -270,7 +270,9 @@ Redirected `getline < "-"` borrows stdin; `"./-"` reads the literal file. Output
 still names a literal file, differing from GNU; use `/dev/stdout` for supplied stdout.
 Same-name streams select the latest opening. Output-pipe fflush succeeds without
 closing/awaiting the command; input-only fflush warns and returns -1. close returns the
-command status. Flush/close follow logical-stream and host outcomes. Failures preserve
+command status. The optional close direction (`"to"`/`"from"`) is validated but ignored
+for files and one-way pipes; coprocesses remain unsupported.
+Flush/close follow logical-stream and host outcomes. Failures preserve
 committed output without exposing CLR exception text. Caller cancellation propagates after
 cleanup; hosts schedule deadlines through caller cancellation. See [embedding](../README.md#embedding)
 and the [runtime and host contract](RUNTIME.md).

@@ -97,6 +97,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(StringResultCases(), AwkGoldenTag.Function, AwkGoldenTag.Expression),
 
         .. Tagged(IoCases(), AwkGoldenTag.Io),
+        .. Tagged(CloseModeCases(), AwkGoldenTag.Io),
 
         .. Tagged(FlushCompatibilityCases(), AwkGoldenTag.Io, AwkGoldenTag.Function),
 

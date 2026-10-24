@@ -383,10 +383,10 @@ internal sealed class AwkIo
         {
             case AwkOpenRedirectionKind.OutputPipe:
                 var written = await _pipes.CloseOutputAsync(path).ConfigureAwait(false);
-                return AwkIoOperationResult.SuccessWithStatusCode(written.ExitCode.Value);
+                return AwkIoOperationResult.SuccessWithStatusCode(written.Value);
             case AwkOpenRedirectionKind.InputPipe:
                 var read = await _pipes.CloseInputAsync(path).ConfigureAwait(false);
-                return AwkIoOperationResult.SuccessWithStatusCode(read.ExitCode.Value);
+                return AwkIoOperationResult.SuccessWithStatusCode(read.Value);
             case AwkOpenRedirectionKind.OutputFile:
                 await _descriptors.CloseOutputAsync(_host, path).ConfigureAwait(false);
                 return AwkIoOperationResult.Success;
@@ -403,55 +403,6 @@ internal sealed class AwkIo
             return AwkIoOperationResult.Success;
 
         return AwkIoOperationResult.Failure(AwkIoError.RedirectionNeverOpened);
-    }
-
-    public async Task<AwkIoOperationResult> CloseAsync(string path, AwkCloseDirection direction)
-    {
-        if (direction == AwkCloseDirection.To)
-        {
-            var pipeClosed = await _pipes.CloseOutputAsync(path).ConfigureAwait(false);
-            if (pipeClosed.ClosedPipe)
-                return AwkIoOperationResult.SuccessWithStatusCode(pipeClosed.ExitCode.Value);
-
-            if (_pipes.HasInputPipe(path))
-                return AwkIoOperationResult.Failure(AwkIoError.RedirectionNeverOpened);
-        }
-        else if (direction == AwkCloseDirection.From)
-        {
-            var pipeClosed = await _pipes.CloseInputAsync(path).ConfigureAwait(false);
-            if (pipeClosed.ClosedPipe)
-                return AwkIoOperationResult.SuccessWithStatusCode(pipeClosed.ExitCode.Value);
-
-            if (_pipes.HasOutputPipe(path))
-                return AwkIoOperationResult.Failure(AwkIoError.RedirectionNeverOpened);
-        }
-        else if (direction != AwkCloseDirection.From)
-        {
-            throw new ArgumentOutOfRangeException(nameof(direction));
-        }
-
-        AwkSpecialPathPolicy.ThrowIfUnsupported(path);
-
-        if (_specialPaths.TryResolveOutput(path, out _))
-        {
-            return direction == AwkCloseDirection.To
-                ? AwkIoOperationResult.Success
-                : AwkIoOperationResult.Failure(AwkIoError.RedirectionNeverOpened);
-        }
-
-        if (direction == AwkCloseDirection.To)
-        {
-            var closed = await _descriptors.CloseOutputAsync(_host, path).ConfigureAwait(false);
-            return AwkIoOperationResult.FromSuccess(closed, AwkIoError.RedirectionNeverOpened);
-        }
-
-        if (direction == AwkCloseDirection.From)
-        {
-            var closed = await _descriptors.CloseInputAsync(_host, path).ConfigureAwait(false);
-            return AwkIoOperationResult.FromSuccess(closed, AwkIoError.RedirectionNeverOpened);
-        }
-
-        throw new ArgumentOutOfRangeException(nameof(direction));
     }
 
     private abstract class AwkInputReaderResult

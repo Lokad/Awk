@@ -81,18 +81,27 @@ public sealed class AwkOpaquePipeTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task SameNameFileAndPipeKeepOpeningOrder(bool pipeLast, bool inputPipe)
+    [InlineData(false, false, "")]
+    [InlineData(false, true, "")]
+    [InlineData(true, false, "")]
+    [InlineData(true, true, "")]
+    [InlineData(false, false, "to")]
+    [InlineData(false, true, "to")]
+    [InlineData(true, false, "to")]
+    [InlineData(true, true, "to")]
+    [InlineData(false, false, "from")]
+    [InlineData(false, true, "from")]
+    [InlineData(true, false, "from")]
+    [InlineData(true, true, "from")]
+    public async Task SameNameFileAndPipeKeepOpeningOrder(bool pipeLast, bool inputPipe, string mode)
     {
         var files = new MockFileSystem();
         var host = new AwkEmptyPipeTestHost(files) { CommandStatus = 17 };
         var openPipe = inputPipe ? "cmd|getline x;" : "print \"pipe\"|cmd;";
         var openFile = "print \"file\">cmd;";
+        var close = mode.Length == 0 ? "close(cmd)" : "close(cmd,\"" + mode + "\")";
         var exit = await Run(host, "BEGIN{cmd=\"worker\";" + (pipeLast ? openFile + openPipe : openPipe + openFile) +
-            "print close(cmd);print close(cmd)}");
+            "print " + close + ";print " + close + "}");
         Assert.Equal(0, exit.Value);
         Assert.Equal(pipeLast ? "17\n0\n" : "0\n17\n", files.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", files.GetOutput(AwkFileDescriptor.StdErr));
