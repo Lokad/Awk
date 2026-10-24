@@ -33,6 +33,8 @@ var exitCode = await awk.ExecuteAsync(host, policy, cancellation.Token);
 
 `ExecuteAsync` returns an `AwkExitCode`; embedding code can keep the result typed and cross to its
 integer `Value` only at a process boundary.
+`TryParse` recognizes the command name. `ExecuteAsync` validates options and parses the
+program, loading source files through the supplied host.
 
 The example reads unquoted comma-separated values. Quoted or multiline CSV requires host
 preprocessing; GNU CSV mode is not implemented.

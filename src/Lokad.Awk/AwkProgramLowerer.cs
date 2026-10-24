@@ -96,7 +96,7 @@ internal static partial class AwkProgramLowerer
 
         checkpoint?.Invoke();
         var program = new AwkProgram(beginActions, mainActions, endActions, beginFileActions, endFileActions, functions,
-            globalNames, globalReads);
+            globalNames, globalReads.Count);
         checkpoint?.Invoke();
         return AwkLoweringResult.SuccessResult(program);
 
