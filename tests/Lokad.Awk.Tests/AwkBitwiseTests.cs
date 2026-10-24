@@ -40,12 +40,17 @@ public sealed class AwkBitwiseTests
                 ? [AwkExpression.Number(6)]
                 : [AwkExpression.Number(6), AwkExpression.Number(3)];
             var context = new AwkEvaluationContext(state);
-            // Warm the same loop that is measured, including its generated code.
-            EvaluateMany();
-
-            var before = GC.GetAllocatedBytesForCurrentThread();
-            EvaluateMany();
-            return (counters, GC.GetAllocatedBytesForCurrentThread() - before, expressions.Length);
+            // Measure warm argument reuse, independently of collection/pool maintenance.
+            Assert.True(GC.TryStartNoGCRegion(16 << 20));
+            try
+            {
+                GC.WaitForPendingFinalizers();
+                EvaluateMany();
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                EvaluateMany();
+                return (counters, GC.GetAllocatedBytesForCurrentThread() - before, expressions.Length);
+            }
+            finally { GC.EndNoGCRegion(); }
 
             [MethodImpl(MethodImplOptions.NoInlining)]
             void EvaluateMany()

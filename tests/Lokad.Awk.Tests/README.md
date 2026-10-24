@@ -165,6 +165,10 @@ requalification separately; known reference bugs cannot become equivalent perfor
 Tests that force garbage collection or measure thread-local allocation should use
 `[Collection(AwkAllocationMeasurementCollection.Name)]` so unrelated collections cannot interfere with
 their measured loops. Keep their allocation ceilings unchanged when adding isolation.
+The two exact warm-call allocation guards (printf provider boxing and bitwise argument
+reuse) additionally use a bounded BCL no-GC region, ended before checking results.
+They measure per-call allocation independently of collection and shared-pool maintenance;
+semantic, cancellation and memory-lifetime coverage runs outside those regions.
 
 ## Review Gates
 
