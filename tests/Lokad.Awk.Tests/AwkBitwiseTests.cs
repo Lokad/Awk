@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
@@ -39,13 +40,19 @@ public sealed class AwkBitwiseTests
                 ? [AwkExpression.Number(6)]
                 : [AwkExpression.Number(6), AwkExpression.Number(3)];
             var context = new AwkEvaluationContext(state);
-            for (var index = 0; index < 1_000; index++)
-                Evaluate();
+            // Warm the same loop that is measured, including its generated code.
+            EvaluateMany();
 
             var before = GC.GetAllocatedBytesForCurrentThread();
-            for (var index = 0; index < 10_000; index++)
-                Evaluate();
+            EvaluateMany();
             return (counters, GC.GetAllocatedBytesForCurrentThread() - before, expressions.Length);
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            void EvaluateMany()
+            {
+                for (var index = 0; index < 10_000; index++)
+                    Evaluate();
+            }
 
             void Evaluate()
             {

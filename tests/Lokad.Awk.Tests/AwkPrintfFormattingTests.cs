@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Lokad.Awk;
 
 namespace Lokad.Awk.Tests;
@@ -131,18 +132,25 @@ public sealed class AwkPrintfFormattingTests
             var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None);
             AwkValue[] values = [AwkValue.FromNumber(8), AwkValue.FromNumber(1.5)];
             var arguments = new AwkValueArrayPrintfArguments(values, 2, state);
-            for (var index = 0; index < 1000; index++)
-                ReadValue(arguments, state);
+            // Warm the same loop that is measured, including its generated code.
+            _ = ReadSum(arguments, state);
 
             var before = GC.GetAllocatedBytesForCurrentThread();
-            var sum = 0.0;
-            for (var index = 0; index < 10000; index++)
-                sum += ReadValue(arguments, state);
+            var sum = ReadSum(arguments, state);
             return (sum, GC.GetAllocatedBytesForCurrentThread() - before);
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         Assert.Equal(15000, sum);
         Assert.Equal(0, allocatedBytes);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        static double ReadSum(AwkValueArrayPrintfArguments arguments, AwkRuntimeState state)
+        {
+            var sum = 0.0;
+            for (var index = 0; index < 10000; index++)
+                sum += ReadValue(arguments, state);
+            return sum;
+        }
 
         static double ReadValue(AwkValueArrayPrintfArguments arguments, AwkRuntimeState state)
         {
