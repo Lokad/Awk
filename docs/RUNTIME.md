@@ -94,7 +94,8 @@ reservations; scopes share the root allowance. Without a supplied budget, there 
 aggregate memory cap.
 
 Invocation input snapshots belong to the caller. `TryParse` only recognizes and wraps the
-command; execution admits Awk-owned argument/environment preparation before copies.
+command. Execution borrows its immutable entry environment and admits Awk-owned argument
+preparation before copies. Mutable `ENVIRON` and command-export storage have their own owners.
 Forwarding a pipe command reuses its immutable argument/environment snapshots when attaching
 the active shared budget; it does not copy those snapshots again.
 Empty-name `ENVIRON` entries remain valid array elements but are omitted from command export.

@@ -46,6 +46,8 @@ Public source-search cases also cover unused AWKPATH tails under shared admissio
 candidate refusal/cancellation before host access.
 Automatic-input goldens and host checks cover BEGIN-only completion, explicit getline,
 unused invalid input, and the END/main/file-hook rules that still require input.
+Invocation admission/startup checks cover borrowing immutable entry environments, bounded
+planning allocation, hidden environments and caller/ENVIRON isolation across reuse.
 
 Directive goldens and public-boundary cases cover same-line source, malformed directives and
 top-level context. Source-loader checks preserve original tail coordinates after empty includes;

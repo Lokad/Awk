@@ -3,6 +3,22 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkRuntimeStartupTests
 {
+    [Fact]
+    public void InvocationPreparationHasNoEnvironmentSizedAllocation()
+    {
+        var environment = Enumerable.Range(0, 32_768)
+            .Select(index => new AwkEnvironmentVariable("V" + index, "value")).ToArray();
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", ["BEGIN{}"], environment);
+        _ = AwkCommandParser.Parse(command);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        var invocation = AwkCommandParser.Parse(command);
+
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 32 << 10);
+        Assert.Equal(environment.Length, invocation.RuntimeArgumentsPlan.Environment.Count);
+        Assert.Equal(new AwkEnvironmentVariable("V32767", "value"), invocation.RuntimeArgumentsPlan.Environment[^1]);
+    }
+
     [Theory]
     [InlineData("--version", false)] [InlineData("--version", true)]
     [InlineData("--help", false)] [InlineData("--help", true)]

@@ -3,6 +3,63 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkInvocationAdmissionTests
 {
+    [Theory]
+    [InlineData("--version")]
+    [InlineData("--help")]
+    [InlineData("BEGIN{print \"ok\",length(ENVIRON)}")]
+    public async Task HiddenEntryEnvironmentDoesNotRequirePlanningStorage(string argument)
+    {
+        var environment = Enumerable.Range(0, 32_768)
+            .Select(index => new AwkEnvironmentVariable("V" + index, "value")).ToArray();
+        var budget = new CooperativeTestBudget(512 << 10);
+        var command = Command([argument], environment, budget);
+        var host = new MockFileSystem();
+        var expected = argument switch
+        {
+            "--version" => "Lokad awk " + AwkVersion.Text + "\n",
+            "--help" => AwkUtf8Codec.Decode(global::Lokad.Awk.AwkMessages.HelpMessage),
+            _ => "ok 0\n"
+        };
+
+        var exit = await AwkTestHarness.ParseAwk(command)
+            .ExecuteAsync(host, AwkExecutionPolicy.CreateRestricted(), CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.ReadOpenCount);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReusedInvocationPreservesCallerSnapshotAndKeepsEnvironmentMutationLocal(bool governed)
+    {
+        AwkEnvironmentVariable[] environment = [new("AWKPATH", "/scripts"), new("KEEP", "original")];
+        var budget = new CooperativeTestBudget(8 << 20);
+        var command = Command(["-f", "main.awk"], environment, governed ? budget : null);
+        environment[0] = new("AWKPATH", "/missing");
+        environment[1] = new("KEEP", "changed by caller");
+        var awk = AwkTestHarness.ParseAwk(command);
+
+        for (var repetition = 0; repetition < 2; repetition++)
+        {
+            var host = new MockFileSystem();
+            host.AddFile("/scripts/main.awk", "BEGIN{print ENVIRON[\"KEEP\"];ENVIRON[\"KEEP\"]=\"local\";print ENVIRON[\"KEEP\"]}");
+            var exit = await awk.ExecuteAsync(host, CancellationToken.None);
+
+            Assert.Equal(AwkExitCode.Success, exit);
+            Assert.Equal("original\nlocal\n", host.GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+            Assert.Equal(1, host.ReadOpenCount);
+            Assert.Equal(0, host.OpenFileCount);
+            Assert.Equal(0, budget.Reserved);
+        }
+        Assert.Equal(new AwkEnvironmentVariable("KEEP", "original"), command.Environment[1]);
+    }
+
     [Fact]
     public async Task RefusedPlanningAdmissionPrecedesCopiesAndHostEffects()
     {

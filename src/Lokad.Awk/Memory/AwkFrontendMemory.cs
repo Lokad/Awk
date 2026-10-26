@@ -21,11 +21,9 @@ internal sealed class AwkFrontendMemory(IMemoryBudget? budget) : IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (budget is null) return;
-        // Invocation snapshots belong to the caller. Fund the parser's lists, final
-        // snapshots, option/value copies and expanded paths before constructing them.
-        var bytes = AwkRuntimeMemory.CheckedAdd(
-            AwkRuntimeMemory.CheckedMultiply((long)command.Arguments.Count + 1, 256),
-            AwkRuntimeMemory.CheckedMultiply(command.Environment.Count, 32));
+        // Entry snapshots belong to the caller; the environment stays borrowed.
+        // Fund parser lists/snapshots, option/value copies and expanded paths before construction.
+        var bytes = AwkRuntimeMemory.CheckedMultiply((long)command.Arguments.Count + 1, 256);
         for (var index = 0; index < command.Arguments.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();

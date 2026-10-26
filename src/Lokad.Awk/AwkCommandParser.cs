@@ -84,7 +84,7 @@ internal static class AwkCommandParser
 
             _sourceInputPlanner.PrepareCompatibility(_profile.Mode);
             return CreateInvocationBuilder()
-                .WithPlan(_sourceInputPlanner.BuildPlan(invocation.Environment))
+                .WithPlan(_sourceInputPlanner.BuildPlan(invocation))
                 .WithCompatibilityProfile(_profile)
                 .Build();
 

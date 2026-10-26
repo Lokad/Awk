@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Execution reuses the immutable entry-environment snapshot during planning. Large hidden
+  environments no longer add planning allocation or admission demand to small/terminal commands.
+
 - **Regex provider API:** removed `IAwkCompiledRegex.GroupNames`. Providers report
   `GroupCount`, including group0; callers using the removed property must update.
 
