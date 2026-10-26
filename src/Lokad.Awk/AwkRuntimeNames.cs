@@ -61,7 +61,5 @@ internal readonly record struct AwkSpecialVariableName(AwkSpecialVariableId Id)
 {
     public string Text => AwkSpecialVariables.Name(Id);
 
-    public AwkVariableName VariableName => AwkSpecialVariables.VariableName(Id);
-
     public override string ToString() => Text;
 }

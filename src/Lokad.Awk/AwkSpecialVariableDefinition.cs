@@ -26,8 +26,6 @@ internal sealed class AwkSpecialArrayVariableDefinition(
     string name,
     AwkSpecialArrayMutationPolicy mutationPolicy) : AwkSpecialVariableDefinition(id, name)
 {
-    public AwkArrayName ArrayName => new(Identifier);
-
     public AwkSpecialArrayMutationPolicy MutationPolicy { get; } = mutationPolicy;
 
     public bool CanModifyArrayElements => MutationPolicy != AwkSpecialArrayMutationPolicy.ReadOnly;

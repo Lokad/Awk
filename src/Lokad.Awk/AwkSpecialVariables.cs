@@ -69,9 +69,6 @@ internal static class AwkSpecialVariables
     public static IEnumerable<AwkSpecialScalarVariableDefinition> Scalars =>
         DefinitionsById.Values.OfType<AwkSpecialScalarVariableDefinition>();
 
-    public static IEnumerable<AwkSpecialArrayVariableDefinition> Arrays =>
-        DefinitionsById.Values.OfType<AwkSpecialArrayVariableDefinition>();
-
     public static string Name(AwkSpecialVariableId id) =>
         DefinitionsById[id].Name;
 

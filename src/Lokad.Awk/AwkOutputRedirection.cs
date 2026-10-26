@@ -44,11 +44,6 @@ internal abstract record AwkOutputTarget
 
     public bool IsRedirected => this is RedirectedOutputTarget;
 
-    public AwkOutputRedirection Redirection =>
-        this is RedirectedOutputTarget redirected
-            ? redirected.OutputRedirection
-            : throw new InvalidOperationException("No output redirection is present.");
-
     public bool TryGetRedirection(out AwkOutputRedirection redirection)
     {
         if (this is RedirectedOutputTarget redirected)

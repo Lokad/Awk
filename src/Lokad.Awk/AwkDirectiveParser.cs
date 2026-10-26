@@ -111,7 +111,6 @@ internal static class AwkDirectiveParser
         var endToken = arguments.Count == 0 ? tokens[nameIndex] : arguments[^1];
         directive = new AwkParsedDirective(
             ResolveKind(tokens[nameIndex].Text),
-            tokens[nameIndex].Text,
             arguments,
             new AwkTextSpan(atToken.Span.Start, endToken.Span.End - atToken.Span.Start));
         return true;
@@ -135,24 +134,19 @@ internal static class AwkDirectiveParser
 
 internal readonly record struct AwkParsedDirective
 {
-    private readonly string? _name;
     private readonly IReadOnlyList<AwkToken>? _argumentTokens;
 
     public AwkParsedDirective(
         AwkDirectiveKind kind,
-        string name,
         IReadOnlyList<AwkToken> argumentTokens,
         AwkTextSpan span)
     {
         Kind = kind;
-        _name = name;
         _argumentTokens = argumentTokens;
         Span = span;
     }
 
     public AwkDirectiveKind Kind { get; }
-
-    public string Name => _name ?? string.Empty;
 
     public IReadOnlyList<AwkToken> ArgumentTokens => _argumentTokens ?? [];
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Removed unused parser/runtime helpers and redundant directive-name metadata.
+  Internal output-target inspection no longer throws for standard output.
+
 - Source search consumes `AWKPATH` components on demand, avoiding allocation and admission
   for unused entries while preserving lookup order and qualified-path behavior.
 

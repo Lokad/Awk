@@ -1044,8 +1044,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
 
     private readonly record struct ByteMembership(ulong Low, ulong High, int Count)
     {
-        public static ByteMembership Single(byte value) => default(ByteMembership).Add(value);
-
         public ByteMembership Add(byte value)
         {
             if (value > 0x7F || Contains(value))

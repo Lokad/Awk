@@ -406,14 +406,6 @@ internal sealed class AwkTAttribute : TerminalAttribute
     }
 }
 
-internal sealed class AwkOAttribute : TerminalAttribute
-{
-    public AwkOAttribute(params AwkTokenKind[] tokens)
-        : base(tokens.Select(token => (int)token), optional: true)
-    {
-    }
-}
-
 internal sealed class AwkLAttribute : ListAttribute
 {
     public AwkLAttribute()

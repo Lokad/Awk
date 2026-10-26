@@ -118,21 +118,6 @@ internal abstract record AwkReference
         return target;
     }
 
-    /// <summary>Returns the scalar name only when this reference directly addresses a scalar.</summary>
-    internal virtual bool TryGetScalarName(out AwkVariableName variable)
-    {
-        variable = default;
-        return false;
-    }
-
-    /// <summary>Returns the array and unevaluated index only when this reference addresses an array element.</summary>
-    internal virtual bool TryGetArrayElement(out AwkArrayName array, out AwkArrayIndex index)
-    {
-        array = default;
-        index = AwkArrayIndex.Empty;
-        return false;
-    }
-
     internal bool TryGetSynchronousScalar(out AwkResolvedReference target)
     {
         target = this switch
@@ -183,12 +168,6 @@ internal sealed record AwkScalarReference(AwkVariableName Variable) : AwkReferen
 {
     protected override ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context) =>
         ValueTask.FromResult(AwkResolvedReference.Scalar(Variable));
-
-    internal override bool TryGetScalarName(out AwkVariableName variable)
-    {
-        variable = Variable;
-        return true;
-    }
 }
 
 internal sealed record AwkPreparedGlobalScalarReference(AwkVariableName Variable, int Index) : AwkReference
@@ -236,12 +215,6 @@ internal sealed record AwkPreparedGlobalScalarReference(AwkVariableName Variable
         state.AssignPreparedGlobalValue(Variable, Index, result);
         return ValueTask.FromResult(resultSelection is AwkNumericUpdateResult.Previous ? previous : result);
     }
-
-    internal override bool TryGetScalarName(out AwkVariableName variable)
-    {
-        variable = Variable;
-        return true;
-    }
 }
 
 internal sealed record AwkLocalScalarReference(
@@ -250,12 +223,6 @@ internal sealed record AwkLocalScalarReference(
 {
     protected override ValueTask<AwkResolvedReference> ResolveTargetAsync(AwkEvaluationContext context) =>
         ValueTask.FromResult(AwkResolvedReference.LocalScalar(Variable, SlotId));
-
-    internal override bool TryGetScalarName(out AwkVariableName variable)
-    {
-        variable = Variable;
-        return true;
-    }
 }
 
 internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayIndex IndexExpression, int GlobalIndex = -1) : AwkReference
@@ -336,13 +303,6 @@ internal sealed record AwkArrayElementReference(AwkArrayName Variable, AwkArrayI
             current, right, operation));
         state.SetArrayAwkValue(Variable, key, result);
         return result;
-    }
-
-    internal override bool TryGetArrayElement(out AwkArrayName array, out AwkArrayIndex index)
-    {
-        array = Variable;
-        index = IndexExpression;
-        return true;
     }
 }
 

@@ -5,8 +5,6 @@ namespace Lokad.Awk;
 
 internal abstract record AwkArrayIndex
 {
-    public static AwkArrayIndex Empty { get; } = new AwkEmptyArrayIndex();
-
     public static AwkArrayIndex Simple(AwkExpression expression) =>
         new AwkSimpleArrayIndex(expression);
 
@@ -20,12 +18,6 @@ internal abstract record AwkArrayIndex
 
     internal virtual ValueTask<AwkArrayKey> ResolveTargetKeyAsync(AwkEvaluationContext context, AwkArrayName array) =>
         ResolveKeyAsync(context);
-}
-
-internal sealed record AwkEmptyArrayIndex : AwkArrayIndex
-{
-    public override ValueTask<AwkArrayKey> ResolveKeyAsync(AwkEvaluationContext context) =>
-        ValueTask.FromResult(new AwkArrayKey(AwkText.Empty));
 }
 
 internal sealed record AwkSimpleArrayIndex(AwkExpression Expression) : AwkArrayIndex

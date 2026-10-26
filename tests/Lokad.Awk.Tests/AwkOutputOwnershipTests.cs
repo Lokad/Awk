@@ -5,6 +5,19 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkOutputOwnershipTests
 {
+    [Fact]
+    public void OutputTargetsCanBeInspectedWithoutResolvingRedirection()
+    {
+        Assert.False(AwkOutputTarget.Standard.TryGetRedirection(out _));
+        Assert.NotEmpty(AwkOutputTarget.Standard.ToString());
+
+        var target = AwkOutputTarget.Redirected(new(
+            AwkExpression.Literal("file"), AwkOutputRedirectionKind.Write));
+        Assert.True(target.TryGetRedirection(out var redirection));
+        Assert.Equal(AwkOutputRedirectionKind.Write, redirection.Kind);
+        Assert.NotEmpty(target.ToString());
+    }
+
     [Theory]
     [InlineData(false, 16)] [InlineData(true, 16)]
     [InlineData(false, 128)] [InlineData(true, 128)]

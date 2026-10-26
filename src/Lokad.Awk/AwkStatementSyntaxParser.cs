@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Lokad.Parsing.Error;
 using Lokad.Parsing.Parser;
@@ -22,21 +21,6 @@ internal sealed class AwkStatementSyntaxParser
         _originalTokens = originalTokens;
         _checkpoint = checkpoint;
     }
-
-    public static bool TryParse(
-        AwkParsingSource source,
-        IReadOnlyList<AwkToken> tokens,
-        List<AwkDiagnostic> diagnostics,
-        [NotNullWhen(true)] out IReadOnlyList<AwkStatementSyntax>? statements,
-        Action? checkpoint = null) =>
-        TryProjectParseResult(ParseCore(source, tokens, checkpoint), diagnostics, out statements, checkpoint);
-
-    public static bool TryParse(
-        IReadOnlyList<AwkToken> tokens,
-        List<AwkDiagnostic> diagnostics,
-        [NotNullWhen(true)] out IReadOnlyList<AwkStatementSyntax>? statements,
-        Action? checkpoint = null) =>
-        TryProjectParseResult(ParseCore(null, tokens, checkpoint), diagnostics, out statements, checkpoint);
 
     private static AwkStatementParseResult ParseCore(
         AwkParsingSource? source,
@@ -70,25 +54,6 @@ internal sealed class AwkStatementSyntaxParser
             parser.AddStatementDiagnostics(statements, diagnostics);
             return diagnostics;
         }
-    }
-
-    private static bool TryProjectParseResult(
-        AwkStatementParseResult result,
-        List<AwkDiagnostic> diagnostics,
-        [NotNullWhen(true)] out IReadOnlyList<AwkStatementSyntax>? statements, Action? checkpoint)
-    {
-        checkpoint?.Invoke();
-        if (result is AwkStatementParseResult.Parsed parsed)
-        {
-            checkpoint?.Invoke();
-            diagnostics.AddRange(parsed.Diagnostics);
-            checkpoint?.Invoke();
-            statements = parsed.Statements;
-            return true;
-        }
-
-        statements = null;
-        return false;
     }
 
     public static IReadOnlyList<AwkStatementSyntax> ParseStatements(
