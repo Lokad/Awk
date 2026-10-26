@@ -9,6 +9,78 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkSourceLoaderTests
 {
+    [Theory]
+    [InlineData("inline")]
+    [InlineData("qualified")]
+    [InlineData("bare")]
+    [InlineData("include-qualified")]
+    [InlineData("include-bare")]
+    public async Task UnusedSearchComponentsDoNotConsumeSourceAdmission(string sourceKind)
+    {
+        const string program = "BEGIN{print length(ENVIRON[\"AWKPATH\"]);exit}";
+        var search = ":" + string.Concat(Enumerable.Repeat("x:", 1 << 18))[..^1];
+        string[] arguments = sourceKind switch
+        {
+            "inline" => [program],
+            "qualified" => ["-f", "/script.awk"],
+            "bare" => ["-f", "script.awk"],
+            "include-qualified" => ["@include \"/script.awk\""],
+            "include-bare" => ["@include \"script.awk\""],
+            _ => throw new ArgumentOutOfRangeException(nameof(sourceKind))
+        };
+        var host = new MockFileSystem();
+        host.AddFile("/script.awk", program);
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors(
+            "awk", arguments, [new("AWKPATH", search)]);
+        Assert.True(Awk.TryParse(command, out var awk));
+        var budget = new CooperativeTestBudget(4 << 20);
+
+        var exit = await awk.ExecuteAsync(host,
+            AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.Success, exit);
+        Assert.Equal("524288\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(sourceKind == "inline" ? 0 : 1, host.ReadOpenCount);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SearchCandidateAdmissionStopsBeforeHostAccess(bool cancel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var budget = new CooperativeTestBudget(32 << 20);
+        if (cancel)
+            budget.OnGrowth = growth => { if (growth >= 4 << 20) cancellation.Cancel(); };
+        else
+            budget.RefuseNextAdmissionMinimumGrowth = 4 << 20;
+        var host = new MockFileSystem();
+        var command = AwkCommandInvocation.CreateWithStandardDescriptors(
+            "awk", ["-f", "script.awk"], [new("AWKPATH", new string('x', 1 << 20))]);
+        Assert.True(Awk.TryParse(command, out var awk));
+        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget);
+
+        if (cancel)
+        {
+            var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                awk.ExecuteAsync(host, policy, cancellation.Token));
+            Assert.Equal(cancellation.Token, failure.CancellationToken);
+        }
+        else
+        {
+            Assert.Equal(AwkExitCode.FatalError, await awk.ExecuteAsync(host, policy, cancellation.Token));
+            Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
+        }
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal(cancel ? "" : "awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.ReadOpenCount);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     public static IEnumerable<object[]> SourceCoordinateCases()
     {
         foreach (var source in new[]

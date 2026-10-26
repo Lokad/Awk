@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Source search consumes `AWKPATH` components on demand, avoiding allocation and admission
+  for unused entries while preserving lookup order and qualified-path behavior.
+
 - Default numeric formatting uses the UTF-8 formatter directly, removing redundant exponent rewriting.
 
 - Path preparation honors cancellation requested during shared admission before resolving/copying

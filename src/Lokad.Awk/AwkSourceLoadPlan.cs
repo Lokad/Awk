@@ -7,7 +7,6 @@ namespace Lokad.Awk;
 internal sealed class AwkSourceLoadPlan
 {
     private readonly IReadOnlyList<AwkSourceReference> _sources;
-    private readonly IReadOnlyList<string> _awkPathEntries;
     private readonly AwkPath _currentDirectory;
     private readonly AwkPath? _accessiblePathRoot;
     private readonly bool _allowSourceIncludes;
@@ -30,8 +29,8 @@ internal sealed class AwkSourceLoadPlan
         AwkFrontendMemory? memory,
         CancellationToken cancellationToken)
     {
-        static IReadOnlyList<string> ParseAwkPathEntries(
-            IReadOnlyList<AwkEnvironmentVariable> environment, AwkFrontendMemory memory, CancellationToken cancellationToken)
+        static string FindAwkPath(
+            IReadOnlyList<AwkEnvironmentVariable> environment, CancellationToken cancellationToken)
         {
             for (var index = 0; index < environment.Count; index++)
             {
@@ -39,20 +38,15 @@ internal sealed class AwkSourceLoadPlan
                 if (!string.Equals(environment[index].Name, "AWKPATH", StringComparison.Ordinal))
                     continue;
 
-                var awkPath = environment[index].Value;
-                if (awkPath.Length == 0)
-                    return [];
-
-                memory.AdmitTextCopy(awkPath.Length);
-                return awkPath.Split(':', StringSplitOptions.None);
+                return environment[index].Value;
             }
 
-            return [];
+            return string.Empty;
         }
 
         _sources = sources;
         Memory = memory ?? AwkFrontendMemory.Disabled;
-        _awkPathEntries = exposeEnvironment ? ParseAwkPathEntries(environment, Memory, cancellationToken) : [];
+        AwkPath = exposeEnvironment ? FindAwkPath(environment, cancellationToken) : string.Empty;
         _currentDirectory = currentDirectory;
         _accessiblePathRoot = accessiblePathRoot;
 
@@ -67,7 +61,7 @@ internal sealed class AwkSourceLoadPlan
     public int SourceCount => _sources.Count;
     public AwkFrontendMemory Memory { get; }
 
-    public IReadOnlyList<string> AwkPathEntries => _awkPathEntries;
+    public string AwkPath { get; }
 
     public bool AllowSourceIncludes => _allowSourceIncludes;
     public AwkCompatibilityMode CompatibilityMode => _compatibilityMode;

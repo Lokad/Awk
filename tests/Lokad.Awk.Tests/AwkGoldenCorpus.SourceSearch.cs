@@ -22,6 +22,8 @@ internal static partial class AwkGoldenCorpus
             ("dot-last", "common.awk", "lib:.", "LIB\n", ""),
             ("empty-first", "common.awk", ":lib", "LOCAL\n", ""),
             ("empty-last", "common.awk", "lib:", "LIB\n", ""),
+            ("empty-last-used", "common.awk", "missing:", "LOCAL\n", ""),
+            ("empty-middle", "common.awk", "missing::lib", "LOCAL\n", ""),
             ("trailing-slashes", "common.awk", "lib///", "LIB\n", ""),
             ("dot-qualified", "./common.awk", "lib", "LOCAL\n", ""),
             ("slash-qualified-missing", "sub/common.awk", "lib", "", "awk: sub/common.awk: No such file or directory\n"),

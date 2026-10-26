@@ -40,6 +40,8 @@ Use lexer, syntax parser, parser, and binder tests for internal structure: token
 ## Source Loader Tests
 
 Use `AwkSourceLoaderTests` for source-unit assembly, include ordering, AWKPATH lookup, source segments, continuation normalization, and structured source-load failures. Shell-facing source-load diagnostics still need golden or end-to-end coverage.
+Public source-search cases also cover unused AWKPATH tails under shared admission and
+candidate refusal/cancellation before host access.
 
 Directive goldens and public-boundary cases cover same-line source, malformed directives and
 top-level context. Source-loader checks preserve original tail coordinates after empty includes;

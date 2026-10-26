@@ -15,22 +15,31 @@ internal static class AwkScriptFileReader
         CancellationToken cancellationToken)
     {
         var rawPath = AwkUtf8Codec.Decode(path.Display);
-        var entries = plan.AwkPathEntries;
-        if (rawPath.Contains('/') || entries.Count == 0)
+        var awkPath = plan.AwkPath;
+        if (rawPath.Contains('/') || awkPath.Length == 0)
             return await ReadCandidateAsync(path).ConfigureAwait(false);
 
-        for (var index = 0; index < entries.Count; index++)
+        for (var start = 0; ;)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var entry = entries[index];
-            var candidate = entry.Length == 0 || entry == "."
-                ? path
-                : plan.ResolvePath(entry + "/" + rawPath);
+            var end = awkPath.IndexOf(':', start);
+            var length = (end < 0 ? awkPath.Length : end) - start;
+            var candidate = path;
+            if (length != 0 && !(length == 1 && awkPath[start] == '.'))
+            {
+                var candidateLength = AwkRuntimeMemory.CheckedAdd(length,
+                    AwkRuntimeMemory.CheckedAdd(rawPath.Length, 1));
+                plan.Memory.AdmitTextCopy(candidateLength);
+                cancellationToken.ThrowIfCancellationRequested();
+                candidate = plan.ResolvePath(string.Concat(awkPath.AsSpan(start, length), "/", rawPath));
+            }
             var result = await ReadCandidateAsync(candidate).ConfigureAwait(false);
             if (result is not AwkScriptFileReadResult.Missing)
                 return result;
+            if (end < 0)
+                return AwkScriptFileReadResult.MissingFile;
+            start = end + 1;
         }
-        return AwkScriptFileReadResult.MissingFile;
 
         async Task<AwkScriptFileReadResult> ReadCandidateAsync(AwkResolvedPath candidate)
         {
