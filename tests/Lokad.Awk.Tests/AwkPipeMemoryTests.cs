@@ -125,14 +125,14 @@ public sealed class AwkPipeMemoryTests
             return Task.FromResult(AwkExitCode.Success);
         }
 
-        public async Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands,
+        public async Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command,
             CancellationToken token)
         {
-            Command = Assert.Single(commands);
-            return [await _command.Task.WaitAsync(token)];
+            Command = command;
+            return await _command.Task.WaitAsync(token);
         }
 
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token)
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token)
         {
             _command = new(TaskCreationOptions.RunContinuationsAsynchronously);
             var read = new AwkFileDescriptor(10);

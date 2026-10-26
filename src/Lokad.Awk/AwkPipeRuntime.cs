@@ -42,7 +42,7 @@ internal sealed class AwkPipeRuntime(
             if (outputFileCount() + _outputPipes.Count >= maxOutputRedirections)
                 throw new AwkRuntimeException(AwkMessages.ErrorOutputFileLimit, AwkDiagnosticId.HostIoFailure);
 
-            var descriptors = await host.CreatePipeAsync(AwkPipeMode.Pipeline).ConfigureAwait(false);
+            var descriptors = await host.CreatePipeAsync().ConfigureAwait(false);
             var memory = memoryAccounting.CreateTransientLease();
             Task<AwkExitCode>? completion = null;
             try
@@ -74,7 +74,7 @@ internal sealed class AwkPipeRuntime(
 
             ThrowIfPipeLimitReached();
 
-            var descriptors = await host.CreatePipeAsync(AwkPipeMode.Pipeline).ConfigureAwait(false);
+            var descriptors = await host.CreatePipeAsync().ConfigureAwait(false);
             var memory = memoryAccounting.CreateTransientLease();
             Task<AwkExitCode>? completion = null;
             try

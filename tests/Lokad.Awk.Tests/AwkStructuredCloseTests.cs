@@ -76,7 +76,7 @@ public sealed class AwkStructuredCloseTests
     [Fact]
     public async Task RetiredPipeFailureStillCancelsAndAwaitsTheActualCommandBeforeRefund()
     {
-        var finish = new TaskCompletionSource<IReadOnlyList<AwkExitCode>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource<AwkExitCode>(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new CloseHost { RetiredFailure = true, CommandEnd = finish.Task };
         var budget = new CooperativeTestBudget(1 << 20);
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk",
@@ -88,7 +88,7 @@ public sealed class AwkStructuredCloseTests
             Assert.False(run.IsCompleted);
             Assert.True(budget.Reserved > 0);
         }
-        finally { finish.TrySetResult([AwkExitCode.Success]); }
+        finally { finish.TrySetResult(AwkExitCode.Success); }
         Assert.Equal(AwkExitCode.FatalError, await run);
         Assert.Equal("awk: sink a:b: close failed: storage unavailable\n", host.Error.ToString());
         Assert.Equal(1, host.CloseAttempts[11]);
@@ -168,7 +168,7 @@ public sealed class AwkStructuredCloseTests
         public bool FailReads { get; init; }
         public bool RejectStderr { get; init; }
         public Func<Task>? BeforeFirstClose { get; init; }
-        public Task<IReadOnlyList<AwkExitCode>>? CommandEnd { get; init; }
+        public Task<AwkExitCode>? CommandEnd { get; init; }
         public TaskCompletionSource CommandCancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public HashSet<AwkFileDescriptor> Active { get; } = [];
         public Dictionary<int, int> CloseAttempts { get; } = [];
@@ -212,19 +212,18 @@ public sealed class AwkStructuredCloseTests
             if (descriptor == AwkFileDescriptor.StdErr) Error.Append(Encoding.UTF8.GetString(content.Span));
             return Task.FromResult(AwkExitCode.Success);
         }
-        public async Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token)
+        public async Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token)
         {
             using var registration = token.Register(() => CommandCancelled.TrySetResult());
-            try { return CommandEnd is { } end ? await end : [AwkExitCode.Success]; }
+            try { return CommandEnd is { } end ? await end : AwkExitCode.Success; }
             finally
             {
                 // The host owns a consumer command's read endpoint; input pipes retain
                 // their runtime-owned output endpoint for the runtime to close.
-                foreach (var command in commands)
-                    if (command.StdIn != AwkFileDescriptor.StdIn) Active.Remove(command.StdIn);
+                if (command.StdIn != AwkFileDescriptor.StdIn) Active.Remove(command.StdIn);
             }
         }
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token)
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token)
         {
             var read = NewDescriptor();
             _inputs[read] = "row\n"u8.ToArray();

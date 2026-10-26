@@ -12,7 +12,7 @@ public sealed class AwkParagraphEofTests
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(40), new AwkFileDescriptor(41)));
-        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueCommandExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(AwkUtf8Codec.Encode(first), [], AwkReadCompletion.MoreData));
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(AwkUtf8Codec.Encode(last), [], AwkReadCompletion.EndOfFile));
         host.EnqueueAppendExitCode(0);

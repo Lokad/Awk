@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Host API:** replace `RunCommandsAsync` with
+  `RunCommandAsync(AwkCommandInvocation, CancellationToken)` returning `Task<AwkExitCode>`.
+  `CreatePipeAsync` now takes only `CancellationToken`; `AwkPipeMode` is removed.
+  Hosts must update their implementations. Command streaming, statuses and ownership remain.
+
 - Prepared programs release temporary global-name indexing metadata after lowering.
   Public API documentation clarifies recognition versus execution-time validation.
 

@@ -54,8 +54,9 @@ buffer lifetimes.
 `IAwkHost` contains only the effects used by the runtime: command execution, append, open, close,
 read, and pipe creation. Open, read, and pipe creation report unsupported capabilities and failures
 as structured results so the runtime can apply those semantics without leaking host exceptions.
-Append and command outcomes use `AwkExitCode`; a batch command response must contain exactly one
-result per submitted command.
+Append and command outcomes use `AwkExitCode`. `RunCommandAsync` accepts one invocation;
+its task remains active until that command completes. `CreatePipeAsync` creates a streaming
+pipe and takes only the cancellation token.
 Descriptor close returns `AwkDescriptorCloseResult`: expected failures carry an
 `AwkOperationError` and explicitly state whether the descriptor was retired. Retired failures
 are reported without a duplicate close; still-owned failures can receive cleanup. This is an

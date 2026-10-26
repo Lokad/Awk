@@ -106,14 +106,14 @@ public sealed class AwkRecordCursorContextTests
             OpenDescriptors.Remove(descriptor);
             return Task.FromResult(AwkDescriptorCloseResult.Closed());
         }
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token)
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token)
         {
             var descriptors = new AwkPipeDescriptors(new(501), new(502));
             OpenDescriptors.Add(descriptors.Read);
             OpenDescriptors.Add(descriptors.Write);
             return Task.FromResult(AwkPipeCreationResult.Created(descriptors));
         }
-        public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token) =>
-            Task.FromResult<IReadOnlyList<AwkExitCode>>(commands.Select(_ => AwkExitCode.Success).ToArray());
+        public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) =>
+            Task.FromResult(AwkExitCode.Success);
     }
 }

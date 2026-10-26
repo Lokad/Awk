@@ -189,7 +189,7 @@ public sealed class AwkStreamIdentityBoundaryTests
         { Closes.Add(descriptor.Id); return Inner.CloseDescriptorAsync(descriptor, token); }
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int max, CancellationToken token)
         { Reads.Add(descriptor.Id); return PendingRead is { } pending ? pending() : Inner.ReadLinesAsync(descriptor.Id == Stdin ? AwkFileDescriptor.StdIn : descriptor, max, token); }
-        public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token) => Inner.RunCommandsAsync(commands, token);
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) => Inner.CreatePipeAsync(mode, token);
+        public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) => Inner.RunCommandAsync(command, token);
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) => Inner.CreatePipeAsync(token);
     }
 }

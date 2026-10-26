@@ -225,12 +225,6 @@ internal static class AwkMessages
             (string.IsNullOrEmpty(message) ? "Operation failed." : message) +
             "\n");
 
-    internal static ReadOnlyMemory<byte> FormatInvalidCommandResultCount(int count) =>
-        AwkUtf8Codec.Encode(
-            "awk: host returned " +
-            count +
-            " command results for one command\n");
-
     internal static ReadOnlyMemory<byte> FormatDescriptorCloseError(AwkFileDescriptor descriptor, string? detail = null) =>
         AwkUtf8Codec.Encode(
             "awk: file descriptor " +

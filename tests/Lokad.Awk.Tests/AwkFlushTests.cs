@@ -123,8 +123,8 @@ public sealed class AwkFlushTests
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) => _files.OpenFileAsync(path, mode, token);
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => _files.CloseDescriptorAsync(descriptor, token);
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => _files.ReadLinesAsync(descriptor, count, token);
-        public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token) => _files.RunCommandsAsync(commands, token);
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) => _files.CreatePipeAsync(mode, token);
+        public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) => _files.RunCommandAsync(command, token);
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) => _files.CreatePipeAsync(token);
     }
 
     private sealed class CallbackStatement(Action run, AwkStatementFlow flow) : AwkStatement
@@ -286,18 +286,18 @@ bool inputFirst)
     public async Task EmptyPipeTestHostCompletesWithoutTheCallersSynchronizationContext()
     {
         var host = new AwkEmptyPipeTestHost(new MockFileSystem());
-        var created = await host.CreatePipeAsync(AwkPipeMode.Pipeline, CancellationToken.None);
+        var created = await host.CreatePipeAsync(CancellationToken.None);
         Assert.True(created.Success);
         var descriptors = created.Descriptors;
         var command = new AwkCommandInvocation("consumer", [], [], AwkPath.Root,
             descriptors.Read, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr);
         var context = new QueuedSynchronizationContext();
         var previous = SynchronizationContext.Current;
-        Task<IReadOnlyList<AwkExitCode>> completion;
+        Task<AwkExitCode> completion;
         try
         {
             SynchronizationContext.SetSynchronizationContext(context);
-            completion = host.RunCommandsAsync([command], CancellationToken.None);
+            completion = host.RunCommandAsync(command, CancellationToken.None);
         }
         finally { SynchronizationContext.SetSynchronizationContext(previous); }
         try
@@ -307,7 +307,7 @@ bool inputFirst)
             var winner = await Task.WhenAny(completion, context.Posted.Task)
                 .WaitAsync(TimeSpan.FromSeconds(5));
             Assert.Same(completion, winner);
-            Assert.Equal(AwkExitCode.Success, Assert.Single(await completion));
+            Assert.Equal(AwkExitCode.Success, await completion);
             Assert.Equal(0, host.OpenPipeCount);
         }
         finally { context.Drain(); }

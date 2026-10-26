@@ -19,7 +19,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new(new(10), new(11)));
-        host.EnqueueCommandExitCodes([17]);
+        host.EnqueueCommandExitCode(17);
         if (input)
         {
             host.EnqueueAwkReadResult(AwkReadResult.FromContent("PIPE\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
@@ -61,7 +61,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(
             new AwkFileDescriptor(90),
             new AwkFileDescriptor(91)));
-        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueCommandExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
@@ -123,7 +123,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(
             new AwkFileDescriptor(70),
             new AwkFileDescriptor(71)));
-        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueCommandExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueAppendExitCode(0);
@@ -146,7 +146,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(
             new AwkFileDescriptor(8),
             new AwkFileDescriptor(9)));
-        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueCommandExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var command = AwkCommandInvocation.CreateWithStandardDescriptors(
@@ -184,7 +184,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var pipeWrite = new AwkFileDescriptor(11);
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(pipeRead, pipeWrite));
-        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueCommandExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
@@ -210,7 +210,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var pipeWrite = new AwkFileDescriptor(21);
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(20), pipeWrite));
-        host.EnqueueCommandExitCodes([17]);
+        host.EnqueueCommandExitCode(17);
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueAppendExitCode(0);
@@ -231,7 +231,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(30), new AwkFileDescriptor(31)));
-        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueCommandExitCode(0);
         host.EnqueueAppendExitCode(9);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueAppendExitCode(0);
@@ -254,7 +254,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var pipeWrite = new AwkFileDescriptor(41);
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(pipeRead, pipeWrite));
-        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueCommandExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(
             AwkUtf8Codec.Encode("hello\n"),
             [],
@@ -285,7 +285,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var pipeWrite = new AwkFileDescriptor(43);
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(pipeRead, pipeWrite));
-        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueCommandExitCode(0);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(
             AwkUtf8Codec.Encode("first|second|"),
             [],
@@ -309,7 +309,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
     {
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(50), new AwkFileDescriptor(51)));
-        host.EnqueueCommandExitCodes([17]);
+        host.EnqueueCommandExitCode(17);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(
             AwkUtf8Codec.Encode("payload\n"),
             [],

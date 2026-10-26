@@ -65,12 +65,12 @@ internal sealed class ReferenceBenchmarkHost(IReadOnlyList<BenchmarkFile> files,
                 : AwkDescriptorCloseResult.Failure(default, descriptorRetired: false));
     }
 
-    public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
-        IReadOnlyList<AwkCommandInvocation> commands,
+    public Task<AwkExitCode> RunCommandAsync(
+        AwkCommandInvocation command,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Benchmark host does not run external commands.");
 
-    public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken) =>
+    public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken) =>
         Task.FromResult(AwkPipeCreationResult.NotSupported(
             new AwkOperationError("Benchmark host does not create pipes.")));
 

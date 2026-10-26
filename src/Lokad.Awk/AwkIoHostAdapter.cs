@@ -78,10 +78,10 @@ internal sealed class AwkIoHostAdapter(
         ThrowIfAppendFailed(descriptor, status);
     }
 
-    public async Task<AwkPipeDescriptors> CreatePipeAsync(AwkPipeMode mode)
+    public async Task<AwkPipeDescriptors> CreatePipeAsync()
     {
         resources.RecordHostCall();
-        var result = await host.CreatePipeAsync(mode, cancellationToken).ConfigureAwait(false);
+        var result = await host.CreatePipeAsync(cancellationToken).ConfigureAwait(false);
         if (result.Success)
             return result.Descriptors;
 
@@ -126,16 +126,7 @@ internal sealed class AwkIoHostAdapter(
         resources.RecordHostCall();
         var commandToken = (_commandCancellation ??=
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)).Token;
-        return CompleteAsync(host.RunCommandsAsync([command], commandToken));
-
-        async Task<AwkExitCode> CompleteAsync(Task<IReadOnlyList<AwkExitCode>> operation)
-        {
-            var exitCodes = await AwaitHostAsync(operation).ConfigureAwait(false);
-            if (exitCodes.Count != 1)
-                throw new AwkRuntimeException(AwkMessages.FormatInvalidCommandResultCount(exitCodes.Count),
-                    AwkDiagnosticId.HostIoFailure);
-            return exitCodes[0];
-        }
+        return AwaitHostAsync(host.RunCommandAsync(command, commandToken));
     }
 
     public void CancelCommandsForCleanup()

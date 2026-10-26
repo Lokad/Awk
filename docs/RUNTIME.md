@@ -31,6 +31,10 @@ Pipes require policy and host permission. Awk passes opaque command text to the 
 invoking a shell. Hosts control command allowlists, parsing, environment and process limits.
 Unsupported effects remain explicit; see [compatibility](COMPATIBILITY.md).
 
+Hosts implement `RunCommandAsync(AwkCommandInvocation, CancellationToken)` returning
+`Task<AwkExitCode>` and `CreatePipeAsync(CancellationToken)` for streaming pipes.
+Each command has one completion status; independent commands may run concurrently.
+
 Hosts return structured outcomes and honor the [buffer lifetime contract](../README.md#embedding).
 Unexpected host exceptions become generic awk diagnostics. Policy/admission failures produce
 awk diagnostics and a nonzero status; caller cancellation propagates as cancellation after cleanup.

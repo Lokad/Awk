@@ -91,11 +91,11 @@ public sealed class AwkPrintfFieldArgumentTests
             Entered.TrySetResult(true);
             return Release.Task; // Deliberately ignore cancellation: bytes remain borrowed until actual completion.
         }
-        public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token) => _files.RunCommandsAsync(commands, token);
+        public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) => _files.RunCommandAsync(command, token);
         public Task<AwkOpenedFile> OpenFileAsync(AwkPath path, AwkFileOpenMode mode, CancellationToken token) => _files.OpenFileAsync(path, mode, token);
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) => _files.ReadLinesAsync(descriptor, count, token);
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) => _files.CloseDescriptorAsync(descriptor, token);
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) => _files.CreatePipeAsync(mode, token);
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) => _files.CreatePipeAsync(token);
     }
 
     private readonly record struct Result(int Exit, string Output, string Error, long Calls, long Fields, long Splits);

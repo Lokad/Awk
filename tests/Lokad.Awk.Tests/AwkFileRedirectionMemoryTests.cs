@@ -197,9 +197,9 @@ public sealed class AwkFileRedirectionMemoryTests
 
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>
             Task.FromResult(AwkReadResult.EndOfFile);
-        public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token) =>
-            Task.FromResult<IReadOnlyList<AwkExitCode>>([AwkExitCode.Success]);
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) =>
+        public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) =>
+            Task.FromResult(AwkExitCode.Success);
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) =>
             Task.FromResult(AwkPipeCreationResult.NotSupported(default));
     }
 }

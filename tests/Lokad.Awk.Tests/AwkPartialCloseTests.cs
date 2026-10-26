@@ -52,7 +52,7 @@ public sealed class AwkPartialCloseTests
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [source], []));
         Assert.Equal(2, (await tool.ExecuteAsync(host, CancellationToken.None)).Value);
         Assert.Equal(input ? new[] { 10, 11 } : new[] { 11 }, host.Closes);
-        Assert.Equal("awk: host returned 0 command results for one command\n", host.Error);
+        Assert.Equal("awk: execution failed without exposing host exception details\n", host.Error);
     }
 
     [Theory]
@@ -120,10 +120,12 @@ public sealed class AwkPartialCloseTests
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token) =>
             Task.FromResult(AwkReadResult.EndOfFile);
 
-        public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token) =>
-            Task.FromResult<IReadOnlyList<AwkExitCode>>(FailCommand ? [] : [AwkExitCode.Success]);
+        public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token) =>
+            FailCommand
+                ? Task.FromException<AwkExitCode>(new InvalidOperationException("Injected command failure."))
+                : Task.FromResult(AwkExitCode.Success);
 
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) =>
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) =>
             Task.FromResult(AwkPipeCreationResult.Created(new(new(_next++), new(_next++))));
     }
 }

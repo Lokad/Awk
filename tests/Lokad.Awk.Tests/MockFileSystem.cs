@@ -81,15 +81,15 @@ public sealed class MockFileSystem : IAwkHost
     public string ReadFile(string path) =>
         _files.ReadFile(path);
 
-    public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
-        IReadOnlyList<AwkCommandInvocation> commands,
+    public Task<AwkExitCode> RunCommandAsync(
+        AwkCommandInvocation command,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(command);
         cancellationToken.ThrowIfCancellationRequested();
 
-        AwkCommandInvocations.AddRange(commands);
-        return Task.FromResult<IReadOnlyList<AwkExitCode>>([AwkExitCode.Success]);
+        AwkCommandInvocations.Add(command);
+        return Task.FromResult(AwkExitCode.Success);
     }
 
     public Task<AwkExitCode> AppendAsync(
@@ -195,7 +195,7 @@ public sealed class MockFileSystem : IAwkHost
         return Task.FromResult(result.Result);
     }
 
-    public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
+    public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(AwkPipeCreationResult.NotSupported(

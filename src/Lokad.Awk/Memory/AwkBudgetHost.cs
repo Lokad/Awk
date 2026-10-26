@@ -2,16 +2,9 @@ namespace Lokad.Awk;
 
 internal sealed class AwkBudgetHost(IAwkHost host, AwkExecutionMemoryOwner owner) : IAwkHost
 {
-    public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands,
-        CancellationToken cancellationToken)
-    {
-        var forwarded = new AwkCommandInvocation[commands.Count];
-        for (var index = 0; index < commands.Count; index++)
-        {
-            forwarded[index] = commands[index].WithMemoryBudget(owner.Scope);
-        }
-        return owner.Track(host.RunCommandsAsync(forwarded, cancellationToken));
-    }
+    public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command,
+        CancellationToken cancellationToken) =>
+        owner.Track(host.RunCommandAsync(command.WithMemoryBudget(owner.Scope), cancellationToken));
 
     public Task<AwkExitCode> AppendAsync(AwkFileDescriptor descriptor, ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken) => owner.Track(host.AppendAsync(descriptor, content, cancellationToken));
@@ -25,6 +18,6 @@ internal sealed class AwkBudgetHost(IAwkHost host, AwkExecutionMemoryOwner owner
     public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int maxLineCount,
         CancellationToken cancellationToken) => owner.Track(host.ReadLinesAsync(descriptor, maxLineCount, cancellationToken));
 
-    public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode,
-        CancellationToken cancellationToken) => owner.Track(host.CreatePipeAsync(mode, cancellationToken));
+    public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken) =>
+        owner.Track(host.CreatePipeAsync(cancellationToken));
 }

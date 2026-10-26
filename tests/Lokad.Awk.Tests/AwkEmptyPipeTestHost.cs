@@ -13,30 +13,22 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
     public string InputRecord { get; init; } = "";
     public int CommandStatus { get; init; }
 
-    public async Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
-        IReadOnlyList<AwkCommandInvocation> commands, CancellationToken cancellationToken)
+    public async Task<AwkExitCode> RunCommandAsync(
+        AwkCommandInvocation command, CancellationToken cancellationToken)
     {
-        Commands.AddRange(commands);
-        var results = new List<AwkExitCode>();
-        foreach (var command in commands)
+        Commands.Add(command);
+        if (_pipes.TryGetValue(command.StdIn, out var output))
         {
-            if (_pipes.TryGetValue(command.StdIn, out var output))
-            {
-                output.ReadOpen = false;
-                results.Add(await output.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false));
-            }
-            else if (_pipes.TryGetValue(command.StdOut, out var input))
-            {
-                input.Content = AwkUtf8Codec.Encode(InputRecord);
-                input.WriteOpen = false;
-                results.Add(new AwkExitCode(CommandStatus));
-            }
-            else
-            {
-                throw new InvalidOperationException("Expected a pipe command.");
-            }
+            output.ReadOpen = false;
+            return await output.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
-        return results;
+        if (_pipes.TryGetValue(command.StdOut, out var input))
+        {
+            input.Content = AwkUtf8Codec.Encode(InputRecord);
+            input.WriteOpen = false;
+            return new AwkExitCode(CommandStatus);
+        }
+        throw new InvalidOperationException("Expected a pipe command.");
     }
 
     public Task<AwkExitCode> AppendAsync(
@@ -82,10 +74,9 @@ internal sealed class AwkEmptyPipeTestHost(MockFileSystem files) : IAwkHost
         return Task.FromResult(AwkReadResult.FromContent(content, [], AwkReadCompletion.EndOfFile));
     }
 
-    public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
+    public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        Assert.Equal(AwkPipeMode.Pipeline, mode);
         var pipe = new Pipe(new AwkFileDescriptor(_nextDescriptor++), new AwkFileDescriptor(_nextDescriptor++));
         _pipes.Add(pipe.Read, pipe);
         _pipes.Add(pipe.Write, pipe);

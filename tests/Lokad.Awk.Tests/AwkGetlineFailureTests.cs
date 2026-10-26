@@ -131,12 +131,12 @@ bool utf8)
         public string CommandError { get; init; } = string.Empty;
         public int OpenPipeCount => _pipes.OpenPipeCount;
 
-        public async Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
-            IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token)
+        public async Task<AwkExitCode> RunCommandAsync(
+            AwkCommandInvocation command, CancellationToken token)
         {
             if (CommandError.Length != 0)
                 await files.AppendAsync(AwkFileDescriptor.StdErr, AwkUtf8Codec.Encode(CommandError), token);
-            return await _pipes.RunCommandsAsync(commands, token);
+            return await _pipes.RunCommandAsync(command, token);
         }
 
         public Task<AwkReadResult> ReadLinesAsync(AwkFileDescriptor descriptor, int count, CancellationToken token)
@@ -152,7 +152,6 @@ bool utf8)
             CancellationToken token) => _pipes.OpenFileAsync(path, mode, token);
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor,
             CancellationToken token) => _pipes.CloseDescriptorAsync(descriptor, token);
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode,
-            CancellationToken token) => _pipes.CreatePipeAsync(mode, token);
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) => _pipes.CreatePipeAsync(token);
     }
 }

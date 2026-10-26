@@ -30,6 +30,8 @@ or environment dependencies.
   byte-native and cross to `string` only at documented compatibility boundaries.
 - Keep unsupported host capabilities explicit. Host failures must become awk-shaped diagnostics,
   not leaked CLR exception text.
+- Keep the host command callback singular and pipes streaming: `RunCommandAsync` returns one
+  status, and `CreatePipeAsync` accepts only a cancellation token.
 - Regex providers own engine allocation admission and engine-specific protection. Keep the
   existing budget/token contract; do not reintroduce core regex quotas or parallel engine selectors.
   Awk still owns translation, match selection, capture publication and their ordinary storage.

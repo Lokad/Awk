@@ -137,7 +137,7 @@ public sealed class AwkAdmissionRefusalTests
     public async Task RefusalWaitsForTheStartedChildBeforeRefunding()
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        var child = new TaskCompletionSource<IReadOnlyList<AwkExitCode>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var child = new TaskCompletionSource<AwkExitCode>(TaskCreationOptions.RunContinuationsAsynchronously);
         var refused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         budget.OnRefusal = () => refused.TrySetResult();
         var host = new TestOperationVisitor([]);
@@ -146,9 +146,9 @@ public sealed class AwkAdmissionRefusalTests
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueAppendExitCode(0);
-        host.RunCommandsOverride = (commands, token) =>
+        host.RunCommandOverride = (command, token) =>
         {
-            Assert.IsAssignableFrom<IMemoryScope>(Assert.Single(commands).MemoryBudget);
+            Assert.IsAssignableFrom<IMemoryScope>(command.MemoryBudget);
             budget.RefuseNextAdmissionMinimumGrowth = 1;
             return child.Task;
         };
@@ -161,7 +161,7 @@ public sealed class AwkAdmissionRefusalTests
             Assert.True(budget.Reserved > 0);
             Assert.Equal(0, budget.ScopesDisposed);
         }
-        finally { child.TrySetResult([AwkExitCode.Success]); }
+        finally { child.TrySetResult(AwkExitCode.Success); }
         Assert.Equal(2, (await execution).Value);
         Assert.Equal("before\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", host.GetAppendedOutput(AwkFileDescriptor.StdErr));

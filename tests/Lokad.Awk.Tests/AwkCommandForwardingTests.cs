@@ -20,15 +20,14 @@ public sealed class AwkCommandForwardingTests
         {
             var receiver = new CapturingHost();
             var host = new AwkBudgetHost(receiver, owner);
-            IReadOnlyList<AwkCommandInvocation> commands = [original];
-            _ = await host.RunCommandsAsync(commands, CancellationToken.None);
+            _ = await host.RunCommandAsync(original, CancellationToken.None);
 
             var before = GC.GetAllocatedBytesForCurrentThread();
-            var result = await host.RunCommandsAsync(commands, CancellationToken.None);
+            var result = await host.RunCommandAsync(original, CancellationToken.None);
             Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 1024);
 
             var forwarded = Assert.IsType<AwkCommandInvocation>(receiver.Command);
-            Assert.Equal(AwkExitCode.Success, Assert.Single(result));
+            Assert.Equal(AwkExitCode.Success, result);
             Assert.Equal(original.CommandName, forwarded.CommandName);
             Assert.Equal(original.CurrentDirectory, forwarded.CurrentDirectory);
             Assert.Equal(original.StdIn, forwarded.StdIn);
@@ -46,14 +45,14 @@ public sealed class AwkCommandForwardingTests
 
     private sealed class CapturingHost : IAwkHost
     {
-        private static readonly Task<IReadOnlyList<AwkExitCode>> Result =
-            Task.FromResult<IReadOnlyList<AwkExitCode>>([AwkExitCode.Success]);
+        private static readonly Task<AwkExitCode> Result =
+            Task.FromResult(AwkExitCode.Success);
 
         public AwkCommandInvocation? Command { get; private set; }
 
-        public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token)
+        public Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token)
         {
-            Command = commands[0];
+            Command = command;
             return Result;
         }
 
@@ -65,7 +64,7 @@ public sealed class AwkCommandForwardingTests
             throw new InvalidOperationException("Unexpected read.");
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token) =>
             throw new InvalidOperationException("Unexpected close.");
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) =>
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) =>
             throw new InvalidOperationException("Unexpected pipe creation.");
     }
 }

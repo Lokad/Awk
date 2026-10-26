@@ -225,7 +225,7 @@ public sealed class AwkCooperativeMemoryTests
         var budget = new CooperativeTestBudget(1 << 20);
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(new AwkFileDescriptor(90), new AwkFileDescriptor(91)));
-        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueCommandExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{print 42 | \"child\";exit}"));
@@ -247,9 +247,8 @@ public sealed class AwkCooperativeMemoryTests
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var parentCharge = 0L;
         var nestedPeak = 0L;
-        host.RunCommandsOverride = async (commands, token) =>
+        host.RunCommandOverride = async (command, token) =>
         {
-            var command = Assert.Single(commands);
             Assert.IsAssignableFrom<IMemoryScope>(command.MemoryBudget);
             parentCharge = budget.Reserved;
             var childHost = new MockFileSystem();
@@ -262,7 +261,7 @@ public sealed class AwkCooperativeMemoryTests
             Assert.Equal("42\n", childHost.GetOutput(AwkFileDescriptor.StdOut));
             nestedPeak = budget.Peak;
             Assert.Equal(parentCharge, budget.Reserved);
-            return [result];
+            return result;
         };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{a[1]=7;print 1 | \"child\";exit}"));
         Assert.Equal(0, (await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget),

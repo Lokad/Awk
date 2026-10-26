@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,13 +10,13 @@ namespace Lokad.Awk;
 public interface IAwkHost
 {
     /// <summary>
-    /// Runs commands and returns one exit code in the same position as each submitted command.
-    /// Pipe commands remain active until their corresponding task completes.
+    /// Runs one command and returns its exit code. A pipe command remains active until
+    /// the returned task completes.
     /// A pipe request carries opaque command text in <see cref="AwkCommandInvocation.CommandName"/>
     /// and no arguments; the host interprets and authorizes that text.
     /// </summary>
-    Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
-        IReadOnlyList<AwkCommandInvocation> commands,
+    Task<AwkExitCode> RunCommandAsync(
+        AwkCommandInvocation command,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -64,10 +63,9 @@ public interface IAwkHost
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Creates the descriptors used by an awk pipe. A pipeline connects to a running command;
-    /// an accumulator captures bytes for a later command invocation. Unsupported capabilities and
-    /// host failures must be returned as an <see cref="AwkPipeCreationResult"/>, not thrown as host
-    /// exceptions.
+    /// Creates the read and write descriptors of a streaming pipe.
+    /// Unsupported capabilities and host failures must be returned as an
+    /// <see cref="AwkPipeCreationResult"/>, not thrown as host exceptions.
     /// </summary>
-    Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken);
+    Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken);
 }

@@ -212,10 +212,10 @@ public sealed class AwkOpaquePipeTests
         var host = new TestOperationVisitor([]);
         var closed = new List<AwkFileDescriptor>();
         host.EnqueueAwkPipeDescriptors(new(new(80), new(81)));
-        host.RunCommandsOverride = async (_, token) =>
+        host.RunCommandOverride = async (_, token) =>
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, token);
-            return [];
+            return AwkExitCode.Success;
         };
         host.CloseDescriptorOverride = (descriptor, _) =>
         {

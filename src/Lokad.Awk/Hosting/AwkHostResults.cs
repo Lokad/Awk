@@ -186,16 +186,6 @@ public enum AwkPipeCreationStatus
     Unsupported
 }
 
-/// <summary>Identifies how the runtime intends to use a newly created pipe.</summary>
-public enum AwkPipeMode
-{
-    /// <summary>The pipe connects streaming input or output to a running command.</summary>
-    Pipeline,
-
-    /// <summary>The pipe accumulates command input before the command is invoked.</summary>
-    Accumulator
-}
-
 /// <summary>Identifies the access requested when opening a host file.</summary>
 public enum AwkFileOpenMode
 {

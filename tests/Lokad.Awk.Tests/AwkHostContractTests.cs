@@ -33,28 +33,40 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(2)]
-    public async Task Awk_HostMustReturnOneResultPerPipeCommand(int resultCount)
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task CommandThrowBeforeHandoffRetainsBothEndpointsForCleanup(bool input, bool governed)
     {
         var host = new TestOperationVisitor([]);
-        host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(
-            new AwkFileDescriptor(10),
-            new AwkFileDescriptor(11)));
-        host.EnqueueCommandExitCodes(resultCount == 0 ? [] : [0, 1]);
+        var read = new AwkFileDescriptor(80);
+        var write = new AwkFileDescriptor(81);
+        host.EnqueueAwkPipeDescriptors(new(read, write));
+        host.RunCommandOverride = static (_, _) => throw new InvalidOperationException("Private host detail.");
+        var closed = new List<AwkFileDescriptor>();
+        host.CloseDescriptorOverride = (descriptor, token) =>
+        {
+            Assert.False(token.CanBeCanceled);
+            closed.Add(descriptor);
+            return Task.FromResult(AwkDescriptorCloseResult.Closed());
+        };
         host.EnqueueAppendExitCode(0);
-        host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
-        host.EnqueueAppendExitCode(0);
-        var tool = AwkTestHarness.ParseAwk(BuildInvocation(
-            "awk",
-            "BEGIN{print \"payload\" | \"consumer\"; exit}"));
+        var script = input ? "BEGIN{\"worker\"|getline x;print \"after\"}" :
+            "BEGIN{print \"payload\"|\"worker\";print \"after\"}";
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", script));
+        var budget = new CooperativeTestBudget(1 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
-
-        Assert.Equal(AwkExitCode.FatalError, exitCode);
-        Assert.Equal(
-            "awk: host returned " + resultCount + " command results for one command\n",
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal("", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: execution failed without exposing host exception details\n",
             host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(new[] { read, write }, closed);
+        var command = Assert.Single(host.CommandInvocations);
+        Assert.Equal("worker", command.CommandName);
+        Assert.Equal(input ? write : AwkFileDescriptor.StdOut, command.StdOut);
+        Assert.Equal(input ? AwkFileDescriptor.StdIn : read, command.StdIn);
+        Assert.Equal(0, budget.Reserved);
     }
 
     [Theory]
@@ -86,7 +98,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         host.EnqueueAwkPipeDescriptors(new AwkPipeDescriptors(
             new AwkFileDescriptor(20),
             new AwkFileDescriptor(21)));
-        host.EnqueueCommandExitCodes([0]);
+        host.EnqueueCommandExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Failure(default, descriptorRetired: false));
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());

@@ -45,7 +45,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
 
     private sealed class BoundedPipeHost(int capacityBytes) : IAwkHost
     {
-        private readonly TaskCompletionSource<IReadOnlyList<AwkExitCode>> _commandCompletion = new();
+        private readonly TaskCompletionSource<AwkExitCode> _commandCompletion = new();
         private int _bufferedBytes;
 
         public AwkFileDescriptor PipeReadDescriptor { get; } = new(100);
@@ -60,12 +60,12 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
 
         public int MaxBufferedBytes { get; private set; }
 
-        public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
-            IReadOnlyList<AwkCommandInvocation> commands,
+        public Task<AwkExitCode> RunCommandAsync(
+            AwkCommandInvocation command,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Commands.AddRange(commands);
+            Commands.Add(command);
             return _commandCompletion.Task;
         }
 
@@ -88,10 +88,9 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             return Task.FromResult(AwkExitCode.Success);
         }
 
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Assert.Equal(AwkPipeMode.Pipeline, mode);
             return Task.FromResult(AwkPipeCreationResult.Created(
                 new AwkPipeDescriptors(PipeReadDescriptor, PipeWriteDescriptor)));
         }
@@ -104,7 +103,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             if (descriptor == PipeWriteDescriptor)
             {
                 WriteDescriptorClosed = true;
-                _commandCompletion.TrySetResult([AwkExitCode.Success]);
+                _commandCompletion.TrySetResult(AwkExitCode.Success);
             }
 
             return Task.FromResult(AwkDescriptorCloseResult.Closed());

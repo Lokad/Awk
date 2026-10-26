@@ -27,6 +27,8 @@ The mock filesystem publishes successful file creation/truncation at open; appen
 data stays buffered until descriptor close. Close-mode goldens cover files;
 `AwkIoCloseDirectionTests` runs file/pipe contracts through public execution with
 shared admission and cleanup checks. `MockFileSystemTests` checks open-time effects.
+Hosts return one command status. `AwkHostContractTests` checks synchronous failure before
+handoff; partial/structured-close tests retain pending-failure, ownership and no-replay coverage.
 
 Use host-facing tests when the risk includes command quoting, pipelines, command substitution, descriptor wiring, working-directory behavior, source-file paths, or integration with other host tools. Do not duplicate plain language behavior here unless a host boundary is the point of the test.
 

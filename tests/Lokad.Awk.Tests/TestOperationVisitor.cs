@@ -14,7 +14,7 @@ public sealed class TestOperationVisitor : IAwkHost
 
         foreach (var exitCode in exitCodes)
         {
-            _operations.Enqueue(new TestHostOperation.RunCommands([new AwkExitCode(exitCode)]));
+            _operations.Enqueue(new TestHostOperation.RunCommand(new AwkExitCode(exitCode)));
         }
     }
 
@@ -30,8 +30,8 @@ public sealed class TestOperationVisitor : IAwkHost
 
     public Action? AfterCreatePipe { get; set; }
 
-    public Func<IReadOnlyList<AwkCommandInvocation>, CancellationToken, Task<IReadOnlyList<AwkExitCode>>>?
-        RunCommandsOverride { get; set; }
+    public Func<AwkCommandInvocation, CancellationToken, Task<AwkExitCode>>?
+        RunCommandOverride { get; set; }
 
     public Func<AwkFileDescriptor, CancellationToken, Task<AwkDescriptorCloseResult>>?
         CloseDescriptorOverride { get; set; }
@@ -48,7 +48,7 @@ public sealed class TestOperationVisitor : IAwkHost
         return builder.ToString();
     }
 
-    public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken cancellationToken)
+    public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var operation = Dequeue<TestHostOperation.CreatePipe>("pipe descriptors");
@@ -56,25 +56,21 @@ public sealed class TestOperationVisitor : IAwkHost
         return Task.FromResult(operation.Result);
     }
 
-    public Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(
-        IReadOnlyList<AwkCommandInvocation> commands,
+    public Task<AwkExitCode> RunCommandAsync(
+        AwkCommandInvocation command,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(command);
+        CommandInvocations.Add(command);
+        CommandNames.Add(command.CommandName);
 
-        foreach (var command in commands)
-        {
-            CommandInvocations.Add(command);
-            CommandNames.Add(command.CommandName);
-        }
+        if (RunCommandOverride is { } runCommandOverride)
+            return runCommandOverride(command, cancellationToken);
 
-        if (RunCommandsOverride is { } runCommandsOverride)
-            return runCommandsOverride(commands, cancellationToken);
-
-        var operation = Dequeue<TestHostOperation.RunCommands>("command exit codes");
-        return Task.FromResult(operation.ExitCodes);
+        var operation = Dequeue<TestHostOperation.RunCommand>("command exit code");
+        return Task.FromResult(operation.ExitCode);
     }
 
     public Task<AwkExitCode> AppendAsync(
@@ -133,16 +129,8 @@ public sealed class TestOperationVisitor : IAwkHost
         return Task.FromResult(operation.Result);
     }
 
-    public void EnqueueCommandExitCodes(int[] exitCodes)
-    {
-        ArgumentNullException.ThrowIfNull(exitCodes);
-
-        var typedExitCodes = new AwkExitCode[exitCodes.Length];
-        for (var index = 0; index < exitCodes.Length; index++)
-            typedExitCodes[index] = new AwkExitCode(exitCodes[index]);
-
-        _operations.Enqueue(new TestHostOperation.RunCommands(typedExitCodes));
-    }
+    public void EnqueueCommandExitCode(int exitCode) =>
+        _operations.Enqueue(new TestHostOperation.RunCommand(new AwkExitCode(exitCode)));
 
     public void EnqueueAwkPipeDescriptors(AwkPipeDescriptors descriptors)
     {
@@ -192,7 +180,7 @@ public sealed class TestOperationVisitor : IAwkHost
 
     private abstract record TestHostOperation
     {
-        public sealed record RunCommands(IReadOnlyList<AwkExitCode> ExitCodes) : TestHostOperation;
+        public sealed record RunCommand(AwkExitCode ExitCode) : TestHostOperation;
 
         public sealed record CreatePipe(AwkPipeCreationResult Result) : TestHostOperation;
 

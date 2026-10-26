@@ -59,15 +59,15 @@ public sealed class AwkPipeFailureCancellationTests
         public CancellationToken CommandToken { get; private set; }
         public bool ObservedUncanceledCommandDuringCleanup { get; private set; }
 
-        public async Task<IReadOnlyList<AwkExitCode>> RunCommandsAsync(IReadOnlyList<AwkCommandInvocation> commands, CancellationToken token)
+        public async Task<AwkExitCode> RunCommandAsync(AwkCommandInvocation command, CancellationToken token)
         {
             CommandToken = token;
             try { await Task.Delay(Timeout.InfiniteTimeSpan, token); }
             finally { await Release.Task; }
-            return [AwkExitCode.Success];
+            return AwkExitCode.Success;
         }
 
-        public Task<AwkPipeCreationResult> CreatePipeAsync(AwkPipeMode mode, CancellationToken token) =>
+        public Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken token) =>
             Task.FromResult(AwkPipeCreationResult.Created(new(new(80), new(81))));
 
         public Task<AwkDescriptorCloseResult> CloseDescriptorAsync(AwkFileDescriptor descriptor, CancellationToken token)
