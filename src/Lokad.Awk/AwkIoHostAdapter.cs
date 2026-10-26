@@ -40,6 +40,7 @@ internal sealed class AwkIoHostAdapter(
 
     public AwkResolvedPath ResolvePath(string path)
     {
+        resources.Checkpoint();
         var resolved = AwkPathResolution.ResolveRuntimeArgument(path, currentDirectory);
         AwkHostPathPolicy.ThrowIfDenied(resolved.Absolute, accessiblePathRoot);
         return resolved;

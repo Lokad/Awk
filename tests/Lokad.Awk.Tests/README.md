@@ -28,7 +28,8 @@ data stays buffered until descriptor close. Close-mode goldens cover files;
 `AwkIoCloseDirectionTests` runs file/pipe contracts through public execution with
 shared admission and cleanup checks. `MockFileSystemTests` checks open-time effects.
 Hosts return one command status. `AwkHostContractTests` checks synchronous failure before
-handoff; partial/structured-close tests retain pending-failure, ownership and no-replay coverage.
+handoff and host endpoint retirement after a returned faulted/canceled task;
+partial/structured-close tests retain pending-failure, ownership and no-replay coverage.
 
 Use host-facing tests when the risk includes command quoting, pipelines, command substitution, descriptor wiring, working-directory behavior, source-file paths, or integration with other host tools. Do not duplicate plain language behavior here unless a host boundary is the point of the test.
 
@@ -56,6 +57,9 @@ Current-surface tests are for internals that are hard to observe through a golde
 without retry or fallback, and reuse by later commands after actual cleanup. Lower-level
 memory tests inspect unchanged reservations and refunds after false; that primitive contract
 does not authorize a running command to recover from refusal.
+
+`AwkPathCancellationTests` bounds allocation after path admission requests cancellation,
+covering redirected reads/writes and main input before resolution or host opens.
 
 `AwkFunctionStorageTests` covers pre-admission of large argument/frame buffers, funded
 frame/alias caches, setup cancellation and final refunds. `AwkPartialCloseTests` covers

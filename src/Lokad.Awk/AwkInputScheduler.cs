@@ -125,6 +125,7 @@ internal sealed class AwkInputScheduler(
 
                 var rawPath = originalFile?.RawPath ?? ResolveArgumentString(argumentText);
                 using var resolution = io.AdmitPathResolution(rawPath);
+                state.Checkpoint();
                 var path = AwkPathResolution.ResolveRuntimeArgument(rawPath,
                     invocation.RuntimeArgumentsPlan.CurrentDirectory, originalFile?.Display ?? default);
                 AwkHostPathPolicy.ThrowIfDenied(path.Absolute, accessiblePathRoot);

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Path preparation honors cancellation requested during shared admission before resolving/copying
+  the path. Host documentation specifies pipe endpoint retirement and command-handoff failures.
+
 - **Host API:** replace `RunCommandsAsync` with
   `RunCommandAsync(AwkCommandInvocation, CancellationToken)` returning `Task<AwkExitCode>`.
   `CreatePipeAsync` now takes only `CancellationToken`; `AwkPipeMode` is removed.

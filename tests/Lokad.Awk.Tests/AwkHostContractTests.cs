@@ -70,6 +70,63 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
     }
 
     [Theory]
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    public async Task ReturnedCommandFailurePreservesEndpointOwnership(bool input, bool governed, bool canceled)
+    {
+        var host = new TestOperationVisitor([]);
+        var read = new AwkFileDescriptor(80);
+        var write = new AwkFileDescriptor(81);
+        var owned = new HashSet<AwkFileDescriptor> { read, write };
+        host.EnqueueAwkPipeDescriptors(new(read, write));
+        host.RunCommandOverride = async (command, _) =>
+        {
+            Assert.Equal(input ? write : AwkFileDescriptor.StdOut, command.StdOut);
+            Assert.Equal(input ? AwkFileDescriptor.StdIn : read, command.StdIn);
+            try
+            {
+                // An async launch failure returns a task and accepts the handoff.
+                return await (canceled
+                    ? Task.FromCanceled<AwkExitCode>(new CancellationToken(true))
+                    : Task.FromException<AwkExitCode>(new InvalidOperationException("Private launch detail.")))
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                if (!input) Assert.True(owned.Remove(read));
+            }
+        };
+        var closed = new List<AwkFileDescriptor>();
+        host.CloseDescriptorOverride = (descriptor, _) =>
+        {
+            Assert.True(owned.Remove(descriptor));
+            closed.Add(descriptor);
+            return Task.FromResult(AwkDescriptorCloseResult.Closed());
+        };
+        if (input) host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
+        else host.EnqueueAppendExitCode(0);
+        host.EnqueueAppendExitCode(0);
+        var script = input ? "BEGIN{\"worker\"|getline x;close(\"worker\");print \"after\"}" :
+            "BEGIN{print \"payload\"|\"worker\";close(\"worker\");print \"after\"}";
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", script));
+        var budget = new CooperativeTestBudget(1 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal("", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: execution failed without exposing host exception details\n",
+            host.GetAppendedOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(input ? new[] { read, write } : new[] { write }, closed);
+        Assert.Empty(owned);
+        Assert.Single(host.CommandInvocations);
+        Assert.Equal(0, budget.Reserved);
+        Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
+    }
+
+    [Theory]
     [InlineData(false, "awk: pipe creation failed: Pipe allocation failed.\n")]
     [InlineData(true, "awk: pipe creation is unsupported: Pipes are disabled.\n")]
     public async Task Awk_PipeCreationFailureIsAnAwkDiagnostic(bool unsupported, string expectedError)

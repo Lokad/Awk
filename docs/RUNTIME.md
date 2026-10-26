@@ -35,6 +35,14 @@ Hosts implement `RunCommandAsync(AwkCommandInvocation, CancellationToken)` retur
 `Task<AwkExitCode>` and `CreatePipeAsync(CancellationToken)` for streaming pipes.
 Each command has one completion status; independent commands may run concurrently.
 
+Awk initially owns both created pipe descriptors. Returning a command task accepts the handoff,
+including an already faulted/canceled task; a synchronous launch throw leaves both ends for Awk
+to close. For output pipes, the host retires the consumer reader (`command.StdIn`) before task
+completion; Awk closes the writer to signal EOF. For input pipes, Awk closes both created ends;
+the producer writer (`command.StdOut`) stays addressable until that close, even after EOF.
+Setup failure may request best-effort close of either end. Command tasks await actual users on
+success, nonzero exit, failure and cancellation. Supplied standard descriptors remain borrowed.
+
 Hosts return structured outcomes and honor the [buffer lifetime contract](../README.md#embedding).
 Unexpected host exceptions become generic awk diagnostics. Policy/admission failures produce
 awk diagnostics and a nonzero status; caller cancellation propagates as cancellation after cleanup.

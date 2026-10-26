@@ -15,6 +15,17 @@ public interface IAwkHost
     /// A pipe request carries opaque command text in <see cref="AwkCommandInvocation.CommandName"/>
     /// and no arguments; the host interprets and authorizes that text.
     /// </summary>
+    /// <remarks>
+    /// Returning a task accepts the handoff, even when that task is already faulted or canceled.
+    /// A synchronous throw leaves both created pipe descriptors for Awk to close.
+    /// For output pipes, <see cref="AwkCommandInvocation.StdIn"/> is the consumer reader:
+    /// the host retires it before the command task completes; Awk closes the writer to signal EOF.
+    /// For input pipes, <see cref="AwkCommandInvocation.StdOut"/> is the producer writer:
+    /// Awk closes both created descriptors, which must remain addressable until those closes.
+    /// Supplied standard descriptors remain borrowed. Setup failure may also request best-effort
+    /// close of either created endpoint. The task must await all command users, including on failure
+    /// or cancellation; an async launch exception is a faulted task, not a synchronous throw.
+    /// </remarks>
     Task<AwkExitCode> RunCommandAsync(
         AwkCommandInvocation command,
         CancellationToken cancellationToken);
@@ -66,6 +77,7 @@ public interface IAwkHost
     /// Creates the read and write descriptors of a streaming pipe.
     /// Unsupported capabilities and host failures must be returned as an
     /// <see cref="AwkPipeCreationResult"/>, not thrown as host exceptions.
+    /// Awk initially owns both descriptors; command handoff follows <see cref="RunCommandAsync"/>.
     /// </summary>
     Task<AwkPipeCreationResult> CreatePipeAsync(CancellationToken cancellationToken);
 }
