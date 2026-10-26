@@ -124,6 +124,7 @@ controls. For example, use the same filter for timing and managed allocation run
 
 ```text
 dotnet build benchmarks/Lokad.Awk.Benchmarks/Lokad.Awk.Benchmarks.csproj -c Release -p:RestoreLockedMode=true
+dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --driver-smoke --awk PATH_TO_GAWK
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --compare --awk PATH_TO_GAWK --mode verify
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --check-machine
 dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.dll --reference-benchmarks --awk PATH_TO_GAWK --filter '*ReferenceAwkBenchmarks*medium*field-rewrite*' '*ReferenceAwkBenchmarks*medium*projection*' --warmupCount 4 --iterationCount 5 --iterationTime 500 --launchCount 1 --exporters json
@@ -131,6 +132,9 @@ dotnet benchmarks/Lokad.Awk.Benchmarks/bin/Release/net10.0/Lokad.Awk.Benchmarks.
 ```
 
 The [Linux wrapper](../benchmarks/run-reference-linux.sh) pins the toolchain/reference.
+`--driver-smoke` checks successful/nonzero early exits with unread stdin, complete input,
+concurrent output drains, output bounds, cancellation, deadlines and child reaping.
+An early reference exit preserves its status and output even when stdin was not consumed.
 Invocation and allocation benchmarks share `ReferenceWorkloads` and one in-memory host.
 Compare/smoke filters select family/scale identifiers before constructing input fixtures.
 Their comparison counters omit memory peaks because those runs do not enable admission.

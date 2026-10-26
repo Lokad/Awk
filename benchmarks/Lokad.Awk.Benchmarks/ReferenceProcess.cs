@@ -83,9 +83,9 @@ internal static class ReferenceProcess
             try { await process.StandardInput.BaseStream.WriteAsync(input, linked.Token).ConfigureAwait(false); }
             catch (IOException)
             {
+                // Early exit can close stdin before it is consumed, even on success.
+                // Keep its actual status; independent output-drain failures still fail.
                 await exit.ConfigureAwait(false);
-                if (process.ExitCode == 0)
-                    throw;
             }
             finally
             {
@@ -93,8 +93,6 @@ internal static class ReferenceProcess
                 catch (IOException)
                 {
                     await exit.ConfigureAwait(false);
-                    if (process.ExitCode == 0)
-                        throw;
                 }
             }
         }

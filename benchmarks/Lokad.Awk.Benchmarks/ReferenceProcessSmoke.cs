@@ -13,10 +13,23 @@ internal static class ReferenceProcessSmoke
             result.ErrorDigest.Bytes == 32 << 10, "Concurrent stdout/stderr drain lost bytes.");
         Console.WriteLine("Concurrent output drains: passed.");
 
-        result = await InvokeAsync("BEGIN{print \"failure\" > \"/dev/stderr\";exit 7}", new byte[4 << 20]).ConfigureAwait(false);
-        Require(result.ExitCode == 7 && result.OutputDigest.Bytes == 0 &&
-            result.Error.AsSpan().SequenceEqual("failure\n"u8), "Early nonzero exit was not preserved.");
-        Console.WriteLine("Early exit and blocked stdin: passed.");
+        var earlyInput = new byte[4 << 20];
+        Array.Fill(earlyInput, (byte)'\n');
+        foreach (var phase in new[] { "BEGIN", "" })
+        foreach (var exitCode in new[] { 0, 7 })
+        {
+            var exitStatement = phase == "BEGIN" && exitCode == 0 ? "" : "exit " + exitCode;
+            result = await InvokeAsync(phase + "{print \"done\";print \"note\" > \"/dev/stderr\";" +
+                exitStatement + "}", earlyInput).ConfigureAwait(false);
+            Require(result.ExitCode == exitCode && result.Output.AsSpan().SequenceEqual("done\n"u8) &&
+                result.Error.AsSpan().SequenceEqual("note\n"u8), "Early exit lost its status or output.");
+        }
+        Console.WriteLine("Successful/nonzero BEGIN and first-record exits with unread stdin: passed.");
+
+        result = await InvokeAsync("{print}", "a\nb\n"u8.ToArray()).ConfigureAwait(false);
+        Require(result.ExitCode == 0 && result.Output.AsSpan().SequenceEqual("a\nb\n"u8) &&
+            result.ErrorDigest.Bytes == 0, "Fully consumed stdin was not preserved.");
+        Console.WriteLine("Fully consumed stdin: passed.");
 
         await RejectOutputAsync("BEGIN{for(i=0;i<8193;i++)printf \"%8192s\",\"x\"}").ConfigureAwait(false);
         await RejectOutputAsync("BEGIN{for(i=0;i<9;i++)printf \"%8192s\",\"e\" > \"/dev/stderr\"}").ConfigureAwait(false);
