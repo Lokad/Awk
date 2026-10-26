@@ -106,6 +106,30 @@ public sealed class AwkHostRegexTests
     }
 
     [Theory]
+    [InlineData(Behavior.NoGroups, false)]
+    [InlineData(Behavior.NoGroups, true)]
+    [InlineData(Behavior.NegativeGroupCount, false)]
+    [InlineData(Behavior.NegativeGroupCount, true)]
+    public async Task InvalidGroupCountFailsBeforeLaterEffectsAndDisposesTheHandle(Behavior behavior, bool governed)
+    {
+        var engine = new RecordingEngine(behavior);
+        var host = new MockFileSystem();
+        var budget = new CooperativeTestBudget(8 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(engine);
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var exit = await Tool("BEGIN{print \"before\";r=\"a\";print (\"a\"~r);print \"after\"} END{print \"end\"}")
+            .ExecuteAsync(host, policy, CancellationToken.None);
+
+        Assert.Equal(AwkExitCode.FatalError, exit);
+        Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("awk: invalid regular expression\n", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.True(Assert.Single(engine.Patterns).Disposed);
+        Assert.False(engine.Disposed);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
     [InlineData(Behavior.BadByteRange)]
     [InlineData(Behavior.BadUtf16Range)]
     [InlineData(Behavior.SplitScalar)]
@@ -228,7 +252,8 @@ public sealed class AwkHostRegexTests
 
     public enum Behavior
     {
-        Normal, Unsupported, RefuseCompile, RefuseMatch, BadByteRange, BadUtf16Range, SplitScalar
+        Normal, Unsupported, RefuseCompile, RefuseMatch, BadByteRange, BadUtf16Range, SplitScalar,
+        NoGroups, NegativeGroupCount
     }
 
     private sealed class RecordingEngine(Behavior behavior = Behavior.Normal) : IAwkRegexEngine, IDisposable
@@ -269,8 +294,12 @@ public sealed class AwkHostRegexTests
     private sealed class Pattern(IAwkCompiledRegex inner, Behavior behavior, Action<CancellationToken>? beforeMatch) : IAwkCompiledRegex
     {
         public bool Disposed { get; private set; }
-        public int GroupCount => inner.GroupCount;
-        public IReadOnlyList<string> GroupNames => inner.GroupNames;
+        public int GroupCount => behavior switch
+        {
+            Behavior.NoGroups => 0,
+            Behavior.NegativeGroupCount => -1,
+            _ => inner.GroupCount
+        };
 
         private void Before(CancellationToken token)
         {

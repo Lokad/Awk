@@ -181,7 +181,9 @@ The [engine contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs) defines these o
   a borrowed active memory budget and the current token. Support concurrent compilation;
   return false only for unsupported syntax. Refused admission throws
   `AwkRegexAdmissionException`; refusal and cancellation must never request fallback.
-- Compiled handles consume valid UTF-8 spans synchronously. Search from the supplied UTF-16
+- Compiled handles report a fixed `GroupCount` of at least one, including group0;
+  the provider contract does not require group names. Consume valid UTF-8 spans synchronously.
+  Search from the supplied UTF-16
   offset with full-input assertion context. Fill every supplied capture slot, including
   unmatched groups, with absolute byte/UTF-16 coordinates. Awk validates ranges.
 - `TryCompile`, `IsMatch` and `Match` receive the current operation's `CancellationToken`.

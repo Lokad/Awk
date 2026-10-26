@@ -28,11 +28,8 @@ public interface IAwkRegexEngine
 /// Disposal must be idempotent and non-throwing. Awk never disposes the supplied engine.</remarks>
 public interface IAwkCompiledRegex : IDisposable
 {
-    /// <summary>Gets the whole-match group plus all numbered capture groups.</summary>
+    /// <summary>Gets the fixed number of groups, including group0; always at least one.</summary>
     int GroupCount { get; }
-
-    /// <summary>Gets immutable group names in numbered-group order, including group0.</summary>
-    IReadOnlyList<string> GroupNames { get; }
 
     /// <summary>Tests the input without materializing capture values.</summary>
     bool IsMatch(ReadOnlySpan<byte> input, CancellationToken cancellationToken);

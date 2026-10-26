@@ -51,12 +51,10 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
             _regex = regex;
             _budget = budget;
             _storage = storage;
-            GroupNames = regex.GetGroupNames();
+            GroupCount = regex.GetGroupNames().Length;
         }
 
-        public int GroupCount => GroupNames.Count;
-
-        public IReadOnlyList<string> GroupNames { get; }
+        public int GroupCount { get; }
 
         private ProducerRegex Regex => _regex ?? throw new ObjectDisposedException(nameof(CompiledPattern));
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Regex provider API:** removed `IAwkCompiledRegex.GroupNames`. Providers report
+  `GroupCount`, including group0; callers using the removed property must update.
+
 - Programs without main, `END` or file-hook rules finish after `BEGIN` without automatically
   reading stdin or opening input operands. Explicit `getline`, source loading and cleanup remain.
 

@@ -18,6 +18,8 @@ dispose the artifact after its users finish. Warning views borrow that lifetime.
 Control-header regex goldens cover statement-start context and division controls. Lexer checks
 pin token spans. Provider ownership tests cover literal/dynamic admission; host-engine tests
 cover selected handles across literal forms and separate caches for prepared-program reuse.
+Host-engine checks reject nonpositive group counts before later script effects and dispose
+the acquired handle; adapter checks include whole-match, named and sparse-numbered counts.
 
 Failing golden cases must assert the awk exit code, exact stderr, expected stdout preservation, and no CLR exception leakage through `AwkTestHarness.AssertFriendlyAwkFailure`.
 

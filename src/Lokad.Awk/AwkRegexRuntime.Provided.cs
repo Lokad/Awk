@@ -20,7 +20,7 @@ internal sealed partial class AwkRegexRuntime
                 _regexMemoryBudget, _cancellationToken, out compiled);
             if (supported)
             {
-                if (compiled is null || compiled.GroupCount < 1 || compiled.GroupNames.Count != compiled.GroupCount)
+                if (compiled is null || compiled.GroupCount < 1)
                     throw new AwkRuntimeException(AwkMessages.ErrorInvalidRegex, AwkDiagnosticId.RuntimeInvalidRegex);
             }
             else if (compiled is not null)

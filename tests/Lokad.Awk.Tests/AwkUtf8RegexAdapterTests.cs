@@ -2,6 +2,17 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkUtf8RegexAdapterTests
 {
+    [Theory]
+    [InlineData("a", 1)]
+    [InlineData("(a)(b)?", 3)]
+    [InlineData("(?<word>a)(b)", 3)]
+    [InlineData("(?<42>a)", 2)]
+    public void GroupCountIncludesWholeMatchAndCountsDefinedGroups(string source, int expected)
+    {
+        using var pattern = Compile(source);
+        Assert.Equal(expected, pattern.GroupCount);
+    }
+
     [Fact]
     public void AdapterReturnsByteAndUtf16CaptureRangesWithoutTextCopies()
     {
