@@ -31,8 +31,6 @@ internal static class ReferenceReport
         "Warm embedded Lokad.Awk public full invocation versus GNU awk CLI. Both include compilation, execution, " +
         "complete output consumption and SHA-256. GNU includes launch and pipes; multi-file cases use native fixture " +
         "files versus in-memory host files. Fixture generation and preflight are excluded. No startup subtraction or overall speedup.";
-    public const string BeginMarker = "<!-- BEGIN GENERATED AWK COMPARISON -->";
-    public const string EndMarker = "<!-- END GENERATED AWK COMPARISON -->";
     public static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public static ReferenceWorkloadInfo Describe(ReferenceWorkload workload) =>
@@ -151,7 +149,7 @@ internal static class ReferenceReport
             report.Host.LibraryBuild.Contains(report.Host.Commit, StringComparison.Ordinal),
             report.Reference is not null, report.RequestedCases, report.Cases.Length,
             report.Cases.All(row => row.Verification.Status == "Equivalent"));
-        var text = new StringBuilder().AppendLine(BeginMarker).AppendLine("## Recorded GNU awk comparison").AppendLine();
+        var text = new StringBuilder().AppendLine("## Recorded GNU awk comparison").AppendLine();
         text.AppendLine("Recorded UTC: " + report.UpdatedUtc.UtcDateTime.ToString("u",
             System.Globalization.CultureInfo.InvariantCulture) + "; mode " + Escape(report.Mode) + ".");
         text.AppendLine("Revision: " + Escape(report.Host.Commit) + "; SDK " + Escape(report.Host.Sdk) +
@@ -169,20 +167,21 @@ internal static class ReferenceReport
         text.AppendLine(Contract).AppendLine();
         if (!claims)
             text.AppendLine("No qualified performance claim: verification-only, paused, incomplete, or missing clean/quiet qualification.").AppendLine();
-        text.AppendLine("| Case / scale | Records | Input bytes | Status | Lokad ms | GNU ms | GNU / Lokad, 95% CI | Interpretation |");
+        text.AppendLine("Elapsed-time ratios use Lokad.Awk/awk; values above 1 mean Lokad.Awk is slower.").AppendLine();
+        text.AppendLine("| Case / scale | Records | Input bytes | Status | Lokad ms | GNU ms | Lokad.Awk/awk, 95% CI | Interpretation |");
         text.AppendLine("| --- | ---: | ---: | --- | ---: | ---: | --- | --- |");
         foreach (var row in report.Cases)
         {
             var timing = row.Timing.Summary;
             var qualified = claims && row.Verification.Status == "Equivalent" && timing.Status == "Qualified";
             var numbers = qualified
-                ? FormattableString.Invariant($"{timing.LibraryMedianMs:F3} | {timing.ReferenceMedianMs:F3} | {timing.Ratio:F3} [{timing.RatioLow:F3}, {timing.RatioHigh:F3}]")
+                ? FormattableString.Invariant($"{timing.LibraryMedianMs:F3} | {timing.ReferenceMedianMs:F3} | {1 / timing.Ratio:F3} [{1 / timing.RatioHigh:F3}, {1 / timing.RatioLow:F3}]")
                 : "— | — | —";
             text.AppendLine($"| {Escape(row.Workload.Name)}/{Escape(row.Workload.Scale)} | {row.Workload.Records} | {row.Workload.InputBytes} | " +
                 $"{Escape(row.Verification.Status == "Equivalent" ? timing.Status : row.Verification.Status)} | {numbers} | " +
                 $"{Escape(qualified ? timing.Interpretation : row.Verification.Reason.Length > 0 ? row.Verification.Reason : timing.Reason)} |");
         }
-        return text.AppendLine().AppendLine(EndMarker).ToString();
+        return text.ToString();
 
         static string Escape(string value) => System.Net.WebUtility.HtmlEncode(value)
             .Replace("|", "\\|", StringComparison.Ordinal).Replace('\r', ' ').Replace('\n', ' ');

@@ -143,6 +143,8 @@ dedicated calibration cases. Its memory peak covers Awk-owned storage; the host 
 also observes provider-owned admission.
 Benchmark execution failures return nonzero; CLI help, list and environment-info commands
 may succeed without running measurements.
+Optional `--render-report PATH_TO_JSON` writes standalone Markdown beside a comparison
+artifact using Lokad.Awk/awk. Raw JSON retains its GNU/Lokad statistic for existing tooling.
 Existing `--governed-profile` cases cover calls, projection and aggregation with a 512 MiB
 thread-safe test budget, including default-mode call/aggregation controls. Medium arithmetic
 cases compare GNU/default, POSIX and governed POSIX execution. Keep transfers/builds outside measurement
