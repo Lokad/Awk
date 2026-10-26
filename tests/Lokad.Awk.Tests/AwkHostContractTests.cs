@@ -6,6 +6,63 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
 {
+    [Theory]
+    [InlineData("", false)] [InlineData("", true)]
+    [InlineData("--posix", false)] [InlineData("--posix", true)]
+    [InlineData("--traditional", false)] [InlineData("--traditional", true)]
+    public async Task BeginOnlyDoesNotReadUnusedInvalidInput(string profile, bool governed)
+    {
+        var host = new MockFileSystem();
+        host.SetStandardInputBytes([0xff]);
+        var reads = 0;
+        host.AfterReadLines = () => reads++;
+        string[] arguments = profile.Length == 0 ? ["BEGIN{print \"B\"}"] : [profile, "BEGIN{print \"B\"}"];
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", arguments));
+        var budget = new CooperativeTestBudget(1 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+
+        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, CancellationToken.None));
+        Assert.Equal("B\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, reads);
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
+    [Theory]
+    [InlineData(false, false)] [InlineData(false, true)]
+    [InlineData(true, false)] [InlineData(true, true)]
+    public async Task BeginCompletesWithoutAnAdditionalInputRead(bool getline, bool governed)
+    {
+        var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reads = 0;
+        var host = new MockFileSystem
+        {
+            ReadLinesAsyncOverride = (_, _, _) =>
+            {
+                reads++;
+                return getline && reads == 1
+                    ? Task.FromResult(AwkReadResult.FromContent("a\n"u8.ToArray(), [], AwkReadCompletion.MoreData))
+                    : pending.Task;
+            }
+        };
+        var budget = new CooperativeTestBudget(1 << 20);
+        var policy = AwkExecutionPolicy.CreateDefault();
+        if (governed) policy = policy.WithMemoryBudget(budget);
+        var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
+            getline ? "BEGIN{getline x;print x,NR}" : "BEGIN{print \"B\"}"));
+        var run = tool.ExecuteAsync(host, policy, CancellationToken.None);
+        pending.TrySetResult(AwkReadResult.EndOfFile);
+
+        Assert.Equal(AwkExitCode.Success, await run.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(getline ? 1 : 0, reads);
+        Assert.Equal(getline ? "a 1\n" : "B\n", host.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, host.OpenFileCount);
+        Assert.Equal(0, budget.Reserved);
+    }
+
     [Fact]
     public async Task Awk_ExitFromBeginDoesNotOpenMainInput()
     {

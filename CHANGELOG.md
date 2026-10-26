@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Programs without main, `END` or file-hook rules finish after `BEGIN` without automatically
+  reading stdin or opening input operands. Explicit `getline`, source loading and cleanup remain.
+
 - Removed unused parser/runtime helpers and redundant directive-name metadata.
   Internal output-target inspection no longer throws for standard output.
 

@@ -8,6 +8,18 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkBenchmarkCounterTests
 {
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task BeginOnlyAvoidsAutomaticReadWork(bool useUtf8Regex)
+    {
+        var result = await RunAsync(["BEGIN{print \"B\"}"], "unused\n", useUtf8Regex);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("B\n", result.FileSystem.GetOutput(AwkFileDescriptor.StdOut));
+        Assert.Equal("", result.FileSystem.GetOutput(AwkFileDescriptor.StdErr));
+        Assert.Equal(0, result.Counters.RecordsRead);
+        Assert.Equal(1, result.Counters.HostCalls); // The output append, with no main-input read.
+    }
+
     [Fact]
     public async Task MainStdinAliasesKeepByteNativeSelection()
     {

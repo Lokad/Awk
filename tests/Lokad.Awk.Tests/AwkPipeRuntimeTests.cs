@@ -187,7 +187,6 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueCommandExitCode(0);
         host.EnqueueAppendExitCode(0);
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
@@ -214,7 +213,6 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{print \"payload\" | \"worker\"; print close(\"worker\")}"));
@@ -260,7 +258,6 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             [],
             AwkReadCompletion.EndOfFile));
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
@@ -291,7 +288,6 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             [],
             AwkReadCompletion.EndOfFile));
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
@@ -317,7 +313,6 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         host.EnqueueAppendExitCode(0);
-        host.EnqueueAwkReadResult(AwkReadResult.EndOfFile);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{\"producer\" | getline line; print close(\"producer\", \"from\")}"));

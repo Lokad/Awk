@@ -31,6 +31,7 @@ internal static partial class AwkGoldenCorpus
         .. Tagged(RecordSplitCompatibilityRepairs(), AwkGoldenTag.Field, AwkGoldenTag.Record, AwkGoldenTag.Regex),
 
         .. Tagged(RecordSchedulingCases(), AwkGoldenTag.Record),
+        .. Tagged(AutomaticInputCases(), AwkGoldenTag.Record, AwkGoldenTag.Io, AwkGoldenTag.CommandLine),
 
         .. Tagged(InputMetadataCompatibilityRepairs(), AwkGoldenTag.Record),
 
@@ -3051,7 +3052,7 @@ internal static partial class AwkGoldenCorpus
 
         Failing(
             "above-root-command-line-path-is-diagnostic",
-            ["BEGIN{print}", "../../secret"],
+            ["BEGIN{print}{}", "../../secret"],
             [],
             2,
             "\n",

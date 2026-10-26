@@ -359,7 +359,7 @@ public sealed class AwkCurrentSurfaceCommandLineTests : AwkCurrentSurfaceTestBas
         Assert.Equal("ok\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(Encoding.UTF8.GetByteCount(script), counters.BytesRead);
         Assert.Equal(3, counters.OutputBytes);
-        Assert.Equal(5, counters.HostCalls);
+        Assert.Equal(4, counters.HostCalls); // Source open/read/close and stdout; no automatic stdin read.
     }
 
     [Fact]

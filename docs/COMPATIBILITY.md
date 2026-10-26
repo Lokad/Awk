@@ -53,6 +53,8 @@ Their escapes decode once under that profile. Terminal commands skip interpretin
 otherwise malformed `-F` text fails before source files open.
 Assignment operands apply when the input scheduler reaches them, including through
 `getline` in a function, and target globals. BEGIN exit can skip later operands.
+Without main, END or file-hook rules, execution finishes after BEGIN without automatic
+main-input reads; explicit `getline` still reads through the host.
 Empty input operands retain their `ARGV` positions and select no input file. Main-file paths
 are resolved when selected; discarded operands remain usable as `ARGV` text. Invalid selected
 paths fail before opening and preserve prior effects. Literal virtual filenames can contain

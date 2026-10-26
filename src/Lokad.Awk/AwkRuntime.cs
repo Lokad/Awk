@@ -93,7 +93,9 @@ internal static class AwkRuntime
                 state.AssignVariableFromExternalText(variable);
             await actionExecutor.Output.FlushDiagnosticsAsync(io).ConfigureAwait(false);
             var beginFlow = await actionExecutor.ExecuteBeginActionsAsync(state, io).ConfigureAwait(false);
-            if (beginFlow != AwkStatementFlow.ExitProgram)
+            if (beginFlow != AwkStatementFlow.ExitProgram &&
+                (program.MainActions.Length > 0 || program.EndActions.Length > 0 ||
+                 program.BeginFileActions.Length > 0 || program.EndFileActions.Length > 0))
                 await inputScheduler.ProcessRemainingInputAsync().ConfigureAwait(false);
 
             await actionExecutor.ExecuteEndActionsAsync(state, io).ConfigureAwait(false);
