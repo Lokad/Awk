@@ -231,6 +231,56 @@ public sealed class AwkFrontendMemoryTests
     }
 
     [Fact]
+    public async Task FunctionMetadataSurvivesConcurrentExecutionAndPendingDisposal()
+    {
+        var budget = new CooperativeTestBudget(1 << 20);
+        var source = "function render(x){calls++;value=x+1;return value}{print render($1),calls}";
+        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), Command(source, budget), CancellationToken.None);
+        var entered = new[]
+        {
+            new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously),
+            new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var pending = new[]
+        {
+            new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously),
+            new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var hosts = Enumerable.Range(0, 2).Select(index => new MockFileSystem
+        {
+            ReadLinesAsyncOverride = (_, _, _) => { entered[index].TrySetResult(); return pending[index].Task; }
+        }).ToArray();
+        var executions = hosts.Select(host => compiled.ExecuteAsync(host, CancellationToken.None)).ToArray();
+        try
+        {
+            await Task.WhenAll(entered.Select(signal => signal.Task)).WaitAsync(TimeSpan.FromSeconds(10));
+            var disposal = compiled.DisposeAsync().AsTask();
+            Assert.False(disposal.IsCompleted);
+            Assert.True(budget.Reserved > 0);
+            pending[0].TrySetResult(AwkReadResult.FromContent("41\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
+            pending[1].TrySetResult(AwkReadResult.FromContent("10\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
+            Assert.All(await Task.WhenAll(executions).WaitAsync(TimeSpan.FromSeconds(10)),
+                exit => Assert.Equal(AwkExitCode.Success, exit));
+            await disposal.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal("42 1\n", hosts[0].GetOutput(AwkFileDescriptor.StdOut));
+            Assert.Equal("11 1\n", hosts[1].GetOutput(AwkFileDescriptor.StdOut));
+            Assert.All(hosts, host =>
+            {
+                Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
+                Assert.Equal(0, host.OpenFileCount);
+            });
+            Assert.Equal(0, budget.Reserved);
+            Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
+        }
+        finally
+        {
+            foreach (var result in pending) result.TrySetResult(AwkReadResult.EndOfFile);
+            await Task.WhenAll(executions);
+            await compiled.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task ManyShallowEmptyIncludesRetainMetadataAndRefundAfterExecution()
     {
         var budget = new CooperativeTestBudget(2 << 20);

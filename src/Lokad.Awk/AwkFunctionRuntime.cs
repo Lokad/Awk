@@ -8,7 +8,7 @@ internal sealed class AwkFunctionRuntime
 {
     private readonly AwkFunctionCallStack _calls;
     private readonly Action<AwkArrayName> _removeFunctionLocalArray;
-    private Dictionary<AwkFunctionName, AwkUserFunction> _functions = [];
+    private IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> _functions = AwkProgram.Empty.Functions;
 
     public AwkFunctionRuntime(
         int maxFunctionCallDepth,
@@ -33,8 +33,9 @@ internal sealed class AwkFunctionRuntime
 
     public bool HasScalarLocal(AwkFunctionLocalSlotId slotId) => _calls.HasScalarLocal(slotId);
 
+    // Borrow the program snapshot; callers keep the table immutable throughout execution.
     public void InitializeFunctions(IReadOnlyDictionary<AwkFunctionName, AwkUserFunction> functions) =>
-        _functions = new(functions);
+        _functions = functions;
 
     public bool TryGetUserFunction(AwkFunctionName name, [NotNullWhen(true)] out AwkUserFunction? function) =>
         _functions.TryGetValue(name, out function);

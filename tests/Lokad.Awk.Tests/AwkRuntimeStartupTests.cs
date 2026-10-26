@@ -141,6 +141,36 @@ public sealed class AwkRuntimeStartupTests
     }
 
     [Fact]
+    public void FunctionLookupReusesProgramSnapshotWithoutInputSizedAllocation()
+    {
+        var functions = new Dictionary<AwkFunctionName, AwkUserFunction>();
+        for (var index = 0; index < 4096; index++)
+        {
+            var name = AwkFunctionName.FromText("f" + index);
+            functions.Add(name, new(name, AwkFunctionLocalLayout.Empty, []));
+        }
+        var program = new AwkProgram([], [], [], [], [], functions);
+        functions.Clear();
+        for (var index = 0; index < 2; index++) Create().InitializeFunctions(program.Functions);
+        var runtime = Create();
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        runtime.InitializeFunctions(program.Functions);
+
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 1024);
+        Assert.Equal(4096, program.Functions.Count);
+        foreach (var pair in program.Functions)
+        {
+            Assert.True(runtime.TryGetUserFunction(pair.Key, out var actual));
+            Assert.Same(pair.Value, actual);
+        }
+        Assert.False(runtime.TryGetUserFunction(AwkFunctionName.FromText("missing"), out _));
+
+        static AwkFunctionRuntime Create() => new(1000, AwkMemoryAccounting.Disabled,
+            static _ => AwkValue.Unassigned(), static _ => false, static _ => { });
+    }
+
+    [Fact]
     public void DefaultOptionsDoNotCopyRandomState()
     {
         var policy = AwkExecutionPolicy.CreateDefault().WithTimeZone(TimeZoneInfo.Utc);

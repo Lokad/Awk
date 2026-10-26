@@ -12,6 +12,7 @@
 
 - Prepared programs release temporary global-name indexing metadata after lowering.
   Public API documentation clarifies recognition versus execution-time validation.
+  Executions reuse the program's immutable function lookup instead of copying it.
 
 - The optional `close(name, "to"/"from")` argument is validated and ignored for
   supported files and one-way pipes. Closing uses the latest matching stream and
