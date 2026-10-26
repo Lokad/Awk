@@ -5,6 +5,15 @@ internal static partial class AwkGoldenCorpus
     private static IEnumerable<AwkGoldenCase> NumericSemanticsCases()
     {
         yield return AwkGoldenCaseBuilder
+            .Create("numeric-default-general-exponents",
+                ["BEGIN{x=1.23456789e-9;tiny=4.9406564584124654e-324;print x,-x,tiny;" +
+                 "print \"[\" (x \"\") \"]\",\"[\" (tiny \"\") \"]\";" +
+                 "OFMT=\"%.2E\";CONVFMT=\"%.3E\";print x,\"[\" (x \"\") \"]\"}"], [])
+            .WithStdOut("1.23457e-09 -1.23457e-09 4.94066e-324\n" +
+                "[1.23457e-09] [4.94066e-324]\n1.23E-09 [1.235E-09]\n")
+            .Build();
+
+        yield return AwkGoldenCaseBuilder
             .Create("numeric-math-gnu-0",
                 ["BEGIN{x=(-1)^0.5;print (x==x),(x!=x),(x<0),(x<=0),(x>0),(x>=0),!x,!!x,(x&&1),(x||0),(x?1:0)}"],
                 [])

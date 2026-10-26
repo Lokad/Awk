@@ -57,36 +57,6 @@ internal static class AwkNumberFormatter
         AwkMemoryAccounting governor,
         AwkMemoryLease? retainedTextLease = null)
     {
-        static ReadOnlySpan<byte> NormalizeLowercaseExponent(
-            ReadOnlySpan<byte> bytes,
-            Span<byte> destination)
-        {
-            var exponentIndex = bytes.IndexOfAny((byte)'e', (byte)'E');
-            if (exponentIndex < 0)
-                return bytes;
-
-            bytes[..exponentIndex].CopyTo(destination);
-            var writeIndex = exponentIndex;
-            destination[writeIndex++] = (byte)'e';
-
-            var exponent = bytes[(exponentIndex + 1)..];
-            if (exponent.Length > 0 && exponent[0] is (byte)'+' or (byte)'-')
-            {
-                destination[writeIndex++] = exponent[0];
-                exponent = exponent[1..];
-            }
-
-            while (exponent.Length > 2 && exponent[0] == (byte)'0')
-                exponent = exponent[1..];
-
-            while (exponent.Length < 2)
-                destination[writeIndex++] = (byte)'0';
-
-            exponent.CopyTo(destination[writeIndex..]);
-            writeIndex += exponent.Length;
-            return destination[..writeIndex];
-        }
-
         if (double.IsPositiveInfinity(value))
             return CopyAscii("+inf"u8, counters, governor, retainedTextLease);
 
@@ -97,13 +67,10 @@ internal static class AwkNumberFormatter
             return CopyAscii(BitConverter.DoubleToInt64Bits(value) < 0 ? "-nan"u8 : "+nan"u8, counters, governor, retainedTextLease);
 
         Span<byte> buffer = stackalloc byte[MaxFormattedDoubleBytes];
-        if (!Utf8Formatter.TryFormat(value, buffer, out var formattedBytes, new StandardFormat('G', 6)))
+        if (!Utf8Formatter.TryFormat(value, buffer, out var formattedBytes, new StandardFormat('g', 6)))
             throw new InvalidOperationException("Unable to format an awk numeric value.");
 
-        var bytes = buffer[..formattedBytes];
-        Span<byte> normalized = stackalloc byte[MaxFormattedDoubleBytes];
-        var output = NormalizeLowercaseExponent(bytes, normalized);
-        return CopyAscii(output, counters, governor, retainedTextLease);
+        return CopyAscii(buffer[..formattedBytes], counters, governor, retainedTextLease);
     }
 
     private static AwkText CopyAscii(

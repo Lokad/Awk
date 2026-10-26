@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Default numeric formatting uses the UTF-8 formatter directly, removing redundant exponent rewriting.
+
 - Path preparation honors cancellation requested during shared admission before resolving/copying
   the path. Host documentation specifies pipe endpoint retirement and command-handoff failures.
 
