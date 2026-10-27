@@ -1,7 +1,27 @@
 namespace Lokad.Awk.Tests;
 
+[Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkRegexEscapeWarningTests
 {
+    [Theory]
+    [InlineData(false, 4096)] [InlineData(true, 4096)]
+    [InlineData(false, 262144)] [InlineData(true, 262144)]
+    public void SourceBackedWarningInspectionDoesNotCopyThePattern(bool strong, int length)
+    {
+        const string prefix = "BEGIN{print ";
+        var literal = (strong ? "@/" : "/") + new string('a', length) + "/";
+        var source = prefix + literal + "}";
+        var token = AwkToken.FromSource(strong ? AwkTokenKind.StrongRegex : AwkTokenKind.Regex,
+            source, new AwkTextSpan(prefix.Length, literal.Length));
+        var pattern = token.TextSpan[(strong ? 2 : 1)..^1];
+        var history = new AwkRegexEscapeWarnings();
+        Action<AwkRegexEscapeWarning> report = static _ => Assert.Fail("Unexpected warning.");
+        AwkRegexEscapes.ReportWarnings(pattern, AwkCompatibilityMode.GnuDefault, history, report, null);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        AwkRegexEscapes.ReportWarnings(pattern, AwkCompatibilityMode.GnuDefault, history, report, null);
+        Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - before, 0, 512);
+    }
+
     public static IEnumerable<object[]> Modes()
     {
         foreach (var profile in new[] { "", "--posix", "--traditional" })

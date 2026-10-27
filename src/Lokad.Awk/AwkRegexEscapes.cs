@@ -78,7 +78,7 @@ internal static class AwkRegexEscapes
         return false;
     }
 
-    public static void ReportWarnings(string pattern, AwkCompatibilityMode mode,
+    public static void ReportWarnings(ReadOnlySpan<char> pattern, AwkCompatibilityMode mode,
         AwkRegexEscapeWarnings history, Action<AwkRegexEscapeWarning> reportOperator,
         Action<string>? reportUnicode, Action? checkpoint = null)
     {
@@ -113,7 +113,7 @@ internal static class AwkRegexEscapes
                 mode == AwkCompatibilityMode.GnuDefault && gnuEscapes.Contains(escaped))
                 continue;
 
-            _ = Rune.DecodeFromUtf16(pattern.AsSpan(index), out var character, out var consumed);
+            _ = Rune.DecodeFromUtf16(pattern[index..], out var character, out var consumed);
             if (consumed > 1)
                 index += consumed - 1;
             var warning = new AwkRegexEscapeWarning(escaped is '8' or '9'

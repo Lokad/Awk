@@ -2,296 +2,106 @@
 
 ## Unreleased
 
-- `printf` and `sprintf` encode literal format text in bounded runs, avoiding
-  repeated per-character conversion while preserving Unicode boundaries and cancellation.
+Changes relative to 0.3.0. Development packages use `0.0.0-dev`.
 
-- Execution reuses the immutable entry-environment snapshot during planning. Large hidden
-  environments no longer add planning allocation or admission demand to small/terminal commands.
+### API migration
 
-- **Regex provider API:** removed `IAwkCompiledRegex.GroupNames`. Providers report
-  `GroupCount`, including group0; callers using the removed property must update.
-
-- Programs without main, `END` or file-hook rules finish after `BEGIN` without automatically
-  reading stdin or opening input operands. Explicit `getline`, source loading and cleanup remain.
-
-- Removed unused parser/runtime helpers and redundant directive-name metadata.
-  Internal output-target inspection no longer throws for standard output.
-
-- Source search consumes `AWKPATH` components on demand, avoiding allocation and admission
-  for unused entries while preserving lookup order and qualified-path behavior.
-
-- Default numeric formatting uses the UTF-8 formatter directly, removing redundant exponent rewriting.
-
-- Path preparation honors cancellation requested during shared admission before resolving/copying
-  the path. Host documentation specifies pipe endpoint retirement and command-handoff failures.
-
-- **Host API:** replace `RunCommandsAsync` with
+- **Host commands:** replace `IAwkHost.RunCommandsAsync` with
   `RunCommandAsync(AwkCommandInvocation, CancellationToken)` returning `Task<AwkExitCode>`.
-  `CreatePipeAsync` now takes only `CancellationToken`; `AwkPipeMode` is removed.
-  Hosts must update their implementations. Command streaming, statuses and ownership remain.
+  Use `CreatePipeAsync(CancellationToken)`; `AwkPipeMode` is removed.
+- **Descriptor close:** `IAwkHost.CloseDescriptorAsync` returns `Task<AwkDescriptorCloseResult>`.
+  Return `Closed()` on success or `Failure(error, descriptorRetired)` on expected failure.
+  Report whether ownership ended; confirmed successful closes are never replayed.
+- **Regex providers:** `IAwkRegexEngine.TryCompile`, `IAwkCompiledRegex.IsMatch` and `Match`
+  receive the current `CancellationToken` instead of callback checkpoints. `TryCompile` no
+  longer takes a timeout. Use each operation's token, not a retained compile token.
+  `IAwkCompiledRegex.GroupNames` is removed; report `GroupCount`, including group 0.
+  Providers own admission for engine storage/workspace; core retains AWK translation,
+  match selection, captures and bounded handle caches.
 
-- Prepared programs release temporary global-name indexing metadata after lowering.
-  Public API documentation clarifies recognition versus execution-time validation.
-  Executions reuse the program's immutable function lookup instead of copying it.
+Use `WithMemoryBudget(IMemoryBudget)` for shared admission and caller cancellation,
+including caller-owned `CancellationTokenSource.CancelAfter`, for deadlines.
+`AwkExecutionPolicy.Unlimited` is removed. Without a supplied budget there is no private
+aggregate memory cap, including under the restricted preset. Removed policy properties
+and their matching `With...` methods:
 
-- The optional `close(name, "to"/"from")` argument is validated and ignored for
-  supported files and one-way pipes. Closing uses the latest matching stream and
-  preserves command exit statuses; coprocesses remain unsupported.
+- Deadlines: `CommandTimeout`, `HostOperationTimeout`, `CleanupTimeout`, `ExecutionTimeout`.
+- Memory/I/O: `MaxExecutionMemoryBytes`, `MaxRecordBytes`, `MaxValueBytes`, `MaxInputBytes`,
+  `MaxOutputBytes`, `MaxBuilderBytes`.
+- Invocation: `MaxArguments`, `MaxArgumentBytes`, `MaxEnvironmentEntries`, `MaxEnvironmentBytes`.
+- Frontend: `MaxSourceBytes`, `MaxSourceUnits`, `MaxExpandedSourceBytes`, `MaxIncludeFiles`,
+  `MaxFrontendCharacters`, `MaxFrontendTokens`, `MaxFrontendDiagnostics`, `MaxSymbols`,
+  `MaxIdentifierBytes`.
+- Collections: `MaxArrayElements`, `MaxFields`.
+- Regex storage: `MaxRegexPatternBytes`, `MaxRegexGroups`, `MaxRegexCacheBytes`, `MaxRegexCaptureBytes`.
 
-- Option values decode once under the final compatibility profile and observe caller
-  cancellation during decoding. Terminal commands skip decoding unused assignments.
-  Removed the discarded field-separator snapshot; invalid `-F` text still fails before source loading.
+Admission now covers previously underfunded source/runtime storage and growth overlap;
+some commands can fail earlier. Any refusal fails the command. Mutation preflights preserve
+earlier effects; streams are charged for live storage, not cumulative I/O. Captured values,
+paths, frames and buffers stay funded through their actual users. Cancellation propagates
+after cleanup; no separate command/host/execution timeout diagnostics remain. Essential
+cleanup uses an uncancelled token and awaits actual completion; a non-cooperating host can
+delay it indefinitely. Earlier read/write failures remain primary over cleanup failures.
 
-- Source preprocessing uses the selected lexical profile, preserving division and token
-  separation around continued lines when GNU keyword names are ordinary variables.
-- A resolved file cannot be both program source and an include; conflicting uses fail
-  before script effects. Repeated `-f` sources and include-only deduplication remain supported.
-- Nested includes preserve original diagnostic and warning coordinates. Removed destructive
-  source-fragment coalescing and continuation-map concatenation machinery.
+.NET regex and semantic fallbacks retain their fixed two-second protection where matching
+cannot poll cancellation. The internal, non-packable Utf8Regex adapter remains pinned to
+0.2.0, adds no clock and checks tokens at call boundaries; in-flight cooperation and newer
+producer adoption remain postponed independently of core. See the [runtime contract](docs/RUNTIME.md)
+for host endpoint handoff, refusal, buffer lifetimes and provider obligations.
 
-- Computed field indices reject NaN and infinities before record access or mutation,
-  consistently across ordinary and prepared paths. Finite indices retain truncation and
-  absent-field reads; field growth remains subject to representable storage and shared admission.
-- Source loading observes cancellation before decoding returned/cached source and publishing
-  the assembled text. Cleanup still awaits actual host users before closing/refunding.
-- Version queries report the brief artifact version: `Lokad awk <version>` for `--version`
-  and `<version>` for GNU `PROCINFO["version"]`, omitting build metadata and source hashes.
+### Observable behavior
 
-- Main-input paths are resolved only when selected. `BEGIN` can inspect, replace or discard
-  malformed operands, or exit before reaching them. A selected invalid or denied path still
-  fails before opening it, preserving earlier output. Source/include loading still precedes execution.
-- Virtual filenames accept literal colons, stars and backslashes, consistently with canonical
-  host paths. Only `/` separates segments; this adds no globbing or operating-system drive syntax.
-  Hosts retain authority over their backing store and return structured failures when unsupported.
+- **Options:** attached `-fprogram.awk`/`-iinclude.awk` select their files; bare `-L` leaves
+  the program intact. Use `-Lfatal` or `--lint=fatal`, replacing the `-L fatal` shortcut.
+  Literal `--` input operands survive positional programs/end-of-options markers.
+  `-v`/`-F` escapes decode once under the final profile; terminal commands skip unused
+  assignments. Invalid `-F` text still fails before source files open.
+- **Input scheduling:** empty/comment-only programs succeed. Without main, `END` or
+  file-hook rules, execution finishes after `BEGIN` without automatic input reads;
+  explicit `getline` still reads. Empty operands retain their `ARGV` positions and are
+  skipped. Main-input paths are resolved only when selected, so `BEGIN` can replace or
+  discard them. Selected invalid/denied paths fail before opening, preserving earlier output.
+- **Source search/includes:** explicit `AWKPATH` order is respected; slash-qualified paths
+  bypass search, and unused entries are not materialized. Top-level includes preserve
+  same-line tails and nested source coordinates. Malformed/non-top-level directives and
+  conflicting source/include uses of one resolved file fail before effects; repeated `-f`
+  sources and include-only deduplication remain supported. Preprocessing honors the lexical profile.
+- **Paths and streams:** virtual filenames accept literal colons, stars and backslashes;
+  only `/` separates segments, with no globbing or drive syntax. Redirections use exact
+  evaluated names: `data` and `./data` have independent streams even if resolved to one file.
+  Main input recognizes `/dev/fd/0` and `/dev/stdin`; redirected getline also borrows stdin
+  for `-`, while `./-` selects a literal file. Independent stdin cursors preserve unread data
+  when a host reuses its read buffer.
+- **Close/flush:** `close(name, "to"/"from")` validates and ignores the direction for supported
+  files and one-way pipes, closes the latest matching stream and preserves command statuses.
+  Coprocesses remain unsupported. Recoverable `getline` failures still return -1, set enabled
+  `ERRNO` and do not automatically write stderr.
+- **Text/formatting:** malformed .NET argument/environment text produces an awk text diagnostic.
+  Byte-mode `tolower`/`toupper` change ASCII only; `%s` width/precision use the selected units,
+  and a precision cutting a UTF-8 scalar fails before publishing the current output.
+  `printf`/`sprintf` preserve evaluated backslashes; source escapes decode once. `%c` emits
+  NUL for empty/uninitialized values. Large general-format precision without `#` no longer
+  demands precision-sized storage for a short result.
+- **Expressions/records:** regex expressions can follow `if`, `while` and `for` headers;
+  division remains distinct. `RS` anchors/word assertions use the current record context
+  across host batches and separator changes. Nonconstant/duplicate scalar or default switch
+  labels fail before execution; repeated regex labels remain valid. Field indices reject
+  NaN/infinities before access or mutation; finite indices retain truncation/absent-field behavior.
+- **Host services:** explicit `srand(seed)` does not query the clock. `strftime` uses ASCII
+  width digits and qualified padding/case behavior. Empty-name `ENVIRON` entries are valid
+  array elements and are omitted from command export. `--version` prints `Lokad awk <version>`;
+  `PROCINFO["version"]` contains `<version>`, without build metadata or source hashes.
 
-- Regex expressions can directly follow `if`, `while` and `for` headers, including nested
-  conditions and slash-containing patterns. Ordinary division keeps its existing interpretation.
-- Prepared programs retain regex metadata; execution-local caches own and admit compiled
-  handles for the selected provider. Removed duplicate .NET backend construction during lowering
-  and restored cancellation checkpoints in regex operator/switch preparation. Early literal
-  syntax diagnostics remain unchanged. Previously underfunded literal handles may now refuse.
+See [compatibility](docs/COMPATIBILITY.md) for qualified boundaries and remaining limitations.
+`Awk.TryParse` recognizes the invocation; source parsing/binding occur during execution.
 
-- File redirections use exact evaluated stream names. Spellings such as `data` and
-  `./data` have independent cursors, opening modes and close/flush targets, even when the
-  host resolves them to one file. This corrects the former canonical-alias behavior.
-  Canonical authorization still precedes host opens; close failures identify the original name.
-- Main input and plain getline recognize `/dev/fd/0` as the supplied stdin descriptor,
-  consistently with `/dev/stdin`; aliases stay borrowed. Redirected getline also borrows
-  stdin for `-`; use `./-` to read a literal file with that name.
+### Performance
 
-- Source includes preserve subsequent same-line actions/directives and work after other
-  top-level items. Malformed/unknown directives and includes inside actions/functions fail
-  before execution. Source locations survive removed directives, including empty includes.
-  Directive preprocessing uses shared frontend admission before large token allocations;
-  previously underfunded commands may fail earlier.
-
-- **Host API change:** `IAwkHost.CloseDescriptorAsync` now returns
-  `AwkDescriptorCloseResult`, carrying a structured cause and explicit descriptor retirement.
-  Hosts return `Closed()` for success, or `Failure(error, descriptorRetired)` for an expected
-  failure. A terminal close/flush error remains observable without closing that descriptor again;
-  a still-owned failure can receive the existing cleanup attempt. Details follow host-error
-  disclosure/size policy, with file/command identity when available. Earlier failures and
-  caller cancellation remain primary; cleanup awaits actual host/command completion.
-
-- Simplified main-input ownership and file/pipe retirement, removing descriptor sets and
-  shutdown snapshots. Close ordering, failed-close cleanup, cancellation and shared-memory
-  lifetimes are preserved; no public API changes.
-
-- Comment-only programs now succeed, including file and repeated-source inputs. Invalid empty-rule
-  syntax remains rejected; parsing no longer rescans raw source to recognize whitespace-only programs.
-- Removed unused invocation path snapshots, assignment payloads and source/input tags. Initial
-  assignment classification no longer copies the value before the live `ARGV` scheduler consumes it.
-- Function-inventory entries reuse one UTF-8 text representation for their key and value.
-
-- Empty input operands remain in `ARGV` and are skipped during input selection instead of
-  failing as invalid paths before `BEGIN`. Original-path authorization and stdin fallback remain.
-- Ordinary and special arrays share one storage table, removing duplicate routing metadata;
-  special-array restrictions, aliases and the existing container cache remain.
-
-- Conditions retain one expression directly. Removed nested clause lists, duplicate logical
-  evaluation and associated construction copies; execution semantics and prepared paths remain.
-
-- Malformed .NET argument/environment text produces a strict-text awk diagnostic instead of
-  leaking encoding exceptions or using a generic unexpected-failure message.
-- Source/include lookup honors explicit `AWKPATH` order and bypasses search for slash-qualified
-  names. Current-directory files no longer override configured entries; this can change which
-  program is selected. Empty search components and root-directory entries retain their meaning.
-- Empty-name `ENVIRON` entries retain ordinary array semantics and are omitted from pipe-command
-  export, so reading or assigning `ENVIRON[""]` no longer causes a later pipe to fail.
-
-- Forwarding a pipe command's shared memory budget reuses its immutable argument and
-  environment snapshots. Public invocation construction still snapshots caller collections.
-  Host command behavior, budget association and pending-user lifetimes are unchanged.
-
-- Correct command-line value boundaries: `-fprogram.awk` and `-iinclude.awk` use their
-  attached filenames; bare `-L` leaves the program argument intact. Use `-Lfatal` or
-  `--lint=fatal` instead of the former `-L fatal` shortcut. Literal `--` input operands
-  are preserved after a positional program or an earlier end-of-options marker.
-  These fixes can change which source and input files are selected.
-
-- Lazy `mktime` input preparation observes caller cancellation before copying text.
-  Default execution creates one independent random generator without redundant snapshots.
-  Unused and UTC-only time services no longer copy the host's time-zone adjustment rules;
-  explicit local DST flags acquire their rule view once on demand. No public API changes.
-
-- `%s` width and precision use UTF-8 directly, including borrowed fields, without decoding
-  the entire argument. Short `substr` prefixes avoid whole-input counting and rune indexing;
-  nonlocal access retains its existing index. Formatting, UTF-8 boundaries, argument effects,
-  cancellation and shared admission are preserved. No public API changes.
-
-- `%c` emits NUL for empty strings and uninitialized values, including width/precision
-  formatting. Character selection reads UTF-8 directly without decoding the rest of the value.
-
-- Regex record splitting admits its retained UTF-16 input cache before decoding, including
-  provider fallbacks, and refunds it when the cached view ends. Previously underfunded commands
-  can fail earlier; direct UTF-8 provider searches keep their byte-only input path.
-
-- Record-separator word assertions use the current record's context consistently across
-  host read batches. Changing `RS` after newline input no longer re-anchors `^` midway
-  through a descriptor. The interpreter reuses borrowed UTF-8 and cached UTF-16 batch
-  views; removed the artificial input-prefix mechanism.
-
-- Dirty records keep captured `OFS` text funded after the variable changes, through
-  reconstruction or replacement. Zero- and one-field records no longer retain an unused
-  separator. Existing mutation preflights, cancellation and pending-user lifetimes remain.
-
-- Stdin aliases preserve unread input before another logical stream reads the same host
-  descriptor. Hosts can reuse read buffers under the existing lifetime contract.
-- `close(name, direction)` retains shared admission for the captured name through later
-  argument evaluation and pending users; insufficient allowance can now fail earlier.
-- Explicit `srand(seed)` no longer queries the embedding application's time provider.
-- `strftime` accepts ASCII width digits and retains unknown directives with qualified GNU
-  padding/case behavior, avoiding spurious large widths and generic runtime failures.
-
-- Resolved getline source names and destination keys retain shared admission through
-  later evaluation, input phases and pending host operations. Previously under-accounted
-  programs can now fail earlier; recoverable read failures still return -1 without stderr.
-- `tolower`/`toupper` honor byte mode by changing ASCII letters only. Scalar Unicode
-  conversion now admits its temporary result before allocation.
-- Sparse nonliteral `gensub` replacements size scratch by parsed parts rather than input
-  bytes; literal runs use chunked scanning with cancellation checkpoints.
-
-- `print`/`printf` keep captured arguments, decoded formats and redirection names funded
-  during later operand evaluation and pending host work. Previously under-accounted commands
-  may now refuse earlier; evaluation order, earlier output and cleanup are preserved.
-- Removed redundant OFMT/CONVFMT decoding caches that kept obsolete large formats alive.
-  Reused text retains its existing decode cache; newly constructed equal formats can decode again.
-- Switch labels are prepared constants. Nonconstant labels and duplicate scalar/default labels
-  now fail before execution; repeated regex labels remain valid. Removed asynchronous label
-  evaluation while preserving signed constants, matching and fallthrough.
-
-- Evaluation arguments, operands and array snapshots retain shared memory admission when
-  later script work clears their original owner, including suspended host calls. Insufficient
-  allowance can now fail earlier; values, evaluation order and the public API are unchanged.
-- Large `%g`/`%G` precision without `#` no longer reserves precision-sized output and scratch
-  for a short result. Real large conversions retain their allocation preflights.
-
-- Correct `%s` width and precision under `-b` / `--characters-as-bytes`, including `sprintf`.
-  Precision must end at a UTF-8 scalar boundary; a partial scalar fails without publishing
-  the current formatted output. Scalar mode is unchanged.
-- Admit large floating-point formatting conversion strings and overlapping copies before
-  allocation. Refusal preserves earlier output; string precision uses slices without a copy.
-
-- Admit retained file-redirection paths and table growth before opening or truncating a target.
-  Large sets of long paths now consume the shared allowance; logical flush retains their funding,
-  and completed closes release path ownership.
-
-- Failed source-file closes retain ownership through a best-effort cleanup attempt, including
-  after read failure or cancellation. Confirmed successful closes are not repeated.
-
-- `printf` and `sprintf` preserve backslashes in evaluated format strings. Removed a second
-  escape-decoding pass that incorrectly turned literal `\\n` into a newline or dropped
-  dynamically constructed backslashes. Source string escapes still decode once.
-
-- Function calls skip unused memory estimates when no shared governor is supplied and
-  construct local slots directly. Governed admission and retained-cache ownership are preserved.
-
-- Function arguments and frame storage are admitted before allocation. Recycled frames,
-  stack capacity and alias-index capacity remain funded until execution ends; cancellation
-  during frame setup preserves the caller and refunds unpublished storage.
-
-- Cleanup no longer closes an endpoint again after a confirmed successful close, including
-  partial file/input-pipe close failures and command failure after closing a pipe.
-
-- Removed unused internal helpers and specialized text concatenation to its sole live
-  input type. Interpreter behavior and the public API are unchanged by this cleanup.
-
-- Ordinary package builds use the development identity `0.0.0-dev` and
-  `artifacts/dev/nuget/`, keeping released package filenames untouched. The next release
-  version will be selected and qualified separately.
-
-- Long-lived pipe commands no longer retain memory charges for already-consumed records.
-  Command/environment snapshots stay funded through actual command completion, including
-  parent environment mutation, cancellation and cleanup.
-
-- Uncached input-field copies such as `$2=$1` reuse record slices when the assignment result
-  is discarded. Values become owned before escaping the record; mutation preflights and
-  cancellation remain in place.
-
-- Source numeric literals resolve once in the program's compatibility mode during lowering,
-  avoiding repeated POSIX/traditional parsing. Numeric nodes retain one value; integer field
-  preparation uses that resolved value. Preparation observes cancellation under the existing
-  frontend owner; executions use their current token.
-
-- Removed `MaxRegexPatternBytes`, `MaxRegexGroups`, `MaxRegexCacheBytes` and their setters.
-  Regex providers own admission for their compiled storage and matching workspace, using
-  the supplied budget. Core retains fixed bounded caches, AWK translation/selection and
-  ordinary capture/text admission. The default .NET provider retains its two-second match
-  protection; the internal Utf8Regex adapter adds no clock and remains pinned to 0.2.0.
-  Eviction/cleanup releases handles; regex values surviving eviction can recompile on use.
-
-- Removed the unused `AwkExecutionPolicy.Unlimited` sentinel. Memory admission uses the
-  supplied `IMemoryBudget`; omitting it leaves no private aggregate memory cap. Read-byte
-  observations now share one path after removal of cumulative input quotas.
-
-- Caller cancellation still propagates when it arrives while an admission-failure
-  diagnostic is being written, including failure to create the execution reservation.
-
-- Removed argument-count/byte and environment-count/byte quotas and their setters. Command
-  preparation now runs under the existing execution/frontend owner and cancellation, admitting
-  Awk-owned lists, snapshots, option/path copies and `AWKPATH` splitting before allocation.
-  Caller-owned invocation snapshots retain their original lifetime. `TryParse` stays cheap.
-
-- Removed aggregate source, expanded-source, source-unit, include-file, frontend character,
-  token and diagnostic ceilings and their setters. Major source/parser owners use shared
-  admission; empty-file and cached-miss metadata is admitted too. Include depth, parser
-  progress, warning semantics and cancellation remain protected.
-
-- Removed `MaxArrayElements`, `MaxFields`, `MaxSymbols`, `MaxIdentifierBytes` and their
-  setters. Shared memory admission funds collection capacity and payloads before growth;
-  field reads no longer force a full split to enforce a count quota. Deleted array entries
-  refund payloads while retained dictionary backing stays funded until relinquished.
-
-- Parent failure now cancels owned pipe-command work before cleanup waits, including refused
-  shared admission. Cleanup still awaits actual command completion before releasing borrowed
-  storage. Normal `close()` and command exit statuses are preserved; caller cancellation
-  retains its original token. This adds no deadline or work quota.
-
-- Removed `MaxBuilderBytes`, `MaxRegexCaptureBytes` and their setters. Buffer growth and
-  capture storage use shared admission before mutation/publication; checked allocation
-  sizes remain enforced. `strftime` now admits its UTF-16 padding, builder growth and
-  conversion overlap before allocating large temporary strings.
-
-- `IAwkRegexEngine.TryCompile`, `IAwkCompiledRegex.IsMatch` and `Match` now receive the
-  current `CancellationToken`, replacing callback checkpoints; `TryCompile` no longer takes
-  a match timeout. Engine implementers must use each operation's token rather than retaining
-  a compile token. The internal adapter has no separate deadline and stays pinned to
-  Utf8Regex 0.2.0, which supports boundary checks but no in-flight token polling. Core remains
-  independent. Default .NET regex and semantic fallbacks keep their fixed timeout protection.
-
-- Removed `CommandTimeout`, `HostOperationTimeout`, `CleanupTimeout`, `ExecutionTimeout`
-  and their `With...` methods. Use the caller cancellation token, with a caller-owned
-  `CancellationTokenSource.CancelAfter` for deadlines. Cancellation propagates after cleanup;
-  Awk no longer emits separate command/host/execution timeout diagnostics. Essential cleanup
-  uses an uncancelled token and awaits actual completion. A non-cooperating host can delay
-  completion indefinitely; buffers remain funded while borrowed.
-
-- Removed `MaxExecutionMemoryBytes`, `MaxRecordBytes`, `MaxValueBytes`, `MaxInputBytes`,
-  `MaxOutputBytes` and their `WithMax...` methods. The restricted preset no longer supplies
-  an execution memory allowance or cumulative I/O limits. Hosts supply shared admission
-  through `WithMemoryBudget`; no supplied budget means no private aggregate memory cap.
-  Retained capacity and growth overlap still preflight before mutation. Long streams are
-  charged for live storage, not cumulative bytes processed.
+Reduced avoidable source/metadata copying, field materialization and formatting/string/function
+overhead. Literal format text is encoded in bounded scalar-aligned runs; source-warning scans
+borrow existing text. Shared admission, strict UTF-8, cancellation and the sole interpreter remain.
+The [benchmark comparison](docs/BENCHMARKS.md) identifies measured scripts, revisions and allocations;
+individual results do not imply an overall speedup.
 
 ## 0.3.0 - 2026-10-19
 

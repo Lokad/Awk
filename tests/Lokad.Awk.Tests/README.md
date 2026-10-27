@@ -18,6 +18,8 @@ dispose the artifact after its users finish. Warning views borrow that lifetime.
 Control-header regex goldens cover statement-start context and division controls. Lexer checks
 pin token spans. Provider ownership tests cover literal/dynamic admission; host-engine tests
 cover selected handles across literal forms and separate caches for prepared-program reuse.
+Regex escape-warning checks cover source-backed spans without pattern-sized scratch,
+alongside the canonical warning-order, scalar-rendering and history cases.
 Host-engine checks reject nonpositive group counts before later script effects and dispose
 the acquired handle; adapter checks include whole-match, named and sparse-numbered counts.
 

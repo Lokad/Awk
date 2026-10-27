@@ -81,7 +81,7 @@ internal static class AwkFrontendDiagnosticPolicy
 
         void AddRegexDiagnosticIfInvalid(AwkToken token)
         {
-            var text = token.Text;
+            var text = token.TextSpan;
             var start = token.Kind == AwkTokenKind.StrongRegex ? 2 : 1;
             AwkRegexEscapes.ReportWarnings(text[start..^1], compatibilityMode, budget.RegexEscapeWarnings,
                 warning => AddDiagnostic(new AwkDiagnostic(token.Span, warning)), message =>
