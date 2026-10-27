@@ -16,8 +16,11 @@ Changes relative to 0.3.0. Development packages use `0.0.0-dev`.
   receive the current `CancellationToken` instead of callback checkpoints. `TryCompile` no
   longer takes a timeout. Use each operation's token, not a retained compile token.
   `IAwkCompiledRegex.GroupNames` is removed; report `GroupCount`, including group 0.
-  Providers own admission for engine storage/workspace; core retains AWK translation,
-  match selection, captures and bounded handle caches.
+  Configure a host-supplied provider with `WithRegexEngine`; core has no default matching
+  backend or fallback. Providers own match/capture selection, scalar matching and engine
+  admission. Core retains AWK translation, replacements, validated captures and bounded caches.
+  `RuntimeRegexTimeout` is replaced by `RuntimeRegexProvider`; cancellation belongs to the
+  operation token. The adapter is copyable source under `examples/`, not an assembly/package.
 
 Use `WithMemoryBudget(IMemoryBudget)` for shared admission and caller cancellation,
 including caller-owned `CancellationTokenSource.CancelAfter`, for deadlines.

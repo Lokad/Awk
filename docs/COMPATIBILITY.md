@@ -2,7 +2,8 @@
 
 Lokad.Awk supports ordinary awk text processing inside .NET over valid UTF-8, with
 host-controlled I/O and predictable resource admission. This is not full POSIX/GNU
-conformance. The interpreter is the only execution engine; regex defaults to .NET.
+conformance. The interpreter is the only execution engine; regex matching requires an
+application-supplied provider.
 
 **Supported** means golden coverage within the stated boundary. **Partial** means
 implemented with remaining differences. **Deferred** means unsupported, without a delivery
@@ -180,8 +181,8 @@ are described in [runtime regex integration](RUNTIME.md#regex-engines).
 
 Ordinary ERE operators, intervals, grouping, alternation, anchors and bracket expressions
 are supported within this contract. Dot consumes a complete scalar, including LF; `^`/`$`
-denote absolute input boundaries. Awk translates the end anchor to `\z`, which the internal
-adapter currently routes through .NET. Escaped/bracketed dots and dollars remain literals;
+denote absolute input boundaries. Awk translates the end anchor to `\z`. Escaped/bracketed
+dots and dollars remain literals;
 unmatched closing `)` is literal. Private translation groups preserve user capture numbers.
 
 GNU/default mode enables IGNORECASE and GNU word/space/buffer operators. POSIX/traditional
@@ -199,8 +200,8 @@ are excluded from graph/print. Locale/Unicode-version membership and supplementa
 equivalence can differ from native awk. Single-character equivalence/collation tokens do not
 emulate general locale collation.
 
-Named/noncapturing groups, lookarounds and inherited .NET constructs retain backend semantics
-outside the traditional ERE contract. Named groups use .NET numeric ordering. Existing lazy
+Named/noncapturing groups, lookarounds and other backend constructs are provider-dependent
+outside the traditional ERE contract. Existing lazy
 `a+?`/`a??` forms do not establish modern POSIX/GNU minimized repetition support; `a**` is invalid.
 
 In scalar expressions, `/pattern/` matches the current record. Direct literals supply pattern
@@ -210,9 +211,10 @@ match/split/patsplit/sub/gsub/gensub. Grouping a literal does not turn its scala
 ### Regex matches and replacements
 
 Observable traditional ERE matches select the longest match at the earliest scalar boundary.
-Ambiguous whole-match/subexpression selection uses Awk's managed structured matcher;
-boolean and unambiguous matches can retain the selected engine. Structured selection may
-require a counted string conversion even with a UTF-8 engine.
+Match and subexpression selection belong to the supplied provider; core contains no
+matching engine or fallback. The example provider currently has conformance gaps, including
+ordered alternatives and supplementary character classes. Its published package does not
+establish full support for the required rules below.
 
 `match(..., array)` and `gensub` share capture priority: `(a|aa)(a*)` on `aaa` captures
 `aa` and `a`. Nonparticipating groups/metadata are omitted; participating empty groups remain.

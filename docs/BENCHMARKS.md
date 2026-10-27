@@ -1,12 +1,14 @@
 # Benchmarks
 
-Current comparison with GNU awk 5.2.1. **Labeled printf** was measured **2026-10-27 UTC** at
+Last qualified comparison with GNU awk 5.2.1. **Labeled printf** was measured **2026-10-27 UTC** at
 [`2b099dc`](https://github.com/Lokad/Awk/commit/2b099dc9ff84ccca2a5944d887c0bea4afb58be4).
 The other 37 medium and three large rows retain **2026-10-22 UTC** measurements at
 [`d020a3d`](https://github.com/Lokad/Awk/commit/d020a3d96af27c7ca1607995584aa17c5b248e19).
 The separately dated policy controls below are retained. This is a selective refresh.
 All comparison rows use the interpreter, default .NET regex and default policy (UTC time zone),
-without shared admission. The internal Utf8Regex adapter is outside this baseline.
+without shared admission. These retained revisions precede the host-required provider boundary.
+They are not fresh measurements of that change. Current tools compile the example adapter against published
+Lokad.Utf8Regex; regex-sensitive comparisons require renewed provider qualification.
 
 Times are median milliseconds per invocation. **Lokad.Awk/awk** divides Lokad elapsed by
 GNU elapsed: 1.00× is parity; higher is slower. Allocations are managed GC MiB per Lokad

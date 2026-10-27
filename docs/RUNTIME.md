@@ -129,8 +129,8 @@ Dirty records fund their captured `OFS` until reconstruction or replacement, ind
 the variable's current value. Zero- and one-field records do not retain an unused separator.
 Using stdin aliases alongside main input can retain admitted unread batches; hosts may still
 reuse the previous read buffer when the next read on that descriptor begins.
-Regex record splitting funds its cached decoded input until the view is invalidated or the
-cursor closes. Direct UTF-8 provider searches do not reserve an unused decoded copy.
+Regex record splitting borrows the funded UTF-8 batch; core does not create or admit a
+decoded regex-input cache.
 File redirections admit open-path scratch, retained exact stream names and table growth before
 host opens. Logical flush retains name ownership; close refunds the name after the host finishes, while reusable table
 capacity stays funded until execution cleanup.
@@ -167,60 +167,52 @@ cleanup attempt only when the host retained ownership, including source-file des
 Parent failure cancels owned pipe commands before cleanup waits. Cleanup still awaits actual
 command completion; successful `close()` preserves command exit statuses.
 
-Awk-owned POSIX matching polls cancellation. Default .NET matching and semantic fallbacks
-retain a fixed timeout because they cannot poll the token internally.
+Regex providers receive the current cancellation token. Cooperation inside a provider is
+its responsibility; core cannot interrupt an indivisible synchronous provider call.
 
 ## Regex engines
 
-.NET regex is the default; core has no Lokad.Utf8Regex dependency. Applications can supply
-`IAwkRegexEngine` through `policy.WithRegexEngine(engine)`. Awk retains pattern translation,
-longest-match/capture selection, replacement and UTF-8 boundary rules; see
-[regex semantics](COMPATIBILITY.md#regex-semantics). Some patterns or observable captures
-still require Awk's managed selector or .NET fallback.
+Supply `IAwkRegexEngine` through `policy.WithRegexEngine(engine)` for regex matching.
+Core has no concrete matching engine, semantic selector or fallback, and no Lokad.Utf8Regex
+dependency. A missing provider or unsupported pattern fails with an awk-shaped diagnostic;
+refusal and cancellation fail without retrying another engine. Ordinary field/record
+separator fast paths remain byte-native.
 
-The [engine contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs) defines these obligations:
+The [contract](../src/Lokad.Awk/Regex/IAwkRegexEngine.cs) keeps responsibilities explicit:
 
-- `TryCompile` receives translated .NET-compatible pattern text, invariant case choice,
-  a borrowed active memory budget and the current token. Support concurrent compilation;
-  return false only for unsupported syntax. Refused admission throws
-  `AwkRegexAdmissionException`; refusal and cancellation must never request fallback.
-- Compiled handles report a fixed `GroupCount` of at least one, including group0;
-  the provider contract does not require group names. Consume valid UTF-8 spans synchronously.
-  Search from the supplied UTF-16
-  offset with full-input assertion context. Fill every supplied capture slot, including
-  unmatched groups, with absolute byte/UTF-16 coordinates. Awk validates ranges.
-- `TryCompile`, `IsMatch` and `Match` receive the current operation's `CancellationToken`.
-  Poll during construction, search and result shaping. Retain no input/capture spans or
-  operation tokens; there is no match-timeout parameter or adapter-owned deadline.
+- Awk translates AWK escapes, ERE operators, classes and assertions. Providers consume
+  this translated pattern spelling and valid UTF-8 directly, with invariant case choice.
+- Providers select the earliest start, longest whole match and POSIX subexpression priority.
+  Selection must not depend on the number of capture slots requested. Dot/classes operate
+  on complete Unicode scalars. Core validates byte/UTF-16 ranges before publishing captures.
+- Compiled handles report `GroupCount`, including group 0, and search from a UTF-16 offset
+  while preserving full-input assertion context. Fill every supplied capture slot, including
+  unmatched groups. Do not retain borrowed input, spans or operation tokens.
+- Construction and matching receive the active borrowed memory budget and current token.
+  Providers own engine admission/protection and poll cancellation during work. Refused
+  admission throws `AwkRegexAdmissionException`. There is no adapter-owned deadline.
 
-The application owns the engine. Providers admit and fund their own construction, retained
-handles and matching workspace through the borrowed budget; engine-specific bounds belong
-there. Execution-local caches retain at most 128 entries per kind and dispose handles on
-eviction or cleanup. Disposal is idempotent and non-throwing. Awk owns translation, semantic
-selection and published capture/text storage under its ordinary admission rules. It neither
-predicts a supplied engine's footprint nor transfers ownership of the budget.
+The application owns the engine and must allow concurrent compilation. Execution-local
+bounded caches own compiled handles, disposing them on eviction or cleanup. Disposal is
+idempotent and non-throwing. Awk funds translation, replacements and published captures
+through ordinary memory admission; it does not predict the provider's internal footprint.
+Regex literals require the provider during source validation, before effects; Awk releases its
+temporary validation handle. Dynamic patterns require the provider when prepared. Internal
+prepared programs share no compiled handles between executions.
 
-The default .NET provider uses coarse construction/storage admission and retains its fixed
-two-second match protection because .NET matching cannot poll the token. Literal syntax
-validation uses the same provider and releases its temporary handle before execution,
-including with a supplied engine. Prepared programs retain Awk pattern metadata, while each
-execution admits and owns its engine handles through the existing caches. Reusing a prepared
-program shares no compiled handles between executions or providers. These estimates are
-not a heap cap. Core has no pattern-byte, group-count or regex-cache byte quota.
+The [source adapter example](../examples/README.md) is compiled into tests and benchmark
+tools against published **Lokad.Utf8Regex 0.2.0**, never a sibling source checkout. It passes
+UTF-8 spans without adding input/capture-text copies and funds handles and per-call scratch
+through the borrowed budget. That package lacks in-flight cooperative APIs: boundary token
+checks do not establish cancellation during a long producer call. Its ordered-choice and
+Unicode behavior also leave AWK conformance gaps; the example is not a qualified general
+AWK provider. Existing AWK semantic expectations remain the acceptance target. Adopting a
+new producer package requires separate semantic/cancellation qualification, not a core release.
 
-The repository's internal, non-packable `Lokad.Awk.Utf8Regex` adapter pins producer **0.2.0**.
-It adds no input or capture-text copies; producer internals and compatibility routes can allocate.
-Its handle retains shared admission until disposal; match scratch is admitted and refunded
-within each synchronous call. Refusal remains fatal and never requests fallback.
-The producer has no token-aware APIs. The adapter disables its match clock and checks cancellation
-before/after producer calls and during capture copying; a long producer call remains indivisible.
-These checks do not establish in-flight producer cancellation. Future cooperative producer adoption
-requires separate qualification and remains postponed independently of core work and releases.
-
-[Host-engine tests](../tests/Lokad.Awk.Tests/AwkHostRegexTests.cs) cover ownership, invalid ranges,
-fatal refusal and cooperative token forwarding. [Adapter tests](../tests/Lokad.Awk.Tests/AwkUtf8RegexAdapterTests.cs)
-cover direct/fallback paths, coordinates, replacements, separators, no-decode paths and token reuse.
-The [benchmark baseline](BENCHMARKS.md) uses the default .NET backend.
+[Host-provider tests](../tests/Lokad.Awk.Tests/AwkHostRegexTests.cs) cover missing/unsupported
+providers, ownership, invalid ranges, refusal and token forwarding. [Adapter tests](../tests/Lokad.Awk.Tests/AwkUtf8RegexAdapterTests.cs)
+exercise the published package and adapter lifetimes. The [benchmark snapshot](BENCHMARKS.md)
+identifies its measured provider context explicitly.
 
 ## Remaining bounds
 

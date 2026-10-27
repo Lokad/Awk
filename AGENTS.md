@@ -16,8 +16,9 @@ or environment dependencies.
 - Use the stable SDK selected in `global.json` (10.0.401, patch roll-forward only).
 - Restore/build/test: `dotnet test .\Lokad.Awk.slnx`
 - Package build checks: `dotnet build .\src\Lokad.Awk\Lokad.Awk.csproj -c Release`
-- Only `src/Lokad.Awk` produces a NuGet package. The Utf8Regex adapter, tests and benchmarks
-  are internal, non-packable projects; keep them out of release artifacts.
+- Only `src/Lokad.Awk` produces a NuGet package. The application-side regex adapter
+  is source under `examples/`; tests and benchmarks compile it against the published provider
+  package and remain non-packable.
 - Runtime-counter evidence: `dotnet run -c Release --project .\benchmarks\Lokad.Awk.Benchmarks\Lokad.Awk.Benchmarks.csproj -- --counter-report`
 - Full benchmarks are opt-in and local-environment dependent. Do not commit `BenchmarkDotNet.Artifacts/`.
 
@@ -34,7 +35,8 @@ or environment dependencies.
   status, and `CreatePipeAsync` accepts only a cancellation token.
 - Regex providers own engine allocation admission and engine-specific protection. Keep the
   existing budget/token contract; do not reintroduce core regex quotas or parallel engine selectors.
-  Awk still owns translation, match selection, capture publication and their ordinary storage.
+  Providers own match selection and scalar matching; Awk owns AWK translation, validated capture
+  publication, replacements and their ordinary storage. Do not add a core matching engine or fallback.
 - Resource-limit failures must preflight before observable mutation: arrays, fields, records,
   output and capture arrays should not partially mutate on failure.
 - Do not add package dependencies casually. Package references are allowlisted in

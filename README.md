@@ -94,11 +94,13 @@ typed regex values and indirect calls remain unsupported; see the
 [compatibility guide](docs/COMPATIBILITY.md).
 
 The interpreter is the only execution engine, including its synchronous/prepared paths.
-Regex defaults to .NET compatibility, with
-documented [regex semantics](docs/COMPATIBILITY.md#regex-semantics). Applications can supply an
-`IAwkRegexEngine` through `policy.WithRegexEngine(engine)`. The repository's
-[`Lokad.Awk.Utf8Regex` adapter](docs/RUNTIME.md#regex-engines) is for internal qualification and is not distributed as a
-NuGet package. Newer producer adoption remains postponed.
+Regex matching uses an application-supplied `IAwkRegexEngine` through
+`policy.WithRegexEngine(engine)`. Core has no matching backend or fallback and no
+Lokad.Utf8Regex dependency. Non-regex processing needs no provider. The
+[copyable adapter example](examples/README.md) is compiled into tests against a published
+NuGet version; it is not an adapter package. Its current provider has known conformance gaps,
+so a general AWK regex integration still requires qualification. See the
+[provider contract](docs/RUNTIME.md#regex-engines) and [regex semantics](docs/COMPATIBILITY.md#regex-semantics).
 
 Current representative throughput, GNU comparison and managed allocations are maintained in
 [benchmarks](docs/BENCHMARKS.md). CI builds and tests on Windows and Linux.
@@ -127,4 +129,5 @@ Detailed runtime contracts live in:
 ## Dependencies
 
 - `Lokad.Parsing` for tokenization and parser infrastructure
-- Regex uses .NET by default; `Lokad.Utf8Regex` is only a dependency of the internal adapter.
+- Regex providers are supplied by the application; tests and benchmark tools reference published
+  `Lokad.Utf8Regex` directly and compile the example adapter source.
