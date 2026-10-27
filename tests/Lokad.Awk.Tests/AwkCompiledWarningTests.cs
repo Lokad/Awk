@@ -5,15 +5,14 @@ public sealed class AwkCompiledWarningTests
     private const string Warning = "awk: warning: escape sequence `\\q' treated as plain `q'\n";
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    public async Task EveryCompiledEntryEmitsWarningsOnceOnFreshConcurrentHosts(int entry, bool utf8)
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task EveryCompiledEntryEmitsWarningsOnceOnFreshConcurrentHosts(int entry)
     {
         var source = new MockFileSystem();
         source.AddFile("/script.awk", "# source\nBEGIN{print \"\\q\"}\n");
         var compiled = await AwkExecutor.CompileAsync(source,
-            AwkTestHarness.BuildInvocation("awk", "-f", "/script.awk"), CancellationToken.None);
+            AwkTestHarness.BuildInvocation("awk", "-f", "/script.awk"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var diagnostic = Assert.Single(compiled.Warnings);
         var location = Assert.IsType<AwkSourceLocation>(diagnostic.SourceLocation);
         Assert.Equal("/script.awk", location.SourceName.Text);
@@ -27,10 +26,10 @@ public sealed class AwkCompiledWarningTests
         var second = new MockFileSystem();
         async Task RunAsync(MockFileSystem host)
         {
-            var options = Options(utf8, AwkRuntimeCounters.CreateEnabled());
+            var options = Options(AwkRuntimeCounters.CreateEnabled());
             var exit = entry switch
             {
-                0 => await compiled.ExecuteAsync(host, deadline.Token),
+                0 => await compiled.ExecuteAsync(host, deadline.Token, AwkTestHarness.CreateRuntimeOptions()),
                 _ => await compiled.ExecuteAsync(host, deadline.Token, options)
             };
             Assert.Equal(AwkExitCode.Success, exit);
@@ -52,10 +51,10 @@ public sealed class AwkCompiledWarningTests
         host.AddFile("/data", "unread\n");
         var counters = countersEnabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var limits = AwkRuntimeLimits.CreateDefault();
-        var options = Options(false, counters, limits) with { MemoryBudget = new CooperativeTestBudget(0) };
+        var options = Options(counters,limits) with { MemoryBudget = new CooperativeTestBudget(0) };
         var compiled = await AwkExecutor.CompileAsync(host,
             AwkTestHarness.BuildInvocation("awk", "BEGIN{unused=\"\\q\";getline v<\"/data\";print v}"),
-            CancellationToken.None);
+            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
 
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 
@@ -79,9 +78,9 @@ public sealed class AwkCompiledWarningTests
     {
         var host = new WarningHost(failure);
         var command = AwkTestHarness.BuildInvocation("awk", "BEGIN{print \"\\q\"}");
-        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), command, CancellationToken.None);
+        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), command, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = Options(false, counters);
+        var options = Options(counters);
         using var cancellation = new CancellationTokenSource();
         var run = entry switch
         {
@@ -117,23 +116,21 @@ public sealed class AwkCompiledWarningTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PosixByteOverrideWarningIsRetainedOncePerCompiledExecution(bool utf8)
+    [Fact]
+    public async Task PosixByteOverrideWarningIsRetainedOncePerCompiledExecution()
     {
         const string warning = "awk: warning: `--posix' overrides `--characters-as-bytes'\n";
         var source = new MockFileSystem();
         var compiled = await AwkExecutor.CompileAsync(source,
             AwkTestHarness.BuildInvocation("awk", "-b", "--posix", "BEGIN{print \"ok\"}"),
-            CancellationToken.None);
+            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         Assert.Equal(warning, Assert.Single(compiled.Warnings).Message);
         Assert.Equal(string.Empty, source.GetOutput(AwkFileDescriptor.StdErr));
         for (var run = 0; run < 2; run++)
         {
             var host = new MockFileSystem();
             var counters = AwkRuntimeCounters.CreateEnabled();
-            var options = Options(utf8, counters);
+            var options = Options(counters);
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("ok\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -143,22 +140,19 @@ public sealed class AwkCompiledWarningTests
     }
 
     [Theory]
-    [InlineData("FS", false)]
-    [InlineData("FS", true)]
-    [InlineData("FPAT", false)]
-    [InlineData("FPAT", true)]
-    [InlineData("RS", false)]
-    [InlineData("RS", true)]
-    public async Task SpecialRegexWarningsAreFreshForEveryCompiledExecution(string variable, bool utf8)
+    [InlineData("FS")]
+    [InlineData("FPAT")]
+    [InlineData("RS")]
+    public async Task SpecialRegexWarningsAreFreshForEveryCompiledExecution(string variable)
     {
         const string warning = "awk: warning: no hex digits in `\\u' escape sequence\n";
         var source = new MockFileSystem();
         var invocation = AwkTestHarness.BuildInvocation("awk", "BEGIN{" + variable + "=\"\\\\u\";print \"ok\";exit}");
-        var compiled = await AwkExecutor.CompileAsync(source, invocation, CancellationToken.None);
+        var compiled = await AwkExecutor.CompileAsync(source, invocation, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         Assert.Empty(compiled.Warnings);
         foreach (var host in new[] { new MockFileSystem(), new MockFileSystem() })
         {
-            var options = Options(utf8, AwkRuntimeCounters.CreateEnabled());
+            var options = Options(AwkRuntimeCounters.CreateEnabled());
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("ok\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -166,10 +160,9 @@ public sealed class AwkCompiledWarningTests
         }
     }
 
-    private static AwkRuntimeOptions Options(bool utf8, AwkRuntimeCounters counters,
-        AwkRuntimeLimits? limits = null) =>
+    private static AwkRuntimeOptions Options(AwkRuntimeCounters counters,        AwkRuntimeLimits? limits = null) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
 
     private sealed class WarningHost(string failure) : IAwkHost
     {

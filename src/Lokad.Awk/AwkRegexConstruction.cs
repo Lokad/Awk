@@ -6,6 +6,26 @@ namespace Lokad.Awk;
 /// <summary>Cancellation boundaries for Awk-owned regex preparation, without retaining caller callbacks.</summary>
 internal static class AwkRegexConstruction
 {
+    internal static int BracketEnd(string pattern, int opening, Action? checkpoint = null)
+    {
+        var index = opening + 1;
+        long nextCheckpoint = 0;
+        if (index < pattern.Length && pattern[index] == '^')
+            index++;
+        if (index < pattern.Length && pattern[index] == ']')
+            index++;
+        for (; index < pattern.Length; index++)
+        {
+            AwkRegexConstruction.CheckProgress(index, ref nextCheckpoint, checkpoint);
+            if (pattern[index] == '\\')
+                index++;
+            else if (pattern[index] == ']')
+                return index;
+        }
+        checkpoint?.Invoke();
+        return -1;
+    }
+
     internal const int ChunkCharacters = AwkRuntimeLimits.CancellationCheckBytes / sizeof(char);
 
     public static void CheckProgress(int position, ref long next, Action? checkpoint)
@@ -57,24 +77,6 @@ internal static class AwkRegexConstruction
         }
         checkpoint();
         return -1;
-    }
-
-    public static bool Contains(ReadOnlySpan<char> text, char value, Action? checkpoint)
-    {
-        if (checkpoint is null)
-            return text.Contains(value);
-        for (var position = 0; position < text.Length;)
-        {
-            checkpoint();
-            var length = Math.Min(ChunkCharacters, text.Length - position);
-            var found = text.Slice(position, length).Contains(value);
-            checkpoint();
-            if (found)
-                return true;
-            position += length;
-        }
-        checkpoint();
-        return false;
     }
 
     public static bool Equals(string left, string right, Action? checkpoint)
@@ -169,6 +171,7 @@ internal static class AwkRegexConstruction
             CheckProgress(index, ref progress, checkpoint);
             var extra = pattern[index] == '\\' ? escapeExpansion :
                 pattern[index] == ':' ? colonExpansion :
+                pattern[index] == '.' ? 5 : pattern[index] == '$' ? 1 :
                 quoteRightParenthesis && pattern[index] == ')' ? 1 : 0;
             maximumCharacters = AwkRuntimeMemory.CheckedAdd(maximumCharacters, extra);
         }

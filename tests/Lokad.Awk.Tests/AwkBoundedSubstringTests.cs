@@ -76,7 +76,7 @@ public sealed class AwkBoundedSubstringTests
     private static AwkRuntimeState State(AwkExecutionMemoryOwner owner, AwkRuntimeCounters counters, bool bytes = false)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
-        var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits)
+        var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance)
             { MemoryOwner = owner };
         return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
             new AwkRuntimeResourceMonitor(limits, counters, CancellationToken.None),

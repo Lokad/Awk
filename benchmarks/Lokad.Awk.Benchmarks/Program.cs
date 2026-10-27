@@ -21,12 +21,6 @@ if (args.Length == 1 && args[0] == "--function-stack-probe")
     return;
 }
 
-if (args.Length == 2 && args[0] == "--regex-category-probe")
-{
-    await RegexCategoryProbe.RunAsync(args[1]).ConfigureAwait(false);
-    return;
-}
-
 if (args.Length > 0 && args[0] is "--compare" or "--smoke" or "--reference-benchmarks" or "--check-machine" or "--render-report" or "--driver-smoke" or "--reference-contracts")
 {
     Environment.ExitCode = await ReferenceComparison.RunCommandAsync(args, CancellationToken.None).ConfigureAwait(false);
@@ -267,8 +261,8 @@ internal static class BenchmarkCounterReport
         Console.WriteLine("OS: " + Environment.OSVersion);
         Console.WriteLine(".NET: " + Environment.Version);
         Console.WriteLine();
-        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex DotNet text | Regex pattern gap | Regex string adapter | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | Memory peak |");
-        Console.WriteLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        Console.WriteLine("| Scenario | Records | Input bytes | Output bytes | String decodes | AsString calls | Decode misses | UTF-8 encodes | AwkText allocations | AwkText bytes | Regex matches | Regex groups | RS resolutions | RS bytes scanned | RS tail bytes moved | Formatting fallbacks | String interop | Byte comparisons | Concat bytes copied | Rune slice bytes | Rune indexes | Rune index bytes | Memory peak |");
+        Console.WriteLine("| --- |" + string.Concat(Enumerable.Repeat(" ---: |", 22)));
 
         for (var index = 0; index < Scenarios.Length; index++)
         {
@@ -287,13 +281,13 @@ internal static class BenchmarkCounterReport
                 TimeZoneInfo.Utc,
                 new AwkRandomGenerator(),
                 counters,
-                AwkRuntimeLimits.CreateDefault()) with { MemoryBudget = new Lokad.Awk.Tests.CooperativeTestBudget(CounterExecutionMemoryLimitBytes) };
+                AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance) with { MemoryBudget = new Lokad.Awk.Tests.CooperativeTestBudget(CounterExecutionMemoryLimitBytes) };
             using var host = new ReferenceBenchmarkHost(scenario.Files, [], capture: false);
             await using var compiled = await AwkExecutor
                 .CompileAsync(
                     host,
                     AwkCommandInvocation.CreateWithStandardDescriptors("awk", scenario.Arguments, []),
-                    cancellationToken)
+                    cancellationToken, regexEngine: AwkUtf8RegexEngine.Instance)
                 .ConfigureAwait(false);
             var exitCode = await compiled.ExecuteAsync(host, cancellationToken, options).ConfigureAwait(false);
             if (exitCode.Failed)
@@ -324,9 +318,6 @@ internal static class BenchmarkCounterReport
                     counters.AwkTextAllocations.ToString(CultureInfo.InvariantCulture),
                     counters.AwkTextPayloadBytes.ToString(CultureInfo.InvariantCulture),
                     counters.RegexMatches.ToString(CultureInfo.InvariantCulture),
-                    counters.RegexDotNetTextMatches.ToString(CultureInfo.InvariantCulture),
-                    counters.RegexPatternGapFallbacks.ToString(CultureInfo.InvariantCulture),
-                    counters.RegexStringAdapterMatches.ToString(CultureInfo.InvariantCulture),
                     counters.RegexGroupsMaterialized.ToString(CultureInfo.InvariantCulture),
                     counters.RecordSeparatorResolutions.ToString(CultureInfo.InvariantCulture),
                     counters.RecordSeparatorBytesScanned.ToString(CultureInfo.InvariantCulture),

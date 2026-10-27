@@ -39,11 +39,9 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
     private bool _hasConsumedDescriptorBytes;
     private bool _discardedParagraphLeader;
     private int _paragraphLeaderScanLength;
-    // General regex searches borrow the batch and slice its decoded text at the
+    // General regex searches borrow the UTF-8 batch at the
     // current record. The offset pair avoids repeated byte-to-UTF-16 conversion.
     private AwkText? _regexInput;
-    private AwkMemoryLease? _regexInputMemory;
-    private readonly Action? _admitRegexInputDecoding;
     private int _regexOffsetBufferStart = -1;
     private int _regexOffsetUtf16Index;
     private SeparatorCache _separatorCache;
@@ -61,7 +59,6 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         _paragraphLeaderPolicy = paragraphLeaderPolicy;
         _scanCheckpoint = scanCheckpoint ?? state.CancellationCheckpoint;
         _lineReader = lineReader;
-        if (state.MemoryAccounting.IsEnabled) _admitRegexInputDecoding = AdmitRegexInputDecoding;
     }
 
     public async ValueTask<AwkInputRecordResult> ReadAsync()
@@ -365,7 +362,7 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
                 {
                     _state.Resources.RecordRegexRecordSeparatorBytesScanned(
                         input.ByteLength - searchOffset.ByteIndex);
-                    match = _state.MatchRecordSeparatorSpan(regex, input, recordStart, searchOffset, _admitRegexInputDecoding);
+                    match = _state.MatchRecordSeparatorSpan(regex, input, recordStart, searchOffset);
                     if (!match.Success || match.ByteLength > 0)
                         break;
                     if (match.ByteIndex >= input.ByteLength)
@@ -802,22 +799,10 @@ internal sealed class AwkRecordCursor : IAwkInputRecordReader, IDisposable
         _hasPendingBatch = false;
     }
 
-    private void AdmitRegexInputDecoding()
-    {
-        if (_regexInputMemory is not null) return;
-        var input = _regexInput ?? throw new InvalidOperationException("Regex input is not initialized.");
-        // The builder already funds the UTF-8 backing. Admit the UTF-16 cache only
-        // when matching needs it; UTF-8 providers do not retain this extra storage.
-        _regexInputMemory = _state.MemoryAccounting.ReserveTransient(
-            AwkRuntimeMemory.EstimateUtf16StringBytes(input.ByteLength));
-    }
-
     private void ClearRegexInput()
     {
         _regexInput = null;
         _regexOffsetBufferStart = -1;
-        _regexInputMemory?.Dispose();
-        _regexInputMemory = null;
     }
 
     private BufferedReadResult FinalRecordOrNeedMore(

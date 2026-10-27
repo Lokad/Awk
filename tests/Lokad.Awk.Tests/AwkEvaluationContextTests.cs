@@ -83,7 +83,7 @@ public sealed class AwkEvaluationContextTests
         var testMemory = new CooperativeTestMemory(1 << 20, enabled: finite);
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), limits);
+            new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), limits, regexEngine: AwkUtf8RegexEngine.Instance);
         return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options)));
     }
 

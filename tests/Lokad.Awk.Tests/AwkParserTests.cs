@@ -11,7 +11,7 @@ public sealed class AwkParserTests
     [Fact]
     public void AwkParser_ReturnsSyntaxWithoutLowering()
     {
-        var result = AwkParser.Parse("BEGIN{print 1} {print $1}");
+        var result = AwkParser.Parse("BEGIN{print 1} {print $1}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.True(result.Success);
         Assert.True(result.PhaseResult.Success);
@@ -24,7 +24,7 @@ public sealed class AwkParserTests
     public void AwkProgramLowerer_ConsumesSyntaxProgram()
     {
         const string source = "function join(a,b){ return a b }\nBEGIN{x=\"A\"; y=\"B\"; print join(x, y)}";
-        var syntax = AwkSyntaxParser.Parse(source);
+        var syntax = AwkSyntaxParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         var result = AwkProgramLowerer.Lower(syntax);
 
@@ -41,7 +41,7 @@ public sealed class AwkParserTests
     [Fact]
     public void AwkParser_ReturnsSyntaxErrors()
     {
-        var result = AwkParser.Parse("BEGIN{print");
+        var result = AwkParser.Parse("BEGIN{print", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.False(result.Success);
         Assert.False(result.PhaseResult.Success);
@@ -52,7 +52,7 @@ public sealed class AwkParserTests
     [Fact]
     public void AwkBinder_ReturnsLoweringDiagnosticsWithoutExecutableProgram()
     {
-        var result = AwkBinder.Bind(AwkParser.Parse("BEGIN{print \"x\" >}"));
+        var result = AwkBinder.Bind(AwkParser.Parse("BEGIN{print \"x\" >}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.False(result.Success);
         Assert.False(result.PhaseResult.Success);
@@ -65,7 +65,7 @@ public sealed class AwkParserTests
     [Fact]
     public async Task AwkParser_PreservesParseDiagnosticsIntoShellFacingMessage()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.Equal(AwkDiagnosticId.ParseSyntax, diagnostic.Id);
@@ -87,7 +87,7 @@ public sealed class AwkParserTests
     [Fact]
     public async Task AwkParser_PreservesBinderDiagnosticsIntoShellFacingMessage()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{break}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{break}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.Equal(AwkDiagnosticId.BindInvalidProgram, diagnostic.Id);
@@ -110,7 +110,7 @@ public sealed class AwkParserTests
     [InlineData("BEGIN{split($0, 1)}", "Argument 2 of `split' must be an array name.")]
     public void AwkBinder_ReturnsPreciseLoweringDiagnostics(string source, string expectedMessage)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
@@ -125,7 +125,7 @@ public sealed class AwkParserTests
     [InlineData("[z-a]", false)]
     public void AwkRegexSyntaxValidator_ValidatesTranslatedFrontendPattern(string pattern, bool expected)
     {
-        Assert.Equal(expected, AwkRegexSyntaxValidator.IsValidPattern(pattern));
+        Assert.Equal(expected, AwkRegexSyntaxValidator.IsValidPattern(pattern, AwkUtf8RegexEngine.Instance));
     }
 
     private static string Decode(ReadOnlyMemory<byte> bytes) =>

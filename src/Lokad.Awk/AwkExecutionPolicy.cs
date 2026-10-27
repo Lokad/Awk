@@ -5,10 +5,10 @@ namespace Lokad.Awk;
 /// <summary>Controls capabilities and resource budgets for one awk execution.</summary>
 public sealed record AwkExecutionPolicy
 {
-    /// <summary>Gets the borrowed application-supplied UTF-8 regex engine, or null for .NET compatibility.</summary>
+    /// <summary>Gets the borrowed application-supplied UTF-8 regex engine, or null when none is configured.</summary>
     public IAwkRegexEngine? RegexEngine { get; private init; }
 
-    /// <summary>Uses a borrowed regex engine while retaining Awk translation and match-selection rules.</summary>
+    /// <summary>Uses a borrowed regex engine for Awk-translated patterns and AWK match selection.</summary>
     public AwkExecutionPolicy WithRegexEngine(IAwkRegexEngine engine)
     {
         ArgumentNullException.ThrowIfNull(engine);

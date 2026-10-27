@@ -10,16 +10,15 @@ public sealed class AwkFunctionFlowTests
     public async Task RepeatedFlowUnwindsFunctionLeases(bool skipFile)
     {
         var keyword = skipFile ? "nextfile" : "next";
-        var binding = AwkBinder.Bind(AwkParser.Parse(
-            "function leaf(a){a[1]=\"local\";" + keyword + "} " +
-            "function outer(v){return leaf()+v} {x=outer(1);print \"bad\"}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("function leaf(a){a[1]=\"local\";" + keyword + "} " +
+            "function outer(v){return leaf()+v} {x=outer(1);print \"bad\"}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.True(binding.Success);
         var program = binding.Program.Program;
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault()
             .WithMaxFunctionCallDepth(2);
         var options = new AwkRuntimeOptions(
-            () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits);
+            () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         state.InitializeFunctions(program.Functions);
         var host = new MockFileSystem();
@@ -65,11 +64,11 @@ public sealed class AwkFunctionFlowTests
             try { return await host.ReadLinesAsync(descriptor, count, token); }
             finally { host.ReadLinesAsyncOverride = ReadAsync; }
         }
-        var compiled = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+        var compiled = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(2));
+            AwkRuntimeLimits.CreateDefault().WithMaxFunctionCallDepth(2), regexEngine: AwkUtf8RegexEngine.Instance);
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(0, exit.Value);
         Assert.True(reads >= 2);

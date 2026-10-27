@@ -3,20 +3,17 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegexBracketClassTests
 {
     [Theory]
-    [InlineData(AwkCompatibilityMode.GnuDefault, false)]
-    [InlineData(AwkCompatibilityMode.Posix, false)]
-    [InlineData(AwkCompatibilityMode.Traditional, false)]
-    [InlineData(AwkCompatibilityMode.GnuDefault, true)]
-    [InlineData(AwkCompatibilityMode.Posix, true)]
-    [InlineData(AwkCompatibilityMode.Traditional, true)]
+    [InlineData(AwkCompatibilityMode.GnuDefault)]
+    [InlineData(AwkCompatibilityMode.Posix)]
+    [InlineData(AwkCompatibilityMode.Traditional)]
     internal void InvalidNamedClassFailsBeforePublicationAndDoesNotPoisonRetry(
-        AwkCompatibilityMode mode, bool engine)
+        AwkCompatibilityMode mode)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var governor = AwkMemoryAccounting.Disabled;
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters), governor, mode, regexEngine: engine ? AwkUtf8RegexEngine.Instance : null);
+            static () => { }, counters, new AwkRuntimeResourceMonitor(limits, counters), governor, mode, regexEngine: AwkUtf8RegexEngine.Instance);
         for (var run = 0; run < 2; run++)
         {
             var failure = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern("[[:word:]]")));
@@ -145,15 +142,13 @@ public sealed class AwkRegexBracketClassTests
         Assert.Equal(cancellation.Token, failure.CancellationToken);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CaptureNumbersAndByteNativeSymbolMatchingRemainUnchanged(bool utf8)
+    [Fact]
+    public void CaptureNumbersAndByteNativeSymbolMatchingRemainUnchanged()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), regexEngine: AwkUtf8RegexEngine.Instance);
         var captured = runtime.Create(new AwkRegexPattern("([[:digit:]])([[:alpha:]])"));
         using var captures = runtime.MatchCaptureValue(captured, AwkText.FromString("7A"), AwkMemoryAccounting.Disabled);
         Assert.Equal(3, captures.Match.Groups.Count);
@@ -162,10 +157,8 @@ public sealed class AwkRegexBracketClassTests
         var punctuation = runtime.Create(new AwkRegexPattern("[[:punct:]]"));
         Assert.True(runtime.IsMatch(punctuation, AwkText.FromString("$", counters)));
         Assert.False(runtime.IsMatch(punctuation, AwkText.FromString("A", counters)));
-        Assert.Equal(utf8 ? 0 : 3, counters.StringDecodes);
-        Assert.Equal(utf8 ? 0 : 3, counters.AwkTextAsStringCalls);
-        Assert.Equal(0, counters.RegexPatternGapFallbacks);
-        Assert.Equal(utf8 ? 0 : 3, counters.RegexDotNetTextMatches);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.AwkTextAsStringCalls);
         Assert.Equal(3, counters.RegexMatches);
         Assert.Equal(2, counters.RegexCompiles);
     }

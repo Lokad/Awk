@@ -20,7 +20,7 @@ public sealed class AwkPrintfAdmissionTests
         var format = string.Concat(Enumerable.Repeat(scalar, 12_000)) + "%04d";
         var script = "BEGIN{print \"before\";printf \"" + format + "\",7;print \"after\"}END{print \"end\"}";
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []));
-        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None);
         Assert.Equal(2, exit.Value);
         Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -40,7 +40,7 @@ public sealed class AwkPrintfAdmissionTests
         var script = "BEGIN{print \"before\";printf \"prefix%1000000c\",\"" + value +
             "\";print \"after\"}END{print \"end\"}";
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []));
-        Assert.Equal(2, (await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None)).Value);
+        Assert.Equal(2, (await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None)).Value);
         Assert.Equal("before\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", host.GetAppendedOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(0, budget.Reserved);
@@ -83,7 +83,7 @@ public sealed class AwkPrintfAdmissionTests
         host.EnqueueAppendExitCode(0); // Admission diagnostic.
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk",
             ["BEGIN{print \"before\";printf \"" + format + "\",1000000,1.25;print \"after\"}"], []));
-        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None);
         Assert.Equal(2, exit.Value);
         Assert.Equal("before\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", host.GetAppendedOutput(AwkFileDescriptor.StdErr));

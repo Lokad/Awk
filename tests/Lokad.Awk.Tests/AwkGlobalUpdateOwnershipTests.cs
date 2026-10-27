@@ -155,7 +155,7 @@ public sealed class AwkGlobalUpdateOwnershipTests
     {
         var source = new MockFileSystem();
         source.AddFile("/script", "function bump(value){value+=1;total+=value;return value} {SYMTAB[$1]=$2;value=$2+0;value+=bump(1);total+=value} END{print total,value}");
-        var compiled = await AwkExecutor.CompileAsync(source, AwkTestHarness.BuildInvocation("awk", "-f", "/script", "/data"), CancellationToken.None);
+        var compiled = await AwkExecutor.CompileAsync(source, AwkTestHarness.BuildInvocation("awk", "-f", "/script", "/data"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var arrivals = 0;
@@ -172,7 +172,7 @@ public sealed class AwkGlobalUpdateOwnershipTests
                 try { return await host.ReadLinesAsync(descriptor, count, token).ConfigureAwait(false); }
                 finally { host.ReadLinesAsyncOverride = ReadAsync; }
             }
-            var exit = await compiled.ExecuteAsync(host, deadline.Token);
+            var exit = await compiled.ExecuteAsync(host, deadline.Token, AwkTestHarness.CreateRuntimeOptions());
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
@@ -197,7 +197,7 @@ public sealed class AwkGlobalUpdateOwnershipTests
 
         var testMemory = new CooperativeTestMemory(Limit);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault());
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         if (vector) state.InitializeGlobalReadSlots(1);
         return testMemory.Initialize(() => state);

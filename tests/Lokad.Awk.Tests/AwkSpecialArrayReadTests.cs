@@ -57,8 +57,7 @@ public sealed class AwkSpecialArrayReadTests
     [Fact]
     public void GlobalInventoryExcludesParametersAndSurvivesScalarArrayUse()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(
-            "function f(local){local=1;global=2;a[1]=3}BEGIN{other=4}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("function f(local){local=1;global=2;a[1]=3}BEGIN{other=4}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.True(binding.Program.HasProgram);
         var program = binding.Program.Program;
         Assert.False(program.GlobalNames.Contains(AwkVariableName.FromText("local")));
@@ -70,5 +69,5 @@ public sealed class AwkSpecialArrayReadTests
     private static AwkRuntimeState State(AwkRuntimeCounters counters) =>
         AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()));
+                new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance));
 }

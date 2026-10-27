@@ -5,19 +5,16 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegexPreparationCancellationTests
 {
     [Theory]
-    [InlineData(false, "plain")]
-    [InlineData(true, "plain")]
-    [InlineData(false, "bracket")]
-    [InlineData(true, "bracket")]
-    [InlineData(false, "literal")]
-    [InlineData(true, "literal")]
-    public void LongPreparationCanBeCanceledAndRetried(bool utf8, string shape)
+    [InlineData("plain")]
+    [InlineData("bracket")]
+    [InlineData("literal")]
+    public void LongPreparationCanBeCanceledAndRetried(string shape)
     {
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var checks = 0;
         var armed = true;
-        var runtime = Runtime(utf8, counters, () =>
+        var runtime = Runtime(counters,() =>
         {
             if (armed && ++checks == 3) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
@@ -35,20 +32,18 @@ public sealed class AwkRegexPreparationCancellationTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public void CancellationAtFinalPublicationDoesNotCacheTheConstruction(bool utf8, bool literal)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CancellationAtFinalPublicationDoesNotCacheTheConstruction(bool literal)
     {
         var total = 0;
-        var probe = Runtime(utf8, AwkRuntimeCounters.Disabled, () => total++);
+        var probe = Runtime(AwkRuntimeCounters.Disabled,() => total++);
         _ = Create(probe);
         using var cancellation = new CancellationTokenSource();
         var counters = AwkRuntimeCounters.CreateEnabled();
         var checks = 0;
         var armed = true;
-        var runtime = Runtime(utf8, counters, () =>
+        var runtime = Runtime(counters,() =>
         {
             if (armed && ++checks == total) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
@@ -68,18 +63,6 @@ public sealed class AwkRegexPreparationCancellationTests
     }
 
     [Theory]
-    [InlineData("analysis", "plain")]
-    [InlineData("analysis", "bracket")]
-    [InlineData("analysis", "category")]
-    [InlineData("analysis", "named")]
-    [InlineData("analysis", "options")]
-    [InlineData("analysis", "unclosed")]
-    [InlineData("scalar", "plain")]
-    [InlineData("scalar", "bracket")]
-    [InlineData("scalar", "category")]
-    [InlineData("scalar", "negated")]
-    [InlineData("scalar", "unclosed")]
-    [InlineData("scalar", "pairs")]
     [InlineData("translation", "plain")]
     [InlineData("translation", "posix")]
     [InlineData("translation", "collating")]
@@ -101,8 +84,6 @@ public sealed class AwkRegexPreparationCancellationTests
         {
             switch (stage)
             {
-                case "analysis": _ = AwkRegexSelection.Analyze(text, checkpoint); break;
-                case "scalar": _ = AwkRegexScalarPattern.Translate(text, checkpoint); break;
                 case "translation": _ = AwkRegex.TranslatePattern(new AwkRegexPattern(text),
                     checkpoint: checkpoint); break;
                 default: throw new ArgumentException("Unknown preparation stage.");
@@ -137,29 +118,8 @@ public sealed class AwkRegexPreparationCancellationTests
         }
     }
 
-    [Theory]
-    [InlineData(6)]
-    [InlineData(10)]
-    public void CallerCancellationCannotPoisonSharedUnicodeMetadata(int cancelAt)
-    {
-        const string pattern = @"\p{L}";
-        var expected = AwkRegexScalarPattern.Translate(pattern);
-        using var cancellation = new CancellationTokenSource();
-        var checks = 0;
-        var error = Assert.Throws<OperationCanceledException>(() =>
-            AwkRegexScalarPattern.Translate(pattern, () =>
-            {
-                if (++checks == cancelAt) cancellation.Cancel();
-                cancellation.Token.ThrowIfCancellationRequested();
-            }));
-        Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(expected, AwkRegexScalarPattern.Translate(pattern, () => { }));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CancelingLeasedDecodingReleasesScratchBeforeRetry(bool utf8)
+    [Fact]
+    public void CancelingLeasedDecodingReleasesScratchBeforeRetry()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -173,7 +133,7 @@ public sealed class AwkRegexPreparationCancellationTests
             {
                 if (armed && governor.CurrentCommittedBytes > 0 && ++checks == 6) cancellation.Cancel();
                 if (armed) cancellation.Token.ThrowIfCancellationRequested();
-            }, counters,             new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            }, counters,             new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
         var pattern = new AwkRegexPattern(string.Concat(Enumerable.Repeat(@"\x61", 4096)));
         var error = Assert.Throws<OperationCanceledException>(() => runtime.Create(pattern));
         Assert.Equal(cancellation.Token, error.CancellationToken);
@@ -187,10 +147,8 @@ public sealed class AwkRegexPreparationCancellationTests
         Assert.Equal(2, counters.RegexCompiles);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CompletedRegexDoesNotRetainItsConstructionCheckpoint(bool utf8)
+    [Fact]
+    public void CompletedRegexDoesNotRetainItsConstructionCheckpoint()
     {
         var armed = false;
         void Checkpoint()
@@ -200,7 +158,7 @@ public sealed class AwkRegexPreparationCancellationTests
         var regex = AwkRegex.Create(new AwkRegexPattern("a"), AwkRegexCaseSensitivity.CaseSensitive,
             checkpoint: Checkpoint);
         armed = true;
-        using var runtime = Runtime(utf8, AwkRuntimeCounters.Disabled, static () => { });
+        using var runtime = Runtime(AwkRuntimeCounters.Disabled,static () => { });
         Assert.True(runtime.IsMatch(regex, AwkText.FromString("a")));
     }
 
@@ -245,7 +203,7 @@ public sealed class AwkRegexPreparationCancellationTests
         };
     }
 
-    private static AwkRegexRuntime Runtime(bool utf8, AwkRuntimeCounters counters, Action checkpoint) =>
+    private static AwkRegexRuntime Runtime(AwkRuntimeCounters counters,Action checkpoint) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            checkpoint, counters, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            checkpoint, counters, regexEngine: AwkUtf8RegexEngine.Instance);
 }

@@ -5,17 +5,16 @@ public sealed class AwkGetlineFailureTests
     public static IEnumerable<object[]> ReadFailures()
     {
 
-        foreach (var utf8 in new[] { false, true })
             foreach (var source in new[] { "file", "pipe", "main" })
                 foreach (var afterRecord in new[] { false, true })
                     foreach (var target in new[] { "", "v", "a[++i]", "$5" })
-                        yield return [utf8, source, afterRecord, target];
+                        yield return [source, afterRecord, target];
     }
 
     [Theory]
     [MemberData(nameof(ReadFailures))]
     public async Task RecoverableReadFailurePreservesAdmittedDestinationAndRecord(
-bool utf8, string source, bool afterRecord, string target)
+        string source, bool afterRecord, string target)
     {
         var files = new MockFileSystem();
         files.AddFile("/data", "unread");
@@ -40,7 +39,7 @@ bool utf8, string source, bool afterRecord, string target)
             "RT=\"marker\";ERRNO=\"keep\";code=(" + Getline(target) + ");" +
             "n=0;for(k in a)n++;print code,ERRNO,NR,FNR,NF,i,n,\"[\"$0\"]\",v,RT;exit}";
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = Options(utf8, counters);
+        var options = Options(counters);
 
         var exit = await ExecuteAsync(host, script, options);
 
@@ -57,12 +56,10 @@ bool utf8, string source, bool afterRecord, string target)
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task RecoverableFailureDoesNotConsumeOutputBudgetOrWriteToTheHost(
-bool utf8, bool readFailure)
+bool readFailure)
     {
         foreach (var enabled in new[] { false, true })
         {
@@ -77,7 +74,7 @@ bool utf8, bool readFailure)
             host.AfterAppend = () => appends++;
             var counters = enabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
             var limits = AwkRuntimeLimits.CreateDefault();
-            var options = Options(utf8, counters, limits);
+            var options = Options(counters,limits);
 
             var exit = await ExecuteAsync(host, "BEGIN{code=(getline v<\"data\");exit(code!=-1)}", options);
 
@@ -92,16 +89,14 @@ bool utf8, bool readFailure)
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Fact]
     public async Task CommandStderrIsPreservedWhenItsInputPipeEnds(
-bool utf8)
+)
     {
         var files = new MockFileSystem();
         files.AddFile("/data", "");
         var host = new FailureHost(files) { CommandError = "command error\n" };
-        var options = Options(utf8, AwkRuntimeCounters.CreateEnabled());
+        var options = Options(AwkRuntimeCounters.CreateEnabled());
 
         var exit = await ExecuteAsync(host,
             "BEGIN{ERRNO=\"keep\";code=(\"cat data\"|getline v);print code,ERRNO;exit}", options);
@@ -112,10 +107,9 @@ bool utf8)
         Assert.Equal(0, host.OpenPipeCount);
     }
 
-    private static AwkRuntimeOptions Options(bool utf8,
-        AwkRuntimeCounters counters, AwkRuntimeLimits? limits = null) =>
+    private static AwkRuntimeOptions Options(        AwkRuntimeCounters counters,AwkRuntimeLimits? limits = null) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
 
     private static async Task<AwkExitCode> ExecuteAsync(IAwkHost host, string script, AwkRuntimeOptions options)
     {

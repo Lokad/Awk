@@ -27,7 +27,7 @@ public sealed class AwkRuntimeStartupTests
         var raw = "\\t" + new string('x', 1 << 20);
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-v", "x=" + raw, terminal));
         var budget = new CooperativeTestBudget(64 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var expected = terminal == "--version" ? "Lokad awk " + AwkVersion.Text + "\n" : AwkUtf8Codec.Decode(global::Lokad.Awk.AwkMessages.HelpMessage);
         await RunAsync();
@@ -112,7 +112,7 @@ public sealed class AwkRuntimeStartupTests
         string[] arguments = terminal ? ["-F", "\uD800", "--version"] : ["-F", "\uD800", "-f", "/source.awk"];
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments));
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
 
         var exit = await tool.ExecuteAsync(host, policy, CancellationToken.None);
@@ -144,7 +144,7 @@ public sealed class AwkRuntimeStartupTests
     [Fact]
     public void FunctionInventoryHasBoundedInitializationAllocation()
     {
-        var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithTimeZone(TimeZoneInfo.Utc));
+        var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithTimeZone(TimeZoneInfo.Utc));
         var functions = new Dictionary<AwkFunctionName, AwkUserFunction>();
         using (var warm = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options))
             warm.InitializeFunctions(functions);
@@ -189,7 +189,7 @@ public sealed class AwkRuntimeStartupTests
     [Fact]
     public void DefaultOptionsDoNotCopyRandomState()
     {
-        var policy = AwkExecutionPolicy.CreateDefault().WithTimeZone(TimeZoneInfo.Utc);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithTimeZone(TimeZoneInfo.Utc);
         _ = AwkRuntimeOptions.Create(policy).CreateRandomGenerator();
         var before = GC.GetAllocatedBytesForCurrentThread();
         var reference = new AwkRandomGenerator();

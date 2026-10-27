@@ -11,14 +11,13 @@ public sealed class AwkStringEscapeWarningTests
         foreach (var profile in new[] { "", "--posix", "--traditional" })
             foreach (var optionFirst in new[] { false, true })
 
-                foreach (var utf8 in new[] { false, true })
-                    yield return [profile, optionFirst, utf8];
+                    yield return [profile, optionFirst];
     }
 
     [Theory]
     [MemberData(nameof(CompiledEntries))]
     public async Task CompiledHistoryRetainsFirstOriginAndIsFreshForConcurrentRuns(
-        string profile, bool optionFirst, bool utf8)
+        string profile, bool optionFirst)
     {
         var source = new MockFileSystem();
         source.AddFile("/warning.awk", "# source\nBEGIN{print \"\\q\\q\"}END{print a,b}\n");
@@ -26,7 +25,7 @@ public sealed class AwkStringEscapeWarningTests
             .. optionFirst ? new[] { "-v", @"v=\q" } : Array.Empty<string>(),
             "-f", "/warning.awk", @"a=\q", @"b=\q"];
         var compiled = await AwkExecutor.CompileAsync(source,
-            AwkTestHarness.BuildInvocation("awk", args, []), CancellationToken.None);
+            AwkTestHarness.BuildInvocation("awk", args, []), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var warning = Assert.Single(compiled.Warnings);
         Assert.Equal(AwkStringEscapeWarningKind.Unknown, warning.StringEscapeWarning.Kind);
         Assert.Equal(new Rune('q'), warning.StringEscapeWarning.Character);
@@ -45,7 +44,7 @@ public sealed class AwkStringEscapeWarningTests
         async Task RunAsync()
         {
             var host = new MockFileSystem();
-            var options = Options(utf8);
+            var options = Options();
             var exit = await compiled.ExecuteAsync(host, deadline.Token, options);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("qq\nq q\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -74,7 +73,7 @@ public sealed class AwkStringEscapeWarningTests
         var script = "BEGIN{print \"" + '\\' + escaped + '\\' + escaped + "\";exit}";
         string[] args = [.. profile.Length == 0 ? Array.Empty<string>() : new[] { profile }, "-v", option, script];
         var host = new MockFileSystem();
-        var options = Options(false, AwkRuntimeLimits.CreateDefault());
+        var options = Options(AwkRuntimeLimits.CreateDefault());
         var exit = await AwkExecutor.ExecuteAsync(host,
             AwkCommandParser.Parse(AwkTestHarness.BuildInvocation("awk", args, [])), CancellationToken.None, options);
         var perOccurrence = escaped is 'x' or 'u';
@@ -127,7 +126,7 @@ public sealed class AwkStringEscapeWarningTests
         Assert.Equal(3, checks);
     }
 
-    private static AwkRuntimeOptions Options(bool utf8, AwkRuntimeLimits? limits = null) =>
+    private static AwkRuntimeOptions Options(AwkRuntimeLimits? limits = null) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            AwkRuntimeCounters.CreateEnabled(), limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
 }

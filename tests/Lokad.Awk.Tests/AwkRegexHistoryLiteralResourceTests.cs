@@ -3,21 +3,17 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRegexHistoryLiteralResourceTests
 {
     [Theory]
-    [InlineData(false, ".")]
-    [InlineData(true, ".")]
-    [InlineData(false, "[")]
-    [InlineData(true, "[")]
-    [InlineData(false, "\n")]
-    [InlineData(true, "\n")]
-    [InlineData(false, "large")]
-    [InlineData(true, "large")]
-    public void LiteralPreparationRejectsUnadmittedOutputAndAllowsRetry(bool utf8, string shape)
+    [InlineData(".")]
+    [InlineData("[")]
+    [InlineData("\n")]
+    [InlineData("large")]
+    public void LiteralPreparationRejectsUnadmittedOutputAndAllowsRetry(string shape)
     {
         var text = shape == "large" ? new string('.', 8192) : shape;
         using var memoryForGovernor = Governor(1);
         var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(utf8, governor, counters);
+        var runtime = Runtime(governor,counters);
         for (var attempt = 0; attempt < 2; attempt++)
         {
             var error = Assert.Throws<AwkRuntimeException>(() => runtime.CreateLiteral(new AwkRegexLiteralText(text)));
@@ -28,7 +24,7 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         }
         using var memoryForAdmitted = Governor(1 << 24);
         var admitted = memoryForAdmitted.Accounting;
-        var retry = Runtime(utf8, admitted, counters);
+        var retry = Runtime(admitted,counters);
         var regex = retry.CreateLiteral(new AwkRegexLiteralText(text));
         Assert.Same(regex, retry.CreateLiteral(new AwkRegexLiteralText(text)));
         Assert.Equal(1, counters.RegexCompiles);
@@ -128,16 +124,14 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         Assert.Equal(0, shortGovernor.CurrentReservedBytes);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void LiteralCacheCancellationReleasesAdmissionWithoutPublishing(bool utf8)
+    [Fact]
+    public void LiteralCacheCancellationReleasesAdmissionWithoutPublishing()
     {
         const long bytes = 28; // Regex.Escape(".") returns two UTF-16 units.
         using var memoryForProbeGovernor = Governor(1 << 20);
         var probeGovernor = memoryForProbeGovernor.Accounting;
         var heldChecks = 0;
-        _ = Runtime(utf8, probeGovernor, AwkRuntimeCounters.Disabled, () =>
+        _ = Runtime(probeGovernor,AwkRuntimeCounters.Disabled,() =>
         {
             if (probeGovernor.CurrentCommittedBytes == bytes) heldChecks++;
         }).CreateLiteral(new AwkRegexLiteralText("."));
@@ -148,7 +142,7 @@ public sealed class AwkRegexHistoryLiteralResourceTests
         using var cancellation = new CancellationTokenSource();
         var armed = true;
         var checks = 0;
-        var runtime = Runtime(utf8, governor, counters, () =>
+        var runtime = Runtime(governor,counters,() =>
         {
             if (armed && governor.CurrentCommittedBytes == bytes && ++checks == heldChecks) cancellation.Cancel();
             if (armed) cancellation.Token.ThrowIfCancellationRequested();
@@ -267,9 +261,8 @@ public sealed class AwkRegexHistoryLiteralResourceTests
     private static CooperativeTestMemory Governor(long bytes) =>
         new CooperativeTestMemory(bytes, AwkRuntimeCounters.Disabled);
 
-    private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryAccounting governor, AwkRuntimeCounters counters,
-        Action? checkpoint = null) =>
+    private static AwkRegexRuntime Runtime(AwkMemoryAccounting governor,AwkRuntimeCounters counters,        Action? checkpoint = null) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
             checkpoint ?? (() => { }), counters,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), governor, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
 }

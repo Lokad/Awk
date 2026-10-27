@@ -53,7 +53,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             () => caseSensitivity,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            AwkRuntimeCounters.Disabled);
+            AwkRuntimeCounters.Disabled, regexEngine: AwkUtf8RegexEngine.Instance);
 
         var first = runtime.Create(new AwkRegexPattern("a+"));
         var second = runtime.Create(new AwkRegexPattern("a+"));
@@ -95,12 +95,9 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Awk_RegexSupplementaryCapturesHaveStrictUtf8AndMeasuredRouting(
-        bool useUtf8Adapter,
         bool charactersAsBytes)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -108,7 +105,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             charactersAsBytes ? AwkStringUnitMode.Byte : AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters, regexEngine: useUtf8Adapter ? AwkUtf8RegexEngine.Instance : null);
+            counters, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("(.)"));
         var input = AwkText.FromString("😀🦊", counters);
         using var match = runtime.MatchValue(regex, input, AwkMemoryAccounting.Disabled, AwkRegexCapturePlan.All);
@@ -119,19 +116,13 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             Assert.Equal("😀", new UTF8Encoding(false, true).GetString(group.Value.AsSpan())));
         Assert.Equal(2, counters.RegexGroupsMaterialized);
         Assert.Equal(1, counters.RegexCompiles);
-        var usesAdapter = useUtf8Adapter;
-        Assert.Equal(usesAdapter ? 0 : 1, counters.RegexDotNetTextMatches);
-        Assert.Equal(usesAdapter ? 0 : 1, counters.StringDecodes);
-        Assert.Equal(0, counters.RegexPatternGapFallbacks);
+        Assert.Equal(0, counters.StringDecodes);
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Awk_RegexRejectsBackendSurrogateSplitsBeforeCaptureAllocation(
-        bool useUtf8Adapter,
         bool splitCaptureOnly)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -140,7 +131,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters, regexEngine: useUtf8Adapter ? AwkUtf8RegexEngine.Instance : null);
+            counters, regexEngine: AwkUtf8RegexEngine.Instance);
         // Construct an untranslated backend pattern to exercise the publication guard.
         var pattern = splitCaptureOnly ? @"(\uD83D)(\uDE00)" : @"[\uD800-\uDBFF]";
         var regex = new AwkRegex(pattern, AwkRegexCaseSensitivity.CaseSensitive);
@@ -158,14 +149,14 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     }
 
     [Fact]
-    public void Awk_DotNetRegexSpanScannerDecodesInputOnce()
+    public void Awk_RegexSpanScannerKeepsInputByteNative()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters);
+            counters, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("[0-9]"));
         var input = AwkText.FromString(string.Concat(Enumerable.Repeat("é1", 128)), counters);
         var count = 0;
@@ -179,41 +170,39 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         }
 
         Assert.Equal(128, count);
-        Assert.Equal(1, counters.StringDecodes);
-        Assert.Equal(1, counters.AwkTextAsStringCalls);
-        Assert.Equal(1, counters.AwkTextAsStringDecodeMisses);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.AwkTextAsStringCalls);
+        Assert.Equal(0, counters.AwkTextAsStringDecodeMisses);
     }
 
     [Fact]
-    public void Awk_DefaultRegexPolicyDoesNotNeedInputAsciiClassification()
+    public void Awk_UnmatchedProviderSearchDoesNotDecodeInput()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Byte,
             static () => { },
-            counters);
+            counters, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("z"));
         var input = AwkText.FromString(new string('a', 4_096), counters);
 
         Assert.False(runtime.IsMatch(regex, input));
         Assert.False(runtime.IsMatch(regex, input));
-
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.AwkTextAsStringCalls);
+        Assert.Equal(2, counters.RegexMatches);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Awk_CaptureMatchReusesGroupZeroValue(bool useUtf8Adapter)
+    [Fact]
+    public void Awk_CaptureMatchReusesGroupZeroValue()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters, regexEngine: (useUtf8Adapter
-                ? true
-                : false) ? AwkUtf8RegexEngine.Instance : null);
+            counters, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("(a)"));
         var input = AwkText.FromString("a", counters);
         var baselineTextAllocations = counters.AwkTextAllocations;
@@ -231,19 +220,15 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.Equal(baselineTextAllocations + 2, counters.AwkTextAllocations);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Awk_CaptureMatchMaterializesOnlyTheSelectedGroupPrefix(bool useUtf8Adapter)
+    [Fact]
+    public void Awk_CaptureMatchMaterializesOnlyTheSelectedGroupPrefix()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(
             static () => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune,
             static () => { },
-            counters, regexEngine: (useUtf8Adapter
-                ? true
-                : false) ? AwkUtf8RegexEngine.Instance : null);
+            counters, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern("(a)(b)(c)(d)"));
         var input = AwkText.FromString("abcd", counters);
         var baselineTextAllocations = counters.AwkTextAllocations;
@@ -267,14 +252,14 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
     }
 
     [Fact]
-    public void Awk_DotNetCaptureCoordinatesUseOneByteMappingAcrossLookbehindGroups()
+    public void Awk_ProviderCaptureCoordinatesIncludeGroupsBeforeTheWholeMatch()
     {
-        const string input = "\u00e9x";
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var dotNetMatch = Regex.Match(input, "(?<=(\u00e9))x", RegexOptions.CultureInvariant);
+        var whole = new AwkRegexCaptureRange(true, 2, 1, 1, 1, true);
+        AwkRegexCaptureRange[] groups = [whole, new(true, 0, 2, 0, 1, true)];
 
-        using var leasedMatch = AwkRegexMatch.FromMatch(
-            dotNetMatch, input, byteIndex: 2, byteLength: 1, AwkRegexCoordinatePolicy.Byte, AwkRegexCapturePlan.All, counters, AwkMemoryAccounting.Disabled);
+        using var leasedMatch = AwkRegexMatch.FromRanges(
+            whole, "\u00e9x"u8, groups, AwkRegexSearchOffset.Start, AwkRegexCoordinatePolicy.Byte, counters, AwkMemoryAccounting.Disabled, () => { });
         var match = leasedMatch.Match;
 
         Assert.True(match.Success);
@@ -394,7 +379,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
 
     [Theory]
     [MemberData(nameof(RegexGoldenCases))]
-    public async Task Awk_Utf8RegexAdapterMatchesRegexGoldenCases(AwkGoldenCase testCase)
+    public async Task Awk_PreparedRegexGoldenCasesMatch(AwkGoldenCase testCase)
     {
         var options = new AwkRuntimeOptions(
             () => new AwkUnixTimestampSeconds(0),
@@ -448,7 +433,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             BuildInvocation("awk", program),
-            CancellationToken.None);
+            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var fileSystem = new MockFileSystem();
 
         var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
@@ -458,10 +443,8 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Awk_IgnoreCaseRegexIsIndependentOfCurrentCulture(bool useUtf8Adapter)
+    [Fact]
+    public async Task Awk_IgnoreCaseRegexIsIndependentOfCurrentCulture()
     {
         var previousCulture = CultureInfo.CurrentCulture;
         var previousUiCulture = CultureInfo.CurrentUICulture;
@@ -474,14 +457,12 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
                 TimeZoneInfo.Utc,
                 new AwkRandomGenerator(),
                 AwkRuntimeCounters.Disabled,
-                AwkRuntimeLimits.CreateDefault(), regexEngine: (useUtf8Adapter
-                    ? true
-                    : false) ? AwkUtf8RegexEngine.Instance : null);
+                AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
             var fileSystem = new MockFileSystem();
             var compiled = await AwkExecutor.CompileAsync(
                 fileSystem,
                 BuildInvocation("awk", "BEGIN{IGNORECASE=1; print (\"I\" ~ /i/), (\"i\" ~ /I/)}"),
-                CancellationToken.None);
+                CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
 
             var exitCode = await compiled.ExecuteAsync(fileSystem, CancellationToken.None, options);
 
@@ -504,7 +485,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             "awk",
             "--characters-as-bytes",
             "BEGIN{s=\"éa\"; print (s ~ /éa/), match(s,/a/), RSTART, RLENGTH; print match(s,/é/,m), RSTART, RLENGTH, m[0], m[0,\"start\"], m[0,\"length\"]}"));
-        var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("1 3 3 1\n1 1 2 é 1 2\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
@@ -527,7 +508,7 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
                 "awk",
                 "BEGIN{switch(\"éclair\"){case /écl/: print \"switch\"}; p=\"fé\"; print (\"café\" ~ p)} /é/{print \"action\", $0} /dé/,/fin/{print \"range\", $0}",
                 "/file.txt"),
-            CancellationToken.None);
+            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var fileSystem = new MockFileSystem();
         fileSystem.AddFile("/file.txt", "abc\ndébut\nmilieu\nfin\néclair\n");
 
@@ -539,7 +520,6 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
         Assert.True(counters.RegexMatches > 0);
-        Assert.Equal(0, counters.RegexDotNetTextMatches);
         Assert.Equal(1, counters.StringDecodes);
     }
 
@@ -550,20 +530,20 @@ public sealed class AwkCurrentSurfaceExpressionsRegexTests : AwkCurrentSurfaceTe
             "awk",
             ["/start/,/end/ {print $0}", "/file.txt"],
             []));
-        var binding = AwkBinder.Bind(AwkParser.Parse("/start/,/end/ {print $0}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("/start/,/end/ {print $0}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.True(binding.Program.HasProgram);
         var program = binding.Program.Program;
 
         var firstRun = new MockFileSystem();
         firstRun.AddFile("/file.txt", "start\nstill-active\n");
-        var firstExitCode = await AwkRuntime.ExecuteAsync(firstRun, invocation, program, CancellationToken.None);
+        var firstExitCode = await AwkRuntime.ExecuteAsync(firstRun, invocation, program, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions());
 
         Assert.Equal(AwkExitCode.Success, firstExitCode);
         Assert.Equal("start\nstill-active\n", firstRun.GetOutput(AwkFileDescriptor.StdOut));
 
         var secondRun = new MockFileSystem();
         secondRun.AddFile("/file.txt", "before\nend\n");
-        var secondExitCode = await AwkRuntime.ExecuteAsync(secondRun, invocation, program, CancellationToken.None);
+        var secondExitCode = await AwkRuntime.ExecuteAsync(secondRun, invocation, program, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions());
 
         Assert.Equal(AwkExitCode.Success, secondExitCode);
         Assert.Equal(string.Empty, secondRun.GetOutput(AwkFileDescriptor.StdOut));

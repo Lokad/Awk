@@ -53,7 +53,7 @@ public sealed class AwkCaseMemoryTests
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), limits) { MemoryOwner = owner };
+            AwkRuntimeCounters.CreateEnabled(), limits, regexEngine: AwkUtf8RegexEngine.Instance) { MemoryOwner = owner };
         var profile = bytes ? AwkCompatibilityProfile.Default.WithCharactersAsBytes() : AwkCompatibilityProfile.Default;
         return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
             new AwkRuntimeResourceMonitor(limits, options.Counters), profile);

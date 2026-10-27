@@ -43,7 +43,7 @@ bool asynchronousHost)
     }
 
     private static Task<AwkCompiledProgram> CompileAsync(string program) =>
-        AwkExecutor.CompileAsync(new MockFileSystem(), AwkTestHarness.BuildInvocation("awk", program), CancellationToken.None);
+        AwkExecutor.CompileAsync(new MockFileSystem(), AwkTestHarness.BuildInvocation("awk", program), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
 
     [Fact]
     internal async Task NestedArgumentsKeepTheClrStackBounded()
@@ -96,7 +96,7 @@ bool asynchronousHost)
 
     private static AwkRuntimeOptions Options(
 AwkRuntimeLimits limits, AwkRuntimeCounters counters) =>
-        new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits);
+        new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
 
     private static async Task<Result> RunAsync(AwkCompiledProgram compiled, string input, AwkRuntimeLimits limits, bool observed)
     {

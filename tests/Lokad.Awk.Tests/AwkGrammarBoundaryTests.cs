@@ -15,7 +15,7 @@ public sealed class AwkGrammarBoundaryTests
     [InlineData("1&&\n(2<3<4){print}", "<", "Comparison operators are non-associative.")]
     public void SyntaxErrorsIdentifyTheOffendingToken(string source, string token, string message)
     {
-        var syntax = AwkSyntaxParser.Parse(source);
+        var syntax = AwkSyntaxParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         var diagnostic = Assert.Single(syntax.Diagnostics);
         Assert.Equal(AwkDiagnosticId.ParseSyntax, diagnostic.Id);
         Assert.Equal(message, diagnostic.Message);
@@ -27,7 +27,7 @@ public sealed class AwkGrammarBoundaryTests
     public void RelationsMatchesAndMembershipPreserveTheirDistinctGrammar()
     {
         const string source = "BEGIN{r=\"a\"~\"a\"==1;r=1==1 in a==1;r=1~1~1;r=(1<2)==1;r=1<x=2<3}";
-        var syntax = AwkSyntaxParser.Parse(source);
+        var syntax = AwkSyntaxParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         Assert.Empty(syntax.Diagnostics);
         var values = Assert.Single(syntax.Rules).ActionStatements
             .Select(statement => statement.Expression.Value.Children[1]).ToArray();

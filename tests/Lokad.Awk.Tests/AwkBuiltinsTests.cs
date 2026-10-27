@@ -132,7 +132,7 @@ public sealed class AwkBuiltinsTests
     [Fact]
     public void AwkBuiltinCallShape_ClassifiesWholeStatementCallsFromMetadata()
     {
-        var syntax = AwkSyntaxParser.Parse("BEGIN{close(\"x\"); fflush()}");
+        var syntax = AwkSyntaxParser.Parse("BEGIN{close(\"x\"); fflush()}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         var statements = syntax.Rules.Single().ActionStatements;
 
         Assert.True(AwkBuiltinCallShape.TryCreateStatementCall(statements[0], AwkBuiltinId.Close, out var close));

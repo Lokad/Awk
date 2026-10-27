@@ -87,7 +87,7 @@ public sealed class AwkPipeMemoryTests
     {
         var invocation = AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []);
         Assert.True(Awk.TryParse(invocation, out var awk));
-        return awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), token);
+        return awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), token);
     }
 
     // Consumes writes immediately; input is one shared record, not a growing test-host buffer.

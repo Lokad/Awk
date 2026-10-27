@@ -44,7 +44,7 @@ public sealed class AwkSourceCancellationTests
                 }
             };
             host.AddFile("/source", "placeholder");
-            var policy = AwkExecutionPolicy.CreateDefault();
+            var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
             if (governed) policy = policy.WithMemoryBudget(budget);
             var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 Tool(include).ExecuteAsync(host, policy, cancellation.Token));
@@ -80,7 +80,7 @@ public sealed class AwkSourceCancellationTests
         var host = new MockFileSystem { ReadLinesOverride = (_, _) => { armed = true; return batch; } };
         host.AddFile("/source", "placeholder");
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            Tool(include).ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), cancellation.Token));
+            Tool(include).ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), cancellation.Token));
         Assert.InRange(GC.GetAllocatedBytesForCurrentThread() - start, 0, 32 << 10);
         Assert.True(cancellation.IsCancellationRequested);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -103,7 +103,7 @@ public sealed class AwkSourceCancellationTests
         };
         host.AddFile("/source", "placeholder");
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var run = Tool(include).ExecuteAsync(host, policy, cancellation.Token);
         try

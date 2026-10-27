@@ -5,16 +5,14 @@ public sealed class AwkUnicodeCallerTests
     private const string Warning = "awk: warning: no hex digits in `\\u' escape sequence\n";
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    public async Task OptionWarningsRemainOrderedOnFreshConcurrentExecutions(int entry, bool utf8)
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task OptionWarningsRemainOrderedOnFreshConcurrentExecutions(int entry)
     {
         var source = new MockFileSystem();
         source.AddFile("/caller.awk", "# source\nBEGIN{print v;print \"\\u\";exit}\n");
         var command = AwkTestHarness.BuildInvocation("awk", "-v", @"v=\u", "-f", "/caller.awk");
-        var compiled = await AwkExecutor.CompileAsync(source, command, CancellationToken.None);
+        var compiled = await AwkExecutor.CompileAsync(source, command, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         Assert.Equal(2, compiled.Warnings.Count);
         Assert.Null(compiled.Warnings[0].SourceLocation);
         var location = Assert.IsType<AwkSourceLocation>(compiled.Warnings[1].SourceLocation);
@@ -27,7 +25,7 @@ public sealed class AwkUnicodeCallerTests
         {
             var host = new MockFileSystem();
             host.AddFile("/caller.awk", "# source\nBEGIN{print v;print \"\\u\";exit}\n");
-            var options = Options(utf8);
+            var options = Options();
             var exit = entry == 0
                 ? await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), deadline.Token, options)
                 : await compiled.ExecuteAsync(host, deadline.Token, options);
@@ -49,12 +47,12 @@ public sealed class AwkUnicodeCallerTests
         var source = new MockFileSystem();
         source.AddFile("/caller.awk", "{print}");
         var command = AwkTestHarness.BuildInvocation("awk", "-v", @"v=\u", "-f", "/caller.awk", "/data");
-        var compiled = await AwkExecutor.CompileAsync(source, command, CancellationToken.None);
+        var compiled = await AwkExecutor.CompileAsync(source, command, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var host = new MockFileSystem();
         host.AddFile("/caller.awk", "{print}");
         host.AddFile("/data", "unread\n");
         var limits = AwkRuntimeLimits.CreateDefault();
-        var options = Options(false, limits) with { MemoryBudget = new CooperativeTestBudget(0) };
+        var options = Options(limits) with { MemoryBudget = new CooperativeTestBudget(0) };
         var exit = compiledEntry ? await compiled.ExecuteAsync(host, CancellationToken.None, options)
             : await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), CancellationToken.None, options);
         Assert.Equal(AwkExitCode.FatalError, exit);
@@ -74,7 +72,7 @@ public sealed class AwkUnicodeCallerTests
         var command = AwkTestHarness.BuildInvocation("awk", "-v", @"v=\u",
             sourceWarning ? "BEGIN{print \"\\u\";exit}" : "BEGIN{print v;exit}");
         var host = new MockFileSystem();
-        var options = Options(false, AwkRuntimeLimits.CreateDefault());
+        var options = Options(AwkRuntimeLimits.CreateDefault());
         var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(command), CancellationToken.None, options);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("u\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -123,7 +121,7 @@ public sealed class AwkUnicodeCallerTests
     {
         using var memory = new CooperativeTestMemory(1 << 20);
         var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            memory.Configure(Options(false, AwkRuntimeLimits.CreateDefault(), counters)))).State;
+            memory.Configure(Options(AwkRuntimeLimits.CreateDefault(),counters)))).State;
         var name = AwkIdentifier.FromTrustedName("v");
         state.AssignVariableFromExternalText(name, "keep");
         var committed = state.MemoryAccounting.CurrentCommittedBytes;
@@ -160,8 +158,7 @@ public sealed class AwkUnicodeCallerTests
         Assert.Equal(2, checks);
     }
 
-    private static AwkRuntimeOptions Options(bool utf8, AwkRuntimeLimits? limits = null,
-        bool counters = true) => new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
+    private static AwkRuntimeOptions Options(AwkRuntimeLimits? limits = null,        bool counters = true) => new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
         new AwkRandomGenerator(), counters ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
-        limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+        limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
 }

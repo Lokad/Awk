@@ -11,7 +11,7 @@ public sealed class AwkUnicodeStringTests
     {
         var literal = "\"" + escape + "\"";
         var source = "BEGIN{if(0)print " + literal + "}";
-        var parse = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue),
+        var parse = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance },
             CancellationToken.None, (AwkCompatibilityMode)mode);
         Assert.True(parse.Success);
         var warning = Assert.Single(parse.Warnings);
@@ -24,21 +24,20 @@ public sealed class AwkUnicodeStringTests
     public static IEnumerable<object[]> UnicodeModes()
     {
 
-        foreach (var utf8 in new[] { false, true })
-            foreach (var counters in new[] { false, true })
-                yield return [utf8, counters];
+        foreach (var counters in new[] { false, true })
+            yield return [counters];
     }
 
     [Theory]
     [MemberData(nameof(UnicodeModes))]
-    public async Task SupplementaryLiteralUsesFourUtf8Bytes(bool utf8, bool enabled)
+    public async Task SupplementaryLiteralUsesFourUtf8Bytes(bool enabled)
     {
         const string source = "BEGIN{print 1;v=\"\\u1f600\";printf \"%s\",v;exit}";
         var counters = enabled ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None);
+            AwkTestHarness.BuildInvocation("awk", source), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         Assert.Empty(compiled.Warnings);
         var host = new MockFileSystem();
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -56,7 +55,7 @@ public sealed class AwkUnicodeStringTests
         var sourceHost = new MockFileSystem();
         sourceHost.AddFile("/unicode.awk", "# source\nBEGIN{print \"\\ud800\"}\n");
         var compiled = await AwkExecutor.CompileAsync(sourceHost,
-            AwkTestHarness.BuildInvocation("awk", "-f", "/unicode.awk"), CancellationToken.None);
+            AwkTestHarness.BuildInvocation("awk", "-f", "/unicode.awk"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var warning = Assert.Single(compiled.Warnings);
         var location = Assert.IsType<AwkSourceLocation>(warning.SourceLocation);
         Assert.Equal("/unicode.awk", location.SourceName.Text);
@@ -66,7 +65,7 @@ public sealed class AwkUnicodeStringTests
         Assert.Equal(string.Empty, sourceHost.GetOutput(AwkFileDescriptor.StdErr));
         var host = new MockFileSystem();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault());
+            new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("?\n", host.GetOutput(AwkFileDescriptor.StdOut));

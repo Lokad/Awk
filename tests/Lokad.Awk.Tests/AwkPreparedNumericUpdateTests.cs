@@ -111,7 +111,7 @@ public sealed class AwkPreparedNumericUpdateTests
         var testMemory = new CooperativeTestMemory(1 << 20);
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            AwkRuntimeLimits.CreateDefault());
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, testMemory.Configure(options)));
     }
 }

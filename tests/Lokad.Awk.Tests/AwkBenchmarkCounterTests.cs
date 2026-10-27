@@ -339,14 +339,14 @@ public sealed class AwkBenchmarkCounterTests
     {
         const string source = "NR==FNR{left[$1]=$2;next} ($1 in left)&&left[$1]!=$2{n++} END{print n+0}";
         var program = await AwkExecutor.CompileAsync(new MockFileSystem(),
-            AwkTestHarness.BuildInvocation("awk", [source, "/left", "/right"]), CancellationToken.None);
+            AwkTestHarness.BuildInvocation("awk", [source, "/left", "/right"]), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         for (var run = 0; run < 2; run++)
         {
             var host = new MockFileSystem();
             host.AddFile("/left", "k1\tv1\nk2\tv2\n");
             host.AddFile("/right", run == 0 ? "k1\tv1\nk2\tchanged\n" : "k1\tv1\nk2\tv2\n");
             var counters = AwkRuntimeCounters.CreateEnabled();
-            var options = CreateOptions(counters, false);
+            var options = CreateOptions(counters);
             var result = await program.ExecuteAsync(host, CancellationToken.None, options);
             Assert.Equal(0, result.Value);
             Assert.Equal(run == 0 ? "1\n" : "0\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -1084,7 +1084,6 @@ public sealed class AwkBenchmarkCounterTests
             // Each FPAT assignment prepares both case variants, including the unused pattern.
             // The source-pattern boundary adds one decode; records stay byte-native.
             Assert.InRange(result.Counters.StringDecodes, 0, usesRegex ? 3 : 0);
-            Assert.Equal(0, result.Counters.RegexDotNetTextMatches);
             Assert.Equal(usesRegex ? 4 : 0, result.Counters.RegexCompiles);
         }
     }
@@ -1181,12 +1180,11 @@ public sealed class AwkBenchmarkCounterTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = CreateOptions(
-            counters,
-            true);
+            counters);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             AwkTestHarness.BuildInvocation("awk", "{print}"),
-            CancellationToken.None);
+            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var fileSystem = new MockFileSystem();
         fileSystem.SetStandardInputBytes([0xFF]);
 
@@ -1198,7 +1196,7 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, counters.RecordsRead);
     }
 
-    public static TheoryData<string, string, string> DefaultRegexCounterCases => new()
+    public static TheoryData<string, string, string> ProviderRegexCounterCases => new()
     {
         {
             "BEGIN{FS=\"[,;]\"} {print NF}",
@@ -1243,8 +1241,8 @@ public sealed class AwkBenchmarkCounterTests
     };
 
     [Theory]
-    [MemberData(nameof(DefaultRegexCounterCases))]
-    public async Task Awk_DefaultRegexTextCountersCoverRepresentativePaths(
+    [MemberData(nameof(ProviderRegexCounterCases))]
+    public async Task Awk_ProviderCountersCoverRepresentativePaths(
         string program,
         string input,
         string expectedOutput)
@@ -1257,9 +1255,6 @@ public sealed class AwkBenchmarkCounterTests
         Assert.Equal(0, exitCode);
         Assert.Equal(expectedOutput, fileSystem.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(counters.RegexMatches > 0);
-        Assert.True(counters.RegexDotNetTextMatches > 0);
-        Assert.True(counters.RegexStringAdapterMatches > 0);
-        Assert.True(counters.AwkTextAsStringCalls > 0);
         Assert.True(counters.AwkTextAsStringDecodeMisses <= counters.AwkTextAsStringCalls);
     }
 
@@ -1304,7 +1299,7 @@ public sealed class AwkBenchmarkCounterTests
     }
 
     [Fact]
-    public async Task Awk_Utf8RegexPatternGapFallbacksAreCounted()
+    public async Task Awk_ProviderMatchesTranslatedInputStartAssertions()
     {
         var (exitCode, fileSystem, counters) = await RunAsync(
             ["BEGIN{s=\"abc\"; print match(s,/\\`a/)}"],
@@ -1313,9 +1308,6 @@ public sealed class AwkBenchmarkCounterTests
 
         Assert.Equal(0, exitCode);
         Assert.Equal("1\n", fileSystem.GetOutput(AwkFileDescriptor.StdOut));
-        Assert.True(counters.RegexDotNetTextMatches > 0);
-        Assert.True(counters.RegexPatternGapFallbacks > 0);
-        Assert.True(counters.RegexStringAdapterMatches > 0);
     }
 
     [Fact]
@@ -1400,7 +1392,6 @@ public sealed class AwkBenchmarkCounterTests
         Assert.True(counters.FieldsMaterialized > 0);
         Assert.True(counters.AwkTextAllocations > 0);
         Assert.True(counters.AwkTextPayloadBytes > 0);
-        Assert.Equal(0, counters.RegexStringAdapterMatches);
         Assert.True(counters.AwkTextAsStringCalls <= rowCount);
         Assert.True(counters.AwkTextAsStringDecodeMisses <= counters.AwkTextAsStringCalls);
     }
@@ -1508,11 +1499,11 @@ bool nestedArguments)
             bool useUtf8Regex)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var options = CreateOptions(counters, useUtf8Regex);
+        var options = CreateOptions(counters);
         var compiled = await AwkExecutor.CompileAsync(
             new MockFileSystem(),
             AwkTestHarness.BuildInvocation("awk", arguments),
-            CancellationToken.None);
+            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var fileSystem = new MockFileSystem();
         if (input.Length > 0)
             fileSystem.SetStandardInput(input);
@@ -1544,12 +1535,11 @@ bool nestedArguments)
     }
 
     private static AwkRuntimeOptions CreateOptions(
-        AwkRuntimeCounters counters,
-        bool useUtf8Regex) =>
+        AwkRuntimeCounters counters) =>
         new(
             () => new AwkUnixTimestampSeconds(0),
             TimeZoneInfo.Utc,
             new AwkRandomGenerator(),
             counters,
-            AwkRuntimeLimits.CreateDefault(), regexEngine: useUtf8Regex ? AwkUtf8RegexEngine.Instance : null);
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
 }

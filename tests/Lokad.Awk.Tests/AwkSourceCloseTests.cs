@@ -17,7 +17,7 @@ public sealed class AwkSourceCloseTests
     {
         var host = new CloseHost(outcome, readFailure);
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
 
         var exit = await Tool().ExecuteAsync(host, policy, CancellationToken.None);
@@ -44,7 +44,7 @@ public sealed class AwkSourceCloseTests
         var pending = new TaskCompletionSource<AwkDescriptorCloseResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new CloseHost("failure", false) { PendingClose = pending.Task };
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var run = Tool().ExecuteAsync(host, policy, cancellation.Token);
         try

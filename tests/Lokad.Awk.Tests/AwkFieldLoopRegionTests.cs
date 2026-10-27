@@ -124,7 +124,7 @@ public sealed class AwkFieldLoopRegionTests
         state.InitializeGlobalReadSlots(layout.Count);
         foreach (var name in names) state.AssignVariableValue(name, AwkValue.FromNumber(0));
         state.SetCurrentRecord(AwkText.FromSourceLiteralString(record));
-        var parsed = AwkParser.Parse(Script);
+        var parsed = AwkParser.Parse(Script, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         var scope = AwkLoweringScope.GlobalFor(AwkCompatibilityMode.GnuDefault, globalReads: ordinary ? null : layout);
         var lowered = AwkStatementLowerer.LowerList(parsed.Syntax.Rules.Single().ActionStatements, scope);
         Assert.True(lowered.Succeeded);
@@ -143,7 +143,7 @@ public sealed class AwkFieldLoopRegionTests
 
     private static AwkRuntimeState State(AwkRuntimeCounters counters, AwkRuntimeLimits limits, AwkExecutionMemoryOwner owner, CancellationToken token = default, AwkLintMode lint = AwkLintMode.Off)
     {
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits) { MemoryOwner = owner };
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance) { MemoryOwner = owner };
         return new(AwkFieldSeparatorSpec.Default, token, options, new(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint));
     }
 

@@ -120,7 +120,7 @@ internal enum AwkDiagnosticId
     RuntimeError,
     RuntimeResourceLimit,
     RuntimeInvalidRegex,
-    RuntimeRegexTimeout,
+    RuntimeRegexProvider,
     OptionError,
     OptionInvalid,
     OptionMissingScript,
@@ -158,7 +158,7 @@ internal static class AwkDiagnosticFacts
             AwkDiagnosticId.RuntimeError or
                 AwkDiagnosticId.RuntimeResourceLimit or
                 AwkDiagnosticId.RuntimeInvalidRegex or
-                AwkDiagnosticId.RuntimeRegexTimeout => AwkDiagnosticCategory.Runtime,
+                AwkDiagnosticId.RuntimeRegexProvider => AwkDiagnosticCategory.Runtime,
             AwkDiagnosticId.OptionError or
                 AwkDiagnosticId.OptionInvalid or
                 AwkDiagnosticId.OptionMissingScript or

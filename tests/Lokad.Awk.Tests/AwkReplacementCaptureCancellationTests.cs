@@ -174,43 +174,13 @@ public sealed class AwkReplacementCaptureCancellationTests
     }
 
     [Theory]
-    [InlineData("ascii")]
-    [InlineData("bmp")]
-    [InlineData("surrogate-boundary")]
-    public void CoordinateCountingCancelsAcrossChunksAndPreservesScalarPairs(string shape)
-    {
-        var text = shape switch
-        {
-            "ascii" => new string('a', LongText),
-            "bmp" => new string('\u754c', LongText),
-            "surrogate-boundary" => new string('a', 4095) + "\U0001f600" + new string('a', LongText),
-            _ => throw new ArgumentOutOfRangeException(nameof(shape))
-        };
-        using var cancellation = new CancellationTokenSource();
-        var checks = 0;
-        Assert.Throws<OperationCanceledException>(() => AwkRegexMatch.GetUtf8ByteCount(text, () =>
-        {
-            if (++checks == 3) cancellation.Cancel();
-            cancellation.Token.ThrowIfCancellationRequested();
-        }));
-        using var retry = new CancellationTokenSource();
-        Assert.Equal(Encoding.UTF8.GetByteCount(text), AwkRegexMatch.GetUtf8ByteCount(text, retry.Token.ThrowIfCancellationRequested));
-    }
-
-    [Theory]
-    [InlineData(false, false, "preflight")]
-    [InlineData(false, true, "preflight")]
-    [InlineData(true, false, "preflight")]
-    [InlineData(true, true, "preflight")]
-    [InlineData(false, false, "copy")]
-    [InlineData(false, true, "copy")]
-    [InlineData(true, false, "copy")]
-    [InlineData(true, true, "copy")]
-    [InlineData(false, false, "publication")]
-    [InlineData(false, true, "publication")]
-    [InlineData(true, false, "publication")]
-    [InlineData(true, true, "publication")]
-    public void CaptureCancellationReleasesTheLeaseBeforeReturningAMatch(bool utf8, bool byteCoordinates, string phase)
+    [InlineData(false,"preflight")]
+    [InlineData(true,"preflight")]
+    [InlineData(false,"copy")]
+    [InlineData(true,"copy")]
+    [InlineData(false,"publication")]
+    [InlineData(true,"publication")]
+    public void CaptureCancellationReleasesTheLeaseBeforeReturningAMatch(bool byteCoordinates,string phase)
     {
         var input = new string('a', LongText);
         var counters = AwkRuntimeCounters.CreateEnabled();
@@ -233,8 +203,6 @@ public sealed class AwkReplacementCaptureCancellationTests
         AwkLeasedRegexMatch Build(Action callback)
         {
             var coordinates = byteCoordinates ? AwkRegexCoordinatePolicy.Byte : AwkRegexCoordinatePolicy.Utf16;
-            if (!utf8)
-                return AwkRegexMatch.FromMatch(new Regex("(a+)").Match(input), input, 0, input.Length, coordinates, AwkRegexCapturePlan.All, counters, governor, checkpoint: callback);
             Assert.True(AwkUtf8RegexEngine.Instance.TryCompile("(a+)", false,
                 null, CancellationToken.None, out var pattern));
             using (pattern)
@@ -242,7 +210,7 @@ public sealed class AwkReplacementCaptureCancellationTests
                 var bytes = Encoding.UTF8.GetBytes(input);
                 Span<AwkRegexCaptureRange> ranges = stackalloc AwkRegexCaptureRange[2];
                 var whole = pattern.Match(bytes, 0, ranges, CancellationToken.None);
-                return AwkRegexMatch.FromProvidedMatch(whole, bytes, ranges, AwkRegexSearchOffset.Start, coordinates, counters, governor, callback);
+                return AwkRegexMatch.FromRanges(whole, bytes, ranges, AwkRegexSearchOffset.Start, coordinates, counters, governor, callback);
             }
         }
         var error = Assert.Throws<OperationCanceledException>(() => { using var match = Build(checkpoint); });
@@ -268,9 +236,8 @@ public sealed class AwkReplacementCaptureCancellationTests
     [InlineData("materialization")]
     public void MappedCapturesCancelWithRentedBoundaryStorage(string phase)
     {
-        var input = "a";
-        var selected = new Regex("(a)").Match(input);
-        var map = new[] { 0 }.Concat(Enumerable.Repeat(1, 1537)).ToArray();
+        var whole = new AwkRegexCaptureRange(true, 0, 1, 0, 1, true);
+        var ranges = Enumerable.Repeat(whole, 1538).ToArray();
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor(counters);
         var governor = memoryForGovernor.Accounting;
@@ -290,12 +257,12 @@ public sealed class AwkReplacementCaptureCancellationTests
         };
         Assert.Throws<OperationCanceledException>(() =>
         {
-            using var match = AwkRegexMatch.FromMatch(selected, input, 0, 1, AwkRegexCoordinatePolicy.Byte, AwkRegexCapturePlan.All, counters, governor, map, checkpoint);
+            using var match = AwkRegexMatch.FromRanges(whole, "a"u8, ranges, AwkRegexSearchOffset.Start, AwkRegexCoordinatePolicy.Byte, counters, governor, checkpoint);
         });
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         using var retry = new CancellationTokenSource();
-        using (var match = AwkRegexMatch.FromMatch(selected, input, 0, 1, AwkRegexCoordinatePolicy.Byte, AwkRegexCapturePlan.All, counters, governor, map, retry.Token.ThrowIfCancellationRequested))
+        using (var match = AwkRegexMatch.FromRanges(whole, "a"u8, ranges, AwkRegexSearchOffset.Start, AwkRegexCoordinatePolicy.Byte, counters, governor, retry.Token.ThrowIfCancellationRequested))
         {
             Assert.Equal(1538, match.Match.Groups.Count);
             Assert.All(match.Match.Groups, group =>
@@ -310,11 +277,9 @@ public sealed class AwkReplacementCaptureCancellationTests
     }
 
     [Theory]
-    [InlineData(false, "a")]
-    [InlineData(true, "a")]
-    [InlineData(false, "(a|aa)")]
-    [InlineData(true, "(a|aa)")]
-    internal void RegexRuntimePassesItsCallbackThroughCaptureConstruction(bool engine, string pattern)
+    [InlineData("a")]
+    [InlineData("(a|aa)")]
+    internal void RegexRuntimePassesItsCallbackThroughCaptureConstruction(string pattern)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = Governor(counters);
@@ -325,7 +290,7 @@ public sealed class AwkReplacementCaptureCancellationTests
             {
                 if (counters.RegexGroupsMaterialized > 0) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
-            }, counters, new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), governor, regexEngine: engine ? AwkUtf8RegexEngine.Instance : null);
+            }, counters, new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
         var regex = runtime.Create(new AwkRegexPattern(pattern));
         Assert.Throws<OperationCanceledException>(() =>
         {

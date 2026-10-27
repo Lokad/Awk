@@ -6,21 +6,20 @@ public sealed class AwkGetlinePostfixTests
     {
         foreach (var testCase in AwkGoldenCorpus.PipeGetlinePostfixCases())
 
-            foreach (var utf8 in new[] { false, true })
-                yield return [testCase, utf8];
+            yield return [testCase];
     }
 
     [Theory]
     [MemberData(nameof(PipeCases))]
     public async Task PipeTargetsAssignOrRejectBeforeHostEffects(
-        AwkGoldenCase testCase, bool utf8)
+        AwkGoldenCase testCase)
     {
         var files = AwkTestHarness.BuildFileSystem(testCase);
         var host = new AwkGetlinePipeTestHost(files);
         var invocation = AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
 
         var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation),
             CancellationToken.None, options);
@@ -50,7 +49,7 @@ public sealed class AwkGetlinePostfixTests
     [InlineData("function unused(){getline $0++}BEGIN{print \"before\"}")]
     public void InvalidDestinationIsRejectedInUnreachableCode(string script)
     {
-        var program = AwkBinder.Bind(AwkParser.Parse(script));
+        var program = AwkBinder.Bind(AwkParser.Parse(script, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.Contains(program.Diagnostics, diagnostic => diagnostic.Message ==
             "Postfix field mutation is not a getline destination; put index mutations inside $(...).");

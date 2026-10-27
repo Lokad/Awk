@@ -2,68 +2,38 @@ namespace Lokad.Awk.Tests;
 
 public sealed class AwkRegexDialectMemoryTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void QuotedUnmatchedRightParenthesisRequiresAdmittedTranslation(bool utf8)
+    [Fact]
+    public void QuotedUnmatchedRightParenthesisRequiresAdmittedTranslation()
     {
         using var memoryForGovernor = Governor(1);
         var governor = memoryForGovernor.Accounting;
-        var runtime = Runtime(utf8, governor, () => { });
+        var runtime = Runtime(governor,() => { });
         var error = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(")")));
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
         using var memoryForAdmitted = Governor(1 << 24);
         var admitted = memoryForAdmitted.Accounting;
-        var retry = Runtime(utf8, admitted, () => { });
+        var retry = Runtime(admitted,() => { });
         var regex = retry.Create(new AwkRegexPattern(")"));
         Assert.True(retry.IsMatch(regex, AwkText.FromString(")")));
         Assert.Same(regex, retry.Create(new AwkRegexPattern(")")));
         Assert.Equal(0, admitted.CurrentCommittedBytes);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void DecodedEreStaysAdmittedThroughFinalWrapperPublication(bool utf8)
+    [Fact]
+    public void DecodedEreStaysAdmittedThroughFinalWrapperPublication()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
         var governor = memoryForGovernor.Accounting;
         long heldAtLastCheck = -1;
-        var runtime = Runtime(utf8, governor, () => heldAtLastCheck = governor.CurrentCommittedBytes);
+        var runtime = Runtime(governor,() => heldAtLastCheck = governor.CurrentCommittedBytes);
         var regex = runtime.Create(new AwkRegexPattern(@"\q"));
         Assert.True(heldAtLastCheck >= 26, $"Final preparation check held {heldAtLastCheck} bytes.");
         Assert.True(runtime.IsMatch(regex, AwkText.FromString("q")));
         Assert.Equal(0, governor.CurrentCommittedBytes);
         Assert.Equal(0, governor.CurrentReservedBytes);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void StructuredPredicateCannotBypassScalarPreparationAdmission(bool ignoreCase)
-    {
-        const string pattern = @"[\p{L}]";
-        var requiredNodes = 2L;
-        var oldBudget = 256L + 128L * pattern.Length + 256L + 224L * requiredNodes;
-        using var memoryForGovernor = Governor(oldBudget);
-        var governor = memoryForGovernor.Accounting;
-        var sensitivity = ignoreCase ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive;
-        var error = Assert.Throws<AwkRuntimeException>(() =>
-            AwkPosixRegex.TryCreate(pattern, sensitivity, governor, () => { }, () => { }, out _));
-        Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-        Assert.Equal(0, governor.CurrentReservedBytes);
-        using var memoryForRetry = Governor(1 << 24);
-        var retry = memoryForRetry.Accounting;
-        Assert.True(AwkPosixRegex.TryCreate(pattern, sensitivity, retry, () => { }, () => { }, out var program));
-        Assert.NotNull(program);
-        Assert.True(retry.CurrentCommittedBytes > 0);
-        program.Dispose();
-        Assert.Equal(0, retry.CurrentCommittedBytes);
-        Assert.Equal(0, retry.CurrentReservedBytes);
     }
 
     public static IEnumerable<object[]> TranslationCases()
@@ -141,57 +111,11 @@ public sealed class AwkRegexDialectMemoryTests
         Assert.Equal(64, governor.CurrentCommittedBytes);
     }
 
-    [Theory]
-    [InlineData("plain")]
-    [InlineData("bracket")]
-    public void StructuredEligibilityScanCancelsBeforeAllocatingParsingBuffers(string shape)
-    {
-        var pattern = new string('a', 8192);
-        if (shape == "bracket") pattern = "[" + pattern + "]";
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
-        var governor = memoryForGovernor.Accounting;
-        using var cancellation = new CancellationTokenSource();
-        var checks = 0;
-        var error = Assert.Throws<OperationCanceledException>(() =>
-            AwkPosixRegex.TryCreate(pattern, AwkRegexCaseSensitivity.CaseSensitive, governor, () => { }, () =>
-            {
-                if (governor.CurrentCommittedBytes == 0 && ++checks == 3) cancellation.Cancel();
-                cancellation.Token.ThrowIfCancellationRequested();
-            }, out _));
-        Assert.Equal(cancellation.Token, error.CancellationToken);
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void StructuredProgramRetainsPreparationAndAccountsForExpandedPredicate(bool ignoreCase)
-    {
-        const string pattern = @"[\p{L}]";
-        var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForGovernor = new CooperativeTestMemory(1 << 24, counters);
-        var governor = memoryForGovernor.Accounting;
-        var sensitivity = ignoreCase ? AwkRegexCaseSensitivity.IgnoreCase : AwkRegexCaseSensitivity.CaseSensitive;
-        using (var results = governor.CreateTransientLease())
-        {
-            results.ReserveAdditional(43);
-            Assert.True(AwkPosixRegex.TryCreate(pattern, sensitivity, governor, () => { }, () => { },
-                out var program, results));
-            Assert.NotNull(program);
-            var scalar = AwkRegexScalarPattern.Translate(pattern);
-            Assert.True(governor.CurrentCommittedBytes > 43);
-            program.Dispose();
-            Assert.Equal(0, governor.CurrentReservedBytes);
-        }
-        Assert.Equal(0, governor.CurrentCommittedBytes);
-    }
-
     private static CooperativeTestMemory Governor(long bytes) =>
         new CooperativeTestMemory(bytes, AwkRuntimeCounters.Disabled);
 
-    private static AwkRegexRuntime Runtime(bool utf8, AwkMemoryAccounting governor, Action checkpoint) =>
+    private static AwkRegexRuntime Runtime(AwkMemoryAccounting governor,Action checkpoint) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint,
             AwkRuntimeCounters.Disabled,
-            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled), governor, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled), governor, regexEngine: AwkUtf8RegexEngine.Instance);
 }

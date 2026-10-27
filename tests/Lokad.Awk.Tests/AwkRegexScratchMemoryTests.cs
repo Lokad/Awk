@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 
 namespace Lokad.Awk.Tests;
 
@@ -127,7 +126,7 @@ public sealed class AwkRegexScratchMemoryTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault()));
+                new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance));
         var input = AwkText.FromString("x");
         var regex = state.CreateRegex(new AwkRegexPattern(missingOccurrence ? "(x)" : "z"));
         var before = state.MemoryAccounting.CurrentCommittedBytes;
@@ -150,7 +149,7 @@ public sealed class AwkRegexScratchMemoryTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var (retained, scratch) = CaptureBytes(groups);
-        using var memoryForGovernor = Governor(retained + scratch - (reject ? 1 : 0), counters);
+        using var memoryForGovernor = Governor(Math.Max(retained, scratch) - (reject ? 1 : 0), counters);
         var governor = memoryForGovernor.Accounting;
         if (reject)
         {
@@ -194,7 +193,7 @@ public sealed class AwkRegexScratchMemoryTests
             using var result = Capture(groups, governor, counters, () =>
             {
                 var reached = phase == "materialization" ? counters.AwkTextAllocations > 0
-                    : governor.CurrentCommittedBytes > retained && ++checks == (phase == "allocation" ? 1 : 3);
+                    : governor.CurrentCommittedBytes > 0 && counters.RegexGroupsMaterialized == 0 && ++checks == (phase == "allocation" ? 1 : 3);
                 if (reached) cancellation.Cancel();
                 cancellation.Token.ThrowIfCancellationRequested();
             });
@@ -208,7 +207,7 @@ public sealed class AwkRegexScratchMemoryTests
     }
 
     [Fact]
-    public void UnboundedCaptureStillReturnsItsPooledScratchAfterCancellation()
+    public void UnboundedCaptureCanRetryAfterCancellation()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         using var cancellation = new CancellationTokenSource();
@@ -233,7 +232,7 @@ public sealed class AwkRegexScratchMemoryTests
     {
         var (retained, scratch) = CaptureBytes(65);
         var counters = observe ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
-        using var memoryForGovernor = Governor(retained + scratch - 1, counters);
+        using var memoryForGovernor = Governor(Math.Max(retained, scratch) - 1, counters);
         var governor = memoryForGovernor.Accounting;
         var error = Assert.Throws<AwkRuntimeException>(() => { using var result = Capture(65, governor, counters); });
         Assert.Equal("awk: memory limit exceeded\n", AwkUtf8Codec.Decode(error.MessageBytes));
@@ -251,14 +250,15 @@ public sealed class AwkRegexScratchMemoryTests
     private static (long Retained, long Scratch) CaptureBytes(int groups) =>
         (AwkRuntimeMemory.EstimateRegexMatchBytes(groups,
             AwkRuntimeMemory.CheckedMultiply(AwkRuntimeMemory.EstimateTextBytes(4), groups)),
-         groups > 64 ? AwkRuntimeMemory.EstimateRegexCoordinateArrayBytes(groups * 2) : 0);
+         groups >= 64 ? AwkRuntimeMemory.EstimateRegexCoordinateArrayBytes((groups + 1) * 2) : 0);
 
     private static AwkLeasedRegexMatch Capture(int groups, AwkMemoryAccounting governor,
         AwkRuntimeCounters counters, Action? checkpoint = null)
     {
-        const string input = "\U0001f600";
-        var map = new[] { 0 }.Concat(Enumerable.Repeat(1, groups - 1)).ToArray();
-        return AwkRegexMatch.FromMatch(new Regex("(\U0001f600)").Match(input), input, 0, 4, AwkRegexCoordinatePolicy.Byte, AwkRegexCapturePlan.All, counters, governor, map, checkpoint);
+        var whole = new AwkRegexCaptureRange(true, 0, 4, 0, 2, true);
+        var ranges = Enumerable.Repeat(whole, groups).ToArray();
+        return AwkRegexMatch.FromRanges(whole, "\U0001f600"u8, ranges, AwkRegexSearchOffset.Start,
+            AwkRegexCoordinatePolicy.Byte, counters, governor, checkpoint ?? (() => { }));
     }
 
     private static AwkRegexMatch Match() => new(true, 0, 1, 0, 1, AwkText.FromString("H"),

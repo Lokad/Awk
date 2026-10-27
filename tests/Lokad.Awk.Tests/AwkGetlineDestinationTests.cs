@@ -109,7 +109,7 @@ public sealed class AwkGetlineDestinationTests
 
     private static AwkRuntimeOptions CreateOptions(AwkRuntimeLimits limits, AwkRuntimeCounters counters) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits);
+            limits, regexEngine: AwkUtf8RegexEngine.Instance);
 
     private static AwkIo CreateIo(MockFileSystem host, AwkRuntimeState state,
         AwkRuntimeLimits limits, CancellationToken cancellation) =>

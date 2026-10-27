@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Lokad.Awk;
 
@@ -88,7 +87,7 @@ internal static class AwkFrontendDiagnosticPolicy
                     AddDiagnostic(new AwkDiagnostic(token.Span, message, AwkDiagnosticId.WarningRegexEscape)), checkpoint);
             if (!AwkRegexSyntaxValidator.IsValidLiteral(
                 token,
-                compatibilityMode, checkpoint, budget.Memory.Budget))
+                compatibilityMode, checkpoint, budget.Memory.Budget, budget.RegexEngine, budget.RegexCancellationToken))
             {
                 AddDiagnostic(new AwkDiagnostic(
                     token.Span,
@@ -206,7 +205,8 @@ internal static class AwkRegexSyntaxValidator
     public static bool IsValidLiteral(
         AwkToken token,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null, IMemoryBudget? memoryBudget = null)
+        Action? checkpoint = null, IMemoryBudget? memoryBudget = null,
+        IAwkRegexEngine? regexEngine = null, CancellationToken cancellationToken = default)
     {
         checkpoint?.Invoke();
         var text = token.Text;
@@ -220,27 +220,41 @@ internal static class AwkRegexSyntaxValidator
             return false;
         }
 
-        return IsValidPattern(pattern, compatibilityMode, checkpoint, memoryBudget);
+        return IsValidPattern(pattern, compatibilityMode, checkpoint, memoryBudget, regexEngine, cancellationToken);
     }
 
-    public static bool IsValidPattern(string pattern)
-        => IsValidPattern(pattern, AwkCompatibilityMode.GnuDefault);
+    public static bool IsValidPattern(string pattern, IAwkRegexEngine? regexEngine = null)
+        => IsValidPattern(pattern, AwkCompatibilityMode.GnuDefault, regexEngine: regexEngine);
 
     private static bool IsValidPattern(
         string pattern,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null, IMemoryBudget? memoryBudget = null)
+        Action? checkpoint = null, IMemoryBudget? memoryBudget = null,
+        IAwkRegexEngine? regexEngine = null, CancellationToken cancellationToken = default)
     {
         checkpoint?.Invoke();
         try
         {
             checkpoint?.Invoke();
-            var translated = AwkRegexScalarPattern.Translate(
-                AwkRegex.TranslatePattern(new AwkRegexPattern(pattern), compatibilityMode, checkpoint), checkpoint);
+            var translated = AwkRegex.TranslatePattern(new AwkRegexPattern(pattern), compatibilityMode, checkpoint);
             checkpoint?.Invoke();
-            using var compiled = AwkDotNetRegexPattern.Compile(translated, RegexOptions.CultureInvariant, memoryBudget, checkpoint);
+            if (regexEngine is null)
+                throw new AwkRuntimeException(AwkMessages.ErrorRegexProviderRequired, AwkDiagnosticId.RuntimeRegexProvider);
+            IAwkCompiledRegex? compiled = null;
+            try
+            {
+                var supported = regexEngine.TryCompile(translated, false, memoryBudget, cancellationToken, out compiled);
+                if (!supported)
+                    throw new AwkRuntimeException(AwkMessages.ErrorRegexProviderUnsupported, AwkDiagnosticId.RuntimeRegexProvider);
+                if (compiled is null || compiled.GroupCount < 1) return false;
+            }
+            finally { compiled?.Dispose(); }
             checkpoint?.Invoke();
             return true;
+        }
+        catch (AwkRegexAdmissionException)
+        {
+            throw new AwkRuntimeException(AwkMessages.ErrorMemoryLimit, AwkDiagnosticId.RuntimeResourceLimit);
         }
         catch (ArgumentException)
         {

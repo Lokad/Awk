@@ -801,7 +801,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     private static AwkProgram Bind(string source)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.True(binding.Success);
         Assert.True(binding.Program.HasProgram);
         return binding.Program.Program;
@@ -816,7 +816,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
             // Omit call preparation when lowering the control's loops as well as its functions.
             var reads = new AwkGlobalReadLayout(program.GlobalNames, null);
             var scope = AwkLoweringScope.GlobalFor(AwkCompatibilityMode.GnuDefault, globalReads: reads);
-            beginActions = AwkParser.Parse(source).Syntax.Rules.Where(rule => rule.Kind == AwkRuleKind.Begin)
+            beginActions = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None).Syntax.Rules.Where(rule => rule.Kind == AwkRuleKind.Begin)
                 .Select(rule => AwkStatementLowerer.LowerList(rule.ActionStatements, scope))
                 .Select(lowered =>
                 {
@@ -859,7 +859,7 @@ public sealed partial class AwkPreparedFunctionRegionTests
 
     private static AwkRuntimeState State(AwkRuntimeCounters counters, AwkRuntimeLimits limits, CancellationToken token = default, AwkExecutionMemoryOwner? owner = null, AwkLintMode lint = AwkLintMode.Off)
     {
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits)
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance)
         { MemoryOwner = owner ?? AwkExecutionMemoryOwner.Disabled };
         return new(AwkFieldSeparatorSpec.Default, token, options, new AwkRuntimeResourceMonitor(limits, counters, token), AwkCompatibilityProfile.Default.WithLintMode(lint));
     }

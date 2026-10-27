@@ -95,7 +95,7 @@ public sealed class AwkPreparedGlobalReadTests
         var source = new MockFileSystem();
         source.AddFile("/script", "{SYMTAB[$1]=$2;seen+=x+0} END{print seen+0,x+0,y+0}");
         var compiled = await AwkExecutor.CompileAsync(source,
-            AwkTestHarness.BuildInvocation("awk", "-f", "/script", "/data"), CancellationToken.None);
+            AwkTestHarness.BuildInvocation("awk", "-f", "/script", "/data"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var arrivals = 0;
@@ -112,7 +112,7 @@ public sealed class AwkPreparedGlobalReadTests
                 try { return await host.ReadLinesAsync(descriptor, count, token).ConfigureAwait(false); }
                 finally { host.ReadLinesAsyncOverride = ReadAsync; }
             }
-            var exit = await compiled.ExecuteAsync(host, deadline.Token);
+            var exit = await compiled.ExecuteAsync(host, deadline.Token, AwkTestHarness.CreateRuntimeOptions());
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdErr));
@@ -127,7 +127,7 @@ public sealed class AwkPreparedGlobalReadTests
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault());
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var memory = new CooperativeTestMemory(1 << 20, counters);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, memory.Configure(options)));
     }

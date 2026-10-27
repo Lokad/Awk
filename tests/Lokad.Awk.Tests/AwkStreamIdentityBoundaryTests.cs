@@ -17,7 +17,7 @@ public sealed class AwkStreamIdentityBoundaryTests
     {
         var host = AwkTestHarness.BuildFileSystem(test);
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", test.Arguments, test.Environment));
         Assert.Equal(test.ExpectedExitCode, (await tool.ExecuteAsync(host, policy, CancellationToken.None)).Value);
@@ -64,7 +64,7 @@ public sealed class AwkStreamIdentityBoundaryTests
             _ => "{print ARGV[1],FILENAME,ARGIND,FNR,$0}"
         };
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault())
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
             .WithAccessiblePathRoot(new AwkPath("/jail"));
         if (governed) policy = policy.WithMemoryBudget(budget);
         var expected = alias + " " + alias + " 1 1 one\n";
@@ -88,7 +88,7 @@ public sealed class AwkStreamIdentityBoundaryTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var host = new TraceHost(42) { PendingRead = () => { entered.TrySetResult(); return pending.Task; } };
         var execution = Execute(host, [getline ? "BEGIN{getline x;print x;exit}" : "{print}", "/dev/fd/0"],
-            AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), cancellation.Token);
+            AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), cancellation.Token);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -116,7 +116,7 @@ public sealed class AwkStreamIdentityBoundaryTests
         var script = input ? "BEGIN{getline a<\"data\";getline b<\"../outside\"}" :
             "BEGIN{print \"one\">\"data\";print \"bad\">\"../outside\"}";
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault().WithAccessiblePathRoot(new AwkPath("/jail")).WithMemoryBudget(budget);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithAccessiblePathRoot(new AwkPath("/jail")).WithMemoryBudget(budget);
         Assert.Equal(AwkExitCode.FatalError, await Execute(host, [script], policy, directory: new AwkPath("/jail")));
         Assert.Equal(new[] { "/jail/data" }, host.Opens);
         Assert.Equal("protected\n", host.Inner.ReadFile("/outside"));
@@ -129,7 +129,7 @@ public sealed class AwkStreamIdentityBoundaryTests
     public async Task UnopenedLookupsDoNotOpenOrAuthorizeAHostPath()
     {
         var host = new TraceHost(0);
-        var policy = AwkExecutionPolicy.CreateRestricted().WithAccessiblePathRoot(new AwkPath("/jail"));
+        var policy = AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithAccessiblePathRoot(new AwkPath("/jail"));
         Assert.Equal(AwkExitCode.Success, await Execute(host,
             ["BEGIN{print close(\"../outside\"),fflush(\"../outside\")}"], policy, directory: new AwkPath("/jail")));
         Assert.Equal("-1 -1\n", host.Inner.GetOutput(AwkFileDescriptor.StdOut));
@@ -141,7 +141,7 @@ public sealed class AwkStreamIdentityBoundaryTests
     public async Task StdinAliasSupportDoesNotAuthorizeChangedFileOperands()
     {
         var host = new TraceHost(42);
-        var policy = AwkExecutionPolicy.CreateRestricted();
+        var policy = AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         Assert.Equal(AwkExitCode.FatalError, await Execute(host,
             ["BEGIN{ARGV[1]=\"/outside\"}{print}", "/dev/fd/0"], policy));
         Assert.Equal("awk: dynamic main-input paths are disabled by execution policy\n", host.Inner.GetOutput(AwkFileDescriptor.StdErr));
@@ -157,7 +157,7 @@ public sealed class AwkStreamIdentityBoundaryTests
         var host = new TraceHost(0); host.Inner.AddFile("/data", "one\n");
         var script = input ? "BEGIN{getline a<\"data\";getline b<\"./data\"}" : "BEGIN{print 1>\"data\";print 2>\"./data\"}";
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxInputFiles(1).WithMaxOutputFiles(1).WithMemoryBudget(budget);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMaxInputFiles(1).WithMaxOutputFiles(1).WithMemoryBudget(budget);
         Assert.Equal(AwkExitCode.FatalError, await Execute(host, [script], policy));
         Assert.Equal(new[] { "/data" }, host.Opens);
         Assert.Equal(input ? "awk: input file limit exceeded\n" : "awk: output file limit exceeded\n",

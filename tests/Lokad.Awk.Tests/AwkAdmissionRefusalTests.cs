@@ -15,7 +15,7 @@ public sealed class AwkAdmissionRefusalTests
         var tool = AwkTestHarness.ParseAwk(Command(
             "BEGIN{$0=\"first middle café\";n=NF;print \"before\";$2=$1;print \"after\"} END{print \"end\"}", budget));
 
-        Assert.Equal(2, (await tool.ExecuteAsync(host, CancellationToken.None)).Value);
+        Assert.Equal(2, (await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None)).Value);
         Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(1, budget.Refusals);
@@ -40,7 +40,7 @@ public sealed class AwkAdmissionRefusalTests
             "BEGIN{print \"before\";OFMT=\"%8192.2f\";print " +
             string.Join(",", Enumerable.Repeat("1.25", count)) + ";print \"after\"} END{print \"end\"}";
         var tool = AwkTestHarness.ParseAwk(Command(source, budget));
-        Assert.Equal(2, (await tool.ExecuteAsync(host, CancellationToken.None)).Value);
+        Assert.Equal(2, (await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None)).Value);
         Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(1, budget.Refusals);
@@ -59,7 +59,7 @@ public sealed class AwkAdmissionRefusalTests
         if (throwFromHost) host.BeforeAppend = () => throw new InvalidOperationException("private host failure");
         else host.EnqueueAppendExitCode(2);
         var tool = AwkTestHarness.ParseAwk(Command("BEGIN{print 42}", budget));
-        Assert.Equal(2, (await tool.ExecuteAsync(host, CancellationToken.None)).Value);
+        Assert.Equal(2, (await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None)).Value);
         Assert.Equal("", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(throwFromHost ? "" : "awk: memory limit exceeded\n", host.GetAppendedOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(1, budget.Refusals);
@@ -87,8 +87,8 @@ public sealed class AwkAdmissionRefusalTests
             };
             const string source = "BEGIN{print \"before\";s=sprintf(\"%8192s\",\"x\");print \"after\"} END{print \"end\"}";
             var tool = AwkTestHarness.ParseAwk(Command(source, commandBudget ? budget : null));
-            var result = commandBudget ? await tool.ExecuteAsync(host, CancellationToken.None)
-                : await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+            var result = commandBudget ? await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None)
+                : await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None);
             Assert.Equal(2, result.Value);
             Assert.Equal(stage == "runtime" ? "before\n" : "", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -100,7 +100,7 @@ public sealed class AwkAdmissionRefusalTests
 
             var next = new MockFileSystem();
             var nextCommand = AwkTestHarness.ParseAwk(Command("BEGIN{print 42}", budget));
-            Assert.Equal(0, (await nextCommand.ExecuteAsync(next, CancellationToken.None)).Value);
+            Assert.Equal(0, (await nextCommand.ExecuteAsync(next, AwkTestHarness.CreatePolicy(), CancellationToken.None)).Value);
             Assert.Equal("42\n", next.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", next.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(16, budget.Reserved);
@@ -112,20 +112,20 @@ public sealed class AwkAdmissionRefusalTests
     public async Task InitialExecutionRefusalPreservesTheCompiledArtifactCharge()
     {
         var budget = new CooperativeTestBudget(1 << 20);
-        await using (var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), Command("BEGIN{print 42}", budget), CancellationToken.None))
+        await using (var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), Command("BEGIN{print 42}", budget), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance))
         {
             var retained = budget.Reserved;
             Assert.True(retained > 0);
             budget.RefuseNextAdmissionMinimumGrowth = 0;
             var host = new MockFileSystem();
-            Assert.Equal(2, (await compiled.ExecuteAsync(host, CancellationToken.None)).Value);
+            Assert.Equal(2, (await compiled.ExecuteAsync(host, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions())).Value);
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(1, budget.Refusals);
             Assert.Equal(0, budget.GrowthAttemptsAfterRefusal);
             Assert.Equal(retained, budget.Reserved);
             var next = new MockFileSystem();
-            Assert.Equal(0, (await compiled.ExecuteAsync(next, CancellationToken.None)).Value);
+            Assert.Equal(0, (await compiled.ExecuteAsync(next, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions())).Value);
             Assert.Equal("42\n", next.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal(retained, budget.Reserved);
         }
@@ -153,7 +153,7 @@ public sealed class AwkAdmissionRefusalTests
             return child.Task;
         };
         var tool = AwkTestHarness.ParseAwk(Command("BEGIN{print \"before\";print 1 | \"child\";s=sprintf(\"%8192s\",\"x\");print \"after\"} END{print \"end\"}", budget));
-        var execution = tool.ExecuteAsync(host, CancellationToken.None);
+        var execution = tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
         try
         {
             await refused.Task.WaitAsync(TimeSpan.FromSeconds(10));

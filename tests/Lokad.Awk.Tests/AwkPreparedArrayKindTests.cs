@@ -175,7 +175,7 @@ public sealed class AwkPreparedArrayKindTests
         const string source = "function size(x){return length(x)} BEGIN{a[1]=7;print size(a),length(a);ARGV[1]=\"x\";print ARGV[1]}";
         var host = new MockFileSystem();
         var options = Options();
-        var program = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk", [source]), CancellationToken.None);
+        var program = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk", [source]), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var result = await program.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(0, result.Value);
         Assert.Equal("1 1\nx\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -185,7 +185,7 @@ public sealed class AwkPreparedArrayKindTests
 
     private static AwkRuntimeOptions Options(AwkRuntimeLimits? limits = null) =>
         new(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(),
-            (limits ?? AwkRuntimeLimits.CreateDefault()));
+            (limits ?? AwkRuntimeLimits.CreateDefault()), regexEngine: AwkUtf8RegexEngine.Instance);
 
     private static AwkRuntimeState State(bool slots = true, AwkRuntimeLimits? limits = null)
     {

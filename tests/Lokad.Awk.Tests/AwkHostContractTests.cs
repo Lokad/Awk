@@ -19,7 +19,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         string[] arguments = profile.Length == 0 ? ["BEGIN{print \"B\"}"] : [profile, "BEGIN{print \"B\"}"];
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", arguments));
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
 
         Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, CancellationToken.None));
@@ -48,7 +48,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             }
         };
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk",
             getline ? "BEGIN{getline x;print x,NR}" : "BEGIN{print \"B\"}"));
@@ -72,7 +72,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             "BEGIN{exit}",
             "/unopened.txt"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
     }
@@ -84,7 +84,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         host.EnqueueAppendExitCode(7);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "--help"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
     }
@@ -111,7 +111,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             "BEGIN{print \"payload\"|\"worker\";print \"after\"}";
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", script));
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
 
         Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));
@@ -169,7 +169,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             "BEGIN{print \"payload\"|\"worker\";close(\"worker\");print \"after\"}";
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", script));
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
 
         Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, policy, CancellationToken.None));
@@ -198,7 +198,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             "awk",
             "BEGIN{print \"payload\" | \"consumer a:b\\\\*.txt\"}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(expectedError, host.GetAppendedOutput(AwkFileDescriptor.StdErr));
@@ -221,7 +221,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
             "awk",
             "BEGIN{print \"payload\" | \"consumer\"; exit}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(
@@ -239,7 +239,7 @@ public sealed class AwkHostContractTests : AwkCurrentSurfaceTestBase
         host.AddFile("/script.awk", "BEGIN{print 1}");
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(0, host.OpenFileCount);

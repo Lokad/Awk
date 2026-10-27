@@ -104,7 +104,7 @@ public sealed class AwkSynchronousStringTests
 
         var testMemory = new CooperativeTestMemory(1 << 20);
         var limits = AwkRuntimeLimits.CreateDefault();
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options));
         state.InitializeGlobalReadSlots(2);
         return testMemory.Initialize(() => state);

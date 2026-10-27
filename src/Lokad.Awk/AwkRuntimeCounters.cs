@@ -130,12 +130,6 @@ internal sealed class AwkRuntimeCounters
 
     public long RegexMatches { get; private set; }
 
-    public long RegexDotNetTextMatches { get; private set; }
-
-    public long RegexPatternGapFallbacks { get; private set; }
-
-    public long RegexStringAdapterMatches { get; private set; }
-
     public long RegexGroupsMaterialized { get; private set; }
 
     public long RecordSeparatorResolutions { get; private set; }
@@ -419,33 +413,6 @@ internal sealed class AwkRuntimeCounters
 
         lock (_sync)
             RegexMatches++;
-    }
-
-    public void RecordRegexDotNetTextMatch()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            RegexDotNetTextMatches++;
-    }
-
-    public void RecordRegexPatternGapFallback()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            RegexPatternGapFallbacks++;
-    }
-
-    public void RecordRegexStringAdapterMatch()
-    {
-        if (!_enabled)
-            return;
-
-        lock (_sync)
-            RegexStringAdapterMatches++;
     }
 
     public void RecordRegexGroupsMaterialized(int count)

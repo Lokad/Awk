@@ -81,7 +81,7 @@ internal static class FunctionStackProbe
                 [], AwkExecutionMemoryOwner.Disabled);
         }
         else
-            compiled = await AwkExecutor.CompileAsync(host, invocation, cancellation.Token).ConfigureAwait(false);
+            compiled = await AwkExecutor.CompileAsync(host, invocation, cancellation.Token, regexEngine: AwkUtf8RegexEngine.Instance).ConfigureAwait(false);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         // The recursive caller can retain 1,000 frames while the prepared chain adds four.

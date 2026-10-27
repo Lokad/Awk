@@ -55,7 +55,7 @@ public sealed class AwkFileRedirectionMemoryTests
         var operation = input ? "getline x < p" : "print \"x\" > p";
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk",
             ["BEGIN{p=sprintf(\"%04096d\",0);" + operation + ";close(p);print \"after\"}"], []));
-        var execution = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), cancellation.Token);
+        var execution = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), cancellation.Token);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -148,7 +148,7 @@ public sealed class AwkFileRedirectionMemoryTests
     private static Task<AwkExitCode> ExecuteAsync(string script, IAwkHost host, IMemoryBudget budget)
     {
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []));
-        return tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+        return tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None);
     }
 
     // No retained paths or file contents: the runtime must fund its own stream metadata.

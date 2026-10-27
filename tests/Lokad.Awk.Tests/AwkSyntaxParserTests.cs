@@ -10,7 +10,7 @@ public sealed class AwkSyntaxParserTests
     public void AwkSyntaxParser_PreservesUnaryFieldAndMutationBinding()
     {
         const string source = "BEGIN{r=!!x;r=-++x^2;r=$-i^2;r=$++i^2;r=+ +x}";
-        var program = AwkSyntaxParser.Parse(source);
+        var program = AwkSyntaxParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
         var expressions = statements.Select(statement => RequiredExpression(statement).Children[1]).ToArray();
@@ -146,7 +146,7 @@ public sealed class AwkSyntaxParserTests
         static long ParseAndMeasureAllocatedBytes(string source)
         {
             var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-            var result = AwkParser.Parse(source);
+            var result = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
             var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
 
             Assert.True(result.Success);
@@ -170,7 +170,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesBeginMainAndEndRulesInOrder()
     {
-        var program = AwkSyntaxParser.Parse("BEGIN{print \"start\"} /foo/ {print $0} END{print NR}");
+        var program = AwkSyntaxParser.Parse("BEGIN{print \"start\"} /foo/ {print $0} END{print NR}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         Assert.Equal(
@@ -196,7 +196,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesMissingPatternAndMissingActionRules()
     {
-        var program = AwkSyntaxParser.Parse("{print $1}\nNF>0");
+        var program = AwkSyntaxParser.Parse("{print $1}\nNF>0", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         Assert.Equal(2, program.Rules.Count);
@@ -213,7 +213,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesFunctionOutline()
     {
-        var program = AwkSyntaxParser.Parse("function ext(name, parts){ split(name, parts, /\\./); return parts[2] } {print ext($0,a)}");
+        var program = AwkSyntaxParser.Parse("function ext(name, parts){ split(name, parts, /\\./); return parts[2] } {print ext($0,a)}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var function = Assert.Single(program.Functions);
@@ -226,12 +226,11 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesDirectivesFunctionsAndRulesInOneProgram()
     {
-        var program = AwkSyntaxParser.Parse(
-            "@include \"common.awk\"\n" +
+        var program = AwkSyntaxParser.Parse("@include \"common.awk\"\n" +
             "function helper(value){ return value + 1 }\n" +
             "BEGIN{print helper(1)}\n" +
             "$1 == \"sku\" {print $2}\n" +
-            "END{print \"done\"}");
+            "END{print \"done\"}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         Assert.Equal(AwkDirectiveKind.Include, Assert.Single(program.Directives).Kind);
@@ -273,12 +272,11 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_PreservesSpecialRuleOrderingAndRepeatedKinds()
     {
-        var program = AwkSyntaxParser.Parse(
-            "BEGIN{print 1}\n" +
+        var program = AwkSyntaxParser.Parse("BEGIN{print 1}\n" +
             "BEGINFILE{print FILENAME}\n" +
             "ENDFILE{print FNR}\n" +
             "END{print NR}\n" +
-            "BEGIN{print 2}");
+            "BEGIN{print 2}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         Assert.Equal(
@@ -290,7 +288,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_KeepsCommentsInsideMultilineActionBlocks()
     {
-        var program = AwkSyntaxParser.Parse("BEGIN{\n print 1 # first line\n print 2\n}");
+        var program = AwkSyntaxParser.Parse("BEGIN{\n print 1 # first line\n print 2\n}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var rule = Assert.Single(program.Rules);
@@ -301,8 +299,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesActionStatementOutlines()
     {
-        var program = AwkSyntaxParser.Parse(
-            "BEGIN{\n" +
+        var program = AwkSyntaxParser.Parse("BEGIN{\n" +
             " print 1; print 2\n" +
             " print 3,\n" +
             "       4\n" +
@@ -310,7 +307,7 @@ public sealed class AwkSyntaxParserTests
             " else { print 0 }\n" +
             " do { print 1 }\n" +
             " while (x)\n" +
-            "}");
+            "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
@@ -331,7 +328,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesFunctionBodyStatementOutlines()
     {
-        var program = AwkSyntaxParser.Parse("function clamp(value){ if (value < 0) return 0; return value }");
+        var program = AwkSyntaxParser.Parse("function clamp(value){ if (value < 0) return 0; return value }", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Functions).BodyStatements;
@@ -344,7 +341,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ClassifiesLValueOutlines()
     {
-        var program = AwkSyntaxParser.Parse("BEGIN{x=1; a[$1]++; $2 += 3; NF=4}");
+        var program = AwkSyntaxParser.Parse("BEGIN{x=1; a[$1]++; $2 += 3; NF=4}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
@@ -366,8 +363,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ClassifiesSpecialFormStatementOutlines()
     {
-        var program = AwkSyntaxParser.Parse(
-            "BEGIN{" +
+        var program = AwkSyntaxParser.Parse("BEGIN{" +
             "getline x < \"in\";" +
             "close(\"in\");" +
             "fflush();" +
@@ -377,7 +373,7 @@ public sealed class AwkSyntaxParserTests
             "patsplit($0, b, /./);" +
             "asort(a);" +
             "asorti(a)" +
-            "}");
+            "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
@@ -407,7 +403,7 @@ public sealed class AwkSyntaxParserTests
     [InlineData("{nextfile 1}", "`nextfile' does not take an argument.")]
     public void AwkSyntaxParser_ReportsDirectStatementTrailingTokenDiagnostics(string source, string message)
     {
-        var program = AwkSyntaxParser.Parse(source);
+        var program = AwkSyntaxParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         var diagnostic = Assert.Single(program.Diagnostics, diagnostic => !diagnostic.IsWarning);
         Assert.Equal(AwkDiagnosticId.ParseSyntax, diagnostic.Id);
@@ -418,14 +414,13 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_PreservesLowererReadyStatementTokenShapes()
     {
-        var program = AwkSyntaxParser.Parse(
-            "BEGIN{" +
+        var program = AwkSyntaxParser.Parse("BEGIN{" +
             "x += -$1 ^ 2;" +
             "y = fn(a, b ? c : d);" +
             "a[i++]--;" +
             "print x > out;" +
             "getline line < input" +
-            "}");
+            "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
@@ -480,7 +475,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesExpressionOutlines()
     {
-        var program = AwkSyntaxParser.Parse("$1 ~ /sku/ {x=1+2*3; if (x > 1) print x}");
+        var program = AwkSyntaxParser.Parse("$1 ~ /sku/ {x=1+2*3; if (x > 1) print x}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var rule = Assert.Single(program.Rules);
@@ -498,8 +493,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesAwkSpecificExpressionPrecedence()
     {
-        var program = AwkSyntaxParser.Parse(
-            "BEGIN{" +
+        var program = AwkSyntaxParser.Parse("BEGIN{" +
             "a = 2 ^ 3 ^ 2;" +
             "b = -2 ^ 3;" +
             "c = \"x\" 1 + 2;" +
@@ -508,7 +502,7 @@ public sealed class AwkSyntaxParserTests
             "f = $i;" +
             "g = (\"x\" in arr) && ($0 ~ /x/);" +
             "h = fn(/x/, $1)" +
-            "}");
+            "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
@@ -571,7 +565,7 @@ public sealed class AwkSyntaxParserTests
     public void AwkSyntaxParser_KeepsAssignmentInsideFullExpressionOperands()
     {
         const string source = "BEGIN{1&&x=0||1;1?x=2:y=3;x=1&&y=2;0?1:1?x=2:y=3}";
-        var program = AwkSyntaxParser.Parse(source);
+        var program = AwkSyntaxParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
 
@@ -608,7 +602,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesOutputExpressionLists()
     {
-        var program = AwkSyntaxParser.Parse("BEGIN{print NF, length($1); printf \"%s\", $2}");
+        var program = AwkSyntaxParser.Parse("BEGIN{print NF, length($1); printf \"%s\", $2}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
@@ -626,8 +620,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesControlFlowExpressionSlots()
     {
-        var program = AwkSyntaxParser.Parse(
-            "BEGIN{for(i=1;i<=NF;i++) print $i; while (x) x--; do x++; while (x < 3); switch (x) {case 1: print x}}");
+        var program = AwkSyntaxParser.Parse("BEGIN{for(i=1;i<=NF;i++) print $i; while (x) x--; do x++; while (x < 3); switch (x) {case 1: print x}}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
@@ -648,7 +641,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesRangePatternParts()
     {
-        var program = AwkSyntaxParser.Parse("NR == 1, NR == 3 { print }");
+        var program = AwkSyntaxParser.Parse("NR == 1, NR == 3 { print }", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var pattern = Assert.IsType<AwkRangePatternSyntax>(Assert.Single(program.Rules).PatternSyntax);
@@ -659,12 +652,11 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesNestedStatementBodiesAndSwitchCases()
     {
-        var program = AwkSyntaxParser.Parse(
-            "BEGIN{" +
+        var program = AwkSyntaxParser.Parse("BEGIN{" +
             " if (x) { print x; next } else if (y) print y;" +
             " for (i=1;i<3;i++) { while (i) break };" +
             " switch (x) { case 1: print \"one\"; break; default: print \"other\" }" +
-            "}");
+            "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var statements = Assert.Single(program.Rules).ActionStatements;
@@ -694,8 +686,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_BindsElseInTheTreeToTheNearestUnbracedIf()
     {
-        var program = AwkSyntaxParser.Parse(
-            "BEGIN{if(a) if(b) print 1; else if(c) print 2; else print 3; else print 4}");
+        var program = AwkSyntaxParser.Parse("BEGIN{if(a) if(b) print 1; else if(c) print 2; else print 3; else print 4}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var outer = Assert.Single(Assert.Single(program.Rules).ActionStatements);
@@ -714,14 +705,13 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesNestedBodiesWithRegexCommentsAndRedirections()
     {
-        var program = AwkSyntaxParser.Parse(
-            "function route(x){" +
+        var program = AwkSyntaxParser.Parse("function route(x){" +
             " switch (x) {" +
             "  case /case|default/: print \"case default\" > out; break" +
             "  default: while (x) { print /x#/ | \"cat\" # body comment\n x-- }" +
             " }" +
             "}" +
-            "BEGIN{for(i=1;i<3;i++){if ($0 ~ /}/) print \"case\" >> out}}");
+            "BEGIN{for(i=1;i<3;i++){if ($0 ~ /}/) print \"case\" >> out}}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Empty(program.Diagnostics);
         var function = Assert.Single(program.Functions);
@@ -750,7 +740,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ParsesSourceDirectiveOutline()
     {
-        var program = AwkSyntaxParser.Parse("@include \"common.awk\"\n@namespace \"tools\"\nBEGIN{print 1}");
+        var program = AwkSyntaxParser.Parse("@include \"common.awk\"\n@namespace \"tools\"\nBEGIN{print 1}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         var diagnostic = Assert.Single(program.Diagnostics);
         Assert.Equal(AwkDiagnosticId.UnsupportedPolicy, diagnostic.Id);
@@ -765,7 +755,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ReportsUnterminatedActionBlock()
     {
-        var program = AwkSyntaxParser.Parse("BEGIN{print");
+        var program = AwkSyntaxParser.Parse("BEGIN{print", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         var diagnostic = Assert.Single(program.Diagnostics);
         Assert.Contains("Unterminated action block", diagnostic.Message);
@@ -774,7 +764,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ReportsBadLexicalTokens()
     {
-        var program = AwkSyntaxParser.Parse("BEGIN{print `bad`}");
+        var program = AwkSyntaxParser.Parse("BEGIN{print `bad`}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Contains(program.Diagnostics, diagnostic => diagnostic.Message.Contains("Unrecognized awk token"));
     }
@@ -782,7 +772,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ReportsInvalidRegexLiterals()
     {
-        var program = AwkSyntaxParser.Parse("BEGIN{print \"x\" ~ /[z-a]/}");
+        var program = AwkSyntaxParser.Parse("BEGIN{print \"x\" ~ /[z-a]/}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         var diagnostic = Assert.Single(program.Diagnostics);
         Assert.Equal(AwkDiagnosticId.ParseInvalidRegex, diagnostic.Id);
@@ -791,7 +781,7 @@ public sealed class AwkSyntaxParserTests
     [Fact]
     public void AwkSyntaxParser_ReportsStringEscapeWarnings()
     {
-        var program = AwkSyntaxParser.Parse("BEGIN{print \"a\\qz\"; print \"a\\xz\"}");
+        var program = AwkSyntaxParser.Parse("BEGIN{print \"a\\qz\"; print \"a\\xz\"}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Equal(
             [AwkDiagnosticId.WarningStringEscape, AwkDiagnosticId.WarningStringEscape],

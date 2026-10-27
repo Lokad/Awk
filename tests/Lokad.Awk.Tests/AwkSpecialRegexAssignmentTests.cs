@@ -6,16 +6,15 @@ public sealed class AwkSpecialRegexAssignmentTests
     {
         foreach (var variable in new[] { "FS", "FPAT", "RS" })
         foreach (var throughSymbolTable in new[] { false, true })
-        foreach (var utf8 in new[] { false, true })
-            yield return [variable, throughSymbolTable, utf8];
+            yield return [variable, throughSymbolTable];
     }
 
     [Theory]
     [MemberData(nameof(Assignments))]
-    public void BothPreparedVariantsAreReusedAcrossSameValueAndCaseChanges(string variable, bool throughSymbolTable, bool utf8)
+    public void BothPreparedVariantsAreReusedAcrossSameValueAndCaseChanges(string variable, bool throughSymbolTable)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        using var memoryForState = State(utf8, counters);
+        using var memoryForState = State(counters);
         var state = memoryForState.State;
         state.InitializeProcInfo();
         var value = AwkValue.FromText(AwkText.FromSourceLiteralString("[ab]+"));
@@ -39,13 +38,13 @@ public sealed class AwkSpecialRegexAssignmentTests
             state.AssignVariableValue(AwkVariableName.FromText(variable), value);
     }
 
-    private static CooperativeTestMemory State(bool utf8, AwkRuntimeCounters counters)
+    private static CooperativeTestMemory State(AwkRuntimeCounters counters)
     {
 
         var testMemory = new CooperativeTestMemory(1 << 20);
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
             new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default));
     }

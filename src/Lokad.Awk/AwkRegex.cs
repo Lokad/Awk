@@ -1,6 +1,6 @@
+using System.Text.RegularExpressions;
 using System;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Lokad.Awk;
 
@@ -16,51 +16,24 @@ internal sealed class AwkRegex
     private readonly bool _hasFixedCaseSensitivity;
     private readonly AwkRegexCaseSensitivity _caseSensitivity;
 
-    internal AwkRegex(string pattern, AwkRegexCaseSensitivity caseSensitivity, bool hasFixedCaseSensitivity = false,
-        AwkRegexSelection? selection = null, string? erePattern = null, Action? checkpoint = null)
+    internal AwkRegex(string pattern, AwkRegexCaseSensitivity caseSensitivity,
+        bool hasFixedCaseSensitivity = false)
     {
         Pattern = pattern;
-        ErePattern = erePattern ?? pattern;
-        RequiresDotNetFallback = RequiresDotNetEngine(pattern, checkpoint);
         _caseSensitivity = caseSensitivity;
-        checkpoint?.Invoke();
-        Selection = selection ?? AwkRegexSelection.Analyze(pattern, checkpoint);
         _hasFixedCaseSensitivity = hasFixedCaseSensitivity;
         PatternHashCode = pattern.GetHashCode();
-        checkpoint?.Invoke();
     }
 
     public string Pattern { get; }
     internal int PatternHashCode { get; }
-    internal string ErePattern { get; }
-
-    public bool RequiresDotNetFallback { get; }
-
-    internal AwkRegexSelection Selection { get; }
 
     public AwkRegexCaseSensitivity ResolveCaseSensitivity(Func<AwkRegexCaseSensitivity> resolveCurrent) =>
         _hasFixedCaseSensitivity ? _caseSensitivity : resolveCurrent();
 
-    public static AwkRegex Create(
-        AwkRegexPattern pattern,
-        AwkRegexCaseSensitivity caseSensitivity,
-        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
-        Action? checkpoint = null)
-    {
-        var ere = TranslatePattern(pattern, compatibilityMode, checkpoint);
-        return new AwkRegex(AwkRegexScalarPattern.Translate(ere, checkpoint), caseSensitivity,
-            selection: AwkRegexSelection.Analyze(ere, checkpoint), erePattern: ere, checkpoint: checkpoint);
-    }
-
-    internal static bool RequiresDotNetEngine(string translatedPattern, Action? checkpoint = null) =>
-        AwkRegexConstruction.IndexOf(translatedPattern, @"\A", 0, checkpoint) >= 0 ||
-        AwkRegexConstruction.IndexOf(translatedPattern, @"\z", 0, checkpoint) >= 0;
-
-    internal static RegexOptions ResolveOptions(AwkRegexCaseSensitivity caseSensitivity) =>
-        RegexOptions.CultureInvariant |
-        (caseSensitivity is AwkRegexCaseSensitivity.IgnoreCase
-            ? RegexOptions.IgnoreCase
-            : RegexOptions.None);
+    public static AwkRegex Create(AwkRegexPattern pattern, AwkRegexCaseSensitivity caseSensitivity,
+        AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault, Action? checkpoint = null) =>
+        new(TranslatePattern(pattern, compatibilityMode, checkpoint), caseSensitivity);
 
     public static string TranslatePattern(AwkRegexPattern pattern,
         AwkCompatibilityMode compatibilityMode = AwkCompatibilityMode.GnuDefault,
@@ -178,6 +151,16 @@ internal sealed class AwkRegex
                 {
                     if (bracketStart < 0)
                     {
+                        if (value == '.')
+                        {
+                            GetBuilder(index).Append(@"[\s\S]");
+                            return;
+                        }
+                        if (value == '$')
+                        {
+                            GetBuilder(index).Append(@"\z");
+                            return;
+                        }
                         if (value == '[')
                         {
                             bracketStart = index;

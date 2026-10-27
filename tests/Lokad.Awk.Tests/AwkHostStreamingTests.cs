@@ -17,7 +17,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             "awk",
             "BEGIN{print \"one\"; print \"two\"}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal(["", "one\n"], observedBeforeAppend);
@@ -32,7 +32,7 @@ public sealed class AwkHostStreamingTests : AwkCurrentSurfaceTestBase
             "awk",
             "BEGIN{print \"a\" | \"consumer\"; print \"bc\" | \"consumer\"}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.True(host.CommandWasRunningDuringAppend);

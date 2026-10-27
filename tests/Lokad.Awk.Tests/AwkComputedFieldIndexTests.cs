@@ -18,7 +18,7 @@ public sealed class AwkComputedFieldIndexTests
         var reads = 0;
         host.AfterReadLines = () => reads++;
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", test.Arguments, []);
         Assert.True(Awk.TryParse(command, out var awk));
@@ -39,7 +39,7 @@ public sealed class AwkComputedFieldIndexTests
     {
         using var memory = new CooperativeTestMemory(1 << 20, enabled: governed);
         var state = memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
-            AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(AwkRuntimeOptions.CreateSystemDefault()))).State;
+            AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(AwkTestHarness.CreateRuntimeOptions()))).State;
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("kept record"));
         var completion = new TaskCompletionSource<AwkValue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var index = new PendingIndex(completion.Task);

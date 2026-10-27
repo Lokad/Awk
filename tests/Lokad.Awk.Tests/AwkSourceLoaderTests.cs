@@ -36,7 +36,7 @@ public sealed class AwkSourceLoaderTests
         var budget = new CooperativeTestBudget(4 << 20);
 
         var exit = await awk.ExecuteAsync(host,
-            AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+            AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("524288\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -61,7 +61,7 @@ public sealed class AwkSourceLoaderTests
         var command = AwkCommandInvocation.CreateWithStandardDescriptors(
             "awk", ["-f", "script.awk"], [new("AWKPATH", new string('x', 1 << 20))]);
         Assert.True(Awk.TryParse(command, out var awk));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget);
 
         if (cancel)
         {
@@ -120,7 +120,7 @@ public sealed class AwkSourceLoaderTests
         var column = position - source.LastIndexOf('\n', position);
 
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
 
@@ -153,7 +153,7 @@ public sealed class AwkSourceLoaderTests
         host.EnqueueOpenAwkFileDescriptor(100);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent("BEGIN{print 1}\n"u8.ToArray(), [], AwkReadCompletion.EndOfFile));
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "-f", "/script.awk"));
-        var execution = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), cancellation.Token);
+        var execution = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), cancellation.Token);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -184,7 +184,7 @@ public sealed class AwkSourceLoaderTests
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments,
             [new AwkEnvironmentVariable("AWKPATH", "/lib")]));
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget)
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget)
             .WithAccessiblePathRoot(new AwkPath("/lib"));
 
         var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
@@ -440,7 +440,7 @@ public sealed class AwkSourceLoaderTests
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal(program, source.Text);
-        var binding = AwkBinder.Bind(AwkParser.Parse(source.Text));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.DoesNotContain(
             binding.Diagnostics,
             diagnostic => diagnostic.Id == AwkDiagnosticId.UnsupportedPolicy);
@@ -467,7 +467,7 @@ public sealed class AwkSourceLoaderTests
         var result = await LoadAsync(fileSystem, invocation);
 
         var source = Assert.Single(LoadedSources(result));
-        var binding = AwkBinder.Bind(AwkParser.Parse(source.Text));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.Equal(AwkDiagnosticId.UnsupportedPolicy, diagnostic.Id);
         Assert.Equal(expectedError, AwkUtf8Codec.Decode(AwkDiagnostics.Parse(binding.Diagnostics).Message));
@@ -518,7 +518,7 @@ public sealed class AwkSourceLoaderTests
 
         var source = Assert.Single(LoadedSources(result));
         Assert.Equal("BEGIN{print _ \"text\"}", source.Text);
-        var binding = AwkBinder.Bind(AwkParser.Parse(source.Text));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
         Assert.Empty(binding.Diagnostics);
         Assert.Equal(string.Empty, fileSystem.GetOutput(AwkFileDescriptor.StdErr));
     }
@@ -589,7 +589,7 @@ public sealed class AwkSourceLoaderTests
         fileSystem = new MockFileSystem();
         fileSystem.AddFile("/lib/bad.awk", [0x42, 0x45, 0x47, 0x49, 0x4e, 0x80]);
         var parsedTool = AwkTestHarness.ParseAwk(command);
-        var exitCode = await parsedTool.ExecuteAsync(fileSystem, CancellationToken.None);
+        var exitCode = await parsedTool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None);
         var result = new AwkTestRunResult(
             exitCode.Value,
             fileSystem.GetOutput(AwkFileDescriptor.StdOut),
@@ -714,7 +714,7 @@ public sealed class AwkSourceLoaderTests
         MockFileSystem fileSystem,
         AwkInvocation invocation)
     {
-        var runtimeOptions = AwkRuntimeOptions.CreateSystemDefault();
+        var runtimeOptions = AwkTestHarness.CreateRuntimeOptions();
         return AwkSourceLoader.LoadAsync(
             fileSystem,
             invocation,
@@ -727,7 +727,7 @@ public sealed class AwkSourceLoaderTests
         IReadOnlyList<string> arguments)
     {
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments, []));
-        var exitCode = await tool.ExecuteAsync(fileSystem, CancellationToken.None).ConfigureAwait(false);
+        var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), CancellationToken.None).ConfigureAwait(false);
         return new AwkTestRunResult(
             exitCode.Value,
             fileSystem.GetOutput(AwkFileDescriptor.StdOut),

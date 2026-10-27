@@ -21,7 +21,7 @@ public sealed class AwkParagraphEofTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var compiled = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk",
             "BEGIN{RS=\"\";RT=\"sentinel\";$0=\"seed fields\";v=\"kept\";\"producer\"|getline v;" +
-            "print NR,FNR,NF,v,\"[\"RT\"]\",\"[\"$0\"]\";exit}"), CancellationToken.None);
+            "print NR,FNR,NF,v,\"[\"RT\"]\",\"[\"$0\"]\";exit}"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
 
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(counters));
 
@@ -51,7 +51,7 @@ public sealed class AwkParagraphEofTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var compiled = await AwkExecutor.CompileAsync(host, AwkTestHarness.BuildInvocation("awk",
             "BEGIN{RS=\"\";RT=\"sentinel\";$0=\"seed fields\";v=\"kept\";code=(getline v<\"data\");" +
-            "print code,NR,FNR,NF,v,RT,\"[\"$0\"]\";exit}"), CancellationToken.None);
+            "print code,NR,FNR,NF,v,RT,\"[\"$0\"]\";exit}"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
 
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(counters));
 

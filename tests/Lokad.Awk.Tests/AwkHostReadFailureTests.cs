@@ -18,7 +18,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         };
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "{print}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal("one\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -40,7 +40,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
             "awk",
             "BEGIN{result=(getline value < \"/data.txt\"); print result, ERRNO; exit}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("-1 Device read failed\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -60,7 +60,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         host.AddFile("/script.awk", "BEGIN{print \"unread\"}");
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(string.Empty, host.GetOutput(AwkFileDescriptor.StdOut));
@@ -83,7 +83,7 @@ public sealed class AwkHostReadFailureTests : AwkCurrentSurfaceTestBase
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", "-f", "/script.awk"));
 
         await Assert.ThrowsAsync<OperationCanceledException>(
-            () => tool.ExecuteAsync(host, cancellation.Token));
+            () => tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), cancellation.Token));
 
         Assert.Equal(0, host.OpenFileCount);
     }

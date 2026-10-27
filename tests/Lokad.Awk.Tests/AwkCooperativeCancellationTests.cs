@@ -12,7 +12,7 @@ public sealed class AwkCooperativeCancellationTests
     public async Task MidflightCancellationStopsLoopsAndDelayedReadsWithFiniteMemory(
 bool observed, bool delayed)
     {
-        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), AwkTestHarness.BuildInvocation("awk", "BEGIN{getline x<\"/input\";while(1){x++}}"), CancellationToken.None);
+        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), AwkTestHarness.BuildInvocation("awk", "BEGIN{getline x<\"/input\";while(1){x++}}"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var pending = new TaskCompletionSource<AwkReadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -26,7 +26,7 @@ bool observed, bool delayed)
         };
         var counters = observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled;
         var limits = AwkRuntimeLimits.CreateDefault();
-        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits) with { MemoryBudget = new CooperativeTestBudget(1 << 20) };
+        var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance) with { MemoryBudget = new CooperativeTestBudget(1 << 20) };
         var run = Task.Run(() => compiled.ExecuteAsync(host, cancellation.Token, options));
         try
         {
@@ -87,7 +87,7 @@ bool observed, bool delayed)
             _ => ["BEGIN{print \"x\"|\"worker a:b\"}"]
         };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments));
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tool.ExecuteAsync(host, policy, cancellation.Token));
         Assert.Equal(cancellation.Token, error.CancellationToken);

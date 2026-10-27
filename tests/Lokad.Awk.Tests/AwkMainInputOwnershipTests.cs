@@ -12,7 +12,7 @@ public sealed class AwkMainInputOwnershipTests
         var host = new MainHost();
         var budget = new CooperativeTestBudget(1 << 20);
         Assert.Equal(AwkExitCode.Success, await Tool(source).ExecuteAsync(host,
-            AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None));
+            AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None));
         Assert.Equal(expected, host.Files.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.Files.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(1, host.MaximumActive);
@@ -30,7 +30,7 @@ public sealed class AwkMainInputOwnershipTests
         var host = new MainHost { FirstClose = () => { entered.SetResult(); return completion.Task; } };
         var budget = new CooperativeTestBudget(1 << 20);
         var run = Tool("{print FILENAME,$0}").ExecuteAsync(host,
-            AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), cancellation.Token);
+            AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), cancellation.Token);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -56,7 +56,7 @@ public sealed class AwkMainInputOwnershipTests
         var budget = new CooperativeTestBudget(1 << 20);
         var host = new MainHost { AfterOpen = () => budget.RefuseNextAdmissionMinimumGrowth = 1 };
         Assert.Equal(AwkExitCode.FatalError, await Tool("{print FILENAME,$0}").ExecuteAsync(host,
-            AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None));
+            AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None));
         Assert.Equal("", host.Files.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", host.Files.GetOutput(AwkFileDescriptor.StdErr));
         Assert.Equal(1, host.CloseAttempts);

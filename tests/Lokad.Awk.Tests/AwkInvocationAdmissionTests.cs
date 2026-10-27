@@ -22,7 +22,7 @@ public sealed class AwkInvocationAdmissionTests
         };
 
         var exit = await AwkTestHarness.ParseAwk(command)
-            .ExecuteAsync(host, AwkExecutionPolicy.CreateRestricted(), CancellationToken.None);
+            .ExecuteAsync(host, AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
@@ -48,7 +48,7 @@ public sealed class AwkInvocationAdmissionTests
         {
             var host = new MockFileSystem();
             host.AddFile("/scripts/main.awk", "BEGIN{print ENVIRON[\"KEEP\"];ENVIRON[\"KEEP\"]=\"local\";print ENVIRON[\"KEEP\"]}");
-            var exit = await awk.ExecuteAsync(host, CancellationToken.None);
+            var exit = await awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("original\nlocal\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -70,7 +70,7 @@ public sealed class AwkInvocationAdmissionTests
         var host = new MockFileSystem();
         budget.RefuseNextAdmissionMinimumGrowth = 1;
         var before = GC.GetAllocatedBytesForCurrentThread();
-        var pending = awk.ExecuteAsync(host, CancellationToken.None);
+        var pending = awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Equal(AwkExitCode.FatalError, await pending);
         Assert.True(allocated < 128 << 10, $"Planning refusal allocated {allocated} bytes.");
@@ -95,7 +95,7 @@ public sealed class AwkInvocationAdmissionTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            awk.ExecuteAsync(host, cancellation.Token));
+            awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), cancellation.Token));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -112,7 +112,7 @@ public sealed class AwkInvocationAdmissionTests
             .Select(index => new AwkEnvironmentVariable($"V{index}", "été")).ToArray();
         var command = Command(["BEGIN{print ENVIRON[\"V1499\"],ARGC,ARGV[1];exit}", "input"], environment, budget);
         var host = new MockFileSystem();
-        var result = await AwkTestHarness.ParseAwk(command).ExecuteAsync(host, CancellationToken.None);
+        var result = await AwkTestHarness.ParseAwk(command).ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
         Assert.Equal(AwkExitCode.Success, result);
         Assert.Equal("été 2 input\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -133,7 +133,7 @@ public sealed class AwkInvocationAdmissionTests
         var host = new MockFileSystem { AfterAppend = cancellation.Cancel };
         var awk = AwkTestHarness.ParseAwk(Command(["BEGIN{print 1}"], [], budget));
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            awk.ExecuteAsync(host, cancellation.Token));
+            awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), cancellation.Token));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));

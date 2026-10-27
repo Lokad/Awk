@@ -13,7 +13,7 @@ public sealed class AwkOpaquePipeTests
         var command = AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment);
         Assert.True(Awk.TryParse(command, out var awk));
         using var watchdog = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var exit = await awk.ExecuteAsync(host, watchdog.Token);
+        var exit = await awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), watchdog.Token);
         Assert.Equal(testCase.ExpectedExitCode, exit.Value);
         Assert.Equal(testCase.ExpectedStdOut, files.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal(testCase.ExpectedStdErr, files.GetOutput(AwkFileDescriptor.StdErr));
@@ -171,7 +171,7 @@ public sealed class AwkOpaquePipeTests
         var files = new MockFileSystem();
         var host = new AwkEmptyPipeTestHost(files) { CommandStatus = 17 };
         var open = input ? "cmd|getline x;" : "print \"pipe\"|cmd;";
-        var policy = AwkExecutionPolicy.CreateDefault().WithAccessiblePathRoot(new AwkPath("/allowed"));
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithAccessiblePathRoot(new AwkPath("/allowed"));
         var exit = await Run(host, "BEGIN{cmd=\"../../worker a:b\";" + open + "print close(cmd);" +
             open + "print close(cmd)}", policy);
         Assert.Equal(0, exit.Value);
@@ -195,7 +195,7 @@ public sealed class AwkOpaquePipeTests
         var script = "BEGIN{cmd=\"worker a:b\\\\*.txt\";" + (input ? "cmd|getline x" : "print \"pipe\"|cmd") + "}";
         var args = sandbox ? new[] { "--sandbox", script } : new[] { script };
         Assert.True(Awk.TryParse(AwkCommandInvocation.CreateWithStandardDescriptors("awk", args, []), out var awk));
-        var policy = AwkExecutionPolicy.CreateDefault().WithCommandPipes(sandbox);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithCommandPipes(sandbox);
         var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
         Assert.Equal(2, exit.Value);
         Assert.Equal("", files.GetOutput(AwkFileDescriptor.StdOut));
@@ -227,7 +227,7 @@ public sealed class AwkOpaquePipeTests
         Assert.True(Awk.TryParse(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{cmd=\"worker a:b\";print \"pipe\"|cmd;print close(cmd);print \"unreached\"}"), out var awk));
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            awk.ExecuteAsync(host, cancellation.Token).WaitAsync(TimeSpan.FromSeconds(10)));
+            awk.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), cancellation.Token).WaitAsync(TimeSpan.FromSeconds(10)));
         Assert.Equal(cancellation.Token, error.CancellationToken);
         Assert.Equal(new[] { new AwkFileDescriptor(81) }, closed);
         Assert.Equal("", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
@@ -240,6 +240,6 @@ public sealed class AwkOpaquePipeTests
     {
         Assert.True(Awk.TryParse(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []), out var awk));
         using var watchdog = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        return await awk.ExecuteAsync(host, policy ?? AwkExecutionPolicy.CreateDefault(), watchdog.Token).ConfigureAwait(false);
+        return await awk.ExecuteAsync(host, policy ?? AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance), watchdog.Token).ConfigureAwait(false);
     }
 }

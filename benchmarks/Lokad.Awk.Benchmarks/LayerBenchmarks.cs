@@ -45,7 +45,7 @@ public class InterpreterLayerBenchmarks
     {
         var compiled = _compiled ?? throw new InvalidOperationException("Missing prepared program.");
         using var host = new ReferenceBenchmarkHost(Workload, false);
-        var exit = await compiled.ExecuteAsync(host, CancellationToken.None).ConfigureAwait(false);
+        var exit = await compiled.ExecuteAsync(host, CancellationToken.None, AwkRuntimeOptions.CreateSystemDefault() with { RegexEngine = AwkUtf8RegexEngine.Instance }).ConfigureAwait(false);
         ReferenceExecution.Verify(host.Finish(exit.Value), Workload.ExpectedDigest);
     }
 
@@ -54,7 +54,7 @@ public class InterpreterLayerBenchmarks
         using var host = new ReferenceBenchmarkHost(Workload, false);
         return await AwkExecutor.CompileAsync(host,
             AwkCommandInvocation.CreateWithStandardDescriptors("awk", Workload.Arguments, []),
-            CancellationToken.None).ConfigureAwait(false);
+            CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance).ConfigureAwait(false);
     }
 }
 
@@ -68,13 +68,13 @@ public class FrontendLayerBenchmarks
     public void Setup()
     {
         _source = ReferenceWorkloads.Create("projection", "large").Program;
-        _parsed = AwkParser.Parse(_source);
+        _parsed = AwkParser.Parse(_source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         if (!_parsed.Success || !AwkBinder.Bind(_parsed).Success)
             throw new InvalidOperationException("Frontend fixture failed.");
     }
 
     [Benchmark(Baseline = true)]
-    public void ParseOnly() => _ = AwkParser.Parse(_source);
+    public void ParseOnly() => _ = AwkParser.Parse(_source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
     [Benchmark]
     public void BindAndLowerOnly() => _ = AwkBinder.Bind(_parsed);
@@ -96,10 +96,10 @@ public class FrontendScalingBenchmarks
             source.Append("$1 == ").Append(index).Append(" { value").Append(index)
                 .Append(" = $2 + ").Append(index).Append("; print value").Append(index).AppendLine(" }");
         _source = source.ToString();
-        if (!AwkParser.Parse(_source).Success)
+        if (!AwkParser.Parse(_source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None).Success)
             throw new InvalidOperationException("Frontend scaling fixture failed.");
     }
 
     [Benchmark]
-    public void ParseOnly() => _ = AwkParser.Parse(_source);
+    public void ParseOnly() => _ = AwkParser.Parse(_source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 }

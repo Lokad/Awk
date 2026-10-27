@@ -93,6 +93,6 @@ public sealed class AwkFieldCountValueTests
         var memory = new CooperativeTestMemory(1 << 20);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
             memory.Configure(new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, limits))));
+                new AwkRandomGenerator(), AwkRuntimeCounters.Disabled, limits, regexEngine: AwkUtf8RegexEngine.Instance))));
     }
 }

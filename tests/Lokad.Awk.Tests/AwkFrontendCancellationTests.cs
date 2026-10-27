@@ -12,19 +12,19 @@ public sealed class AwkFrontendCancellationTests
         var command = mode.Length == 0 ? AwkTestHarness.BuildInvocation("awk", source)
             : AwkTestHarness.BuildInvocation("awk", mode, source);
         using var preparation = new CancellationTokenSource();
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), command, preparation.Token);
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), command, preparation.Token, regexEngine: AwkUtf8RegexEngine.Instance);
         preparation.Cancel();
 
         using var execution = new CancellationTokenSource();
         execution.Cancel();
         var canceledHost = new MockFileSystem();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => compiled.ExecuteAsync(canceledHost, execution.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => compiled.ExecuteAsync(canceledHost, execution.Token, AwkTestHarness.CreateRuntimeOptions()));
         Assert.Equal("", canceledHost.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", canceledHost.GetOutput(AwkFileDescriptor.StdErr));
 
         foreach (var host in new[] { new MockFileSystem(), new MockFileSystem() })
         {
-            Assert.Equal(AwkExitCode.Success, await compiled.ExecuteAsync(host, CancellationToken.None));
+            Assert.Equal(AwkExitCode.Success, await compiled.ExecuteAsync(host, CancellationToken.None, AwkTestHarness.CreateRuntimeOptions()));
             Assert.Equal(expected, host.GetOutput(AwkFileDescriptor.StdOut));
             Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
             Assert.Equal(0, host.OpenFileCount);
@@ -167,7 +167,7 @@ public sealed class AwkFrontendCancellationTests
     [InlineData("binding")]
     public void FrontendPassesObserveMidTraversalCancellation(string pass)
     {
-        var parsed = AwkParser.Parse("BEGIN{" + string.Concat(Enumerable.Repeat("x=x+1;", 128)) + "}");
+        var parsed = AwkParser.Parse("BEGIN{" + string.Concat(Enumerable.Repeat("x=x+1;", 128)) + "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         Assert.True(parsed.Success);
         var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out var globals);
         var model = AwkSemanticModel.Create(symbols);
@@ -222,7 +222,7 @@ public sealed class AwkFrontendCancellationTests
         string Wrap(string body) => function ? "function f(){" + body + "} BEGIN{}" : "BEGIN{" + body + "}";
         void Run(string source, Action checkpoint)
         {
-            var parsed = AwkParser.Parse(source);
+            var parsed = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
             Assert.True(parsed.Success);
             var symbols = AwkSymbolCollector.Collect(parsed.Syntax, out var globals);
             if (lowering)
@@ -270,7 +270,7 @@ public sealed class AwkFrontendCancellationTests
 
         var failure = Assert.Throws<OperationCanceledException>(() =>
             AwkFrontendDiagnosticPolicy.AddLexicalDiagnostics(source, tokens, diagnostics,
-                new AwkFrontendBudget(int.MaxValue), mode, Checkpoint));
+                new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, mode, Checkpoint));
         Assert.Equal(cancellation.Token, failure.CancellationToken);
         Assert.Empty(diagnostics);
     }
@@ -302,7 +302,7 @@ public sealed class AwkFrontendCancellationTests
     [InlineData(true)]
     public void SyntaxDepthAuditsObserveTraversalCancellation(bool tree)
     {
-        var parsed = AwkParser.Parse("BEGIN{" + string.Concat(Enumerable.Repeat("x++;", 128)) + "}");
+        var parsed = AwkParser.Parse("BEGIN{" + string.Concat(Enumerable.Repeat("x++;", 128)) + "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         var tokens = AwkLexer.Tokenize(parsed.Syntax.SourceText);
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
@@ -362,7 +362,7 @@ public sealed class AwkFrontendCancellationTests
     public async Task ReturnedArtifactsDoNotRetainTheFrontendCancellationCallback()
     {
         const string source = "function f(a){return a+1} BEGIN{print f(2), 3e1, \"ok\"}";
-        var parsed = AwkParser.Parse(source);
+        var parsed = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
         using var cancellation = new CancellationTokenSource();
         var calls = 0;
         void Checkpoint()
@@ -381,7 +381,7 @@ public sealed class AwkFrontendCancellationTests
         cancellation.Cancel();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault());
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var hosts = new[] { new MockFileSystem(), new MockFileSystem() };
         var results = await Task.WhenAll(hosts.Select(host => compiled.ExecuteAsync(host, CancellationToken.None, options)));
         Assert.All(results, result => Assert.Equal(AwkExitCode.Success, result));

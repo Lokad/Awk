@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace Lokad.Awk.Tests;
@@ -6,19 +5,16 @@ namespace Lokad.Awk.Tests;
 public sealed class AwkRecordInputMemoryTests
 {
     [Theory]
-    [InlineData("default", false)] [InlineData("default", true)]
-    [InlineData("unsupported", false)] [InlineData("unsupported", true)]
-    [InlineData("semantic", false)] [InlineData("semantic", true)]
-    public async Task DecodedBatchAdmissionFailsBeforeRecordEffects(string engine, bool injectedRefusal)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProviderMatchAdmissionFailsBeforeRecordEffects(bool injectedRefusal)
     {
         var budget = new CooperativeTestBudget((injectedRefusal ? 16 : 2) << 20);
         var host = new InputHost(budget, "ax!" + new string('q', 1_000_000))
         {
             OnRead = () => { if (injectedRefusal) budget.RefuseNextAdmissionMinimumGrowth = 1_500_000; }
         };
-        var pattern = engine == "semantic" ? "x!|y" : "x.";
-        var script = "BEGIN{RS=\"" + pattern + "\";print \"base\"}{print \"after\";exit}END{print \"end\"}";
-        var exit = await Execute(script, host, budget, engine);
+        var exit = await Execute("BEGIN{RS=\"x.\";print \"base\"}{print \"after\";exit}END{print \"end\"}", host, budget);
         Assert.Equal(2, exit.Value);
         Assert.Equal("base\n", host.Output);
         Assert.Equal("awk: memory limit exceeded\n", host.Error);
@@ -32,28 +28,26 @@ public sealed class AwkRecordInputMemoryTests
     }
 
     [Theory]
-    [InlineData("default", false)] [InlineData("default", true)]
-    [InlineData("unsupported", false)] [InlineData("unsupported", true)]
-    [InlineData("semantic", false)] [InlineData("semantic", true)]
-    public async Task DecodedBatchRemainsFundedThroughPendingOutput(string engine, bool cancel)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BorrowedInputRemainsFundedThroughPendingOutput(bool cancel)
     {
         var budget = new CooperativeTestBudget(16 << 20);
-        using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource();
         var host = new InputHost(budget, "ax!" + new string('q', 1_000_000))
         {
             PendingOutput = () => { entered.SetResult(); return release.Task; }
         };
-        var pattern = engine == "semantic" ? "x!|y" : "x.";
-        var execution = Execute("BEGIN{RS=\"" + pattern + "\"}{print \"held\";exit}", host, budget, engine, cancellation.Token);
+        var execution = Execute("BEGIN{RS=\"x.\"}{print \"held\";exit}", host, budget, cancellation.Token);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.InRange(budget.Reserved, 3_000_000, budget.Limit);
+            Assert.InRange(budget.Reserved, 1_000_000, 1_500_000);
             if (cancel) cancellation.Cancel();
             Assert.False(execution.IsCompleted);
-            Assert.InRange(budget.Reserved, 3_000_000, budget.Limit);
+            Assert.InRange(budget.Reserved, 1_000_000, 1_500_000);
         }
         finally { release.TrySetResult(); }
         if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
@@ -68,75 +62,53 @@ public sealed class AwkRecordInputMemoryTests
     {
         var budget = new CooperativeTestBudget(16 << 20);
         var host = new InputHost(budget, "ax!" + new string('q', 1_000_000));
-        var exit = await Execute("BEGIN{RS=\"x.\"}{print $0;exit}", host, budget, "utf8");
+        var exit = await Execute("BEGIN{RS=\"x.\"}{print $0;exit}", host, budget);
         Assert.Equal(0, exit.Value);
         Assert.Equal("a\n", host.Output);
         Assert.Equal("", host.Error);
-        // Producer scratch has its own admission; it is refunded before output.
+        // Provider scratch is refunded before output; only the raw input remains funded.
         Assert.InRange(Assert.Single(host.OutputAdmission), 1_000_000, 1_500_000);
         AssertRefunded(budget);
     }
 
-    [Theory]
-    [InlineData("default")]
-    [InlineData("unsupported")]
-    public async Task CompactionReleasesTheOldDecodeBeforeReadingAnotherBatch(string engine)
+    [Fact]
+    public async Task CompactionReleasesTheOldViewBeforeReadingAnotherBatch()
     {
         var budget = new CooperativeTestBudget(16 << 20);
         var host = new InputHost(budget, "ax!" + new string('q', 1_000_000), "x!b");
-        var exit = await Execute("BEGIN{RS=\"x.\"}{if(NR==1)print \"first\";else print length($0)}END{print \"done\"}",
-            host, budget, engine);
+        var exit = await Execute("BEGIN{RS=\"x.\"}{if(NR==1)print \"first\";else print length($0)}END{print \"done\"}", host, budget);
         Assert.Equal(0, exit.Value);
         Assert.Equal("first\n1000000\n1\ndone\n", host.Output);
         Assert.Equal("", host.Error);
         Assert.Equal(2, host.Reads);
-        // The raw buffer is still owned; its previous decoded view has been dropped.
         Assert.InRange(host.ReadAdmission[1], 1_000_000, 1_500_000);
         AssertRefunded(budget);
     }
 
-    [Theory]
-    [InlineData("default")]
-    [InlineData("unsupported")]
-    public async Task SeparatorChangesKeepTheCachedDecodeFundedWithoutRepeatedAdmission(string engine)
+    [Fact]
+    public async Task SeparatorChangesKeepTheBorrowedInputFunded()
     {
         var budget = new CooperativeTestBudget(16 << 20);
         var host = new InputHost(budget, "ax!b:" + new string('q', 1_000_000));
         var script = "BEGIN{RS=\"x.\"}{if(NR==1){RS=\":\";print \"held\"}" +
             "else{RS=\"x.\";print \"retained\";exit}}END{print \"done\"}";
-        Assert.Equal(0, (await Execute(script, host, budget, engine)).Value);
+        Assert.Equal(0, (await Execute(script, host, budget)).Value);
         Assert.Equal("held\nretained\ndone\n", host.Output);
         Assert.Equal("", host.Error);
-        Assert.All(host.OutputAdmission.Take(2), bytes => Assert.InRange(bytes, 3_000_000, 3_200_000));
+        Assert.All(host.OutputAdmission.Take(2), bytes => Assert.InRange(bytes, 1_000_000, 1_500_000));
         Assert.InRange(host.OutputAdmission[2], 1, 100_000);
         AssertRefunded(budget);
     }
 
     private static Task<AwkExitCode> Execute(string script, InputHost host, CooperativeTestBudget budget,
-        string engine, CancellationToken token = default)
-    {
-        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget);
-        if (engine == "unsupported") policy = policy.WithRegexEngine(new UnsupportedEngine());
-        if (engine is "utf8" or "semantic") policy = policy.WithRegexEngine(AwkUtf8RegexEngine.Instance);
-        return AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []))
-            .ExecuteAsync(host, policy, token);
-    }
+        CancellationToken token = default) =>
+        AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []))
+            .ExecuteAsync(host, AwkTestHarness.CreatePolicy().WithMemoryBudget(budget), token);
 
     private static void AssertRefunded(CooperativeTestBudget budget)
     {
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(budget.ScopesCreated, budget.ScopesDisposed);
-    }
-
-    private sealed class UnsupportedEngine : IAwkRegexEngine
-    {
-        public bool TryCompile(string pattern, bool ignoreCase, IMemoryBudget? memoryBudget,
-            CancellationToken token, [NotNullWhen(true)] out IAwkCompiledRegex? compiledPattern)
-        {
-            token.ThrowIfCancellationRequested();
-            compiledPattern = null;
-            return false;
-        }
     }
 
     private sealed class InputHost(CooperativeTestBudget budget, params string[] batches) : IAwkHost

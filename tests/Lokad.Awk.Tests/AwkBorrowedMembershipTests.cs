@@ -79,7 +79,7 @@ public sealed class AwkBorrowedMembershipTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            limits)
+            limits, regexEngine: AwkUtf8RegexEngine.Instance)
         { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var array = AwkArrayName.FromText("lookup");

@@ -27,7 +27,7 @@ public sealed class AwkFunctionStorageTests
         var tool = AwkTestHarness.ParseAwk(command);
 
         Assert.Equal(2, (await tool.ExecuteAsync(host,
-            AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None)).Value);
+            AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None)).Value);
         Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("awk: memory limit exceeded\n", host.GetOutput(AwkFileDescriptor.StdErr));
         Assert.InRange(allocated, 0, 64 * 1024);

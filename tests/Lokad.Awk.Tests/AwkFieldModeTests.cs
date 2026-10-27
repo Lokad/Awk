@@ -168,7 +168,7 @@ public sealed class AwkFieldModeTests
         var testMemory = new CooperativeTestMemory(1 << 20);
         var resolvedLimits = (limits ?? AwkRuntimeLimits.CreateDefault());
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, resolvedLimits);
+            new AwkRandomGenerator(), counters, resolvedLimits, regexEngine: AwkUtf8RegexEngine.Instance);
         return testMemory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options),
             new AwkRuntimeResourceMonitor(resolvedLimits, counters), AwkCompatibilityProfile.Default.WithMode(mode)));
     }

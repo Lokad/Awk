@@ -25,10 +25,10 @@ public sealed class AwkExecutionPolicyBudgetTests
             .Where(property => property.Name.StartsWith("Max", StringComparison.Ordinal)).ToArray();
         var property = properties.Single(property => property.Name == name);
         var setter = typeof(AwkExecutionPolicy).GetMethods().Single(method => method.Name == "With" + name);
-        Assert.Equal(defaultValue, ReadNumber(property, AwkExecutionPolicy.CreateDefault()));
-        Assert.Equal(restrictedValue, ReadNumber(property, AwkExecutionPolicy.CreateRestricted()));
+        Assert.Equal(defaultValue, ReadNumber(property, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance)));
+        Assert.Equal(restrictedValue, ReadNumber(property, AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance)));
 
-        foreach (var original in new[] { AwkExecutionPolicy.CreateDefault(), AwkExecutionPolicy.CreateRestricted() })
+        foreach (var original in new[] { AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance), AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) })
         {
             object value = property.PropertyType == typeof(int) ? (object)42 : 42L;
             var updated = Assert.IsType<AwkExecutionPolicy>(setter.Invoke(original, [value]));
@@ -60,7 +60,7 @@ public sealed class AwkExecutionPolicyBudgetTests
     [Fact]
     public void RuntimeAdaptationReusesBudgetsAndPreservesPublicRecordSemantics()
     {
-        var policy = AwkExecutionPolicy.CreateRestricted().WithMaxPipes(123);
+        var policy = AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMaxPipes(123);
         var capabilities = policy.WithCommandPipes(true).WithMaxHostErrorBytes(456);
         Assert.Same(policy.Limits, AwkRuntimeLimits.FromPolicy(policy));
         Assert.Same(policy.Limits, capabilities.Limits);

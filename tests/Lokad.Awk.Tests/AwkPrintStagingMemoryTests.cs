@@ -361,7 +361,7 @@ public sealed partial class AwkPrintStagingMemoryTests
             _ => "BEGIN{printf \"%04096d\",7 > \"result\"}"
         };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", source));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget);
         var pending = tool.ExecuteAsync(host, policy, cancellation.Token);
         var ending = printCount switch { 3 => "7 café\n", 2 => "7 8\n", 1 => "7\n", _ => "7" };
         var expected = AwkUtf8Codec.Encode(new string('0', 4095) + ending).ToArray();

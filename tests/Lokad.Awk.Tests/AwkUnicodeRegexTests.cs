@@ -13,7 +13,7 @@ public sealed class AwkUnicodeRegexTests
         const string literal = "/\\u\\ud800/";
         const string source = "BEGIN{if(0)print " + literal + "}";
         var profile = (AwkCompatibilityMode)mode;
-        var parse = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue),
+        var parse = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance },
             CancellationToken.None, profile);
         Assert.True(parse.Success);
         if (profile == AwkCompatibilityMode.Posix)
@@ -33,13 +33,10 @@ public sealed class AwkUnicodeRegexTests
     }
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    public void RuntimeWarningsPrecedeSharedCacheHits(int mode, bool utf8)
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void RuntimeWarningsPrecedeSharedCacheHits(int mode)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -47,7 +44,7 @@ public sealed class AwkUnicodeRegexTests
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
             new AwkRuntimeResourceMonitor(limits, counters), compatibilityMode: (AwkCompatibilityMode)mode,
-            reportUnicodeWarning: messages.Add, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            reportUnicodeWarning: messages.Add, regexEngine: AwkUtf8RegexEngine.Instance);
         var first = new AwkRegexPattern(@"\u", warningSite: new object());
         var second = new AwkRegexPattern(@"\u", warningSite: new object());
         var regex = runtime.Create(first);
@@ -61,15 +58,13 @@ public sealed class AwkUnicodeRegexTests
         Assert.Equal(mode == 1 ? 0 : 2, messages.Count);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CompiledRegexWarningsAreFreshForConcurrentHosts(bool utf8)
+    [Fact]
+    public async Task CompiledRegexWarningsAreFreshForConcurrentHosts()
     {
         var source = new MockFileSystem();
         source.AddFile("/regex.awk", "# source\nBEGIN{if(0)print /\\u/;p=\"\\\\u\";for(i=0;i<3;i++)print \"u\"~p;exit}");
         var compiled = await AwkExecutor.CompileAsync(source,
-            AwkTestHarness.BuildInvocation("awk", "-f", "/regex.awk"), CancellationToken.None);
+            AwkTestHarness.BuildInvocation("awk", "-f", "/regex.awk"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var warning = Assert.Single(compiled.Warnings);
         var location = Assert.IsType<AwkSourceLocation>(warning.SourceLocation);
         Assert.Equal("/regex.awk", location.SourceName.Text);
@@ -81,7 +76,7 @@ public sealed class AwkUnicodeRegexTests
         {
             var host = new MockFileSystem();
             var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-                new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+                new AwkRandomGenerator(), AwkRuntimeCounters.CreateEnabled(), AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
             var exit = await compiled.ExecuteAsync(host, deadline.Token, options);
             Assert.Equal(AwkExitCode.Success, exit);
             Assert.Equal("1\n1\n1\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -119,10 +114,8 @@ public sealed class AwkUnicodeRegexTests
         Assert.Equal(2, messages.Count);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void DecodeBufferAdmissionFailsBeforeCompilationOrCacheRetention(bool utf8)
+    [Fact]
+    public void DecodeBufferAdmissionFailsBeforeCompilationOrCacheRetention()
     {
         const string pattern = @"\u0041";
         var limits = AwkRuntimeLimits.CreateDefault();
@@ -131,7 +124,7 @@ public sealed class AwkUnicodeRegexTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, counters,
-            new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            new AwkRuntimeResourceMonitor(limits, counters), governor, regexEngine: AwkUtf8RegexEngine.Instance);
         for (var i = 0; i < 2; i++)
         {
             var error = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(pattern)));

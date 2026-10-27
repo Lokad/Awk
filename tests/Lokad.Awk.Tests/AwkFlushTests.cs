@@ -343,7 +343,7 @@ bool inputFirst)
     private static AwkRuntimeOptions Options(AwkRuntimeLimits? limits = null,
         AwkRuntimeCounters? counters = null) =>
         new(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            counters ?? AwkRuntimeCounters.Disabled, limits ?? AwkRuntimeLimits.CreateDefault());
+            counters ?? AwkRuntimeCounters.Disabled, limits ?? AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
 
     private static async Task<AwkExitCode> Run(IAwkHost host, string script,
         AwkRuntimeLimits? limits = null, AwkRuntimeCounters? counters = null)

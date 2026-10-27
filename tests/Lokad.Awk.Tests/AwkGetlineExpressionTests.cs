@@ -6,8 +6,7 @@ public sealed class AwkGetlineExpressionTests
     public void DeepPipeStatusArithmeticReachesTheFrontendDepthDiagnostic()
     {
         var arithmetic = string.Concat(Enumerable.Repeat("+1", 10_000));
-        var program = AwkSyntaxParser.Parse(
-            "BEGIN{print (\"cat data\"|getline v" + arithmetic + ")}", 128);
+        var program = AwkSyntaxParser.Parse("BEGIN{print (\"cat data\"|getline v" + arithmetic + ")}", new AwkFrontendBudget(128) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None);
 
         Assert.Contains(program.Diagnostics, diagnostic =>
             diagnostic.Message == "Program nesting limit exceeded.");
@@ -18,22 +17,21 @@ public sealed class AwkGetlineExpressionTests
         foreach (var testCase in AwkGoldenCorpus.PipeGetlineExpressionCases()
             .Concat(AwkGoldenCorpus.PipeGetlineDestinationCases()))
 
-            foreach (var utf8 in new[] { false, true })
-                yield return [testCase, utf8];
+            yield return [testCase];
     }
 
     [Theory]
     [MemberData(nameof(PipeCases))]
     public async Task PipeExpressionsKeepTheHostCommandAndDescriptorLifecycle(
-        AwkGoldenCase testCase, bool utf8)
+        AwkGoldenCase testCase)
     {
         var files = AwkTestHarness.BuildFileSystem(testCase);
         var host = new AwkGetlinePipeTestHost(files);
         var invocation = AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
-        var compiled = await AwkExecutor.CompileAsync(host, invocation, CancellationToken.None);
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
+        var compiled = await AwkExecutor.CompileAsync(host, invocation, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
 
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
 

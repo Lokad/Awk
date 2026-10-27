@@ -31,8 +31,10 @@ internal static class AwkMessages
         AwkUtf8Codec.Encode("awk: regular expression splits a Unicode character\n");
     internal static readonly ReadOnlyMemory<byte> ErrorInvalidUtf8Input =
         AwkUtf8Codec.Encode("awk: invalid UTF-8 input\n");
-    internal static readonly ReadOnlyMemory<byte> ErrorRegexTimeout =
-        AwkUtf8Codec.Encode("awk: regular expression match timed out\n");
+    internal static readonly ReadOnlyMemory<byte> ErrorRegexProviderRequired =
+        "awk: a host-supplied regular expression provider is required\n"u8.ToArray();
+    internal static readonly ReadOnlyMemory<byte> ErrorRegexProviderUnsupported =
+        "awk: regular expression is unsupported by the supplied provider\n"u8.ToArray();
     internal static readonly ReadOnlyMemory<byte> ErrorNotEnoughPrintfArguments =
         AwkUtf8Codec.Encode("awk: not enough arguments to satisfy format string\n");
     internal static readonly ReadOnlyMemory<byte> ErrorPrintfMixedArguments =

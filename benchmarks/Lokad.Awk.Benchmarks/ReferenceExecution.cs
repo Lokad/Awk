@@ -19,7 +19,7 @@ internal static class ReferenceExecution
         try
         {
             var exit = await awk.ExecuteAsync(host,
-                AwkExecutionPolicy.CreateDefault().WithTimeZone(TimeZoneInfo.Utc), deadline.Token).ConfigureAwait(false);
+                AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithTimeZone(TimeZoneInfo.Utc), deadline.Token).ConfigureAwait(false);
             return host.Finish(exit.Value);
         }
         catch (OperationCanceledException)
@@ -43,7 +43,7 @@ internal static class ReferenceExecution
         using var host = new ReferenceBenchmarkHost(workload, capture: false);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(AwkUnixTimestampSeconds.FromSystemClock, TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault());
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(Invocation(workload)),
             deadline.Token, options).ConfigureAwait(false);
         Verify(host.Finish(exit.Value), workload.ExpectedDigest);

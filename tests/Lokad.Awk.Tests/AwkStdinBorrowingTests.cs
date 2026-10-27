@@ -19,7 +19,7 @@ public sealed class AwkStdinBorrowingTests
             var budget = new CooperativeTestBudget(16 << 20);
             var host = new AliasHost(reuse, moreData);
             var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script, "/dev/fd/0"], []));
-            var policy = AwkExecutionPolicy.CreateDefault();
+            var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
             if (governed) policy = policy.WithMemoryBudget(budget);
             Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, policy, CancellationToken.None));
             Assert.Equal(expected, host.Output);
@@ -113,7 +113,7 @@ public sealed class AwkStdinBorrowingTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         using var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None,
-            new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits));
+            new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance));
         var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
         using var cursor = new AwkRecordCursor(state, reader, reader.CreateLineReader(AwkFileDescriptor.StdIn));
         var allocated = counters.AwkTextPayloadBytes;
@@ -127,7 +127,7 @@ public sealed class AwkStdinBorrowingTests
 
     private static Task<AwkExitCode> Execute(string script, IAwkHost host, IMemoryBudget? budget, CancellationToken token = default) =>
         AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []))
-            .ExecuteAsync(host, budget is null ? AwkExecutionPolicy.CreateDefault() : AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), token);
+            .ExecuteAsync(host, budget is null ? AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), token);
 
     private sealed class AliasHost(bool reuse, bool moreData, string input = "a\nb\nc\n") : IAwkHost
     {

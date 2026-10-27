@@ -158,7 +158,7 @@ internal static class AwkExecutor
                     runtimeOptions.ExposeHostErrorDetails,
                     runtimeOptions.MaxHostErrorBytes,
                     cancellationToken,
-                    runtimeOptions.MemoryOwner.FrontendMemory)
+                    runtimeOptions.MemoryOwner.FrontendMemory, runtimeOptions.RegexEngine)
                 .ConfigureAwait(false);
             for (var index = 0; index < resolved.Warnings.Count; index++)
             {
@@ -248,16 +248,17 @@ internal static class AwkExecutor
     }
 
     internal static Task<AwkCompiledProgram> CompileAsync(IAwkHost host,
-        AwkCommandInvocation command, CancellationToken cancellationToken) =>
-        CompileCoreAsync(host, null, command, cancellationToken, command.MemoryBudget);
+        AwkCommandInvocation command, CancellationToken cancellationToken, IAwkRegexEngine? regexEngine = null) =>
+        CompileCoreAsync(host, null, command, cancellationToken, command.MemoryBudget, regexEngine);
 
     internal static Task<AwkCompiledProgram> CompileAsync(IAwkHost host,
-        AwkInvocation invocation, CancellationToken cancellationToken, IMemoryBudget? memoryBudget = null) =>
-        CompileCoreAsync(host, invocation, null, cancellationToken, memoryBudget);
+        AwkInvocation invocation, CancellationToken cancellationToken, IMemoryBudget? memoryBudget = null,
+        IAwkRegexEngine? regexEngine = null) =>
+        CompileCoreAsync(host, invocation, null, cancellationToken, memoryBudget, regexEngine);
 
     private static async Task<AwkCompiledProgram> CompileCoreAsync(IAwkHost host,
         AwkInvocation? invocation, AwkCommandInvocation? command,
-        CancellationToken cancellationToken, IMemoryBudget? memoryBudget)
+        CancellationToken cancellationToken, IMemoryBudget? memoryBudget, IAwkRegexEngine? regexEngine)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var owner = AwkExecutionMemoryOwner.Create(memoryBudget, cancellationToken);
@@ -267,7 +268,7 @@ internal static class AwkExecutor
             var resolved = invocation ?? AwkCommandParser.Parse(
                 command ?? throw new ArgumentException("A command is required."), owner.FrontendMemory, token);
             return await CompileBodyAsync(owner.IsEnabled ? new AwkBudgetHost(host, owner) : host,
-                resolved, token, owner).ConfigureAwait(false);
+                resolved, token, owner, regexEngine).ConfigureAwait(false);
         }
         catch
         {
@@ -278,7 +279,7 @@ internal static class AwkExecutor
 
     private static async Task<AwkCompiledProgram> CompileBodyAsync(
         IAwkHost host, AwkInvocation invocation, CancellationToken cancellationToken,
-        AwkExecutionMemoryOwner owner)
+        AwkExecutionMemoryOwner owner, IAwkRegexEngine? regexEngine)
     {
         if (invocation.TerminalResult.IsTerminal)
         {
@@ -308,7 +309,7 @@ internal static class AwkExecutor
                 runtimeOptions.ExposeHostErrorDetails,
                 runtimeOptions.MaxHostErrorBytes,
                 cancellationToken,
-                owner.FrontendMemory)
+                owner.FrontendMemory, regexEngine)
             .ConfigureAwait(false);
         if (resolved is AwkProgramResolution.Failed failed)
             throw new System.InvalidOperationException(AwkUtf8Codec.Decode(failed.Diagnostic.Message));
@@ -334,7 +335,7 @@ internal static class AwkExecutor
         bool exposeHostErrorDetails,
         int maxHostErrorBytes,
         CancellationToken cancellationToken,
-        AwkFrontendMemory? memory = null)
+        AwkFrontendMemory? memory = null, IAwkRegexEngine? regexEngine = null)
     {
         var sourceLoad = await AwkSourceLoader.LoadAsync(
                 host,
@@ -359,7 +360,8 @@ internal static class AwkExecutor
         var source = loaded.CompilationSource;
         cancellationToken.ThrowIfCancellationRequested();
         var parsed = AwkParser.Parse(
-            source.Text, AwkFrontendBudget.FromResources(resources, stringEscapeWarnings, regexEscapeWarnings, memory),
+            source.Text, new AwkFrontendBudget(resources.Limits.MaxSyntaxNestingDepth, stringEscapeWarnings, regexEscapeWarnings)
+            { Memory = memory ?? AwkFrontendMemory.Disabled, RegexEngine = regexEngine, RegexCancellationToken = cancellationToken },
             cancellationToken,
             invocation.ExecutionOptions.CompatibilityProfile.Mode);
         var warnings = AwkSourceDiagnosticMap.MapDiagnostics(source, parsed.Warnings, cancellationToken.ThrowIfCancellationRequested);

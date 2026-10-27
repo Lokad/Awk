@@ -23,7 +23,7 @@ public sealed class AwkPartialCloseTests
             _ => "BEGIN{\"source\"|getline x}"
         };
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [source], []));
-        var execution = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), cancellation.Token);
+        var execution = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), cancellation.Token);
         if (cancel)
         {
             var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
@@ -50,7 +50,7 @@ public sealed class AwkPartialCloseTests
         var source = input ? "BEGIN{\"source\"|getline x;close(\"source\")}" :
             "BEGIN{print 1|\"sink\";close(\"sink\")}";
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [source], []));
-        Assert.Equal(2, (await tool.ExecuteAsync(host, CancellationToken.None)).Value);
+        Assert.Equal(2, (await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None)).Value);
         Assert.Equal(input ? new[] { 10, 11 } : new[] { 11 }, host.Closes);
         Assert.Equal("awk: execution failed without exposing host exception details\n", host.Error);
     }
@@ -70,7 +70,7 @@ public sealed class AwkPartialCloseTests
         var budget = new CooperativeTestBudget(1 << 20);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(operation));
         Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host,
-            AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None));
+            AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None));
         Assert.Equal(kind == "input-pipe" ? 16 : 8, host.Closes.Count);
         Assert.Equal(host.Closes.Count, host.Closes.Distinct().Count());
         Assert.Equal("", host.Error);

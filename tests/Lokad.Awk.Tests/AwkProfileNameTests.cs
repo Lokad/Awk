@@ -31,7 +31,7 @@ public sealed class AwkProfileNameTests
     {
         var mode = (AwkCompatibilityMode)modeValue;
         const string source = "function f(and,SYMTAB){and++;SYMTAB[1]=and;return and}BEGIN{SYMTAB[\"x\"]=3;print f(2,a)}";
-        var parse = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue), CancellationToken.None, mode);
+        var parse = AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None, mode);
         var binding = AwkBinder.Bind(parse, AwkCompatibilityProfile.Default.WithMode(mode));
         Assert.True(binding.Success);
         Assert.Contains(binding.SemanticModel.Usages, symbol =>
@@ -53,7 +53,7 @@ public sealed class AwkProfileNameTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memory = new CooperativeTestMemory(1 << 20);
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         var state = memory.Initialize(() => new AwkRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, memory.Configure(options), new(limits, counters), AwkCompatibilityProfile.Default.WithMode((AwkCompatibilityMode)modeValue))).State;
         var name = AwkArrayName.FromText(text);
         var key = AwkArrayKey.FromOrdinal(1);
@@ -96,7 +96,7 @@ public sealed class AwkProfileNameTests
     private static AwkRuntimeState State(AwkCompatibilityMode mode, AwkRuntimeCounters counters, AwkRuntimeLimits limits)
     {
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits);
+            new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         return new(AwkFieldSeparatorSpec.Default, CancellationToken.None, options,
             new AwkRuntimeResourceMonitor(limits, counters), AwkCompatibilityProfile.Default.WithMode(mode));
     }

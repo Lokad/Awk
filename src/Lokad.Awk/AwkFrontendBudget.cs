@@ -20,12 +20,9 @@ internal sealed class AwkFrontendBudget
     public AwkRegexEscapeWarnings RegexEscapeWarnings { get; }
     public AwkFrontendMemory Memory { get; init; } = AwkFrontendMemory.Disabled;
 
+    public IAwkRegexEngine? RegexEngine { get; init; }
+    public CancellationToken RegexCancellationToken { get; init; }
+
     public int MaxSyntaxNestingDepth { get; }
 
-    public static AwkFrontendBudget FromResources(AwkRuntimeResourceMonitor resources, AwkStringEscapeWarnings? stringEscapeWarnings = null,
-        AwkRegexEscapeWarnings? regexEscapeWarnings = null,
-        AwkFrontendMemory? memory = null) =>
-        new(
-            resources.Limits.MaxSyntaxNestingDepth, stringEscapeWarnings, regexEscapeWarnings)
-        { Memory = memory ?? AwkFrontendMemory.Disabled };
 }

@@ -18,7 +18,7 @@ public sealed class AwkStructuredCloseTests
     {
         var host = new CloseHost { RetiredFailure = retired };
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget);
         if (details == "hidden") policy = policy.WithHostErrorDetails(false);
         if (details == "oversize") policy = policy.WithMaxHostErrorBytes(4);
         var (arguments, output, identity) = Case(kind);
@@ -42,7 +42,7 @@ public sealed class AwkStructuredCloseTests
         var host = new CloseHost { RetiredFailure = true, FailReads = readFailure };
         var arguments = readFailure ? new[] { "{}", "data" } : new[] { "BEGIN{print 1>\"one\";print 2>\"two\";x=1/0}" };
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", arguments, []));
-        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, CancellationToken.None));
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
         Assert.Equal(readFailure ? "awk: file descriptor 10: read failed: read denied\n" :
             "awk: division by zero attempted\n", host.Error.ToString());
         Assert.Empty(host.Active);
@@ -55,7 +55,7 @@ public sealed class AwkStructuredCloseTests
         var host = new CloseHost { RetiredFailure = true, RejectStderr = true };
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk",
             ["BEGIN{print 1>\"one\";print 2>\"two\"}"], []));
-        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, CancellationToken.None));
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
         Assert.Equal("", host.Error.ToString());
         Assert.Empty(host.Active);
         Assert.Equal(0, host.SuccessfulCloseReplays);
@@ -67,7 +67,7 @@ public sealed class AwkStructuredCloseTests
     {
         var host = new CloseHost { RetiredFailure = retired, FailReads = true };
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", ["-f", "/script.awk"], []));
-        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, CancellationToken.None));
+        Assert.Equal(AwkExitCode.FatalError, await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
         Assert.Equal("awk: /script.awk: read denied\n", host.Error.ToString());
         Assert.Empty(host.Active);
         Assert.Equal(retired ? 1 : 2, host.CloseAttempts[10]);
@@ -81,7 +81,7 @@ public sealed class AwkStructuredCloseTests
         var budget = new CooperativeTestBudget(1 << 20);
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk",
             ["BEGIN{print 1|\"sink a:b\";close(\"sink a:b\")}"], []));
-        var run = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+        var run = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None);
         try
         {
             await host.CommandCancelled.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -106,7 +106,7 @@ public sealed class AwkStructuredCloseTests
         var host = new CloseHost { RetiredFailure = retired, BeforeFirstClose = async () => { entered.SetResult(); await finish.Task; } };
         var budget = new CooperativeTestBudget(1 << 20);
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", ["{}", "data"], []));
-        var run = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), cancellation.Token);
+        var run = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), cancellation.Token);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -139,7 +139,7 @@ public sealed class AwkStructuredCloseTests
     {
         var host = new CloseHost { RetiredFailure = true };
         var tool = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", ["{}"], []));
-        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, CancellationToken.None));
+        Assert.Equal(AwkExitCode.Success, await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None));
         Assert.Empty(host.CloseAttempts);
         Assert.Equal("", host.Error.ToString());
     }

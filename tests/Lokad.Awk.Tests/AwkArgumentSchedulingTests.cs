@@ -20,7 +20,7 @@ public sealed class AwkArgumentSchedulingTests
     {
         var host = AwkTestHarness.BuildFileSystem(test);
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault();
+        var policy = restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", test.Arguments, test.Environment));
 
@@ -43,7 +43,7 @@ public sealed class AwkArgumentSchedulingTests
     {
         var host = Files();
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault();
+        var policy = restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{ARGV[1]=\"/b.txt\"}{print $0}", ""));
@@ -70,7 +70,7 @@ public sealed class AwkArgumentSchedulingTests
         var host = Files();
         host.AfterCloseDescriptor = cancellation.Cancel;
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault();
+        var policy = restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "{print $0}END{print \"end\"}", "", "/a.txt", "", "/b.txt"));
@@ -97,7 +97,7 @@ public sealed class AwkArgumentSchedulingTests
             if (host.GetOutput(AwkFileDescriptor.StdOut) == "before\n" && budget.Refusals == 0)
                 budget.RefuseNextAdmissionMinimumGrowth = 1;
         };
-        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted() : AwkExecutionPolicy.CreateDefault())
+        var policy = (restricted ? AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance) : AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance))
             .WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{print \"before\"}{print \"after\"}END{print \"end\"}", "", "/large.txt", ""));
@@ -125,7 +125,7 @@ public sealed class AwkArgumentSchedulingTests
             var host = Files();
             var arguments = operand.Length == 0 ? new[] { program } : new[] { program, operand };
             var compiled = await AwkExecutor.CompileAsync(host,
-                AwkTestHarness.BuildInvocation("awk", arguments), CancellationToken.None);
+                AwkTestHarness.BuildInvocation("awk", arguments), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
             var options = Options(allowDynamicPaths: false);
 
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
@@ -149,7 +149,7 @@ public sealed class AwkArgumentSchedulingTests
         {
             var host = Files();
             var compiled = await AwkExecutor.CompileAsync(host,
-                AwkTestHarness.BuildInvocation("awk", program, "/a.txt"), CancellationToken.None);
+                AwkTestHarness.BuildInvocation("awk", program, "/a.txt"), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
 
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
                 Options(allowDynamicPaths: false));
@@ -171,7 +171,7 @@ public sealed class AwkArgumentSchedulingTests
             var host = Files();
             var compiled = await AwkExecutor.CompileAsync(host,
                 AwkTestHarness.BuildInvocation("awk", "BEGIN{ARGV[ARGC++]=\"" + path + "\"}{print $0}"),
-                CancellationToken.None);
+                CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
 
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None,
                 Options(accessibleRoot: new AwkPath("/jail")));
@@ -193,7 +193,7 @@ public sealed class AwkArgumentSchedulingTests
             host.AfterCloseDescriptor = cancellation.Cancel;
             var compiled = await AwkExecutor.CompileAsync(host,
                 AwkTestHarness.BuildInvocation("awk", "{print $0}ENDFILE{ARGC=1e12}", "/a.txt"),
-                CancellationToken.None);
+                CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 compiled.ExecuteAsync(host, cancellation.Token, Options()));
@@ -219,7 +219,7 @@ public sealed class AwkArgumentSchedulingTests
             var host = Files();
             var program = dynamic ? "BEGIN{ARGV[1]=\"/b.txt\"}{print $0}" : "{print $0}";
             var compiled = await AwkExecutor.CompileAsync(host,
-                AwkTestHarness.BuildInvocation("awk", program, originalPath), CancellationToken.None);
+                AwkTestHarness.BuildInvocation("awk", program, originalPath), CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
             var counters = AwkRuntimeCounters.CreateEnabled();
 
             var exit = await compiled.ExecuteAsync(host, CancellationToken.None, Options(counters));
@@ -255,5 +255,5 @@ public sealed class AwkArgumentSchedulingTests
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
             counters ?? AwkRuntimeCounters.Disabled, limits ?? AwkRuntimeLimits.CreateDefault(),
 accessiblePathRoot: accessibleRoot,
-            allowDynamicMainInputPaths: allowDynamicPaths);
+            allowDynamicMainInputPaths: allowDynamicPaths, regexEngine: AwkUtf8RegexEngine.Instance);
 }

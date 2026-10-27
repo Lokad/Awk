@@ -171,7 +171,7 @@ public sealed class AwkNumericSemanticsTests
         var invocation = AwkTestHarness.BuildInvocation("awk", "BEGIN{sqrt(-1);print \"unreachable\"}");
         var tool = AwkTestHarness.ParseAwk(invocation);
 
-        var exit = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exit = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exit);
         Assert.Empty(host.GetOutput(AwkFileDescriptor.StdOut));

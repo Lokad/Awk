@@ -66,12 +66,12 @@ public sealed partial class AwkFieldProjectionTests
     {
         var operands = owned ? "$i,$k,$j" : "$1,$3,$2";
         var invocation = AwkTestHarness.BuildInvocation("awk", "-v", "i=1", "-v", "j=2", "-v", "k=3", "{print " + operands + "}");
-        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), invocation, CancellationToken.None);
+        await using var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), invocation, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var host = new MockFileSystem();
         host.SetStandardInput("head 007 café\nother -3 tail\n");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(2 << 20);
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, memoryBudget: budget);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, memoryBudget: budget, regexEngine: AwkUtf8RegexEngine.Instance);
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);

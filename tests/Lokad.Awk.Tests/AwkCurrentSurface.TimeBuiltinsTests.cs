@@ -17,7 +17,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         var host = new MockFileSystem();
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{print srand(" + (explicitSeed ? "7" : "") + ");print \"ok\"}"));
-        var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithTimeProvider(clock), CancellationToken.None);
+        var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithTimeProvider(clock), CancellationToken.None);
         var fails = throwing && !explicitSeed;
         Assert.Equal(fails ? 2 : 0, exit.Value);
         Assert.Equal(fails ? "" : "1\nok\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -31,7 +31,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         var clock = new SeedClock(false);
         var host = new MockFileSystem();
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{srand(7);print systime();print strftime(\"%s\")}"));
-        var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithTimeProvider(clock), CancellationToken.None);
+        var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithTimeProvider(clock), CancellationToken.None);
         Assert.Equal(0, exit.Value);
         Assert.Equal("1\n2\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -88,7 +88,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
         expectedRandom.Seed(new AwkRandomSeed(17828));
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, random,
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault());
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
 
         var actual = (await EvaluateAsync("rand", [], state)).AsNumber();
@@ -107,7 +107,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             TimeZoneInfo.Utc,
             random,
             AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault());
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         random.Seed(new AwkRandomSeed(7));
         using var first = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         using var second = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
@@ -123,7 +123,7 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
     [Fact]
     public void Awk_SystemDefaultOptionsGiveEachStateAnIndependentRandomSequence()
     {
-        var options = AwkRuntimeOptions.CreateSystemDefault();
+        var options = AwkTestHarness.CreateRuntimeOptions();
         var first = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var second = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
 
@@ -223,5 +223,5 @@ public sealed class AwkCurrentSurfaceTimeBuiltinsTests : AwkCurrentSurfaceTestBa
             CancellationToken.None,
             new AwkRuntimeOptions(currentUnixTimeSeconds, timeZone, new AwkRandomGenerator(),
                 AwkRuntimeCounters.Disabled,
-                AwkRuntimeLimits.CreateDefault()));
+                AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance));
 }

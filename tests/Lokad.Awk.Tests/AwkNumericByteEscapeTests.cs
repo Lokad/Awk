@@ -32,17 +32,14 @@ public sealed class AwkNumericByteEscapeTests
     }
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    public void NumericRegexUsesTheExistingCacheAndByteNativeCounters(int profile, bool utf8)
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void NumericRegexUsesTheExistingCacheAndByteNativeCounters(int profile)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        var runtime = Runtime(profile, utf8, counters, limits);
+        var runtime = Runtime(profile,counters,limits);
         var pattern = new AwkRegexPattern(@"\303\251");
         var regex = runtime.Create(pattern);
         Assert.Same(regex, runtime.Create(pattern));
@@ -50,27 +47,22 @@ public sealed class AwkNumericByteEscapeTests
         Assert.False(runtime.IsMatch(regex, AwkText.FromString("Ã©", counters)));
         Assert.Equal(1, counters.RegexCompiles);
         Assert.Equal(2, counters.RegexMatches);
-        Assert.Equal(utf8 ? 0 : 2, counters.StringDecodes);
-        Assert.Equal(utf8 ? 0 : 2, counters.AwkTextAsStringCalls);
-        Assert.Equal(0, counters.RegexPatternGapFallbacks);
-        Assert.Equal(utf8 ? 0 : 2, counters.RegexDotNetTextMatches);
+        Assert.Equal(0, counters.StringDecodes);
+        Assert.Equal(0, counters.AwkTextAsStringCalls);
     }
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    public void NumericRegexBufferRejectsBothAttemptsWithoutCachePublication(int profile, bool utf8)
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void NumericRegexBufferRejectsBothAttemptsWithoutCachePublication(int profile)
     {
         const string pattern = @"\360\237\230\200";
         var limits = AwkRuntimeLimits.CreateDefault();
         using var memoryForGovernor = new CooperativeTestMemory(AwkRuntimeMemory.EstimateEscapeDecodingBytes(pattern.Length) - 1, AwkRuntimeCounters.Disabled);
         var governor = memoryForGovernor.Accounting;
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(profile, utf8, counters, limits, governor);
+        var runtime = Runtime(profile,counters,limits,governor);
         for (var attempt = 0; attempt < 2; attempt++)
         {
             var failure = Assert.Throws<AwkRuntimeException>(() => runtime.Create(new AwkRegexPattern(pattern)));
@@ -152,10 +144,9 @@ public sealed class AwkNumericByteEscapeTests
         Assert.Equal("é", AwkEscapes.DecodeSourceString(text, AwkCompatibilityMode.GnuDefault));
     }
 
-    private static AwkRegexRuntime Runtime(int profile, bool utf8, AwkRuntimeCounters counters,
-        AwkRuntimeLimits limits, AwkMemoryAccounting? governor = null) =>
+    private static AwkRegexRuntime Runtime(int profile,AwkRuntimeCounters counters,        AwkRuntimeLimits limits,AwkMemoryAccounting? governor = null) =>
         new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), governor, (AwkCompatibilityMode)profile, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), governor, (AwkCompatibilityMode)profile, regexEngine: AwkUtf8RegexEngine.Instance);
 
     private static AwkRuntimeOptions Options(AwkRuntimeLimits limits, bool counters) =>
         new(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),

@@ -111,7 +111,7 @@ public sealed class AwkRecordOwnershipTests
     private static Task<AwkExitCode> Execute(string script, IAwkHost host, IMemoryBudget budget,
         CancellationToken token = default) => AwkTestHarness.ParseAwk(
             AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []))
-            .ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), token);
+            .ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), token);
 
     private sealed class RecordHost : IAwkHost
     {

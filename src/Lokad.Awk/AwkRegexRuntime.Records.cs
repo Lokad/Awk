@@ -10,11 +10,10 @@ internal sealed partial class AwkRegexRuntime
         var key = new AwkRegexCacheKey(regex, sensitivity, AwkRegexCacheKind.RecordSeparator);
         if (_regexCache.TryGetValue(key, out var cached)) return cached;
         using var temporary = _memoryAccounting.CreateTransientLease();
-        var ere = SuppressInputStart(regex.ErePattern, temporary);
-        if (ReferenceEquals(ere, regex.ErePattern)) return regex;
-        var translated = AwkRegexScalarPattern.Translate(ere, _throwIfCancellationRequested, _memoryAccounting, temporary);
+        var ere = SuppressInputStart(regex.Pattern, temporary);
+        if (ReferenceEquals(ere, regex.Pattern)) return regex;
         _resources.RecordRegexCompilation();
-        return Cache(key, CreateRegex(translated, sensitivity, hasFixedCaseSensitivity: true, regex.Selection, ere));
+        return Cache(key, CreateRegex(ere, sensitivity, hasFixedCaseSensitivity: true));
     }
 
     private string SuppressInputStart(string pattern, AwkMemoryLease temporary)
@@ -27,7 +26,7 @@ internal sealed partial class AwkRegexRuntime
             var end = index;
             var anchor = pattern[index] == '^';
             if (pattern[index] == '[')
-                end = AwkRegexSelection.BracketEnd(pattern, index, _throwIfCancellationRequested);
+                end = AwkRegexConstruction.BracketEnd(pattern, index, _throwIfCancellationRequested);
             else if (pattern[index] == '\\' && index + 1 < pattern.Length)
             {
                 end++;
@@ -57,43 +56,9 @@ internal sealed partial class AwkRegexRuntime
     }
 
     public AwkRegexMatchSpan MatchRecordSeparatorSpan(AwkRegex regex, AwkText input,
-        AwkRegexSearchOffset recordStart, AwkRegexSearchOffset searchOffset, Action? admitDecodedInput)
-    {
-        var context = CaptureInputContext(regex, input, admitDecodedInput: admitDecodedInput);
-        return context.UsesUtf8Adapter
-            ? MatchProvidedSpan(regex, input, searchOffset, recordStart, admitDecodedInput)
-            : MatchRecordDotNetSpan(regex, context, recordStart, searchOffset);
-    }
-
-    private AwkRegexMatchSpan MatchRecordDotNetSpan(AwkRegex regex, AwkRegexInputContext context,
         AwkRegexSearchOffset recordStart, AwkRegexSearchOffset searchOffset)
     {
         _throwIfCancellationRequested();
-        RecordDotNetTextRoute(context.ExecutionPolicy);
-        var text = context.DotNetText;
-        // Slice the cached UTF-16 batch; never copy/decode each shrinking unread tail.
-        var window = text.AsSpan(recordStart.Utf16Index);
-        var startAt = searchOffset.Utf16Index - recordStart.Utf16Index;
-        if (regex.Selection.RequiresLongest && TryResolvePosixRegex(regex, _memoryAccounting, out var program))
-        {
-            using var selected = MatchPosix(program, window, startAt, 0, _memoryAccounting);
-            return selected.Success
-                ? CreateMatchSpan(text, recordStart.Utf16Index + selected.Index, selected.Length, searchOffset)
-                : AwkRegexMatchSpan.NoMatch;
-        }
-        _counters.RecordRegexStringAdapterMatch();
-        _resources.RecordRegexMatch();
-        try
-        {
-            var pattern = regex.Selection.RequiresLongest ? ResolveLongestRegex(regex).Regex : ResolveDotNetRegex(regex);
-            var matches = pattern.EnumerateMatches(window, startAt);
-            if (!matches.MoveNext()) return AwkRegexMatchSpan.NoMatch;
-            var match = matches.Current;
-            return CreateMatchSpan(text, recordStart.Utf16Index + match.Index, match.Length, searchOffset);
-        }
-        catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
-        {
-            throw new AwkRuntimeException(AwkMessages.ErrorRegexTimeout, AwkDiagnosticId.RuntimeRegexTimeout);
-        }
+        return MatchSpanCore(regex, input, searchOffset, recordStart);
     }
 }

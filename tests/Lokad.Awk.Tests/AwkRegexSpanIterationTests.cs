@@ -3,13 +3,11 @@ namespace Lokad.Awk.Tests;
 [Collection(AwkAllocationMeasurementCollection.Name)]
 public sealed class AwkRegexSpanIterationTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void PreparingWarmedSpanIterationDoesNotAllocateOrMatch(bool adapter)
+    [Fact]
+    public void PreparingWarmedSpanIterationDoesNotAllocateOrMatch()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = CreateRuntime(adapter, counters);
+        var runtime = CreateRuntime(counters);
         var regex = runtime.Create(new AwkRegexPattern("[,;]"));
         var input = AwkText.FromString("alpha,béta;gamma", counters);
         for (var i = 0; i < 256; i++)
@@ -28,13 +26,11 @@ public sealed class AwkRegexSpanIterationTests
         Assert.Equal(decodesBefore, counters.StringDecodes);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void EmptyMatchesAdvanceAndCompletionAndDisposalAreStable(bool adapter)
+    [Fact]
+    public void EmptyMatchesAdvanceAndCompletionAndDisposalAreStable()
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = CreateRuntime(adapter, counters);
+        var runtime = CreateRuntime(counters);
         var regex = runtime.Create(new AwkRegexPattern("x*"));
         var input = AwkText.FromString("éa", counters);
         var spans = runtime.EnumerateMatchSpans(regex, input);
@@ -55,9 +51,9 @@ public sealed class AwkRegexSpanIterationTests
         Assert.Equal(matchesAtEnd, counters.RegexMatches);
     }
 
-    private static AwkRegexRuntime CreateRuntime(bool adapter, AwkRuntimeCounters counters) => new(
+    private static AwkRegexRuntime CreateRuntime(AwkRuntimeCounters counters) => new(
         static () => AwkRegexCaseSensitivity.CaseSensitive,
         AwkStringUnitMode.Utf8Rune,
         static () => { },
-        counters, regexEngine: adapter ? AwkUtf8RegexEngine.Instance : null);
+        counters, regexEngine: AwkUtf8RegexEngine.Instance);
 }

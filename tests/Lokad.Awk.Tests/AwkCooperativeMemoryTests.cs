@@ -115,7 +115,7 @@ public sealed class AwkCooperativeMemoryTests
         const long limit = 1 << 20;
         var budget = new CooperativeTestBudget(limit);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget))
+        var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget))
             with { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         state.SetCurrentRecord(AwkText.FromSourceLiteralString("keep"));
@@ -150,7 +150,7 @@ public sealed class AwkCooperativeMemoryTests
         const long limit = 1 << 20;
         var budget = new CooperativeTestBudget(limit);
         await using var owner = AwkExecutionMemoryOwner.Create(budget, CancellationToken.None);
-        var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget))
+        var options = AwkRuntimeOptions.Create(AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget))
             with { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, options);
         var source = AwkVariableName.FromText("source");
@@ -192,7 +192,7 @@ public sealed class AwkCooperativeMemoryTests
         using var parent = budget.CreateScope();
         var host = new MockFileSystem();
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{a[1]=42;print a[1]}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(parent);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(parent);
         Assert.Equal(0, (await tool.ExecuteAsync(host, policy, CancellationToken.None)).Value);
         Assert.Equal("42\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.True(budget.Peak > 0);
@@ -210,7 +210,7 @@ public sealed class AwkCooperativeMemoryTests
         using var parent = budget.CreateScope();
         var host = new MockFileSystem();
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{a[1]=42;print a[1]}"));
-        Assert.Equal(2, (await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(parent),
+        Assert.Equal(2, (await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(parent),
             CancellationToken.None)).Value);
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Contains("memory limit exceeded", host.GetOutput(AwkFileDescriptor.StdErr));
@@ -229,7 +229,7 @@ public sealed class AwkCooperativeMemoryTests
         host.EnqueueAppendExitCode(0);
         host.EnqueueCloseDescriptorResult(AwkDescriptorCloseResult.Closed());
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{print 42 | \"child\";exit}"));
-        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget),
+        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget),
             CancellationToken.None);
         Assert.True(exit.Value == 0, host.GetAppendedOutput(AwkFileDescriptor.StdErr));
         var command = Assert.Single(host.CommandInvocations);
@@ -256,7 +256,7 @@ public sealed class AwkCooperativeMemoryTests
                 AwkPath.Root, AwkFileDescriptor.StdIn, AwkFileDescriptor.StdOut, AwkFileDescriptor.StdErr,
                 command.MemoryBudget);
             var child = AwkTestHarness.ParseAwk(childInvocation);
-            var result = await child.ExecuteAsync(childHost, token);
+            var result = await child.ExecuteAsync(childHost, AwkTestHarness.CreatePolicy(), token);
             Assert.Equal(0, result.Value);
             Assert.Equal("42\n", childHost.GetOutput(AwkFileDescriptor.StdOut));
             nestedPeak = budget.Peak;
@@ -264,7 +264,7 @@ public sealed class AwkCooperativeMemoryTests
             return result;
         };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{a[1]=7;print 1 | \"child\";exit}"));
-        Assert.Equal(0, (await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget),
+        Assert.Equal(0, (await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget),
             CancellationToken.None)).Value);
         Assert.True(parentCharge > 0);
         Assert.True(nestedPeak > parentCharge);
@@ -283,7 +283,7 @@ public sealed class AwkCooperativeMemoryTests
             ReadLinesAsyncOverride = (_, _, _) => { started.TrySetResult(); return pending.Task; }
         };
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget);
         var execution = tool.ExecuteAsync(host, policy, cancellation.Token);
         try
         {
@@ -316,7 +316,7 @@ public sealed class AwkCooperativeMemoryTests
         };
         using var cancellation = new CancellationTokenSource();
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print}"));
-        var execution = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget),
+        var execution = tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget),
             cancellation.Token);
         try
         {
@@ -349,7 +349,7 @@ public sealed class AwkCooperativeMemoryTests
         };
         var first = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "{print}"));
         var second = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", "BEGIN{a[1]=42;print a[1]}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget);
         var execution = first.ExecuteAsync(firstHost, policy, CancellationToken.None);
         try
         {

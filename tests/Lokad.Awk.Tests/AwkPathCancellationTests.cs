@@ -41,7 +41,7 @@ public sealed class AwkPathCancellationTests
                 }
             };
             var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), cancellation.Token));
+                awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), cancellation.Token));
             var allocated = GC.GetAllocatedBytesForCurrentThread() - start;
             Assert.True(start > 0);
             Assert.Equal(cancellation.Token, failure.CancellationToken);

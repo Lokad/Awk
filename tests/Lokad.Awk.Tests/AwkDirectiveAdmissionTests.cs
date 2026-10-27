@@ -16,7 +16,7 @@ public sealed class AwkDirectiveAdmissionTests
         string[] arguments = file ? ["-f", "/main.awk"] : [source];
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", arguments));
         var budget = new CooperativeTestBudget(source.Length * 32L);
-        var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget);
         // The first refusal warms frontend/error paths; the next run measures the same contract.
         await awk.ExecuteAsync(host, policy, CancellationToken.None);
         var before = GC.GetAllocatedBytesForCurrentThread();

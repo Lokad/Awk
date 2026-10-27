@@ -12,7 +12,7 @@ public sealed class AwkUnicodePrintClassTests
     public void UnicodeMembershipRetainsCacheAndByteNativeCounters(int profile, bool utf8)
     {
         var counters = AwkRuntimeCounters.CreateEnabled();
-        var runtime = Runtime(profile, utf8, counters);
+        var runtime = Runtime(profile,counters);
         var graphPattern = new AwkRegexPattern("[[:graph:]]");
         var printPattern = new AwkRegexPattern("[[:print:]]");
         var graph = runtime.Create(graphPattern);
@@ -41,20 +41,15 @@ public sealed class AwkUnicodePrintClassTests
         Assert.Equal(matches, counters.RegexMatches);
         Assert.Equal(utf8 ? 0 : samples.Length, counters.StringDecodes);
         Assert.Equal(utf8 ? 0 : matches, counters.AwkTextAsStringCalls);
-        Assert.Equal(0, counters.RegexPatternGapFallbacks);
-        Assert.Equal(utf8 ? 0 : matches, counters.RegexDotNetTextMatches);
     }
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    public void ClassExpansionPreservesPublicCapturesAndCompleteScalarSpans(int profile, bool utf8)
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void ClassExpansionPreservesPublicCapturesAndCompleteScalarSpans(int profile)
     {
-        var runtime = Runtime(profile, utf8, AwkRuntimeCounters.Disabled);
+        var runtime = Runtime(profile,AwkRuntimeCounters.Disabled);
         var pattern = new AwkRegexPattern("([[:graph:]]+)([[:print:]])");
         var regex = runtime.Create(pattern);
         using var captures = runtime.MatchCaptureValue(regex, AwkText.FromString("\né😀 "), AwkMemoryAccounting.Disabled);
@@ -70,10 +65,10 @@ public sealed class AwkUnicodePrintClassTests
         Assert.Equal(4, match.Utf16Length);
     }
 
-    private static AwkRegexRuntime Runtime(int profile, bool utf8, AwkRuntimeCounters counters)
+    private static AwkRegexRuntime Runtime(int profile,AwkRuntimeCounters counters)
     {
         var limits = AwkRuntimeLimits.CreateDefault();
         return new(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune,
-            static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), compatibilityMode: (AwkCompatibilityMode)profile, regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            static () => { }, counters,             new AwkRuntimeResourceMonitor(limits, counters), compatibilityMode: (AwkCompatibilityMode)profile, regexEngine: AwkUtf8RegexEngine.Instance);
     }
 }

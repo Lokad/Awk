@@ -9,8 +9,7 @@ public sealed class AwkRecordScanCancellationTests
     public static IEnumerable<object[]> Modes()
     {
         foreach (var observed in new[] { false, true })
-        foreach (var backend in new[] { false, true })
-            yield return [observed, backend];
+            yield return [observed];
     }
 
     public static IEnumerable<object[]> RecordScans()
@@ -18,12 +17,12 @@ public sealed class AwkRecordScanCancellationTests
         foreach (var mode in Modes())
         foreach (var scenario in new[] { "single", "set", "run-search", "literal", "paragraph-search",
             "run-extension", "paragraph-extension", "paragraph-leaders" })
-            yield return [mode[0], mode[1], scenario];
+            yield return [mode[0], scenario];
     }
 
     [Theory]
     [MemberData(nameof(RecordScans))]
-    public async Task InterruptedOwnedScanPreservesTheRecordAndDeliveredInput(bool observed, bool backend, string scenario)
+    public async Task InterruptedOwnedScanPreservesTheRecordAndDeliveredInput(bool observed, string scenario)
     {
         var large = new string('a', LongScan);
         var (initial, selected, input, expected, terminator) = scenario switch
@@ -41,7 +40,7 @@ public sealed class AwkRecordScanCancellationTests
         var bytes = Encoding.UTF8.GetBytes(input);
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(bytes, [], AwkReadCompletion.EndOfFile));
-        using var memoryForState = State(observed, backend);
+        using var memoryForState = State(observed);
         var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
@@ -93,12 +92,12 @@ public sealed class AwkRecordScanCancellationTests
         foreach (var mode in Modes())
         foreach (var paragraph in new[] { false, true })
         foreach (var newline in new[] { "\n", "\r\n" })
-            yield return [mode[0], mode[1], paragraph, newline];
+            yield return [mode[0], paragraph, newline];
     }
 
     [Theory]
     [MemberData(nameof(Continuations))]
-    public async Task InterruptedPendingRunKeepsBothDeliveredBatches(bool observed, bool backend, bool paragraph, string newline)
+    public async Task InterruptedPendingRunKeepsBothDeliveredBatches(bool observed, bool paragraph, string newline)
     {
         var delimiter = paragraph ? newline + newline : "|";
         var large = paragraph ? string.Concat(Enumerable.Repeat(newline, LongScan)) : new string('|', LongScan);
@@ -107,7 +106,7 @@ public sealed class AwkRecordScanCancellationTests
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(first, [], AwkReadCompletion.MoreData));
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(second, [], AwkReadCompletion.EndOfFile));
-        using var memoryForState = State(observed, backend);
+        using var memoryForState = State(observed);
         var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
@@ -150,12 +149,12 @@ public sealed class AwkRecordScanCancellationTests
     {
         foreach (var mode in Modes())
         foreach (var scenario in new[] { "literal", "set", "run", "alternatives" })
-            yield return [mode[0], mode[1], scenario];
+            yield return [mode[0], scenario];
     }
 
     [Theory]
     [MemberData(nameof(Classifications))]
-    public async Task LongSeparatorClassificationCanBeInterruptedBeforeHostIo(bool observed, bool backend, string scenario)
+    public async Task LongSeparatorClassificationCanBeInterruptedBeforeHostIo(bool observed, string scenario)
     {
         var repeated = new string('1', LongScan);
         var separator = scenario switch
@@ -170,7 +169,7 @@ public sealed class AwkRecordScanCancellationTests
         var bytes = Encoding.UTF8.GetBytes("left" + delimiter + "right" + delimiter);
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(bytes, [], AwkReadCompletion.EndOfFile));
-        using var memoryForState = State(observed, backend);
+        using var memoryForState = State(observed);
         var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
@@ -205,13 +204,13 @@ public sealed class AwkRecordScanCancellationTests
 
     [Theory]
     [MemberData(nameof(Modes))]
-    public async Task InterruptedUtf16PrefixCountDoesNotPublishAMixedOffsetCache(bool observed, bool backend)
+    public async Task InterruptedUtf16PrefixCountDoesNotPublishAMixedOffsetCache(bool observed)
     {
         var prefix = string.Concat(Enumerable.Repeat("αz😀", LongScan * 4 / 7));
         var bytes = Encoding.UTF8.GetBytes(prefix + "|valueznextz");
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(bytes, [], AwkReadCompletion.EndOfFile));
-        using var memoryForState = State(observed, backend);
+        using var memoryForState = State(observed);
         var state = memoryForState.State;
         using var cancellation = new CancellationTokenSource();
         var checks = 0;
@@ -254,19 +253,19 @@ public sealed class AwkRecordScanCancellationTests
         foreach (var mode in Modes())
             foreach (var offset in new[] { AwkRuntimeLimits.CancellationCheckBytes - 1,
             AwkRuntimeLimits.CancellationCheckBytes, AwkRuntimeLimits.CancellationCheckBytes + 1 })
-                yield return [mode[0], mode[1], offset];
+                yield return [mode[0], offset];
     }
 
     [Theory]
     [MemberData(nameof(LiteralBoundaries))]
-    public async Task LiteralWindowOverlapKeepsWholeUtf8Separators(bool observed, bool backend, int offset)
+    public async Task LiteralWindowOverlapKeepsWholeUtf8Separators(bool observed, int offset)
     {
         const string separator = "é😀";
         var prefix = new string('a', offset);
         var bytes = Encoding.UTF8.GetBytes(prefix + separator + "next" + separator);
         var host = new TestOperationVisitor([]);
         host.EnqueueAwkReadResult(AwkReadResult.FromContent(bytes, [], AwkReadCompletion.EndOfFile));
-        using var memoryForState = State(observed, backend);
+        using var memoryForState = State(observed);
         var state = memoryForState.State;
         Assign(state, "RS", separator);
         var reader = new AwkRecordDescriptorReader(host, CancellationToken.None, state.Resources);
@@ -284,13 +283,13 @@ public sealed class AwkRecordScanCancellationTests
         Assert.Single(host.ReadLineBatchLineCounts);
     }
 
-    private static CooperativeTestMemory State(bool observed, bool backend)
+    private static CooperativeTestMemory State(bool observed)
     {
 
         var testMemory = new CooperativeTestMemory(8 << 20);
         var options = new AwkRuntimeOptions(static () => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
             new AwkRandomGenerator(), observed ? AwkRuntimeCounters.CreateEnabled() : AwkRuntimeCounters.Disabled,
-            AwkRuntimeLimits.CreateDefault(), regexEngine: backend ? AwkUtf8RegexEngine.Instance : null);
+            AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         return testMemory.Initialize(() => AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, CancellationToken.None, testMemory.Configure(options)));
     }
 

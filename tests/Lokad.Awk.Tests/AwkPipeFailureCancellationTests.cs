@@ -18,7 +18,7 @@ public sealed class AwkPipeFailureCancellationTests
         var source = (mainFile ? "{" : "BEGIN{") + body + "}";
         var tool = AwkTestHarness.ParseAwk(mainFile ? AwkTestHarness.BuildInvocation("awk", source, "/data")
             : AwkTestHarness.BuildInvocation("awk", source));
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var execution = tool.ExecuteAsync(host, policy, cancellation.Token);
         try

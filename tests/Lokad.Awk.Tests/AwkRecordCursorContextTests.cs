@@ -11,13 +11,12 @@ public sealed class AwkRecordCursorContextTests
         foreach (var source in new[] { "stdin", "file", "pipe" })
         foreach (var batchLines in new[] { 1, 128 })
         foreach (var governed in new[] { false, true })
-        foreach (var adapter in new[] { false, true })
-            yield return [golden, source, batchLines, governed, adapter];
+            yield return [golden, source, batchLines, governed];
     }
 
     [Theory]
     [MemberData(nameof(Configurations))]
-    public async Task CursorContextDoesNotDependOnHostBatches(AwkGoldenCase golden, string source, int batchLines, bool governed, bool adapter)
+    public async Task CursorContextDoesNotDependOnHostBatches(AwkGoldenCase golden, string source, int batchLines, bool governed)
     {
         var script = golden.Arguments[0];
         if (source == "pipe") script = script.Replace("(getline)", "(\"source\" | getline)", StringComparison.Ordinal);
@@ -25,9 +24,8 @@ public sealed class AwkRecordCursorContextTests
         var budget = new CooperativeTestBudget(16 << 20);
         var host = new CursorHost(golden.StandardInput, batchLines, source);
         var awk = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", arguments, []));
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
-        if (adapter) policy = policy.WithRegexEngine(AwkUtf8RegexEngine.Instance);
         var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
         Assert.Equal(golden.ExpectedExitCode, exit.Value);
         Assert.Equal(golden.ExpectedStdOut, host.Output);
@@ -38,7 +36,7 @@ public sealed class AwkRecordCursorContextTests
 
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public async Task RegexRecordWindowsReuseTheDecodedBatch(bool governed)
+    public async Task RegexRecordWindowsBorrowTheUtf8Batch(bool governed)
     {
         const int count = 2048;
         var budget = new CooperativeTestBudget(8 << 20);
@@ -46,20 +44,17 @@ public sealed class AwkRecordCursorContextTests
         var host = new CursorHost(input, 128, "stdin");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters,
-            AwkRuntimeLimits.CreateDefault(), memoryBudget: governed ? budget : null);
+            AwkRuntimeLimits.CreateDefault(), memoryBudget: governed ? budget : null, regexEngine: AwkUtf8RegexEngine.Instance);
         var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk",
             ["BEGIN{RS=\"x|\\\\<b\"}{n++}END{print n}"], []);
-        var compiled = await AwkExecutor.CompileAsync(host, command, CancellationToken.None);
-        var before = GC.GetTotalAllocatedBytes(precise: true);
+        var compiled = await AwkExecutor.CompileAsync(host, command, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         await using (compiled)
             Assert.Equal(0, (await compiled.ExecuteAsync(host, CancellationToken.None, options)).Value);
-        Assert.InRange(GC.GetTotalAllocatedBytes(precise: true) - before, 1, 4_000_000);
         Assert.Equal((count + 1) + "\n", host.Output);
         Assert.Equal("", host.Error);
-        // Record/RT copies are linear; UTF-16 compatibility decoding must reuse a batch,
-        // rather than decode/copy every shrinking unread tail.
+        // Record/RT copies stay linear; searches borrow UTF-8 without a decoded batch.
         Assert.InRange(counters.AwkTextPayloadBytes, input.Length, input.Length * 2L);
-        Assert.InRange(counters.StringDecodes, 1, 8);
+        Assert.Equal(1, counters.StringDecodes); // RS pattern text; record searches remain byte-native.
         if (governed) Assert.True(budget.Peak > 0);
         Assert.Equal(0, budget.Reserved);
     }

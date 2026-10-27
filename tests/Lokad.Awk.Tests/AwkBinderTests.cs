@@ -9,7 +9,7 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_BindsExecutableParseResult()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print 1}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print 1}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.True(binding.Success);
         Assert.True(binding.PhaseResult.Success);
@@ -21,7 +21,7 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_PreservesSyntaxDiagnostics()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.False(binding.Success);
         Assert.False(binding.PhaseResult.Success);
@@ -33,8 +33,8 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_ReportsSemanticAndLoweringFailurePhases()
     {
-        var semanticFailure = AwkBinder.Bind(AwkParser.Parse("BEGIN{break}"));
-        var loweringFailure = AwkBinder.Bind(AwkParser.Parse("BEGIN{getline 1}"));
+        var semanticFailure = AwkBinder.Bind(AwkParser.Parse("BEGIN{break}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
+        var loweringFailure = AwkBinder.Bind(AwkParser.Parse("BEGIN{getline 1}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.Equal(AwkPipelinePhase.Bind, semanticFailure.Phase);
         Assert.False(semanticFailure.PhaseResult.Success);
@@ -45,9 +45,8 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_CollectsSymbolReferencesFromSyntax()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(
-            "function helper(value, extra){ return value + extra }\n" +
-            "BEGIN{print NF, length($1); a[$1]++; helper(a[$2])}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("function helper(value, extra){ return value + extra }\n" +
+            "BEGIN{print NF, length($1); a[$1]++; helper(a[$2])}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.Contains(binding.Symbols, symbol =>
             symbol is { Name: "helper", Kind: AwkSymbolReferenceKind.FunctionDefinition });
@@ -87,8 +86,7 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_ClassifiesImplementedSpecialFormsAsBuiltins()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(
-            "BEGIN{" +
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{" +
             "sub(/a/, \"b\", $0);" +
             "gsub(/a/, \"b\");" +
             "split($0, a, \",\");" +
@@ -96,7 +94,7 @@ public sealed class AwkBinderTests
             "asort(a);" +
             "asorti(a);" +
             "if(match($0, /x/, m)) print typeof(m), isarray(a)" +
-            "}"));
+            "}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.True(binding.Success);
         foreach (var name in new[] { "sub", "gsub", "split", "patsplit", "asort", "asorti", "match", "typeof", "isarray" })
@@ -125,7 +123,7 @@ public sealed class AwkBinderTests
         "awk: expected ',' between function parameters.\n")]
     public void AwkBinder_ReportsFunctionDeclarationDiagnostics(string source, string expectedMessage)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
@@ -142,7 +140,7 @@ public sealed class AwkBinderTests
     [InlineData("BEGIN{delete a[1], a[2]}", "awk: delete expects a single target.\n")]
     public void AwkBinder_ReportsDeleteTargetDiagnostics(string source, string expectedMessage)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
@@ -157,7 +155,7 @@ public sealed class AwkBinderTests
     [InlineData("BEGIN{++length}", "awk: invalid increment target.\n")]
     public void AwkBinder_ReportsLValueDiagnostics(string source, string expectedMessage)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
@@ -169,7 +167,7 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_AcceptsValidMutationTargets()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{$1=1; a[1]++; ++a; b+=1}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{$1=1; a[1]++; ++a; b+=1}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.True(binding.Success);
         Assert.Empty(binding.Diagnostics);
@@ -178,7 +176,7 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_ReportsBareBuiltinDiagnostics()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print rand}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print rand}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
@@ -190,7 +188,7 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_AllowsBareLengthCompatibilityForm()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("{print length}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("{print length}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.True(binding.Success);
         Assert.Empty(binding.Diagnostics);
@@ -200,7 +198,7 @@ public sealed class AwkBinderTests
     public void AwkBinder_ReportsCompatibilityGatedBuiltinDiagnostics()
     {
         var binding = AwkBinder.Bind(
-            AwkParser.Parse("BEGIN{print gensub(\"a\", \"b\", \"g\", \"a\")}"),
+            AwkParser.Parse("BEGIN{print gensub(\"a\", \"b\", \"g\", \"a\")}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None),
             AwkCompatibilityProfile.Default.WithMode(AwkCompatibilityMode.Posix));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
@@ -214,7 +212,7 @@ public sealed class AwkBinderTests
     public void AwkBinder_ReportsCompatibilityGatedSpecialFormDiagnostics()
     {
         var binding = AwkBinder.Bind(
-            AwkParser.Parse("BEGIN{print typeof(1)}"),
+            AwkParser.Parse("BEGIN{print typeof(1)}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None),
             AwkCompatibilityProfile.Default.WithMode(AwkCompatibilityMode.Traditional));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
@@ -229,7 +227,7 @@ public sealed class AwkBinderTests
     [InlineData("BEGIN{do print 1 while 1}", "awk: expected do-while condition.\n")]
     public void AwkBinder_ReportsControlStatementShapeDiagnostics(string source, string expectedMessage)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
@@ -245,7 +243,7 @@ public sealed class AwkBinderTests
     [InlineData("BEGIN{print gensub(\"a\", \"b\")}", "awk: invalid number of arguments for gensub\n")]
     public void AwkBinder_ReportsKnownCallableArityDiagnostics(string source, string expectedMessage)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
@@ -257,7 +255,7 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_AcceptsLengthWithoutArgumentCompatibilityForm()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print length()}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print length()}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.True(binding.Success);
         Assert.Empty(binding.Diagnostics);
@@ -272,7 +270,7 @@ public sealed class AwkBinderTests
     [InlineData("END{nextfile}", "awk: nextfile used outside input action\n")]
     public void AwkBinder_ReportsControlFlowContextDiagnostics(string source, string expectedMessage)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
@@ -284,11 +282,10 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_AcceptsValidControlFlowContexts()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(
-            "function f(){return 1} " +
+        var binding = AwkBinder.Bind(AwkParser.Parse("function f(){return 1} " +
             "BEGIN{while(1){continue}; switch(1){case 1: break}} " +
             "BEGINFILE{nextfile} " +
-            "{next}"));
+            "{next}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.True(binding.Success);
         Assert.Empty(binding.Diagnostics);
@@ -302,7 +299,7 @@ public sealed class AwkBinderTests
         string source,
         string expectedMessage)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
@@ -314,10 +311,9 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_AcceptsRedirectedGetlineAndFunctionCallsInFileBoundaryRules()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(
-            "function readmain(){getline value} " +
+        var binding = AwkBinder.Bind(AwkParser.Parse("function readmain(){getline value} " +
             "BEGINFILE{getline value < \"/side.txt\"; readmain()} " +
-            "ENDFILE{getline value < \"/side.txt\"}"));
+            "ENDFILE{getline value < \"/side.txt\"}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.True(binding.Success);
         Assert.Empty(binding.Diagnostics);
@@ -330,7 +326,7 @@ public sealed class AwkBinderTests
     [InlineData("BEGIN{delete SYMTAB[\"x\"]}", "awk: `delete' is not allowed with SYMTAB\n")]
     public void AwkBinder_ReportsSpecialArrayMutationDiagnostics(string source, string expectedMessage)
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse(source));
+        var binding = AwkBinder.Bind(AwkParser.Parse(source, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);
@@ -342,7 +338,7 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_AcceptsSymtabElementAssignment()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{SYMTAB[\"x\"]=\"y\"}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{SYMTAB[\"x\"]=\"y\"}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         Assert.True(binding.Success);
         Assert.Empty(binding.Diagnostics);
@@ -355,7 +351,7 @@ public sealed class AwkBinderTests
     public void AwkBinder_ReportsUndefinedFunctionDiagnostics(int lintMode, string expectedMessage)
     {
         var binding = AwkBinder.Bind(
-            AwkParser.Parse("BEGIN{missing_function()}"),
+            AwkParser.Parse("BEGIN{missing_function()}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None),
             AwkCompatibilityProfile.Default.WithLintMode((AwkLintMode)lintMode));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
@@ -368,7 +364,7 @@ public sealed class AwkBinderTests
     [Fact]
     public void AwkBinder_ValidatesOutputRedirectionTargetExpressions()
     {
-        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print 1 > missing_function()}"));
+        var binding = AwkBinder.Bind(AwkParser.Parse("BEGIN{print 1 > missing_function()}", new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance }, CancellationToken.None));
 
         var diagnostic = Assert.Single(binding.Diagnostics);
         Assert.False(binding.Success);

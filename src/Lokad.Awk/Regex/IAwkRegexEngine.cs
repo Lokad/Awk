@@ -5,13 +5,15 @@ namespace Lokad.Awk;
 /// <summary>Compiles Awk-translated patterns for synchronous matching of valid UTF-8.</summary>
 /// <remarks>The application owns the engine. Implementations must permit concurrent compilation.
 /// Awk owns each successful compiled pattern. Return false only for unsupported syntax;
-/// refused memory admission and cancellation must fail rather than request fallback.
+/// refused memory admission and cancellation must fail. Unsupported patterns fail the command;
+/// Awk has no fallback engine.
 /// The provider owns admission for its construction, retained handles and matching workspace;
 /// engine-specific bounds belong to the provider, not Awk's execution policy.</remarks>
 public interface IAwkRegexEngine
 {
     /// <summary>Compiles an already translated pattern, or reports unsupported syntax.</summary>
-    /// <param name="pattern">Awk's translated .NET-compatible pattern; do not translate it again.</param>
+    /// <param name="pattern">Awk's translated ERE pattern using .NET-compatible assertion/category spelling;
+    /// match Unicode scalars rather than UTF-16 halves. Do not translate AWK syntax again.</param>
     /// <param name="ignoreCase">Whether invariant case-insensitive matching is requested.</param>
     /// <param name="memoryBudget">The borrowed active budget, or null without host accounting.</param>
     /// <param name="cancellationToken">Current operation cancellation; do not retain it.</param>
@@ -38,7 +40,11 @@ public interface IAwkCompiledRegex : IDisposable
     /// <remarks>The caller supplies zero or a prefix of GroupCount capture slots, including group0.
     /// Fill every supplied slot, including unmatched groups. Offsets are absolute in the complete
     /// input. The result describes the whole match independently of requested captures. Preserve
-    /// full-input anchor/lookbehind context; do not search an isolated suffix.</remarks>
+    /// full-input anchor/lookbehind context; do not search an isolated suffix.
+    /// Choose the earliest viable start, then the longest whole match. Resolve ambiguous
+    /// subexpressions using POSIX capture priority, independently of how many slots were requested.
+    /// Every successful range must end on Unicode scalar boundaries. A provider must implement
+    /// these rules itself; Awk validates ranges and publishes captures but does not select matches.</remarks>
     AwkRegexCaptureRange Match(ReadOnlySpan<byte> input, int startInUtf16,
         Span<AwkRegexCaptureRange> captures, CancellationToken cancellationToken);
 }

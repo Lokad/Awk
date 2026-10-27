@@ -103,7 +103,7 @@ public sealed class AwkGlobalNumericLeafTests
 
         var testMemory = new CooperativeTestMemory(1 << 20);
         var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(),
-            AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()));
+            AwkRuntimeCounters.CreateEnabled(), (limits ?? AwkRuntimeLimits.CreateDefault()), regexEngine: AwkUtf8RegexEngine.Instance);
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, token, testMemory.Configure(options));
         if (slots) state.InitializeGlobalReadSlots(1);
         return testMemory.Initialize(() => state);

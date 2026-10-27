@@ -21,7 +21,7 @@ public sealed class AwkPrintfFieldArgumentTests
         await using var owner = AwkExecutionMemoryOwner.Create(budget, cancellation.Token);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits)
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance)
         { MemoryOwner = owner };
         var state = AwkTestHarness.CreateRuntimeState(AwkFieldSeparatorSpec.Default, cancellation.Token, options);
         var host = new PendingHost();
@@ -67,12 +67,12 @@ public sealed class AwkPrintfFieldArgumentTests
     {
         var fields = owned ? "$i,$j" : "$1,$2";
         var invocation = AwkTestHarness.BuildInvocation("awk", "-v", "i=1", "-v", "j=2", "{printf \"" + format + "\"," + fields + "}");
-        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), invocation, CancellationToken.None);
+        var compiled = await AwkExecutor.CompileAsync(new MockFileSystem(), invocation, CancellationToken.None, regexEngine: AwkUtf8RegexEngine.Instance);
         var host = new MockFileSystem();
         host.SetStandardInput("head 007\nother -3\n");
         var counters = AwkRuntimeCounters.CreateEnabled();
         var budget = new CooperativeTestBudget(2 << 20);
-        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, memoryBudget: budget);
+        var options = new AwkRuntimeOptions(static () => new(0), TimeZoneInfo.Utc, new AwkRandomGenerator(), counters, limits, memoryBudget: budget, regexEngine: AwkUtf8RegexEngine.Instance);
         var exit = await compiled.ExecuteAsync(host, CancellationToken.None, options);
         Assert.Equal(0, budget.Reserved);
         Assert.Equal(0, host.OpenFileCount);

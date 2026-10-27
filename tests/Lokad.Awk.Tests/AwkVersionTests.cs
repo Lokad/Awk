@@ -18,7 +18,7 @@ public sealed class AwkVersionTests
     {
         var host = new MockFileSystem();
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         string[] arguments = profile.Length == 0 ? option : [profile, .. option];
         Assert.True(Awk.TryParse(AwkCommandInvocation.CreateWithStandardDescriptors("awk", arguments, []), out var awk));
@@ -38,7 +38,7 @@ public sealed class AwkVersionTests
     {
         var host = new MockFileSystem();
         var budget = new CooperativeTestBudget(1 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var source = "BEGIN{print PROCINFO[\"version\"];exit}";
         string[] arguments = profile.Length == 0 ? [source] : [profile, source];

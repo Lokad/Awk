@@ -40,7 +40,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var command = AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []);
         Assert.True(Awk.TryParse(command, out var tool));
         var budget = new CooperativeTestBudget(8 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault().WithCommandEnvironment(forward);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithCommandEnvironment(forward);
         if (governed) policy = policy.WithMemoryBudget(budget);
 
         var result = await tool.ExecuteAsync(host, policy, CancellationToken.None);
@@ -67,7 +67,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{ENVIRON[\"TOKEN\"]=\"secret\"; print \"payload\" | \"consumer\"; exit}"));
-        var policy = AwkExecutionPolicy.CreateRestricted().WithCommandPipes(true);
+        var policy = AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithCommandPipes(true);
 
         var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
 
@@ -130,7 +130,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
         var tool = AwkTestHarness.ParseAwk(BuildInvocation(
             "awk",
             "BEGIN{print \"one\" | \"first\"; print \"two\" | \"second\"}"));
-        var policy = AwkExecutionPolicy.CreateDefault().WithMaxPipes(1);
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMaxPipes(1);
 
         var exitCode = await tool.ExecuteAsync(host, policy, CancellationToken.None);
 
@@ -164,7 +164,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             ]);
         var tool = AwkTestHarness.ParseAwk(command);
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         var child = Assert.Single(host.CommandInvocations);
@@ -192,7 +192,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             "awk",
             "BEGIN{print \"one\" | \"cat -n\"; print \"two\" | \"cat -n\"}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         var invocation = Assert.Single(host.CommandInvocations);
@@ -217,7 +217,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             "awk",
             "BEGIN{print \"payload\" | \"worker\"; print close(\"worker\")}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("payload\n", host.GetAppendedOutput(pipeWrite));
@@ -237,7 +237,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             "awk",
             "BEGIN{print \"payload\" | \"closed-reader\"; print \"after\"}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.FatalError, exitCode);
         Assert.Equal(
@@ -264,7 +264,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             "awk",
             "BEGIN{\"producer\" | getline line; print line}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         var invocation = Assert.Single(host.CommandInvocations);
@@ -294,7 +294,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             "awk",
             "BEGIN{RS=\"|\"; \"producer\" | getline line; print line \"[\" RT \"]\"}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("first[|]\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));
@@ -317,7 +317,7 @@ public sealed class AwkPipeRuntimeTests : AwkCurrentSurfaceTestBase
             "awk",
             "BEGIN{\"producer\" | getline line; print close(\"producer\", \"from\")}"));
 
-        var exitCode = await tool.ExecuteAsync(host, CancellationToken.None);
+        var exitCode = await tool.ExecuteAsync(host, AwkTestHarness.CreatePolicy(), CancellationToken.None);
 
         Assert.Equal(AwkExitCode.Success, exitCode);
         Assert.Equal("17\n", host.GetAppendedOutput(AwkFileDescriptor.StdOut));

@@ -6,7 +6,7 @@ using Lokad.Awk.Benchmarking;
 public class GovernedAllocationProfile
 {
     private ReferenceWorkload? _workload;
-    private AwkExecutionPolicy _policy = AwkExecutionPolicy.CreateDefault();
+    private AwkExecutionPolicy _policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
     private readonly Lokad.Awk.Tests.CooperativeTestBudget _budget = new(512L << 20);
     [Params("shared-calls", "default-calls", "shared-projection", "shared-aggregate", "default-aggregate",
         "default-arithmetic", "default-posix-arithmetic", "shared-posix-arithmetic")]

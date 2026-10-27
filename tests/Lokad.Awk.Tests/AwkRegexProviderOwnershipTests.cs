@@ -7,7 +7,7 @@ public sealed class AwkRegexProviderOwnershipTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task LiteralAndDynamicDefaultHandlesRequireExecutionAdmission(bool literal)
+    public async Task LiteralAndDynamicProviderHandlesRequireExecutionAdmission(bool literal)
     {
         var pattern = new string('a', 1024);
         var source = literal
@@ -28,7 +28,7 @@ public sealed class AwkRegexProviderOwnershipTests
         {
             var command = AwkTestHarness.BuildInvocation("awk", source);
             Assert.True(Awk.TryParse(command, out var awk));
-            var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget),
+            var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget),
                 CancellationToken.None);
             Assert.Equal(AwkExitCode.FatalError, exit);
             Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -40,30 +40,13 @@ public sealed class AwkRegexProviderOwnershipTests
     }
 
     [Fact]
-    public void DefaultProviderOwnsAdmissionAndRefundsInvalidConstruction()
-    {
-        var budget = new CooperativeTestBudget(1 << 20);
-        using (var pattern = AwkDotNetRegexPattern.Compile("a+", RegexOptions.CultureInvariant, budget))
-        {
-            Assert.True(budget.Reserved > 0);
-            Assert.Matches(pattern, "aaa");
-            Assert.Equal(TimeSpan.FromSeconds(2), pattern.MatchTimeout);
-        }
-        Assert.Equal(0, budget.Reserved);
-        Assert.ThrowsAny<ArgumentException>(() => AwkDotNetRegexPattern.Compile("(", RegexOptions.None, budget));
-        Assert.Equal(0, budget.Reserved);
-        Assert.Throws<AwkRuntimeException>(() => AwkDotNetRegexPattern.Compile("a", RegexOptions.None,
-            new CooperativeTestBudget(1)));
-    }
-
-    [Fact]
-    public void EvictedDefaultHandleRefundsAndAnOutstandingRegexCanRecompile()
+    public void EvictedProviderHandleRefundsAndAnOutstandingRegexCanRecompile()
     {
         var budget = new CooperativeTestBudget(1 << 20);
         using (var runtime = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive,
             AwkStringUnitMode.Utf8Rune, static () => { }, AwkRuntimeCounters.Disabled,
             new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), AwkRuntimeCounters.Disabled),
-            memoryBudget: budget))
+            memoryBudget: budget, regexEngine: AwkUtf8RegexEngine.Instance))
         {
             var first = runtime.Create(new AwkRegexPattern("a"));
             Assert.True(runtime.IsMatch(first, AwkText.FromString("a")));
@@ -131,7 +114,7 @@ public sealed class AwkRegexProviderOwnershipTests
             [$"BEGIN{{r=\"{pattern}\";print (\"{input}\"~r)}}"], []);
         Assert.True(Awk.TryParse(command, out var awk));
         var host = new MockFileSystem();
-        var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateRestricted(), CancellationToken.None);
+        var exit = await awk.ExecuteAsync(host, AwkExecutionPolicy.CreateRestricted().WithRegexEngine(AwkUtf8RegexEngine.Instance), CancellationToken.None);
         Assert.Equal(AwkExitCode.Success, exit);
         Assert.Equal("1\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));

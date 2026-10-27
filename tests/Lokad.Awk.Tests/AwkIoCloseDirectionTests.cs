@@ -22,7 +22,7 @@ public sealed class AwkIoCloseDirectionTests
         var input = test.Name.StartsWith("close-mode-pipe-True-", StringComparison.Ordinal);
         var host = new AwkEmptyPipeTestHost(files) { InputRecord = "row\n", CommandStatus = input ? 7 : 17 };
         var budget = new CooperativeTestBudget(16 << 20);
-        var policy = AwkExecutionPolicy.CreateDefault();
+        var policy = AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
         if (governed) policy = policy.WithMemoryBudget(budget);
         var awk = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk", test.Arguments, test.Environment));
         using var watchdog = new CancellationTokenSource(TimeSpan.FromSeconds(10));

@@ -41,7 +41,7 @@ public sealed class AwkDateFormattingMemoryTests
         var host = new MockFileSystem();
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{print \"before\";v=strftime(\"%2000000Y\",0,1);print \"after\"} END{print \"end\"}"));
-        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget),
+        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget),
             CancellationToken.None);
         Assert.Equal(AwkExitCode.FatalError, exit);
         Assert.Equal("before\n", host.GetOutput(AwkFileDescriptor.StdOut));
@@ -60,7 +60,7 @@ public sealed class AwkDateFormattingMemoryTests
         var host = new MockFileSystem();
         var tool = AwkTestHarness.ParseAwk(AwkTestHarness.BuildInvocation("awk",
             "BEGIN{print \"before\";print strftime(\"" + format + "\",0,1);print \"after\"}"));
-        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget), CancellationToken.None);
+        var exit = await tool.ExecuteAsync(host, AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance).WithMemoryBudget(budget), CancellationToken.None);
         Assert.Equal(0, exit.Value);
         Assert.Equal("before\n" + expected + "\nafter\n", host.GetOutput(AwkFileDescriptor.StdOut));
         Assert.Equal("", host.GetOutput(AwkFileDescriptor.StdErr));

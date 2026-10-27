@@ -6,21 +6,20 @@ public sealed class AwkParagraphPipeEofTests
     {
         foreach (var testCase in AwkGoldenCorpus.PipeParagraphEofCases())
 
-            foreach (var utf8 in new[] { false, true })
-                yield return [testCase, utf8];
+            yield return [testCase];
     }
 
     [Theory]
     [MemberData(nameof(PipeCases))]
     public async Task PipeParagraphEofMatchesTheSelectedReferenceContract(
-        AwkGoldenCase testCase, bool utf8)
+        AwkGoldenCase testCase)
     {
         var files = AwkTestHarness.BuildFileSystem(testCase);
         var host = new AwkGetlinePipeTestHost(files);
         var invocation = AwkTestHarness.BuildInvocation("awk", testCase.Arguments, testCase.Environment);
         var counters = AwkRuntimeCounters.CreateEnabled();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: utf8 ? AwkUtf8RegexEngine.Instance : null);
+            new AwkRandomGenerator(), counters, AwkRuntimeLimits.CreateDefault(), regexEngine: AwkUtf8RegexEngine.Instance);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         var exit = await AwkExecutor.ExecuteAsync(host, AwkCommandParser.Parse(invocation), deadline.Token, options);

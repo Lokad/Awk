@@ -52,7 +52,7 @@ public sealed class AwkNumericFieldConsumptionTests
         var counters = AwkRuntimeCounters.CreateEnabled();
         var limits = AwkRuntimeLimits.CreateDefault();
         var options = new AwkRuntimeOptions(() => new AwkUnixTimestampSeconds(0), TimeZoneInfo.Utc,
-            new AwkRandomGenerator(), counters, limits);
+            new AwkRandomGenerator(), counters, limits, regexEngine: AwkUtf8RegexEngine.Instance);
         var memory = new CooperativeTestMemory(1 << 20, counters, enabled: governed);
         return memory.Initialize(() => AwkTestHarness.CreateRuntimeState(
             AwkFieldSeparatorSpec.Default, cancellation, memory.Configure(options)));

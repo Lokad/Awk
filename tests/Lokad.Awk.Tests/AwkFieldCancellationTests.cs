@@ -300,7 +300,7 @@ public sealed class AwkFieldCancellationTests
     private static AwkFieldSplitter Splitter(Action checkpoint, AwkRuntimeCounters counters, AwkMemoryAccounting governor, AwkRuntimeResourceMonitor? resources = null)
     {
         var monitor = resources ?? new AwkRuntimeResourceMonitor(AwkRuntimeLimits.CreateDefault(), counters);
-        var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint, counters, monitor, governor);
+        var regex = new AwkRegexRuntime(() => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint, counters, monitor, governor, regexEngine: AwkUtf8RegexEngine.Instance);
         return new(AwkFieldSeparatorSpec.Default, regex.Create, regex.CreateLiteral, regex.EnumerateMatchSpans, () => AwkRegexCaseSensitivity.CaseSensitive, AwkStringUnitMode.Utf8Rune, checkpoint, governor, counters);
     }
 

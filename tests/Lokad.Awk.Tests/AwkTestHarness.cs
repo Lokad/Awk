@@ -8,10 +8,16 @@ namespace Lokad.Awk.Tests;
 
 internal static class AwkTestHarness
 {
+    public static AwkExecutionPolicy CreatePolicy() =>
+        AwkExecutionPolicy.CreateDefault().WithRegexEngine(AwkUtf8RegexEngine.Instance);
+
+    public static AwkRuntimeOptions CreateRuntimeOptions() =>
+        AwkRuntimeOptions.CreateSystemDefault() with { RegexEngine = AwkUtf8RegexEngine.Instance };
+
     public static AwkRuntimeState CreateRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
         CancellationToken cancellationToken) =>
-        CreateRuntimeState(fieldSeparator, cancellationToken, AwkRuntimeOptions.CreateSystemDefault());
+        CreateRuntimeState(fieldSeparator, cancellationToken, AwkTestHarness.CreateRuntimeOptions());
 
     public static AwkRuntimeState CreateRuntimeState(
         AwkFieldSeparatorSpec fieldSeparator,
@@ -92,7 +98,7 @@ internal static class AwkTestHarness
     {
         var fileSystem = BuildFileSystem(testCase);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", testCase.Arguments, testCase.Environment));
-        var exitCode = await tool.ExecuteAsync(fileSystem, cancellationToken).ConfigureAwait(false);
+        var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), cancellationToken).ConfigureAwait(false);
         var expectedFiles = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var expectedFile in testCase.ExpectedFiles)
         {
@@ -115,7 +121,7 @@ internal static class AwkTestHarness
     {
         var fileSystem = BuildFileSystem(testCase);
         var compiled = await AwkExecutor
-            .CompileAsync(fileSystem, BuildInvocation("awk", testCase.Arguments, testCase.Environment), cancellationToken)
+            .CompileAsync(fileSystem, BuildInvocation("awk", testCase.Arguments, testCase.Environment), cancellationToken, regexEngine: AwkUtf8RegexEngine.Instance)
             .ConfigureAwait(false);
         var exitCode = await compiled.ExecuteAsync(fileSystem, cancellationToken, runtimeOptions).ConfigureAwait(false);
         var expectedFiles = new Dictionary<string, string?>(StringComparer.Ordinal);
@@ -148,7 +154,7 @@ internal static class AwkTestHarness
         var arguments = new List<string>(1 + inputArguments.Count) { program };
         arguments.AddRange(inputArguments);
         var tool = AwkTestHarness.ParseAwk(BuildInvocation("awk", arguments, []));
-        var exitCode = await tool.ExecuteAsync(fileSystem, cancellationToken).ConfigureAwait(false);
+        var exitCode = await tool.ExecuteAsync(fileSystem, AwkTestHarness.CreatePolicy(), cancellationToken).ConfigureAwait(false);
 
         return new AwkTestRunResult(
             exitCode.Value,

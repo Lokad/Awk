@@ -82,7 +82,7 @@ public sealed class AwkGoldenCorpusTests
             return;
         }
 
-        var runtimeOptions = AwkRuntimeOptions.CreateSystemDefault();
+        var runtimeOptions = AwkTestHarness.CreateRuntimeOptions();
         var sourceLoad = await AwkSourceLoader.LoadAsync(
             fileSystem,
             invocation,
@@ -94,7 +94,7 @@ public sealed class AwkGoldenCorpusTests
         var expectParserFailure = IsParserDiagnosticCase(testCase);
         var source = loaded.CompilationSource;
         var binding = AwkBinder.Bind(
-            AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue),
+            AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance },
                 CancellationToken.None, invocation.ExecutionOptions.CompatibilityProfile.Mode),
             invocation.ExecutionOptions.CompatibilityProfile);
         if (expectParserFailure)
@@ -119,7 +119,7 @@ public sealed class AwkGoldenCorpusTests
             return;
         }
 
-        var runtimeOptions = AwkRuntimeOptions.CreateSystemDefault();
+        var runtimeOptions = AwkTestHarness.CreateRuntimeOptions();
         var sourceLoad = await AwkSourceLoader.LoadAsync(
             fileSystem,
             invocation,
@@ -130,7 +130,7 @@ public sealed class AwkGoldenCorpusTests
 
         var expectParserFailure = IsParserDiagnosticCase(testCase);
         var source = loaded.CompilationSource;
-        var parse = AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue),
+        var parse = AwkParser.Parse(source.Text, new AwkFrontendBudget(int.MaxValue) { RegexEngine = AwkUtf8RegexEngine.Instance },
                 CancellationToken.None, invocation.ExecutionOptions.CompatibilityProfile.Mode);
         var binding = AwkBinder.Bind(parse, invocation.ExecutionOptions.CompatibilityProfile);
         if (expectParserFailure)
