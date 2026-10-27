@@ -1,8 +1,10 @@
 # Benchmarks
 
-Current comparison with GNU awk 5.2.1, measured **2026-10-22 UTC** at
-[`d020a3d`](https://github.com/Lokad/Awk/commit/d020a3d96af27c7ca1607995584aa17c5b248e19). The 37 medium and three large rows
-share this source and fixture host. The separately dated policy controls below are retained.
+Current comparison with GNU awk 5.2.1. **Labeled printf** was measured **2026-10-27 UTC** at
+[`2b099dc`](https://github.com/Lokad/Awk/commit/2b099dc9ff84ccca2a5944d887c0bea4afb58be4).
+The other 37 medium and three large rows retain **2026-10-22 UTC** measurements at
+[`d020a3d`](https://github.com/Lokad/Awk/commit/d020a3d96af27c7ca1607995584aa17c5b248e19).
+The separately dated policy controls below are retained. This is a selective refresh.
 All comparison rows use the interpreter, default .NET regex and default policy (UTC time zone),
 without shared admission. The internal Utf8Regex adapter is outside this baseline.
 
@@ -13,7 +15,7 @@ or GNU native allocations. Rows run from worst ratio to best within each scale.
 
 ## Representative processing
 
-All 37 families share the same [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs)
+All 38 families share the same [scripts and fixtures](../benchmarks/Lokad.Awk.Benchmarks/ReferenceWorkloads.cs)
 across implementations. Most have 4,096 records; all-fields wide and long-field cases have
 256, and join has 4,096 records per file. GNU-marked cases do not imply full GNU conformance.
 
@@ -48,6 +50,7 @@ across implementations. Most have 4,096 records; all-fields wide and long-field 
 | Alternate reads from two lookup arrays | 21.50 | 2.389 | 1.475 | 1.62× | 0.73 |
 | Literal field separator | 48.00 | 2.125 | 1.437 | 1.48× | 0.70 |
 | Field-key membership | 48.56 | 1.978 | 1.344 | 1.47× | 0.75 |
+| Labeled printf | 24.00 | 3.669 | 2.571 | 1.43× | 0.66 |
 | Literal index search in a field | 70.00 | 2.246 | 1.617 | 1.39× | 0.71 |
 | Filter three fields | 24.00 | 2.047 | 1.561 | 1.31× | 0.67 |
 | Field loop, 64 fields | 80.00 | 2.435 | 2.254 | 1.08× | 0.99 |
@@ -61,6 +64,8 @@ Early wide filtering reads `$1` on every record and `$3` on one in eight. Array 
 existing/new keys and alternating lookup tables; field search covers hits/misses with a Unicode
 prefix. Function cases distinguish pure returns, branches, local temporaries and nested calls.
 Field rewriting runs `{$2=$1;print}`, including `$0` reconstruction with `OFS`.
+Labeled printf (`format-literals`) emits fixed status text around two fields; plain printf
+focuses on numeric width and short separators. Both include normal output consumption.
 
 ## Larger inputs
 
