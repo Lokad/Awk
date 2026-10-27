@@ -27,7 +27,7 @@ public sealed class AwkRecordCursorContextTests
         var awk = AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", arguments, []));
         var policy = AwkExecutionPolicy.CreateDefault();
         if (governed) policy = policy.WithMemoryBudget(budget);
-        if (adapter) policy = policy.WithRegexEngine(Utf8Regex.AwkUtf8RegexEngine.Instance);
+        if (adapter) policy = policy.WithRegexEngine(AwkUtf8RegexEngine.Instance);
         var exit = await awk.ExecuteAsync(host, policy, CancellationToken.None);
         Assert.Equal(golden.ExpectedExitCode, exit.Value);
         Assert.Equal(golden.ExpectedStdOut, host.Output);

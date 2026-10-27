@@ -20,6 +20,12 @@
           "System.Management": "9.0.5"
         }
       },
+      "Lokad.Utf8Regex": {
+        "type": "Direct",
+        "requested": "[0.2.0, )",
+        "resolved": "0.2.0",
+        "contentHash": "AK2u9bIayI3bqbHvuRYuyB9pUVbzIMhimSsFhy7GAvESangIWACzc1TdJWHKFoXD2hus0F+G1MFj343tPdeAUg=="
+      },
       "BenchmarkDotNet.Annotations": {
         "type": "Transitive",
         "resolved": "0.15.8",

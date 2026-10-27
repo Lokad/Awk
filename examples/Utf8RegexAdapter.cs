@@ -2,10 +2,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using ProducerRegex = Lokad.Utf8Regex.Utf8Regex;
 
-namespace Lokad.Awk.Utf8Regex;
+namespace Lokad.Awk.Examples;
 
-/// <summary>Adapts Lokad.Utf8Regex to Awk's UTF-8 matching contract.</summary>
-/// <remarks>This adapter adds no input copies or capture-text allocations. Producer internals
+/// <summary>Application-side integration example for the published Lokad.Utf8Regex API.</summary>
+/// <remarks>The pinned package has known AWK selection/Unicode gaps; this is not a qualified
+/// general AWK provider. This adapter adds no input copies or capture-text allocations. Producer internals
 /// use coarse shared-budget admission owned by compiled handles and active matches;
 /// no independent allowance or governor is created.</remarks>
 public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
@@ -21,7 +22,7 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
         ArgumentNullException.ThrowIfNull(pattern);
         cancellationToken.ThrowIfCancellationRequested();
         var options = RegexOptions.CultureInvariant | (ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
-        // Pinned0.2.0 has no token-aware APIs. Keep boundary checks until a producer upgrade
+        // Published 0.2.0 has no token-aware APIs. Keep boundary checks until a producer upgrade
         // is qualified; do not inherit its default timeout or create an independent clock.
         IMemoryReservation? storage = null;
         if (memoryBudget is not null && !memoryBudget.TryReserve(1_024L + pattern.Length * 64L, out storage))
@@ -63,7 +64,7 @@ public sealed class AwkUtf8RegexEngine : IAwkRegexEngine
             cancellationToken.ThrowIfCancellationRequested();
             var regex = Regex;
             using var scratch = ReserveMatch(input.Length, 0);
-            var result = regex.Match(input).Success;
+            var result = regex.IsMatch(input);
             cancellationToken.ThrowIfCancellationRequested();
             return result;
         }

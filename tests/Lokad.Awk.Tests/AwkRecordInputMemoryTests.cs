@@ -117,7 +117,7 @@ public sealed class AwkRecordInputMemoryTests
     {
         var policy = AwkExecutionPolicy.CreateDefault().WithMemoryBudget(budget);
         if (engine == "unsupported") policy = policy.WithRegexEngine(new UnsupportedEngine());
-        if (engine is "utf8" or "semantic") policy = policy.WithRegexEngine(Utf8Regex.AwkUtf8RegexEngine.Instance);
+        if (engine is "utf8" or "semantic") policy = policy.WithRegexEngine(AwkUtf8RegexEngine.Instance);
         return AwkTestHarness.ParseAwk(AwkCommandInvocation.CreateWithStandardDescriptors("awk", [script], []))
             .ExecuteAsync(host, policy, token);
     }
